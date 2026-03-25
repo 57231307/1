@@ -1,0 +1,2 @@
+﻿error: could not compile `bingxi-backend` (lib) due to 246 previous errors; 193
+ warnings emitted

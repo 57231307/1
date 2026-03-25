@@ -1,0 +1,543 @@
+{
+  "info": {
+    "name": "秉羲管理系统 API",
+    "description": "秉羲管理系统的完整 API 测试集合",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1/erp",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "认证",
+      "item": [
+        {
+          "name": "用户登录",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', jsonData.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "验证 Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/verify-token",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "verify-token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "采购合同管理",
+      "item": [
+        {
+          "name": "获取采购合同列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts?page=1&page_size=10",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                },
+                {
+                  "key": "keyword",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取单个采购合同",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts/1",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts", "1"]
+            }
+          }
+        },
+        {
+          "name": "创建采购合同",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract_no\": \"PC{{timestamp}}\",\n  \"contract_name\": \"测试采购合同\",\n  \"supplier_id\": 1,\n  \"total_amount\": \"10000.00\",\n  \"payment_terms\": \"30 天账期\",\n  \"delivery_date\": \"2026-04-01\",\n  \"remark\": \"测试合同\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts"]
+            }
+          }
+        },
+        {
+          "name": "审核采购合同",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts/1/approve",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts", "1", "approve"]
+            }
+          }
+        },
+        {
+          "name": "执行采购合同",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"execution_type\": \"purchase_order\",\n  \"execution_amount\": \"5000.00\",\n  \"related_bill_type\": \"purchase_order\",\n  \"related_bill_id\": 1,\n  \"remark\": \"执行备注\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts/1/execute",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts", "1", "execute"]
+            }
+          }
+        },
+        {
+          "name": "取消采购合同",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"取消原因\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts/1/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts", "1", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "删除采购合同",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/purchase-contracts/1",
+              "host": ["{{base_url}}"],
+              "path": ["purchase-contracts", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "销售合同管理",
+      "item": [
+        {
+          "name": "获取销售合同列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sales-contracts?page=1&page_size=10",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取单个销售合同",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sales-contracts/1",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts", "1"]
+            }
+          }
+        },
+        {
+          "name": "创建销售合同",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract_no\": \"SC{{timestamp}}\",\n  \"contract_name\": \"测试销售合同\",\n  \"customer_id\": 1,\n  \"total_amount\": \"15000.00\",\n  \"payment_terms\": \"预付款 30%\",\n  \"delivery_date\": \"2026-04-01\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sales-contracts",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts"]
+            }
+          }
+        },
+        {
+          "name": "审核销售合同",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sales-contracts/1/approve",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts", "1", "approve"]
+            }
+          }
+        },
+        {
+          "name": "执行销售合同",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"execution_type\": \"sales_order\",\n  \"execution_amount\": \"8000.00\",\n  \"related_bill_type\": \"sales_order\",\n  \"related_bill_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sales-contracts/1/execute",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts", "1", "execute"]
+            }
+          }
+        },
+        {
+          "name": "取消销售合同",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"取消原因\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sales-contracts/1/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts", "1", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "删除销售合同",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sales-contracts/1",
+              "host": ["{{base_url}}"],
+              "path": ["sales-contracts", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "固定资产管理",
+      "item": [
+        {
+          "name": "获取固定资产列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/fixed-assets?page=1&page_size=10",
+              "host": ["{{base_url}}"],
+              "path": ["fixed-assets"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取单个固定资产",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/fixed-assets/1",
+              "host": ["{{base_url}}"],
+              "path": ["fixed-assets", "1"]
+            }
+          }
+        },
+        {
+          "name": "创建固定资产",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asset_no\": \"FA{{timestamp}}\",\n  \"asset_name\": \"测试设备\",\n  \"asset_category\": \"equipment\",\n  \"specification\": \"规格型号\",\n  \"location\": \"车间 A\",\n  \"original_value\": \"50000.00\",\n  \"useful_life\": 60,\n  \"depreciation_method\": \"straight_line\",\n  \"purchase_date\": \"2026-03-16\",\n  \"put_in_date\": \"2026-03-16\",\n  \"supplier_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/fixed-assets",
+              "host": ["{{base_url}}"],
+              "path": ["fixed-assets"]
+            }
+          }
+        },
+        {
+          "name": "计提折旧",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/fixed-assets/1/depreciate",
+              "host": ["{{base_url}}"],
+              "path": ["fixed-assets", "1", "depreciate"]
+            }
+          }
+        },
+        {
+          "name": "处置资产",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disposal_type\": \"sale\",\n  \"disposal_value\": \"10000.00\",\n  \"disposal_date\": \"2026-12-31\",\n  \"reason\": \"设备更新\",\n  \"buyer_info\": \"买家信息\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/fixed-assets/1/dispose",
+              "host": ["{{base_url}}"],
+              "path": ["fixed-assets", "1", "dispose"]
+            }
+          }
+        },
+        {
+          "name": "删除固定资产",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/fixed-assets/1",
+              "host": ["{{base_url}}"],
+              "path": ["fixed-assets", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "预算管理",
+      "item": [
+        {
+          "name": "获取预算科目列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/budget-items?page=1&page_size=10",
+              "host": ["{{base_url}}"],
+              "path": ["budget-items"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取单个预算科目",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/budget-items/1",
+              "host": ["{{base_url}}"],
+              "path": ["budget-items", "1"]
+            }
+          }
+        },
+        {
+          "name": "创建预算科目",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_code\": \"BI{{timestamp}}\",\n  \"item_name\": \"测试预算科目\",\n  \"item_type\": \"expense\",\n  \"parent_id\": null,\n  \"level\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/budget-items",
+              "host": ["{{base_url}}"],
+              "path": ["budget-items"]
+            }
+          }
+        },
+        {
+          "name": "更新预算科目",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_name\": \"更新后的名称\",\n  \"item_type\": \"expense\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/budget-items/1",
+              "host": ["{{base_url}}"],
+              "path": ["budget-items", "1"]
+            }
+          }
+        },
+        {
+          "name": "删除预算科目",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/budget-items/1",
+              "host": ["{{base_url}}"],
+              "path": ["budget-items", "1"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

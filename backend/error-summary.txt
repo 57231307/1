@@ -1,0 +1,6 @@
+﻿
+> error[E0433]: failed to resolve: use of undeclared crate or module `log_operation`
+     --> src\services\log_service.rs:346:50
+      |
+
+

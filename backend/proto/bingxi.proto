@@ -1,0 +1,621 @@
+syntax = "proto3";
+
+package bingxi;
+
+// 用户服务定义
+service UserService {
+  // 获取用户信息
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  // 创建用户
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  // 更新用户
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  // 删除用户
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  // 列出用户
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+// 认证服务定义
+service AuthService {
+  // 用户登录
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // 验证 Token
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
+}
+
+// 基础消息类型
+message User {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  string role = 5;
+  string status = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+  int64 last_login_at = 9;
+}
+
+// 用户相关请求/响应
+message GetUserRequest {
+  int32 user_id = 1;
+}
+
+message GetUserResponse {
+  bool success = 1;
+  string message = 2;
+  User user = 3;
+}
+
+message CreateUserRequest {
+  string username = 1;
+  string password = 2;
+  string email = 3;
+  string phone = 4;
+  string role = 5;
+}
+
+message CreateUserResponse {
+  bool success = 1;
+  string message = 2;
+  User user = 3;
+}
+
+message UpdateUserRequest {
+  int32 user_id = 1;
+  string email = 2;
+  string phone = 3;
+  string role = 4;
+  string status = 5;
+}
+
+message UpdateUserResponse {
+  bool success = 1;
+  string message = 2;
+  User user = 3;
+}
+
+message DeleteUserRequest {
+  int32 user_id = 1;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListUsersRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string status = 3;
+  string role = 4;
+}
+
+message ListUsersResponse {
+  bool success = 1;
+  string message = 2;
+  repeated User users = 3;
+  int32 total = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+  int32 total_pages = 7;
+}
+
+// 认证相关请求/响应
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  bool success = 1;
+  string message = 2;
+  string token = 3;
+  User user = 4;
+}
+
+message VerifyTokenRequest {
+  string token = 1;
+}
+
+message VerifyTokenResponse {
+  bool success = 1;
+  string message = 2;
+  bool valid = 3;
+  User user = 4;
+}
+
+// ===================== 采购合同服务 =====================
+service PurchaseContractService {
+  rpc ListContracts(ListPurchaseContractsRequest) returns (ListPurchaseContractsResponse);
+  rpc GetContract(GetPurchaseContractRequest) returns (GetPurchaseContractResponse);
+  rpc CreateContract(CreatePurchaseContractRequest) returns (CreatePurchaseContractResponse);
+  rpc ApproveContract(ApprovePurchaseContractRequest) returns (ApprovePurchaseContractResponse);
+  rpc ExecuteContract(ExecutePurchaseContractRequest) returns (ExecutePurchaseContractResponse);
+  rpc CancelContract(CancelPurchaseContractRequest) returns (CancelPurchaseContractResponse);
+}
+
+message PurchaseContract {
+  int32 id = 1;
+  string contract_no = 2;
+  string contract_name = 3;
+  string contract_type = 4;
+  int32 supplier_id = 5;
+  string supplier_name = 6;
+  string total_amount = 7;
+  string signed_date = 8;
+  string effective_date = 9;
+  string expiry_date = 10;
+  string payment_terms = 11;
+  string payment_method = 12;
+  string delivery_date = 13;
+  string delivery_location = 14;
+  string status = 15;
+  int32 created_by = 16;
+  int64 created_at = 17;
+  int64 updated_at = 18;
+}
+
+message ListPurchaseContractsRequest {
+  string keyword = 1;
+  string status = 2;
+  int32 supplier_id = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListPurchaseContractsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated PurchaseContract contracts = 3;
+  int32 total = 4;
+}
+
+message GetPurchaseContractRequest {
+  int32 contract_id = 1;
+}
+
+message GetPurchaseContractResponse {
+  bool success = 1;
+  string message = 2;
+  PurchaseContract contract = 3;
+}
+
+message CreatePurchaseContractRequest {
+  string contract_no = 1;
+  string contract_name = 2;
+  int32 supplier_id = 3;
+  string total_amount = 4;
+  string payment_terms = 5;
+  string delivery_date = 6;
+  string remark = 7;
+}
+
+message CreatePurchaseContractResponse {
+  bool success = 1;
+  string message = 2;
+  PurchaseContract contract = 3;
+}
+
+message ApprovePurchaseContractRequest {
+  int32 contract_id = 1;
+}
+
+message ApprovePurchaseContractResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ExecutePurchaseContractRequest {
+  int32 contract_id = 1;
+  string execution_type = 2;
+  string execution_amount = 3;
+  string related_bill_type = 4;
+  int32 related_bill_id = 5;
+  string remark = 6;
+}
+
+message ExecutePurchaseContractResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CancelPurchaseContractRequest {
+  int32 contract_id = 1;
+  string reason = 2;
+}
+
+message CancelPurchaseContractResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ===================== 销售合同服务 =====================
+service SalesContractService {
+  rpc ListContracts(ListSalesContractsRequest) returns (ListSalesContractsResponse);
+  rpc GetContract(GetSalesContractRequest) returns (GetSalesContractResponse);
+  rpc CreateContract(CreateSalesContractRequest) returns (CreateSalesContractResponse);
+  rpc ApproveContract(ApproveSalesContractRequest) returns (ApproveSalesContractResponse);
+  rpc ExecuteContract(ExecuteSalesContractRequest) returns (ExecuteSalesContractResponse);
+  rpc CancelContract(CancelSalesContractRequest) returns (CancelSalesContractResponse);
+}
+
+message SalesContract {
+  int32 id = 1;
+  string contract_no = 2;
+  string contract_name = 3;
+  string contract_type = 4;
+  int32 customer_id = 5;
+  string customer_name = 6;
+  string total_amount = 7;
+  string signed_date = 8;
+  string effective_date = 9;
+  string expiry_date = 10;
+  string payment_terms = 11;
+  string payment_method = 12;
+  string delivery_date = 13;
+  string delivery_location = 14;
+  string status = 15;
+  int32 created_by = 16;
+  int64 created_at = 17;
+  int64 updated_at = 18;
+}
+
+message ListSalesContractsRequest {
+  string keyword = 1;
+  string status = 2;
+  int32 customer_id = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListSalesContractsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated SalesContract contracts = 3;
+  int32 total = 4;
+}
+
+message GetSalesContractRequest {
+  int32 contract_id = 1;
+}
+
+message GetSalesContractResponse {
+  bool success = 1;
+  string message = 2;
+  SalesContract contract = 3;
+}
+
+message CreateSalesContractRequest {
+  string contract_no = 1;
+  string contract_name = 2;
+  int32 customer_id = 3;
+  string total_amount = 4;
+  string payment_terms = 5;
+  string delivery_date = 6;
+  string remark = 7;
+}
+
+message CreateSalesContractResponse {
+  bool success = 1;
+  string message = 2;
+  SalesContract contract = 3;
+}
+
+message ApproveSalesContractRequest {
+  int32 contract_id = 1;
+}
+
+message ApproveSalesContractResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ExecuteSalesContractRequest {
+  int32 contract_id = 1;
+  string execution_type = 2;
+  string execution_amount = 3;
+  string related_bill_type = 4;
+  int32 related_bill_id = 5;
+  string remark = 6;
+}
+
+message ExecuteSalesContractResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CancelSalesContractRequest {
+  int32 contract_id = 1;
+  string reason = 2;
+}
+
+message CancelSalesContractResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ===================== 固定资产服务 =====================
+service FixedAssetService {
+  rpc ListAssets(ListFixedAssetsRequest) returns (ListFixedAssetsResponse);
+  rpc GetAsset(GetFixedAssetRequest) returns (GetFixedAssetResponse);
+  rpc CreateAsset(CreateFixedAssetRequest) returns (CreateFixedAssetResponse);
+  rpc DepreciateAsset(DepreciateFixedAssetRequest) returns (DepreciateFixedAssetResponse);
+  rpc DisposeAsset(DisposeFixedAssetRequest) returns (DisposeFixedAssetResponse);
+  rpc DeleteAsset(DeleteFixedAssetRequest) returns (DeleteFixedAssetResponse);
+}
+
+message FixedAsset {
+  int32 id = 1;
+  string asset_no = 2;
+  string asset_name = 3;
+  string asset_category = 4;
+  string specification = 5;
+  string model = 6;
+  int32 use_department_id = 7;
+  string use_location = 8;
+  int32 responsible_person_id = 9;
+  string original_value = 10;
+  string salvage_value = 11;
+  string salvage_rate = 12;
+  string depreciable_value = 13;
+  string depreciation_method = 14;
+  int32 useful_life = 15;
+  string monthly_depreciation = 16;
+  string accumulated_depreciation = 17;
+  string net_value = 18;
+  string status = 19;
+  string purchase_date = 20;
+  string in_service_date = 21;
+  string disposal_date = 22;
+  int32 supplier_id = 23;
+  string supplier_name = 24;
+  int32 created_by = 25;
+  int64 created_at = 26;
+  int64 updated_at = 27;
+}
+
+message ListFixedAssetsRequest {
+  string keyword = 1;
+  string status = 2;
+  string asset_category = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListFixedAssetsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated FixedAsset assets = 3;
+  int32 total = 4;
+}
+
+message GetFixedAssetRequest {
+  int32 asset_id = 1;
+}
+
+message GetFixedAssetResponse {
+  bool success = 1;
+  string message = 2;
+  FixedAsset asset = 3;
+}
+
+message CreateFixedAssetRequest {
+  string asset_no = 1;
+  string asset_name = 2;
+  string asset_category = 3;
+  string specification = 4;
+  string location = 5;
+  string original_value = 6;
+  int32 useful_life = 7;
+  string depreciation_method = 8;
+  string purchase_date = 9;
+  string put_in_date = 10;
+  int32 supplier_id = 11;
+  string remark = 12;
+}
+
+message CreateFixedAssetResponse {
+  bool success = 1;
+  string message = 2;
+  FixedAsset asset = 3;
+}
+
+message DepreciateFixedAssetRequest {
+  int32 asset_id = 1;
+  string period = 2;
+}
+
+message DepreciateFixedAssetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DisposeFixedAssetRequest {
+  int32 asset_id = 1;
+  string disposal_type = 2;
+  string disposal_value = 3;
+  string disposal_date = 4;
+  string reason = 5;
+  string buyer_info = 6;
+}
+
+message DisposeFixedAssetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteFixedAssetRequest {
+  int32 asset_id = 1;
+}
+
+message DeleteFixedAssetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ===================== 预算管理服务 =====================
+service BudgetManagementService {
+  rpc ListItems(ListBudgetItemsRequest) returns (ListBudgetItemsResponse);
+  rpc GetItem(GetBudgetItemRequest) returns (GetBudgetItemResponse);
+  rpc CreateItem(CreateBudgetItemRequest) returns (CreateBudgetItemResponse);
+  rpc UpdateItem(UpdateBudgetItemRequest) returns (UpdateBudgetItemResponse);
+  rpc DeleteItem(DeleteBudgetItemRequest) returns (DeleteBudgetItemResponse);
+  rpc ListPlans(ListBudgetPlansRequest) returns (ListBudgetPlansResponse);
+  rpc GetPlan(GetBudgetPlanRequest) returns (GetBudgetPlanResponse);
+  rpc CreatePlan(CreateBudgetPlanRequest) returns (CreateBudgetPlanResponse);
+  rpc ApprovePlan(ApproveBudgetPlanRequest) returns (ApproveBudgetPlanResponse);
+  rpc ExecutePlan(ExecuteBudgetPlanRequest) returns (ExecuteBudgetPlanResponse);
+}
+
+message BudgetItem {
+  int32 id = 1;
+  string item_code = 2;
+  string item_name = 3;
+  int32 parent_id = 4;
+  string item_type = 5;
+  int32 level = 6;
+  string status = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListBudgetItemsRequest {
+  string item_type = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListBudgetItemsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BudgetItem items = 3;
+  int32 total = 4;
+}
+
+message GetBudgetItemRequest {
+  int32 item_id = 1;
+}
+
+message GetBudgetItemResponse {
+  bool success = 1;
+  string message = 2;
+  BudgetItem item = 3;
+}
+
+message CreateBudgetItemRequest {
+  string item_code = 1;
+  string item_name = 2;
+  string item_type = 3;
+  int32 parent_id = 4;
+  int32 level = 5;
+}
+
+message CreateBudgetItemResponse {
+  bool success = 1;
+  string message = 2;
+  BudgetItem item = 3;
+}
+
+message UpdateBudgetItemRequest {
+  int32 item_id = 1;
+  string item_name = 2;
+  string item_type = 3;
+  string status = 4;
+}
+
+message UpdateBudgetItemResponse {
+  bool success = 1;
+  string message = 2;
+  BudgetItem item = 3;
+}
+
+message DeleteBudgetItemRequest {
+  int32 item_id = 1;
+}
+
+message DeleteBudgetItemResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message BudgetPlan {
+  int32 id = 1;
+  string plan_no = 2;
+  string plan_name = 3;
+  int32 budget_year = 4;
+  int32 department_id = 5;
+  string total_amount = 6;
+  string start_date = 7;
+  string end_date = 8;
+  string status = 9;
+  int32 created_by = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message ListBudgetPlansRequest {
+  int32 budget_year = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListBudgetPlansResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BudgetPlan plans = 3;
+  int32 total = 4;
+}
+
+message GetBudgetPlanRequest {
+  int32 plan_id = 1;
+}
+
+message GetBudgetPlanResponse {
+  bool success = 1;
+  string message = 2;
+  BudgetPlan plan = 3;
+}
+
+message CreateBudgetPlanRequest {
+  string plan_no = 1;
+  string plan_name = 2;
+  int32 budget_year = 3;
+  int32 department_id = 4;
+  string total_amount = 5;
+  string start_date = 6;
+  string end_date = 7;
+  string remark = 8;
+}
+
+message CreateBudgetPlanResponse {
+  bool success = 1;
+  string message = 2;
+  BudgetPlan plan = 3;
+}
+
+message ApproveBudgetPlanRequest {
+  int32 plan_id = 1;
+  string approval_comment = 2;
+}
+
+message ApproveBudgetPlanResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ExecuteBudgetPlanRequest {
+  int32 plan_id = 1;
+  string actual_amount = 2;
+  string expense_type = 3;
+  string expense_date = 4;
+  string remark = 5;
+}
+
+message ExecuteBudgetPlanResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -1,0 +1,188 @@
+//! 采购入库 Handler
+//! 
+//! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
+
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    Json,
+};
+use std::sync::Arc;
+use sea_orm::DatabaseConnection;
+use crate::services::purchase_receipt_service::{
+    PurchaseReceiptService, CreatePurchaseReceiptRequest, UpdatePurchaseReceiptRequest,
+    CreateReceiptItemRequest, UpdateReceiptItemRequest,
+};
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
+use validator::Validate;
+use serde::Deserialize;
+
+/// 查询采购入库单列表
+pub async fn list_receipts(
+    Query(params): Query<ReceiptQueryParams>,
+    State(db): State<Arc<DatabaseConnection>>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    let (receipts, total) = service.list_receipts(
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+        params.status,
+        params.supplier_id,
+        params.order_id,
+    ).await?;
+    
+    let result = serde_json::json!({
+        "items": receipts,
+        "total": total,
+        "page": params.page.unwrap_or(1),
+        "page_size": params.page_size.unwrap_or(20),
+    });
+    
+    Ok(Json(ApiResponse::success(result)))
+}
+
+/// 获取采购入库单详情
+pub async fn get_receipt(
+    Path(id): Path<i32>,
+    State(db): State<Arc<DatabaseConnection>>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    let receipt = service.get_receipt(id).await?;
+    
+    Ok(Json(ApiResponse::success(serde_json::to_value(receipt)?)))
+}
+
+/// 创建采购入库单
+#[axum::debug_handler]
+pub async fn create_receipt(
+    State(db): State<Arc<DatabaseConnection>>,
+    Json(req): Json<CreatePurchaseReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 验证请求
+    req.validate().map_err(|e| {
+        AppError::ValidationError(e.to_string())
+    })?;
+    
+    let service = PurchaseReceiptService::new(db);
+    let user_id = 1; // TODO: 从认证中获取
+    
+    let receipt = service.create_receipt(req, user_id).await?;
+    
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "采购入库单创建成功",
+    )))
+}
+
+/// 更新采购入库单
+#[axum::debug_handler]
+pub async fn update_receipt(
+    Path(id): Path<i32>,
+    State(db): State<Arc<DatabaseConnection>>,
+    Json(req): Json<UpdatePurchaseReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    let user_id = 1; // TODO: 从认证中获取
+    
+    let receipt = service.update_receipt(id, req, user_id).await?;
+    
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "采购入库单更新成功",
+    )))
+}
+
+/// 确认采购入库单
+pub async fn confirm_receipt(
+    Path(id): Path<i32>,
+    State(db): State<Arc<DatabaseConnection>>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    let user_id = 1; // TODO: 从认证中获取
+    
+    let receipt = service.confirm_receipt(id, user_id).await?;
+    
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "采购入库单已确认",
+    )))
+}
+
+/// 获取入库明细列表
+pub async fn list_receipt_items(
+    Path(receipt_id): Path<i32>,
+    State(db): State<Arc<DatabaseConnection>>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    let items = service.list_receipt_items(receipt_id).await?;
+    
+    Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
+}
+
+/// 添加入库明细
+#[axum::debug_handler]
+pub async fn create_receipt_item(
+    Path(receipt_id): Path<i32>,
+    State(db): State<Arc<DatabaseConnection>>,
+    Json(req): Json<CreateReceiptItemRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 验证请求
+    req.validate().map_err(|e| {
+        AppError::ValidationError(e.to_string())
+    })?;
+    
+    let service = PurchaseReceiptService::new(db);
+    let user_id = 1; // TODO: 从认证中获取
+    
+    let item = service.add_receipt_item(receipt_id, req, user_id).await?;
+    
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(item)?,
+        "入库明细添加成功",
+    )))
+}
+
+/// 更新入库明细
+#[axum::debug_handler]
+pub async fn update_receipt_item(
+    Path((_receipt_id, item_id)): Path<(i32, i32)>,
+    State(db): State<Arc<DatabaseConnection>>,
+    Json(req): Json<UpdateReceiptItemRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    let user_id = 1; // TODO: 从认证中获取
+
+    let item = service.update_receipt_item(item_id, req, user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(item)?,
+        "入库明细更新成功",
+    )))
+}
+
+/// 删除入库明细
+pub async fn delete_receipt_item(
+    Path((_receipt_id, item_id)): Path<(i32, i32)>,
+    State(db): State<Arc<DatabaseConnection>>,
+) -> Result<StatusCode, AppError> {
+    let service = PurchaseReceiptService::new(db);
+    service.delete_receipt_item(item_id, 1).await?; // TODO: 从认证中获取 user_id
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+
+// =====================================================
+// 请求 DTO
+// =====================================================
+
+/// 采购入库单查询参数
+#[derive(Debug, Deserialize)]
+pub struct ReceiptQueryParams {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub status: Option<String>,
+    pub supplier_id: Option<i32>,
+    pub order_id: Option<i32>,
+}
