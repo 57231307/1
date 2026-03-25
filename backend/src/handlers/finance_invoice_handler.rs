@@ -1,15 +1,13 @@
+use crate::services::finance_invoice_service::FinanceInvoiceService;
+use crate::services::finance_invoice_service::{CreateInvoiceRequest, UpdateInvoiceRequest};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use crate::services::finance_invoice_service::FinanceInvoiceService;
-use crate::services::finance_invoice_service::{
-    CreateInvoiceRequest, UpdateInvoiceRequest,
-};
 
 /// 发票响应
 #[derive(Debug, Serialize)]
@@ -299,7 +297,8 @@ pub async fn verify_invoice(
     let service = FinanceInvoiceService::new(db.clone());
 
     let paid_date = chrono::Utc::now();
-    let payment_method = payload.get("payment_method")
+    let payment_method = payload
+        .get("payment_method")
         .and_then(|v| v.as_str())
         .unwrap_or("bank_transfer")
         .to_string();

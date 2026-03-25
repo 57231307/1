@@ -1,6 +1,6 @@
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 库存盘点明细 Model
@@ -9,45 +9,45 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    
+
     /// 盘点单 ID
     pub count_id: i32,
-    
+
     /// 库存 ID
     pub stock_id: i32,
-    
+
     /// 产品 ID
     pub product_id: i32,
-    
+
     /// 仓库 ID
     pub warehouse_id: i32,
-    
+
     /// 盘点前数量（账面数量）
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub quantity_before: Decimal,
-    
+
     /// 实际盘点数量
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub quantity_actual: Decimal,
-    
+
     /// 差异数量（实际 - 账面）
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub quantity_difference: Decimal,
-    
+
     /// 单位成本
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub unit_cost: Decimal,
-    
+
     /// 总成本差异
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub total_cost: Decimal,
-    
+
     /// 备注
     pub notes: Option<String>,
-    
+
     /// 创建时间
     pub created_at: DateTime<Utc>,
-    
+
     /// 更新时间
     pub updated_at: DateTime<Utc>,
 }

@@ -1,11 +1,11 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
+    TransactionTrait,
 };
 use std::sync::Arc;
 
-use crate::models::role_permission::{self, Entity as RolePermissionEntity};
 use crate::models::role::{self, Entity as RoleEntity};
+use crate::models::role_permission::{self, Entity as RolePermissionEntity};
 use serde::{Deserialize, Serialize};
 
 /// 角色权限详情
@@ -140,7 +140,10 @@ impl RolePermissionService {
     }
 
     /// 创建角色
-    pub async fn create_role(&self, request: CreateRoleRequest) -> Result<RoleDetail, sea_orm::DbErr> {
+    pub async fn create_role(
+        &self,
+        request: CreateRoleRequest,
+    ) -> Result<RoleDetail, sea_orm::DbErr> {
         // 检查角色编码是否已存在
         let existing = RoleEntity::find()
             .filter(role::Column::Code.eq(&request.code))
@@ -168,7 +171,11 @@ impl RolePermissionService {
     }
 
     /// 更新角色
-    pub async fn update_role(&self, role_id: i32, request: UpdateRoleRequest) -> Result<RoleDetail, sea_orm::DbErr> {
+    pub async fn update_role(
+        &self,
+        role_id: i32,
+        request: UpdateRoleRequest,
+    ) -> Result<RoleDetail, sea_orm::DbErr> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
@@ -235,9 +242,7 @@ impl RolePermissionService {
             .await?;
 
         // 删除角色
-        RoleEntity::delete_by_id(role_id)
-            .exec(&txn)
-            .await?;
+        RoleEntity::delete_by_id(role_id).exec(&txn).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -246,12 +251,17 @@ impl RolePermissionService {
     }
 
     /// 分配权限
-    pub async fn assign_permission(&self, request: AssignPermissionRequest) -> Result<RolePermissionDetail, sea_orm::DbErr> {
+    pub async fn assign_permission(
+        &self,
+        request: AssignPermissionRequest,
+    ) -> Result<RolePermissionDetail, sea_orm::DbErr> {
         // 检查角色是否存在
         let role = RoleEntity::find_by_id(request.role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 {} 未找到", request.role_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("角色 {} 未找到", request.role_id))
+            })?;
 
         // 系统角色不允许修改权限
         if role.is_system {
@@ -322,7 +332,9 @@ impl RolePermissionService {
         let permission = RolePermissionEntity::find_by_id(permission_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("权限 {} 未找到", permission_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("权限 {} 未找到", permission_id))
+            })?;
 
         // 检查是否为系统角色的权限
         let role = RoleEntity::find_by_id(permission.role_id)
@@ -331,7 +343,9 @@ impl RolePermissionService {
 
         if let Some(r) = role {
             if r.is_system {
-                return Err(sea_orm::DbErr::Custom("系统角色的权限不允许删除".to_string()));
+                return Err(sea_orm::DbErr::Custom(
+                    "系统角色的权限不允许删除".to_string(),
+                ));
             }
         }
 
@@ -343,7 +357,10 @@ impl RolePermissionService {
     }
 
     /// 获取角色的所有权限
-    pub async fn get_role_permissions(&self, role_id: i32) -> Result<Vec<RolePermissionDetail>, sea_orm::DbErr> {
+    pub async fn get_role_permissions(
+        &self,
+        role_id: i32,
+    ) -> Result<Vec<RolePermissionDetail>, sea_orm::DbErr> {
         let permissions = RolePermissionEntity::find()
             .filter(role_permission::Column::RoleId.eq(role_id))
             .order_by(role_permission::Column::ResourceType, Order::Asc)
@@ -387,7 +404,7 @@ impl RolePermissionService {
             query = query.filter(
                 role_permission::Column::ResourceId
                     .eq(rid)
-                    .or(role_permission::Column::ResourceId.is_null())
+                    .or(role_permission::Column::ResourceId.is_null()),
             );
         }
 

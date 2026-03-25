@@ -1,62 +1,59 @@
 mod config;
+mod grpc;
 mod handlers;
 mod middleware;
 mod models;
 mod routes;
 mod services;
 mod utils;
-mod grpc;
 
 use axum::http::Request;
 use sea_orm::Database;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
+use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
-use tower_http::classify::ServerErrorsFailureClass;
-use tracing::{info, Level, warn, Span};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing::{info, warn, Level, Span};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use std::time::Duration;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::settings::AppSettings;
-use crate::routes::create_router;
-use crate::middleware::auth::auth_middleware;
-use crate::grpc::service::GrpcUserService;
-use crate::grpc::proto::user_service_server::UserServiceServer;
 use crate::grpc::proto::auth_service_server::AuthServiceServer;
+use crate::grpc::proto::user_service_server::UserServiceServer;
+use crate::grpc::service::GrpcUserService;
+use crate::middleware::auth::auth_middleware;
+use crate::routes::create_router;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 加载配置
     let settings = AppSettings::new()?;
-    
+
     // 初始化日志（根据配置文件设置日志级别和目录）
     let _log_level = settings.log.level.parse::<Level>()?;
     let log_dir = &settings.log.dir;
-    
+
     // 创建日志目录（如果不存在）
     std::fs::create_dir_all(log_dir)?;
-    
+
     // 使用日志轮转：每天轮转一次，保留 7 天
-    let file_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        log_dir,
-        "bingxi_backend.log",
-    );
-    
+    let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| format!("bingxi_backend={}", settings.log.level).into()),
         )
-        .with(tracing_subscriber::fmt::layer()
-            .with_writer(file_appender)
-            .with_ansi(false)
-            .with_target(true)
-            .with_thread_ids(false)
-            .with_file(false)
-            .with_line_number(false)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(file_appender)
+                .with_ansi(false)
+                .with_target(true)
+                .with_thread_ids(false)
+                .with_file(false)
+                .with_line_number(false),
         )
         .init();
 
@@ -67,7 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 加载配置
     info!("配置加载成功");
-    info!("服务器地址：{}:{}", settings.server.host, settings.server.port);
+    info!(
+        "服务器地址：{}:{}",
+        settings.server.host, settings.server.port
+    );
     info!("gRPC 地址：{}:{}", settings.grpc.host, settings.grpc.port);
     info!("日志目录：{}", settings.log.dir);
 
@@ -98,22 +98,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "开始处理请求"
                     );
                 })
-                .on_response(|response: &axum::response::Response, latency: Duration, _span: &Span| {
-                    info!(
-                        status = %response.status(),
-                        latency_ms = %latency.as_millis(),
-                        "请求完成"
-                    );
-                })
-                .on_failure(|error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
-                    warn!("请求失败：{:?} (耗时: {}ms)", error, latency.as_millis());
-                })
+                .on_response(
+                    |response: &axum::response::Response, latency: Duration, _span: &Span| {
+                        info!(
+                            status = %response.status(),
+                            latency_ms = %latency.as_millis(),
+                            "请求完成"
+                        );
+                    },
+                )
+                .on_failure(
+                    |error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
+                        warn!("请求失败：{:?} (耗时: {}ms)", error, latency.as_millis());
+                    },
+                ),
         )
         .layer(cors)
         .layer(axum::middleware::from_fn(auth_middleware));
 
     // 启动 HTTP 服务器
-    let http_addr: SocketAddr = format!("{}:{}", settings.server.host, settings.server.port).parse()?;
+    let http_addr: SocketAddr =
+        format!("{}:{}", settings.server.host, settings.server.port).parse()?;
     info!("HTTP 服务器监听地址：{}", http_addr);
 
     // 创建 gRPC 服务
@@ -128,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 启动 gRPC 服务器
     let grpc_addr: SocketAddr = format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;
     info!("gRPC 服务器监听地址：{}", grpc_addr);
-    
+
     info!("===========================================");
     info!("系统启动完成，等待请求...");
     info!("===========================================");

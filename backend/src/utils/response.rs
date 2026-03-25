@@ -31,7 +31,7 @@ impl<T> Default for ApiResponse<T> {
 pub struct PaginatedResponse<T> {
     pub data: Vec<T>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub items: Vec<T>,  // 可选字段，兼容旧代码
+    pub items: Vec<T>, // 可选字段，兼容旧代码
     pub total: u64,
     pub page: u64,
     pub page_size: u64,
@@ -111,7 +111,12 @@ impl<T: Serialize> ApiResponse<T> {
 
     #[allow(dead_code)]
     /// 创建分页成功响应
-    pub fn success_paginated(data: Vec<T>, total: u64, page: u64, page_size: u64) -> ApiResponse<Vec<T>> {
+    pub fn success_paginated(
+        data: Vec<T>,
+        total: u64,
+        page: u64,
+        page_size: u64,
+    ) -> ApiResponse<Vec<T>> {
         ApiResponse {
             success: true,
             data: Some(data),
@@ -226,10 +231,14 @@ impl<T: Serialize> IntoResponse for PaginatedResponse<T> {
         ApiResponse {
             success: true,
             data: Some(self.data),
-            message: Some(format!("共 {} 条记录，第 {}/{} 页", self.total, self.page, self.page_size)),
+            message: Some(format!(
+                "共 {} 条记录，第 {}/{} 页",
+                self.total, self.page, self.page_size
+            )),
             error: None,
             status_code: None,
-        }.into_response()
+        }
+        .into_response()
     }
 }
 

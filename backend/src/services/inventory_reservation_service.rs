@@ -1,8 +1,6 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-};
-use std::sync::Arc;
 use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use std::sync::Arc;
 
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 
@@ -59,9 +57,10 @@ impl InventoryReservationService {
             })?;
 
         if reservation.status != "pending" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("预留状态为{}，只有待处理状态的预留可以锁定", reservation.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "预留状态为{}，只有待处理状态的预留可以锁定",
+                reservation.status
+            )));
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
@@ -84,9 +83,10 @@ impl InventoryReservationService {
             })?;
 
         if reservation.status != "locked" && reservation.status != "pending" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("预留状态为{}，只有已锁定或待处理状态的预留可以释放", reservation.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "预留状态为{}，只有已锁定或待处理状态的预留可以释放",
+                reservation.status
+            )));
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
@@ -110,9 +110,10 @@ impl InventoryReservationService {
             })?;
 
         if reservation.status != "locked" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("预留状态为{}，只有已锁定状态的预留可以使用", reservation.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "预留状态为{}，只有已锁定状态的预留可以使用",
+                reservation.status
+            )));
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
@@ -156,7 +157,14 @@ impl InventoryReservationService {
 
         for (product_id, warehouse_id, quantity) in items {
             let reservation = self
-                .create_reservation(order_id, product_id, warehouse_id, quantity, created_by, None)
+                .create_reservation(
+                    order_id,
+                    product_id,
+                    warehouse_id,
+                    quantity,
+                    created_by,
+                    None,
+                )
                 .await?;
             reservations.push(reservation);
         }

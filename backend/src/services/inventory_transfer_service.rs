@@ -1,14 +1,14 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
-use crate::utils::PaginatedResponse;
+use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
-use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
+use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
 /// 库存调拨详情响应
@@ -112,9 +112,8 @@ impl InventoryTransferService {
         // 分页
         let paginator = query.paginate(&*self.db, page_req.page_size as u64);
         let total = paginator.num_items().await?;
-        let transfers: Vec<inventory_transfer::Model> = paginator
-            .fetch_page(page_req.page as u64 - 1)
-            .await?;
+        let transfers: Vec<inventory_transfer::Model> =
+            paginator.fetch_page(page_req.page as u64 - 1).await?;
 
         // 转换为响应格式
         let transfer_details: Vec<InventoryTransferDetail> = transfers
@@ -139,16 +138,26 @@ impl InventoryTransferService {
             })
             .collect();
 
-        Ok(PaginatedResponse::new(transfer_details, total, page_req.page, page_req.page_size))
+        Ok(PaginatedResponse::new(
+            transfer_details,
+            total,
+            page_req.page,
+            page_req.page_size,
+        ))
     }
 
     /// 获取库存调拨详情（包含明细项）
-    pub async fn get_transfer_detail(&self, transfer_id: i32) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    pub async fn get_transfer_detail(
+        &self,
+        transfer_id: i32,
+    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
         // 获取调拨主表数据
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+            })?;
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()
@@ -204,13 +213,13 @@ impl InventoryTransferService {
 
         // 生成调拨单号并检查唯一性
         let transfer_no = self.generate_transfer_no().await?;
-        
+
         // 再次检查调拨单号是否已存在（防止并发冲突）
         let existing_transfer = InventoryTransferEntity::find()
             .filter(inventory_transfer::Column::TransferNo.eq(&transfer_no))
             .one(&txn)
             .await?;
-        
+
         if existing_transfer.is_some() {
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom("调拨单号已存在，请重试".to_string()));
@@ -222,7 +231,9 @@ impl InventoryTransferService {
             transfer_no: sea_orm::ActiveValue::Set(transfer_no),
             from_warehouse_id: sea_orm::ActiveValue::Set(request.from_warehouse_id),
             to_warehouse_id: sea_orm::ActiveValue::Set(request.to_warehouse_id),
-            transfer_date: sea_orm::ActiveValue::Set(request.transfer_date.unwrap_or_else(chrono::Utc::now)),
+            transfer_date: sea_orm::ActiveValue::Set(
+                request.transfer_date.unwrap_or_else(chrono::Utc::now),
+            ),
             status: sea_orm::ActiveValue::Set(request.status),
             total_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             notes: sea_orm::ActiveValue::Set(request.notes),
@@ -238,7 +249,8 @@ impl InventoryTransferService {
         let transfer_entity = transfer.insert(&txn).await?;
 
         // 检查调出仓库库存是否充足
-        self.check_from_warehouse_inventory(&request.from_warehouse_id, &request.items, &txn).await?;
+        self.check_from_warehouse_inventory(&request.from_warehouse_id, &request.items, &txn)
+            .await?;
 
         // 创建调拨明细项并计算总数量
         let mut total_quantity = rust_decimal::Decimal::ZERO;
@@ -287,12 +299,14 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+            })?;
 
         // 检查状态，已完成的调拨单不允许修改
         if transfer.status == "completed" {
             return Err(sea_orm::DbErr::Custom(
-                "调拨单已完成，不允许修改".to_string()
+                "调拨单已完成，不允许修改".to_string(),
             ));
         }
 
@@ -369,12 +383,14 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+            })?;
 
         // 检查状态，只有待审核的调拨单可以审核
         if transfer.status != "pending" {
             return Err(sea_orm::DbErr::Custom(
-                "只有待审核状态的调拨单可以审核".to_string()
+                "只有待审核状态的调拨单可以审核".to_string(),
             ));
         }
 
@@ -404,17 +420,22 @@ impl InventoryTransferService {
     }
 
     /// 发出库存调拨
-    pub async fn ship_transfer(&self, transfer_id: i32) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    pub async fn ship_transfer(
+        &self,
+        transfer_id: i32,
+    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+            })?;
 
         // 检查状态，只有已审核的调拨单可以发出
         if transfer.status != "approved" {
             return Err(sea_orm::DbErr::Custom(
-                "只有已审核状态的调拨单可以发出".to_string()
+                "只有已审核状态的调拨单可以发出".to_string(),
             ));
         }
 
@@ -440,9 +461,10 @@ impl InventoryTransferService {
                 // 检查库存是否充足
                 if stock_model.quantity_on_hand < item.quantity {
                     txn.rollback().await?;
-                    return Err(sea_orm::DbErr::Custom(
-                        format!("产品 {} 库存不足", item.product_id)
-                    ));
+                    return Err(sea_orm::DbErr::Custom(format!(
+                        "产品 {} 库存不足",
+                        item.product_id
+                    )));
                 }
 
                 // 保存需要使用的值
@@ -451,15 +473,12 @@ impl InventoryTransferService {
 
                 // 扣减库存
                 let mut stock_active: inventory_stock::ActiveModel = stock_model.into();
-                stock_active.quantity_on_hand = sea_orm::ActiveValue::Set(
-                    &quantity_on_hand - &item.quantity
-                );
-                stock_active.quantity_available = sea_orm::ActiveValue::Set(
-                    &quantity_on_hand - &item.quantity
-                );
-                stock_active.quantity_meters = sea_orm::ActiveValue::Set(
-                    &quantity_meters - &item.quantity
-                );
+                stock_active.quantity_on_hand =
+                    sea_orm::ActiveValue::Set(&quantity_on_hand - &item.quantity);
+                stock_active.quantity_available =
+                    sea_orm::ActiveValue::Set(&quantity_on_hand - &item.quantity);
+                stock_active.quantity_meters =
+                    sea_orm::ActiveValue::Set(&quantity_meters - &item.quantity);
                 stock_active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 stock_active.update(&txn).await?;
 
@@ -471,9 +490,10 @@ impl InventoryTransferService {
                 item_update.update(&txn).await?;
             } else {
                 txn.rollback().await?;
-                return Err(sea_orm::DbErr::Custom(
-                    format!("产品 {} 在源仓库无库存记录", item.product_id)
-                ));
+                return Err(sea_orm::DbErr::Custom(format!(
+                    "产品 {} 在源仓库无库存记录",
+                    item.product_id
+                )));
             }
         }
 
@@ -492,17 +512,22 @@ impl InventoryTransferService {
     }
 
     /// 接收库存调拨
-    pub async fn receive_transfer(&self, transfer_id: i32) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    pub async fn receive_transfer(
+        &self,
+        transfer_id: i32,
+    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+            })?;
 
         // 检查状态，只有已发出的调拨单可以接收
         if transfer.status != "shipped" {
             return Err(sea_orm::DbErr::Custom(
-                "只有已发出状态的调拨单可以接收".to_string()
+                "只有已发出状态的调拨单可以接收".to_string(),
             ));
         }
 
@@ -529,15 +554,12 @@ impl InventoryTransferService {
                 let quantity_on_hand = stock_model.quantity_on_hand;
                 let quantity_meters = stock_model.quantity_meters;
                 let mut stock_active: inventory_stock::ActiveModel = stock_model.into();
-                stock_active.quantity_on_hand = sea_orm::ActiveValue::Set(
-                    &quantity_on_hand + &item.quantity
-                );
-                stock_active.quantity_available = sea_orm::ActiveValue::Set(
-                    &quantity_on_hand + &item.quantity
-                );
-                stock_active.quantity_meters = sea_orm::ActiveValue::Set(
-                    &quantity_meters + &item.quantity
-                );
+                stock_active.quantity_on_hand =
+                    sea_orm::ActiveValue::Set(&quantity_on_hand + &item.quantity);
+                stock_active.quantity_available =
+                    sea_orm::ActiveValue::Set(&quantity_on_hand + &item.quantity);
+                stock_active.quantity_meters =
+                    sea_orm::ActiveValue::Set(&quantity_meters + &item.quantity);
                 stock_active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 stock_active.update(&txn).await?;
 
@@ -556,10 +578,19 @@ impl InventoryTransferService {
                     .one(&txn)
                     .await?;
 
-                let batch_no = source_stock.as_ref().map(|s| s.batch_no.clone()).unwrap_or_default();
-                let color_no = source_stock.as_ref().map(|s| s.color_no.clone()).unwrap_or_default();
+                let batch_no = source_stock
+                    .as_ref()
+                    .map(|s| s.batch_no.clone())
+                    .unwrap_or_default();
+                let color_no = source_stock
+                    .as_ref()
+                    .map(|s| s.color_no.clone())
+                    .unwrap_or_default();
                 let dye_lot_no = source_stock.as_ref().and_then(|s| s.dye_lot_no.clone());
-                let grade = source_stock.as_ref().map(|s| s.grade.clone()).unwrap_or_else(|| "一等品".to_string());
+                let grade = source_stock
+                    .as_ref()
+                    .map(|s| s.grade.clone())
+                    .unwrap_or_else(|| "一等品".to_string());
                 let gram_weight = source_stock.as_ref().and_then(|s| s.gram_weight);
                 let width = source_stock.as_ref().and_then(|s| s.width);
                 let production_date = source_stock.as_ref().and_then(|s| s.production_date);
@@ -619,7 +650,7 @@ impl InventoryTransferService {
     async fn generate_transfer_no(&self) -> Result<String, sea_orm::DbErr> {
         let now = chrono::Utc::now();
         let date_str = now.format("%Y%m%d").to_string();
-        
+
         // 获取当天最大调拨单号
         let max_transfer = InventoryTransferEntity::find()
             .filter(inventory_transfer::Column::TransferNo.like(format!("IT{}%", date_str)))
@@ -630,7 +661,9 @@ impl InventoryTransferService {
         let seq = match max_transfer {
             Some(transfer) => {
                 // 提取序号部分并加 1
-                let seq_str = transfer.transfer_no.trim_start_matches(&format!("IT{}", date_str));
+                let seq_str = transfer
+                    .transfer_no
+                    .trim_start_matches(&format!("IT{}", date_str));
                 seq_str.parse::<u32>().unwrap_or(0) + 1
             }
             None => 1,

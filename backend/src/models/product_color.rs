@@ -1,6 +1,6 @@
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 产品色号实体模型（面料行业）

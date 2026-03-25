@@ -3,14 +3,14 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::models::product;
 use crate::models::product_color;
 use crate::services::product_service::ProductService;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::error::AppError;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 产品列表
 #[derive(Debug, Deserialize)]
@@ -110,15 +110,19 @@ pub async fn list_products(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(10);
 
-    let (products, total) = product_service.list_products(
-        page,
-        page_size,
-        query.category_id,
-        query.status,
-        query.search,
-    ).await?;
+    let (products, total) = product_service
+        .list_products(
+            page,
+            page_size,
+            query.category_id,
+            query.status,
+            query.search,
+        )
+        .await?;
 
-    Ok(Json(PaginatedResponse::new(products, total, page, page_size).into()))
+    Ok(Json(
+        PaginatedResponse::new(products, total, page, page_size).into(),
+    ))
 }
 
 /// 获取产品详情
@@ -138,27 +142,29 @@ pub async fn create_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     let product_service = ProductService::new(db.clone());
 
-    let product = product_service.create_product(
-        req.name,
-        req.code,
-        req.category_id,
-        req.specification,
-        req.unit,
-        req.standard_price,
-        req.cost_price,
-        req.description,
-        req.status.unwrap_or_else(|| "active".to_string()),
-        req.product_type,
-        req.fabric_composition,
-        req.yarn_count,
-        req.density,
-        req.width,
-        req.gram_weight,
-        req.structure,
-        req.finish,
-        req.min_order_quantity,
-        req.lead_time,
-    ).await?;
+    let product = product_service
+        .create_product(
+            req.name,
+            req.code,
+            req.category_id,
+            req.specification,
+            req.unit,
+            req.standard_price,
+            req.cost_price,
+            req.description,
+            req.status.unwrap_or_else(|| "active".to_string()),
+            req.product_type,
+            req.fabric_composition,
+            req.yarn_count,
+            req.density,
+            req.width,
+            req.gram_weight,
+            req.structure,
+            req.finish,
+            req.min_order_quantity,
+            req.lead_time,
+        )
+        .await?;
 
     Ok(Json(ApiResponse::success_with_msg(product, "产品创建成功")))
 }
@@ -171,26 +177,28 @@ pub async fn update_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     let product_service = ProductService::new(db.clone());
 
-    let product = product_service.update_product(
-        id,
-        req.name,
-        req.specification,
-        req.unit,
-        req.standard_price,
-        req.cost_price,
-        req.description,
-        req.status,
-        req.product_type,
-        req.fabric_composition,
-        req.yarn_count,
-        req.density,
-        req.width,
-        req.gram_weight,
-        req.structure,
-        req.finish,
-        req.min_order_quantity,
-        req.lead_time,
-    ).await?;
+    let product = product_service
+        .update_product(
+            id,
+            req.name,
+            req.specification,
+            req.unit,
+            req.standard_price,
+            req.cost_price,
+            req.description,
+            req.status,
+            req.product_type,
+            req.fabric_composition,
+            req.yarn_count,
+            req.density,
+            req.width,
+            req.gram_weight,
+            req.structure,
+            req.finish,
+            req.min_order_quantity,
+            req.lead_time,
+        )
+        .await?;
 
     Ok(Json(ApiResponse::success_with_msg(product, "产品更新成功")))
 }
@@ -225,15 +233,17 @@ pub async fn create_product_color(
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
     let product_service = ProductService::new(db.clone());
 
-    let color = product_service.create_product_color(
-        product_id,
-        req.color_no,
-        req.color_name,
-        req.pantone_code,
-        req.color_type,
-        req.dye_formula,
-        req.extra_cost,
-    ).await?;
+    let color = product_service
+        .create_product_color(
+            product_id,
+            req.color_no,
+            req.color_name,
+            req.pantone_code,
+            req.color_type,
+            req.dye_formula,
+            req.extra_cost,
+        )
+        .await?;
 
     Ok(Json(ApiResponse::success_with_msg(color, "色号创建成功")))
 }
@@ -246,15 +256,17 @@ pub async fn update_product_color(
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
     let product_service = ProductService::new(db.clone());
 
-    let color = product_service.update_product_color(
-        color_id,
-        req.color_name,
-        req.pantone_code,
-        req.color_type,
-        req.dye_formula,
-        req.extra_cost,
-        req.is_active,
-    ).await?;
+    let color = product_service
+        .update_product_color(
+            color_id,
+            req.color_name,
+            req.pantone_code,
+            req.color_type,
+            req.dye_formula,
+            req.extra_cost,
+            req.is_active,
+        )
+        .await?;
 
     Ok(Json(ApiResponse::success_with_msg(color, "色号更新成功")))
 }
@@ -277,18 +289,24 @@ pub async fn batch_create_colors(
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
     let product_service = ProductService::new(db.clone());
 
-    let colors_input: Vec<_> = req.colors.into_iter().map(|c| {
-        crate::services::product_service::CreateProductColorInput {
-            color_no: c.color_no,
-            color_name: c.color_name,
-            pantone_code: c.pantone_code,
-            color_type: c.color_type,
-            dye_formula: c.dye_formula,
-            extra_cost: c.extra_cost,
-        }
-    }).collect();
+    let colors_input: Vec<_> = req
+        .colors
+        .into_iter()
+        .map(
+            |c| crate::services::product_service::CreateProductColorInput {
+                color_no: c.color_no,
+                color_name: c.color_name,
+                pantone_code: c.pantone_code,
+                color_type: c.color_type,
+                dye_formula: c.dye_formula,
+                extra_cost: c.extra_cost,
+            },
+        )
+        .collect();
 
-    let colors = product_service.batch_create_product_colors(product_id, colors_input).await?;
+    let colors = product_service
+        .batch_create_product_colors(product_id, colors_input)
+        .await?;
     let msg = format!("批量创建{}个色号成功", colors.len());
     Ok(Json(ApiResponse::success_with_msg(colors, &msg)))
 }

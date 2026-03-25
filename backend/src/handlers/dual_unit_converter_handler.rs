@@ -31,7 +31,7 @@ pub struct ConvertUnitResponse {
 }
 
 /// 双计量单位换算接口
-/// 
+///
 /// # 请求示例
 /// ```json
 /// {
@@ -41,7 +41,7 @@ pub struct ConvertUnitResponse {
 ///     "width_cm": "180.00"
 /// }
 /// ```
-/// 
+///
 /// # 响应示例
 /// ```json
 /// {
@@ -55,13 +55,12 @@ pub struct ConvertUnitResponse {
 ///     "message": "单位换算成功"
 /// }
 /// ```
-pub async fn convert_dual_unit(
-    Json(req): Json<ConvertUnitRequest>,
-) -> impl IntoResponse {
+pub async fn convert_dual_unit(Json(req): Json<ConvertUnitRequest>) -> impl IntoResponse {
     // 验证单位参数
     let from_unit = req.from_unit.to_lowercase();
     if from_unit != "meters" && from_unit != "kg" {
-        return ApiResponse::<()>::error("无效的单位，必须是 'meters' 或 'kg'".to_string()).into_response();
+        return ApiResponse::<()>::error("无效的单位，必须是 'meters' 或 'kg'".to_string())
+            .into_response();
     }
 
     // 执行换算
@@ -82,7 +81,8 @@ pub async fn convert_dual_unit(
                     conversion_rate: DualUnitConverter::calculate_conversion_rate(
                         req.gram_weight,
                         req.width_cm,
-                    ).unwrap_or(rust_decimal::Decimal::ZERO),
+                    )
+                    .unwrap_or(rust_decimal::Decimal::ZERO),
                 },
                 Err(e) => return ApiResponse::<()>::error(e).into_response(),
             }
@@ -145,9 +145,7 @@ pub struct ValidateDualUnitResponse {
 }
 
 /// 验证双计量单位一致性接口
-pub async fn validate_dual_unit(
-    Json(req): Json<ValidateDualUnitRequest>,
-) -> impl IntoResponse {
+pub async fn validate_dual_unit(Json(req): Json<ValidateDualUnitRequest>) -> impl IntoResponse {
     match DualUnitConverter::validate_dual_unit(
         req.quantity_meters,
         req.quantity_kg,
@@ -157,18 +155,23 @@ pub async fn validate_dual_unit(
     ) {
         Ok(is_valid) => {
             // 计算详细信息
-            let calculated_kg = DualUnitConverter::meters_to_kg(
-                req.quantity_meters,
-                req.gram_weight,
-                req.width_cm,
-            ).unwrap_or(rust_decimal::Decimal::ZERO);
-            
+            let calculated_kg =
+                DualUnitConverter::meters_to_kg(req.quantity_meters, req.gram_weight, req.width_cm)
+                    .unwrap_or(rust_decimal::Decimal::ZERO);
+
             let difference = (calculated_kg - req.quantity_kg).abs();
-            let tolerance = req.tolerance.unwrap_or("0.005".parse::<rust_decimal::Decimal>().unwrap_or(rust_decimal::Decimal::ZERO));
+            let tolerance = req.tolerance.unwrap_or(
+                "0.005"
+                    .parse::<rust_decimal::Decimal>()
+                    .unwrap_or(rust_decimal::Decimal::ZERO),
+            );
             let allowed_difference = calculated_kg * tolerance;
-            
+
             let error_rate = if calculated_kg != rust_decimal::Decimal::ZERO {
-                format!("{:.4}%", (difference / calculated_kg) * rust_decimal::Decimal::from(100))
+                format!(
+                    "{:.4}%",
+                    (difference / calculated_kg) * rust_decimal::Decimal::from(100)
+                )
             } else {
                 "0.0000%".to_string()
             };
@@ -204,10 +207,19 @@ mod tests {
         "#;
 
         let req: ConvertUnitRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(req.value, rust_decimal::Decimal::from_str("100.000").unwrap());
+        assert_eq!(
+            req.value,
+            rust_decimal::Decimal::from_str("100.000").unwrap()
+        );
         assert_eq!(req.from_unit, "meters");
-        assert_eq!(req.gram_weight, rust_decimal::Decimal::from_str("180.00").unwrap());
-        assert_eq!(req.width_cm, rust_decimal::Decimal::from_str("180.00").unwrap());
+        assert_eq!(
+            req.gram_weight,
+            rust_decimal::Decimal::from_str("180.00").unwrap()
+        );
+        assert_eq!(
+            req.width_cm,
+            rust_decimal::Decimal::from_str("180.00").unwrap()
+        );
     }
 
     #[test]
@@ -223,10 +235,25 @@ mod tests {
         "#;
 
         let req: ValidateDualUnitRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(req.quantity_meters, rust_decimal::Decimal::from_str("100.000").unwrap());
-        assert_eq!(req.quantity_kg, rust_decimal::Decimal::from_str("3.240").unwrap());
-        assert_eq!(req.gram_weight, rust_decimal::Decimal::from_str("180.00").unwrap());
-        assert_eq!(req.width_cm, rust_decimal::Decimal::from_str("180.00").unwrap());
-        assert_eq!(req.tolerance, Some(rust_decimal::Decimal::from_str("0.005").unwrap()));
+        assert_eq!(
+            req.quantity_meters,
+            rust_decimal::Decimal::from_str("100.000").unwrap()
+        );
+        assert_eq!(
+            req.quantity_kg,
+            rust_decimal::Decimal::from_str("3.240").unwrap()
+        );
+        assert_eq!(
+            req.gram_weight,
+            rust_decimal::Decimal::from_str("180.00").unwrap()
+        );
+        assert_eq!(
+            req.width_cm,
+            rust_decimal::Decimal::from_str("180.00").unwrap()
+        );
+        assert_eq!(
+            req.tolerance,
+            Some(rust_decimal::Decimal::from_str("0.005").unwrap())
+        );
     }
 }

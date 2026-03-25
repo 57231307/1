@@ -3,15 +3,15 @@
 //! 会计科目业务逻辑层
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    QueryFilter, QueryOrder, Order, ModelTrait, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
+    Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use crate::models::{account_subject, account_balance, voucher_item};
+use crate::models::{account_balance, account_subject, voucher_item};
 use crate::utils::error::AppError;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// 创建科目请求
 #[derive(Debug, Clone)]
@@ -75,7 +75,10 @@ impl AccountSubjectService {
 
         if existing.is_some() {
             warn!("科目编码已存在：{}", req.code);
-            return Err(AppError::BadRequest(format!("科目编码 {} 已存在", req.code)));
+            return Err(AppError::BadRequest(format!(
+                "科目编码 {} 已存在",
+                req.code
+            )));
         }
 
         // 如果是子科目，检查父科目是否存在
@@ -278,8 +281,14 @@ impl AccountSubjectService {
             .await?;
 
         if used_in_vouchers > 0 {
-            warn!("不能删除已被凭证使用的科目：{}，被引用次数：{}", id, used_in_vouchers);
-            return Err(AppError::BadRequest(format!("科目已被 {} 张凭证使用，不能删除", used_in_vouchers)));
+            warn!(
+                "不能删除已被凭证使用的科目：{}，被引用次数：{}",
+                id, used_in_vouchers
+            );
+            return Err(AppError::BadRequest(format!(
+                "科目已被 {} 张凭证使用，不能删除",
+                used_in_vouchers
+            )));
         }
 
         subject.delete(&*self.db).await?;

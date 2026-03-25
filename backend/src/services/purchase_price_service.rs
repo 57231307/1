@@ -1,13 +1,13 @@
 use crate::models::purchase_price;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, QueryOrder, Set,
-    QuerySelect, PaginatorTrait, Order,
-};
-use std::sync::Arc;
 use crate::utils::error::AppError;
-use tracing::info;
-use serde::Deserialize;
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use tracing::info;
 
 /// 采购价格查询参数
 #[derive(Debug, Clone, Default)]
@@ -79,7 +79,10 @@ impl PurchasePriceService {
         req: CreatePurchasePriceInput,
         user_id: i32,
     ) -> Result<purchase_price::Model, AppError> {
-        info!("用户 {} 正在创建采购价格，产品 ID: {}, 供应商 ID: {}", user_id, req.product_id, req.supplier_id);
+        info!(
+            "用户 {} 正在创建采购价格，产品 ID: {}, 供应商 ID: {}",
+            user_id, req.product_id, req.supplier_id
+        );
 
         let active_price = purchase_price::ActiveModel {
             product_id: Set(req.product_id),
@@ -87,7 +90,10 @@ impl PurchasePriceService {
             price: Set(req.price),
             currency: Set(req.currency),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
-            effective_date: Set(req.effective_date.parse().map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
+            effective_date: Set(req
+                .effective_date
+                .parse()
+                .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
             status: Set("pending".to_string()),
             created_by: Set(Some(user_id)),
@@ -133,7 +139,10 @@ impl PurchasePriceService {
 
     /// 获取价格历史
     #[allow(dead_code)]
-    pub async fn get_price_history(&self, material_id: i32) -> Result<Vec<purchase_price::Model>, AppError> {
+    pub async fn get_price_history(
+        &self,
+        material_id: i32,
+    ) -> Result<Vec<purchase_price::Model>, AppError> {
         info!("查询物料 {} 的价格历史", material_id);
 
         let history = purchase_price::Entity::find()
@@ -163,7 +172,10 @@ impl PurchasePriceService {
 
         price_model.price = Set(price);
         if let Some(ed) = expiry_date {
-            price_model.expiry_date = Set(Some(ed.parse().map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?));
+            price_model.expiry_date =
+                Set(Some(ed.parse().map_err(|e| {
+                    AppError::ValidationError(format!("日期格式错误：{}", e))
+                })?));
         }
         if let Some(s) = status {
             price_model.status = Set(s);

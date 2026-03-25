@@ -2,15 +2,17 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
-use std::sync::Arc;
-use serde::Deserialize;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use sea_orm::DatabaseConnection;
+use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::services::dashboard_service::DashboardService;
-use crate::utils::response::ApiResponse;
+use crate::services::dashboard_service::{
+    DashboardOverview, InventoryStatistics, LowStockAlert, SalesStatistics,
+};
 use crate::utils::error::AppError;
-use crate::services::dashboard_service::{DashboardOverview, SalesStatistics, InventoryStatistics, LowStockAlert};
+use crate::utils::response::ApiResponse;
 
 /// 查询参数 - 仪表板
 #[derive(Debug, Deserialize)]
@@ -32,7 +34,9 @@ pub async fn get_dashboard_overview(
     let dashboard_service = DashboardService::new(db.clone());
     let start_datetime = query.start_date.map(naive_date_to_utc);
     let end_datetime = query.end_date.map(naive_date_to_utc);
-    let overview = dashboard_service.get_overview(start_datetime, end_datetime).await?;
+    let overview = dashboard_service
+        .get_overview(start_datetime, end_datetime)
+        .await?;
     Ok(Json(ApiResponse::success(overview)))
 }
 
@@ -44,7 +48,9 @@ pub async fn get_sales_statistics(
     let dashboard_service = DashboardService::new(db.clone());
     let start_datetime = query.start_date.map(naive_date_to_utc);
     let end_datetime = query.end_date.map(naive_date_to_utc);
-    let stats = dashboard_service.get_sales_statistics(start_datetime, end_datetime).await?;
+    let stats = dashboard_service
+        .get_sales_statistics(start_datetime, end_datetime)
+        .await?;
     Ok(Json(ApiResponse::success(stats)))
 }
 
@@ -56,7 +62,9 @@ pub async fn get_inventory_statistics(
     let dashboard_service = DashboardService::new(db.clone());
     let start_datetime = query.start_date.map(naive_date_to_utc);
     let end_datetime = query.end_date.map(naive_date_to_utc);
-    let stats = dashboard_service.get_inventory_statistics(start_datetime, end_datetime).await?;
+    let stats = dashboard_service
+        .get_inventory_statistics(start_datetime, end_datetime)
+        .await?;
     Ok(Json(ApiResponse::success(stats)))
 }
 

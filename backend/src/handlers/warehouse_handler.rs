@@ -2,15 +2,17 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, PaginatorTrait, QueryFilter, ColumnTrait};
-use std::sync::Arc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use serde::Deserialize;
+use std::sync::Arc;
 
+use crate::models::location::Entity as LocationEntity;
 use crate::models::location::{self as location_model};
 use crate::services::warehouse_service::WarehouseService;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::error::AppError;
-use crate::models::location::Entity as LocationEntity;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 仓库列表
 #[derive(Debug, Deserialize)]
@@ -91,12 +93,9 @@ pub async fn list_warehouses(
     let page_size = query.page_size.unwrap_or(10);
 
     let warehouse_service = WarehouseService::new(db.clone());
-    let warehouses = warehouse_service.list_warehouses(
-        page,
-        page_size,
-        query.status,
-        query.search,
-    ).await?;
+    let warehouses = warehouse_service
+        .list_warehouses(page, page_size, query.status, query.search)
+        .await?;
 
     let (warehouses_vec, total) = warehouses;
     let warehouses_json: Vec<serde_json::Value> = warehouses_vec
@@ -104,7 +103,9 @@ pub async fn list_warehouses(
         .map(|w| serde_json::to_value(w).unwrap_or_default())
         .collect();
 
-    Ok(Json(PaginatedResponse::new(warehouses_json, total, page, page_size).into()))
+    Ok(Json(
+        PaginatedResponse::new(warehouses_json, total, page, page_size).into(),
+    ))
 }
 
 /// 获取仓库详情
@@ -124,17 +125,22 @@ pub async fn create_warehouse(
     Json(req): Json<CreateWarehouseRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let warehouse_service = WarehouseService::new(db.clone());
-    let warehouse = warehouse_service.create_warehouse(
-        req.name,
-        req.code,
-        req.address,
-        req.manager,
-        req.phone,
-        req.capacity,
-        "active".to_string(),
-    ).await?;
+    let warehouse = warehouse_service
+        .create_warehouse(
+            req.name,
+            req.code,
+            req.address,
+            req.manager,
+            req.phone,
+            req.capacity,
+            "active".to_string(),
+        )
+        .await?;
     let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(warehouse_json, "仓库创建成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        warehouse_json,
+        "仓库创建成功",
+    )))
 }
 
 /// 更新仓库
@@ -144,17 +150,22 @@ pub async fn update_warehouse(
     Json(req): Json<UpdateWarehouseRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let warehouse_service = WarehouseService::new(db.clone());
-    let warehouse = warehouse_service.update_warehouse(
-        id,
-        req.name,
-        req.address,
-        req.manager,
-        req.phone,
-        req.capacity,
-        req.status,
-    ).await?;
+    let warehouse = warehouse_service
+        .update_warehouse(
+            id,
+            req.name,
+            req.address,
+            req.manager,
+            req.phone,
+            req.capacity,
+            req.status,
+        )
+        .await?;
     let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(warehouse_json, "仓库更新成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        warehouse_json,
+        "仓库更新成功",
+    )))
 }
 
 /// 删除仓库
@@ -182,15 +193,23 @@ pub async fn list_locations(
     }
 
     let paginator = query_builder.paginate(&*db, page_size);
-    let locations = paginator.fetch_page(page - 1).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
-    let total = paginator.num_items().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let locations = paginator
+        .fetch_page(page - 1)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let total = paginator
+        .num_items()
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
         .map(|l| serde_json::to_value(l).unwrap_or_default())
         .collect();
 
-    Ok(Json(PaginatedResponse::new(locations_json, total, page, page_size).into()))
+    Ok(Json(
+        PaginatedResponse::new(locations_json, total, page, page_size).into(),
+    ))
 }
 
 /// 创建库位
@@ -205,7 +224,9 @@ pub async fn create_location(
         shelf_no: sea_orm::ActiveValue::Set(req.shelf_no),
         layer_no: sea_orm::ActiveValue::Set(req.layer_no),
         position_no: sea_orm::ActiveValue::Set(req.position_no),
-        max_capacity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::from_f64_retain(req.max_capacity).unwrap_or_default()),
+        max_capacity: sea_orm::ActiveValue::Set(
+            rust_decimal::Decimal::from_f64_retain(req.max_capacity).unwrap_or_default(),
+        ),
         current_usage: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
         remarks: sea_orm::ActiveValue::Set(req.remarks),
         is_active: sea_orm::ActiveValue::Set(true),
@@ -215,7 +236,10 @@ pub async fn create_location(
 
     let location = active_location.insert(&*db).await?;
     let location_json = serde_json::to_value(location).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(location_json, "库位创建成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        location_json,
+        "库位创建成功",
+    )))
 }
 
 /// 获取库位详情
@@ -243,7 +267,10 @@ pub async fn update_location(
         .await?
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
     let location_json = serde_json::to_value(location).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(location_json, "库位更新成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        location_json,
+        "库位更新成功",
+    )))
 }
 
 /// 删除库位
@@ -251,8 +278,6 @@ pub async fn delete_location(
     State(db): State<Arc<DatabaseConnection>>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    LocationEntity::delete_by_id(id)
-        .exec(&*db)
-        .await?;
+    LocationEntity::delete_by_id(id).exec(&*db).await?;
     Ok(Json(ApiResponse::success_with_msg((), "库位删除成功")))
 }

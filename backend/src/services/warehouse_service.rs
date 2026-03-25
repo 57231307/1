@@ -1,7 +1,10 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, ColumnTrait, QueryFilter, QueryOrder, Set, NotSet, Order};
-use sea_orm::prelude::*;
-use std::sync::Arc;
 use chrono::Utc;
+use sea_orm::prelude::*;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, QueryFilter,
+    QueryOrder, Set,
+};
+use std::sync::Arc;
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
 
@@ -14,7 +17,7 @@ impl WarehouseService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-    
+
     /// 获取仓库列表（支持分页和过滤）
     #[allow(unused_variables)]
     pub async fn list_warehouses(
@@ -25,32 +28,33 @@ impl WarehouseService {
         search: Option<String>,
     ) -> Result<(Vec<warehouse::Model>, u64), sea_orm::DbErr> {
         let mut query = WarehouseEntity::find();
-        
+
         // 应用过滤条件
         if let Some(s) = status {
             query = query.filter(warehouse::Column::IsActive.eq(s == "active"));
         }
-        
+
         if let Some(keyword) = search {
             query = query.filter(
-                warehouse::Column::Name.like(format!("%{}%", keyword))
-                    .or(warehouse::Column::WarehouseCode.like(format!("%{}%", keyword)))
+                warehouse::Column::Name
+                    .like(format!("%{}%", keyword))
+                    .or(warehouse::Column::WarehouseCode.like(format!("%{}%", keyword))),
             );
         }
-        
+
         // 获取总数
         let total = query.clone().count(&*self.db).await?;
-        
+
         // 应用分页和排序
         let warehouses = query
             .order_by(warehouse::Column::WarehouseCode, Order::Asc)
             .into_model::<warehouse::Model>()
             .all(&*self.db)
             .await?;
-        
+
         Ok((warehouses, total))
     }
-    
+
     /// 获取仓库详情
     pub async fn get_warehouse(&self, id: i32) -> Result<warehouse::Model, sea_orm::DbErr> {
         WarehouseEntity::find_by_id(id)
@@ -58,7 +62,7 @@ impl WarehouseService {
             .await?
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("仓库 ID {} 不存在", id)))
     }
-    
+
     /// 创建仓库
     #[allow(unused_variables)]
     pub async fn create_warehouse(
@@ -88,11 +92,11 @@ impl WarehouseService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
-        
+
         let result = active_model.insert(&*self.db).await?;
         Ok(result)
     }
-    
+
     /// 更新仓库
     #[allow(clippy::too_many_arguments)]
     #[allow(unused_variables)]
@@ -111,7 +115,7 @@ impl WarehouseService {
             .await?
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("仓库 ID {} 不存在", id)))?
             .into();
-        
+
         if let Some(n) = name {
             wh.name = Set(n);
         }
@@ -127,18 +131,21 @@ impl WarehouseService {
         if let Some(s) = status {
             wh.is_active = Set(s == "active");
         }
-        
+
         wh.updated_at = Set(Utc::now());
-        
+
         let result = wh.update(&*self.db).await?;
         Ok(result)
     }
-    
+
     /// 删除仓库
     pub async fn delete_warehouse(&self, id: i32) -> Result<(), sea_orm::DbErr> {
         let result = WarehouseEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::RecordNotFound(format!("仓库 ID {} 不存在", id)));
+            return Err(sea_orm::DbErr::RecordNotFound(format!(
+                "仓库 ID {} 不存在",
+                id
+            )));
         }
         Ok(())
     }

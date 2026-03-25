@@ -2,9 +2,9 @@
 //!
 //! 记录每笔业务的辅助核算信息
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 
 /// 辅助核算记录 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]

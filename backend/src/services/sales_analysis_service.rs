@@ -1,13 +1,13 @@
 use crate::models::sales_analysis;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, PaginatorTrait, Order, Set,
-};
-use std::sync::Arc;
 use crate::utils::error::AppError;
-use tracing::info;
-use serde::Deserialize;
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug, Clone, Default)]
 pub struct SalesStatisticQueryParams {
@@ -64,10 +64,7 @@ impl SalesAnalysisService {
     }
 
     #[allow(dead_code)]
-    pub async fn get_trends(
-        &self,
-        period: &str,
-    ) -> Result<Vec<sales_analysis::Model>, AppError> {
+    pub async fn get_trends(&self, period: &str) -> Result<Vec<sales_analysis::Model>, AppError> {
         info!("查询销售趋势，周期：{}", period);
 
         let trends = sales_analysis::Entity::find()
@@ -138,7 +135,10 @@ impl SalesAnalysisService {
             period: Set(req.period),
             dimension_type: Set(req.target_type),
             dimension_id: Set(Some(req.target_id)),
-            dimension_name: Set(Some(format!("开始日期: {}, 结束日期: {}", req.start_date, req.end_date))),
+            dimension_name: Set(Some(format!(
+                "开始日期: {}, 结束日期: {}",
+                req.start_date, req.end_date
+            ))),
             total_amount: Set(req.target_amount),
             ..Default::default()
         };

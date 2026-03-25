@@ -4,11 +4,13 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sea_orm::{DatabaseConnection, EntityTrait, TransactionTrait, QueryFilter, ColumnTrait, PaginatorTrait};
-use std::sync::Arc;
-use serde::Deserialize;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, TransactionTrait,
+};
+use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::models::inventory_stock;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -105,9 +107,14 @@ pub async fn list_batches(
             let paginated = PaginatedResponse::new(batches, total, page, page_size);
             paginated.into_response()
         }
-        Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("获取批次列表失败：{}", e)))).into_response()
-        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(&format!(
+                "获取批次列表失败：{}",
+                e
+            ))),
+        )
+            .into_response(),
     }
 }
 
@@ -116,20 +123,18 @@ pub async fn get_batch(
     State(db): State<Arc<DatabaseConnection>>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match inventory_stock::Entity::find_by_id(id)
-        .one(&*db)
-        .await
-    {
-        Ok(Some(batch)) => (
-            StatusCode::OK,
-            Json(ApiResponse::success(batch)),
-        ).into_response(),
-        Ok(None) => {
-            (StatusCode::NOT_FOUND, Json(ApiResponse::<()>::error("批次不存在"))).into_response()
-        }
-        Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e)))).into_response()
-        }
+    match inventory_stock::Entity::find_by_id(id).one(&*db).await {
+        Ok(Some(batch)) => (StatusCode::OK, Json(ApiResponse::success(batch))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<()>::error("批次不存在")),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))),
+        )
+            .into_response(),
     }
 }
 
@@ -138,8 +143,8 @@ pub async fn create_batch(
     State(db): State<Arc<DatabaseConnection>>,
     Json(req): Json<CreateBatchRequest>,
 ) -> impl IntoResponse {
-    use sea_orm::{Set, ActiveModelTrait};
     use crate::models::inventory_stock;
+    use sea_orm::{ActiveModelTrait, Set};
 
     let batch = inventory_stock::ActiveModel {
         id: Set(0),
@@ -148,9 +153,17 @@ pub async fn create_batch(
         batch_no: Set(req.batch_no.clone()),
         color_no: Set(req.color_no.clone()),
         dye_lot_no: Set(req.dye_lot_no),
-        grade: Set(if req.grade.is_empty() { "一等品".to_string() } else { req.grade.clone() }),
-        quantity_on_hand: Set(Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO)),
-        quantity_available: Set(Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO)),
+        grade: Set(if req.grade.is_empty() {
+            "一等品".to_string()
+        } else {
+            req.grade.clone()
+        }),
+        quantity_on_hand: Set(
+            Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO)
+        ),
+        quantity_available: Set(
+            Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO)
+        ),
         quantity_reserved: Set(Decimal::ZERO),
         quantity_incoming: Set(Decimal::ZERO),
         reorder_point: Set(Decimal::ZERO),
@@ -162,8 +175,12 @@ pub async fn create_batch(
         // 面料行业字段
         quantity_meters: Set(Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO)),
         quantity_kg: Set(Decimal::from_f64_retain(req.quantity_kg).unwrap_or(Decimal::ZERO)),
-        gram_weight: Set(req.gram_weight.and_then(|w| rust_decimal::Decimal::from_f64_retain(w))),
-        width: Set(req.width.and_then(|w| rust_decimal::Decimal::from_f64_retain(w))),
+        gram_weight: Set(req
+            .gram_weight
+            .and_then(|w| rust_decimal::Decimal::from_f64_retain(w))),
+        width: Set(req
+            .width
+            .and_then(|w| rust_decimal::Decimal::from_f64_retain(w))),
         production_date: Set(req.production_date),
         expiry_date: Set(req.expiry_date),
         stock_status: Set("正常".to_string()),
@@ -175,12 +192,16 @@ pub async fn create_batch(
     };
 
     match batch.insert(&*db).await {
-        Ok(created) => {
-            (StatusCode::CREATED, Json(ApiResponse::success_with_msg(created, "批次创建成功"))).into_response()
-        }
-        Err(e) => {
-            (StatusCode::BAD_REQUEST, Json(ApiResponse::<()>::error(&format!("创建批次失败：{}", e)))).into_response()
-        }
+        Ok(created) => (
+            StatusCode::CREATED,
+            Json(ApiResponse::success_with_msg(created, "批次创建成功")),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(&format!("创建批次失败：{}", e))),
+        )
+            .into_response(),
     }
 }
 
@@ -190,21 +211,27 @@ pub async fn update_batch(
     Path(id): Path<i32>,
     Json(req): Json<UpdateBatchRequest>,
 ) -> impl IntoResponse {
-    use sea_orm::{EntityTrait, Set, ActiveModelTrait};
     use crate::models::inventory_stock;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
-    let mut batch: inventory_stock::ActiveModel = match inventory_stock::Entity::find_by_id(id)
-        .one(&*db)
-        .await
-    {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (StatusCode::NOT_FOUND, Json(ApiResponse::<()>::error("批次不存在"))).into_response();
-        }
-        Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e)))).into_response();
-        }
-    };
+    let mut batch: inventory_stock::ActiveModel =
+        match inventory_stock::Entity::find_by_id(id).one(&*db).await {
+            Ok(Some(b)) => b.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("批次不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     if let Some(color) = req.color_no {
         batch.color_no = Set(color);
@@ -216,10 +243,14 @@ pub async fn update_batch(
         batch.grade = Set(grade);
     }
     if let Some(gw) = req.gram_weight {
-        batch.gram_weight = Set(Some(rust_decimal::Decimal::from_f64_retain(gw).unwrap_or(rust_decimal::Decimal::ZERO)));
+        batch.gram_weight = Set(Some(
+            rust_decimal::Decimal::from_f64_retain(gw).unwrap_or(rust_decimal::Decimal::ZERO),
+        ));
     }
     if let Some(w) = req.width {
-        batch.width = Set(Some(rust_decimal::Decimal::from_f64_retain(w).unwrap_or(rust_decimal::Decimal::ZERO)));
+        batch.width = Set(Some(
+            rust_decimal::Decimal::from_f64_retain(w).unwrap_or(rust_decimal::Decimal::ZERO),
+        ));
     }
     if let Some(exp) = req.expiry_date {
         batch.expiry_date = Set(Some(exp));
@@ -240,10 +271,13 @@ pub async fn update_batch(
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "批次更新成功")),
-        ).into_response(),
-        Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("更新批次失败：{}", e)))).into_response()
-        }
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(&format!("更新批次失败：{}", e))),
+        )
+            .into_response(),
     }
 }
 
@@ -254,17 +288,17 @@ pub async fn delete_batch(
 ) -> impl IntoResponse {
     use sea_orm::EntityTrait;
 
-    match inventory_stock::Entity::delete_by_id(id)
-        .exec(&*db)
-        .await
-    {
+    match inventory_stock::Entity::delete_by_id(id).exec(&*db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "批次删除成功")),
-        ).into_response(),
-        Err(e) => {
-            (StatusCode::BAD_REQUEST, Json(ApiResponse::<()>::error(&format!("删除批次失败：{}", e)))).into_response()
-        }
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(&format!("删除批次失败：{}", e))),
+        )
+            .into_response(),
     }
 }
 
@@ -274,28 +308,34 @@ pub async fn transfer_batch(
     Path(id): Path<i32>,
     Json(req): Json<TransferBatchRequest>,
 ) -> impl IntoResponse {
-    use sea_orm::{EntityTrait, Set, ActiveModelTrait};
     use crate::models::inventory_stock;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     // 开启事务
     let txn = match db.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("开启事务失败：{}", e))));
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(&format!("开启事务失败：{}", e))),
+            );
         }
     };
 
     // 查询源批次
-    let source_batch = match inventory_stock::Entity::find_by_id(id)
-        .one(&txn)
-        .await
-    {
+    let source_batch = match inventory_stock::Entity::find_by_id(id).one(&txn).await {
         Ok(Some(b)) => b,
         Ok(None) => {
-            return (StatusCode::NOT_FOUND, Json(ApiResponse::<()>::error("源批次不存在")));
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::error("源批次不存在")),
+            );
         }
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))));
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))),
+            );
         }
     };
 
@@ -304,7 +344,10 @@ pub async fn transfer_batch(
 
     // 检查库存是否足够
     if source_batch.quantity_available < transfer_meters {
-        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<()>::error("库存数量不足")));
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error("库存数量不足")),
+        );
     }
 
     // 更新源批次库存
@@ -323,9 +366,12 @@ pub async fn transfer_batch(
     source.quantity_on_hand = Set(source_quantity_on_hand - transfer_meters);
     source.quantity_available = Set(source_quantity_available - transfer_meters);
     source.updated_at = Set(Utc::now());
-    
+
     if let Err(e) = source.update(&txn).await {
-        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<()>::error(&format!("更新源批次失败：{}", e))));
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(&format!("更新源批次失败：{}", e))),
+        );
     }
 
     // 查询目标仓库是否已有相同批次
@@ -344,9 +390,15 @@ pub async fn transfer_batch(
             target.quantity_on_hand = Set(existing.quantity_on_hand + transfer_meters);
             target.quantity_available = Set(existing.quantity_available + transfer_meters);
             target.updated_at = Set(Utc::now());
-            
+
             if let Err(e) = target.update(&txn).await {
-                return (StatusCode::BAD_REQUEST, Json(ApiResponse::<()>::error(&format!("更新目标批次失败：{}", e))));
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<()>::error(&format!(
+                        "更新目标批次失败：{}",
+                        e
+                    ))),
+                );
             }
         }
         Ok(None) => {
@@ -384,18 +436,36 @@ pub async fn transfer_batch(
             };
 
             if let Err(e) = new_batch.insert(&txn).await {
-                return (StatusCode::BAD_REQUEST, Json(ApiResponse::<()>::error(&format!("创建目标批次失败：{}", e))));
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<()>::error(&format!(
+                        "创建目标批次失败：{}",
+                        e
+                    ))),
+                );
             }
         }
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("查询目标批次失败：{}", e))));
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(&format!(
+                    "查询目标批次失败：{}",
+                    e
+                ))),
+            );
         }
     }
 
     // 提交事务
     if let Err(e) = txn.commit().await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<()>::error(&format!("提交事务失败：{}", e))));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(&format!("提交事务失败：{}", e))),
+        );
     }
 
-    (StatusCode::OK, Json(ApiResponse::success_with_msg((), "批次转移成功")))
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_msg((), "批次转移成功")),
+    )
 }

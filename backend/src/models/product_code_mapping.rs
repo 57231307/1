@@ -2,8 +2,8 @@
 //!
 //! 产品编码映射模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 产品编码映射 Entity

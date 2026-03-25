@@ -1,7 +1,7 @@
 use crate::models::user;
-use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait};
-use std::sync::Arc;
 use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct UserService {
@@ -74,9 +74,8 @@ impl UserService {
         page_size: u64,
     ) -> Result<(Vec<user::Model>, u64), sea_orm::DbErr> {
         use sea_orm::PaginatorTrait;
-        
-        let paginator = user::Entity::find()
-            .paginate(self.db.as_ref(), page_size);
+
+        let paginator = user::Entity::find().paginate(self.db.as_ref(), page_size);
 
         let total = paginator.num_items().await?;
         let users = paginator.fetch_page(page - 1).await?;

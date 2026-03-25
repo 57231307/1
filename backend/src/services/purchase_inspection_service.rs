@@ -1,17 +1,17 @@
 //! 采购质检 Service
-//! 
+//!
 //! 采购质检服务层，负责采购质检的核心业务逻辑
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait, Set, Order, PaginatorTrait,
-};
-use std::sync::Arc;
 use crate::models::purchase_inspection;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::Deserialize;
+use std::sync::Arc;
 use validator::Validate;
 
 /// 采购质检服务
@@ -30,12 +30,12 @@ impl PurchaseInspectionService {
     pub async fn generate_inspection_no(&self) -> Result<String, AppError> {
         let today = Utc::now().format("%Y%m%d").to_string();
         let prefix = format!("IQ{}", today);
-        
+
         let count = purchase_inspection::Entity::find()
             .filter(purchase_inspection::Column::InspectionNo.starts_with(&prefix))
             .count(&*self.db)
             .await?;
-        
+
         Ok(format!("{}{:03}", prefix, count + 1))
     }
 
@@ -46,7 +46,7 @@ impl PurchaseInspectionService {
         user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
         let inspection_no = self.generate_inspection_no().await?;
-        
+
         let inspection = purchase_inspection::ActiveModel {
             inspection_no: Set(inspection_no),
             purchase_order_id: Set(req.order_id),
@@ -60,8 +60,10 @@ impl PurchaseInspectionService {
             remarks: Set(req.notes),
             created_by: Set(user_id),
             ..Default::default()
-        }.insert(&*self.db).await?;
-        
+        }
+        .insert(&*self.db)
+        .await?;
+
         Ok(inspection)
     }
 
@@ -75,25 +77,29 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购质检单 {}", inspection_id)))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!(
+                "采购质检单 {}",
+                inspection_id
+            )))?;
+
         if inspection.result != "PENDING" {
-            return Err(AppError::BusinessError(
-                format!("质检单状态不允许修改，当前状态：{}", inspection.result)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "质检单状态不允许修改，当前状态：{}",
+                inspection.result
+            )));
         }
-        
+
         let mut inspection_active: purchase_inspection::ActiveModel = inspection.into();
-        
+
         if let Some(notes) = req.notes {
             // 使用 clone 避免 moved value 错误
             let notes_clone = notes.clone();
             inspection_active.remarks = Set(Some(notes));
             inspection_active.unqualified_reason = Set(Some(notes_clone));
         }
-        
+
         let inspection = inspection_active.update(&*self.db).await?;
-        
+
         Ok(inspection)
     }
 
@@ -105,38 +111,42 @@ impl PurchaseInspectionService {
         _user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购质检单 {}", inspection_id)))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!(
+                "采购质检单 {}",
+                inspection_id
+            )))?;
+
         if inspection.result != "PENDING" {
-            return Err(AppError::BusinessError(
-                format!("质检单状态不允许完成，当前状态：{}", inspection.result)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "质检单状态不允许完成，当前状态：{}",
+                inspection.result
+            )));
         }
-        
+
         // 计算质量得分
-        let _quality_score = self.calculate_quality_score(
-            req.pass_quantity,
-            req.reject_quantity,
-        ).await?;
-        
+        let _quality_score = self
+            .calculate_quality_score(req.pass_quantity, req.reject_quantity)
+            .await?;
+
         let now = Utc::now().naive_utc();
         let mut inspection_active: purchase_inspection::ActiveModel = inspection.into();
         inspection_active.qualified_quantity = Set(req.pass_quantity);
         inspection_active.unqualified_quantity = Set(req.reject_quantity);
         if req.reject_quantity > Decimal::ZERO {
-            inspection_active.unqualified_reason = Set(Some(format!("不合格数量：{}", req.reject_quantity)));
+            inspection_active.unqualified_reason =
+                Set(Some(format!("不合格数量：{}", req.reject_quantity)));
         }
         inspection_active.result = Set(req.inspection_result);
         inspection_active.inspection_date = Set(now.date());
-        
+
         let inspection = inspection_active.update(&txn).await?;
-        
+
         txn.commit().await?;
-        
+
         Ok(inspection)
     }
 
@@ -147,13 +157,13 @@ impl PurchaseInspectionService {
         reject_quantity: Decimal,
     ) -> Result<Decimal, AppError> {
         let total = pass_quantity + reject_quantity;
-        
+
         if total == Decimal::new(0, 0) {
             return Ok(Decimal::new(0, 2));
         }
-        
+
         let score = (pass_quantity / total) * Decimal::new(100, 0);
-        
+
         Ok(score)
     }
 
@@ -166,23 +176,23 @@ impl PurchaseInspectionService {
         supplier_id: Option<i32>,
     ) -> Result<(Vec<purchase_inspection::Model>, u64), AppError> {
         use sea_orm::PaginatorTrait;
-        
+
         let mut query = purchase_inspection::Entity::find();
-        
+
         if let Some(status) = status {
             query = query.filter(purchase_inspection::Column::Result.eq(&status));
         }
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_inspection::Column::SupplierId.eq(supplier_id));
         }
-        
+
         let paginator = query
             .order_by(purchase_inspection::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
-        
+
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page - 1).await?;
-        
+
         Ok((items, total))
     }
 
@@ -194,12 +204,14 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购质检单 {}", inspection_id)))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!(
+                "采购质检单 {}",
+                inspection_id
+            )))?;
+
         Ok(inspection)
     }
 }
-
 
 // =====================================================
 // 请求/响应 DTO
@@ -246,10 +258,10 @@ pub struct UpdatePurchaseInspectionRequest {
 pub struct CompleteInspectionRequest {
     /// 合格数量
     pub pass_quantity: Decimal,
-    
+
     /// 不合格数量
     pub reject_quantity: Decimal,
-    
+
     /// 质检结果
     pub inspection_result: String,
 }

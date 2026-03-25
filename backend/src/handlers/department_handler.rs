@@ -3,14 +3,14 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::models::department;
 use crate::services::department_service::DepartmentService;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::utils::error::AppError;
 use crate::services::department_service::DepartmentTreeNode;
+use crate::utils::error::AppError;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 部门列表
 #[derive(Debug, Deserialize)]
@@ -46,14 +46,13 @@ pub async fn list_departments(
     let page_size = query.page_size.unwrap_or(10);
 
     let department_service = DepartmentService::new(db.clone());
-    let (departments, total) = department_service.list_departments(
-        page,
-        page_size,
-        query.parent_id,
-        query.search,
-    ).await?;
+    let (departments, total) = department_service
+        .list_departments(page, page_size, query.parent_id, query.search)
+        .await?;
 
-    Ok(Json(PaginatedResponse::new(departments, total, page, page_size).into()))
+    Ok(Json(
+        PaginatedResponse::new(departments, total, page, page_size).into(),
+    ))
 }
 
 /// 获取部门详情
@@ -72,12 +71,13 @@ pub async fn create_department(
     Json(req): Json<CreateDepartmentRequest>,
 ) -> Result<Json<ApiResponse<department::Model>>, AppError> {
     let department_service = DepartmentService::new(db.clone());
-    let department = department_service.create_department(
-        req.name,
-        req.description,
-        req.parent_id,
-    ).await?;
-    Ok(Json(ApiResponse::success_with_msg(department, "部门创建成功")))
+    let department = department_service
+        .create_department(req.name, req.description, req.parent_id)
+        .await?;
+    Ok(Json(ApiResponse::success_with_msg(
+        department,
+        "部门创建成功",
+    )))
 }
 
 /// 更新部门
@@ -87,13 +87,13 @@ pub async fn update_department(
     Json(req): Json<UpdateDepartmentRequest>,
 ) -> Result<Json<ApiResponse<department::Model>>, AppError> {
     let department_service = DepartmentService::new(db.clone());
-    let department = department_service.update_department(
-        id,
-        req.name,
-        req.description,
-        req.parent_id,
-    ).await?;
-    Ok(Json(ApiResponse::success_with_msg(department, "部门更新成功")))
+    let department = department_service
+        .update_department(id, req.name, req.description, req.parent_id)
+        .await?;
+    Ok(Json(ApiResponse::success_with_msg(
+        department,
+        "部门更新成功",
+    )))
 }
 
 /// 删除部门

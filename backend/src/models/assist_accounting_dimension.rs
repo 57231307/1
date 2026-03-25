@@ -2,8 +2,8 @@
 //!
 //! 8 个辅助核算维度：批次、色号、缸号、等级、车间、仓库、客户、供应商
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 
 /// 辅助核算维度 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]

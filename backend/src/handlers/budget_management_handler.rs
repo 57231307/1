@@ -1,18 +1,18 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::{budget_management, budget_plan, budget_execution};
-use crate::services::budget_management_service::{BudgetManagementService, BudgetControlResponse};
+use crate::models::{budget_execution, budget_management, budget_plan};
+use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
-use rust_decimal::Decimal;
-use chrono::NaiveDate;
 
 /// 预算科目查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -126,18 +126,20 @@ pub async fn create_item(
     info!("用户 {} 正在创建预算科目：{}", auth.username, req.item_code);
 
     let service = BudgetManagementService::new(db);
-    let item = service.create_item(
-        crate::services::budget_management_service::CreateBudgetItemRequest {
-            item_code: req.item_code,
-            item_name: req.item_name,
-            item_type: req.item_type,
-            parent_id: req.parent_id,
-            budget_year: req.budget_year,
-            planned_amount: req.planned_amount,
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    let item = service
+        .create_item(
+            crate::services::budget_management_service::CreateBudgetItemRequest {
+                item_code: req.item_code,
+                item_name: req.item_name,
+                item_type: req.item_type,
+                parent_id: req.parent_id,
+                budget_year: req.budget_year,
+                planned_amount: req.planned_amount,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("预算科目创建成功：{}", item.item_code);
     Ok(Json(ApiResponse::success(item)))
@@ -169,17 +171,19 @@ pub async fn update_item(
     info!("用户 {} 正在更新预算科目：{}", auth.username, id);
 
     let service = BudgetManagementService::new(db);
-    let item = service.update_item(
-        id,
-        crate::services::budget_management_service::UpdateBudgetItemRequest {
-            item_name: req.item_name,
-            item_type: req.item_type,
-            planned_amount: req.planned_amount,
-            status: req.status,
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    let item = service
+        .update_item(
+            id,
+            crate::services::budget_management_service::UpdateBudgetItemRequest {
+                item_name: req.item_name,
+                item_type: req.item_type,
+                planned_amount: req.planned_amount,
+                status: req.status,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("预算科目更新成功：{}", id);
     Ok(Json(ApiResponse::success(item)))
@@ -209,12 +213,14 @@ pub async fn list_plans(
     info!("用户 {} 正在查询预算方案列表", auth.username);
 
     let service = BudgetManagementService::new(db);
-    let (plans, _total) = service.get_plans_list(
-        params.item_type.and_then(|y| y.parse().ok()),
-        params.status.and_then(|s| s.parse().ok()),
-        params.page.unwrap_or(0),
-        params.page_size.unwrap_or(10),
-    ).await?;
+    let (plans, _total) = service
+        .get_plans_list(
+            params.item_type.and_then(|y| y.parse().ok()),
+            params.status.and_then(|s| s.parse().ok()),
+            params.page.unwrap_or(0),
+            params.page_size.unwrap_or(10),
+        )
+        .await?;
 
     info!("预算方案列表查询成功，共 {} 条记录", plans.len());
     Ok(Json(ApiResponse::success(plans)))
@@ -236,20 +242,22 @@ pub async fn create_plan(
     let end_date = NaiveDate::parse_from_str(&req.end_date, "%Y-%m-%d")
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
 
-    let plan = service.create_plan(
-        crate::services::budget_management_service::CreateBudgetPlanRequest {
-            plan_no: req.plan_no,
-            plan_name: req.plan_name,
-            budget_year: req.budget_year,
-            department_id: req.department_id,
-            total_amount: req.total_amount,
-            items: vec![],
-            start_date,
-            end_date,
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    let plan = service
+        .create_plan(
+            crate::services::budget_management_service::CreateBudgetPlanRequest {
+                plan_no: req.plan_no,
+                plan_name: req.plan_name,
+                budget_year: req.budget_year,
+                department_id: req.department_id,
+                total_amount: req.total_amount,
+                items: vec![],
+                start_date,
+                end_date,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("预算方案创建成功：ID={}", plan.id);
     Ok(Json(ApiResponse::success(plan)))
@@ -281,7 +289,9 @@ pub async fn approve_plan(
     info!("用户 {} 正在审批预算方案：{}", auth.username, id);
 
     let service = BudgetManagementService::new(db);
-    service.approve_plan(id, auth.user_id, req.approval_comment).await?;
+    service
+        .approve_plan(id, auth.user_id, req.approval_comment)
+        .await?;
 
     info!("预算方案审批通过：{}", id);
     Ok(Json(ApiResponse::success("审批通过".to_string())))
@@ -301,16 +311,18 @@ pub async fn execute_plan(
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(db);
-    service.execute_plan(
-        crate::services::budget_management_service::BudgetExecuteRequest {
-            plan_id: id,
-            actual_amount: req.actual_amount,
-            expense_type: req.expense_type,
-            expense_date,
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    service
+        .execute_plan(
+            crate::services::budget_management_service::BudgetExecuteRequest {
+                plan_id: id,
+                actual_amount: req.actual_amount,
+                expense_type: req.expense_type,
+                expense_date,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("预算方案执行成功：{}", id);
     Ok(Json(ApiResponse::success("执行成功".to_string())))
@@ -354,23 +366,28 @@ pub async fn create_execution(
     auth: AuthContext,
     Json(req): Json<CreateBudgetExecutionRequest>,
 ) -> Result<Json<ApiResponse<budget_execution::Model>>, AppError> {
-    info!("用户 {} 正在创建预算执行明细，方案ID：{}", auth.username, id);
+    info!(
+        "用户 {} 正在创建预算执行明细，方案ID：{}",
+        auth.username, id
+    );
 
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(db);
-    let execution = service.create_execution(
-        id,
-        req.execution_type,
-        req.amount,
-        expense_date,
-        req.expense_type,
-        req.related_document_type,
-        req.related_document_id,
-        req.remark,
-        auth.user_id,
-    ).await?;
+    let execution = service
+        .create_execution(
+            id,
+            req.execution_type,
+            req.amount,
+            expense_date,
+            req.expense_type,
+            req.related_document_type,
+            req.related_document_id,
+            req.remark,
+            auth.user_id,
+        )
+        .await?;
 
     info!("预算执行明细创建成功：ID={}", execution.id);
     Ok(Json(ApiResponse::success(execution)))
@@ -382,7 +399,10 @@ pub async fn get_plan_executions(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<budget_execution::Model>>>, AppError> {
-    info!("用户 {} 正在查询预算执行明细列表，方案ID：{}", auth.username, id);
+    info!(
+        "用户 {} 正在查询预算执行明细列表，方案ID：{}",
+        auth.username, id
+    );
 
     let service = BudgetManagementService::new(db);
     let executions = service.get_executions_by_plan(id).await?;

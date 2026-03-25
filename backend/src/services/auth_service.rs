@@ -4,11 +4,15 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::{DateTime, Duration, Utc};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use hmac::{Hmac, Mac};
 use sea_orm::DatabaseConnection;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use std::sync::Arc;
+
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppClaims {
@@ -74,8 +78,8 @@ impl AuthService {
             iat: now,
         };
 
-        let json = serde_json::to_string(&claims)
-            .map_err(|e| AuthError::JwtError(e.to_string()))?;
+        let json =
+            serde_json::to_string(&claims).map_err(|e| AuthError::JwtError(e.to_string()))?;
 
         let encoded = BASE64.encode(json.as_bytes());
         let signature = self.sign(&encoded);
@@ -95,11 +99,12 @@ impl AuthService {
             return Err(AuthError::JwtError("Invalid signature".to_string()));
         }
 
-        let json = BASE64.decode(encoded)
+        let json = BASE64
+            .decode(encoded)
             .map_err(|e| AuthError::JwtError(e.to_string()))?;
 
-        let claims: AppClaims = serde_json::from_slice(&json)
-            .map_err(|e| AuthError::JwtError(e.to_string()))?;
+        let claims: AppClaims =
+            serde_json::from_slice(&json).map_err(|e| AuthError::JwtError(e.to_string()))?;
 
         if claims.exp < Utc::now() {
             return Err(AuthError::JwtError("Token expired".to_string()));
@@ -109,16 +114,24 @@ impl AuthService {
     }
 
     fn sign(&self, data: &str) -> String {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        data.hash(&mut hasher);
-        self.secret.hash(&mut hasher);
-        format!("{:x}", hasher.finish())
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).expect("HMAC can accept key of any size");
+        mac.update(data.as_bytes());
+        let result = mac.finalize();
+        BASE64.encode(result.into_bytes())
     }
 
     fn verify_signature(&self, data: &str, signature: &str) -> bool {
-        self.sign(data) == signature
+        let mut mac = match HmacSha256::new_from_slice(&self.secret) {
+            Ok(m) => m,
+            Err(_) => return false,
+        };
+        mac.update(data.as_bytes());
+        let decoded_sig = match BASE64.decode(signature) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        mac.verify_slice(&decoded_sig).is_ok()
     }
 
     pub fn verify_password(&self, password: &str, hash: &str) -> bool {

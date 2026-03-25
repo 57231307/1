@@ -1,14 +1,14 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
-use crate::utils::PaginatedResponse;
 use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
 use crate::models::inventory_count_item::{self, Entity as InventoryCountItemEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
+use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
 /// 库存盘点详情响应
@@ -97,8 +97,8 @@ impl InventoryCountService {
         warehouse_id: Option<i32>,
         count_no: Option<String>,
     ) -> Result<PaginatedResponse<InventoryCountDetail>, sea_orm::DbErr> {
-        let mut query = InventoryCountEntity::find()
-            .order_by(inventory_count::Column::CreatedAt, Order::Desc);
+        let mut query =
+            InventoryCountEntity::find().order_by(inventory_count::Column::CreatedAt, Order::Desc);
 
         // 应用过滤条件
         if let Some(s) = status {
@@ -114,9 +114,8 @@ impl InventoryCountService {
         // 分页
         let paginator = query.paginate(&*self.db, page_req.page_size as u64);
         let total = paginator.num_items().await?;
-        let counts: Vec<inventory_count::Model> = paginator
-            .fetch_page(page_req.page as u64 - 1)
-            .await?;
+        let counts: Vec<inventory_count::Model> =
+            paginator.fetch_page(page_req.page as u64 - 1).await?;
 
         // 转换为响应格式
         let count_details: Vec<InventoryCountDetail> = counts
@@ -141,16 +140,26 @@ impl InventoryCountService {
             })
             .collect();
 
-        Ok(PaginatedResponse::new(count_details, total, page_req.page, page_req.page_size))
+        Ok(PaginatedResponse::new(
+            count_details,
+            total,
+            page_req.page,
+            page_req.page_size,
+        ))
     }
 
     /// 获取库存盘点详情（包含明细项）
-    pub async fn get_count_detail(&self, count_id: i32) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    pub async fn get_count_detail(
+        &self,
+        count_id: i32,
+    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
         // 获取盘点主表数据
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+            })?;
 
         // 获取盘点明细项
         let items = InventoryCountItemEntity::find()
@@ -209,13 +218,13 @@ impl InventoryCountService {
 
         // 生成盘点单号并检查唯一性
         let count_no = self.generate_count_no().await?;
-        
+
         // 再次检查盘点单号是否已存在（防止并发冲突）
         let existing_count = InventoryCountEntity::find()
             .filter(inventory_count::Column::CountNo.eq(&count_no))
             .one(&txn)
             .await?;
-        
+
         if existing_count.is_some() {
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom("盘点单号已存在，请重试".to_string()));
@@ -226,7 +235,9 @@ impl InventoryCountService {
             id: Default::default(),
             count_no: sea_orm::ActiveValue::Set(count_no),
             warehouse_id: sea_orm::ActiveValue::Set(request.warehouse_id),
-            count_date: sea_orm::ActiveValue::Set(request.count_date.unwrap_or_else(chrono::Utc::now)),
+            count_date: sea_orm::ActiveValue::Set(
+                request.count_date.unwrap_or_else(chrono::Utc::now),
+            ),
             status: sea_orm::ActiveValue::Set(request.status),
             total_items: sea_orm::ActiveValue::Set(0),
             counted_items: sea_orm::ActiveValue::Set(0),
@@ -273,7 +284,8 @@ impl InventoryCountService {
         // 更新盘点单统计
         let mut count_update: inventory_count::ActiveModel = count_entity.clone().into();
         count_update.total_items = sea_orm::ActiveValue::Set(total_items);
-        count_update.counted_items = sea_orm::ActiveValue::Set(if has_items { total_items } else { 0 });
+        count_update.counted_items =
+            sea_orm::ActiveValue::Set(if has_items { total_items } else { 0 });
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         count_update.update(&txn).await?;
 
@@ -294,12 +306,14 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+            })?;
 
         // 检查状态，已完成的盘点单不允许修改
         if count.status == "completed" {
             return Err(sea_orm::DbErr::Custom(
-                "盘点单已完成，不允许修改".to_string()
+                "盘点单已完成，不允许修改".to_string(),
             ));
         }
 
@@ -335,12 +349,14 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+            })?;
 
         // 检查状态，只有待审核的盘点单可以审核
         if count.status != "pending" {
             return Err(sea_orm::DbErr::Custom(
-                "只有待审核状态的盘点单可以审核".to_string()
+                "只有待审核状态的盘点单可以审核".to_string(),
             ));
         }
 
@@ -370,17 +386,22 @@ impl InventoryCountService {
     }
 
     /// 完成库存盘点并调整库存
-    pub async fn complete_count(&self, count_id: i32) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    pub async fn complete_count(
+        &self,
+        count_id: i32,
+    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
         // 检查盘点单是否存在
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+            })?;
 
         // 检查状态，只有已审核的盘点单可以完成
         if count.status != "approved" {
             return Err(sea_orm::DbErr::Custom(
-                "只有已审核状态的盘点单可以完成".to_string()
+                "只有已审核状态的盘点单可以完成".to_string(),
             ));
         }
 
@@ -407,10 +428,10 @@ impl InventoryCountService {
             if let Some(stock_model) = stock {
                 // 获取账面数量
                 let quantity_book = stock_model.quantity_on_hand;
-                
+
                 // 计算差异
                 let quantity_variance = &item.quantity_actual - &quantity_book;
-                
+
                 // 更新明细项
                 let mut item_update: inventory_count_item::ActiveModel = item.clone().into();
                 item_update.quantity_before = sea_orm::ActiveValue::Set(quantity_book);
@@ -425,9 +446,10 @@ impl InventoryCountService {
                     // 调整库存
                     let mut stock_update: inventory_stock::ActiveModel = stock_model.clone().into();
                     stock_update.quantity_on_hand = sea_orm::ActiveValue::Set(item.quantity_actual);
-                    stock_update.quantity_available = sea_orm::ActiveValue::Set(item.quantity_actual);
+                    stock_update.quantity_available =
+                        sea_orm::ActiveValue::Set(item.quantity_actual);
                     stock_update.quantity_meters = sea_orm::ActiveValue::Set(
-                        &stock_model.quantity_meters + &quantity_variance
+                        &stock_model.quantity_meters + &quantity_variance,
                     );
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                     stock_update.update(&txn).await?;
@@ -489,7 +511,7 @@ impl InventoryCountService {
     async fn generate_count_no(&self) -> Result<String, sea_orm::DbErr> {
         let now = chrono::Utc::now();
         let date_str = now.format("%Y%m%d").to_string();
-        
+
         // 获取当天最大盘点单号
         let max_count = InventoryCountEntity::find()
             .filter(inventory_count::Column::CountNo.like(format!("IC{}%", date_str)))
@@ -500,7 +522,9 @@ impl InventoryCountService {
         let seq = match max_count {
             Some(count) => {
                 // 提取序号部分并加 1
-                let seq_str = count.count_no.trim_start_matches(&format!("IC{}", date_str));
+                let seq_str = count
+                    .count_no
+                    .trim_start_matches(&format!("IC{}", date_str));
                 seq_str.parse::<u32>().unwrap_or(0) + 1
             }
             None => 1,

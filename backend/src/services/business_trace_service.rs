@@ -1,9 +1,9 @@
-use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, Order, QueryOrder};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use rust_decimal::Decimal;
 use chrono::Utc;
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder, Set};
 use serde_json::json;
+use std::sync::Arc;
 
 use crate::models::{business_trace_chain, business_trace_snapshot};
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
@@ -34,11 +34,7 @@ impl BusinessTraceService {
         created_by: Option<i32>,
     ) -> Result<business_trace_chain::Model, sea_orm::DbErr> {
         // 生成追溯链 ID
-        let trace_chain_id = self.generate_trace_chain_id(
-            &five_dimension,
-            &bill_type,
-            &bill_no,
-        );
+        let trace_chain_id = self.generate_trace_chain_id(&five_dimension, &bill_type, &bill_no);
 
         let active_trace = business_trace_chain::ActiveModel {
             id: Set(0),
@@ -238,16 +234,19 @@ impl BusinessTraceService {
         };
 
         // 构建追溯路径
-        let trace_path = json!(traces.iter().map(|t| {
-            json!({
-                "stage": t.current_stage,
-                "bill_type": t.current_bill_type,
-                "bill_no": t.current_bill_no,
-                "quantity_meters": t.quantity_meters.to_string(),
-                "warehouse_id": t.warehouse_id,
-                "created_at": t.created_at
+        let trace_path = json!(traces
+            .iter()
+            .map(|t| {
+                json!({
+                    "stage": t.current_stage,
+                    "bill_type": t.current_bill_type,
+                    "bill_no": t.current_bill_no,
+                    "quantity_meters": t.quantity_meters.to_string(),
+                    "warehouse_id": t.warehouse_id,
+                    "created_at": t.created_at
+                })
             })
-        }).collect::<Vec<_>>());
+            .collect::<Vec<_>>());
 
         let active_snapshot = business_trace_snapshot::ActiveModel {
             id: Set(0),

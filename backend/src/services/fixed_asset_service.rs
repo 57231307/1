@@ -1,13 +1,13 @@
 use crate::models::fixed_asset;
+use crate::utils::error::AppError;
+use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    Set, TransactionTrait, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use rust_decimal::Decimal;
-use chrono::NaiveDate;
-use crate::utils::error::AppError;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// 固定资产查询参数
 #[derive(Debug, Clone, Default)]
@@ -98,7 +98,8 @@ impl FixedAssetService {
         if let Some(keyword) = &params.keyword {
             let keyword_pattern = format!("%{}%", keyword);
             query = query.filter(
-                fixed_asset::Column::AssetNo.like(&keyword_pattern)
+                fixed_asset::Column::AssetNo
+                    .like(&keyword_pattern)
                     .or(fixed_asset::Column::AssetName.like(&keyword_pattern)),
             );
         }
@@ -137,10 +138,7 @@ impl FixedAssetService {
     }
 
     /// 计算月折旧额
-    pub async fn calculate_monthly_depreciation(
-        &self,
-        asset_id: i32,
-    ) -> Result<Decimal, AppError> {
+    pub async fn calculate_monthly_depreciation(&self, asset_id: i32) -> Result<Decimal, AppError> {
         let asset = self.get_by_id(asset_id).await?;
 
         let monthly_depreciation = match asset.depreciation_method.as_deref() {
@@ -166,15 +164,25 @@ impl FixedAssetService {
     }
 
     /// 计提折旧
-    pub async fn depreciate(&self, asset_id: i32, period: &str, user_id: i32) -> Result<(), AppError> {
-        info!("用户 {} 正在计提资产 {} 的 {} 折旧", user_id, asset_id, period);
+    pub async fn depreciate(
+        &self,
+        asset_id: i32,
+        period: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        info!(
+            "用户 {} 正在计提资产 {} 的 {} 折旧",
+            user_id, asset_id, period
+        );
 
         // 获取资产
         let asset = self.get_by_id(asset_id).await?;
 
         // 检查资产状态
         if asset.status != "active" {
-            return Err(AppError::ValidationError("只有活跃状态的资产才能计提折旧".to_string()));
+            return Err(AppError::ValidationError(
+                "只有活跃状态的资产才能计提折旧".to_string(),
+            ));
         }
 
         // 计算月折旧额
@@ -193,14 +201,20 @@ impl FixedAssetService {
 
         // 更新资产累计折旧
         let mut asset_active: crate::models::fixed_asset::ActiveModel = asset.into();
-        asset_active.accumulated_depreciation = Set(accumulated_depreciation + monthly_depreciation);
-        asset_active.net_value = Set(Some(original_value - accumulated_depreciation - monthly_depreciation));
+        asset_active.accumulated_depreciation =
+            Set(accumulated_depreciation + monthly_depreciation);
+        asset_active.net_value = Set(Some(
+            original_value - accumulated_depreciation - monthly_depreciation,
+        ));
         asset_active.save(&txn).await?;
 
         // 提交事务
         txn.commit().await?;
 
-        info!("资产 {} 折旧计提成功，月折旧额：{}", asset_id, monthly_depreciation);
+        info!(
+            "资产 {} 折旧计提成功，月折旧额：{}",
+            asset_id, monthly_depreciation
+        );
         Ok(())
     }
 
@@ -217,18 +231,16 @@ impl FixedAssetService {
 
         // 检查资产状态
         if asset.status != "active" {
-            return Err(AppError::ValidationError("只有活跃状态的资产才能处置".to_string()));
+            return Err(AppError::ValidationError(
+                "只有活跃状态的资产才能处置".to_string(),
+            ));
         }
 
         // 开启事务
         let txn = (&*self.db).begin().await?;
 
         // 生成处置单号
-        let disposal_no = format!(
-            "D{}{}",
-            chrono::Local::now().format("%Y%m%d"),
-            asset_id
-        );
+        let disposal_no = format!("D{}{}", chrono::Local::now().format("%Y%m%d"), asset_id);
 
         // 计算处置损益
         let net_book_value = asset.net_value.unwrap_or(Decimal::ZERO);
@@ -242,8 +254,8 @@ impl FixedAssetService {
             disposal_type: Set(req.disposal_type),
             disposal_date: Set(req.disposal_date),
             disposal_amount: Set(req.disposal_value), // 使用 disposal_amount
-            disposal_reason: Set(req.reason), // 使用 disposal_reason
-            quantity: Set(1), // 处置数量默认为1
+            disposal_reason: Set(req.reason),         // 使用 disposal_reason
+            quantity: Set(1),                         // 处置数量默认为1
             status: Set("COMPLETED".to_string()),
             remarks: Set(req.buyer_info), // 使用 remarks 存储买家信息
             created_by: Set(user_id),
@@ -261,7 +273,10 @@ impl FixedAssetService {
         // 提交事务
         txn.commit().await?;
 
-        info!("资产 {} 处置成功，处置价值：{}", asset_id, req.disposal_value);
+        info!(
+            "资产 {} 处置成功，处置价值：{}",
+            asset_id, req.disposal_value
+        );
         Ok(())
     }
 
@@ -272,7 +287,9 @@ impl FixedAssetService {
         let asset = self.get_by_id(asset_id).await?;
 
         if asset.status != "inactive" {
-            return Err(AppError::ValidationError("只能删除未使用状态的资产".to_string()));
+            return Err(AppError::ValidationError(
+                "只能删除未使用状态的资产".to_string(),
+            ));
         }
 
         fixed_asset::Entity::delete_many()

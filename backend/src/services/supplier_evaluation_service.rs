@@ -1,15 +1,15 @@
 use crate::models::supplier_evaluation;
 use crate::models::supplier_evaluation_record;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    Set, QuerySelect, PaginatorTrait, Order,
-};
-use std::sync::Arc;
-use rust_decimal::Decimal;
-use chrono::{DateTime, Utc};
 use crate::utils::error::AppError;
-use tracing::info;
+use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug, Clone, Default)]
 pub struct EvaluationIndicatorQueryParams {
@@ -120,14 +120,18 @@ impl SupplierEvaluationService {
         req: SupplierEvaluationRequest,
         user_id: i32,
     ) -> Result<supplier_evaluation_record::Model, AppError> {
-        info!("用户 {} 正在评估供应商 {}，指标ID：{}，得分：{}", 
-              user_id, req.supplier_id, req.indicator_id, req.score);
+        info!(
+            "用户 {} 正在评估供应商 {}，指标ID：{}，得分：{}",
+            user_id, req.supplier_id, req.indicator_id, req.score
+        );
 
         // 查询指标信息以获取权重和满分
         let indicator = supplier_evaluation::Entity::find_by_id(req.indicator_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("评估指标不存在，ID：{}", req.indicator_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("评估指标不存在，ID：{}", req.indicator_id))
+            })?;
 
         // 计算加权得分
         let weighted_score = if indicator.max_score > 0 {
@@ -170,13 +174,14 @@ impl SupplierEvaluationService {
             .await?;
 
         if records.is_empty() {
-            return Err(AppError::NotFound(format!("供应商 {} 暂无评估记录", supplier_id)));
+            return Err(AppError::NotFound(format!(
+                "供应商 {} 暂无评估记录",
+                supplier_id
+            )));
         }
 
         // 计算加权平均分
-        let total_weighted_score: Decimal = records.iter()
-            .filter_map(|r| r.weighted_score)
-            .sum();
+        let total_weighted_score: Decimal = records.iter().filter_map(|r| r.weighted_score).sum();
 
         let mut total_weight: Decimal = Decimal::ZERO;
         for r in &records {
@@ -203,12 +208,22 @@ impl SupplierEvaluationService {
         };
 
         // 获取最近评估日期
-        let latest_evaluation_date = records.iter()
-            .filter_map(|r| r.evaluation_date)
-            .max()
-            .map(|d| DateTime::<Utc>::from_naive_utc_and_offset(d.and_hms_opt(0, 0, 0).unwrap_or_default(), Utc));
+        let latest_evaluation_date =
+            records
+                .iter()
+                .filter_map(|r| r.evaluation_date)
+                .max()
+                .map(|d| {
+                    DateTime::<Utc>::from_naive_utc_and_offset(
+                        d.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                        Utc,
+                    )
+                });
 
-        info!("供应商 {} 评分查询完成，平均分：{}，等级：{}", supplier_id, average_score, rating);
+        info!(
+            "供应商 {} 评分查询完成，平均分：{}，等级：{}",
+            supplier_id, average_score, rating
+        );
 
         Ok(SupplierScoreResponse {
             supplier_id,
@@ -220,9 +235,7 @@ impl SupplierEvaluationService {
     }
 
     #[allow(dead_code)]
-    pub async fn list_ratings(
-        &self,
-    ) -> Result<Vec<supplier_evaluation::Model>, AppError> {
+    pub async fn list_ratings(&self) -> Result<Vec<supplier_evaluation::Model>, AppError> {
         info!("查询供应商评级列表");
         let ratings = supplier_evaluation::Entity::find()
             .order_by(supplier_evaluation::Column::Id, Order::Desc)
@@ -246,10 +259,13 @@ impl SupplierEvaluationService {
             return Ok(vec![]);
         }
 
-        let mut supplier_scores: std::collections::HashMap<i32, (Decimal, i64)> = std::collections::HashMap::new();
+        let mut supplier_scores: std::collections::HashMap<i32, (Decimal, i64)> =
+            std::collections::HashMap::new();
 
         for record in &records {
-            let entry = supplier_scores.entry(record.supplier_id).or_insert((Decimal::ZERO, 0));
+            let entry = supplier_scores
+                .entry(record.supplier_id)
+                .or_insert((Decimal::ZERO, 0));
             if let Some(weighted) = record.weighted_score {
                 entry.0 = entry.0 + weighted;
             }
@@ -294,7 +310,10 @@ impl SupplierEvaluationService {
         page: i64,
         page_size: i64,
     ) -> Result<Vec<supplier_evaluation_record::Model>, AppError> {
-        info!("查询评估记录列表，supplier_id: {:?}, period: {:?}", supplier_id, period);
+        info!(
+            "查询评估记录列表，supplier_id: {:?}, period: {:?}",
+            supplier_id, period
+        );
 
         let mut query = supplier_evaluation_record::Entity::find();
 

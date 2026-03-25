@@ -1,11 +1,11 @@
 use crate::models::fund_management;
+use crate::utils::error::AppError;
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    Set, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
-use rust_decimal::Decimal;
-use crate::utils::error::AppError;
 use tracing::info;
 
 /// 资金账户查询参数
@@ -110,7 +110,10 @@ impl FundManagementService {
         user_id: i32,
         _remark: Option<String>,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在向账户 {} 存款 {:.2}", user_id, account_id, amount);
+        info!(
+            "用户 {} 正在向账户 {} 存款 {:.2}",
+            user_id, account_id, amount
+        );
 
         let account = self.get_account_by_id(account_id).await?;
 
@@ -138,7 +141,10 @@ impl FundManagementService {
         user_id: i32,
         _remark: Option<String>,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在从账户 {} 取款 {:.2}", user_id, account_id, amount);
+        info!(
+            "用户 {} 正在从账户 {} 取款 {:.2}",
+            user_id, account_id, amount
+        );
 
         let account = self.get_account_by_id(account_id).await?;
 
@@ -170,7 +176,10 @@ impl FundManagementService {
         user_id: i32,
         reason: String,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在冻结账户 {} 资金 {:.2}，原因：{}", user_id, account_id, amount, reason);
+        info!(
+            "用户 {} 正在冻结账户 {} 资金 {:.2}，原因：{}",
+            user_id, account_id, amount, reason
+        );
 
         let account = self.get_account_by_id(account_id).await?;
 
@@ -197,7 +206,10 @@ impl FundManagementService {
         amount: Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在解冻账户 {} 资金 {:.2}", user_id, account_id, amount);
+        info!(
+            "用户 {} 正在解冻账户 {} 资金 {:.2}",
+            user_id, account_id, amount
+        );
 
         let account = self.get_account_by_id(account_id).await?;
 
@@ -224,7 +236,9 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if account.balance != Decimal::ZERO {
-            return Err(AppError::ValidationError("账户余额不为零，无法删除".to_string()));
+            return Err(AppError::ValidationError(
+                "账户余额不为零，无法删除".to_string(),
+            ));
         }
 
         fund_management::Entity::delete_many()

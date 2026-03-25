@@ -1,12 +1,7 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use chrono::Utc;
 use serde::Serialize;
 use std::sync::Arc;
-use chrono::Utc;
 
 use sea_orm::DatabaseConnection;
 
@@ -50,24 +45,22 @@ pub struct HealthCheckItem {
 }
 
 /// 健康检查接口
-pub async fn health_check(
-    State(_db): State<Arc<DatabaseConnection>>,
-) -> impl IntoResponse {
+pub async fn health_check(State(_db): State<Arc<DatabaseConnection>>) -> impl IntoResponse {
     let _start_time = std::time::Instant::now();
-    
+
     // 检查数据库连接
     let db_check = check_database().await;
-    
+
     // 检查内存
     let memory_check = check_memory();
-    
+
     // 检查磁盘
     let disk_check = check_disk();
-    
+
     // 计算整体状态
-    let overall_status = if db_check.status == "healthy" 
-        && memory_check.status == "healthy" 
-        && disk_check.status == "healthy" 
+    let overall_status = if db_check.status == "healthy"
+        && memory_check.status == "healthy"
+        && disk_check.status == "healthy"
     {
         "healthy"
     } else if db_check.status == "unhealthy" {
@@ -103,13 +96,13 @@ pub async fn health_check(
 /// 检查数据库连接
 async fn check_database() -> HealthCheckItem {
     let start = std::time::Instant::now();
-    
+
     // TODO: 实际项目中应该在这里检查数据库连接池
     // 这里只是示例
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-    
+
     let duration = start.elapsed();
-    
+
     HealthCheckItem {
         status: "healthy".to_string(),
         message: Some("数据库连接正常".to_string()),
@@ -146,23 +139,24 @@ fn get_uptime() -> u64 {
 }
 
 /// 就绪检查（检查所有依赖是否就绪）
-pub async fn readiness_check(
-    State(_db): State<Arc<DatabaseConnection>>,
-) -> impl IntoResponse {
+pub async fn readiness_check(State(_db): State<Arc<DatabaseConnection>>) -> impl IntoResponse {
     // 检查数据库是否可连接
     let db_status = check_database().await;
-    
+
     if db_status.status == "healthy" {
-        (StatusCode::OK, Json(serde_json::json!({
-            "status": "healthy"
-        })))
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "healthy"
+            })),
+        )
     } else {
         (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
                 "status": "not_ready",
                 "reason": db_status.message
-            }))
+            })),
         )
     }
 }

@@ -1,6 +1,6 @@
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 
 /// 库存流水实体模型（面料行业）
 /// 记录每一笔库存变动，支持批次、色号追溯
@@ -24,21 +24,21 @@ pub struct Model {
     pub dye_lot_no: Option<String>,
     /// 等级
     pub grade: String,
-    
+
     /// 数量（米）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub quantity_meters: Decimal,
     /// 数量（公斤）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub quantity_kg: Decimal,
-    
+
     /// 来源单据类型
     pub source_bill_type: Option<String>,
     /// 来源单据号
     pub source_bill_no: Option<String>,
     /// 来源单据 ID
     pub source_bill_id: Option<i32>,
-    
+
     /// 变化前数量（米）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub quantity_before_meters: Option<Decimal>,
@@ -51,7 +51,7 @@ pub struct Model {
     /// 变化后数量（公斤）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub quantity_after_kg: Option<Decimal>,
-    
+
     /// 备注
     pub notes: Option<String>,
     /// 创建人 ID

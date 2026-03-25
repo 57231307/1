@@ -2,8 +2,8 @@
 //!
 //! BPM 任务模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// BPM 任务 Entity

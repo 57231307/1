@@ -2,8 +2,8 @@
 //!
 //! CRM 线索模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// CRM 线索 Entity

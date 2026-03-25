@@ -2,8 +2,8 @@
 //!
 //! 对应数据库表：cost_collections
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, NaiveDate, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]

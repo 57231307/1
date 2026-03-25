@@ -1,11 +1,13 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter, QuerySelect, sea_query::Expr};
-use sea_orm::prelude::*;
-use std::sync::Arc;
-use serde::Serialize;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::prelude::*;
+use sea_orm::{
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+};
+use serde::Serialize;
+use std::sync::Arc;
 
-use crate::models::{product, warehouse, inventory_stock, sales_order, user};
+use crate::models::{inventory_stock, product, sales_order, user, warehouse};
 
 /// 仪表板概览数据
 #[derive(Debug, Serialize)]
@@ -89,7 +91,7 @@ impl DashboardService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-    
+
     /// 获取仪表板概览数据
     pub async fn get_overview(
         &self,
@@ -98,32 +100,32 @@ impl DashboardService {
     ) -> Result<DashboardOverview, sea_orm::DbErr> {
         // 总产品数
         let total_products = product::Entity::find().count(&*self.db).await?;
-        
+
         // 总仓库数
         let total_warehouses = warehouse::Entity::find().count(&*self.db).await?;
-        
+
         // 总库存金额 - 暂时跳过此字段
         let total_inventory_value = Decimal::ZERO;
-        
+
         // 总订单数
         let total_orders = sales_order::Entity::find().count(&*self.db).await?;
-        
+
         // 待处理订单数
         let pending_orders = sales_order::Entity::find()
             .filter(sales_order::Column::Status.eq("pending"))
             .count(&*self.db)
             .await?;
-        
+
         // 总用户数
         let total_users = user::Entity::find().count(&*self.db).await?;
-        
+
         // 活跃用户数（最近 7 天登录）
         let seven_days_ago = Utc::now() - chrono::Duration::days(7);
         let active_users = user::Entity::find()
             .filter(user::Column::LastLoginAt.gte(seven_days_ago))
             .count(&*self.db)
             .await?;
-        
+
         Ok(DashboardOverview {
             total_products: total_products as i64,
             total_warehouses: total_warehouses as i64,
@@ -134,7 +136,7 @@ impl DashboardService {
             active_users: active_users as i64,
         })
     }
-    
+
     /// 获取销售统计数据
     pub async fn get_sales_statistics(
         &self,
@@ -142,7 +144,7 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<SalesStatistics, sea_orm::DbErr> {
         let mut query = sales_order::Entity::find();
-        
+
         // 应用日期范围过滤
         if let Some(start) = start_date {
             query = query.filter(sales_order::Column::OrderDate.gte(start.date_naive()));
@@ -150,9 +152,10 @@ impl DashboardService {
         if let Some(end) = end_date {
             query = query.filter(sales_order::Column::OrderDate.lte(end.date_naive()));
         }
-        
+
         // 销售总额
-        let total_sales_amount = query.clone()
+        let total_sales_amount = query
+            .clone()
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
@@ -160,35 +163,35 @@ impl DashboardService {
             .await?
             .flatten()
             .unwrap_or(Decimal::ZERO);
-        
+
         // 订单总数
         let order_count = query.clone().count(self.db.as_ref()).await?;
-        
+
         // 平均每单金额
         let avg_order_amount = if order_count > 0 {
             total_sales_amount / Decimal::from(order_count as i32)
         } else {
             Decimal::ZERO
         };
-        
+
         // 已完成订单数
         let completed_orders = sales_order::Entity::find()
             .filter(sales_order::Column::Status.eq("completed"))
             .count(self.db.as_ref())
             .await?;
-        
+
         // 待处理订单数
         let pending_orders = sales_order::Entity::find()
             .filter(sales_order::Column::Status.eq("pending"))
             .count(self.db.as_ref())
             .await?;
-        
+
         // 已取消订单数
         let cancelled_orders = sales_order::Entity::find()
             .filter(sales_order::Column::Status.eq("cancelled"))
             .count(self.db.as_ref())
             .await?;
-        
+
         Ok(SalesStatistics {
             total_sales_amount,
             order_count: order_count as i64,
@@ -198,7 +201,7 @@ impl DashboardService {
             cancelled_orders: cancelled_orders as i64,
         })
     }
-    
+
     /// 获取库存统计数据
     pub async fn get_inventory_statistics(
         &self,
@@ -208,41 +211,52 @@ impl DashboardService {
         // 总库存数量 - 暂时使用简单查询
         let total_quantity = inventory_stock::Entity::find()
             .select_only()
-            .column_as(Expr::col(inventory_stock::Column::QuantityMeters).sum(), "total")
+            .column_as(
+                Expr::col(inventory_stock::Column::QuantityMeters).sum(),
+                "total",
+            )
             .into_tuple::<Option<Decimal>>()
             .one(self.db.as_ref())
             .await?
             .flatten()
             .unwrap_or(Decimal::ZERO);
-        
+
         // 低库存产品数
         let low_stock_count = inventory_stock::Entity::find()
-            .filter(Expr::col(inventory_stock::Column::QuantityMeters).lt(Expr::col(inventory_stock::Column::ReorderPoint)))
+            .filter(
+                Expr::col(inventory_stock::Column::QuantityMeters)
+                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
+            )
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .count(self.db.as_ref())
             .await? as i64;
-        
+
         // 零库存产品数
         let zero_stock_count = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::QuantityMeters.eq(Decimal::ZERO))
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .count(self.db.as_ref())
             .await? as i64;
-        
+
         // 仓库分布统计 - 暂时简化处理
         let warehouse_distribution = inventory_stock::Entity::find()
             .select_only()
             .column(inventory_stock::Column::WarehouseId)
-            .column_as(Expr::col(inventory_stock::Column::QuantityMeters).sum(), "total_qty")
+            .column_as(
+                Expr::col(inventory_stock::Column::QuantityMeters).sum(),
+                "total_qty",
+            )
             .group_by(inventory_stock::Column::WarehouseId)
             .into_tuple::<(i32, Option<Decimal>)>()
             .all(self.db.as_ref())
             .await?;
-        
+
         let mut warehouse_stats = Vec::new();
         for (wh_id, qty) in warehouse_distribution {
             // 获取仓库名称
-            let wh = warehouse::Entity::find_by_id(wh_id).one(self.db.as_ref()).await?;
+            let wh = warehouse::Entity::find_by_id(wh_id)
+                .one(self.db.as_ref())
+                .await?;
             if let Some(warehouse_model) = wh {
                 warehouse_stats.push(WarehouseStockStat {
                     warehouse_id: wh_id,
@@ -252,7 +266,7 @@ impl DashboardService {
                 });
             }
         }
-        
+
         Ok(InventoryStatistics {
             total_quantity: total_quantity.clone(),
             total_value: Decimal::ZERO,
@@ -261,22 +275,29 @@ impl DashboardService {
             warehouse_distribution: warehouse_stats,
         })
     }
-    
+
     /// 获取低库存预警数据
     pub async fn get_low_stock_alerts(&self) -> Result<Vec<LowStockAlert>, sea_orm::DbErr> {
         let low_stock_items = inventory_stock::Entity::find()
-            .filter(Expr::col(inventory_stock::Column::QuantityMeters).lt(Expr::col(inventory_stock::Column::ReorderPoint)))
+            .filter(
+                Expr::col(inventory_stock::Column::QuantityMeters)
+                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
+            )
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .all(&*self.db)
             .await?;
-        
+
         let mut alerts = Vec::new();
         for item in low_stock_items {
             // 获取产品信息
-            let product = product::Entity::find_by_id(item.product_id).one(&*self.db).await?;
+            let product = product::Entity::find_by_id(item.product_id)
+                .one(&*self.db)
+                .await?;
             // 获取仓库信息
-            let wh = warehouse::Entity::find_by_id(item.warehouse_id).one(&*self.db).await?;
-            
+            let wh = warehouse::Entity::find_by_id(item.warehouse_id)
+                .one(&*self.db)
+                .await?;
+
             if let (Some(p), Some(w)) = (product, wh) {
                 let shortage = item.reorder_point - item.quantity_available;
                 alerts.push(LowStockAlert {
@@ -291,7 +312,7 @@ impl DashboardService {
                 });
             }
         }
-        
+
         Ok(alerts)
     }
 }

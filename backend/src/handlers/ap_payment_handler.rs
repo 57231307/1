@@ -2,23 +2,23 @@
 //!
 //! 付款 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
-use axum::{
-    extract::{Path, Query, State},
-    Json,
-};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
+use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_payment_service::{
     ApPaymentService, CreateApPaymentRequest, UpdateApPaymentRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
-use validator::Validate;
+use axum::{
+    extract::{Path, Query, State},
+    Json,
+};
+use chrono::NaiveDate;
+use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-use chrono::NaiveDate;
+use std::sync::Arc;
 use tracing::{info, warn};
+use validator::Validate;
 
 /// 查询付款列表参数
 #[derive(Debug, Deserialize)]
@@ -38,28 +38,33 @@ pub async fn list_payments(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 查询付款列表，供应商 ID: {:?}", auth.username, params.supplier_id);
-    
+    info!(
+        "用户 {} 查询付款列表，供应商 ID: {:?}",
+        auth.username, params.supplier_id
+    );
+
     let service = ApPaymentService::new(db);
-    let (payments, total) = service.get_list(
-        params.supplier_id,
-        params.payment_status,
-        params.payment_method,
-        params.start_date,
-        params.end_date,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    ).await?;
-    
+    let (payments, total) = service
+        .get_list(
+            params.supplier_id,
+            params.payment_status,
+            params.payment_method,
+            params.start_date,
+            params.end_date,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
+
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
-    
+
     let result = serde_json::json!({
         "items": payments,
         "total": total,
         "page": params.page.unwrap_or(1),
         "page_size": params.page_size.unwrap_or(20),
     });
-    
+
     Ok(Json(ApiResponse::success(result)))
 }
 
@@ -70,12 +75,15 @@ pub async fn get_payment(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询付款详情 ID: {}", auth.username, id);
-    
+
     let service = ApPaymentService::new(db);
     let payment = service.get_by_id(id).await?;
-    
-    info!("用户 {} 查询付款详情成功：{}", auth.username, payment.payment_no);
-    
+
+    info!(
+        "用户 {} 查询付款详情成功：{}",
+        auth.username, payment.payment_no
+    );
+
     Ok(Json(ApiResponse::success(serde_json::to_value(payment)?)))
 }
 
@@ -86,17 +94,23 @@ pub async fn create_payment(
     auth: AuthContext,
     Json(req): Json<CreateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 创建付款，付款申请 ID: {}", auth.username, req.request_id);
-    
+    info!(
+        "用户 {} 创建付款，付款申请 ID: {}",
+        auth.username, req.request_id
+    );
+
     req.validate().map_err(|e| {
         warn!("用户 {} 创建付款验证失败：{}", auth.username, e);
         AppError::ValidationError(e.to_string())
     })?;
-    
+
     let service = ApPaymentService::new(db);
     let payment = service.create(req, auth.user_id).await?;
-    
-    info!("用户 {} 创建付款成功：{}", auth.username, payment.payment_no);
+
+    info!(
+        "用户 {} 创建付款成功：{}",
+        auth.username, payment.payment_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(payment)?,
@@ -113,16 +127,19 @@ pub async fn update_payment(
     Json(req): Json<UpdateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 更新付款 ID: {}", auth.username, id);
-    
+
     req.validate().map_err(|e| {
         warn!("用户 {} 更新付款验证失败：{}", auth.username, e);
         AppError::ValidationError(e.to_string())
     })?;
-    
+
     let service = ApPaymentService::new(db);
     let payment = service.update(id, req, auth.user_id).await?;
-    
-    info!("用户 {} 更新付款成功：{}", auth.username, payment.payment_no);
+
+    info!(
+        "用户 {} 更新付款成功：{}",
+        auth.username, payment.payment_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(payment)?,
@@ -141,7 +158,10 @@ pub async fn confirm_payment(
     let service = ApPaymentService::new(db);
     let payment = service.confirm(id, auth.user_id).await?;
 
-    info!("用户 {} 确认付款成功：{}", auth.username, payment.payment_no);
+    info!(
+        "用户 {} 确认付款成功：{}",
+        auth.username, payment.payment_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(payment)?,
@@ -162,16 +182,17 @@ pub async fn get_payment_schedule(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 查询付款计划，供应商 ID: {:?}", auth.username, params.supplier_id);
-    
+    info!(
+        "用户 {} 查询付款计划，供应商 ID: {:?}",
+        auth.username, params.supplier_id
+    );
+
     let service = ApPaymentService::new(db);
-    let schedule = service.get_payment_schedule(
-        params.supplier_id,
-        params.start_date,
-        params.end_date,
-    ).await?;
-    
+    let schedule = service
+        .get_payment_schedule(params.supplier_id, params.start_date, params.end_date)
+        .await?;
+
     info!("用户 {} 查询付款计划成功", auth.username);
-    
+
     Ok(Json(ApiResponse::success(serde_json::to_value(schedule)?)))
 }

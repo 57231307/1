@@ -52,12 +52,14 @@ pub async fn list_invoices(
     info!("用户 {} 查询应收单列表", auth.username);
 
     let service = ArInvoiceService::new(db);
-    let (invoices, total) = service.get_list(
-        params.customer_id,
-        params.status,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    ).await?;
+    let (invoices, total) = service
+        .get_list(
+            params.customer_id,
+            params.status,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
 
     info!("用户 {} 查询应收单成功，共 {} 条", auth.username, total);
 
@@ -71,7 +73,10 @@ pub async fn create_invoice(
     auth: AuthContext,
     Json(req): Json<CreateArInvoiceRequestDto>,
 ) -> Result<Json<ApiResponse<ar_invoice::Model>>, AppError> {
-    info!("用户 {} 创建应收单，客户 ID: {}", auth.username, req.customer_id);
+    info!(
+        "用户 {} 创建应收单，客户 ID: {}",
+        auth.username, req.customer_id
+    );
 
     let invoice_date = req.invoice_date.parse().map_err(|e| {
         warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
@@ -99,7 +104,10 @@ pub async fn create_invoice(
 
     let service = ArInvoiceService::new(db);
     let invoice = service.create(create_req, auth.user_id).await?;
-    info!("用户 {} 创建应收单成功：{}", auth.username, invoice.invoice_no);
+    info!(
+        "用户 {} 创建应收单成功：{}",
+        auth.username, invoice.invoice_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         invoice,

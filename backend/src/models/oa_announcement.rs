@@ -2,8 +2,8 @@
 //!
 //! OA 公告模块
 
+use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;
-use chrono::{DateTime, Utc, NaiveDate};
 use serde::{Deserialize, Serialize};
 
 /// OA 公告 Entity

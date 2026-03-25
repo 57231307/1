@@ -1,9 +1,9 @@
-use sea_orm::*;
-use chrono::{DateTime, Utc};
-use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
 use crate::models::finance_invoice::Model as InvoiceModel;
-use std::sync::Arc;
+use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
+use chrono::{DateTime, Utc};
+use sea_orm::*;
 use serde::Deserialize;
+use std::sync::Arc;
 
 /// 创建发票请求
 #[derive(Debug, Deserialize)]
@@ -94,7 +94,11 @@ impl FinanceInvoiceService {
     }
 
     /// 更新发票
-    pub async fn update_invoice(&self, id: i32, req: UpdateInvoiceRequest) -> Result<InvoiceModel, DbErr> {
+    pub async fn update_invoice(
+        &self,
+        id: i32,
+        req: UpdateInvoiceRequest,
+    ) -> Result<InvoiceModel, DbErr> {
         let mut invoice: ActiveModel = FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
             .await?
@@ -175,10 +179,15 @@ impl FinanceInvoiceService {
     }
 
     /// 核销发票（带事务）
-    pub async fn verify_invoice(&self, id: i32, paid_date: DateTime<Utc>, payment_method: String) -> Result<InvoiceModel, DbErr> {
+    pub async fn verify_invoice(
+        &self,
+        id: i32,
+        paid_date: DateTime<Utc>,
+        payment_method: String,
+    ) -> Result<InvoiceModel, DbErr> {
         // 开启事务
         let txn = (&*self.db).begin().await?;
-        
+
         let mut invoice: ActiveModel = FinanceInvoice::find_by_id(id)
             .one(&txn)
             .await?
@@ -191,10 +200,10 @@ impl FinanceInvoiceService {
         invoice.updated_at = Set(Utc::now());
 
         let result = invoice.update(&txn).await?;
-        
+
         // 提交事务
         txn.commit().await?;
-        
+
         Ok(result)
     }
 }

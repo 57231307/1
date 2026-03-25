@@ -1,13 +1,12 @@
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
-use sea_orm::{
-    EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, 
-    TransactionTrait, DbErr, Order, QueryOrder,
-    PaginatorTrait,
-};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
+};
+use std::sync::Arc;
 
 /// 创建库存调整单请求
 #[derive(Debug, Clone)]
@@ -60,13 +59,11 @@ impl InventoryAdjustmentService {
         let adjustment_no = self.generate_adjustment_no().await?;
 
         // 计算总数量
-        let total_quantity: Decimal = request.items.iter()
-            .map(|item| item.quantity)
-            .sum();
+        let total_quantity: Decimal = request.items.iter().map(|item| item.quantity).sum();
 
         // 保存调整类型用于后续计算
         let adjustment_type = request.adjustment_type.clone();
-        
+
         // 创建调整单主表
         let adjustment = inventory_adjustment::ActiveModel {
             id: Set(0),
@@ -95,9 +92,9 @@ impl InventoryAdjustmentService {
             let stock = inventory_stock::Entity::find_by_id(item_req.stock_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| DbErr::RecordNotFound(
-                    format!("库存 ID {} 不存在", item_req.stock_id)
-                ))?;
+                .ok_or_else(|| {
+                    DbErr::RecordNotFound(format!("库存 ID {} 不存在", item_req.stock_id))
+                })?;
 
             // 计算调整前后的数量（使用 quantity_on_hand 字段）
             let quantity_before = stock.quantity_on_hand;
@@ -138,7 +135,11 @@ impl InventoryAdjustmentService {
     }
 
     /// 审核库存调整单
-    pub async fn approve_adjustment(&self, adjustment_id: i32, approved_by: i32) -> Result<inventory_adjustment::Model, DbErr> {
+    pub async fn approve_adjustment(
+        &self,
+        adjustment_id: i32,
+        approved_by: i32,
+    ) -> Result<inventory_adjustment::Model, DbErr> {
         // 开启事务
         let txn = (&*self.db).begin().await?;
 
@@ -172,11 +173,14 @@ impl InventoryAdjustmentService {
 
         // 更新库存数量
         for item in items {
-            let mut stock: inventory_stock::ActiveModel = inventory_stock::Entity::find_by_id(item.stock_id)
-                .one(&txn)
-                .await?
-                .ok_or_else(|| DbErr::RecordNotFound(format!("库存 ID {} 不存在", item.stock_id)))?
-                .into();
+            let mut stock: inventory_stock::ActiveModel =
+                inventory_stock::Entity::find_by_id(item.stock_id)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| {
+                        DbErr::RecordNotFound(format!("库存 ID {} 不存在", item.stock_id))
+                    })?
+                    .into();
 
             // 更新库存数量字段（使用 quantity_on_hand 和 quantity_meters 作为主数量字段）
             stock.quantity_on_hand = Set(item.quantity_after);
@@ -193,7 +197,10 @@ impl InventoryAdjustmentService {
     }
 
     /// 驳回库存调整单
-    pub async fn reject_adjustment(&self, adjustment_id: i32) -> Result<inventory_adjustment::Model, DbErr> {
+    pub async fn reject_adjustment(
+        &self,
+        adjustment_id: i32,
+    ) -> Result<inventory_adjustment::Model, DbErr> {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
@@ -240,22 +247,17 @@ impl InventoryAdjustmentService {
             .all(&*self.db)
             .await?;
 
-        Ok(AdjustmentDetail {
-            adjustment,
-            items,
-        })
+        Ok(AdjustmentDetail { adjustment, items })
     }
 
     /// 生成调整单号
     async fn generate_adjustment_no(&self) -> Result<String, DbErr> {
         let now = Utc::now();
         let date_str = now.format("%Y%m%d").to_string();
-        
+
         // 查询当天最大单号
         let max_no = inventory_adjustment::Entity::find()
-            .filter(
-                inventory_adjustment::Column::AdjustmentNo.like(format!("ADJ{}%", date_str))
-            )
+            .filter(inventory_adjustment::Column::AdjustmentNo.like(format!("ADJ{}%", date_str)))
             .order_by(inventory_adjustment::Column::AdjustmentNo, Order::Desc)
             .one(&*self.db)
             .await?;
@@ -280,8 +282,8 @@ mod tests {
     use std::sync::Arc;
 
     async fn setup_test_db() -> DatabaseConnection {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
         Database::connect(&db_url).await.unwrap()
     }
 
@@ -289,7 +291,7 @@ mod tests {
     async fn test_inventory_adjustment_service_creation() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
-        
+
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
@@ -305,7 +307,7 @@ mod tests {
             created_by: Some(1),
             items: vec![],
         };
-        
+
         assert_eq!(request.warehouse_id, 1);
         assert_eq!(request.adjustment_type, "increase");
         assert_eq!(request.reason_type, "damage");
@@ -319,7 +321,7 @@ mod tests {
             unit_cost: Some(Decimal::new(50, 2)),
             notes: None,
         };
-        
+
         assert_eq!(item.stock_id, 1);
         assert_eq!(item.quantity, Decimal::new(100, 2));
     }
@@ -346,7 +348,7 @@ mod tests {
             },
             items: vec![],
         };
-        
+
         assert_eq!(detail.adjustment.id, 1);
         assert_eq!(detail.adjustment.adjustment_no, "ADJ202603150001");
         assert_eq!(detail.adjustment.status, "pending");
@@ -356,9 +358,9 @@ mod tests {
     async fn test_list_adjustments_empty() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
-        
+
         let (adjustments, total) = service.list_adjustments(0, 20).await.unwrap();
-        
+
         assert!(adjustments.is_empty());
         assert_eq!(total, 0);
     }
@@ -367,9 +369,9 @@ mod tests {
     async fn test_get_adjustment_not_found() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
-        
+
         let result = service.get_adjustment(99999).await;
-        
+
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), DbErr::RecordNotFound(_)));
     }
@@ -378,9 +380,9 @@ mod tests {
     async fn test_approve_adjustment_not_found() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
-        
+
         let result = service.approve_adjustment(99999, 1).await;
-        
+
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), DbErr::RecordNotFound(_)));
     }
@@ -389,9 +391,9 @@ mod tests {
     async fn test_reject_adjustment_not_found() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
-        
+
         let result = service.reject_adjustment(99999).await;
-        
+
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), DbErr::RecordNotFound(_)));
     }
@@ -399,7 +401,7 @@ mod tests {
     #[test]
     fn test_adjustment_type_validation() {
         let valid_types = vec!["increase", "decrease"];
-        
+
         for adj_type in valid_types {
             assert!(adj_type == "increase" || adj_type == "decrease");
         }
@@ -408,13 +410,13 @@ mod tests {
     #[test]
     fn test_reason_type_validation() {
         let valid_reasons = vec!["damage", "sample", "correction", "other"];
-        
+
         for reason in valid_reasons {
             assert!(
-                reason == "damage" || 
-                reason == "sample" || 
-                reason == "correction" || 
-                reason == "other"
+                reason == "damage"
+                    || reason == "sample"
+                    || reason == "correction"
+                    || reason == "other"
             );
         }
     }
@@ -422,13 +424,9 @@ mod tests {
     #[test]
     fn test_status_validation() {
         let valid_statuses = vec!["pending", "approved", "rejected"];
-        
+
         for status in valid_statuses {
-            assert!(
-                status == "pending" || 
-                status == "approved" || 
-                status == "rejected"
-            );
+            assert!(status == "pending" || status == "approved" || status == "rejected");
         }
     }
 
@@ -436,7 +434,7 @@ mod tests {
     async fn test_generate_adjustment_no_format() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
-        
+
         // 由于 generate_adjustment_no 是私有方法，我们无法直接测试
         // 但可以通过验证服务创建成功来间接测试
         assert!(Arc::strong_count(&service.db) >= 1);
@@ -447,9 +445,9 @@ mod tests {
         let qty1 = Decimal::new(100, 2);
         let qty2 = Decimal::new(50, 2);
         let sum = qty1 + qty2;
-        
+
         assert_eq!(sum, Decimal::new(150, 2));
-        
+
         let diff = qty1 - qty2;
         assert_eq!(diff, Decimal::new(50, 2));
     }
@@ -461,7 +459,7 @@ mod tests {
             Decimal::new(200, 2),
             Decimal::new(300, 2),
         ];
-        
+
         let total: Decimal = quantities.iter().sum();
         assert_eq!(total, Decimal::new(600, 2));
     }

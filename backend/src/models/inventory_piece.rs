@@ -2,10 +2,10 @@
 //!
 //! 库存匹数模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// 库存匹数 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]

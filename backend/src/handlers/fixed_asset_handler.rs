@@ -1,9 +1,9 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fixed_asset;
 use crate::services::fixed_asset_service::{
     CreateAssetRequest, DisposalRequest, FixedAssetService,
 };
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -134,7 +134,10 @@ pub async fn depreciate_asset(
     auth: AuthContext,
     Json(req): Json<DepreciateRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在计提资产 {} 的 {} 折旧", auth.user_id, id, req.period);
+    info!(
+        "用户 {} 正在计提资产 {} 的 {} 折旧",
+        auth.user_id, id, req.period
+    );
 
     let service = FixedAssetService::new(db);
     service.depreciate(id, &req.period, auth.user_id).await?;

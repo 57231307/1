@@ -2,23 +2,23 @@
 //!
 //! 供应商对账 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
-use axum::{
-    extract::{Path, Query, State},
-    Json,
-};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
+use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_reconciliation_service::{
     ApReconciliationService, GenerateReconciliationRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
-use validator::Validate;
+use axum::{
+    extract::{Path, Query, State},
+    Json,
+};
+use chrono::NaiveDate;
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use chrono::NaiveDate;
+use std::sync::Arc;
 use tracing::{info, warn};
+use validator::Validate;
 
 /// 查询对账单列表参数
 #[derive(Debug, Deserialize)]
@@ -37,27 +37,32 @@ pub async fn list_reconciliations(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 查询对账单列表，供应商 ID: {:?}", auth.username, params.supplier_id);
-    
+    info!(
+        "用户 {} 查询对账单列表，供应商 ID: {:?}",
+        auth.username, params.supplier_id
+    );
+
     let service = ApReconciliationService::new(db);
-    let (reconciliations, total) = service.get_list(
-        params.supplier_id,
-        params.reconciliation_status,
-        params.start_date,
-        params.end_date,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    ).await?;
-    
+    let (reconciliations, total) = service
+        .get_list(
+            params.supplier_id,
+            params.reconciliation_status,
+            params.start_date,
+            params.end_date,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
+
     info!("用户 {} 查询对账单成功，共 {} 条记录", auth.username, total);
-    
+
     let result = serde_json::json!({
         "items": reconciliations,
         "total": total,
         "page": params.page.unwrap_or(1),
         "page_size": params.page_size.unwrap_or(20),
     });
-    
+
     Ok(Json(ApiResponse::success(result)))
 }
 
@@ -68,13 +73,18 @@ pub async fn get_reconciliation(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询对账单详情 ID: {}", auth.username, id);
-    
+
     let service = ApReconciliationService::new(db);
     let reconciliation = service.get_by_id(id).await?;
-    
-    info!("用户 {} 查询对账单详情成功：{}", auth.username, reconciliation.reconciliation_no);
-    
-    Ok(Json(ApiResponse::success(serde_json::to_value(reconciliation)?)))
+
+    info!(
+        "用户 {} 查询对账单详情成功：{}",
+        auth.username, reconciliation.reconciliation_no
+    );
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        reconciliation,
+    )?)))
 }
 
 /// 生成对账单
@@ -84,18 +94,24 @@ pub async fn generate_reconciliation(
     auth: AuthContext,
     Json(req): Json<GenerateReconciliationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 生成对账单，供应商 ID: {}", auth.username, req.supplier_id);
-    
+    info!(
+        "用户 {} 生成对账单，供应商 ID: {}",
+        auth.username, req.supplier_id
+    );
+
     req.validate().map_err(|e| {
         warn!("用户 {} 生成对账单验证失败：{}", auth.username, e);
         AppError::ValidationError(e.to_string())
     })?;
-    
+
     let service = ApReconciliationService::new(db);
     let reconciliation = service.generate_reconciliation(req, auth.user_id).await?;
-    
-    info!("用户 {} 生成对账单成功：{}", auth.username, reconciliation.reconciliation_no);
-    
+
+    info!(
+        "用户 {} 生成对账单成功：{}",
+        auth.username, reconciliation.reconciliation_no
+    );
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,
         "对账单生成成功",
@@ -109,12 +125,15 @@ pub async fn confirm_reconciliation(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);
-    
+
     let service = ApReconciliationService::new(db);
     let reconciliation = service.confirm_reconciliation(id, auth.user_id).await?;
-    
-    info!("用户 {} 确认对账单成功：{}", auth.username, reconciliation.reconciliation_no);
-    
+
+    info!(
+        "用户 {} 确认对账单成功：{}",
+        auth.username, reconciliation.reconciliation_no
+    );
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,
         "对账单确认成功",
@@ -133,13 +152,19 @@ pub async fn dispute_reconciliation(
     auth: AuthContext,
     Json(req): Json<DisputeRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 提出对账单争议 ID: {}, 原因：{}", auth.username, id, req.reason);
-    
+    info!(
+        "用户 {} 提出对账单争议 ID: {}, 原因：{}",
+        auth.username, id, req.reason
+    );
+
     let service = ApReconciliationService::new(db);
     let reconciliation = service.dispute(id, req.reason, auth.user_id).await?;
-    
-    info!("用户 {} 提出对账单争议成功：{}", auth.username, reconciliation.reconciliation_no);
-    
+
+    info!(
+        "用户 {} 提出对账单争议成功：{}",
+        auth.username, reconciliation.reconciliation_no
+    );
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,
         "已提出争议",
@@ -152,12 +177,15 @@ pub async fn get_supplier_summary(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("用户 {} 查询供应商应付汇总，供应商 ID: {:?}", auth.username, params.supplier_id);
-    
+    info!(
+        "用户 {} 查询供应商应付汇总，供应商 ID: {:?}",
+        auth.username, params.supplier_id
+    );
+
     let service = ApReconciliationService::new(db);
     let summary = service.get_supplier_summary(params.supplier_id).await?;
-    
+
     info!("用户 {} 查询供应商应付汇总成功", auth.username);
-    
+
     Ok(Json(ApiResponse::success(serde_json::to_value(summary)?)))
 }

@@ -2,10 +2,10 @@
 //!
 //! 销售交货明细模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// 销售交货明细 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]

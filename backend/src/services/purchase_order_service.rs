@@ -1,18 +1,18 @@
 //! 采购订单 Service
-//! 
+//!
 //! 采购订单服务层，负责采购订单的核心业务逻辑
 //! 包含订单创建、审批、执行、退货等全流程管理
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait, PaginatorTrait, Set, Order,
-};
-use std::sync::Arc;
 use crate::models::{purchase_order, purchase_order_item};
 use crate::utils::error::AppError;
-use chrono::{Utc, NaiveDate};
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use validator::Validate;
 
 /// 采购订单服务
@@ -31,13 +31,13 @@ impl PurchaseOrderService {
     pub async fn generate_order_no(&self) -> Result<String, AppError> {
         let today = Utc::now().format("%Y%m%d").to_string();
         let prefix = format!("PO{}", today);
-        
+
         // 查询今日订单数量
         let count = purchase_order::Entity::find()
             .filter(purchase_order::Column::OrderNo.starts_with(&prefix))
             .count(&*self.db)
             .await?;
-        
+
         Ok(format!("{}{:03}", prefix, count + 1))
     }
 
@@ -47,13 +47,13 @@ impl PurchaseOrderService {
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
         let today = Utc::now().format("%Y%m%d").to_string();
         let prefix = format!("GR{}", today);
-        
+
         // 查询今日入库单数量
         let count = purchase_order::Entity::find()
             .filter(purchase_order::Column::OrderNo.starts_with(&prefix))
             .count(&*self.db)
             .await?;
-        
+
         Ok(format!("{}{:03}", prefix, count + 1))
     }
 
@@ -64,10 +64,10 @@ impl PurchaseOrderService {
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 生成订单号
         let order_no = self.generate_order_no().await?;
-        
+
         // 2. 创建采购订单主表
         let order = purchase_order::ActiveModel {
             order_no: Set(order_no),
@@ -86,13 +86,15 @@ impl PurchaseOrderService {
             attachment_urls: Set(req.attachment_urls),
             created_by: Set(user_id),
             ..Default::default()
-        }.insert(&txn).await?;
-        
+        }
+        .insert(&txn)
+        .await?;
+
         // 3. 创建订单明细
         let mut total_amount = Decimal::new(0, 0);
         let mut total_quantity = Decimal::new(0, 0);
         let mut total_quantity_alt = Decimal::new(0, 0);
-        
+
         for item_req in req.items {
             let quantity_ordered = item_req.quantity_ordered;
             let unit_price = item_req.unit_price;
@@ -129,9 +131,11 @@ impl PurchaseOrderService {
                 notes: Set(item_req.notes),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
-            }.insert(&txn).await?;
+            }
+            .insert(&txn)
+            .await?;
         }
-        
+
         // 4. 更新订单总金额和数量
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.total_amount = Set(total_amount);
@@ -139,10 +143,10 @@ impl PurchaseOrderService {
         order_active.total_quantity_alt = Set(total_quantity_alt);
         order_active.updated_at = Set(chrono::Utc::now());
         let order = order_active.update(&txn).await?;
-        
+
         // 5. 提交事务
         txn.commit().await?;
-        
+
         Ok(order)
     }
 
@@ -158,24 +162,25 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许修改，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许修改，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 检查权限
         if order.created_by != user_id {
             return Err(AppError::PermissionDenied(
-                "只能修改自己创建的订单".to_string()
+                "只能修改自己创建的订单".to_string(),
             ));
         }
-        
+
         // 4. 更新订单
         let mut order_active: purchase_order::ActiveModel = order.into();
-        
+
         if let Some(supplier_id) = req.supplier_id {
             order_active.supplier_id = Set(supplier_id);
         }
@@ -209,45 +214,42 @@ impl PurchaseOrderService {
         if let Some(attachment_urls) = req.attachment_urls {
             order_active.attachment_urls = Set(Some(attachment_urls));
         }
-        
+
         order_active.updated_by = Set(Some(user_id));
-        
+
         let order = order_active.update(&*self.db).await?;
-        
+
         Ok(order)
     }
 
     /// 删除采购订单（仅草稿状态）
-    pub async fn delete_order(
-        &self,
-        order_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn delete_order(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         // 1. 查询订单
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许删除，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许删除，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 检查权限
         if order.created_by != user_id {
             return Err(AppError::PermissionDenied(
-                "只能删除自己创建的订单".to_string()
+                "只能删除自己创建的订单".to_string(),
             ));
         }
-        
+
         // 4. 删除订单（级联删除明细）
         purchase_order::Entity::delete_by_id(order_id)
             .exec(&*self.db)
             .await?;
-        
+
         Ok(())
     }
 
@@ -262,40 +264,39 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许提交，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许提交，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 检查权限
         if order.created_by != user_id {
             return Err(AppError::PermissionDenied(
-                "只能提交自己创建的订单".to_string()
+                "只能提交自己创建的订单".to_string(),
             ));
         }
-        
+
         // 4. 检查是否有明细
         let item_count = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
             .count(&*self.db)
             .await?;
-        
+
         if item_count == 0 {
-            return Err(AppError::BusinessError(
-                "订单至少需要一行明细".to_string()
-            ));
+            return Err(AppError::BusinessError("订单至少需要一行明细".to_string()));
         }
-        
+
         // 5. 更新状态
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set("SUBMITTED".to_string());
         order_active.updated_by = Set(Some(user_id));
-        
+
         let order = order_active.update(&*self.db).await?;
-        
+
         Ok(order)
     }
 
@@ -310,14 +311,15 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态
         if order.order_status != "SUBMITTED" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许审批，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许审批，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 更新状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
@@ -328,7 +330,7 @@ impl PurchaseOrderService {
         order_active.updated_at = Set(now);
 
         let order = order_active.update(&*self.db).await?;
-        
+
         Ok(order)
     }
 
@@ -344,14 +346,15 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态
         if order.order_status != "SUBMITTED" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许拒绝，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许拒绝，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 更新状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
@@ -361,7 +364,7 @@ impl PurchaseOrderService {
         order_active.updated_at = Set(now);
 
         let order = order_active.update(&*self.db).await?;
-        
+
         Ok(order)
     }
 
@@ -376,21 +379,22 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态（已完成或部分入库的订单才能关闭）
         if !["COMPLETED", "PARTIAL_RECEIVED"].contains(&order.order_status.as_str()) {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许关闭，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许关闭，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 更新状态
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set("CLOSED".to_string());
         order_active.updated_by = Set(Some(user_id));
-        
+
         let order = order_active.update(&*self.db).await?;
-        
+
         Ok(order)
     }
 
@@ -406,21 +410,22 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         // 2. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许添加明细，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许添加明细，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 3. 检查权限
         if order.created_by != user_id {
             return Err(AppError::PermissionDenied(
-                "只能为自己创建的订单添加明细".to_string()
+                "只能为自己创建的订单添加明细".to_string(),
             ));
         }
-        
+
         // 4. 创建明细
         let quantity_ordered = req.quantity_ordered;
         let unit_price = req.unit_price;
@@ -450,11 +455,13 @@ impl PurchaseOrderService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-        }.insert(&*self.db).await?;
-        
+        }
+        .insert(&*self.db)
+        .await?;
+
         // 5. 更新订单总金额
         self.calculate_order_total(order_id).await?;
-        
+
         Ok(item)
     }
 
@@ -470,27 +477,31 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", item_id)))?;
-        
+
         // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(item.order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", item.order_id)))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!(
+                "采购订单 {}",
+                item.order_id
+            )))?;
+
         // 3. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许修改明细，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许修改明细，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 4. 检查权限
         if order.created_by != user_id {
             return Err(AppError::PermissionDenied(
-                "只能修改自己创建的订单明细".to_string()
+                "只能修改自己创建的订单明细".to_string(),
             ));
         }
-        
+
         // 5. 更新明细
         let mut item_active: purchase_order_item::ActiveModel = item.into();
 
@@ -511,91 +522,88 @@ impl PurchaseOrderService {
         }
 
         let item = item_active.update(&*self.db).await?;
-        
+
         // 6. 更新订单总金额
         self.calculate_order_total(order.id).await?;
-        
+
         Ok(item)
     }
 
     /// 删除订单明细
-    pub async fn delete_order_item(
-        &self,
-        item_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn delete_order_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
         // 1. 查询明细
         let item = purchase_order_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", item_id)))?;
-        
+
         // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(item.order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", item.order_id)))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!(
+                "采购订单 {}",
+                item.order_id
+            )))?;
+
         // 3. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(
-                format!("订单状态不允许删除明细，当前状态：{}", order.order_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许删除明细，当前状态：{}",
+                order.order_status
+            )));
         }
-        
+
         // 4. 检查权限
         if order.created_by != user_id {
             return Err(AppError::PermissionDenied(
-                "只能删除自己创建的订单明细".to_string()
+                "只能删除自己创建的订单明细".to_string(),
             ));
         }
-        
+
         // 5. 删除明细
         purchase_order_item::Entity::delete_by_id(item_id)
             .exec(&*self.db)
             .await?;
-        
+
         // 6. 更新订单总金额
         self.calculate_order_total(order.id).await?;
-        
+
         Ok(())
     }
 
     /// 计算订单总金额
-    pub async fn calculate_order_total(
-        &self,
-        order_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn calculate_order_total(&self, order_id: i32) -> Result<(), AppError> {
         // 1. 查询所有明细
         let items = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
             .all(&*self.db)
             .await?;
-        
+
         // 2. 计算总和
         let mut total_amount = Decimal::new(0, 0);
         let mut total_quantity = Decimal::new(0, 0);
         let mut total_quantity_alt = Decimal::new(0, 0);
-        
+
         for item in items {
             total_amount += item.total_amount;
             total_quantity += item.quantity;
             total_quantity_alt += item.quantity_alt;
         }
-        
+
         // 3. 更新订单
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.total_amount = Set(total_amount);
         order_active.total_quantity = Set(total_quantity);
         order_active.total_quantity_alt = Set(total_quantity_alt);
         order_active.updated_at = Set(chrono::Utc::now());
         order_active.update(&*self.db).await?;
-        
+
         Ok(())
     }
 
@@ -608,7 +616,7 @@ impl PurchaseOrderService {
         supplier_id: Option<i32>,
     ) -> Result<(Vec<purchase_order::Model>, u64), AppError> {
         let mut query = purchase_order::Entity::find();
-        
+
         // 添加筛选条件
         if let Some(status) = status {
             query = query.filter(purchase_order::Column::OrderStatus.eq(status));
@@ -616,28 +624,25 @@ impl PurchaseOrderService {
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_order::Column::SupplierId.eq(supplier_id));
         }
-        
+
         // 分页查询
         let paginator = query
             .order_by(purchase_order::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
-        
+
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page - 1).await?;
-        
+
         Ok((items, total))
     }
 
     /// 获取订单详情
-    pub async fn get_order(
-        &self,
-        order_id: i32,
-    ) -> Result<purchase_order::Model, AppError> {
+    pub async fn get_order(&self, order_id: i32) -> Result<purchase_order::Model, AppError> {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-        
+
         Ok(order)
     }
 
@@ -650,11 +655,10 @@ impl PurchaseOrderService {
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
             .all(&*self.db)
             .await?;
-        
+
         Ok(items)
     }
 }
-
 
 // =====================================================
 // 请求/响应 DTO
@@ -665,37 +669,37 @@ impl PurchaseOrderService {
 pub struct CreatePurchaseOrderRequest {
     /// 供应商 ID
     pub supplier_id: i32,
-    
+
     /// 订单日期
     pub order_date: NaiveDate,
-    
+
     /// 预计交货日期
     pub expected_delivery_date: Option<NaiveDate>,
-    
+
     /// 仓库 ID
     pub warehouse_id: i32,
-    
+
     /// 部门 ID
     pub department_id: i32,
-    
+
     /// 币种
     pub currency: Option<String>,
-    
+
     /// 汇率
     pub exchange_rate: Option<Decimal>,
-    
+
     /// 付款条件
     pub payment_terms: Option<String>,
-    
+
     /// 运输条款
     pub shipping_terms: Option<String>,
-    
+
     /// 备注
     pub notes: Option<String>,
-    
+
     /// 附件 URL 列表
     pub attachment_urls: Option<Vec<String>>,
-    
+
     /// 订单明细
     #[validate(length(min = 1, message = "订单至少需要一行明细"))]
     pub items: Vec<CreateOrderItemRequest>,
@@ -722,58 +726,58 @@ pub struct UpdatePurchaseOrderRequest {
 pub struct CreateOrderItemRequest {
     /// 行号
     pub line_no: i32,
-    
+
     /// 物料 ID
     pub material_id: i32,
-    
+
     /// 物料编码
     pub material_code: String,
-    
+
     /// 物料名称
     pub material_name: String,
-    
+
     /// 规格型号
     pub specification: Option<String>,
-    
+
     /// 批次号
     pub batch_no: Option<String>,
-    
+
     /// 色号
     pub color_code: Option<String>,
-    
+
     /// 缸号
     pub lot_no: Option<String>,
-    
+
     /// 等级
     pub grade: Option<String>,
-    
+
     /// 克重
     pub gram_weight: Option<Decimal>,
-    
+
     /// 幅宽
     pub width: Option<Decimal>,
-    
+
     /// 单价
     pub unit_price: Decimal,
-    
+
     /// 币种
     pub currency: Option<String>,
-    
+
     /// 订购数量（主单位）
     pub quantity_ordered: Decimal,
-    
+
     /// 主单位
     pub unit_master: String,
-    
+
     /// 辅助单位
     pub unit_alt: Option<String>,
-    
+
     /// 换算系数
     pub conversion_factor: Option<Decimal>,
-    
+
     /// 订购数量（辅助单位）
     pub quantity_alt_ordered: Option<Decimal>,
-    
+
     /// 税率
     pub tax_rate: Option<Decimal>,
 
@@ -782,10 +786,10 @@ pub struct CreateOrderItemRequest {
 
     /// 交货日期
     pub delivery_date: Option<NaiveDate>,
-    
+
     /// 仓库 ID
     pub warehouse_id: Option<i32>,
-    
+
     /// 备注
     pub notes: Option<String>,
 }

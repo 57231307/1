@@ -27,6 +27,8 @@ serde_json = "1.0"
 argon2 = "0.5"
 base64 = "0.22"
 uuid = { version = "1.0", default-features = false, features = ["serde", "v4"] }
+hmac = "0.12"
+sha2 = "0.10"
 
 # 验证
 validator = { version = "0.16", features = ["derive"] }

@@ -1,22 +1,22 @@
 //! 采购入库 Handler
-//! 
+//!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
+use crate::services::purchase_receipt_service::{
+    CreatePurchaseReceiptRequest, CreateReceiptItemRequest, PurchaseReceiptService,
+    UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
+};
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
-use std::sync::Arc;
 use sea_orm::DatabaseConnection;
-use crate::services::purchase_receipt_service::{
-    PurchaseReceiptService, CreatePurchaseReceiptRequest, UpdatePurchaseReceiptRequest,
-    CreateReceiptItemRequest, UpdateReceiptItemRequest,
-};
-use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
-use validator::Validate;
 use serde::Deserialize;
+use std::sync::Arc;
+use validator::Validate;
 
 /// 查询采购入库单列表
 pub async fn list_receipts(
@@ -24,21 +24,23 @@ pub async fn list_receipts(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
-    let (receipts, total) = service.list_receipts(
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-        params.status,
-        params.supplier_id,
-        params.order_id,
-    ).await?;
-    
+    let (receipts, total) = service
+        .list_receipts(
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+            params.status,
+            params.supplier_id,
+            params.order_id,
+        )
+        .await?;
+
     let result = serde_json::json!({
         "items": receipts,
         "total": total,
         "page": params.page.unwrap_or(1),
         "page_size": params.page_size.unwrap_or(20),
     });
-    
+
     Ok(Json(ApiResponse::success(result)))
 }
 
@@ -49,7 +51,7 @@ pub async fn get_receipt(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let receipt = service.get_receipt(id).await?;
-    
+
     Ok(Json(ApiResponse::success(serde_json::to_value(receipt)?)))
 }
 
@@ -60,15 +62,14 @@ pub async fn create_receipt(
     Json(req): Json<CreatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
-    req.validate().map_err(|e| {
-        AppError::ValidationError(e.to_string())
-    })?;
-    
+    req.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
     let service = PurchaseReceiptService::new(db);
     let user_id = 1; // TODO: 从认证中获取
-    
+
     let receipt = service.create_receipt(req, user_id).await?;
-    
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,
         "采购入库单创建成功",
@@ -84,9 +85,9 @@ pub async fn update_receipt(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let user_id = 1; // TODO: 从认证中获取
-    
+
     let receipt = service.update_receipt(id, req, user_id).await?;
-    
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,
         "采购入库单更新成功",
@@ -100,9 +101,9 @@ pub async fn confirm_receipt(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let user_id = 1; // TODO: 从认证中获取
-    
+
     let receipt = service.confirm_receipt(id, user_id).await?;
-    
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,
         "采购入库单已确认",
@@ -116,7 +117,7 @@ pub async fn list_receipt_items(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let items = service.list_receipt_items(receipt_id).await?;
-    
+
     Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
 }
 
@@ -128,15 +129,14 @@ pub async fn create_receipt_item(
     Json(req): Json<CreateReceiptItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
-    req.validate().map_err(|e| {
-        AppError::ValidationError(e.to_string())
-    })?;
-    
+    req.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
     let service = PurchaseReceiptService::new(db);
     let user_id = 1; // TODO: 从认证中获取
-    
+
     let item = service.add_receipt_item(receipt_id, req, user_id).await?;
-    
+
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(item)?,
         "入库明细添加成功",
@@ -171,7 +171,6 @@ pub async fn delete_receipt_item(
 
     Ok(StatusCode::NO_CONTENT)
 }
-
 
 // =====================================================
 // 请求 DTO

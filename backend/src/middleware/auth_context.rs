@@ -2,6 +2,7 @@
 //!
 //! 提供从 JWT Token 提取用户信息的功能
 
+use crate::services::auth_service::AppClaims;
 use axum::{
     extract::FromRequestParts,
     http::{request::Parts, StatusCode},
@@ -9,7 +10,6 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use crate::services::auth_service::AppClaims;
 
 /// 认证错误响应
 #[derive(Debug)]
@@ -78,7 +78,8 @@ where
     type Rejection = AuthRejection;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        parts.extensions
+        parts
+            .extensions
             .get::<AuthContext>()
             .cloned()
             .ok_or(AuthRejection::unauthorized("未授权：缺少认证信息"))

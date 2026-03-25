@@ -1,11 +1,13 @@
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
 use crate::utils::dual_unit_converter::DualUnitConverter;
-use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, PaginatorTrait, Order, QueryOrder};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use rust_decimal::Decimal;
 use chrono::Utc;
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
+use std::sync::Arc;
 
 /// 库存汇总项（用于返回汇总数据）
 #[derive(Debug, Clone)]
@@ -159,7 +161,6 @@ impl InventoryStockService {
         &self,
         warehouse_id: Option<i32>,
     ) -> Result<Vec<inventory_stock::Model>, sea_orm::DbErr> {
-        
         // 简化版本：查询所有库存，不做低库存检查
         let mut query = inventory_stock::Entity::find();
 
@@ -178,9 +179,9 @@ impl InventoryStockService {
             .await?;
         Ok(())
     }
-    
+
     // ========== 面料行业特色方法 ==========
-    
+
     /// 按批次 + 色号查询库存
     pub async fn find_by_batch_and_color(
         &self,
@@ -191,11 +192,11 @@ impl InventoryStockService {
         let mut query = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::BatchNo.eq(batch_no))
             .filter(inventory_stock::Column::ColorNo.eq(color_no));
-        
+
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
-        
+
         query.all(&*self.db).await
     }
 
@@ -212,36 +213,36 @@ impl InventoryStockService {
         grade: Option<String>,
     ) -> Result<(Vec<inventory_stock::Model>, u64), sea_orm::DbErr> {
         let mut query = inventory_stock::Entity::find();
-        
+
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
-        
+
         if let Some(pid) = product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
-        
+
         if let Some(batch) = batch_no {
             query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
-        
+
         if let Some(color) = color_no {
             query = query.filter(inventory_stock::Column::ColorNo.eq(color));
         }
-        
+
         if let Some(g) = grade {
             query = query.filter(inventory_stock::Column::Grade.eq(g));
         }
-        
+
         let paginator = query.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;
         let stock_list = paginator.fetch_page(page).await?;
-        
+
         Ok((stock_list, total))
     }
-    
+
     // ========== 双计量单位自动计算辅助方法 ==========
-    
+
     /// 自动计算公斤数（如果提供了克重和幅宽）
     fn calculate_quantity_kg(
         quantity_meters: Decimal,
@@ -262,7 +263,7 @@ impl InventoryStockService {
         }
         Decimal::ZERO
     }
-    
+
     /// 创建库存（面料行业版）
     #[allow(clippy::too_many_arguments)]
     pub async fn create_stock_fabric(
@@ -288,7 +289,7 @@ impl InventoryStockService {
         } else {
             quantity_kg
         };
-        
+
         let active_stock = inventory_stock::ActiveModel {
             id: Set(0),
             warehouse_id: Set(warehouse_id),
@@ -321,7 +322,7 @@ impl InventoryStockService {
             stock_status: Set("正常".to_string()),
             quality_status: Set("合格".to_string()),
         };
-        
+
         active_stock.insert(&*self.db).await
     }
 
@@ -371,10 +372,10 @@ impl InventoryStockService {
             created_by: Set(created_by),
             created_at: Set(Utc::now()),
         };
-        
+
         active_transaction.insert(&*self.db).await
     }
-    
+
     /// 查询库存流水
     pub async fn list_transactions(
         &self,
@@ -385,70 +386,72 @@ impl InventoryStockService {
         product_id: Option<i32>,
         warehouse_id: Option<i32>,
     ) -> Result<(Vec<inventory_transaction::Model>, u64), sea_orm::DbErr> {
-        let mut query = inventory_transaction::Entity::find().order_by(inventory_transaction::Column::CreatedAt, Order::Asc);
-        
+        let mut query = inventory_transaction::Entity::find()
+            .order_by(inventory_transaction::Column::CreatedAt, Order::Asc);
+
         if let Some(batch) = batch_no {
             query = query.filter(inventory_transaction::Column::BatchNo.eq(batch));
         }
-        
+
         if let Some(color) = color_no {
             query = query.filter(inventory_transaction::Column::ColorNo.eq(color));
         }
-        
+
         if let Some(pid) = product_id {
             query = query.filter(inventory_transaction::Column::ProductId.eq(pid));
         }
-        
+
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_transaction::Column::WarehouseId.eq(wid));
         }
-        
+
         let paginator = query.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;
         let transactions = paginator.fetch_page(page).await?;
-        
+
         Ok((transactions, total))
     }
 
     /// 获取库存汇总（按批次 + 色号）
-pub async fn get_inventory_summary(
-    &self,
-    warehouse_id: Option<i32>,
-    product_id: Option<i32>,
-    batch_no: Option<String>,
-    color_no: Option<String>,
-    grade: Option<String>,
-) -> Result<Vec<InventorySummaryItem>, sea_orm::DbErr> {
-    use sea_orm::ConnectionTrait;
-    
-    let mut where_clauses: Vec<String> = vec![
-        "s.stock_status = '正常'".to_string(),
-        "s.quality_status = '合格'".to_string(),
-    ];
-    
-    if let Some(wid) = warehouse_id {
-        where_clauses.push(format!("w.id = {}", wid));
-    }
-    
-    if let Some(pid) = product_id {
-        where_clauses.push(format!("p.id = {}", pid));
-    }
-    
-    if let Some(ref batch) = batch_no {
-        where_clauses.push(format!("s.batch_no = '{}'", batch.replace('\'', "''")));
-    }
-    
-    if let Some(ref color) = color_no {
-        where_clauses.push(format!("s.color_no = '{}'", color.replace('\'', "''")));
-    }
-    
-    if let Some(ref g) = grade {
-        where_clauses.push(format!("s.grade = '{}'", g.replace('\'', "''")));
-    }
-    
-    let where_clause = where_clauses.join(" AND ");
-    
-    let sql = format!(r#"
+    pub async fn get_inventory_summary(
+        &self,
+        warehouse_id: Option<i32>,
+        product_id: Option<i32>,
+        batch_no: Option<String>,
+        color_no: Option<String>,
+        grade: Option<String>,
+    ) -> Result<Vec<InventorySummaryItem>, sea_orm::DbErr> {
+        use sea_orm::ConnectionTrait;
+
+        let mut where_clauses: Vec<String> = vec![
+            "s.stock_status = '正常'".to_string(),
+            "s.quality_status = '合格'".to_string(),
+        ];
+
+        if let Some(wid) = warehouse_id {
+            where_clauses.push(format!("w.id = {}", wid));
+        }
+
+        if let Some(pid) = product_id {
+            where_clauses.push(format!("p.id = {}", pid));
+        }
+
+        if let Some(ref batch) = batch_no {
+            where_clauses.push(format!("s.batch_no = '{}'", batch.replace('\'', "''")));
+        }
+
+        if let Some(ref color) = color_no {
+            where_clauses.push(format!("s.color_no = '{}'", color.replace('\'', "''")));
+        }
+
+        if let Some(ref g) = grade {
+            where_clauses.push(format!("s.grade = '{}'", g.replace('\'', "''")));
+        }
+
+        let where_clause = where_clauses.join(" AND ");
+
+        let sql = format!(
+            r#"
         SELECT 
             p.id AS product_id,
             p.name AS product_name,
@@ -464,26 +467,39 @@ pub async fn get_inventory_summary(
         WHERE {}
         GROUP BY p.id, p.name, w.name, s.batch_no, s.color_no, s.grade
         ORDER BY s.batch_no, s.color_no
-    "#, where_clause);
-    
-    let result = self.db.query_all(sea_orm::Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql)).await?;
-    
-    Ok(result.into_iter().map(|row| {
-        InventorySummaryItem {
-            product_id: row.try_get("", "product_id").unwrap_or(0),
-            product_name: row.try_get("", "product_name").unwrap_or("".to_string()),
-            specification: None,
-            color_no: row.try_get("", "color_no").unwrap_or("".to_string()),
-            batch_no: row.try_get("", "batch_no").unwrap_or("".to_string()),
-            grade: row.try_get("", "grade").unwrap_or("".to_string()),
-            warehouse_id: 0,
-            warehouse_name: row.try_get("", "warehouse_name").unwrap_or("".to_string()),
-            quantity: Decimal::ZERO,
-            unit: String::new(),
-            total_value: None,
-            total_quantity_meters: row.try_get("", "total_quantity_meters").unwrap_or(Decimal::ZERO),
-            total_quantity_kg: row.try_get("", "total_quantity_kg").unwrap_or(Decimal::ZERO),
-        }
-    }).collect())
-}
+    "#,
+            where_clause
+        );
+
+        let result = self
+            .db
+            .query_all(sea_orm::Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+            ))
+            .await?;
+
+        Ok(result
+            .into_iter()
+            .map(|row| InventorySummaryItem {
+                product_id: row.try_get("", "product_id").unwrap_or(0),
+                product_name: row.try_get("", "product_name").unwrap_or("".to_string()),
+                specification: None,
+                color_no: row.try_get("", "color_no").unwrap_or("".to_string()),
+                batch_no: row.try_get("", "batch_no").unwrap_or("".to_string()),
+                grade: row.try_get("", "grade").unwrap_or("".to_string()),
+                warehouse_id: 0,
+                warehouse_name: row.try_get("", "warehouse_name").unwrap_or("".to_string()),
+                quantity: Decimal::ZERO,
+                unit: String::new(),
+                total_value: None,
+                total_quantity_meters: row
+                    .try_get("", "total_quantity_meters")
+                    .unwrap_or(Decimal::ZERO),
+                total_quantity_kg: row
+                    .try_get("", "total_quantity_kg")
+                    .unwrap_or(Decimal::ZERO),
+            })
+            .collect())
+    }
 }

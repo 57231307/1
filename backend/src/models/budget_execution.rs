@@ -1,7 +1,7 @@
 //! 预算执行明细 Entity
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 预算执行明细模型

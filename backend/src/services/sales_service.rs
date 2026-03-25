@@ -1,15 +1,15 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
-use crate::utils::{PaginatedResponse};
+use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
+use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
-use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
-use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
+use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
 /// 销售订单详情响应
@@ -151,8 +151,8 @@ impl SalesService {
         customer_id: Option<i32>,
         order_no: Option<String>,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, sea_orm::DbErr> {
-        let mut query = SalesOrderEntity::find()
-            .order_by(sales_order::Column::CreatedAt, Order::Desc);
+        let mut query =
+            SalesOrderEntity::find().order_by(sales_order::Column::CreatedAt, Order::Desc);
 
         // 应用过滤条件
         if let Some(s) = status {
@@ -168,9 +168,8 @@ impl SalesService {
         // 分页
         let paginator = query.paginate(&*self.db, page_req.page_size as u64);
         let total = paginator.num_items().await?;
-        let orders: Vec<sales_order::Model> = paginator
-            .fetch_page(page_req.page as u64 - 1)
-            .await?;
+        let orders: Vec<sales_order::Model> =
+            paginator.fetch_page(page_req.page as u64 - 1).await?;
 
         // 转换为响应格式
         let order_details: Vec<SalesOrderDetail> = orders
@@ -202,16 +201,26 @@ impl SalesService {
             })
             .collect();
 
-        Ok(PaginatedResponse::new(order_details, total, page_req.page, page_req.page_size))
+        Ok(PaginatedResponse::new(
+            order_details,
+            total,
+            page_req.page,
+            page_req.page_size,
+        ))
     }
 
     /// 获取销售订单详情（包含明细项）
-    pub async fn get_order_detail(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn get_order_detail(
+        &self,
+        order_id: i32,
+    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 获取订单主表数据
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
 
         // 获取订单明细项
         let items = SalesOrderItemEntity::find()
@@ -295,13 +304,13 @@ impl SalesService {
 
         // 生成订单号并检查唯一性
         let order_no = self.generate_order_no().await?;
-        
+
         // 再次检查订单号是否已存在（防止并发冲突）
         let existing_order = SalesOrderEntity::find()
             .filter(sales_order::Column::OrderNo.eq(&order_no))
             .one(&txn)
             .await?;
-        
+
         if existing_order.is_some() {
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom("订单号已存在，请重试".to_string()));
@@ -345,12 +354,15 @@ impl SalesService {
         let mut total_amount = rust_decimal::Decimal::ZERO;
 
         for item_req in request.items {
-            let discount_pct = item_req.discount_percent.unwrap_or(rust_decimal::Decimal::ZERO);
+            let discount_pct = item_req
+                .discount_percent
+                .unwrap_or(rust_decimal::Decimal::ZERO);
             let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
 
             // 计算明细项金额
             let item_subtotal = item_req.quantity * item_req.unit_price;
-            let item_discount = &item_subtotal * (&discount_pct / rust_decimal::Decimal::new(100, 0));
+            let item_discount =
+                &item_subtotal * (&discount_pct / rust_decimal::Decimal::new(100, 0));
             let item_after_discount = &item_subtotal - &item_discount;
             let item_tax = &item_after_discount * (&tax_pct / rust_decimal::Decimal::new(100, 0));
             let item_total = &item_after_discount + &item_tax;
@@ -382,15 +394,29 @@ impl SalesService {
                 color_name: sea_orm::ActiveValue::Set(item_req.color_name),
                 pantone_code: sea_orm::ActiveValue::Set(item_req.pantone_code),
                 grade_required: sea_orm::ActiveValue::Set(item_req.grade_required),
-                quantity_meters: sea_orm::ActiveValue::Set(item_req.quantity_meters.unwrap_or(rust_decimal::Decimal::ZERO)),
-                quantity_kg: sea_orm::ActiveValue::Set(item_req.quantity_kg.unwrap_or(rust_decimal::Decimal::ZERO)),
+                quantity_meters: sea_orm::ActiveValue::Set(
+                    item_req
+                        .quantity_meters
+                        .unwrap_or(rust_decimal::Decimal::ZERO),
+                ),
+                quantity_kg: sea_orm::ActiveValue::Set(
+                    item_req.quantity_kg.unwrap_or(rust_decimal::Decimal::ZERO),
+                ),
                 gram_weight: sea_orm::ActiveValue::Set(item_req.gram_weight),
                 width: sea_orm::ActiveValue::Set(item_req.width),
                 batch_requirement: sea_orm::ActiveValue::Set(item_req.batch_requirement),
                 dye_lot_requirement: sea_orm::ActiveValue::Set(item_req.dye_lot_requirement),
                 base_price: sea_orm::ActiveValue::Set(item_req.base_price),
-                color_extra_cost: sea_orm::ActiveValue::Set(item_req.color_extra_cost.unwrap_or(rust_decimal::Decimal::ZERO)),
-                grade_price_diff: sea_orm::ActiveValue::Set(item_req.grade_price_diff.unwrap_or(rust_decimal::Decimal::ZERO)),
+                color_extra_cost: sea_orm::ActiveValue::Set(
+                    item_req
+                        .color_extra_cost
+                        .unwrap_or(rust_decimal::Decimal::ZERO),
+                ),
+                grade_price_diff: sea_orm::ActiveValue::Set(
+                    item_req
+                        .grade_price_diff
+                        .unwrap_or(rust_decimal::Decimal::ZERO),
+                ),
                 final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                 shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -427,13 +453,16 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
 
         // 检查订单状态，已发货或已完成的订单不允许修改
         if order.status == "shipped" || order.status == "completed" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("订单状态为{}，不允许修改", order.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，不允许修改",
+                order.status
+            )));
         }
 
         // 开启事务
@@ -474,13 +503,17 @@ impl SalesService {
             let mut total_amount = rust_decimal::Decimal::ZERO;
 
             for item_req in items {
-                let discount_pct = item_req.discount_percent.unwrap_or(rust_decimal::Decimal::ZERO);
+                let discount_pct = item_req
+                    .discount_percent
+                    .unwrap_or(rust_decimal::Decimal::ZERO);
                 let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
 
                 let item_subtotal = item_req.quantity * item_req.unit_price;
-                let item_discount = &item_subtotal * (&discount_pct / rust_decimal::Decimal::new(100, 0));
+                let item_discount =
+                    &item_subtotal * (&discount_pct / rust_decimal::Decimal::new(100, 0));
                 let item_after_discount = &item_subtotal - &item_discount;
-                let item_tax = &item_after_discount * (&tax_pct / rust_decimal::Decimal::new(100, 0));
+                let item_tax =
+                    &item_after_discount * (&tax_pct / rust_decimal::Decimal::new(100, 0));
                 let item_total = &item_after_discount + &item_tax;
 
                 subtotal += &item_subtotal;
@@ -508,15 +541,29 @@ impl SalesService {
                     color_name: sea_orm::ActiveValue::Set(item_req.color_name),
                     pantone_code: sea_orm::ActiveValue::Set(item_req.pantone_code),
                     grade_required: sea_orm::ActiveValue::Set(item_req.grade_required),
-                    quantity_meters: sea_orm::ActiveValue::Set(item_req.quantity_meters.unwrap_or(rust_decimal::Decimal::ZERO)),
-                    quantity_kg: sea_orm::ActiveValue::Set(item_req.quantity_kg.unwrap_or(rust_decimal::Decimal::ZERO)),
+                    quantity_meters: sea_orm::ActiveValue::Set(
+                        item_req
+                            .quantity_meters
+                            .unwrap_or(rust_decimal::Decimal::ZERO),
+                    ),
+                    quantity_kg: sea_orm::ActiveValue::Set(
+                        item_req.quantity_kg.unwrap_or(rust_decimal::Decimal::ZERO),
+                    ),
                     gram_weight: sea_orm::ActiveValue::Set(item_req.gram_weight),
                     width: sea_orm::ActiveValue::Set(item_req.width),
                     batch_requirement: sea_orm::ActiveValue::Set(item_req.batch_requirement),
                     dye_lot_requirement: sea_orm::ActiveValue::Set(item_req.dye_lot_requirement),
                     base_price: sea_orm::ActiveValue::Set(item_req.base_price),
-                    color_extra_cost: sea_orm::ActiveValue::Set(item_req.color_extra_cost.unwrap_or(rust_decimal::Decimal::ZERO)),
-                    grade_price_diff: sea_orm::ActiveValue::Set(item_req.grade_price_diff.unwrap_or(rust_decimal::Decimal::ZERO)),
+                    color_extra_cost: sea_orm::ActiveValue::Set(
+                        item_req
+                            .color_extra_cost
+                            .unwrap_or(rust_decimal::Decimal::ZERO),
+                    ),
+                    grade_price_diff: sea_orm::ActiveValue::Set(
+                        item_req
+                            .grade_price_diff
+                            .unwrap_or(rust_decimal::Decimal::ZERO),
+                    ),
                     final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                     shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -553,13 +600,16 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
 
         // 检查订单状态，已发货或已完成的订单不允许删除
         if order.status == "shipped" || order.status == "completed" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("订单状态为{}，不允许删除", order.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，不允许删除",
+                order.status
+            )));
         }
 
         // 开启事务
@@ -572,9 +622,7 @@ impl SalesService {
             .await?;
 
         // 删除订单主表
-        SalesOrderEntity::delete_by_id(order_id)
-            .exec(&txn)
-            .await?;
+        SalesOrderEntity::delete_by_id(order_id).exec(&txn).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -586,7 +634,7 @@ impl SalesService {
     async fn generate_order_no(&self) -> Result<String, sea_orm::DbErr> {
         let now = chrono::Utc::now();
         let date_str = now.format("%Y%m%d").to_string();
-        
+
         // 获取当天最大订单号
         let max_order = SalesOrderEntity::find()
             .filter(sales_order::Column::OrderNo.like(format!("SO{}%", date_str)))
@@ -597,7 +645,9 @@ impl SalesService {
         let seq = match max_order {
             Some(order) => {
                 // 提取序号部分并加 1
-                let seq_str = order.order_no.trim_start_matches(&format!("SO{}", date_str));
+                let seq_str = order
+                    .order_no
+                    .trim_start_matches(&format!("SO{}", date_str));
                 seq_str.parse::<u32>().unwrap_or(0) + 1
             }
             None => 1,
@@ -755,13 +805,16 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
 
         // 检查订单状态，只有草稿状态可以审核
         if order.status != "draft" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("订单状态为{}，只有草稿状态的订单可以审核", order.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，只有草稿状态的订单可以审核",
+                order.status
+            )));
         }
 
         // 开启事务
@@ -769,8 +822,10 @@ impl SalesService {
 
         // 锁定库存
         let order_detail = self.get_order_detail(order_id).await?;
-        let items: Vec<SalesOrderItemRequest> = order_detail.items.iter().map(|item| {
-            SalesOrderItemRequest {
+        let items: Vec<SalesOrderItemRequest> = order_detail
+            .items
+            .iter()
+            .map(|item| SalesOrderItemRequest {
                 product_id: item.product_id,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
@@ -791,9 +846,9 @@ impl SalesService {
                 color_extra_cost: Some(item.color_extra_cost),
                 grade_price_diff: Some(item.grade_price_diff),
                 final_price: item.final_price,
-            }
-        }).collect();
-        
+            })
+            .collect();
+
         self.lock_inventory(order_id, &items, &txn).await?;
 
         // 更新订单状态为已审核
@@ -822,13 +877,16 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
 
         // 检查订单状态，只有已审核状态可以发货
         if order.status != "approved" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("订单状态为{}，只有已审核状态的订单可以发货", order.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，只有已审核状态的订单可以发货",
+                order.status
+            )));
         }
 
         // 开启事务
@@ -862,13 +920,16 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
 
         // 检查订单状态，只有已发货状态可以完成
         if order.status != "shipped" {
-            return Err(sea_orm::DbErr::Custom(
-                format!("订单状态为{}，只有已发货状态的订单可以完成", order.status)
-            ));
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，只有已发货状态的订单可以完成",
+                order.status
+            )));
         }
 
         // 开启事务

@@ -1,13 +1,13 @@
 use crate::models::sales_price;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, PaginatorTrait, Order, Set,
-};
-use std::sync::Arc;
 use crate::utils::error::AppError;
-use tracing::info;
-use serde::Deserialize;
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug, Clone, Default)]
 pub struct SalesPriceQueryParams {
@@ -76,7 +76,10 @@ impl SalesPriceService {
         req: CreateSalesPriceInput,
         user_id: i32,
     ) -> Result<sales_price::Model, AppError> {
-        info!("用户 {} 正在创建销售价格，产品 ID: {}", user_id, req.product_id);
+        info!(
+            "用户 {} 正在创建销售价格，产品 ID: {}",
+            user_id, req.product_id
+        );
 
         let active_price = sales_price::ActiveModel {
             product_id: Set(req.product_id),
@@ -85,7 +88,10 @@ impl SalesPriceService {
             price: Set(req.price),
             currency: Set(req.currency),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
-            effective_date: Set(req.effective_date.parse().map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
+            effective_date: Set(req
+                .effective_date
+                .parse()
+                .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
             status: Set("pending".to_string()),
             created_by: Set(Some(user_id)),
@@ -128,7 +134,10 @@ impl SalesPriceService {
     }
 
     #[allow(dead_code)]
-    pub async fn get_price_history(&self, product_id: i32) -> Result<Vec<sales_price::Model>, AppError> {
+    pub async fn get_price_history(
+        &self,
+        product_id: i32,
+    ) -> Result<Vec<sales_price::Model>, AppError> {
         info!("查询产品 {} 的价格历史", product_id);
 
         let history = sales_price::Entity::find()

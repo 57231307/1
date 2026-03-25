@@ -1,9 +1,9 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::customer_credit;
 use crate::services::customer_credit_service::{
     CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCreditService,
 };
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -78,12 +78,21 @@ pub async fn get_credit(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<customer_credit::Model>>, AppError> {
-    info!("用户 {} 正在查询客户 {} 的信用详情", auth.user_id, customer_id);
+    info!(
+        "用户 {} 正在查询客户 {} 的信用详情",
+        auth.user_id, customer_id
+    );
 
     let service = CustomerCreditService::new(db);
-    let credit = service.get_by_customer_id(customer_id).await?
+    let credit = service
+        .get_by_customer_id(customer_id)
+        .await?
         .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
-    info!("客户 {} 信用详情查询成功，等级：{}", customer_id, credit.credit_level.as_deref().unwrap_or("N/A"));
+    info!(
+        "客户 {} 信用详情查询成功，等级：{}",
+        customer_id,
+        credit.credit_level.as_deref().unwrap_or("N/A")
+    );
 
     Ok(Json(ApiResponse::success(credit)))
 }
@@ -95,7 +104,10 @@ pub async fn set_credit_rating(
     auth: AuthContext,
     Json(req): Json<CreditRatingRequestDto>,
 ) -> Result<Json<ApiResponse<customer_credit::Model>>, AppError> {
-    info!("用户 {} 正在设置客户 {} 的信用评级", auth.user_id, req.customer_id);
+    info!(
+        "用户 {} 正在设置客户 {} 的信用评级",
+        auth.user_id, req.customer_id
+    );
 
     let service = CustomerCreditService::new(db);
     let rating_req = CreditRatingRequest {
@@ -121,10 +133,15 @@ pub async fn occupy_credit(
     auth: AuthContext,
     Json(req): Json<CreditAmountRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在占用客户 {} 的信用额度 {:.2}", auth.user_id, customer_id, req.amount);
+    info!(
+        "用户 {} 正在占用客户 {} 的信用额度 {:.2}",
+        auth.user_id, customer_id, req.amount
+    );
 
     let service = CustomerCreditService::new(db);
-    service.occupy_credit(customer_id, req.amount, auth.user_id).await?;
+    service
+        .occupy_credit(customer_id, req.amount, auth.user_id)
+        .await?;
 
     let message = format!("客户 {} 信用额度占用成功", customer_id);
     info!("{}", message);
@@ -140,10 +157,15 @@ pub async fn release_credit(
     auth: AuthContext,
     Json(req): Json<CreditAmountRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在释放客户 {} 的信用额度 {:.2}", auth.user_id, customer_id, req.amount);
+    info!(
+        "用户 {} 正在释放客户 {} 的信用额度 {:.2}",
+        auth.user_id, customer_id, req.amount
+    );
 
     let service = CustomerCreditService::new(db);
-    service.release_credit(customer_id, req.amount, auth.user_id).await?;
+    service
+        .release_credit(customer_id, req.amount, auth.user_id)
+        .await?;
 
     let message = format!("客户 {} 信用额度释放成功", customer_id);
     info!("{}", message);
@@ -159,7 +181,10 @@ pub async fn adjust_credit_limit(
     auth: AuthContext,
     Json(req): Json<CreditLimitAdjustmentRequestDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在调整客户 {} 的信用额度", auth.user_id, customer_id);
+    info!(
+        "用户 {} 正在调整客户 {} 的信用额度",
+        auth.user_id, customer_id
+    );
 
     let service = CustomerCreditService::new(db);
     let adjust_req = CreditLimitAdjustmentRequest {
@@ -169,7 +194,9 @@ pub async fn adjust_credit_limit(
         reason: req.reason,
     };
 
-    service.adjust_credit_limit(adjust_req, auth.user_id).await?;
+    service
+        .adjust_credit_limit(adjust_req, auth.user_id)
+        .await?;
 
     let message = format!("客户 {} 信用额度调整成功", customer_id);
     info!("{}", message);

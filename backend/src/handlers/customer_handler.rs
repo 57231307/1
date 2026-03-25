@@ -83,14 +83,17 @@ pub struct CustomerResponse {
 pub async fn list_customers(
     State(db): State<Arc<DatabaseConnection>>,
     Query(query): Query<CustomerListQuery>,
-) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<serde_json::Value>>>, AppError>
+{
     let page_req = PageRequest {
         page: query.page.unwrap_or(1),
         page_size: query.page_size.unwrap_or(20),
     };
 
     let customer_service = CustomerService::new(db.clone());
-    let result = customer_service.list_customers(page_req, query.status, query.customer_type, query.keyword).await?;
+    let result = customer_service
+        .list_customers(page_req, query.status, query.customer_type, query.keyword)
+        .await?;
 
     let customers_json: Vec<serde_json::Value> = result
         .data
@@ -98,12 +101,14 @@ pub async fn list_customers(
         .map(|c| serde_json::to_value(c).unwrap_or_default())
         .collect();
 
-    Ok(Json(ApiResponse::success(crate::utils::response::PaginatedResponse::new(
-        customers_json,
-        result.total,
-        result.page,
-        result.page_size,
-    ))))
+    Ok(Json(ApiResponse::success(
+        crate::utils::response::PaginatedResponse::new(
+            customers_json,
+            result.total,
+            result.page,
+            result.page_size,
+        ),
+    )))
 }
 
 /// 获取客户详情
@@ -129,7 +134,9 @@ pub async fn create_customer(
         .and_then(|s| s.parse::<rust_decimal::Decimal>().ok())
         .unwrap_or(rust_decimal::Decimal::ZERO);
 
-    let customer_type = payload.customer_type.unwrap_or_else(|| "retail".to_string());
+    let customer_type = payload
+        .customer_type
+        .unwrap_or_else(|| "retail".to_string());
 
     let customer = customer_service
         .create_customer(
@@ -155,7 +162,10 @@ pub async fn create_customer(
         .await?;
 
     let customer_json = serde_json::to_value(customer).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(customer_json, "客户创建成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        customer_json,
+        "客户创建成功",
+    )))
 }
 
 /// 更新客户
@@ -193,7 +203,10 @@ pub async fn update_customer(
         .await?;
 
     let customer_json = serde_json::to_value(customer).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(customer_json, "客户更新成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        customer_json,
+        "客户更新成功",
+    )))
 }
 
 /// 删除客户

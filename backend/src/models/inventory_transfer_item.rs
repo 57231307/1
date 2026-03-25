@@ -1,6 +1,6 @@
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "inventory_transfer_items")]

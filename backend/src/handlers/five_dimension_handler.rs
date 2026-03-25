@@ -3,11 +3,11 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
 
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
 
@@ -111,7 +111,7 @@ pub async fn get_five_dimension_stats(
 ) -> Result<Json<FiveDimensionStatsResponse>, (StatusCode, String)> {
     // TODO: 实现数据库查询逻辑
     // 这里先返回示例数据
-    
+
     let dimension = FabricFiveDimension::new(
         params.product_id.unwrap_or(1),
         params.batch_no.unwrap_or_else(|| "B20240101".to_string()),
@@ -187,14 +187,12 @@ pub async fn get_stats_by_five_dimension_id(
         total_meters: Decimal::from(500),
         total_kg: Decimal::from(16),
         stock_count: 2,
-        warehouse_distribution: vec![
-            WarehouseDistribution {
-                warehouse_id: 1,
-                warehouse_name: "主仓库".to_string(),
-                quantity_meters: Decimal::from(500),
-                quantity_kg: Decimal::from(16),
-            },
-        ],
+        warehouse_distribution: vec![WarehouseDistribution {
+            warehouse_id: 1,
+            warehouse_name: "主仓库".to_string(),
+            quantity_meters: Decimal::from(500),
+            quantity_kg: Decimal::from(16),
+        }],
     };
 
     Ok(Json(response))
@@ -243,7 +241,7 @@ pub async fn search_five_dimension(
 
     // TODO: 实现数据库搜索逻辑
     // 这里返回示例数据
-    
+
     let items = vec![
         FiveDimensionItem {
             product_id: 1,
@@ -282,23 +280,21 @@ pub async fn list_five_dimension_stats(
     let page_size = params.page_size.unwrap_or(20);
 
     // TODO: 实现数据库查询逻辑
-    let items = vec![
-        FiveDimensionStatsResponse {
-            dimension: FiveDimensionItem {
-                product_id: 1,
-                product_name: Some("面料 A".to_string()),
-                batch_no: "B20240101".to_string(),
-                color_no: "C001".to_string(),
-                dye_lot_no: Some("D20240101001".to_string()),
-                grade: "一等品".to_string(),
-                five_dimension_id: "P1|B20240101|C001|D20240101001|G 一等品".to_string(),
-            },
-            total_meters: Decimal::from(1000),
-            total_kg: Decimal::from(32),
-            stock_count: 5,
-            warehouse_distribution: vec![],
+    let items = vec![FiveDimensionStatsResponse {
+        dimension: FiveDimensionItem {
+            product_id: 1,
+            product_name: Some("面料 A".to_string()),
+            batch_no: "B20240101".to_string(),
+            color_no: "C001".to_string(),
+            dye_lot_no: Some("D20240101001".to_string()),
+            grade: "一等品".to_string(),
+            five_dimension_id: "P1|B20240101|C001|D20240101001|G 一等品".to_string(),
         },
-    ];
+        total_meters: Decimal::from(1000),
+        total_kg: Decimal::from(32),
+        stock_count: 5,
+        warehouse_distribution: vec![],
+    }];
 
     Ok(Json(FiveDimensionListResponse {
         items,

@@ -3,16 +3,16 @@
 //! 付款服务层，负责付款执行的核心业务逻辑
 //! 包含付款单创建、确认、付款计划等管理
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait, PaginatorTrait, Set, Order,
-};
-use std::sync::Arc;
-use crate::models::{ap_payment, ap_payment_request, ap_payment_request_item, ap_invoice};
+use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::utils::error::AppError;
-use chrono::{Utc, NaiveDate};
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use validator::Validate;
 
 /// 付款服务
@@ -31,13 +31,13 @@ impl ApPaymentService {
     pub async fn generate_payment_no(&self) -> Result<String, AppError> {
         let today = Utc::now().format("%Y%m%d").to_string();
         let prefix = format!("PAY{}", today);
-        
+
         // 查询今日付款单数量
         let count = ap_payment::Entity::find()
             .filter(ap_payment::Column::PaymentNo.starts_with(&prefix))
             .count(&*self.db)
             .await?;
-        
+
         Ok(format!("{}{:03}", prefix, count + 1))
     }
 
@@ -48,36 +48,38 @@ impl ApPaymentService {
         user_id: i32,
     ) -> Result<ap_payment::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 生成付款单号
         let payment_no = self.generate_payment_no().await?;
-        
+
         // 2. 检查付款申请是否存在且已审批
         let request = ap_payment_request::Entity::find_by_id(req.request_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("付款申请 {}", req.request_id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!(
+                "付款申请 {}",
+                req.request_id
+            )))?;
+
         if request.approval_status != "APPROVED" {
-            return Err(AppError::BusinessError(
-                format!("付款申请状态为{}，未审批通过不可创建付款单", request.approval_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "付款申请状态为{}，未审批通过不可创建付款单",
+                request.approval_status
+            )));
         }
-        
+
         // 3. 检查是否已创建过付款单
         let exists = ap_payment::Entity::find()
             .filter(ap_payment::Column::RequestId.eq(Some(req.request_id)))
             .one(&txn)
             .await?;
-        
+
         if exists.is_some() {
             return Err(AppError::BusinessError(
-                "该付款申请已创建过付款单".to_string()
+                "该付款申请已创建过付款单".to_string(),
             ));
         }
-        
+
         // 4. 创建付款单
         let payment = ap_payment::ActiveModel {
             payment_no: Set(payment_no),
@@ -95,10 +97,12 @@ impl ApPaymentService {
             attachment_urls: Set(req.attachment_urls),
             created_by: Set(user_id),
             ..Default::default()
-        }.insert(&txn).await?;
-        
+        }
+        .insert(&txn)
+        .await?;
+
         txn.commit().await?;
-        
+
         Ok(payment)
     }
 
@@ -110,25 +114,24 @@ impl ApPaymentService {
         user_id: i32,
     ) -> Result<ap_payment::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 查询付款单
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("付款单 {}", id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!("付款单 {}", id)))?;
+
         // 2. 检查状态（仅已登记可修改）
         if payment.payment_status != "REGISTERED" {
-            return Err(AppError::BusinessError(
-                format!("付款单状态为{}，不可修改", payment.payment_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "付款单状态为{}，不可修改",
+                payment.payment_status
+            )));
         }
-        
+
         // 3. 更新付款单
         let mut payment_active: ap_payment::ActiveModel = payment.into();
-        
+
         if let Some(payment_date) = req.payment_date {
             payment_active.payment_date = Set(payment_date);
         }
@@ -150,42 +153,41 @@ impl ApPaymentService {
         if let Some(attachment_urls) = req.attachment_urls {
             payment_active.attachment_urls = Set(Some(attachment_urls));
         }
-        
+
         payment_active.updated_by = Set(Some(user_id));
-        
+
         let payment = payment_active.update(&txn).await?;
-        
+
         txn.commit().await?;
-        
+
         Ok(payment)
     }
 
     /// 确认付款（执行支付）
     pub async fn confirm(&self, id: i32, user_id: i32) -> Result<ap_payment::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 查询付款单
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("付款单 ID: {}", id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!("付款单 ID: {}", id)))?;
+
         // 2. 检查状态
         if payment.payment_status != "REGISTERED" {
-            return Err(AppError::BusinessError(
-                format!("付款单状态为{}，不可确认", payment.payment_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "付款单状态为{}，不可确认",
+                payment.payment_status
+            )));
         }
-        
+
         // 3. 检查必要字段
         if payment.transaction_no.is_none() || payment.transaction_no.as_ref().unwrap().is_empty() {
             return Err(AppError::BusinessError(
-                "付款单必须填写交易流水号才能确认".to_string()
+                "付款单必须填写交易流水号才能确认".to_string(),
             ));
         }
-        
+
         // 4. 确认付款
         let now = chrono::Utc::now();
         let mut payment_active: ap_payment::ActiveModel = payment.into();
@@ -193,9 +195,9 @@ impl ApPaymentService {
         payment_active.confirmed_by = Set(Some(user_id));
         payment_active.confirmed_at = Set(Some(now));
         payment_active.updated_at = Set(now);
-        
+
         let payment = payment_active.update(&txn).await?;
-        
+
         // 5. 更新关联的应付单已付金额
         if let Some(request_id) = payment.request_id {
             // 查询付款申请明细
@@ -203,42 +205,40 @@ impl ApPaymentService {
                 .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
                 .all(&txn)
                 .await?;
-            
+
             // 计算每个应付单应分摊的付款金额（按申请金额比例）
-            let total_apply_amount: Decimal = items.iter()
-                .map(|item| item.apply_amount)
-                .sum();
-            
+            let total_apply_amount: Decimal = items.iter().map(|item| item.apply_amount).sum();
+
             for item in items {
                 if total_apply_amount > Decimal::new(0, 2) {
                     let ratio = item.apply_amount / total_apply_amount;
                     let paid_amount = payment.payment_amount * ratio;
-                    
+
                     // 更新应付单
                     let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                         .one(&txn)
                         .await?;
-                    
+
                     if let Some(mut inv) = invoice {
                         inv.paid_amount += paid_amount;
                         inv.unpaid_amount = inv.amount - inv.paid_amount;
-                        
+
                         // 更新应付状态
                         inv.invoice_status = if inv.unpaid_amount <= Decimal::new(0, 2) {
                             "PAID".to_string()
                         } else {
                             "PARTIAL_PAID".to_string()
                         };
-                        
+
                         let invoice_active: ap_invoice::ActiveModel = inv.into();
                         invoice_active.update(&txn).await?;
                     }
                 }
             }
         }
-        
+
         txn.commit().await?;
-        
+
         Ok(payment)
     }
 
@@ -247,10 +247,8 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("付款单 {}", id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!("付款单 {}", id)))?;
+
         Ok(payment)
     }
 
@@ -266,7 +264,7 @@ impl ApPaymentService {
         page_size: u64,
     ) -> Result<(Vec<ap_payment::Model>, u64), AppError> {
         let mut query = ap_payment::Entity::find();
-        
+
         // 筛选条件
         if let Some(sid) = supplier_id {
             query = query.filter(ap_payment::Column::SupplierId.eq(sid));
@@ -283,15 +281,15 @@ impl ApPaymentService {
         if let Some(ed) = end_date {
             query = query.filter(ap_payment::Column::PaymentDate.lte(ed));
         }
-        
+
         // 分页
         let paginator = query
             .order_by(ap_payment::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
-        
+
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page).await?;
-        
+
         Ok((items, total))
     }
 
@@ -303,37 +301,39 @@ impl ApPaymentService {
         end_date: NaiveDate,
     ) -> Result<Vec<PaymentScheduleItem>, AppError> {
         let mut query = ap_payment_request::Entity::find();
-        
+
         if let Some(sid) = supplier_id {
             query = query.filter(ap_payment_request::Column::SupplierId.eq(sid));
         }
-        
+
         // 查询已审批的付款申请
         let requests = query
             .filter(ap_payment_request::Column::ApprovalStatus.eq("APPROVED"))
-            .filter(
-                ap_payment_request::Column::ExpectedPaymentDate
-                    .between(start_date, end_date)
-            )
+            .filter(ap_payment_request::Column::ExpectedPaymentDate.between(start_date, end_date))
             .order_by(ap_payment_request::Column::ExpectedPaymentDate, Order::Asc)
             .all(&*self.db)
             .await?;
-        
-        let mut schedule_map: std::collections::BTreeMap<NaiveDate, PaymentScheduleItem> = std::collections::BTreeMap::new();
-        
+
+        let mut schedule_map: std::collections::BTreeMap<NaiveDate, PaymentScheduleItem> =
+            std::collections::BTreeMap::new();
+
         for request in requests {
-            let date = request.expected_payment_date.unwrap_or(request.request_date);
-            
-            let entry = schedule_map.entry(date).or_insert_with(|| PaymentScheduleItem {
-                payment_date: date,
-                total_amount: Decimal::new(0, 2),
-                payment_count: 0,
-            });
-            
+            let date = request
+                .expected_payment_date
+                .unwrap_or(request.request_date);
+
+            let entry = schedule_map
+                .entry(date)
+                .or_insert_with(|| PaymentScheduleItem {
+                    payment_date: date,
+                    total_amount: Decimal::new(0, 2),
+                    payment_count: 0,
+                });
+
             entry.total_amount += request.request_amount;
             entry.payment_count += 1;
         }
-        
+
         Ok(schedule_map.into_values().collect())
     }
 }
@@ -347,13 +347,13 @@ impl ApPaymentService {
 pub struct CreateApPaymentRequest {
     /// 付款申请 ID
     pub request_id: i32,
-    
+
     /// 付款日期
     pub payment_date: NaiveDate,
-    
+
     /// 备注
     pub notes: Option<String>,
-    
+
     /// 附件 URL 列表（付款凭证）
     pub attachment_urls: Option<Vec<String>>,
 }
@@ -363,22 +363,22 @@ pub struct CreateApPaymentRequest {
 pub struct UpdateApPaymentRequest {
     /// 付款日期
     pub payment_date: Option<NaiveDate>,
-    
+
     /// 付款方式
     pub payment_method: Option<String>,
-    
+
     /// 付款银行
     pub bank_name: Option<String>,
-    
+
     /// 付款账号
     pub bank_account: Option<String>,
-    
+
     /// 交易流水号
     pub transaction_no: Option<String>,
-    
+
     /// 备注
     pub notes: Option<String>,
-    
+
     /// 附件 URL 列表
     pub attachment_urls: Option<Vec<String>>,
 }
@@ -388,10 +388,10 @@ pub struct UpdateApPaymentRequest {
 pub struct PaymentScheduleItem {
     /// 付款日期
     pub payment_date: NaiveDate,
-    
+
     /// 总金额
     pub total_amount: Decimal,
-    
+
     /// 付款单数量
     pub payment_count: i64,
 }

@@ -1,10 +1,10 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
-use crate::services::sales_price_service::{SalesPriceService, CreateSalesPriceInput};
+use crate::services::sales_price_service::{CreateSalesPriceInput, SalesPriceService};
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
     Json,
 };
 use sea_orm::DatabaseConnection;
@@ -68,7 +68,10 @@ pub async fn create_price(
     auth: AuthContext,
     Json(req): Json<CreateSalesPriceInput>,
 ) -> Result<Json<ApiResponse<sales_price::Model>>, AppError> {
-    info!("用户 {} 正在创建销售价格，产品 ID: {}", auth.user_id, req.product_id);
+    info!(
+        "用户 {} 正在创建销售价格，产品 ID: {}",
+        auth.user_id, req.product_id
+    );
 
     let service = SalesPriceService::new(db);
     let price = service.create_price(req, auth.user_id).await?;
@@ -97,7 +100,10 @@ pub async fn get_price_history(
     Path(product_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
-    info!("用户 {} 正在查询产品 {} 的价格历史", auth.user_id, product_id);
+    info!(
+        "用户 {} 正在查询产品 {} 的价格历史",
+        auth.user_id, product_id
+    );
 
     let service = SalesPriceService::new(db);
     let history = service.get_price_history(product_id).await?;

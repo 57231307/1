@@ -1,15 +1,15 @@
 use crate::models::financial_analysis;
 use crate::models::financial_analysis_result;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    Set, QuerySelect, PaginatorTrait, Order,
-};
-use std::sync::Arc;
-use rust_decimal::Decimal;
 use crate::utils::error::AppError;
-use tracing::info;
-use serde::Deserialize;
 use chrono::Utc;
+use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug, Clone, Default)]
 pub struct IndicatorQueryParams {
@@ -105,8 +105,10 @@ impl FinancialAnalysisService {
         req: FinancialAnalysisRequest,
         user_id: i32,
     ) -> Result<financial_analysis_result::Model, AppError> {
-        info!("用户 {} 正在创建财务分析结果：类型={}, 周期={}, 指标ID={}",
-              user_id, req.analysis_type, req.period, req.indicator_id);
+        info!(
+            "用户 {} 正在创建财务分析结果：类型={}, 周期={}, 指标ID={}",
+            user_id, req.analysis_type, req.period, req.indicator_id
+        );
 
         // 计算差异
         let variance = req.target_value.map(|t| req.indicator_value - t);
@@ -158,7 +160,10 @@ impl FinancialAnalysisService {
         indicator_id: i32,
         limit: i64,
     ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
-        info!("查询财务指标 {} 的趋势数据，限制：{} 条", indicator_id, limit);
+        info!(
+            "查询财务指标 {} 的趋势数据，限制：{} 条",
+            indicator_id, limit
+        );
 
         let results = financial_analysis_result::Entity::find()
             .filter(financial_analysis_result::Column::IndicatorId.eq(indicator_id))

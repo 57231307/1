@@ -1,33 +1,33 @@
-pub mod user;
-pub mod dto;
-pub mod role;
+pub mod customer;
 pub mod department;
-pub mod role_permission;
-pub mod finance_payment;
+pub mod dto;
 pub mod finance_invoice;
-pub mod sales_order;
-pub mod sales_order_item;
+pub mod finance_payment;
+pub mod inventory_adjustment;
+pub mod inventory_adjustment_item;
+pub mod inventory_count;
+pub mod inventory_count_item;
+pub mod inventory_reservation;
 pub mod inventory_stock;
 pub mod inventory_transaction;
 pub mod inventory_transfer;
 pub mod inventory_transfer_item;
-pub mod inventory_count;
-pub mod inventory_count_item;
-pub mod inventory_adjustment;
-pub mod inventory_adjustment_item;
-pub mod inventory_reservation;
 pub mod operation_log;
 pub mod product;
-pub mod product_color;
 pub mod product_category;
+pub mod product_color;
+pub mod role;
+pub mod role_permission;
+pub mod sales_order;
+pub mod sales_order_item;
+pub mod user;
 pub mod warehouse;
-pub mod customer;
 // 总账模块
+pub mod account_balance;
 pub mod account_subject;
+pub mod accounting_period;
 pub mod voucher;
 pub mod voucher_item;
-pub mod account_balance;
-pub mod accounting_period;
 // 辅助核算模块
 pub mod assist_accounting_dimension;
 pub mod assist_accounting_record;
@@ -38,13 +38,13 @@ pub mod business_trace_snapshot;
 pub mod business_trace_view;
 // 供应商管理模块
 pub mod supplier;
-pub mod supplier_contact;
+pub mod supplier_blacklist;
 pub mod supplier_category;
-pub mod supplier_grade;
+pub mod supplier_contact;
 pub mod supplier_evaluation;
 pub mod supplier_evaluation_record;
+pub mod supplier_grade;
 pub mod supplier_qualification;
-pub mod supplier_blacklist;
 // 采购管理模块
 pub mod purchase_order;
 pub mod purchase_order_item;
@@ -55,33 +55,33 @@ pub mod ap_invoice;
 pub mod ap_payment;
 pub mod ap_payment_request;
 pub mod ap_payment_request_item;
+pub mod ap_reconciliation;
 pub mod ap_verification;
 pub mod ap_verification_item;
-pub mod ap_reconciliation;
 // 应收账款模块
-pub mod ar_invoice;
 pub mod ar_collection;
+pub mod ar_invoice;
 pub mod ar_mod;
 // 成本管理模块
-pub mod cost_collection;
 pub mod cost_analysis;
+pub mod cost_collection;
 pub mod cost_mod;
 // P1 模块
-pub mod fixed_asset;
-pub mod purchase_contract;
-pub mod sales_contract;
-pub mod customer_credit;
-pub mod fund_management;
 pub mod budget_management;
 pub mod budget_plan;
+pub mod customer_credit;
+pub mod fixed_asset;
+pub mod fund_management;
+pub mod purchase_contract;
 pub mod quality_standard;
+pub mod sales_contract;
 // P2 模块
 pub mod financial_analysis;
 pub mod financial_analysis_result;
 pub mod purchase_price;
-pub mod sales_price;
-pub mod sales_analysis;
 pub mod quality_inspection;
+pub mod sales_analysis;
+pub mod sales_price;
 // P2 模块 - 质量检验记录
 pub mod quality_inspection_record;
 pub mod unqualified_product;
@@ -118,8 +118,8 @@ pub mod bpm_process_definition;
 pub mod bpm_process_instance;
 pub mod bpm_task;
 // 预算执行模块
-pub mod budget_execution;
 pub mod budget_adjustment;
+pub mod budget_execution;
 // 业务追溯模块
 pub mod business_trace;
 pub mod business_trace_assist_link;
@@ -129,9 +129,9 @@ pub mod crm_opportunity;
 // OA模块
 pub mod oa_announcement;
 // 日志模块
-pub mod log_system;
-pub mod log_login;
 pub mod log_api_access;
+pub mod log_login;
+pub mod log_system;
 // 报表模块
 pub mod report_definition;
 // AR模块（应收账款模块）- 在第62行已定义

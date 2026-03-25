@@ -1,12 +1,12 @@
+use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, 
-    QueryFilter, QuerySelect, QueryOrder, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
-use chrono::Utc;
 
-use crate::models::dto::PageRequest;
 use crate::models::customer::{self, Entity as CustomerEntity};
+use crate::models::dto::PageRequest;
 use crate::utils::PaginatedResponse;
 
 /// 客户服务
@@ -110,8 +110,9 @@ impl CustomerService {
         // 关键词搜索
         if let Some(keyword) = keyword {
             query = query.filter(
-                customer::Column::CustomerName.contains(&keyword)
-                    .or(customer::Column::CustomerCode.contains(&keyword))
+                customer::Column::CustomerName
+                    .contains(&keyword)
+                    .or(customer::Column::CustomerCode.contains(&keyword)),
             );
         }
 
@@ -127,7 +128,12 @@ impl CustomerService {
             .all(&*self.db)
             .await?;
 
-        Ok(PaginatedResponse::new(customers, total, page_req.page, page_req.page_size))
+        Ok(PaginatedResponse::new(
+            customers,
+            total,
+            page_req.page,
+            page_req.page_size,
+        ))
     }
 
     /// 更新客户信息
@@ -154,7 +160,9 @@ impl CustomerService {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id))
+            })?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
 
@@ -213,11 +221,16 @@ impl CustomerService {
     }
 
     /// 删除客户（软删除，将状态改为 inactive）
-    pub async fn delete_customer(&self, customer_id: i32) -> Result<customer::Model, sea_orm::DbErr> {
+    pub async fn delete_customer(
+        &self,
+        customer_id: i32,
+    ) -> Result<customer::Model, sea_orm::DbErr> {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id)))?;
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id))
+            })?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
         customer_update.status = sea_orm::ActiveValue::Set("inactive".to_string());
@@ -233,8 +246,8 @@ impl CustomerService {
         customer_code: &str,
         exclude_id: Option<i32>,
     ) -> Result<bool, sea_orm::DbErr> {
-        let mut query = CustomerEntity::find()
-            .filter(customer::Column::CustomerCode.eq(customer_code));
+        let mut query =
+            CustomerEntity::find().filter(customer::Column::CustomerCode.eq(customer_code));
 
         if let Some(exclude_id) = exclude_id {
             query = query.filter(customer::Column::Id.ne(exclude_id));

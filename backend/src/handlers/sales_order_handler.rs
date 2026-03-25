@@ -2,13 +2,13 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::models::dto::{ApiResponse, PageRequest};
 use crate::services::sales_service::{
-    SalesService, CreateSalesOrderRequest, UpdateSalesOrderRequest,
+    CreateSalesOrderRequest, SalesService, UpdateSalesOrderRequest,
 };
 use crate::utils::error::AppError;
 
@@ -35,12 +35,9 @@ pub async fn list_orders(
         page_size: query.page_size.unwrap_or(10),
     };
 
-    let orders = sales_service.list_orders(
-        page_req,
-        query.status,
-        query.customer_id,
-        query.order_no,
-    ).await?;
+    let orders = sales_service
+        .list_orders(page_req, query.status, query.customer_id, query.order_no)
+        .await?;
 
     let orders_json: Vec<serde_json::Value> = orders
         .data
@@ -72,7 +69,10 @@ pub async fn create_order(
     let sales_service = SalesService::new(db.clone());
     let order = sales_service.create_order(request).await?;
     let order_json = serde_json::to_value(order).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(order_json, "销售订单创建成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        order_json,
+        "销售订单创建成功",
+    )))
 }
 
 /// 更新销售订单
@@ -85,7 +85,10 @@ pub async fn update_order(
     let sales_service = SalesService::new(db.clone());
     let order = sales_service.update_order(id, request).await?;
     let order_json = serde_json::to_value(order).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(order_json, "销售订单更新成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        order_json,
+        "销售订单更新成功",
+    )))
 }
 
 /// 删除销售订单

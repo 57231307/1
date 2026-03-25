@@ -1,14 +1,12 @@
 //! 批量操作 Handler
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
+use crate::services::batch_service::{
+    BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
-use std::sync::Arc;
+use axum::{extract::State, http::StatusCode, Json};
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
-use crate::services::batch_service::{BatchService, BatchCreateProductRequest, BatchUpdateProductRequest};
+use std::sync::Arc;
 
 /// 批量创建产品请求
 #[derive(Debug, Deserialize)]
@@ -50,19 +48,25 @@ pub async fn batch_create_products(
 
     match service.batch_create_products(payload.products).await {
         Ok(result) => {
-            let data: Vec<serde_json::Value> = result.data.iter().map(|p| {
-                serde_json::json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "code": p.code,
-                    "category_id": p.category_id,
-                    "status": p.status
+            let data: Vec<serde_json::Value> = result
+                .data
+                .iter()
+                .map(|p| {
+                    serde_json::json!({
+                        "id": p.id,
+                        "name": p.name,
+                        "code": p.code,
+                        "category_id": p.category_id,
+                        "status": p.status
+                    })
                 })
-            }).collect();
+                .collect();
 
-            let errors: Vec<String> = result.errors.iter().map(|e| {
-                format!("索引 {}: {}", e.index, e.message)
-            }).collect();
+            let errors: Vec<String> = result
+                .errors
+                .iter()
+                .map(|e| format!("索引 {}: {}", e.index, e.message))
+                .collect();
 
             Ok(Json(BatchResponse {
                 success: result.success,
@@ -72,7 +76,11 @@ pub async fn batch_create_products(
                 deleted: 0,
                 failed: result.failed,
                 data: Some(data),
-                errors: if errors.is_empty() { None } else { Some(errors) },
+                errors: if errors.is_empty() {
+                    None
+                } else {
+                    Some(errors)
+                },
             }))
         }
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
@@ -88,19 +96,25 @@ pub async fn batch_update_products(
 
     match service.batch_update_products(payload.products).await {
         Ok(result) => {
-            let data: Vec<serde_json::Value> = result.data.iter().map(|p| {
-                serde_json::json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "code": p.code,
-                    "category_id": p.category_id,
-                    "status": p.status
+            let data: Vec<serde_json::Value> = result
+                .data
+                .iter()
+                .map(|p| {
+                    serde_json::json!({
+                        "id": p.id,
+                        "name": p.name,
+                        "code": p.code,
+                        "category_id": p.category_id,
+                        "status": p.status
+                    })
                 })
-            }).collect();
+                .collect();
 
-            let errors: Vec<String> = result.errors.iter().map(|e| {
-                format!("索引 {}: {}", e.index, e.message)
-            }).collect();
+            let errors: Vec<String> = result
+                .errors
+                .iter()
+                .map(|e| format!("索引 {}: {}", e.index, e.message))
+                .collect();
 
             Ok(Json(BatchResponse {
                 success: result.success,
@@ -110,7 +124,11 @@ pub async fn batch_update_products(
                 deleted: 0,
                 failed: result.failed,
                 data: Some(data),
-                errors: if errors.is_empty() { None } else { Some(errors) },
+                errors: if errors.is_empty() {
+                    None
+                } else {
+                    Some(errors)
+                },
             }))
         }
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
@@ -126,9 +144,11 @@ pub async fn batch_delete_products(
 
     match service.batch_delete_products(payload.ids).await {
         Ok(result) => {
-            let errors: Vec<String> = result.errors.iter().map(|e| {
-                format!("索引 {}: {}", e.index, e.message)
-            }).collect();
+            let errors: Vec<String> = result
+                .errors
+                .iter()
+                .map(|e| format!("索引 {}: {}", e.index, e.message))
+                .collect();
 
             Ok(Json(BatchResponse {
                 success: result.success,
@@ -138,7 +158,11 @@ pub async fn batch_delete_products(
                 deleted: result.total - result.failed,
                 failed: result.failed,
                 data: None,
-                errors: if errors.is_empty() { None } else { Some(errors) },
+                errors: if errors.is_empty() {
+                    None
+                } else {
+                    Some(errors)
+                },
             }))
         }
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),

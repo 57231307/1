@@ -1,9 +1,9 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_contract;
 use crate::services::purchase_contract_service::{
     CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
 };
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -98,7 +98,10 @@ pub async fn create_contract(
     auth: AuthContext,
     Json(req): Json<CreateContractRequestDto>,
 ) -> Result<Json<ApiResponse<purchase_contract::Model>>, AppError> {
-    info!("用户 {} 正在创建采购合同：{}", auth.user_id, req.contract_no);
+    info!(
+        "用户 {} 正在创建采购合同：{}",
+        auth.user_id, req.contract_no
+    );
 
     let service = PurchaseContractService::new(db);
     let create_req = CreateContractRequest {

@@ -1,11 +1,11 @@
 use crate::models::customer_credit;
+use crate::utils::error::AppError;
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use rust_decimal::Decimal;
-use crate::utils::error::AppError;
 use tracing::info;
 
 /// 客户信用查询参数
@@ -50,7 +50,10 @@ impl CustomerCreditService {
     }
 
     /// 获取客户信用评级
-    pub async fn get_by_customer_id(&self, customer_id: i32) -> Result<Option<customer_credit::Model>, AppError> {
+    pub async fn get_by_customer_id(
+        &self,
+        customer_id: i32,
+    ) -> Result<Option<customer_credit::Model>, AppError> {
         let credit = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .one(&*self.db)
@@ -100,7 +103,10 @@ impl CustomerCreditService {
         req: CreditRatingRequest,
         user_id: i32,
     ) -> Result<customer_credit::Model, AppError> {
-        info!("用户 {} 正在设置客户 {} 的信用评级", user_id, req.customer_id);
+        info!(
+            "用户 {} 正在设置客户 {} 的信用评级",
+            user_id, req.customer_id
+        );
 
         // 检查客户是否已有信用评级
         let existing = self.get_by_customer_id(req.customer_id).await?;
@@ -134,7 +140,10 @@ impl CustomerCreditService {
             }
         };
 
-        info!("客户 {} 信用评级设置成功，等级：{:?}", req.customer_id, credit.credit_level);
+        info!(
+            "客户 {} 信用评级设置成功，等级：{:?}",
+            req.customer_id, credit.credit_level
+        );
         Ok(credit)
     }
 
@@ -145,9 +154,13 @@ impl CustomerCreditService {
         amount: Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在占用客户 {} 的信用额度 {:.2}", user_id, customer_id, amount);
+        info!(
+            "用户 {} 正在占用客户 {} 的信用额度 {:.2}",
+            user_id, customer_id, amount
+        );
 
-        let credit = self.get_by_customer_id(customer_id)
+        let credit = self
+            .get_by_customer_id(customer_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
@@ -169,7 +182,11 @@ impl CustomerCreditService {
         // credit_active.updated_by = Set(Some(user_id));
         credit_active.save(&*self.db).await?;
 
-        info!("客户 {} 信用额度占用成功，已占用：{:.2}", customer_id, credit.used_credit + amount);
+        info!(
+            "客户 {} 信用额度占用成功，已占用：{:.2}",
+            customer_id,
+            credit.used_credit + amount
+        );
         Ok(())
     }
 
@@ -180,14 +197,20 @@ impl CustomerCreditService {
         amount: Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在释放客户 {} 的信用额度 {:.2}", user_id, customer_id, amount);
+        info!(
+            "用户 {} 正在释放客户 {} 的信用额度 {:.2}",
+            user_id, customer_id, amount
+        );
 
-        let credit = self.get_by_customer_id(customer_id)
+        let credit = self
+            .get_by_customer_id(customer_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if amount > credit.used_credit {
-            return Err(AppError::ValidationError("释放额度超过已占用额度".to_string()));
+            return Err(AppError::ValidationError(
+                "释放额度超过已占用额度".to_string(),
+            ));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
@@ -197,7 +220,11 @@ impl CustomerCreditService {
         // credit_active.updated_by = Set(Some(user_id));
         credit_active.save(&*self.db).await?;
 
-        info!("客户 {} 信用额度释放成功，已占用：{:.2}", customer_id, credit.used_credit - amount);
+        info!(
+            "客户 {} 信用额度释放成功，已占用：{:.2}",
+            customer_id,
+            credit.used_credit - amount
+        );
         Ok(())
     }
 
@@ -207,17 +234,25 @@ impl CustomerCreditService {
         req: CreditLimitAdjustmentRequest,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在调整客户 {} 的信用额度，类型：{}", user_id, req.customer_id, req.adjustment_type);
+        info!(
+            "用户 {} 正在调整客户 {} 的信用额度，类型：{}",
+            user_id, req.customer_id, req.adjustment_type
+        );
 
-        let credit = self.get_by_customer_id(req.customer_id)
+        let credit = self
+            .get_by_customer_id(req.customer_id)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", req.customer_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("客户 {} 的信用评级不存在", req.customer_id))
+            })?;
 
         let new_limit = match req.adjustment_type.as_str() {
             "increase" => credit.credit_limit + req.amount,
             "decrease" => {
                 if req.amount > credit.credit_limit {
-                    return Err(AppError::ValidationError("降低后的额度不能为负".to_string()));
+                    return Err(AppError::ValidationError(
+                        "降低后的额度不能为负".to_string(),
+                    ));
                 }
                 credit.credit_limit - req.amount
             }
@@ -252,7 +287,10 @@ impl CustomerCreditService {
 
         txn.commit().await?;
 
-        info!("客户 {} 信用额度调整成功，新额度：{}", req.customer_id, new_limit);
+        info!(
+            "客户 {} 信用额度调整成功，新额度：{}",
+            req.customer_id, new_limit
+        );
         Ok(())
     }
 
@@ -260,12 +298,15 @@ impl CustomerCreditService {
     pub async fn deactivate(&self, customer_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在停用客户 {} 的信用", user_id, customer_id);
 
-        let credit = self.get_by_customer_id(customer_id)
+        let credit = self
+            .get_by_customer_id(customer_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.used_credit > Decimal::ZERO {
-            return Err(AppError::ValidationError("客户仍有占用额度，无法停用".to_string()));
+            return Err(AppError::ValidationError(
+                "客户仍有占用额度，无法停用".to_string(),
+            ));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.into();

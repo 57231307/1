@@ -1,17 +1,17 @@
+use crate::services::supplier_service::{
+    CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
+    SupplierService, UpdateContactRequest, UpdateSupplierRequest,
+};
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-use crate::services::supplier_service::{
-    SupplierService, CreateSupplierRequest, UpdateSupplierRequest, SupplierQueryParams,
-    CreateContactRequest, UpdateContactRequest, CreateQualificationRequest,
-};
-use crate::utils::response::ApiResponse;
-use crate::utils::error::AppError;
+use std::sync::Arc;
 use validator::Validate;
 
 /// 查询供应商列表
@@ -20,11 +20,14 @@ pub async fn list_suppliers(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(db);
-    let result = service.list_suppliers(params).await
+    let result = service
+        .list_suppliers(params)
+        .await
         .map_err(AppError::from)?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(result)
-        .map_err(AppError::from)?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(result).map_err(AppError::from)?,
+    )))
 }
 
 /// 获取供应商详情
@@ -33,11 +36,11 @@ pub async fn get_supplier(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(db);
-    let supplier = service.get_supplier(id).await
-        .map_err(AppError::from)?;
+    let supplier = service.get_supplier(id).await.map_err(AppError::from)?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(supplier)
-        .map_err(AppError::from)?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(supplier).map_err(AppError::from)?,
+    )))
 }
 
 /// 创建供应商
@@ -46,12 +49,15 @@ pub async fn create_supplier(
     State(db): State<Arc<DatabaseConnection>>,
     Json(req): Json<CreateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    req.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = SupplierService::new(db);
     let user_id = 1;
 
-    let supplier = service.create_supplier(req, user_id).await
+    let supplier = service
+        .create_supplier(req, user_id)
+        .await
         .map_err(AppError::from)?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -70,7 +76,9 @@ pub async fn update_supplier(
     let service = SupplierService::new(db);
     let user_id = 1;
 
-    let supplier = service.update_supplier(id, req, user_id).await
+    let supplier = service
+        .update_supplier(id, req, user_id)
+        .await
         .map_err(AppError::from)?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -85,10 +93,12 @@ pub async fn delete_supplier(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(db);
-    service.delete_supplier(id).await
-        .map_err(AppError::from)?;
+    service.delete_supplier(id).await.map_err(AppError::from)?;
 
-    Ok(Json(ApiResponse::success_with_message((), "供应商删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "供应商删除成功",
+    )))
 }
 
 /// 切换供应商状态
@@ -101,12 +111,18 @@ pub async fn toggle_supplier_status(
     let service = SupplierService::new(db);
     let user_id = 1;
 
-    let supplier = service.toggle_supplier_status(id, req.enable, user_id).await
+    let supplier = service
+        .toggle_supplier_status(id, req.enable, user_id)
+        .await
         .map_err(AppError::from)?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(supplier).map_err(AppError::from)?,
-        if req.enable { "供应商已启用" } else { "供应商已停用" },
+        if req.enable {
+            "供应商已启用"
+        } else {
+            "供应商已停用"
+        },
     )))
 }
 
@@ -124,11 +140,14 @@ pub async fn list_supplier_contacts(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(db);
-    let contacts = service.list_supplier_contacts(supplier_id).await
+    let contacts = service
+        .list_supplier_contacts(supplier_id)
+        .await
         .map_err(AppError::from)?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(contacts)
-        .map_err(AppError::from)?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(contacts).map_err(AppError::from)?,
+    )))
 }
 
 /// 创建供应商联系人
@@ -138,12 +157,15 @@ pub async fn create_supplier_contact(
     State(db): State<Arc<DatabaseConnection>>,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    req.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = SupplierService::new(db);
     let user_id = 1;
 
-    let contact = service.create_supplier_contact(supplier_id, req, user_id).await
+    let contact = service
+        .create_supplier_contact(supplier_id, req, user_id)
+        .await
         .map_err(AppError::from)?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -162,7 +184,9 @@ pub async fn update_supplier_contact(
     let service = SupplierService::new(db);
     let user_id = 1;
 
-    let contact = service.update_supplier_contact(contact_id, req, user_id).await
+    let contact = service
+        .update_supplier_contact(contact_id, req, user_id)
+        .await
         .map_err(AppError::from)?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -177,10 +201,15 @@ pub async fn delete_supplier_contact(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(db);
-    service.delete_supplier_contact(contact_id).await
+    service
+        .delete_supplier_contact(contact_id)
+        .await
         .map_err(AppError::from)?;
 
-    Ok(Json(ApiResponse::success_with_message((), "联系人删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "联系人删除成功",
+    )))
 }
 
 // ==================== 供应商资质管理 Handler ====================
@@ -200,7 +229,8 @@ pub async fn create_supplier_qualification(
     State(_db): State<Arc<DatabaseConnection>>,
     Json(req): Json<CreateQualificationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    req.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"supplier_id": supplier_id, "qualification": req}),

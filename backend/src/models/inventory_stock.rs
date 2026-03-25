@@ -1,6 +1,6 @@
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 库存实体模型（面料行业版）
@@ -23,7 +23,7 @@ pub struct Model {
     pub last_movement_date: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    
+
     // ========== 面料行业特色字段 ==========
     /// 批次号（必填）
     pub batch_no: String,
@@ -37,7 +37,7 @@ pub struct Model {
     pub production_date: Option<DateTime<Utc>>,
     /// 保质期
     pub expiry_date: Option<DateTime<Utc>>,
-    
+
     /// 数量（米）- 主计量单位
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub quantity_meters: Decimal,
@@ -50,14 +50,14 @@ pub struct Model {
     /// 幅宽（cm）
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub width: Option<Decimal>,
-    
+
     /// 库位 ID
     pub location_id: Option<i32>,
     /// 货架号
     pub shelf_no: Option<String>,
     /// 层号
     pub layer_no: Option<String>,
-    
+
     /// 库存状态：正常/冻结/待检
     pub stock_status: String,
     /// 质量状态：合格/不合格/待检

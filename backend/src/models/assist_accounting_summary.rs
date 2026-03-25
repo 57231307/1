@@ -2,9 +2,9 @@
 //!
 //! 按维度汇总数据
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 
 /// 辅助核算汇总 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]

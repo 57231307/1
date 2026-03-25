@@ -1,11 +1,11 @@
 //! 批量操作服务
 //! 提供批量创建、更新、删除功能
 
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, DbErr};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use serde::{Deserialize, Serialize};
 use crate::models::product;
+use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, Set};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// 批量操作结果
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,9 +86,13 @@ impl BatchService {
 
         for (index, req) in requests.iter().enumerate() {
             // 解析价格
-            let standard_price = req.standard_price.as_ref()
+            let standard_price = req
+                .standard_price
+                .as_ref()
                 .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
-            let cost_price = req.cost_price.as_ref()
+            let cost_price = req
+                .cost_price
+                .as_ref()
                 .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
 
             let product = product::ActiveModel {
@@ -105,7 +109,10 @@ impl BatchService {
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
                 // 面料行业特色字段
-                product_type: Set(req.product_type.clone().unwrap_or_else(|| "成品布".to_string())),
+                product_type: Set(req
+                    .product_type
+                    .clone()
+                    .unwrap_or_else(|| "成品布".to_string())),
                 fabric_composition: Set(req.fabric_composition.clone()),
                 yarn_count: Set(req.yarn_count.clone()),
                 density: Set(req.density.clone()),
@@ -230,10 +237,7 @@ impl BatchService {
     }
 
     /// 批量删除产品
-    pub async fn batch_delete_products(
-        &self,
-        ids: Vec<i32>,
-    ) -> Result<BatchResult<()>, DbErr> {
+    pub async fn batch_delete_products(&self, ids: Vec<i32>) -> Result<BatchResult<()>, DbErr> {
         let mut failed = 0;
         let mut errors = Vec::new();
 

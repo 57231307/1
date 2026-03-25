@@ -1,9 +1,0 @@
-﻿
-     |
-  System.Management.Automation.RemoteException
-> error[E0277]: the trait bound `std::sync::Arc<sea_orm::DatabaseConnection>: C
-onnectionTrait` is not satisfied
-     --> src\handlers\batch_new_handler.rs:110:14
-      |
-
-

@@ -1,15 +1,15 @@
+use crate::services::inventory_stock_service::InventoryStockService;
+use crate::utils::dual_unit_converter::DualUnitConverter;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use chrono::Utc;
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use chrono::Utc;
-use crate::services::inventory_stock_service::InventoryStockService;
-use crate::utils::dual_unit_converter::DualUnitConverter;
-use rust_decimal::Decimal;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateStockRequest {
@@ -107,20 +107,23 @@ pub async fn create_stock(
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
     let service = InventoryStockService::new(db.clone());
 
-    match service.create_stock(
-        payload.warehouse_id,
-        payload.product_id,
-        payload.batch_no,
-        payload.color_no,
-        payload.quantity_meters,
-        payload.quantity_kg.unwrap_or(Decimal::ZERO),
-        payload.grade,
-        payload.dye_lot_no,
-        payload.gram_weight,
-        payload.width,
-        "active".to_string(),
-        "qualified".to_string(),
-    ).await {
+    match service
+        .create_stock(
+            payload.warehouse_id,
+            payload.product_id,
+            payload.batch_no,
+            payload.color_no,
+            payload.quantity_meters,
+            payload.quantity_kg.unwrap_or(Decimal::ZERO),
+            payload.grade,
+            payload.dye_lot_no,
+            payload.gram_weight,
+            payload.width,
+            "active".to_string(),
+            "qualified".to_string(),
+        )
+        .await
+    {
         Ok(stock) => Ok(Json(StockResponse {
             id: stock.id,
             warehouse_id: stock.warehouse_id,
@@ -149,7 +152,7 @@ pub async fn update_stock(
         Err(e) => return Err((StatusCode::NOT_FOUND, e.to_string())),
     };
 
-    use sea_orm::{Set, ActiveModelTrait};
+    use sea_orm::{ActiveModelTrait, Set};
     let mut active_model: crate::models::inventory_stock::ActiveModel = stock.into();
 
     if let Some(qoh) = payload.quantity_on_hand {
@@ -196,7 +199,7 @@ pub async fn delete_stock(
     let service = InventoryStockService::new(db.clone());
 
     match service.find_by_id(id).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => return Err((StatusCode::NOT_FOUND, e.to_string())),
     }
 
@@ -216,12 +219,15 @@ pub async fn list_stock(
 ) -> Result<Json<StockListResponse>, (StatusCode, String)> {
     let service = InventoryStockService::new(db.clone());
 
-    match service.list_stock(
-        params.page.unwrap_or(0),
-        params.page_size.unwrap_or(20),
-        params.warehouse_id,
-        params.product_id,
-    ).await {
+    match service
+        .list_stock(
+            params.page.unwrap_or(0),
+            params.page_size.unwrap_or(20),
+            params.warehouse_id,
+            params.product_id,
+        )
+        .await
+    {
         Ok((stock_list, total)) => {
             let stock_responses: Vec<StockResponse> = stock_list
                 .into_iter()
@@ -312,11 +318,14 @@ pub async fn list_stock_fabric(
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    match service.find_by_batch_and_color(
-        &params.batch_no.unwrap_or_default(),
-        &params.color_no.unwrap_or_default(),
-        params.warehouse_id,
-    ).await {
+    match service
+        .find_by_batch_and_color(
+            &params.batch_no.unwrap_or_default(),
+            &params.color_no.unwrap_or_default(),
+            params.warehouse_id,
+        )
+        .await
+    {
         Ok(stock_list) => {
             let total = stock_list.len() as u64;
             let stock_responses: Vec<StockFabricResponse> = stock_list
@@ -363,14 +372,17 @@ pub async fn list_transactions(
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    match service.list_transactions(
-        page,
-        page_size,
-        params.batch_no,
-        params.color_no,
-        params.product_id,
-        params.warehouse_id,
-    ).await {
+    match service
+        .list_transactions(
+            page,
+            page_size,
+            params.batch_no,
+            params.color_no,
+            params.product_id,
+            params.warehouse_id,
+        )
+        .await
+    {
         Ok((transactions, total)) => {
             let transaction_responses: Vec<TransactionResponse> = transactions
                 .into_iter()
@@ -412,13 +424,16 @@ pub async fn get_inventory_summary(
 ) -> Result<Json<InventorySummaryResponse>, (StatusCode, String)> {
     let service = InventoryStockService::new(db.clone());
 
-    match service.get_inventory_summary(
-        params.warehouse_id,
-        params.product_id,
-        params.batch_no,
-        params.color_no,
-        params.grade,
-    ).await {
+    match service
+        .get_inventory_summary(
+            params.warehouse_id,
+            params.product_id,
+            params.batch_no,
+            params.color_no,
+            params.grade,
+        )
+        .await
+    {
         Ok(summary_items) => {
             let mut total_meters = rust_decimal::Decimal::ZERO;
             let mut total_kg = rust_decimal::Decimal::ZERO;
@@ -559,7 +574,7 @@ pub struct InventorySummaryResponse {
 // ========== 面料行业双计量单位优化接口 ==========
 
 /// 创建面料库存（双计量单位自动换算版）
-/// 
+///
 /// # 请求示例
 /// ```json
 /// {
@@ -577,7 +592,7 @@ pub struct InventorySummaryResponse {
 ///     "layer_no": "01"
 /// }
 /// ```
-/// 
+///
 /// # 说明
 /// - 如果提供了 `gram_weight` 和 `width`，系统会自动计算 `quantity_kg`
 /// - 计算公式：公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
@@ -589,31 +604,40 @@ pub async fn create_stock_fabric(
     let service = InventoryStockService::new(db.clone());
 
     // 如果提供了克重和幅宽，自动计算公斤数
-    let quantity_kg = if let (Some(gram_weight), Some(width)) = (payload.gram_weight, payload.width) {
+    let quantity_kg = if let (Some(gram_weight), Some(width)) = (payload.gram_weight, payload.width)
+    {
         match DualUnitConverter::meters_to_kg(payload.quantity_meters, gram_weight, width) {
             Ok(kg) => kg,
-            Err(e) => return Err((StatusCode::BAD_REQUEST, format!("双计量单位换算失败：{}", e))),
+            Err(e) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("双计量单位换算失败：{}", e),
+                ))
+            }
         }
     } else {
         // 如果没有提供克重和幅宽，使用传入的公斤数或默认为 0
         payload.quantity_kg.unwrap_or(Decimal::ZERO)
     };
 
-    match service.create_stock_fabric(
-        payload.warehouse_id,
-        payload.product_id,
-        payload.batch_no,
-        payload.color_no,
-        payload.dye_lot_no,
-        payload.grade,
-        payload.quantity_meters,
-        quantity_kg,
-        payload.gram_weight,
-        payload.width,
-        payload.location_id,
-        payload.shelf_no,
-        payload.layer_no,
-    ).await {
+    match service
+        .create_stock_fabric(
+            payload.warehouse_id,
+            payload.product_id,
+            payload.batch_no,
+            payload.color_no,
+            payload.dye_lot_no,
+            payload.grade,
+            payload.quantity_meters,
+            quantity_kg,
+            payload.gram_weight,
+            payload.width,
+            payload.location_id,
+            payload.shelf_no,
+            payload.layer_no,
+        )
+        .await
+    {
         Ok(stock) => Ok(Json(StockFabricResponse {
             id: stock.id,
             warehouse_id: stock.warehouse_id,
@@ -666,8 +690,17 @@ mod tests {
         assert_eq!(req.product_id, 100);
         assert_eq!(req.batch_no, "B20240101");
         assert_eq!(req.color_no, "C001");
-        assert_eq!(req.quantity_meters, rust_decimal::Decimal::from_str("100.00").unwrap());
-        assert_eq!(req.gram_weight, Some(rust_decimal::Decimal::from_str("180.00").unwrap()));
-        assert_eq!(req.width, Some(rust_decimal::Decimal::from_str("180.00").unwrap()));
+        assert_eq!(
+            req.quantity_meters,
+            rust_decimal::Decimal::from_str("100.00").unwrap()
+        );
+        assert_eq!(
+            req.gram_weight,
+            Some(rust_decimal::Decimal::from_str("180.00").unwrap())
+        );
+        assert_eq!(
+            req.width,
+            Some(rust_decimal::Decimal::from_str("180.00").unwrap())
+        );
     }
 }

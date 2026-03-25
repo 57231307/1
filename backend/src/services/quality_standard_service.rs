@@ -1,11 +1,12 @@
 use crate::models::quality_standard;
+use crate::utils::error::AppError;
+use chrono::NaiveDate;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
-use crate::utils::error::AppError;
 use tracing::info;
-use chrono::NaiveDate;
 
 /// 质量标准查询参数
 #[derive(Debug, Clone, Default)]
@@ -166,7 +167,9 @@ impl QualityStandardService {
         //     .await?;
 
         if referenced_count > 0 {
-            return Err(AppError::ValidationError("质量标准被引用，无法删除".to_string()));
+            return Err(AppError::ValidationError(
+                "质量标准被引用，无法删除".to_string(),
+            ));
         }
 
         quality_standard::Entity::delete_many()
@@ -201,7 +204,10 @@ impl QualityStandardService {
         req: CreateVersionHistoryRequest,
         user_id: i32,
     ) -> Result<quality_standard::Model, AppError> {
-        info!("用户 {} 正在创建质量标准版本历史：{}", user_id, req.standard_id);
+        info!(
+            "用户 {} 正在创建质量标准版本历史：{}",
+            user_id, req.standard_id
+        );
 
         let old_standard = self.get_standard_by_id(req.standard_id).await?;
 
@@ -241,7 +247,9 @@ impl QualityStandardService {
         let standard = self.get_standard_by_id(standard_id).await?;
 
         if standard.status != "draft" && standard.status != "rejected" {
-            return Err(AppError::ValidationError("质量标准状态不允许审批".to_string()));
+            return Err(AppError::ValidationError(
+                "质量标准状态不允许审批".to_string(),
+            ));
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
@@ -254,17 +262,15 @@ impl QualityStandardService {
 
     /// 质量标准发布
     #[allow(dead_code)]
-    pub async fn publish_standard(
-        &self,
-        standard_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn publish_standard(&self, standard_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在发布质量标准：{}", user_id, standard_id);
 
         let standard = self.get_standard_by_id(standard_id).await?;
 
         if standard.status != "approved" {
-            return Err(AppError::ValidationError("质量标准未审批，无法发布".to_string()));
+            return Err(AppError::ValidationError(
+                "质量标准未审批，无法发布".to_string(),
+            ));
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();

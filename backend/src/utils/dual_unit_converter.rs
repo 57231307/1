@@ -1,8 +1,7 @@
 /// 双计量单位换算工具（面料行业专用）
-/// 
+///
 /// 提供米数 ↔ 公斤数的精确换算功能
 /// 支持幅宽、克重等多参数计算
-
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -23,14 +22,14 @@ pub struct ConversionResult {
 
 impl DualUnitConverter {
     /// 米数转公斤数（精确版）
-    /// 
+    ///
     /// 公式：公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
-    /// 
+    ///
     /// # Arguments
     /// * `quantity_meters` - 米数
     /// * `gram_weight` - 克重（g/m²）
     /// * `width_cm` - 幅宽（cm）
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Decimal)` - 公斤数
     /// * `Err(String)` - 错误信息
@@ -49,24 +48,24 @@ impl DualUnitConverter {
         if width_cm <= Decimal::ZERO {
             return Err("幅宽必须大于 0".to_string());
         }
-        
+
         // 计算：米数 × 克重 × 幅宽 (m) ÷ 1000
         let width_m = width_cm / Decimal::from(100);
         let quantity_kg = quantity_meters * gram_weight * width_m / Decimal::from(1000);
-        
+
         // 保留 3 位小数
         Ok(quantity_kg.round_dp(3))
     }
-    
+
     /// 公斤数转米数（精确版）
-    /// 
+    ///
     /// 公式：米数 = 公斤数 × 1000 ÷ 克重 (g/m²) ÷ 幅宽 (m)
-    /// 
+    ///
     /// # Arguments
     /// * `quantity_kg` - 公斤数
     /// * `gram_weight` - 克重（g/m²）
     /// * `width_cm` - 幅宽（cm）
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Decimal)` - 米数
     /// * `Err(String)` - 错误信息
@@ -85,23 +84,23 @@ impl DualUnitConverter {
         if width_cm <= Decimal::ZERO {
             return Err("幅宽必须大于 0".to_string());
         }
-        
+
         // 计算：公斤数 × 1000 ÷ 克重 ÷ 幅宽 (m)
         let width_m = width_cm / Decimal::from(100);
         let quantity_meters = quantity_kg * Decimal::from(1000) / (gram_weight * width_m);
-        
+
         // 保留 2 位小数
         Ok(quantity_meters.round_dp(2))
     }
-    
+
     /// 自动换算（根据输入单位智能判断）
-    /// 
+    ///
     /// # Arguments
     /// * `quantity` - 数量
     /// * `unit` - 单位（"米" 或 "公斤"）
     /// * `gram_weight` - 克重（g/m²）
     /// * `width_cm` - 幅宽（cm）
-    /// 
+    ///
     /// # Returns
     /// * `Ok(ConversionResult)` - 换算结果
     /// * `Err(String)` - 错误信息
@@ -123,7 +122,7 @@ impl DualUnitConverter {
                     width_m_str(&width_cm),
                     kg
                 );
-                
+
                 Ok(ConversionResult {
                     original_quantity: quantity,
                     original_unit: "米".to_string(),
@@ -143,7 +142,7 @@ impl DualUnitConverter {
                     width_m_str(&width_cm),
                     meters
                 );
-                
+
                 Ok(ConversionResult {
                     original_quantity: quantity,
                     original_unit: "公斤".to_string(),
@@ -153,19 +152,19 @@ impl DualUnitConverter {
                     formula,
                 })
             }
-            _ => Err(format!("不支持的单位：{}（支持的单位：米、公斤）", unit))
+            _ => Err(format!("不支持的单位：{}（支持的单位：米、公斤）", unit)),
         }
     }
-    
+
     /// 验证双计量单位一致性
-    /// 
+    ///
     /// # Arguments
     /// * `quantity_meters` - 米数
     /// * `quantity_kg` - 公斤数
     /// * `gram_weight` - 克重（g/m²）
     /// * `width_cm` - 幅宽（cm）
     /// * `tolerance` - 允许误差（默认 0.5%）
-    /// 
+    ///
     /// # Returns
     /// * `Ok(bool)` - 是否一致
     /// * `Err(String)` - 错误信息
@@ -176,20 +175,17 @@ impl DualUnitConverter {
         width_cm: Decimal,
         tolerance: Option<Decimal>,
     ) -> Result<bool, String> {
-        let calculated_kg = Self::meters_to_kg(
-            quantity_meters,
-            gram_weight,
-            width_cm
-        )?;
-        
+        let calculated_kg = Self::meters_to_kg(quantity_meters, gram_weight, width_cm)?;
+
         // 默认允许 0.5% 的误差
-        let tolerance = tolerance.unwrap_or(Decimal::from_str("0.005").unwrap_or(Decimal::new(5, 3)));
+        let tolerance =
+            tolerance.unwrap_or(Decimal::from_str("0.005").unwrap_or(Decimal::new(5, 3)));
         let diff = (calculated_kg - quantity_kg).abs();
         let allowed_diff = calculated_kg * tolerance;
-        
+
         Ok(diff <= allowed_diff)
     }
-    
+
     /// 计算换算率（每公斤多少米）
     pub fn calculate_conversion_rate(
         gram_weight: Decimal,
@@ -201,11 +197,11 @@ impl DualUnitConverter {
         if width_cm <= Decimal::ZERO {
             return Err("幅宽必须大于 0".to_string());
         }
-        
+
         let width_m = width_cm / Decimal::from(100);
         // 1 公斤 = 1000 ÷ 克重 ÷ 幅宽 (m) 米
         let rate = Decimal::from(1000) / (gram_weight * width_m);
-        
+
         Ok(rate.round_dp(4))
     }
 }
@@ -226,9 +222,9 @@ mod tests {
         let quantity = Decimal::from_f64_retain(1000.0).unwrap(); // 1000 米
         let gram_weight = Decimal::from_f64_retain(170.0).unwrap(); // 170g/m²
         let width = Decimal::from_f64_retain(180.0).unwrap(); // 180cm
-        
+
         let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width).unwrap();
-        
+
         // 预期：1000 × 170 × 1.8 ÷ 1000 = 306 公斤
         assert_eq!(result, Decimal::from_f64_retain(306.0).unwrap());
     }
@@ -238,9 +234,9 @@ mod tests {
         let quantity = Decimal::from_f64_retain(306.0).unwrap(); // 306 公斤
         let gram_weight = Decimal::from_f64_retain(170.0).unwrap(); // 170g/m²
         let width = Decimal::from_f64_retain(180.0).unwrap(); // 180cm
-        
+
         let result = DualUnitConverter::kg_to_meters(quantity, gram_weight, width).unwrap();
-        
+
         // 预期：306 × 1000 ÷ 170 ÷ 1.8 = 1000 米
         assert_eq!(result, Decimal::from_f64_retain(1000.0).unwrap());
     }
@@ -250,17 +246,15 @@ mod tests {
         let quantity = Decimal::from_f64_retain(5000.0).unwrap();
         let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
         let width = Decimal::from_f64_retain(180.0).unwrap();
-        
-        let result = DualUnitConverter::auto_convert(
-            quantity,
-            "米",
-            gram_weight,
-            width
-        ).unwrap();
-        
+
+        let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width).unwrap();
+
         assert_eq!(result.converted_unit, "公斤");
         // 5000 × 170 × 1.8 ÷ 1000 = 1530 公斤
-        assert_eq!(result.converted_quantity, Decimal::from_f64_retain(1530.0).unwrap());
+        assert_eq!(
+            result.converted_quantity,
+            Decimal::from_f64_retain(1530.0).unwrap()
+        );
     }
 
     #[test]
@@ -269,15 +263,16 @@ mod tests {
         let quantity_kg = Decimal::from_f64_retain(306.0).unwrap();
         let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
         let width = Decimal::from_f64_retain(180.0).unwrap();
-        
+
         let is_valid = DualUnitConverter::validate_dual_unit(
             quantity_meters,
             quantity_kg,
             gram_weight,
             width,
-            None
-        ).unwrap();
-        
+            None,
+        )
+        .unwrap();
+
         assert!(is_valid);
     }
 
@@ -287,15 +282,16 @@ mod tests {
         let quantity_kg = Decimal::from_f64_retain(350.0).unwrap(); // 错误的公斤数
         let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
         let width = Decimal::from_f64_retain(180.0).unwrap();
-        
+
         let is_valid = DualUnitConverter::validate_dual_unit(
             quantity_meters,
             quantity_kg,
             gram_weight,
             width,
-            None
-        ).unwrap();
-        
+            None,
+        )
+        .unwrap();
+
         assert!(!is_valid);
     }
 
@@ -304,7 +300,7 @@ mod tests {
         let quantity = Decimal::from_f64_retain(-100.0).unwrap();
         let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
         let width = Decimal::from_f64_retain(180.0).unwrap();
-        
+
         let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "米数不能为负数");
@@ -315,7 +311,7 @@ mod tests {
         let quantity = Decimal::from_f64_retain(1000.0).unwrap();
         let gram_weight = Decimal::from_f64_retain(0.0).unwrap();
         let width = Decimal::from_f64_retain(180.0).unwrap();
-        
+
         let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "克重必须大于 0");

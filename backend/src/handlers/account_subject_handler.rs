@@ -13,7 +13,7 @@ use tracing::info;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::account_subject;
 use crate::services::account_subject_service::{
-    AccountSubjectService, CreateSubjectRequest, UpdateSubjectRequest, SubjectQueryParams,
+    AccountSubjectService, CreateSubjectRequest, SubjectQueryParams, UpdateSubjectRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -79,9 +79,15 @@ pub async fn list_subjects(
         keyword: params.keyword,
     };
 
-    let subjects = service.get_list(query_params).await
+    let subjects = service
+        .get_list(query_params)
+        .await
         .map_err(AppError::from)?;
-    info!("用户 {} 查询会计科目成功，共 {} 条", auth.username, subjects.len());
+    info!(
+        "用户 {} 查询会计科目成功，共 {} 条",
+        auth.username,
+        subjects.len()
+    );
 
     Ok(Json(ApiResponse::success(subjects)))
 }
@@ -95,8 +101,7 @@ pub async fn get_subject(
     info!("用户 {} 查询会计科目 ID: {}", auth.username, id);
 
     let service = AccountSubjectService::new(db);
-    let subject = service.get_by_id(id).await
-        .map_err(AppError::from)?;
+    let subject = service.get_by_id(id).await.map_err(AppError::from)?;
     info!("用户 {} 查询会计科目成功", auth.username);
 
     Ok(Json(ApiResponse::success(subject)))
@@ -106,12 +111,14 @@ pub async fn get_subject(
 pub async fn get_subject_tree(
     State(db): State<Arc<sea_orm::DatabaseConnection>>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<crate::services::account_subject_service::SubjectTreeNode>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::account_subject_service::SubjectTreeNode>>>,
+    AppError,
+> {
     info!("用户 {} 查询会计科目树", auth.username);
 
     let service = AccountSubjectService::new(db);
-    let tree = service.get_tree().await
-        .map_err(AppError::from)?;
+    let tree = service.get_tree().await.map_err(AppError::from)?;
     info!("用户 {} 查询会计科目树成功", auth.username);
 
     Ok(Json(ApiResponse::success(tree)))
@@ -170,7 +177,9 @@ pub async fn update_subject(
         enable_dual_unit: req.enable_dual_unit,
     };
 
-    let subject = service.update(id, update_req, auth.user_id).await
+    let subject = service
+        .update(id, update_req, auth.user_id)
+        .await
         .map_err(AppError::from)?;
     info!("用户 {} 更新会计科目成功：{}", auth.username, subject.code);
 
@@ -189,8 +198,7 @@ pub async fn delete_subject(
     info!("用户 {} 删除会计科目 ID: {}", auth.username, id);
 
     let service = AccountSubjectService::new(db);
-    service.delete(id).await
-        .map_err(AppError::from)?;
+    service.delete(id).await.map_err(AppError::from)?;
     info!("用户 {} 删除会计科目成功", auth.username);
 
     Ok(Json(ApiResponse::success_with_message(

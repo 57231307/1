@@ -14,7 +14,7 @@ use tracing::{info, warn};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::voucher;
 use crate::services::voucher_service::{
-    VoucherService, CreateVoucherRequest, VoucherQueryParams, VoucherItemRequest,
+    CreateVoucherRequest, VoucherItemRequest, VoucherQueryParams, VoucherService,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -83,7 +83,9 @@ pub async fn list_vouchers(
         page_size: params.page_size,
     };
 
-    let (vouchers, total) = service.get_list(query_params).await
+    let (vouchers, total) = service
+        .get_list(query_params)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     info!("用户 {} 查询凭证成功，共 {} 条", auth.username, total);
 
@@ -99,9 +101,14 @@ pub async fn get_voucher(
     info!("用户 {} 查询凭证详情 ID: {}", auth.username, id);
 
     let service = VoucherService::new(db);
-    let detail = service.get_by_id(id).await
+    let detail = service
+        .get_by_id(id)
+        .await
         .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
-    info!("用户 {} 查询凭证成功：{}", auth.username, detail.voucher.voucher_no);
+    info!(
+        "用户 {} 查询凭证成功：{}",
+        auth.username, detail.voucher.voucher_no
+    );
 
     Ok(Json(ApiResponse::success(detail.voucher)))
 }
@@ -115,13 +122,13 @@ pub async fn create_voucher(
 ) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
     info!("用户 {} 创建凭证：{}", auth.username, req.voucher_type);
 
-    let voucher_date = req.voucher_date.parse()
-        .map_err(|e| {
-            warn!("用户 {} 凭证日期格式错误：{}", auth.username, e);
-            AppError::ValidationError(format!("凭证日期格式错误：{}", e))
-        })?;
+    let voucher_date = req.voucher_date.parse().map_err(|e| {
+        warn!("用户 {} 凭证日期格式错误：{}", auth.username, e);
+        AppError::ValidationError(format!("凭证日期格式错误：{}", e))
+    })?;
 
-    let items: Vec<VoucherItemRequest> = req.items
+    let items: Vec<VoucherItemRequest> = req
+        .items
         .into_iter()
         .map(|item| VoucherItemRequest {
             line_no: item.line_no,
@@ -159,9 +166,14 @@ pub async fn create_voucher(
     };
 
     let service = VoucherService::new(db);
-    let voucher = service.create(create_req, auth.user_id).await
+    let voucher = service
+        .create(create_req, auth.user_id)
+        .await
         .map_err(AppError::from)?;
-    info!("用户 {} 创建凭证成功：{}", auth.username, voucher.voucher_no);
+    info!(
+        "用户 {} 创建凭证成功：{}",
+        auth.username, voucher.voucher_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         voucher,
@@ -178,9 +190,14 @@ pub async fn submit_voucher(
     info!("用户 {} 提交凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(db);
-    let voucher = service.submit(id, auth.user_id).await
+    let voucher = service
+        .submit(id, auth.user_id)
+        .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-    info!("用户 {} 提交凭证成功：{}", auth.username, voucher.voucher_no);
+    info!(
+        "用户 {} 提交凭证成功：{}",
+        auth.username, voucher.voucher_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         voucher,
@@ -197,9 +214,14 @@ pub async fn review_voucher(
     info!("用户 {} 审核凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(db);
-    let voucher = service.review(id, auth.user_id).await
+    let voucher = service
+        .review(id, auth.user_id)
+        .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-    info!("用户 {} 审核凭证成功：{}", auth.username, voucher.voucher_no);
+    info!(
+        "用户 {} 审核凭证成功：{}",
+        auth.username, voucher.voucher_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         voucher,
@@ -216,9 +238,14 @@ pub async fn post_voucher(
     info!("用户 {} 凭证过账 ID: {}", auth.username, id);
 
     let service = VoucherService::new(db);
-    let voucher = service.post(id, auth.user_id).await
+    let voucher = service
+        .post(id, auth.user_id)
+        .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-    info!("用户 {} 凭证过账成功：{}", auth.username, voucher.voucher_no);
+    info!(
+        "用户 {} 凭证过账成功：{}",
+        auth.username, voucher.voucher_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         voucher,

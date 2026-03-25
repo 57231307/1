@@ -1,13 +1,14 @@
-use crate::models::{budget_management, budget_plan, budget_execution};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, QuerySelect, PaginatorTrait, Order,
-};
-use std::sync::Arc;
-use rust_decimal::Decimal;
+use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::utils::error::AppError;
-use tracing::info;
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
 use serde::Serialize;
+use std::sync::Arc;
+use tracing::info;
 
 /// 预算控制响应数据结构
 #[derive(Debug, Clone, Serialize)]
@@ -199,7 +200,9 @@ impl BudgetManagementService {
         //     .await?;
 
         if children_count > 0 {
-            return Err(AppError::ValidationError("存在子科目，无法删除".to_string()));
+            return Err(AppError::ValidationError(
+                "存在子科目，无法删除".to_string(),
+            ));
         }
 
         budget_management::Entity::delete_many()
@@ -212,64 +215,67 @@ impl BudgetManagementService {
     }
 
     /// 获取预算方案列表
-pub async fn get_plans_list(
-    &self,
-    budget_year: Option<i32>,
-    department_id: Option<i32>,
-    page: i64,
-    page_size: i64,
-) -> Result<(Vec<budget_plan::Model>, u64), AppError> {
-    let mut query = budget_plan::Entity::find();
+    pub async fn get_plans_list(
+        &self,
+        budget_year: Option<i32>,
+        department_id: Option<i32>,
+        page: i64,
+        page_size: i64,
+    ) -> Result<(Vec<budget_plan::Model>, u64), AppError> {
+        let mut query = budget_plan::Entity::find();
 
-    if let Some(year) = budget_year {
-        query = query.filter(budget_plan::Column::BudgetYear.eq(year));
+        if let Some(year) = budget_year {
+            query = query.filter(budget_plan::Column::BudgetYear.eq(year));
+        }
+
+        if let Some(dept_id) = department_id {
+            query = query.filter(budget_plan::Column::DepartmentId.eq(dept_id));
+        }
+
+        let total = query.clone().count(&*self.db).await?;
+
+        let plans = query
+            .order_by(budget_plan::Column::Id, Order::Desc)
+            .offset((page * page_size) as u64)
+            .limit(page_size as u64)
+            .all(&*self.db)
+            .await?;
+
+        Ok((plans, total))
     }
-
-    if let Some(dept_id) = department_id {
-        query = query.filter(budget_plan::Column::DepartmentId.eq(dept_id));
-    }
-
-    let total = query.clone().count(&*self.db).await?;
-
-    let plans = query
-        .order_by(budget_plan::Column::Id, Order::Desc)
-        .offset((page * page_size) as u64)
-        .limit(page_size as u64)
-        .all(&*self.db)
-        .await?;
-
-    Ok((plans, total))
-}
 
     /// 创建预算方案
-pub async fn create_plan(
-    &self,
-    req: CreateBudgetPlanRequest,
-    user_id: i32,
-) -> Result<budget_plan::Model, AppError> {
-    info!("用户 {} 正在创建预算方案：{}", user_id, req.plan_no);
+    pub async fn create_plan(
+        &self,
+        req: CreateBudgetPlanRequest,
+        user_id: i32,
+    ) -> Result<budget_plan::Model, AppError> {
+        info!("用户 {} 正在创建预算方案：{}", user_id, req.plan_no);
 
-    // 创建 budget_plan::ActiveModel
-    let active_plan = budget_plan::ActiveModel {
-        plan_no: Set(req.plan_no.clone()),
-        plan_name: Set(req.plan_name.clone()),
-        budget_year: Set(req.budget_year),
-        department_id: Set(req.department_id),
-        total_amount: Set(req.total_amount),
-        start_date: Set(req.start_date),
-        end_date: Set(req.end_date),
-        status: Set("draft".to_string()), // 草稿状态
-        remark: Set(req.remark),
-        created_by: Set(Some(user_id)),
-        ..Default::default()
-    };
+        // 创建 budget_plan::ActiveModel
+        let active_plan = budget_plan::ActiveModel {
+            plan_no: Set(req.plan_no.clone()),
+            plan_name: Set(req.plan_name.clone()),
+            budget_year: Set(req.budget_year),
+            department_id: Set(req.department_id),
+            total_amount: Set(req.total_amount),
+            start_date: Set(req.start_date),
+            end_date: Set(req.end_date),
+            status: Set("draft".to_string()), // 草稿状态
+            remark: Set(req.remark),
+            created_by: Set(Some(user_id)),
+            ..Default::default()
+        };
 
-    // 调用 insert 保存
-    let plan = active_plan.insert(&*self.db).await?;
-    info!("预算方案创建成功：ID={}, 方案编号={}", plan.id, plan.plan_no);
+        // 调用 insert 保存
+        let plan = active_plan.insert(&*self.db).await?;
+        info!(
+            "预算方案创建成功：ID={}, 方案编号={}",
+            plan.id, plan.plan_no
+        );
 
-    Ok(plan)
-}
+        Ok(plan)
+    }
 
     /// 获取预算方案详情
     pub async fn get_plan_by_id(&self, id: i32) -> Result<budget_plan::Model, AppError> {
@@ -293,7 +299,9 @@ pub async fn create_plan(
         let plan = self.get_plan_by_id(plan_id).await?;
 
         if plan.status != "draft" && plan.status != "rejected" {
-            return Err(AppError::ValidationError("预算方案状态不允许审批".to_string()));
+            return Err(AppError::ValidationError(
+                "预算方案状态不允许审批".to_string(),
+            ));
         }
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
@@ -315,7 +323,9 @@ pub async fn create_plan(
         let plan = self.get_plan_by_id(req.plan_id).await?;
 
         if plan.status != "approved" {
-            return Err(AppError::ValidationError("预算方案未审批，无法执行".to_string()));
+            return Err(AppError::ValidationError(
+                "预算方案未审批，无法执行".to_string(),
+            ));
         }
 
         info!("预算方案执行成功：{}", req.plan_id);
@@ -323,10 +333,7 @@ pub async fn create_plan(
     }
 
     /// 获取预算控制情况
-    pub async fn get_budget_control(
-        &self,
-        plan_id: i32,
-    ) -> Result<budget_plan::Model, AppError> {
+    pub async fn get_budget_control(&self, plan_id: i32) -> Result<budget_plan::Model, AppError> {
         info!("查询预算控制情况：{}", plan_id);
 
         let plan = self.get_plan_by_id(plan_id).await?;
@@ -348,15 +355,19 @@ pub async fn create_plan(
         remark: Option<String>,
         user_id: i32,
     ) -> Result<budget_execution::Model, AppError> {
-        info!("用户 {} 正在创建预算执行明细，方案ID：{}，类型：{}，金额：{}", 
-            user_id, plan_id, execution_type, amount);
+        info!(
+            "用户 {} 正在创建预算执行明细，方案ID：{}，类型：{}，金额：{}",
+            user_id, plan_id, execution_type, amount
+        );
 
         // 验证预算方案是否存在
         let _plan = self.get_plan_by_id(plan_id).await?;
 
         // 验证执行类型
         if !["下达", "调整", "使用"].contains(&execution_type.as_str()) {
-            return Err(AppError::ValidationError("执行类型无效，必须为：下达、调整、使用".to_string()));
+            return Err(AppError::ValidationError(
+                "执行类型无效，必须为：下达、调整、使用".to_string(),
+            ));
         }
 
         let active_execution = budget_execution::ActiveModel {
@@ -373,8 +384,10 @@ pub async fn create_plan(
         };
 
         let execution = active_execution.insert(&*self.db).await?;
-        info!("预算执行明细创建成功：ID={}，方案ID={}，类型={}", 
-            execution.id, plan_id, execution_type);
+        info!(
+            "预算执行明细创建成功：ID={}，方案ID={}，类型={}",
+            execution.id, plan_id, execution_type
+        );
 
         Ok(execution)
     }
@@ -439,8 +452,13 @@ pub async fn create_plan(
             available_amount,
         };
 
-        info!("预算控制数据获取成功：总额={}，已下达={}，已执行={}，可用={}", 
-            response.total_amount, response.issued_amount, response.executed_amount, response.available_amount);
+        info!(
+            "预算控制数据获取成功：总额={}，已下达={}，已执行={}，可用={}",
+            response.total_amount,
+            response.issued_amount,
+            response.executed_amount,
+            response.available_amount
+        );
 
         Ok(response)
     }

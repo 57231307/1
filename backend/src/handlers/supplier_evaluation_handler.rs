@@ -1,13 +1,13 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::supplier_evaluation;
 use crate::models::supplier_evaluation_record;
 use crate::services::supplier_evaluation_service::{
-    SupplierEvaluationService, CreateEvaluationIndicatorRequest, SupplierScoreResponse
+    CreateEvaluationIndicatorRequest, SupplierEvaluationService, SupplierScoreResponse,
 };
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
     Json,
 };
 use sea_orm::DatabaseConnection;
@@ -31,12 +31,13 @@ pub async fn list_indicators(
     info!("用户 {} 正在查询供应商评估指标列表", auth.user_id);
 
     let service = SupplierEvaluationService::new(db);
-    let query_params = crate::services::supplier_evaluation_service::EvaluationIndicatorQueryParams {
-        category: params.category,
-        status: params.status,
-        page: params.page.unwrap_or(0),
-        page_size: params.page_size.unwrap_or(10),
-    };
+    let query_params =
+        crate::services::supplier_evaluation_service::EvaluationIndicatorQueryParams {
+            category: params.category,
+            status: params.status,
+            page: params.page.unwrap_or(0),
+            page_size: params.page_size.unwrap_or(10),
+        };
 
     let (indicators, _total) = service.get_indicators_list(query_params).await?;
     info!("供应商评估指标列表查询成功，共 {} 条记录", indicators.len());
@@ -49,7 +50,10 @@ pub async fn create_indicator(
     auth: AuthContext,
     Json(req): Json<CreateEvaluationIndicatorRequest>,
 ) -> Result<Json<ApiResponse<supplier_evaluation::Model>>, AppError> {
-    info!("用户 {} 正在创建评估指标：{}", auth.user_id, req.indicator_code);
+    info!(
+        "用户 {} 正在创建评估指标：{}",
+        auth.user_id, req.indicator_code
+    );
 
     let service = SupplierEvaluationService::new(db);
     let indicator = service.create_indicator(req, auth.user_id).await?;
@@ -63,7 +67,10 @@ pub async fn create_evaluation_record(
     auth: AuthContext,
     Json(req): Json<crate::services::supplier_evaluation_service::SupplierEvaluationRequest>,
 ) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
-    info!("用户 {} 正在创建评估记录，供应商：{}", auth.user_id, req.supplier_id);
+    info!(
+        "用户 {} 正在创建评估记录，供应商：{}",
+        auth.user_id, req.supplier_id
+    );
 
     let service = SupplierEvaluationService::new(db);
     let record = service.create_evaluation_record(req, auth.user_id).await?;
@@ -77,7 +84,10 @@ pub async fn get_supplier_score(
     Path(supplier_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<SupplierScoreResponse>>, AppError> {
-    info!("用户 {} 正在查询供应商 {} 的评分", auth.user_id, supplier_id);
+    info!(
+        "用户 {} 正在查询供应商 {} 的评分",
+        auth.user_id, supplier_id
+    );
 
     let service = SupplierEvaluationService::new(db);
     let score = service.get_supplier_score(supplier_id).await?;
@@ -108,11 +118,16 @@ pub async fn get_rankings(
     Query(params): Query<RankingQuery>,
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<crate::services::supplier_evaluation_service::SupplierScoreResponse>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::supplier_evaluation_service::SupplierScoreResponse>>>,
+    AppError,
+> {
     info!("用户 {} 正在查询供应商排名榜", auth.user_id);
 
     let service = SupplierEvaluationService::new(db);
-    let rankings = service.get_supplier_rankings(params.limit.unwrap_or(10)).await?;
+    let rankings = service
+        .get_supplier_rankings(params.limit.unwrap_or(10))
+        .await?;
     info!("供应商排名榜查询成功，共 {} 条记录", rankings.len());
 
     Ok(Json(ApiResponse::success(rankings)))
@@ -134,12 +149,14 @@ pub async fn list_evaluation_records(
     info!("用户 {} 正在查询评估记录列表", auth.user_id);
 
     let service = SupplierEvaluationService::new(db);
-    let records = service.get_evaluation_records(
-        params.supplier_id,
-        params.period,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    ).await?;
+    let records = service
+        .get_evaluation_records(
+            params.supplier_id,
+            params.period,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
     info!("评估记录列表查询成功，共 {} 条记录", records.len());
 
     Ok(Json(ApiResponse::success(records)))

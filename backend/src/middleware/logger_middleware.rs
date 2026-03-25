@@ -1,12 +1,12 @@
-use chrono::Utc;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
 };
-use std::time::{Instant, Duration};
-use tracing::{info, warn, error};
+use chrono::Utc;
+use std::time::{Duration, Instant};
+use tracing::{error, info, warn};
 
 /// 请求日志中间件
 /// 记录每个请求的详细信息
@@ -131,18 +131,15 @@ pub async fn request_id_middleware(
     let request_id = uuid::Uuid::new_v4().to_string();
 
     // 注入到请求头
-    req.headers_mut().insert(
-        "X-Request-ID",
-        request_id.parse().unwrap(),
-    );
+    req.headers_mut()
+        .insert("X-Request-ID", request_id.parse().unwrap());
 
     let mut response = next.run(req).await;
 
     // 在响应中也添加请求 ID
-    response.headers_mut().insert(
-        "X-Request-ID",
-        request_id.parse().unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert("X-Request-ID", request_id.parse().unwrap());
 
     Ok(response)
 }

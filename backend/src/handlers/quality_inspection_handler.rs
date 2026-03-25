@@ -1,24 +1,22 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;
 use crate::services::quality_inspection_service::{
-    QualityInspectionService,
-    CreateQualityInspectionStandardRequest,
-    CreateInspectionRecordRequest,
-    ProcessUnqualifiedRequest,
+    CreateInspectionRecordRequest, CreateQualityInspectionStandardRequest,
+    ProcessUnqualifiedRequest, QualityInspectionService,
 };
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
     Json,
 };
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
+use serde::Serialize;
 use std::sync::Arc;
 use tracing::info;
-use serde::Serialize;
 
 #[derive(Debug, Deserialize)]
 pub struct QualityInspectionQuery {

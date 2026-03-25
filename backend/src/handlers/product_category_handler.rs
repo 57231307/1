@@ -3,13 +3,13 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::models::product_category;
 use crate::services::product_category_service::ProductCategoryService;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::error::AppError;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 产品类别列表
 #[derive(Debug, Deserialize)]
@@ -45,14 +45,13 @@ pub async fn list_product_categories(
     let page_size = query.page_size.unwrap_or(10);
 
     let category_service = ProductCategoryService::new(db.clone());
-    let (categories, total) = category_service.list_categories(
-        page,
-        page_size,
-        query.parent_id,
-        query.search,
-    ).await?;
+    let (categories, total) = category_service
+        .list_categories(page, page_size, query.parent_id, query.search)
+        .await?;
 
-    Ok(Json(PaginatedResponse::new(categories, total, page, page_size).into()))
+    Ok(Json(
+        PaginatedResponse::new(categories, total, page, page_size).into(),
+    ))
 }
 
 /// 获取产品类别详情
@@ -71,12 +70,13 @@ pub async fn create_product_category(
     Json(req): Json<CreateProductCategoryRequest>,
 ) -> Result<Json<ApiResponse<product_category::Model>>, AppError> {
     let category_service = ProductCategoryService::new(db.clone());
-    let category = category_service.create_category(
-        req.name,
-        req.parent_id,
-        req.description,
-    ).await?;
-    Ok(Json(ApiResponse::success_with_msg(category, "产品类别创建成功")))
+    let category = category_service
+        .create_category(req.name, req.parent_id, req.description)
+        .await?;
+    Ok(Json(ApiResponse::success_with_msg(
+        category,
+        "产品类别创建成功",
+    )))
 }
 
 /// 更新产品类别
@@ -86,13 +86,13 @@ pub async fn update_product_category(
     Json(req): Json<UpdateProductCategoryRequest>,
 ) -> Result<Json<ApiResponse<product_category::Model>>, AppError> {
     let category_service = ProductCategoryService::new(db.clone());
-    let category = category_service.update_category(
-        id,
-        req.name,
-        req.parent_id,
-        req.description,
-    ).await?;
-    Ok(Json(ApiResponse::success_with_msg(category, "产品类别更新成功")))
+    let category = category_service
+        .update_category(id, req.name, req.parent_id, req.description)
+        .await?;
+    Ok(Json(ApiResponse::success_with_msg(
+        category,
+        "产品类别更新成功",
+    )))
 }
 
 /// 删除产品类别

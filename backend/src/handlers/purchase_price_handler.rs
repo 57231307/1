@@ -1,10 +1,10 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_price;
-use crate::services::purchase_price_service::{PurchasePriceService, CreatePurchasePriceInput};
+use crate::services::purchase_price_service::{CreatePurchasePriceInput, PurchasePriceService};
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
     Json,
 };
 use sea_orm::DatabaseConnection;
@@ -75,7 +75,10 @@ pub async fn create_price(
     auth: AuthContext,
     Json(req): Json<CreatePurchasePriceInput>,
 ) -> Result<Json<ApiResponse<purchase_price::Model>>, AppError> {
-    info!("用户 {} 正在创建采购价格，产品 ID: {}", auth.user_id, req.product_id);
+    info!(
+        "用户 {} 正在创建采购价格，产品 ID: {}",
+        auth.user_id, req.product_id
+    );
 
     let service = PurchasePriceService::new(db);
     let price = service.create_price(req, auth.user_id).await?;
@@ -93,12 +96,16 @@ pub async fn update_price(
     info!("用户 {} 正在更新采购价格，ID: {}", auth.user_id, id);
 
     let service = PurchasePriceService::new(db);
-    service.update_price(
-        id,
-        req.price.parse().map_err(|e| AppError::ValidationError(format!("价格格式错误：{}", e)))?,
-        req.expiry_date,
-        req.status,
-    ).await?;
+    service
+        .update_price(
+            id,
+            req.price
+                .parse()
+                .map_err(|e| AppError::ValidationError(format!("价格格式错误：{}", e)))?,
+            req.expiry_date,
+            req.status,
+        )
+        .await?;
     info!("采购价格更新成功，ID: {}", id);
 
     Ok(Json(ApiResponse::success(())))
@@ -138,7 +145,10 @@ pub async fn get_price_history(
     Path(material_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<purchase_price::Model>>>, AppError> {
-    info!("用户 {} 正在查询物料 {} 的价格历史", auth.user_id, material_id);
+    info!(
+        "用户 {} 正在查询物料 {} 的价格历史",
+        auth.user_id, material_id
+    );
 
     let service = PurchasePriceService::new(db);
     let history = service.get_price_history(material_id).await?;

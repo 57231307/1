@@ -1,11 +1,15 @@
-use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, Order, PaginatorTrait, QueryOrder};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use rust_decimal::Decimal;
 use chrono::Utc;
-use tracing::{info, error};
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
+use std::sync::Arc;
+use tracing::{error, info};
 
-use crate::models::{assist_accounting_dimension, assist_accounting_record, assist_accounting_summary};
+use crate::models::{
+    assist_accounting_dimension, assist_accounting_record, assist_accounting_summary,
+};
 
 /// 辅助核算服务
 #[derive(Debug, Clone)]
@@ -169,17 +173,22 @@ impl AssistAccountingService {
             chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
             chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
-        }.ok_or_else(|| sea_orm::DbErr::Custom("无效的日期".to_string()))
-            .map(|d| d - chrono::Duration::days(1));
+        }
+        .ok_or_else(|| sea_orm::DbErr::Custom("无效的日期".to_string()))
+        .map(|d| d - chrono::Duration::days(1));
 
         if let Ok(end_date) = end_date {
             let start = chrono::DateTime::<Utc>::from_naive_utc_and_offset(
-                start_date.and_hms_opt(0, 0, 0).unwrap_or_else(|| start_date.and_hms_opt(0, 0, 0).unwrap()),
-                chrono::Utc
+                start_date
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap_or_else(|| start_date.and_hms_opt(0, 0, 0).unwrap()),
+                chrono::Utc,
             );
             let end = chrono::DateTime::<Utc>::from_naive_utc_and_offset(
-                end_date.and_hms_opt(0, 0, 0).unwrap_or_else(|| end_date.and_hms_opt(0, 0, 0).unwrap()),
-                chrono::Utc
+                end_date
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap_or_else(|| end_date.and_hms_opt(0, 0, 0).unwrap()),
+                chrono::Utc,
             );
             let records = assist_accounting_record::Entity::find()
                 .filter(assist_accounting_record::Column::CreatedAt.gte(start))
@@ -187,13 +196,19 @@ impl AssistAccountingService {
                 .all(&*self.db)
                 .await?;
 
-            let mut grouped: std::collections::HashMap<String, (Decimal, Decimal, Decimal, Decimal, i64)> =
-                std::collections::HashMap::new();
+            let mut grouped: std::collections::HashMap<
+                String,
+                (Decimal, Decimal, Decimal, Decimal, i64),
+            > = std::collections::HashMap::new();
 
             for record in records {
                 let key = format!("{}_{}", record.five_dimension_id, record.account_subject_id);
                 let entry = grouped.entry(key).or_insert((
-                    Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, 0
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    0,
                 ));
                 entry.0 += record.debit_amount;
                 entry.1 += record.credit_amount;
@@ -206,20 +221,27 @@ impl AssistAccountingService {
                 .all(&*self.db)
                 .await?;
 
-            for (key, (total_debit, total_credit, total_meters, total_kg, record_count)) in grouped {
+            for (key, (total_debit, total_credit, total_meters, total_kg, record_count)) in grouped
+            {
                 let parts: Vec<&str> = key.split('_').collect();
                 if parts.len() >= 2 {
                     let dimension_id: i32 = parts[0].parse().unwrap_or(0);
                     let subject_id: i32 = parts[1].parse().unwrap_or(0);
 
-                    let dimension_name = dimensions.iter()
+                    let dimension_name = dimensions
+                        .iter()
                         .find(|d| d.id == dimension_id)
                         .map(|d| d.dimension_name.clone())
                         .unwrap_or_else(|| "未知".to_string());
 
                     let existing = assist_accounting_summary::Entity::find()
-                        .filter(assist_accounting_summary::Column::AccountingPeriod.eq(&accounting_period))
-                        .filter(assist_accounting_summary::Column::DimensionValueId.eq(dimension_id))
+                        .filter(
+                            assist_accounting_summary::Column::AccountingPeriod
+                                .eq(&accounting_period),
+                        )
+                        .filter(
+                            assist_accounting_summary::Column::DimensionValueId.eq(dimension_id),
+                        )
                         .filter(assist_accounting_summary::Column::AccountSubjectId.eq(subject_id))
                         .one(&*self.db)
                         .await?;
@@ -247,10 +269,13 @@ impl AssistAccountingService {
                         let new_summary = assist_accounting_summary::ActiveModel {
                             id: sea_orm::Set(0),
                             accounting_period: sea_orm::Set(accounting_period.clone()),
-                            dimension_code: sea_orm::Set(dimensions.iter()
-                                .find(|d| d.id == dimension_id)
-                                .map(|d| d.dimension_code.clone())
-                                .unwrap_or_default()),
+                            dimension_code: sea_orm::Set(
+                                dimensions
+                                    .iter()
+                                    .find(|d| d.id == dimension_id)
+                                    .map(|d| d.dimension_code.clone())
+                                    .unwrap_or_default(),
+                            ),
                             dimension_value_id: sea_orm::Set(dimension_id),
                             dimension_value_name: sea_orm::Set(dimension_name),
                             account_subject_id: sea_orm::Set(subject_id),
@@ -290,8 +315,11 @@ impl AssistAccountingService {
         // 按会计期间过滤（将期间转换为日期范围）
         if let Some(period) = accounting_period {
             if let Ok((year, month)) = parse_period(period) {
-                let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-                    .map(|d| d.and_hms_opt(0, 0, 0).unwrap_or_else(|| d.and_hms_opt(0, 0, 0).unwrap()).and_utc());
+                let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).map(|d| {
+                    d.and_hms_opt(0, 0, 0)
+                        .unwrap_or_else(|| d.and_hms_opt(0, 0, 0).unwrap())
+                        .and_utc()
+                });
                 let end_date = if month == 12 {
                     chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
                 } else {

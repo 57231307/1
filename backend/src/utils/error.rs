@@ -46,15 +46,31 @@ impl std::error::Error for AppError {}
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_type, error_message) = match &self {
-            AppError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DatabaseError", "数据库操作失败"),
-            AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, "ValidationError", "请求参数验证失败"),
+            AppError::DatabaseError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DatabaseError",
+                "数据库操作失败",
+            ),
+            AppError::ValidationError(_) => (
+                StatusCode::BAD_REQUEST,
+                "ValidationError",
+                "请求参数验证失败",
+            ),
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound", "未找到"),
-            AppError::ResourceNotFound(_) => (StatusCode::NOT_FOUND, "ResourceNotFound", "资源不存在"),
+            AppError::ResourceNotFound(_) => {
+                (StatusCode::NOT_FOUND, "ResourceNotFound", "资源不存在")
+            }
             AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError", "业务错误"),
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized", "未授权访问"),
-            AppError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "InternalError", "服务器内部错误"),
+            AppError::InternalError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "InternalError",
+                "服务器内部错误",
+            ),
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BadRequest", "请求错误"),
-            AppError::PermissionDenied(_) => (StatusCode::FORBIDDEN, "PermissionDenied", "权限不足"),
+            AppError::PermissionDenied(_) => {
+                (StatusCode::FORBIDDEN, "PermissionDenied", "权限不足")
+            }
         };
 
         let body = ErrorResponse {

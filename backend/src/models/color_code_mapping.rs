@@ -2,8 +2,8 @@
 //!
 //! 颜色代码映射模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 颜色代码映射 Entity

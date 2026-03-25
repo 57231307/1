@@ -1,6 +1,6 @@
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 产品实体模型（面料行业版）
@@ -33,7 +33,7 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     /// 更新时间
     pub updated_at: DateTime<Utc>,
-    
+
     // ========== 面料行业特色字段 ==========
     /// 产品类型：坯布/成品布/辅料
     pub product_type: String,

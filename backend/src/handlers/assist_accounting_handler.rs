@@ -3,15 +3,15 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use rust_decimal::Decimal;
 use tracing::info;
 
 use crate::services::assist_accounting_service::AssistAccountingService;
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::ApiResponse;
 
 /// 辅助核算维度响应
 #[derive(Debug, Serialize)]
@@ -117,18 +117,21 @@ pub async fn query_assist_records(
     Query(params): Query<AssistRecordQueryParams>,
 ) -> Result<Json<AssistRecordListResponse>, (StatusCode, String)> {
     let service = AssistAccountingService::new(db.clone());
-    
+
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    match service.query_assist_records(
-        params.accounting_period.as_deref(),
-        params.dimension_code.as_deref(),
-        params.business_type.as_deref(),
-        params.warehouse_id,
-        page,
-        page_size,
-    ).await {
+    match service
+        .query_assist_records(
+            params.accounting_period.as_deref(),
+            params.dimension_code.as_deref(),
+            params.business_type.as_deref(),
+            params.warehouse_id,
+            page,
+            page_size,
+        )
+        .await
+    {
         Ok((records, total)) => {
             let record_responses: Vec<AssistRecordResponse> = records
                 .into_iter()
@@ -175,7 +178,10 @@ pub async fn get_assist_records_by_business(
 ) -> Result<Json<Vec<AssistRecordResponse>>, (StatusCode, String)> {
     let service = AssistAccountingService::new(db.clone());
 
-    match service.find_by_business(&params.business_type, &params.business_no).await {
+    match service
+        .find_by_business(&params.business_type, &params.business_no)
+        .await
+    {
         Ok(records) => {
             let record_responses: Vec<AssistRecordResponse> = records
                 .into_iter()
@@ -264,8 +270,10 @@ pub async fn get_assist_summary(
     State(db): State<Arc<DatabaseConnection>>,
     Query(params): Query<AssistSummaryQueryParams>,
 ) -> Result<Json<ApiResponse<Vec<AssistSummaryResponse>>>, AppError> {
-    info!("正在查询辅助核算汇总，期间：{}，维度：{:?}",
-          params.accounting_period, params.dimension_code);
+    info!(
+        "正在查询辅助核算汇总，期间：{}，维度：{:?}",
+        params.accounting_period, params.dimension_code
+    );
 
     let service = AssistAccountingService::new(db);
 
@@ -274,7 +282,8 @@ pub async fn get_assist_summary(
     let summaries = if dimension_code.is_empty() {
         vec![]
     } else {
-        service.find_summary_by_period_and_dimension(&params.accounting_period, dimension_code)
+        service
+            .find_summary_by_period_and_dimension(&params.accounting_period, dimension_code)
             .await
             .map_err(|e| AppError::InternalError(e.to_string()))?
             .into_iter()

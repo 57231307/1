@@ -1,15 +1,15 @@
+use crate::services::role_permission_service::RolePermissionService;
+use crate::services::role_permission_service::{
+    AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use crate::services::role_permission_service::RolePermissionService;
-use crate::services::role_permission_service::{
-    CreateRoleRequest, UpdateRoleRequest, AssignPermissionRequest,
-};
 
 /// 角色响应
 #[derive(Debug, Serialize)]

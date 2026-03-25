@@ -1,7 +1,7 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_analysis;
-use crate::services::sales_analysis_service::{SalesAnalysisService, CreateSalesTargetInput};
+use crate::services::sales_analysis_service::{CreateSalesTargetInput, SalesAnalysisService};
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Query, State},
@@ -63,7 +63,10 @@ pub async fn get_trends(
     State(db): State<Arc<DatabaseConnection>>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
-    info!("用户 {} 正在查询销售趋势，周期：{}", auth.user_id, params.period);
+    info!(
+        "用户 {} 正在查询销售趋势，周期：{}",
+        auth.user_id, params.period
+    );
 
     let service = SalesAnalysisService::new(db);
     let trends = service.get_trends(&params.period).await?;
@@ -80,7 +83,9 @@ pub async fn get_rankings(
     info!("用户 {} 正在查询销售排名", auth.user_id);
 
     let service = SalesAnalysisService::new(db);
-    let rankings = service.get_rankings(params.period.as_deref(), params.limit.unwrap_or(10)).await?;
+    let rankings = service
+        .get_rankings(params.period.as_deref(), params.limit.unwrap_or(10))
+        .await?;
     info!("销售排名查询成功，共 {} 条记录", rankings.len());
 
     Ok(Json(ApiResponse::success(rankings)))
@@ -94,10 +99,9 @@ pub async fn get_targets(
     info!("用户 {} 正在查询销售目标", auth.user_id);
 
     let service = SalesAnalysisService::new(db);
-    let (targets, _total) = service.get_targets(
-        params.page.unwrap_or(0),
-        params.page_size.unwrap_or(10)
-    ).await?;
+    let (targets, _total) = service
+        .get_targets(params.page.unwrap_or(0), params.page_size.unwrap_or(10))
+        .await?;
     info!("销售目标查询成功，共 {} 条记录", targets.len());
 
     Ok(Json(ApiResponse::success(targets)))

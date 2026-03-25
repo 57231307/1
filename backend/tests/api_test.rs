@@ -1,12 +1,16 @@
 //! API 集成测试
-//! 
+//!
 //! 测试所有 API 端点的完整功能
 
-use axum::{Router, body::Body, http::{Request, StatusCode, Method}};
+use axum::{
+    body::Body,
+    http::{Method, Request, StatusCode},
+    Router,
+};
 use sea_orm::Database;
+use serde_json::json;
 use std::sync::Arc;
 use tower::ServiceExt;
-use serde_json::json;
 
 // 导入后端的路由创建函数
 use bingxi_backend::routes::create_router;
@@ -21,18 +25,18 @@ async fn setup_app() -> Router {
 #[tokio::test]
 async fn test_health_check() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/health")
                 .body(Body::empty())
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     // 注意：当前可能还没有健康检查端点，这个测试会失败
     // 这是预期的行为
     assert!(response.status() == StatusCode::NOT_FOUND || response.status() == StatusCode::OK);
@@ -42,7 +46,7 @@ async fn test_health_check() {
 #[tokio::test]
 async fn test_login_user_not_found() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
@@ -53,13 +57,14 @@ async fn test_login_user_not_found() {
                     json!({
                         "username": "nonexistent_user",
                         "password": "password123"
-                    }).to_string()
+                    })
+                    .to_string(),
                 ))
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -67,18 +72,18 @@ async fn test_login_user_not_found() {
 #[tokio::test]
 async fn test_get_users_unauthorized() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/users")
                 .body(Body::empty())
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     // 应该返回 401 未授权
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -87,18 +92,18 @@ async fn test_get_users_unauthorized() {
 #[tokio::test]
 async fn test_get_inventory_unauthorized() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/inventory/stock")
                 .body(Body::empty())
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -106,18 +111,18 @@ async fn test_get_inventory_unauthorized() {
 #[tokio::test]
 async fn test_get_orders_unauthorized() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/sales/orders")
                 .body(Body::empty())
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -125,18 +130,18 @@ async fn test_get_orders_unauthorized() {
 #[tokio::test]
 async fn test_get_payments_unauthorized() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/finance/payments")
                 .body(Body::empty())
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -144,17 +149,17 @@ async fn test_get_payments_unauthorized() {
 #[tokio::test]
 async fn test_404_route() {
     let app = setup_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/nonexistent")
                 .body(Body::empty())
-                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

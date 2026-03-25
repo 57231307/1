@@ -1,16 +1,16 @@
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, PaginatorTrait, Order, ActiveModelTrait, Set,
-};
-use std::sync::Arc;
 use crate::utils::error::AppError;
-use tracing::info;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug, Clone, Default)]
 pub struct QualityInspectionQueryParams {
@@ -102,7 +102,10 @@ impl QualityInspectionService {
         req: CreateQualityInspectionStandardRequest,
         user_id: i32,
     ) -> Result<quality_inspection::Model, AppError> {
-        info!("用户 {} 正在创建质量检验标准：{}", user_id, req.standard_code);
+        info!(
+            "用户 {} 正在创建质量检验标准：{}",
+            user_id, req.standard_code
+        );
 
         let active_model = quality_inspection::ActiveModel {
             standard_name: Set(req.standard_name),
@@ -131,7 +134,10 @@ impl QualityInspectionService {
         Ok(standard)
     }
 
-    pub async fn get_record_by_id(&self, id: i32) -> Result<quality_inspection_record::Model, AppError> {
+    pub async fn get_record_by_id(
+        &self,
+        id: i32,
+    ) -> Result<quality_inspection_record::Model, AppError> {
         let record = quality_inspection_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -146,7 +152,8 @@ impl QualityInspectionService {
         let mut query = quality_inspection_record::Entity::find();
 
         if let Some(inspection_result) = &params.inspection_type {
-            query = query.filter(quality_inspection_record::Column::InspectionResult.eq(inspection_result));
+            query = query
+                .filter(quality_inspection_record::Column::InspectionResult.eq(inspection_result));
         }
 
         let total = query.clone().count(&*self.db).await?;
@@ -166,7 +173,10 @@ impl QualityInspectionService {
         req: CreateInspectionRecordRequest,
         user_id: i32,
     ) -> Result<quality_inspection_record::Model, AppError> {
-        info!("用户 {} 正在创建质量检验记录：{}", user_id, req.inspection_no);
+        info!(
+            "用户 {} 正在创建质量检验记录：{}",
+            user_id, req.inspection_no
+        );
 
         let active_model = quality_inspection_record::ActiveModel {
             inspection_no: Set(req.inspection_no),
@@ -254,11 +264,12 @@ impl QualityInspectionService {
         handling_status: &str,
         handler_id: i32,
     ) -> Result<unqualified_product::Model, AppError> {
-        let mut unqualified: unqualified_product::ActiveModel = unqualified_product::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("不合格品记录不存在：{}", id)))?
-            .into();
+        let mut unqualified: unqualified_product::ActiveModel =
+            unqualified_product::Entity::find_by_id(id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::NotFound(format!("不合格品记录不存在：{}", id)))?
+                .into();
 
         unqualified.handling_status = Set(handling_status.to_string());
         unqualified.handling_by = Set(Some(handler_id));

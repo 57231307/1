@@ -2,12 +2,14 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
-use crate::services::inventory_transfer_service::{InventoryTransferService, CreateInventoryTransferRequest, UpdateInventoryTransferRequest};
+use crate::services::inventory_transfer_service::{
+    CreateInventoryTransferRequest, InventoryTransferService, UpdateInventoryTransferRequest,
+};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -41,13 +43,15 @@ pub async fn list_transfers(
         page_size: query.page_size.unwrap_or(10),
     };
 
-    let transfers = transfer_service.list_transfers(
-        page_req,
-        query.status,
-        query.from_warehouse_id,
-        query.to_warehouse_id,
-        query.transfer_no,
-    ).await?;
+    let transfers = transfer_service
+        .list_transfers(
+            page_req,
+            query.status,
+            query.from_warehouse_id,
+            query.to_warehouse_id,
+            query.transfer_no,
+        )
+        .await?;
 
     let transfers_json: Vec<serde_json::Value> = transfers
         .data
@@ -77,7 +81,10 @@ pub async fn create_transfer(
     let transfer_service = InventoryTransferService::new(db.clone());
     let transfer = transfer_service.create_transfer(request).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(transfer_json, "库存调拨单创建成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        transfer_json,
+        "库存调拨单创建成功",
+    )))
 }
 
 /// 更新库存调拨
@@ -89,7 +96,10 @@ pub async fn update_transfer(
     let transfer_service = InventoryTransferService::new(db.clone());
     let transfer = transfer_service.update_transfer(id, request).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(transfer_json, "库存调拨单更新成功")))
+    Ok(Json(ApiResponse::success_with_msg(
+        transfer_json,
+        "库存调拨单更新成功",
+    )))
 }
 
 /// 审核库存调拨
@@ -99,7 +109,9 @@ pub async fn approve_transfer(
     Json(request): Json<ApproveTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(db.clone());
-    let transfer = transfer_service.approve_transfer(id, request.approved, request.notes).await?;
+    let transfer = transfer_service
+        .approve_transfer(id, request.approved, request.notes)
+        .await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
     let message = if request.approved {
         "库存调拨单已审核"
@@ -117,7 +129,10 @@ pub async fn ship_transfer(
     let transfer_service = InventoryTransferService::new(db.clone());
     let transfer = transfer_service.ship_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(transfer_json, "库存调拨单已发出")))
+    Ok(Json(ApiResponse::success_with_msg(
+        transfer_json,
+        "库存调拨单已发出",
+    )))
 }
 
 /// 接收库存调拨
@@ -128,5 +143,8 @@ pub async fn receive_transfer(
     let transfer_service = InventoryTransferService::new(db.clone());
     let transfer = transfer_service.receive_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(transfer_json, "库存调拨单已接收")))
+    Ok(Json(ApiResponse::success_with_msg(
+        transfer_json,
+        "库存调拨单已接收",
+    )))
 }

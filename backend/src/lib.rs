@@ -5,14 +5,14 @@
 
 pub mod config;
 pub mod database;
+pub mod grpc;
 pub mod handlers;
 pub mod middleware;
 pub mod models;
 pub mod routes;
 pub mod services;
 pub mod utils;
-pub mod grpc;
 
-pub use utils::app_state::AppState;
 pub use services::auth_service::AuthService;
 pub use services::user_service::UserService;
+pub use utils::app_state::AppState;

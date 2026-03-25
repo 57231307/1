@@ -1,11 +1,16 @@
+use crate::middleware::auth_context::AuthContext;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
 };
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use tracing::warn;
-use crate::middleware::auth_context::AuthContext;
+
+type HmacSha256 = Hmac<Sha256>;
 
 pub async fn auth_middleware(
     mut request: Request<Body>,
@@ -65,9 +70,6 @@ pub async fn auth_middleware(
     }
 }
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 pub fn validate_token(token: &str) -> Result<crate::services::auth_service::AppClaims, String> {
     let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
     let secret_bytes = secret.into_bytes();
@@ -79,22 +81,23 @@ pub fn validate_token(token: &str) -> Result<crate::services::auth_service::AppC
 
     let (encoded, signature) = (parts[0], parts[1]);
 
-    let mut hasher = DefaultHasher::new();
-    encoded.hash(&mut hasher);
-    secret_bytes.hash(&mut hasher);
-    let expected_signature = format!("{:x}", hasher.finish());
+    let mut mac =
+        HmacSha256::new_from_slice(&secret_bytes).map_err(|_| "HMAC初始化失败".to_string())?;
+    mac.update(encoded.as_bytes());
 
-    if expected_signature != signature {
-        return Err("签名验证失败".to_string());
-    }
+    let decoded_sig = BASE64
+        .decode(signature)
+        .map_err(|e| format!("签名解码失败: {:?}", e))?;
 
-    let json = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        encoded,
-    ).map_err(|e| format!("{:?}", e))?;
+    mac.verify_slice(&decoded_sig)
+        .map_err(|_| "签名验证失败".to_string())?;
+
+    let json = BASE64
+        .decode(encoded)
+        .map_err(|e| format!("载荷解码失败: {:?}", e))?;
 
     let claims: crate::services::auth_service::AppClaims =
-        serde_json::from_slice(&json).map_err(|e| format!("{:?}", e))?;
+        serde_json::from_slice(&json).map_err(|e| format!("JSON解析失败: {:?}", e))?;
 
     if claims.exp < chrono::Utc::now() {
         return Err("令牌已过期".to_string());

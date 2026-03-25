@@ -12,7 +12,9 @@ use tracing::{info, warn};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::cost_collection;
-use crate::services::cost_collection_service::{CostCollectionService, CreateCostCollectionRequest};
+use crate::services::cost_collection_service::{
+    CostCollectionService, CreateCostCollectionRequest,
+};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use rust_decimal::Decimal;
@@ -55,12 +57,14 @@ pub async fn list_collections(
     info!("用户 {} 查询成本归集列表", auth.username);
 
     let service = CostCollectionService::new(db);
-    let (collections, total) = service.get_list(
-        params.batch_no,
-        params.color_no,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    ).await?;
+    let (collections, total) = service
+        .get_list(
+            params.batch_no,
+            params.color_no,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
 
     info!("用户 {} 查询成本归集成功，共 {} 条", auth.username, total);
 
@@ -74,7 +78,10 @@ pub async fn create_collection(
     auth: AuthContext,
     Json(req): Json<CreateCostCollectionRequestDto>,
 ) -> Result<Json<ApiResponse<cost_collection::Model>>, AppError> {
-    info!("用户 {} 创建成本归集，批次：{:?}", auth.username, req.batch_no);
+    info!(
+        "用户 {} 创建成本归集，批次：{:?}",
+        auth.username, req.batch_no
+    );
 
     let collection_date = req.collection_date.parse().map_err(|e| {
         warn!("用户 {} 成本日期格式错误：{}", auth.username, e);
@@ -100,7 +107,10 @@ pub async fn create_collection(
 
     let service = CostCollectionService::new(db);
     let collection = service.create(create_req, auth.user_id).await?;
-    info!("用户 {} 创建成本归集成功：{}", auth.username, collection.collection_no);
+    info!(
+        "用户 {} 创建成本归集成功：{}",
+        auth.username, collection.collection_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         collection,

@@ -2,8 +2,8 @@
 //!
 //! 登录日志模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 登录日志 Entity

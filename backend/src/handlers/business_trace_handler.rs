@@ -3,10 +3,10 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use rust_decimal::Decimal;
 
 use crate::services::business_trace_service::BusinessTraceService;
 
@@ -93,7 +93,10 @@ pub async fn get_trace_by_five_dimension(
 ) -> Result<Json<FullTraceChainResponse>, (StatusCode, String)> {
     let service = BusinessTraceService::new(db.clone());
 
-    match service.find_trace_chain_by_five_dimension(&five_dimension_id).await {
+    match service
+        .find_trace_chain_by_five_dimension(&five_dimension_id)
+        .await
+    {
         Ok(traces) => {
             if traces.is_empty() {
                 return Err((StatusCode::NOT_FOUND, "未找到追溯链".to_string()));
@@ -157,7 +160,10 @@ pub async fn forward_trace(
 ) -> Result<Json<TraceListResponse>, (StatusCode, String)> {
     let service = BusinessTraceService::new(db.clone());
 
-    match service.forward_trace(params.supplier_id, &params.batch_no).await {
+    match service
+        .forward_trace(params.supplier_id, &params.batch_no)
+        .await
+    {
         Ok(traces) => {
             let trace_responses: Vec<TraceChainResponse> = traces
                 .into_iter()
@@ -201,7 +207,10 @@ pub async fn backward_trace(
 ) -> Result<Json<TraceListResponse>, (StatusCode, String)> {
     let service = BusinessTraceService::new(db.clone());
 
-    match service.backward_trace(params.customer_id, &params.batch_no).await {
+    match service
+        .backward_trace(params.customer_id, &params.batch_no)
+        .await
+    {
         Ok(traces) => {
             let trace_responses: Vec<TraceChainResponse> = traces
                 .into_iter()
@@ -246,12 +255,7 @@ pub async fn create_trace_snapshot(
     let service = BusinessTraceService::new(db.clone());
 
     match service.create_snapshot(&trace_chain_id).await {
-        Ok(snapshot) => {
-            Ok(Json(format!(
-                "追溯快照创建成功，快照 ID: {}",
-                snapshot.id
-            )))
-        }
+        Ok(snapshot) => Ok(Json(format!("追溯快照创建成功，快照 ID: {}", snapshot.id))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }

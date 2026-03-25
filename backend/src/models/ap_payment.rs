@@ -2,11 +2,11 @@
 //!
 //! 应付管理模块的付款单实体
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
+use sea_orm::entity::prelude::*;
 use sea_orm::prelude::StringLen::N;
 use serde::{Deserialize, Serialize};
-use rust_decimal::Decimal;
 
 // =====================================================
 // 付款单 Entity

@@ -2,13 +2,13 @@
 //!
 //! 应收账款业务逻辑层
 
+use chrono::Datelike;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
 use tracing::info;
-use chrono::Datelike;
 
 use crate::models::ar_invoice;
 use crate::utils::error::AppError;
@@ -46,7 +46,10 @@ impl ArInvoiceService {
         req: CreateArInvoiceRequest,
         user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
-        info!("创建应收单：customer_id={}, amount={}", req.customer_id, req.invoice_amount);
+        info!(
+            "创建应收单：customer_id={}, amount={}",
+            req.customer_id, req.invoice_amount
+        );
 
         // 生成应收单编号
         let invoice_no = self.generate_invoice_no(req.invoice_date)?;
@@ -123,10 +126,7 @@ impl ArInvoiceService {
     }
 
     /// 生成应收单编号
-    fn generate_invoice_no(
-        &self,
-        invoice_date: chrono::NaiveDate,
-    ) -> Result<String, AppError> {
+    fn generate_invoice_no(&self, invoice_date: chrono::NaiveDate) -> Result<String, AppError> {
         let year_month = format!("{:04}{:02}", invoice_date.year(), invoice_date.month());
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -2,19 +2,19 @@
 //!
 //! 凭证业务逻辑层（核心）
 
+use chrono::Datelike;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    QueryFilter, QueryOrder, QuerySelect, PaginatorTrait, TransactionTrait, Order, ModelTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::{info, warn};
-use chrono::Datelike;
 
-use crate::models::{voucher, voucher_item, account_subject};
-use crate::utils::error::AppError;
 use crate::models::voucher_item as vi;
-use sea_orm::sea_query::Expr;
+use crate::models::{account_subject, voucher, voucher_item};
+use crate::utils::error::AppError;
 use rust_decimal::Decimal;
+use sea_orm::sea_query::Expr;
 
 /// 创建凭证请求
 #[derive(Debug, Clone)]
@@ -92,7 +92,10 @@ impl VoucherService {
         req: CreateVoucherRequest,
         user_id: i32,
     ) -> Result<voucher::Model, AppError> {
-        info!("创建凭证：type={}, date={}", req.voucher_type, req.voucher_date);
+        info!(
+            "创建凭证：type={}, date={}",
+            req.voucher_type, req.voucher_date
+        );
 
         // 验证借贷平衡
         let total_debit: Decimal = req.items.iter().map(|i| i.debit).sum();
@@ -222,10 +225,16 @@ impl VoucherService {
 
         if voucher_model.status != "draft" {
             warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
-            return Err(AppError::BadRequest("只有草稿状态的凭证可以更新".to_string()));
+            return Err(AppError::BadRequest(
+                "只有草稿状态的凭证可以更新".to_string(),
+            ));
         }
 
-        let txn = self.db.begin().await.map_err(|e| AppError::InternalError(e.to_string()))?;
+        let txn = self
+            .db
+            .begin()
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
 
         let mut active_model: voucher::ActiveModel = voucher_model.clone().into_active_model();
 
@@ -237,7 +246,10 @@ impl VoucherService {
             active_model.voucher_date = sea_orm::Set(voucher_date);
         }
 
-        let updated_voucher = active_model.update(&*self.db).await.map_err(|e| AppError::InternalError(e.to_string()))?;
+        let updated_voucher = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
 
         if let Some(items) = req.items {
             vi::Entity::delete_many()
@@ -271,11 +283,16 @@ impl VoucherService {
                     unit_price: sea_orm::Set(item_req.unit_price),
                     created_at: sea_orm::Set(chrono::Utc::now()),
                 };
-                item_active.insert(&txn).await.map_err(|e| AppError::InternalError(e.to_string()))?;
+                item_active
+                    .insert(&txn)
+                    .await
+                    .map_err(|e| AppError::InternalError(e.to_string()))?;
             }
         }
 
-        txn.commit().await.map_err(|e| AppError::InternalError(e.to_string()))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
 
         info!("凭证更新成功：no={}", updated_voucher.voucher_no);
         Ok(updated_voucher)
@@ -291,12 +308,14 @@ impl VoucherService {
         // 只有草稿状态可以删除
         if voucher.status != "draft" {
             warn!("只有草稿状态的凭证可以删除：{}", voucher.voucher_no);
-            return Err(AppError::BadRequest("只有草稿状态的凭证可以删除".to_string()));
+            return Err(AppError::BadRequest(
+                "只有草稿状态的凭证可以删除".to_string(),
+            ));
         }
 
         // 保留凭证号用于日志
         let voucher_no = voucher.voucher_no.clone();
-        
+
         // 删除分录（CASCADE 会自动删除）
         let _ = voucher.delete(&*self.db).await?;
 
@@ -311,7 +330,9 @@ impl VoucherService {
         let voucher = self.get_by_id(id).await?.voucher;
 
         if voucher.status != "draft" {
-            return Err(AppError::BadRequest("只有草稿状态的凭证可以提交".to_string()));
+            return Err(AppError::BadRequest(
+                "只有草稿状态的凭证可以提交".to_string(),
+            ));
         }
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
@@ -413,9 +434,7 @@ impl VoucherService {
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
 
         if total_debit != total_credit {
-            return Err(AppError::BadRequest(format!(
-                "凭证借贷不平衡",
-            )));
+            return Err(AppError::BadRequest(format!("凭证借贷不平衡",)));
         }
 
         Ok(())
@@ -445,7 +464,11 @@ impl VoucherService {
             .await?;
 
         // 提取会计期间
-        let period = format!("{:04}-{:02}", voucher.voucher_date.year(), voucher.voucher_date.month());
+        let period = format!(
+            "{:04}-{:02}",
+            voucher.voucher_date.year(),
+            voucher.voucher_date.month()
+        );
 
         // 按科目分组汇总借贷发生额
         use std::collections::HashMap;
@@ -458,9 +481,13 @@ impl VoucherService {
                 .filter(account_subject::Column::Code.eq(&item.subject_code))
                 .one(txn)
                 .await?
-                .ok_or_else(|| AppError::BadRequest(format!("科目不存在：{}", item.subject_code)))?;
+                .ok_or_else(|| {
+                    AppError::BadRequest(format!("科目不存在：{}", item.subject_code))
+                })?;
 
-            let entry = balance_map.entry(subject.id).or_insert((Decimal::ZERO, Decimal::ZERO));
+            let entry = balance_map
+                .entry(subject.id)
+                .or_insert((Decimal::ZERO, Decimal::ZERO));
 
             // 累加借方和贷方发生额
             if !item.debit.is_zero() {
@@ -492,32 +519,48 @@ impl VoucherService {
             if let Some(balance) = existing {
                 // 更新现有余额
                 let mut active_model: account_balance::ActiveModel = balance.into_active_model();
-                let current_debit = active_model.current_period_debit.take().unwrap_or(Decimal::ZERO);
-                let current_credit = active_model.current_period_credit.take().unwrap_or(Decimal::ZERO);
+                let current_debit = active_model
+                    .current_period_debit
+                    .take()
+                    .unwrap_or(Decimal::ZERO);
+                let current_credit = active_model
+                    .current_period_credit
+                    .take()
+                    .unwrap_or(Decimal::ZERO);
 
                 // 累加本期发生额
                 active_model.current_period_debit = sea_orm::Set(current_debit + debit_amount);
                 active_model.current_period_credit = sea_orm::Set(current_credit + credit_amount);
 
                 // 获取期初余额
-                let initial_debit = active_model.initial_balance_debit.take().unwrap_or(Decimal::ZERO);
-                let initial_credit = active_model.initial_balance_credit.take().unwrap_or(Decimal::ZERO);
+                let initial_debit = active_model
+                    .initial_balance_debit
+                    .take()
+                    .unwrap_or(Decimal::ZERO);
+                let initial_credit = active_model
+                    .initial_balance_credit
+                    .take()
+                    .unwrap_or(Decimal::ZERO);
 
                 // 根据余额方向计算期末余额
                 // 借方科目：期末余额在借方 = 期初借方 + 本期借方 - 本期贷方
                 // 贷方科目：期末余额在贷方 = 期初贷方 + 本期贷方 - 本期借方
                 if balance_direction == "借" {
                     // 借方科目：余额 = 期初借方 + 本期借方发生 - 本期贷方发生
-                    let ending_debit = initial_debit + current_debit + debit_amount - (current_credit + credit_amount);
+                    let ending_debit = initial_debit + current_debit + debit_amount
+                        - (current_credit + credit_amount);
                     let ending_credit = Decimal::ZERO;
-                    active_model.ending_balance_debit = sea_orm::Set(ending_debit.max(Decimal::ZERO));
+                    active_model.ending_balance_debit =
+                        sea_orm::Set(ending_debit.max(Decimal::ZERO));
                     active_model.ending_balance_credit = sea_orm::Set(ending_credit);
                 } else {
                     // 贷方科目：余额 = 期初贷方 + 本期贷方发生 - 本期借方发生
-                    let ending_credit = initial_credit + current_credit + credit_amount - (current_debit + debit_amount);
+                    let ending_credit = initial_credit + current_credit + credit_amount
+                        - (current_debit + debit_amount);
                     let ending_debit = Decimal::ZERO;
                     active_model.ending_balance_debit = sea_orm::Set(ending_debit);
-                    active_model.ending_balance_credit = sea_orm::Set(ending_credit.max(Decimal::ZERO));
+                    active_model.ending_balance_credit =
+                        sea_orm::Set(ending_credit.max(Decimal::ZERO));
                 }
 
                 active_model.update(txn).await?;

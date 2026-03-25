@@ -1,13 +1,13 @@
+use crate::services::auth_service::AuthService;
+use crate::services::user_service::UserService;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use crate::services::user_service::UserService;
-use crate::services::auth_service::AuthService;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateUserRequest {
@@ -78,14 +78,17 @@ pub async fn create_user(
     let password_hash = AuthService::hash_password(&payload.password)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    match user_service.create_user(
-        payload.username,
-        password_hash,
-        payload.email,
-        payload.phone,
-        payload.role_id,
-        payload.department_id,
-    ).await {
+    match user_service
+        .create_user(
+            payload.username,
+            password_hash,
+            payload.email,
+            payload.phone,
+            payload.role_id,
+            payload.department_id,
+        )
+        .await
+    {
         Ok(user) => Ok(Json(UserResponse {
             id: user.id,
             username: user.username,
@@ -106,7 +109,10 @@ pub async fn list_users(
 ) -> Result<Json<UserListResponse>, (StatusCode, String)> {
     let user_service = UserService::new(db.clone());
 
-    match user_service.list_users(params.page.unwrap_or(0), params.page_size.unwrap_or(20)).await {
+    match user_service
+        .list_users(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
+        .await
+    {
         Ok((users, total)) => {
             let user_responses: Vec<UserResponse> = users
                 .into_iter()
@@ -149,14 +155,17 @@ pub async fn update_user(
 ) -> Result<Json<UserResponse>, (StatusCode, String)> {
     let user_service = UserService::new(db.clone());
 
-    match user_service.update_user(
-        id,
-        req.email,
-        req.phone,
-        req.role_id,
-        req.department_id,
-        req.status,
-    ).await {
+    match user_service
+        .update_user(
+            id,
+            req.email,
+            req.phone,
+            req.role_id,
+            req.department_id,
+            req.status,
+        )
+        .await
+    {
         Ok(user) => Ok(Json(UserResponse {
             id: user.id,
             username: user.username,

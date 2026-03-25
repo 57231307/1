@@ -1,10 +1,10 @@
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, DbErr, PaginatorTrait};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use crate::models::user;
-use crate::models::role;
 use crate::models::department;
+use crate::models::role;
+use crate::models::user;
 use crate::services::auth_service::AuthService;
+use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, PaginatorTrait, Set};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct InitService {
@@ -24,18 +24,23 @@ impl InitService {
         Ok(user_count > 0)
     }
 
-    pub async fn initialize(&self, admin_username: &str, admin_password: &str) -> Result<InitializationResult, InitError> {
+    pub async fn initialize(
+        &self,
+        admin_username: &str,
+        admin_password: &str,
+    ) -> Result<InitializationResult, InitError> {
         if self.check_initialized().await? {
             return Err(InitError::AlreadyInitialized);
         }
 
-        let password_hash = AuthService::hash_password(admin_password)
-            .map_err(|_| InitError::HashError)?;
+        let password_hash =
+            AuthService::hash_password(admin_password).map_err(|_| InitError::HashError)?;
 
         let admin_role = self.create_default_roles().await?;
         let department_id = self.create_default_departments().await?;
 
-        self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id).await?;
+        self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
+            .await?;
 
         Ok(InitializationResult {
             success: true,
@@ -55,7 +60,9 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        let admin_role = admin_role.insert(self.db.as_ref()).await
+        let admin_role = admin_role
+            .insert(self.db.as_ref())
+            .await
             .map_err(|_| InitError::DatabaseError("创建管理员角色失败".to_string()))?;
 
         let manager_role = role::ActiveModel {
@@ -63,12 +70,16 @@ impl InitService {
             name: Set("部门经理".to_string()),
             code: Set("manager".to_string()),
             description: Set(Some("部门经理".to_string())),
-            permissions: Set(Some("[\"user:view\", \"product:*\", \"inventory:*\", \"sales:*\"]".to_string())),
+            permissions: Set(Some(
+                "[\"user:view\", \"product:*\", \"inventory:*\", \"sales:*\"]".to_string(),
+            )),
             is_system: Set(true),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        manager_role.insert(self.db.as_ref()).await
+        manager_role
+            .insert(self.db.as_ref())
+            .await
             .map_err(|_| InitError::DatabaseError("创建经理角色失败".to_string()))?;
 
         let operator_role = role::ActiveModel {
@@ -76,12 +87,16 @@ impl InitService {
             name: Set("操作员".to_string()),
             code: Set("operator".to_string()),
             description: Set(Some("操作员".to_string())),
-            permissions: Set(Some("[\"product:view\", \"inventory:view\", \"sales:view\"]".to_string())),
+            permissions: Set(Some(
+                "[\"product:view\", \"inventory:view\", \"sales:view\"]".to_string(),
+            )),
             is_system: Set(true),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        operator_role.insert(self.db.as_ref()).await
+        operator_role
+            .insert(self.db.as_ref())
+            .await
             .map_err(|_| InitError::DatabaseError("创建操作员角色失败".to_string()))?;
 
         Ok(admin_role)
@@ -100,7 +115,9 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        let dept = dept.insert(self.db.as_ref()).await
+        let dept = dept
+            .insert(self.db.as_ref())
+            .await
             .map_err(|_| InitError::DatabaseError("创建部门失败".to_string()))?;
 
         let departments = vec![
@@ -122,7 +139,9 @@ impl InitService {
                 is_active: Set(true),
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
-            }.insert(self.db.as_ref()).await;
+            }
+            .insert(self.db.as_ref())
+            .await;
         }
 
         Ok(dept.id)
@@ -149,23 +168,32 @@ impl InitService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        user.insert(self.db.as_ref()).await
+        user.insert(self.db.as_ref())
+            .await
             .map_err(|_| InitError::DatabaseError("创建管理员用户失败".to_string()))
     }
 
-    pub async fn reset_password(&self, username: &str, new_password: &str) -> Result<(), InitError> {
+    pub async fn reset_password(
+        &self,
+        username: &str,
+        new_password: &str,
+    ) -> Result<(), InitError> {
         let user_service = crate::services::user_service::UserService::new(self.db.clone());
-        let user = user_service.find_by_username(username).await
+        let user = user_service
+            .find_by_username(username)
+            .await
             .map_err(|_| InitError::UserNotFound)?;
 
-        let password_hash = AuthService::hash_password(new_password)
-            .map_err(|_| InitError::HashError)?;
+        let password_hash =
+            AuthService::hash_password(new_password).map_err(|_| InitError::HashError)?;
 
         let mut user_model: user::ActiveModel = user.into();
         user_model.password_hash = Set(password_hash);
         user_model.updated_at = Set(chrono::Utc::now());
 
-        user_model.update(self.db.as_ref()).await
+        user_model
+            .update(self.db.as_ref())
+            .await
             .map_err(|_| InitError::DatabaseError("更新密码失败".to_string()))?;
 
         Ok(())

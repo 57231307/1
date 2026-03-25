@@ -1,13 +1,13 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait, PaginatorTrait, Set, Order, ModelTrait,
-};
-use std::sync::Arc;
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 use crate::utils::error::AppError;
-use chrono::{Utc, NaiveDate};
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use validator::Validate;
 
 /// 供应商服务
@@ -25,13 +25,13 @@ impl SupplierService {
     pub async fn generate_supplier_code(&self) -> Result<String, AppError> {
         let today = Utc::now().format("%Y%m%d").to_string();
         let prefix = format!("SUP{}", today);
-        
+
         // 查询今日已有数量
         let count = supplier::Entity::find()
             .filter(supplier::Column::SupplierCode.starts_with(&prefix))
             .count(&*self.db)
             .await?;
-        
+
         Ok(format!("{}{:03}", prefix, count + 1))
     }
 
@@ -42,10 +42,10 @@ impl SupplierService {
         user_id: i32,
     ) -> Result<supplier::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 生成供应商编码
         let supplier_code = self.generate_supplier_code().await?;
-        
+
         // 2. 创建供应商
         let supplier = supplier::ActiveModel {
             supplier_code: Set(supplier_code),
@@ -73,8 +73,10 @@ impl SupplierService {
             annual_revenue: Set(req.annual_revenue),
             created_by: Set(Some(user_id)),
             ..Default::default()
-        }.insert(&txn).await?;
-        
+        }
+        .insert(&txn)
+        .await?;
+
         // 3. 创建联系人
         for contact_req in req.contacts {
             supplier_contact::ActiveModel {
@@ -90,9 +92,11 @@ impl SupplierService {
                 is_primary: Set(contact_req.is_primary),
                 remarks: Set(contact_req.remarks),
                 ..Default::default()
-            }.insert(&txn).await?;
+            }
+            .insert(&txn)
+            .await?;
         }
-        
+
         // 4. 创建资质
         for qual_req in req.qualifications {
             supplier_qualification::ActiveModel {
@@ -107,9 +111,11 @@ impl SupplierService {
                 need_annual_check: Set(qual_req.need_annual_check),
                 annual_check_record: Set(qual_req.annual_check_record),
                 ..Default::default()
-            }.insert(&txn).await?;
+            }
+            .insert(&txn)
+            .await?;
         }
-        
+
         txn.commit().await?;
         Ok(supplier)
     }
@@ -120,7 +126,7 @@ impl SupplierService {
         params: SupplierQueryParams,
     ) -> Result<PaginatedResponse<supplier::Model>, AppError> {
         let mut query = supplier::Entity::find();
-        
+
         // 筛选
         if let Some(supplier_type) = params.supplier_type {
             query = query.filter(supplier::Column::SupplierType.eq(supplier_type));
@@ -133,19 +139,20 @@ impl SupplierService {
         }
         if let Some(keyword) = params.keyword {
             query = query.filter(
-                supplier::Column::SupplierName.contains(&keyword)
+                supplier::Column::SupplierName
+                    .contains(&keyword)
                     .or(supplier::Column::SupplierCode.contains(&keyword))
-                    .or(supplier::Column::CreditCode.contains(&keyword))
+                    .or(supplier::Column::CreditCode.contains(&keyword)),
             );
         }
         if let Some(is_enabled) = params.is_enabled {
             query = query.filter(supplier::Column::IsEnabled.eq(is_enabled));
         }
-        
+
         // 排序
         let sort_by = params.sort_by.unwrap_or_else(|| "created_at".to_string());
         let sort_order = params.sort_order.unwrap_or_else(|| "DESC".to_string());
-        
+
         query = match sort_by.as_str() {
             "supplier_code" => {
                 if sort_order == "ASC" {
@@ -176,16 +183,16 @@ impl SupplierService {
                 }
             }
         };
-        
+
         // 分页
         let page = params.page.unwrap_or(1);
         let page_size = params.page_size.unwrap_or(20);
-        
+
         let paginator = query.paginate(&*self.db, page_size);
         let num_pages = paginator.num_pages().await?;
         let data = paginator.fetch_page(page - 1).await?;
         let total = num_pages as u64 * page_size;
-        
+
         Ok(PaginatedResponse {
             data,
             page,
@@ -211,7 +218,7 @@ impl SupplierService {
     ) -> Result<supplier::Model, AppError> {
         let supplier = self.get_supplier(id).await?;
         let mut supplier_active: supplier::ActiveModel = supplier.into();
-        
+
         // 更新字段
         if let Some(name) = req.supplier_name {
             supplier_active.supplier_name = Set(name);
@@ -294,10 +301,10 @@ impl SupplierService {
         if let Some(remarks) = req.remarks {
             supplier_active.remarks = Set(Some(remarks));
         }
-        
+
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
-        
+
         let updated = supplier_active.update(&*self.db).await?;
         Ok(updated)
     }
@@ -307,9 +314,11 @@ impl SupplierService {
         // 检查是否有交易记录
         let can_delete = self.can_delete_supplier(id).await?;
         if !can_delete {
-            return Err(AppError::ValidationError("供应商有交易记录，无法删除".to_string()));
+            return Err(AppError::ValidationError(
+                "供应商有交易记录，无法删除".to_string(),
+            ));
         }
-        
+
         let supplier = self.get_supplier(id).await?;
         supplier.delete(&*self.db).await?;
         Ok(())
@@ -331,12 +340,16 @@ impl SupplierService {
     ) -> Result<supplier::Model, AppError> {
         let supplier = self.get_supplier(id).await?;
         let mut supplier_active: supplier::ActiveModel = supplier.into();
-        
+
         supplier_active.is_enabled = Set(enable);
-        supplier_active.status = Set(if enable { "active".to_string() } else { "inactive".to_string() });
+        supplier_active.status = Set(if enable {
+            "active".to_string()
+        } else {
+            "inactive".to_string()
+        });
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
-        
+
         let updated = supplier_active.update(&*self.db).await?;
         Ok(updated)
     }
@@ -382,7 +395,9 @@ impl SupplierService {
             is_primary: Set(req.is_primary),
             remarks: Set(req.remarks),
             ..Default::default()
-        }.insert(&*self.db).await?;
+        }
+        .insert(&*self.db)
+        .await?;
 
         Ok(contact)
     }
@@ -456,7 +471,7 @@ impl SupplierService {
     /// 取消所有主要联系人
     async fn clear_primary_contacts(&self, supplier_id: i32) -> Result<(), AppError> {
         use sea_orm::ActiveModelTrait;
-        
+
         let contacts = supplier_contact::Entity::find()
             .filter(supplier_contact::Column::SupplierId.eq(supplier_id))
             .filter(supplier_contact::Column::IsPrimary.eq(true))

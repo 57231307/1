@@ -2,8 +2,8 @@
 //!
 //! 业务追溯辅助关联模块
 
-use sea_orm::entity::prelude::*;
 use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 业务追溯辅助关联 Entity

@@ -2,14 +2,14 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// 面料五维管理结构体
-/// 
+///
 /// 五维定义：
 /// 1. 成品 ID (product_id) - 产品维度
 /// 2. 批次号 (batch_no) - 生产批次维度
 /// 3. 色号 (color_no) - 颜色维度
 /// 4. 缸号 (dye_lot_no) - 染色缸次维度
 /// 5. 等级 (grade) - 质量等级维度
-/// 
+///
 /// 全局唯一 ID 格式：`P{id}|B{batch}|C{color}|D{dye_lot}|G{grade}`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct FabricFiveDimension {
@@ -49,18 +49,14 @@ impl FabricFiveDimension {
         let dye_lot = self.dye_lot_no.as_deref().unwrap_or("N");
         format!(
             "P{}|B{}|C{}|D{}|G{}",
-            self.product_id,
-            self.batch_no,
-            self.color_no,
-            dye_lot,
-            self.grade
+            self.product_id, self.batch_no, self.color_no, dye_lot, self.grade
         )
     }
 
     /// 从全局唯一 ID 解析五维对象
     pub fn from_unique_id(unique_id: &str) -> Result<Self, String> {
         let parts: Vec<&str> = unique_id.split('|').collect();
-        
+
         if parts.len() != 5 {
             return Err(format!("无效的五维 ID 格式：{}", unique_id));
         }
@@ -84,13 +80,17 @@ impl FabricFiveDimension {
             .ok_or_else(|| format!("无效的色号：{}", parts[2]))?;
 
         // 解析缸号
-        let dye_lot_no = if parts[3] == "N" || parts[3].strip_prefix('D').map_or(false, |s| s.is_empty()) {
-            None
-        } else {
-            Some(parts[3].strip_prefix('D').map(|s| s.to_string()).ok_or_else(|| {
-                format!("无效的缸号：{}", parts[3])
-            })?)
-        };
+        let dye_lot_no =
+            if parts[3] == "N" || parts[3].strip_prefix('D').map_or(false, |s| s.is_empty()) {
+                None
+            } else {
+                Some(
+                    parts[3]
+                        .strip_prefix('D')
+                        .map(|s| s.to_string())
+                        .ok_or_else(|| format!("无效的缸号：{}", parts[3]))?,
+                )
+            };
 
         // 解析等级
         let grade = parts[4]
@@ -112,15 +112,15 @@ impl FabricFiveDimension {
         if self.product_id <= 0 {
             return Err("成品 ID 必须大于 0".to_string());
         }
-        
+
         if self.batch_no.trim().is_empty() {
             return Err("批次号不能为空".to_string());
         }
-        
+
         if self.color_no.trim().is_empty() {
             return Err("色号不能为空".to_string());
         }
-        
+
         if self.grade.trim().is_empty() {
             return Err("等级不能为空".to_string());
         }
@@ -140,18 +140,15 @@ impl FabricFiveDimension {
     /// 生成五维描述文本
     #[allow(dead_code)]
     pub fn to_description(&self) -> String {
-        let dye_lot_desc = self.dye_lot_no
+        let dye_lot_desc = self
+            .dye_lot_no
             .as_ref()
             .map(|dl| format!("缸号：{}", dl))
             .unwrap_or_else(|| "缸号：无".to_string());
 
         format!(
             "成品 {} | 批次 {} | 色号 {} | {} | 等级 {}",
-            self.product_id,
-            self.batch_no,
-            self.color_no,
-            dye_lot_desc,
-            self.grade
+            self.product_id, self.batch_no, self.color_no, dye_lot_desc, self.grade
         )
     }
 
@@ -170,11 +167,7 @@ impl FabricFiveDimension {
         let dye_lot = self.dye_lot_no.as_deref().unwrap_or("*");
         format!(
             "{}:{}:{}:{}:{}",
-            self.product_id,
-            self.batch_no,
-            self.color_no,
-            dye_lot,
-            self.grade
+            self.product_id, self.batch_no, self.color_no, dye_lot, self.grade
         )
     }
 }

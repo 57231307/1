@@ -1,14 +1,14 @@
+use crate::services::finance_payment_service::FinancePaymentService;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use crate::services::finance_payment_service::FinancePaymentService;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePaymentRequest {
@@ -70,20 +70,23 @@ pub async fn create_payment(
 ) -> Result<Json<PaymentResponse>, (StatusCode, String)> {
     let service = FinancePaymentService::new(db.clone());
 
-    match service.create_payment(
-        payload.payment_no,
-        payload.payment_type,
-        payload.order_type,
-        payload.order_id,
-        payload.customer_id,
-        payload.supplier_id,
-        payload.amount,
-        payload.payment_date,
-        payload.payment_method,
-        payload.reference_no,
-        payload.notes,
-        Some(1), // TODO: 从认证信息中获取
-    ).await {
+    match service
+        .create_payment(
+            payload.payment_no,
+            payload.payment_type,
+            payload.order_type,
+            payload.order_id,
+            payload.customer_id,
+            payload.supplier_id,
+            payload.amount,
+            payload.payment_date,
+            payload.payment_method,
+            payload.reference_no,
+            payload.notes,
+            Some(1), // TODO: 从认证信息中获取
+        )
+        .await
+    {
         Ok(payment) => Ok(Json(PaymentResponse {
             id: payment.id,
             payment_no: payment.payment_no,
@@ -103,11 +106,14 @@ pub async fn list_payments(
 ) -> Result<Json<PaymentListResponse>, (StatusCode, String)> {
     let service = FinancePaymentService::new(db.clone());
 
-    match service.list_payments(
-        params.page.unwrap_or(0),
-        params.page_size.unwrap_or(20),
-        params.status,
-    ).await {
+    match service
+        .list_payments(
+            params.page.unwrap_or(0),
+            params.page_size.unwrap_or(20),
+            params.status,
+        )
+        .await
+    {
         Ok((payments, total)) => {
             let payment_responses: Vec<PaymentResponse> = payments
                 .into_iter()

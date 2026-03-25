@@ -1,9 +1,9 @@
 use crate::models::finance_payment;
-use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, PaginatorTrait};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct FinancePaymentService {
@@ -23,7 +23,10 @@ impl FinancePaymentService {
     }
 
     #[allow(dead_code)]
-    pub async fn find_by_payment_no(&self, payment_no: &str) -> Result<Option<finance_payment::Model>, sea_orm::DbErr> {
+    pub async fn find_by_payment_no(
+        &self,
+        payment_no: &str,
+    ) -> Result<Option<finance_payment::Model>, sea_orm::DbErr> {
         finance_payment::Entity::find()
             .filter(finance_payment::Column::PaymentNo.eq(payment_no))
             .one(&*self.db)

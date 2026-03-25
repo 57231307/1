@@ -1,8 +1,10 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::financial_analysis;
 use crate::models::financial_analysis_result;
-use crate::services::financial_analysis_service::{FinancialAnalysisService, CreateIndicatorRequest, FinancialAnalysisRequest};
+use crate::services::financial_analysis_service::{
+    CreateIndicatorRequest, FinancialAnalysisRequest, FinancialAnalysisService,
+};
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Query, State},
@@ -53,7 +55,10 @@ pub async fn create_indicator(
     auth: AuthContext,
     Json(req): Json<CreateIndicatorRequest>,
 ) -> Result<Json<ApiResponse<financial_analysis::Model>>, AppError> {
-    info!("用户 {} 正在创建财务指标：{}", auth.user_id, req.indicator_code);
+    info!(
+        "用户 {} 正在创建财务指标：{}",
+        auth.user_id, req.indicator_code
+    );
 
     let service = FinancialAnalysisService::new(db);
     let indicator = service.create_indicator(req, auth.user_id).await?;
@@ -84,10 +89,9 @@ pub async fn get_trends(
     info!("用户 {} 正在查询财务趋势", auth.user_id);
 
     let service = FinancialAnalysisService::new(db);
-    let trends = service.get_trends(
-        params.indicator_id.unwrap_or(0),
-        params.limit.unwrap_or(10)
-    ).await?;
+    let trends = service
+        .get_trends(params.indicator_id.unwrap_or(0), params.limit.unwrap_or(10))
+        .await?;
     info!("财务趋势查询成功，共 {} 条记录", trends.len());
 
     Ok(Json(ApiResponse::success(trends)))

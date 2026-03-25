@@ -1,12 +1,12 @@
 use crate::models::purchase_contract;
+use crate::utils::error::AppError;
+use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use rust_decimal::Decimal;
-use chrono::NaiveDate;
-use crate::utils::error::AppError;
 use tracing::info;
 
 /// 采购合同查询参数
@@ -135,14 +135,19 @@ impl PurchaseContractService {
         req: ExecuteContractRequest,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在执行合同 {}，类型：{}", user_id, contract_id, req.execution_type);
+        info!(
+            "用户 {} 正在执行合同 {}，类型：{}",
+            user_id, contract_id, req.execution_type
+        );
 
         // 获取合同
         let contract = self.get_by_id(contract_id).await?;
 
         // 检查合同状态
         if contract.status != "active" {
-            return Err(AppError::ValidationError("只有活跃状态的合同才能执行".to_string()));
+            return Err(AppError::ValidationError(
+                "只有活跃状态的合同才能执行".to_string(),
+            ));
         }
 
         // 检查执行金额
@@ -162,11 +167,15 @@ impl PurchaseContractService {
         let execution = crate::models::purchase_contract_execution::ActiveModel {
             id: Set(0),
             contract_id: Set(contract_id),
-            execution_no: Set(format!("PCE{}{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), contract_id)),
+            execution_no: Set(format!(
+                "PCE{}{}",
+                chrono::Utc::now().format("%Y%m%d%H%M%S"),
+                contract_id
+            )),
             execution_type: Set(req.execution_type),
             execution_date: Set(req.execution_date),
             quantity: Set(req.execution_amount), // 使用 execution_amount 作为数量
-            amount: Set(req.execution_amount), // 使用 amount
+            amount: Set(req.execution_amount),   // 使用 amount
             status: Set("COMPLETED".to_string()),
             remarks: Set(req.remark), // 使用 remarks
             created_by: Set(user_id),
@@ -193,7 +202,10 @@ impl PurchaseContractService {
         // 提交事务
         txn.commit().await?;
 
-        info!("合同 {} 执行成功，执行金额：{}", contract_id, req.execution_amount);
+        info!(
+            "合同 {} 执行成功，执行金额：{}",
+            contract_id, req.execution_amount
+        );
         Ok(())
     }
 
@@ -204,7 +216,9 @@ impl PurchaseContractService {
         let contract = self.get_by_id(contract_id).await?;
 
         if contract.status != "draft" {
-            return Err(AppError::ValidationError("只有草稿状态的合同才能审核".to_string()));
+            return Err(AppError::ValidationError(
+                "只有草稿状态的合同才能审核".to_string(),
+            ));
         }
 
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
@@ -220,13 +234,23 @@ impl PurchaseContractService {
     }
 
     /// 取消合同
-    pub async fn cancel(&self, contract_id: i32, user_id: i32, reason: String) -> Result<(), AppError> {
-        info!("用户 {} 正在取消合同 {}，原因：{}", user_id, contract_id, reason);
+    pub async fn cancel(
+        &self,
+        contract_id: i32,
+        user_id: i32,
+        reason: String,
+    ) -> Result<(), AppError> {
+        info!(
+            "用户 {} 正在取消合同 {}，原因：{}",
+            user_id, contract_id, reason
+        );
 
         let contract = self.get_by_id(contract_id).await?;
 
         if contract.status != "active" && contract.status != "draft" {
-            return Err(AppError::ValidationError("只能取消活跃或草稿状态的合同".to_string()));
+            return Err(AppError::ValidationError(
+                "只能取消活跃或草稿状态的合同".to_string(),
+            ));
         }
 
         // 注意：purchase_contract 模型没有 executed_amount 字段

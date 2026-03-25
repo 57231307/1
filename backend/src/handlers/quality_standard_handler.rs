@@ -1,17 +1,17 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::quality_standard;
 use crate::services::quality_standard_service::QualityStandardService;
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
-use chrono::NaiveDate;
 
 /// 质量标准查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -94,29 +94,37 @@ pub async fn create_standard(
     auth: AuthContext,
     Json(req): Json<CreateQualityStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
-    info!("用户 {} 正在创建质量标准：{}", auth.username, req.standard_code);
+    info!(
+        "用户 {} 正在创建质量标准：{}",
+        auth.username, req.standard_code
+    );
 
     let effective_date = NaiveDate::parse_from_str(&req.effective_date, "%Y-%m-%d")
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
-    let expiry_date = req.expiry_date
-        .map(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d")
-            .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e))))
+    let expiry_date = req
+        .expiry_date
+        .map(|d| {
+            NaiveDate::parse_from_str(&d, "%Y-%m-%d")
+                .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))
+        })
         .transpose()?;
 
     let service = QualityStandardService::new(db);
-    let standard = service.create_standard(
-        crate::services::quality_standard_service::CreateQualityStandardRequest {
-            standard_code: req.standard_code,
-            standard_name: req.standard_name,
-            standard_type: req.standard_type,
-            version: req.version,
-            content: req.content,
-            effective_date,
-            expiry_date,
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    let standard = service
+        .create_standard(
+            crate::services::quality_standard_service::CreateQualityStandardRequest {
+                standard_code: req.standard_code,
+                standard_name: req.standard_name,
+                standard_type: req.standard_type,
+                version: req.version,
+                content: req.content,
+                effective_date,
+                expiry_date,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("质量标准创建成功：{}", standard.standard_code);
     Ok(Json(ApiResponse::success(standard)))
@@ -148,17 +156,19 @@ pub async fn update_standard(
     info!("用户 {} 正在更新质量标准：{}", auth.username, id);
 
     let service = QualityStandardService::new(db);
-    let standard = service.update_standard(
-        id,
-        crate::services::quality_standard_service::UpdateQualityStandardRequest {
-            standard_name: req.standard_name,
-            standard_type: req.standard_type,
-            content: req.content,
-            status: req.status,
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    let standard = service
+        .update_standard(
+            id,
+            crate::services::quality_standard_service::UpdateQualityStandardRequest {
+                standard_name: req.standard_name,
+                standard_type: req.standard_type,
+                content: req.content,
+                status: req.status,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("质量标准更新成功：{}", id);
     Ok(Json(ApiResponse::success(standard)))
@@ -205,7 +215,9 @@ pub async fn approve_standard(
     info!("用户 {} 正在审批质量标准：{}", auth.username, id);
 
     let service = QualityStandardService::new(db);
-    service.approve_standard(id, auth.user_id, req.approval_comment).await?;
+    service
+        .approve_standard(id, auth.user_id, req.approval_comment)
+        .await?;
 
     info!("质量标准审批通过：{}", id);
     Ok(Json(ApiResponse::success("审批通过".to_string())))
@@ -238,15 +250,17 @@ pub async fn create_version_history(
     info!("用户 {} 正在创建质量标准版本历史：{}", auth.username, id);
 
     let service = QualityStandardService::new(db);
-    let standard = service.create_version_history(
-        crate::services::quality_standard_service::CreateVersionHistoryRequest {
-            standard_id: id,
-            version: req.version,
-            change_reason: req.change_reason,
-            change_content: req.change_content,
-        },
-        auth.user_id,
-    ).await?;
+    let standard = service
+        .create_version_history(
+            crate::services::quality_standard_service::CreateVersionHistoryRequest {
+                standard_id: id,
+                version: req.version,
+                change_reason: req.change_reason,
+                change_content: req.change_content,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("质量标准版本历史创建成功：{}", standard.standard_code);
     Ok(Json(ApiResponse::success(standard)))

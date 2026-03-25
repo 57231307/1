@@ -11,9 +11,7 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            db: Arc::new(
-                DatabaseConnection::Disconnected
-            ),
+            db: Arc::new(DatabaseConnection::Disconnected),
         }
     }
 }

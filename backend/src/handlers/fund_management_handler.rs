@@ -1,17 +1,17 @@
-use crate::utils::error::AppError;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fund_management;
 use crate::services::fund_management_service::FundManagementService;
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
-use rust_decimal::Decimal;
 
 /// 资金账户查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -80,21 +80,28 @@ pub async fn create_account(
     auth: AuthContext,
     Json(req): Json<CreateFundAccountRequest>,
 ) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
-    info!("用户 {} 正在创建资金账户：{}", auth.username, req.account_no);
+    info!(
+        "用户 {} 正在创建资金账户：{}",
+        auth.username, req.account_no
+    );
 
     let service = FundManagementService::new(db);
-    let account = service.create_account(
-        crate::services::fund_management_service::CreateFundAccountRequest {
-            account_name: req.account_name,
-            account_no: req.account_no,
-            account_type: req.account_type,
-            bank_name: req.bank_name,
-            currency: req.currency,
-            opened_date: req.opened_date.and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()),
-            remark: req.remark,
-        },
-        auth.user_id,
-    ).await?;
+    let account = service
+        .create_account(
+            crate::services::fund_management_service::CreateFundAccountRequest {
+                account_name: req.account_name,
+                account_no: req.account_no,
+                account_type: req.account_type,
+                bank_name: req.bank_name,
+                currency: req.currency,
+                opened_date: req
+                    .opened_date
+                    .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()),
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
     info!("资金账户创建成功：{}", account.account_no);
     Ok(Json(ApiResponse::success(account)))
@@ -123,10 +130,15 @@ pub async fn deposit(
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在向账户 {} 存款 {:.2}", auth.username, id, req.amount);
+    info!(
+        "用户 {} 正在向账户 {} 存款 {:.2}",
+        auth.username, id, req.amount
+    );
 
     let service = FundManagementService::new(db);
-    service.deposit(id, req.amount, auth.user_id, req.remark).await?;
+    service
+        .deposit(id, req.amount, auth.user_id, req.remark)
+        .await?;
 
     info!("账户 {} 存款成功", id);
     Ok(Json(ApiResponse::success("存款成功".to_string())))
@@ -140,10 +152,15 @@ pub async fn withdraw(
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在从账户 {} 取款 {:.2}", auth.username, id, req.amount);
+    info!(
+        "用户 {} 正在从账户 {} 取款 {:.2}",
+        auth.username, id, req.amount
+    );
 
     let service = FundManagementService::new(db);
-    service.withdraw(id, req.amount, auth.user_id, req.remark).await?;
+    service
+        .withdraw(id, req.amount, auth.user_id, req.remark)
+        .await?;
 
     info!("账户 {} 取款成功", id);
     Ok(Json(ApiResponse::success("取款成功".to_string())))
@@ -157,10 +174,15 @@ pub async fn freeze_funds(
     auth: AuthContext,
     Json(req): Json<FreezeFundsRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在冻结账户 {} 资金 {:.2}，原因：{}", auth.username, id, req.amount, req.reason);
+    info!(
+        "用户 {} 正在冻结账户 {} 资金 {:.2}，原因：{}",
+        auth.username, id, req.amount, req.reason
+    );
 
     let service = FundManagementService::new(db);
-    service.freeze_funds(id, req.amount, auth.user_id, req.reason).await?;
+    service
+        .freeze_funds(id, req.amount, auth.user_id, req.reason)
+        .await?;
 
     info!("账户 {} 资金冻结成功", id);
     Ok(Json(ApiResponse::success("冻结成功".to_string())))
@@ -174,7 +196,10 @@ pub async fn unfreeze_funds(
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在解冻账户 {} 资金 {:.2}", auth.username, id, req.amount);
+    info!(
+        "用户 {} 正在解冻账户 {} 资金 {:.2}",
+        auth.username, id, req.amount
+    );
 
     let service = FundManagementService::new(db);
     service.unfreeze_funds(id, req.amount, auth.user_id).await?;

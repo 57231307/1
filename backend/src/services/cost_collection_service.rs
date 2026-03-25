@@ -2,13 +2,13 @@
 //!
 //! 成本核算业务逻辑层
 
+use chrono::Datelike;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, PaginatorTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
 use tracing::info;
-use chrono::Datelike;
 
 use crate::models::cost_collection;
 use crate::utils::error::AppError;
@@ -49,20 +49,36 @@ impl CostCollectionService {
         req: CreateCostCollectionRequest,
         user_id: i32,
     ) -> Result<cost_collection::Model, AppError> {
-        info!("创建成本归集：batch_no={:?}, color_no={:?}", req.batch_no, req.color_no);
+        info!(
+            "创建成本归集：batch_no={:?}, color_no={:?}",
+            req.batch_no, req.color_no
+        );
 
         // 生成成本归集单编号
         let collection_no = self.generate_collection_no(req.collection_date)?;
 
         // 计算总成本
-        let total_cost = req.direct_material + req.direct_labor + 
-                        req.manufacturing_overhead + req.processing_fee + req.dyeing_fee;
+        let total_cost = req.direct_material
+            + req.direct_labor
+            + req.manufacturing_overhead
+            + req.processing_fee
+            + req.dyeing_fee;
 
         // 计算单位成本
-        let unit_cost_meters = req.output_quantity_meters.as_ref()
-            .and_then(|q| if q.is_zero() { None } else { Some(total_cost / *q) });
-        let unit_cost_kg = req.output_quantity_kg.as_ref()
-            .and_then(|q| if q.is_zero() { None } else { Some(total_cost / *q) });
+        let unit_cost_meters = req.output_quantity_meters.as_ref().and_then(|q| {
+            if q.is_zero() {
+                None
+            } else {
+                Some(total_cost / *q)
+            }
+        });
+        let unit_cost_kg = req.output_quantity_kg.as_ref().and_then(|q| {
+            if q.is_zero() {
+                None
+            } else {
+                Some(total_cost / *q)
+            }
+        });
 
         let active_model = cost_collection::ActiveModel {
             collection_no: sea_orm::Set(collection_no),
@@ -144,7 +160,11 @@ impl CostCollectionService {
         &self,
         collection_date: chrono::NaiveDate,
     ) -> Result<String, AppError> {
-        let year_month = format!("{:04}{:02}", collection_date.year(), collection_date.month());
+        let year_month = format!(
+            "{:04}{:02}",
+            collection_date.year(),
+            collection_date.month()
+        );
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

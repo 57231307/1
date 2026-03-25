@@ -3,16 +3,16 @@
 //! 供应商对账服务层，负责对账的核心业务逻辑
 //! 包含生成对账单、确认对账、争议处理等管理
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, TransactionTrait, PaginatorTrait, Set, Order,
-};
-use std::sync::Arc;
-use crate::models::{ap_reconciliation, ap_invoice, ap_payment};
+use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
 use crate::utils::error::AppError;
-use chrono::{Utc, NaiveDate};
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use validator::Validate;
 
 /// 供应商对账服务
@@ -31,13 +31,13 @@ impl ApReconciliationService {
     pub async fn generate_reconciliation_no(&self) -> Result<String, AppError> {
         let today = Utc::now().format("%Y%m%d").to_string();
         let prefix = format!("REC{}", today);
-        
+
         // 查询今日对账单数量
         let count = ap_reconciliation::Entity::find()
             .filter(ap_reconciliation::Column::ReconciliationNo.starts_with(&prefix))
             .count(&*self.db)
             .await?;
-        
+
         Ok(format!("{}{:03}", prefix, count + 1))
     }
 
@@ -48,10 +48,10 @@ impl ApReconciliationService {
         user_id: i32,
     ) -> Result<ap_reconciliation::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 生成对账单号
         let reconciliation_no = self.generate_reconciliation_no().await?;
-        
+
         // 2. 查询该供应商在对账期间内的应付单
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(req.supplier_id))
@@ -60,7 +60,7 @@ impl ApReconciliationService {
             .filter(ap_invoice::Column::InvoiceDate.lte(req.end_date))
             .all(&txn)
             .await?;
-        
+
         // 3. 查询该供应商在对账期间内的付款单
         let payments = ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(req.supplier_id))
@@ -69,7 +69,7 @@ impl ApReconciliationService {
             .filter(ap_payment::Column::PaymentDate.lte(req.end_date))
             .all(&txn)
             .await?;
-        
+
         // 4. 计算期初余额（对账开始日期前的未付金额）
         let opening_balance = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(req.supplier_id))
@@ -80,20 +80,16 @@ impl ApReconciliationService {
             .iter()
             .map(|inv| inv.unpaid_amount)
             .sum::<Decimal>();
-        
+
         // 5. 计算本期应付合计
-        let total_invoice: Decimal = invoices.iter()
-            .map(|inv| inv.amount)
-            .sum();
-        
+        let total_invoice: Decimal = invoices.iter().map(|inv| inv.amount).sum();
+
         // 6. 计算本期付款合计
-        let total_payment: Decimal = payments.iter()
-            .map(|pay| pay.payment_amount)
-            .sum();
-        
+        let total_payment: Decimal = payments.iter().map(|pay| pay.payment_amount).sum();
+
         // 7. 计算期末余额
         let closing_balance = opening_balance + total_invoice - total_payment;
-        
+
         // 8. 创建对账单
         let reconciliation = ap_reconciliation::ActiveModel {
             reconciliation_no: Set(reconciliation_no),
@@ -108,10 +104,12 @@ impl ApReconciliationService {
             notes: Set(req.notes),
             created_by: Set(user_id),
             ..Default::default()
-        }.insert(&txn).await?;
-        
+        }
+        .insert(&txn)
+        .await?;
+
         txn.commit().await?;
-        
+
         Ok(reconciliation)
     }
 
@@ -122,22 +120,21 @@ impl ApReconciliationService {
         user_id: i32,
     ) -> Result<ap_reconciliation::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 查询对账单
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("对账单 {}", id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!("对账单 {}", id)))?;
+
         // 2. 检查状态
         if reconciliation.reconciliation_status != "PENDING" {
-            return Err(AppError::BusinessError(
-                format!("对账单状态为{}，不可确认", reconciliation.reconciliation_status)
-            ));
+            return Err(AppError::BusinessError(format!(
+                "对账单状态为{}，不可确认",
+                reconciliation.reconciliation_status
+            )));
         }
-        
+
         // 3. 确认对账单
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
@@ -145,11 +142,11 @@ impl ApReconciliationService {
         reconciliation_active.confirmed_by = Set(Some(user_id));
         reconciliation_active.confirmed_at = Set(Some(now));
         reconciliation_active.updated_at = Set(now);
-        
+
         let reconciliation = reconciliation_active.update(&txn).await?;
-        
+
         txn.commit().await?;
-        
+
         Ok(reconciliation)
     }
 
@@ -161,22 +158,20 @@ impl ApReconciliationService {
         user_id: i32,
     ) -> Result<ap_reconciliation::Model, AppError> {
         let txn = (&*self.db).begin().await?;
-        
+
         // 1. 查询对账单
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("对账单 {}", id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!("对账单 {}", id)))?;
+
         // 2. 检查状态
         if reconciliation.reconciliation_status == "CONFIRMED" {
             return Err(AppError::BusinessError(
-                "对账单已确认，不可提出争议".to_string()
+                "对账单已确认，不可提出争议".to_string(),
             ));
         }
-        
+
         // 3. 提出争议
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
@@ -185,11 +180,11 @@ impl ApReconciliationService {
         reconciliation_active.disputed_at = Set(Some(now));
         reconciliation_active.disputed_reason = Set(Some(reason));
         reconciliation_active.updated_at = Set(now);
-        
+
         let reconciliation = reconciliation_active.update(&txn).await?;
-        
+
         txn.commit().await?;
-        
+
         Ok(reconciliation)
     }
 
@@ -198,10 +193,8 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(
-                format!("对账单 {}", id),
-            ))?;
-        
+            .ok_or(AppError::ResourceNotFound(format!("对账单 {}", id)))?;
+
         Ok(reconciliation)
     }
 
@@ -216,7 +209,7 @@ impl ApReconciliationService {
         page_size: u64,
     ) -> Result<(Vec<ap_reconciliation::Model>, u64), AppError> {
         let mut query = ap_reconciliation::Entity::find();
-        
+
         // 筛选条件
         if let Some(sid) = supplier_id {
             query = query.filter(ap_reconciliation::Column::SupplierId.eq(sid));
@@ -230,15 +223,15 @@ impl ApReconciliationService {
         if let Some(ed) = end_date {
             query = query.filter(ap_reconciliation::Column::EndDate.lte(ed));
         }
-        
+
         // 分页
         let paginator = query
             .order_by(ap_reconciliation::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
-        
+
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page).await?;
-        
+
         Ok((items, total))
     }
 
@@ -256,7 +249,7 @@ impl ApReconciliationService {
         } else {
             "SELECT * FROM mv_supplier_ap_summary".to_string()
         };
-        
+
         // 这里简化处理，实际应该使用 SeaORM 的 query 方法
         // 由于物化视图查询较复杂，暂时返回空结果
         Ok(vec![])
@@ -272,13 +265,13 @@ impl ApReconciliationService {
 pub struct GenerateReconciliationRequest {
     /// 供应商 ID
     pub supplier_id: i32,
-    
+
     /// 对账开始日期
     pub start_date: NaiveDate,
-    
+
     /// 对账结束日期
     pub end_date: NaiveDate,
-    
+
     /// 备注
     pub notes: Option<String>,
 }
@@ -288,34 +281,34 @@ pub struct GenerateReconciliationRequest {
 pub struct SupplierApSummary {
     /// 供应商 ID
     pub supplier_id: i32,
-    
+
     /// 供应商编码
     pub supplier_code: String,
-    
+
     /// 供应商名称
     pub supplier_name: String,
-    
+
     /// 应付单总数
     pub total_invoice_count: i64,
-    
+
     /// 应付总金额
     pub total_invoice_amount: Decimal,
-    
+
     /// 已付总金额
     pub total_paid_amount: Decimal,
-    
+
     /// 未付总金额
     pub total_unpaid_amount: Decimal,
-    
+
     /// 已付清应付单数量
     pub paid_invoice_count: i64,
-    
+
     /// 部分付款应付单数量
     pub partial_paid_invoice_count: i64,
-    
+
     /// 逾期应付单数量
     pub overdue_invoice_count: i64,
-    
+
     /// 逾期金额
     pub overdue_amount: Decimal,
 }
