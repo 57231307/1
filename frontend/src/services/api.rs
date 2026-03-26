@@ -57,11 +57,7 @@ impl ApiService {
                 Ok(response) => {
                     // 尝试解析响应
                     if method == "DELETE" {
-                        // DELETE 请求可能没有响应体
-                        return Ok(serde_json::from_value(serde_json::Value::Null).unwrap_or_else(|_| {
-                            // 如果 T 不能从 Null 解析，返回默认值
-                            unsafe { std::mem::zeroed() }
-                        }));
+                        return Err("DELETE 请求不应返回数据".to_string());
                     } else {
                         match response.json::<T>().await {
                             Ok(data) => return Ok(data),
@@ -120,7 +116,8 @@ impl ApiService {
         let request = match body {
             Some(body_value) => request_with_headers.json(body_value)
                 .map_err(|e: gloo_net::Error| format!("序列化请求体失败：{}", e))?,
-            None => request_with_headers.body(std::ptr::null::<()>()).unwrap(),
+            None => request_with_headers.build()
+                .map_err(|e: gloo_net::Error| format!("构建请求失败：{}", e))?,
         };
 
         // 发送请求

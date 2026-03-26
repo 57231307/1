@@ -9,11 +9,42 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+const GITHUB_REPO: &str = "57231307/1";
+const GITHUB_API_URL: &str = "https://api.github.com";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionInfo {
     pub version: String,
     pub release_date: String,
     pub changelog: Option<String>,
+    pub download_url: Option<String>,
+    pub file_size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitHubRelease {
+    pub tag_name: String,
+    pub name: String,
+    pub body: Option<String>,
+    pub published_at: String,
+    pub assets: Vec<GitHubAsset>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitHubAsset {
+    pub name: String,
+    pub browser_download_url: String,
+    pub size: u64,
+    pub content_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCheckResult {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub release_info: Option<GitHubRelease>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +76,8 @@ pub enum UpdateError {
     VersionError(String),
     #[error("更新正在进行中")]
     AlreadyUpdating,
+    #[error("网络错误：{0}")]
+    NetworkError(String),
 }
 
 pub struct SystemUpdateService {
@@ -77,7 +110,28 @@ impl SystemUpdateService {
         }
     }
 
-    pub fn get_update_status(&self) -> UpdateStatus {
+    pub async fn download_update(&self, download_url: &str, target_path: &Path) -> Result<PathBuf, UpdateError> {
+        let client = reqwest::Client::builder()
+            .user_agent("秉羲ERP系统更新检查")
+            .build();
+        
+        let response = client
+            .get(&format!("{}/repos/{}/releases/latest", GITHUB_REPO))
+            .header("User-Agent", "秉羲ERP系统更新")
+            .send()
+            .await
+            .map_err(|e| reqwest::Error::Request(e)) => {
+                return Err(UpdateError::NetworkError(format!("下载更新包失败: {}", e)));
+            })?;
+
+        let mut file = fs::File::create(target_path)?;
+        let mut response = response;
+        io::copy(&mut response, &mut file)?;
+        
+        Ok(target_path)
+    }
+
+}
         let current_version = self.get_current_version();
         let is_updating = self.is_updating.load(std::sync::atomic::Ordering::SeqCst);
 
@@ -382,5 +436,151 @@ impl SystemUpdateService {
             use std::io::Write;
             let _ = file.write_all(log_entry.as_bytes());
         }
+    }
+
+    pub async fn check_for_updates(&self) -> UpdateCheckResult {
+        let current_version = self.get_current_version();
+        
+        match self.fetch_latest_release().await {
+            Ok(release) => {
+                let latest_version = release.tag_name.trim_start_matches('v').to_string();
+                let has_update = self.compare_versions(&current_version, &latest_version);
+                
+                UpdateCheckResult {
+                    has_update,
+                    current_version,
+                    latest_version,
+                    release_info: Some(release),
+                    error: None,
+                }
+            }
+            Err(e) => {
+                UpdateCheckResult {
+                    has_update: false,
+                    current_version: current_version.clone(),
+                    latest_version: current_version,
+                    release_info: None,
+                    error: Some(e.to_string()),
+                }
+            }
+        }
+    }
+
+    async fn fetch_latest_release(&self) -> Result<GitHubRelease, UpdateError> {
+        let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, GITHUB_REPO);
+        
+        let client = reqwest::Client::builder()
+            .user_agent("BingxiERP/1.0")
+            .build()
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+        
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+        
+        if !response.status().is_success() {
+            return Err(UpdateError::NetworkError(format!(
+                "GitHub API返回错误状态: {}",
+                response.status()
+            )));
+        }
+        
+        let release: GitHubRelease = response
+            .json()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+        
+        Ok(release)
+    }
+
+    fn compare_versions(&self, current: &str, latest: &str) -> bool {
+        let parse_version = |v: &str| -> Vec<u32> {
+            v.split('.')
+                .filter_map(|s| s.parse().ok())
+                .collect()
+        };
+        
+        let current_parts = parse_version(current);
+        let latest_parts = parse_version(latest);
+        
+        for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
+            let current_val = current_parts.get(i).unwrap_or(&0);
+            let latest_val = latest_parts.get(i).unwrap_or(&0);
+            
+            if latest_val > current_val {
+                return true;
+            } else if latest_val < current_val {
+                return false;
+            }
+        }
+        
+        false
+    }
+
+    pub async fn download_update(&self, asset_name: Option<&str>) -> Result<PathBuf, UpdateError> {
+        let check_result = self.check_for_updates().await;
+        
+        if !check_result.has_update {
+            return Err(UpdateError::VersionError("当前已是最新版本".to_string()));
+        }
+        
+        let release = check_result.release_info.ok_or_else(|| {
+            UpdateError::NetworkError("无法获取发布信息".to_string())
+        })?;
+        
+        let asset = if let Some(name) = asset_name {
+            release.assets.iter()
+                .find(|a| a.name.contains(name))
+                .ok_or_else(|| UpdateError::NetworkError(format!("找不到资源: {}", name)))?
+        } else {
+            release.assets.iter()
+                .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
+                .ok_or_else(|| UpdateError::NetworkError("找不到更新包".to_string()))?
+        };
+        
+        self.log_update(&format!("开始下载更新包: {}", asset.name));
+        
+        let download_dir = self.app_dir.join("downloads");
+        if !download_dir.exists() {
+            fs::create_dir_all(&download_dir)?;
+        }
+        
+        let download_path = download_dir.join(&asset.name);
+        
+        let client = reqwest::Client::builder()
+            .user_agent("BingxiERP/1.0")
+            .build()
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+        
+        let mut response = client
+            .get(&asset.browser_download_url)
+            .send()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+        
+        let mut file = fs::File::create(&download_path)?;
+        
+        while let Some(chunk) = response.chunk().await.map_err(|e| {
+            UpdateError::NetworkError(e.to_string())
+        })? {
+            io::copy(&mut chunk.as_ref(), &mut file)?;
+        }
+        
+        self.log_update(&format!("更新包下载完成: {:?}", download_path));
+        
+        Ok(download_path)
+    }
+
+    pub async fn download_and_update(&self) -> Result<String, UpdateError> {
+        let download_path = self.download_update(None).await?;
+        let result = self.apply_update(&download_path).await?;
+        
+        if let Err(e) = fs::remove_file(&download_path) {
+            self.log_update(&format!("清理下载文件失败: {}", e));
+        }
+        
+        Ok(result)
     }
 }

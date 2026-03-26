@@ -7,7 +7,7 @@ use axum::{
 };
 use std::path::PathBuf;
 use tokio::fs;
-use crate::services::system_update_service::{SystemUpdateService, UpdateError};
+use crate::services::system_update_service::{SystemUpdateService, UpdateError, UpdateCheckResult};
 
 #[derive(Debug, serde::Serialize)]
 pub struct VersionResponse {
@@ -35,6 +35,95 @@ pub struct UpdateResult {
 pub struct ErrorResponse {
     pub error: String,
     pub message: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CheckUpdateResponse {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<u64>,
+    pub release_notes: Option<String>,
+    pub published_at: Option<String>,
+}
+
+pub async fn check_for_updates() -> Result<Json<CheckUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let service = SystemUpdateService::new();
+    
+    match service.check_for_updates().await {
+        Ok(result) => {
+            let response = if result.has_update {
+                let release = result.release_info.as_ref();
+                let asset = release.and_then(|r| {
+                    r.assets.iter()
+                        .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
+                });
+                
+                CheckUpdateResponse {
+                    has_update: true,
+                    current_version: result.current_version,
+                    latest_version: result.latest_version,
+                    download_url: asset.map(|a| a.browser_download_url.clone()),
+                    file_size: asset.map(|a| a.size),
+                    release_notes: release.and_then(|r| r.body.clone()),
+                    published_at: release.map(|r| r.published_at.clone()),
+                }
+            } else {
+                CheckUpdateResponse {
+                    has_update: false,
+                    current_version: result.current_version.clone(),
+                    latest_version: result.latest_version,
+                    download_url: None,
+                    file_size: None,
+                    release_notes: None,
+                    published_at: None,
+                }
+            };
+            
+            Ok(Json(response))
+        }
+        Err(e) => {
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "check_failed".to_string(),
+                    message: format!("检测更新失败: {}", e),
+                }),
+            ))
+        }
+    }
+}
+
+pub async fn download_and_update() -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)> {
+    let service = SystemUpdateService::new();
+    
+    match service.download_and_update().await {
+        Ok(message) => {
+            let new_version = service.get_current_version();
+            Ok(Json(UpdateResult {
+                success: true,
+                message,
+                new_version: Some(new_version),
+            }))
+        }
+        Err(e) => {
+            let error_type = match &e {
+                UpdateError::NetworkError(_) => "network_error",
+                UpdateError::VersionError(_) => "version_error",
+                UpdateError::AlreadyUpdating => "already_updating",
+                _ => "update_failed",
+            };
+            
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: error_type.to_string(),
+                    message: e.to_string(),
+                }),
+            ))
+        }
+    }
 }
 
 pub async fn get_version() -> Json<VersionResponse> {

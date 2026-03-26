@@ -60,6 +60,7 @@ use crate::handlers::{
     supplier_evaluation_handler,
     supplier_handler,
     user_handler,
+    system_update_handler,
     voucher_handler,
     warehouse_handler,
 };
@@ -916,6 +917,16 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
         .route("/monthly", get(ap_report_handler::get_monthly_report))
         .route("/aging", get(ap_report_handler::get_aging_report));
 
+    // 系统更新路由
+    let system_update_routes = Router::new()
+        .route("/version", get(system_update_handler::get_version))
+        .route("/status", get(system_update_handler::get_update_status))
+        .route("/upload", post(system_update_handler::upload_and_update))
+        .route("/backups", get(system_update_handler::get_backup_versions))
+        .route("/rollback", post(system_update_handler::rollback_version))
+        .route("/check", get(system_update_handler::check_for_updates))
+        .route("/download", post(system_update_handler::download_and_update));
+
     // 健康检查路由
     let health_routes = Router::new()
         .route("/health", get(health_handler::health_check))
@@ -981,7 +992,8 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
         // 面料行业核心模块路由
         .nest("/dye-batches", dye_batch_routes)
         .nest("/greige-fabrics", greige_fabric_routes)
-        .nest("/dye-recipes", dye_recipe_routes);
+        .nest("/dye-recipes", dye_recipe_routes)
+        .nest("/system-update", system_update_routes);
 
     // 公共路由（不需要认证）
     let public_routes = Router::new()
