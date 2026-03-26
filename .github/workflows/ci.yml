@@ -1,0 +1,259 @@
+name: 秉羲ERP系统自动编译和部署
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  RUST_VERSION: 1.75.0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  backend-build:
+    name: 后端编译
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-backend-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-backend-
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
+
+      - name: 编译后端
+        working-directory: backend
+        run: |
+          cargo build --release
+
+      - name: 上传编译产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-binary
+          path: backend/target/release/bingxi_backend
+          retention-days: 7
+
+  frontend-build:
+    name: 前端编译
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32-unknown-unknown
+
+      - name: 安装 Trunk
+        run: |
+          cargo install --locked trunk
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/target
+          key: ${{ runner.os }}-cargo-frontend-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-frontend-
+
+      - name: 编译前端
+        working-directory: frontend
+        run: |
+          trunk build --release
+
+      - name: 上传编译产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
+  deploy:
+    name: 部署到生产服务器
+    needs: [backend-build, frontend-build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 下载后端产物
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-binary
+          path: release/backend
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-dist
+          path: release/frontend/dist
+
+      - name: 准备部署文件
+        run: |
+          chmod +x release/backend/bingxi_backend
+          cp backend/.env.example release/backend/.env.example
+          cp -r deploy release/deploy
+          cp -r database release/database
+
+      - name: 创建部署包
+        run: |
+          cd release
+          tar -czvf ../bingxi-erp-deploy.tar.gz .
+
+      - name: 部署到生产服务器2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST_2 }}
+          username: ${{ secrets.DEPLOY_SERVER_USER }}
+          key: ${{ secrets.DEPLOY_SERVER_KEY }}
+          port: 22
+          source: "bingxi-erp-deploy.tar.gz"
+          target: "/tmp"
+
+      - name: 在生产服务器2上执行部署
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST_2 }}
+          username: ${{ secrets.DEPLOY_SERVER_USER }}
+          key: ${{ secrets.DEPLOY_SERVER_KEY }}
+          port: 22
+          script: |
+            # 停止旧服务
+            systemctl stop bingxi-backend || true
+            
+            # 备份旧版本
+            if [ -d "/opt/bingxi-erp" ]; then
+              mv /opt/bingxi-erp /opt/bingxi-erp-backup-$(date +%Y%m%d%H%M%S)
+            fi
+            
+            # 创建新目录
+            mkdir -p /opt/bingxi-erp
+            
+            # 解压部署包
+            cd /tmp
+            tar -xzvf bingxi-erp-deploy.tar.gz -C /opt/bingxi-erp
+            
+            # 设置权限
+            chmod +x /opt/bingxi-erp/backend/bingxi_backend
+            
+            # 复制配置文件
+            cp /opt/bingxi-erp/backend/.env.production /opt/bingxi-erp/backend/.env
+            
+            # 配置 systemd 服务
+            cp /opt/bingxi-erp/deploy/bingxi-backend.service /etc/systemd/system/
+            systemctl daemon-reload
+            systemctl enable bingxi-backend
+            systemctl start bingxi-backend
+            
+            # 配置 Nginx
+            cp /opt/bingxi-erp/deploy/nginx.conf /etc/nginx/sites-available/bingxi-erp
+            ln -sf /etc/nginx/sites-available/bingxi-erp /etc/nginx/sites-enabled/
+            nginx -t && systemctl reload nginx
+            
+            # 清理临时文件
+            rm -f /tmp/bingxi-erp-deploy.tar.gz
+            
+            echo "部署完成！"
+            systemctl status bingxi-backend
+
+  notify:
+    name: 构建通知
+    needs: [backend-build, frontend-build, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: 部署状态
+        run: |
+          echo "后端编译状态: ${{ needs.backend-build.result }}"
+          echo "前端编译状态: ${{ needs.frontend-build.result }}"
+
+  deploy-to-production:
+    name: 部署到生产服务器2
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: 下载发布包
+        uses: actions/download-artifact@v3
+        with:
+          name: bingxi-erp-release-${{ steps.version.outputs.version }}
+          path: .
+
+      - name: 安装SSH客户端
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client
+
+      - name: 部署到生产服务器2
+        env:
+          DEPLOY_HOST: 129.204.17.232
+          DEPLOY_USER: root
+          DEPLOY_PORT: 22
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          echo "正在部署到生产服务器2..."
+          
+          # 设置SSH密钥
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
+          
+          # 停止旧服务
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "systemctl stop bingxi-backend || true"
+          
+          # 备份旧版本
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "if [ -d /opt/bingxi-erp ]; then mv /opt/bingxi-erp /opt/bingxi-erp-backup-\$(date +%Y%m%d%H%M%S); fi"
+          
+          # 创建部署目录
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "mkdir -p /opt/bingxi-erp"
+          
+          # 上传发布包
+          scp bingxi-erp-*.tar.gz $DEPLOY_USER@$DEPLOY_HOST:/tmp/
+          
+          # 解压并部署
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd /opt/bingxi-erp && tar -xzvf /tmp/bingxi-erp-*.tar.gz"
+          
+          # 设置权限
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "chmod +x /opt/bingxi-erp/backend/bingxi_backend"
+          
+          # 启动新服务
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "systemctl start bingxi-backend"
+          
+          echo "部署完成！"
+
+      - name: 部署通知
+        run: |
+          echo "已部署到生产服务器2: 129.204.17.232"
+          echo "后端地址: http://129.204.17.232:8080"
+          echo "前端地址: http://129.204.17.232"
+          echo "部署状态: ${{ needs.deploy.result }}"
