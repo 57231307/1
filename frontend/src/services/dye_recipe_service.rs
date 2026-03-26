@@ -124,12 +124,14 @@ impl DyeRecipeService {
 
     pub async fn create(req: CreateDyeRecipeRequest) -> Result<DyeRecipe, String> {
         let url = "/api/v1/erp/dye-recipe";
-        ApiService::post(url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::post(url, &body).await
     }
 
     pub async fn update(id: i32, req: UpdateDyeRecipeRequest) -> Result<DyeRecipe, String> {
         let url = format!("/api/v1/erp/dye-recipe/{}", id);
-        ApiService::put(&url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::put(&url, &body).await
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
@@ -139,12 +141,14 @@ impl DyeRecipeService {
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {
         let url = format!("/api/v1/erp/dye-recipe/{}/approve", id);
-        ApiService::post(&url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::post(&url, &body).await
     }
 
     pub async fn create_version(id: i32, req: CreateVersionRequest) -> Result<DyeRecipe, String> {
         let url = format!("/api/v1/erp/dye-recipe/{}/version", id);
-        ApiService::post(&url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::post(&url, &body).await
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeRecipe>, String> {

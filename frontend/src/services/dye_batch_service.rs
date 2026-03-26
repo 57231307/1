@@ -100,12 +100,14 @@ impl DyeBatchService {
 
     pub async fn create(req: CreateDyeBatchRequest) -> Result<DyeBatch, String> {
         let url = "/api/v1/erp/dye-batch";
-        ApiService::post(url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::post(url, &body).await
     }
 
     pub async fn update(id: i32, req: UpdateDyeBatchRequest) -> Result<DyeBatch, String> {
         let url = format!("/api/v1/erp/dye-batch/{}", id);
-        ApiService::put(&url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::put(&url, &body).await
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
@@ -115,7 +117,8 @@ impl DyeBatchService {
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {
         let url = format!("/api/v1/erp/dye-batch/{}/complete", id);
-        ApiService::post(&url, &req).await
+        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
+        ApiService::post(&url, &body).await
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeBatch>, String> {

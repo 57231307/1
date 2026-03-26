@@ -341,15 +341,15 @@ impl Component for InitPage {
 
                     // 步骤指示器
                     <div class="step-indicator" style="display: flex; justify-content: center; margin-bottom: 20px;">
-                        <div class={format!("step {} {}", if self.current_step == InitStep::DatabaseConfig { "active" } else if matches!(InitStep::DatabaseConfig, InitStep::AdminConfig) if self.current_step == InitStep::DatabaseConfig { "" } else { "" })}>
+                        <div class={format!("step {}", if self.current_step == InitStep::DatabaseConfig { "active" } else { "" })}>
                             {"1. 数据库配置"}
                         </div>
                         <div style="margin: 0 10px;">{"→"}</div>
-                        <div class={format!("step {} {}", if self.current_step == InitStep::AdminConfig { "active" } else if matches!(InitStep::AdminConfig, InitStep::Completed) if self.current_step == InitStep::AdminConfig { "" } else { "" })}>
+                        <div class={format!("step {}", if self.current_step == InitStep::AdminConfig { "active" } else { "" })}>
                             {"2. 管理员账号"}
                         </div>
                         <div style="margin: 0 10px;">{"→"}</div>
-                        <div class={format!("step {} {}", if self.current_step == InitStep::Completed { "active" } else { "" })}>
+                        <div class={format!("step {}", if self.current_step == InitStep::Completed { "active" } else { "" })}>
                             {"3. 完成"}
                         </div>
                     </div>
