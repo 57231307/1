@@ -1,10 +1,30 @@
+//! 系统初始化服务
+
 use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::DatabaseConnection;
-use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, PaginatorTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, Set};
 use std::sync::Arc;
+use std::time::Duration;
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct DatabaseConfig {
+    pub host: String,
+    pub port: String,
+    pub name: String,
+    pub username: String,
+    pub password: String,
+}
+
+impl DatabaseConfig {
+    pub fn to_connection_string(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.username, self.password, self.host, self.port, self.name
+        )
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct InitService {
@@ -16,12 +36,51 @@ impl InitService {
         Self { db }
     }
 
-    pub async fn check_initialized(&self) -> Result<bool, InitError> {
-        let user_count = user::Entity::find()
+    pub async fn check_initialized(&self) -> (bool, String) {
+        match user::Entity::find()
             .count(self.db.as_ref())
             .await
-            .map_err(|e| InitError::DatabaseError(e.to_string()))?;
-        Ok(user_count > 0)
+        {
+            Ok(count) => {
+                if count > 0 {
+                    (true, "系统已初始化".to_string())
+                } else {
+                    (false, "系统未初始化".to_string())
+                }
+            }
+            Err(e) => {
+                (false, format!("检查初始化状态失败: {}", e))
+            }
+        }
+    }
+
+    pub async fn test_database(config: &DatabaseConfig) -> Result<(), InitError> {
+        let conn_str = config.to_connection_string();
+        
+        let mut opt = ConnectOptions::new(&conn_str);
+        opt.max_connections(1)
+            .min_connections(0)
+            .connect_timeout(Duration::from_secs(5))
+            .acquire_timeout(Duration::from_secs(5));
+
+        let db = Database::connect(opt)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
+
+        let result: Result<i32, DbErr> = sea_orm::query::QuerySelect::one(
+            sea_orm::Query::select()
+                .expr(sea_orm::sea_query::Expr::value(1i32))
+                .to_owned(),
+            &db,
+        )
+        .await
+        .map(|v| v.map(|row| row.0))
+        .transpose()
+        .map(|opt| opt.unwrap_or(0));
+
+        result.map(|_| ()).map_err(|e| {
+            InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
+        })
     }
 
     pub async fn initialize(
@@ -29,12 +88,13 @@ impl InitService {
         admin_username: &str,
         admin_password: &str,
     ) -> Result<InitializationResult, InitError> {
-        if self.check_initialized().await? {
+        let (initialized, _) = self.check_initialized().await;
+        if initialized {
             return Err(InitError::AlreadyInitialized);
         }
 
         let password_hash =
-            AuthService::hash_password(admin_password).map_err(|_| InitError::HashError)?;
+            AuthService::hash_password(admin_password).map_err(|e| InitError::HashError(e.to_string()))?;
 
         let admin_role = self.create_default_roles().await?;
         let department_id = self.create_default_departments().await?;
@@ -47,6 +107,31 @@ impl InitService {
             message: "系统初始化成功".to_string(),
             admin_username: admin_username.to_string(),
         })
+    }
+
+    pub async fn initialize_with_db(
+        db_config: &DatabaseConfig,
+        admin_username: &str,
+        admin_password: &str,
+    ) -> Result<InitializationResult, InitError> {
+        Self::test_database(db_config).await?;
+
+        let conn_str = db_config.to_connection_string();
+        
+        let mut opt = ConnectOptions::new(&conn_str);
+        opt.max_connections(10)
+            .min_connections(1)
+            .connect_timeout(Duration::from_secs(10))
+            .acquire_timeout(Duration::from_secs(10));
+
+        let db = Database::connect(opt)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
+
+        let db = Arc::new(db);
+        let service = Self::new(db);
+
+        service.initialize(admin_username, admin_password).await
     }
 
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
@@ -63,7 +148,7 @@ impl InitService {
         let admin_role = admin_role
             .insert(self.db.as_ref())
             .await
-            .map_err(|_| InitError::DatabaseError("创建管理员角色失败".to_string()))?;
+            .map_err(|e| InitError::DatabaseError(format!("创建管理员角色失败: {}", e)))?;
 
         let manager_role = role::ActiveModel {
             id: Set(0),
@@ -80,7 +165,7 @@ impl InitService {
         manager_role
             .insert(self.db.as_ref())
             .await
-            .map_err(|_| InitError::DatabaseError("创建经理角色失败".to_string()))?;
+            .map_err(|e| InitError::DatabaseError(format!("创建经理角色失败: {}", e)))?;
 
         let operator_role = role::ActiveModel {
             id: Set(0),
@@ -97,7 +182,7 @@ impl InitService {
         operator_role
             .insert(self.db.as_ref())
             .await
-            .map_err(|_| InitError::DatabaseError("创建操作员角色失败".to_string()))?;
+            .map_err(|e| InitError::DatabaseError(format!("创建操作员角色失败: {}", e)))?;
 
         Ok(admin_role)
     }
@@ -118,7 +203,7 @@ impl InitService {
         let dept = dept
             .insert(self.db.as_ref())
             .await
-            .map_err(|_| InitError::DatabaseError("创建部门失败".to_string()))?;
+            .map_err(|e| InitError::DatabaseError(format!("创建部门失败: {}", e)))?;
 
         let departments = vec![
             ("财务部", "D002", 2),
@@ -170,7 +255,7 @@ impl InitService {
 
         user.insert(self.db.as_ref())
             .await
-            .map_err(|_| InitError::DatabaseError("创建管理员用户失败".to_string()))
+            .map_err(|e| InitError::DatabaseError(format!("创建管理员用户失败: {}", e)))
     }
 
     pub async fn reset_password(
@@ -185,7 +270,7 @@ impl InitService {
             .map_err(|_| InitError::UserNotFound)?;
 
         let password_hash =
-            AuthService::hash_password(new_password).map_err(|_| InitError::HashError)?;
+            AuthService::hash_password(new_password).map_err(|e| InitError::HashError(e.to_string()))?;
 
         let mut user_model: user::ActiveModel = user.into();
         user_model.password_hash = Set(password_hash);
@@ -194,7 +279,7 @@ impl InitService {
         user_model
             .update(self.db.as_ref())
             .await
-            .map_err(|_| InitError::DatabaseError("更新密码失败".to_string()))?;
+            .map_err(|e| InitError::DatabaseError(format!("更新密码失败: {}", e)))?;
 
         Ok(())
     }
@@ -204,12 +289,14 @@ impl InitService {
 pub enum InitError {
     #[error("系统已经初始化")]
     AlreadyInitialized,
-    #[error("密码哈希错误")]
-    HashError,
+    #[error("密码哈希错误：{0}")]
+    HashError(String),
     #[error("数据库错误：{0}")]
     DatabaseError(String),
     #[error("用户不存在")]
     UserNotFound,
+    #[error("配置错误：{0}")]
+    ConfigError(String),
 }
 
 #[derive(Debug, serde::Serialize)]

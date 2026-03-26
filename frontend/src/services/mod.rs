@@ -47,3 +47,7 @@ pub mod ap_report_service;
 pub mod finance_invoice_service;
 pub mod finance_payment_service;
 pub mod purchase_inspection_service;
+// 面料行业核心模块
+pub mod dye_batch_service;
+pub mod dye_recipe_service;
+pub mod greige_fabric_service;

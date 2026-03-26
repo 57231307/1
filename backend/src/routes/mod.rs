@@ -26,14 +26,15 @@ use crate::handlers::{
     dashboard_handler,
     department_handler,
     dual_unit_converter_handler,
+    dye_batch_handler,
+    dye_recipe_handler,
     finance_invoice_handler,
     finance_payment_handler,
-    // P2 模块
     financial_analysis_handler,
     five_dimension_handler,
-    // P1 模块
     fixed_asset_handler,
     fund_management_handler,
+    greige_fabric_handler,
     health_handler,
     init_handler,
     inventory_adjustment_handler,
@@ -336,6 +337,39 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
         .route("/:id", put(batch_new_handler::update_batch))
         .route("/:id", delete(batch_new_handler::delete_batch))
         .route("/:id/transfer", post(batch_new_handler::transfer_batch));
+
+    // 缸号管理路由（染色批次管理）
+    let dye_batch_routes = Router::new()
+        .route("/", get(dye_batch_handler::list_dye_batches))
+        .route("/", post(dye_batch_handler::create_dye_batch))
+        .route("/:id", get(dye_batch_handler::get_dye_batch))
+        .route("/:id", put(dye_batch_handler::update_dye_batch))
+        .route("/:id", delete(dye_batch_handler::delete_dye_batch))
+        .route("/:id/complete", post(dye_batch_handler::complete_dye_batch))
+        .route("/by-color/:color_code", get(dye_batch_handler::get_dye_batches_by_color));
+
+    // 坯布管理路由（原料布匹管理）
+    let greige_fabric_routes = Router::new()
+        .route("/", get(greige_fabric_handler::list_greige_fabrics))
+        .route("/", post(greige_fabric_handler::create_greige_fabric))
+        .route("/:id", get(greige_fabric_handler::get_greige_fabric))
+        .route("/:id", put(greige_fabric_handler::update_greige_fabric))
+        .route("/:id", delete(greige_fabric_handler::delete_greige_fabric))
+        .route("/:id/stock-in", post(greige_fabric_handler::stock_in))
+        .route("/:id/stock-out", post(greige_fabric_handler::stock_out))
+        .route("/by-supplier/:supplier_id", get(greige_fabric_handler::get_greige_by_supplier));
+
+    // 染色配方管理路由
+    let dye_recipe_routes = Router::new()
+        .route("/", get(dye_recipe_handler::list_dye_recipes))
+        .route("/", post(dye_recipe_handler::create_dye_recipe))
+        .route("/:id", get(dye_recipe_handler::get_dye_recipe))
+        .route("/:id", put(dye_recipe_handler::update_dye_recipe))
+        .route("/:id", delete(dye_recipe_handler::delete_dye_recipe))
+        .route("/:id/approve", post(dye_recipe_handler::approve_recipe))
+        .route("/:id/version", post(dye_recipe_handler::create_new_version))
+        .route("/by-color/:color_code", get(dye_recipe_handler::get_recipes_by_color))
+        .route("/:id/versions", get(dye_recipe_handler::get_recipe_versions));
 
     // 总账管理路由
     let gl_routes = Router::new()
@@ -891,7 +925,9 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
     // 初始化路由
     let init_routes = Router::new()
         .route("/status", get(init_handler::get_init_status))
+        .route("/test-database", post(init_handler::test_database_connection))
         .route("/initialize", post(init_handler::initialize_system))
+        .route("/initialize-with-db", post(init_handler::initialize_system_with_db))
         .route("/reset-password", post(init_handler::reset_admin_password));
 
     // API v1 版本路由
@@ -941,7 +977,11 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
         .nest("/purchases/prices", purchase_price_routes)
         .nest("/sales/prices", sales_price_routes)
         .nest("/sales-analysis", sales_analysis_routes)
-        .nest("/quality-inspections", quality_inspection_routes);
+        .nest("/quality-inspections", quality_inspection_routes)
+        // 面料行业核心模块路由
+        .nest("/dye-batches", dye_batch_routes)
+        .nest("/greige-fabrics", greige_fabric_routes)
+        .nest("/dye-recipes", dye_recipe_routes);
 
     // 公共路由（不需要认证）
     let public_routes = Router::new()

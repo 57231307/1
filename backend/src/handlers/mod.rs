@@ -59,3 +59,7 @@ pub mod quality_inspection_handler;
 pub mod sales_analysis_handler;
 pub mod sales_price_handler;
 pub mod supplier_evaluation_handler;
+// 面料行业核心模块
+pub mod dye_batch_handler;
+pub mod dye_recipe_handler;
+pub mod greige_fabric_handler;

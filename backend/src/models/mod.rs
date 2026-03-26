@@ -103,6 +103,11 @@ pub mod fund_transfer_record;
 // 批次相关模块
 pub mod batch_dye_lot;
 pub mod batch_trace_log;
+// 面料行业核心模块
+pub mod dye_batch;
+pub mod dye_lot_mapping;
+pub mod dye_recipe;
+pub mod greige_fabric;
 // 产品编码映射模块
 pub mod product_code_mapping;
 // 色号映射模块

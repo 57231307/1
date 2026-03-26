@@ -48,6 +48,10 @@ pub mod ap_verification;
 pub mod ap_report;
 pub mod finance_payment;
 pub mod purchase_inspection;
+// 面料行业核心模块
+pub mod dye_batch;
+pub mod dye_recipe;
+pub mod greige_fabric;
 
 pub use login::LoginPage;
 pub use init::InitPage;
@@ -98,3 +102,7 @@ pub use ap_verification::ApVerificationPage;
 pub use ap_report::ApReportPage;
 pub use finance_payment::FinancePaymentPage;
 pub use purchase_inspection::PurchaseInspectionPage;
+// 面料行业核心模块
+pub use dye_batch::DyeBatchPage;
+pub use dye_recipe::DyeRecipePage;
+pub use greige_fabric::GreigeFabricPage;
