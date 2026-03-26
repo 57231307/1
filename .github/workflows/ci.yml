@@ -11,7 +11,7 @@ on:
       - master
 
 env:
-  RUST_VERSION: 1.81.0
+  RUST_VERSION: 1.85.0
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -53,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: backend-binary
-          path: backend/target/release/server
+          path: backend/target/release/bingxi-backend
           retention-days: 7
 
   frontend-build:
@@ -119,11 +119,11 @@ jobs:
 
       - name: 复制配置文件
         run: |
-          chmod +x release/backend/server
+          chmod +x release/backend/bingxi-backend
           cp backend/.env.example release/backend/.env.example
           cp -r deploy release/deploy
-          cp -r database release/database
-          cp docs/README.md release/README.md
+          cp -r backend/database release/database
+          if [ -f "README.md" ]; then cp README.md release/README.md; fi
 
       - name: 创建版本号
         id: version
