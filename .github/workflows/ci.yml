@@ -1,4 +1,4 @@
-name: 秉羲ERP系统自动编译和部署
+name: 秉羲ERP系统自动编译
 
 on:
   push:
@@ -96,8 +96,8 @@ jobs:
           path: frontend/dist/
           retention-days: 7
 
-  deploy:
-    name: 部署到生产服务器
+  create-release:
+    name: 创建发布包
     needs: [backend-build, frontend-build]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -117,143 +117,40 @@ jobs:
           name: frontend-dist
           path: release/frontend/dist
 
-      - name: 准备部署文件
+      - name: 复制配置文件
         run: |
           chmod +x release/backend/server
           cp backend/.env.example release/backend/.env.example
           cp -r deploy release/deploy
           cp -r database release/database
+          cp docs/README.md release/README.md
 
-      - name: 创建部署包
+      - name: 创建版本号
+        id: version
         run: |
-          cd release
-          tar -czvf ../bingxi-erp-deploy.tar.gz .
+          VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: 部署到生产服务器2
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.DEPLOY_SERVER_HOST_2 }}
-          username: ${{ secrets.DEPLOY_SERVER_USER }}
-          key: ${{ secrets.DEPLOY_SERVER_KEY }}
-          port: 22
-          source: "bingxi-erp-deploy.tar.gz"
-          target: "/tmp"
+      - name: 创建发布包
+        working-directory: release
+        run: |
+          tar -czvf ../bingxi-erp-${{ steps.version.outputs.version }}.tar.gz .
 
-      - name: 在生产服务器2上执行部署
-        uses: appleboy/ssh-action@v1.0.0
+      - name: 上传发布包
+        uses: actions/upload-artifact@v3
         with:
-          host: ${{ secrets.DEPLOY_SERVER_HOST_2 }}
-          username: ${{ secrets.DEPLOY_SERVER_USER }}
-          key: ${{ secrets.DEPLOY_SERVER_KEY }}
-          port: 22
-          script: |
-            # 停止旧服务
-            systemctl stop bingxi-backend || true
-            
-            # 备份旧版本
-            if [ -d "/opt/bingxi-erp" ]; then
-              mv /opt/bingxi-erp /opt/bingxi-erp-backup-$(date +%Y%m%d%H%M%S)
-            fi
-            
-            # 创建新目录
-            mkdir -p /opt/bingxi-erp
-            
-            # 解压部署包
-            cd /tmp
-            tar -xzvf bingxi-erp-deploy.tar.gz -C /opt/bingxi-erp
-            
-            # 设置权限
-            chmod +x /opt/bingxi-erp/backend/server
-            
-            # 复制配置文件
-            cp /opt/bingxi-erp/backend/.env.production /opt/bingxi-erp/backend/.env
-            
-            # 配置 systemd 服务
-            cp /opt/bingxi-erp/deploy/bingxi-backend.service /etc/systemd/system/
-            systemctl daemon-reload
-            systemctl enable bingxi-backend
-            systemctl start bingxi-backend
-            
-            # 配置 Nginx
-            cp /opt/bingxi-erp/deploy/nginx.conf /etc/nginx/sites-available/bingxi-erp
-            ln -sf /etc/nginx/sites-available/bingxi-erp /etc/nginx/sites-enabled/
-            nginx -t && systemctl reload nginx
-            
-            # 清理临时文件
-            rm -f /tmp/bingxi-erp-deploy.tar.gz
-            
-            echo "部署完成！"
-            systemctl status bingxi-backend
+          name: bingxi-erp-release-${{ steps.version.outputs.version }}
+          path: bingxi-erp-${{ steps.version.outputs.version }}.tar.gz
+          retention-days: 30
 
   notify:
     name: 构建通知
-    needs: [backend-build, frontend-build, deploy]
+    needs: [backend-build, frontend-build, create-release]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: 部署状态
+      - name: 构建状态
         run: |
           echo "后端编译状态: ${{ needs.backend-build.result }}"
           echo "前端编译状态: ${{ needs.frontend-build.result }}"
-
-  deploy-to-production:
-    name: 部署到生产服务器2
-    needs: [create-release]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    steps:
-      - name: 下载发布包
-        uses: actions/download-artifact@v3
-        with:
-          name: bingxi-erp-release-${{ steps.version.outputs.version }}
-          path: .
-
-      - name: 安装SSH客户端
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-client
-
-      - name: 部署到生产服务器2
-        env:
-          DEPLOY_HOST: 129.204.17.232
-          DEPLOY_USER: root
-          DEPLOY_PORT: 22
-          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-        run: |
-          echo "正在部署到生产服务器2..."
-          
-          # 设置SSH密钥
-          mkdir -p ~/.ssh
-          echo "$DEPLOY_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
-          
-          # 停止旧服务
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "systemctl stop bingxi-backend || true"
-          
-          # 备份旧版本
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "if [ -d /opt/bingxi-erp ]; then mv /opt/bingxi-erp /opt/bingxi-erp-backup-\$(date +%Y%m%d%H%M%S); fi"
-          
-          # 创建部署目录
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "mkdir -p /opt/bingxi-erp"
-          
-          # 上传发布包
-          scp bingxi-erp-*.tar.gz $DEPLOY_USER@$DEPLOY_HOST:/tmp/
-          
-          # 解压并部署
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd /opt/bingxi-erp && tar -xzvf /tmp/bingxi-erp-*.tar.gz"
-          
-          # 设置权限
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "chmod +x /opt/bingxi-erp/backend/server"
-          
-          # 启动新服务
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "systemctl start bingxi-backend"
-          
-          echo "部署完成！"
-
-      - name: 部署通知
-        run: |
-          echo "已部署到生产服务器2: 129.204.17.232"
-          echo "后端地址: http://129.204.17.232:8080"
-          echo "前端地址: http://129.204.17.232"
-          echo "部署状态: ${{ needs.deploy.result }}"
+          echo "发布包创建状态: ${{ needs.create-release.result }}"
