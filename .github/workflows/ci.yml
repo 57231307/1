@@ -134,13 +134,13 @@ jobs:
       - name: 创建发布包
         working-directory: release
         run: |
-          tar -czvf ../bingxi-erp-${{ steps.version.outputs.version }}.tar.gz .
+          zip -r ../bingxi-erp-${{ steps.version.outputs.version }}.zip .
 
       - name: 上传发布包
         uses: actions/upload-artifact@v3
         with:
           name: bingxi-erp-release-${{ steps.version.outputs.version }}
-          path: bingxi-erp-${{ steps.version.outputs.version }}.tar.gz
+          path: bingxi-erp-${{ steps.version.outputs.version }}.zip
           retention-days: 30
 
   notify:
