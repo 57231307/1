@@ -53,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: backend-binary
-          path: backend/target/release/bingxi_backend
+          path: backend/target/release/server
           retention-days: 7
 
   frontend-build:
@@ -119,7 +119,7 @@ jobs:
 
       - name: 准备部署文件
         run: |
-          chmod +x release/backend/bingxi_backend
+          chmod +x release/backend/server
           cp backend/.env.example release/backend/.env.example
           cp -r deploy release/deploy
           cp -r database release/database
@@ -163,7 +163,7 @@ jobs:
             tar -xzvf bingxi-erp-deploy.tar.gz -C /opt/bingxi-erp
             
             # 设置权限
-            chmod +x /opt/bingxi-erp/backend/bingxi_backend
+            chmod +x /opt/bingxi-erp/backend/server
             
             # 复制配置文件
             cp /opt/bingxi-erp/backend/.env.production /opt/bingxi-erp/backend/.env
@@ -244,7 +244,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd /opt/bingxi-erp && tar -xzvf /tmp/bingxi-erp-*.tar.gz"
           
           # 设置权限
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "chmod +x /opt/bingxi-erp/backend/bingxi_backend"
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "chmod +x /opt/bingxi-erp/backend/server"
           
           # 启动新服务
           ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "systemctl start bingxi-backend"
