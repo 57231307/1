@@ -87,7 +87,7 @@ pub struct InitService;
 
 impl InitService {
     fn get_base_url() -> String {
-        crate::services::api::API_BASE_URL.to_string()
+        super::api::API_BASE.to_string()
     }
 
     pub async fn check_status() -> Result<InitStatus, InitError> {

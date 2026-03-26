@@ -13,7 +13,6 @@ on:
 env:
   RUST_VERSION: 1.81.0
   CARGO_TERM_COLOR: always
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   backend-build:
@@ -21,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -30,7 +29,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: 缓存 Cargo 依赖
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -51,7 +50,7 @@ jobs:
           cargo build --release
 
       - name: 上传编译产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: backend-binary
           path: backend/target/release/server
@@ -62,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -75,7 +74,7 @@ jobs:
           cargo install --locked trunk
 
       - name: 缓存 Cargo 依赖
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -91,7 +90,7 @@ jobs:
           trunk build --release
 
       - name: 上传编译产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: frontend-dist
           path: frontend/dist/
@@ -104,16 +103,16 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 下载后端产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: backend-binary
           path: release/backend
 
       - name: 下载前端产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: frontend-dist
           path: release/frontend/dist
@@ -138,7 +137,7 @@ jobs:
           zip -r ../bingxi-erp-${{ steps.version.outputs.version }}.zip .
 
       - name: 上传发布包
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bingxi-erp-release-${{ steps.version.outputs.version }}
           path: bingxi-erp-${{ steps.version.outputs.version }}.zip

@@ -20,8 +20,8 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::settings::AppSettings;
-use crate::grpc::proto::auth_service_server::AuthServiceServer;
-use crate::grpc::proto::user_service_server::UserServiceServer;
+use crate::grpc::service::proto::auth_service_server::AuthServiceServer;
+use crate::grpc::service::proto::user_service_server::UserServiceServer;
 use crate::grpc::service::GrpcUserService;
 use crate::middleware::auth::auth_middleware;
 use crate::routes::create_router;

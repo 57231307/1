@@ -1,6 +1,9 @@
 use gloo_net::http::{Request, Response};
 use serde::de::DeserializeOwned;
 
+/// API 基础路径
+pub const API_BASE: &str = "/api/v1/erp";
+
 /// API 服务
 /// 提供统一的 HTTP 请求方法，支持自动重试
 pub struct ApiService;
