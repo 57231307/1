@@ -56,3 +56,4 @@ pub mod purchase_price_service;
 pub mod quality_inspection_service;
 pub mod sales_analysis_service;
 pub mod sales_price_service;
+pub mod system_update_service;
