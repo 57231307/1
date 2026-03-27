@@ -67,16 +67,14 @@ impl InitService {
             .await
             .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
 
-        let result: Result<i32, DbErr> = sea_orm::query::QuerySelect::one(
-            sea_orm::Query::select()
+        let result: Result<i32, DbErr> = db
+            .query_one(sea_orm::Query::select()
                 .expr(sea_orm::sea_query::Expr::value(1i32))
-                .to_owned(),
-            &db,
-        )
-        .await
-        .map(|v| v.map(|row| row.0))
-        .transpose()
-        .map(|opt| opt.unwrap_or(0));
+                .to_owned())
+            .await
+            .map(|v| v.map(|row| row.try_get::<i32>("", "").unwrap_or(1)))
+            .transpose()
+            .map(|opt| opt.unwrap_or(0));
 
         result.map(|_| ()).map_err(|e| {
             InitError::DatabaseError(format!("数据库测试查询失败: {}", e))

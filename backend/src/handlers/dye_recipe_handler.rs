@@ -402,9 +402,15 @@ pub async fn get_recipe_versions(
     State(db): State<Arc<DatabaseConnection>>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
+    use sea_orm::QueryFilter;
+    use sea_orm::Condition;
+    
     match dye_recipe::Entity::find()
-        .filter(dye_recipe::Column::ParentRecipeId.eq(id))
-        .or_filter(dye_recipe::Column::Id.eq(id))
+        .filter(
+            Condition::any()
+                .add(dye_recipe::Column::ParentRecipeId.eq(id))
+                .add(dye_recipe::Column::Id.eq(id))
+        )
         .order_by_asc(dye_recipe::Column::Version)
         .all(&*db)
         .await

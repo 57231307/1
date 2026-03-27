@@ -7,7 +7,7 @@ use axum::{
 };
 use std::path::PathBuf;
 use tokio::fs;
-use crate::services::system_update_service::{SystemUpdateService, UpdateError, UpdateCheckResult};
+use crate::services::system_update_service::{SystemUpdateService, UpdateError};
 
 #[derive(Debug, serde::Serialize)]
 pub struct VersionResponse {
@@ -51,48 +51,47 @@ pub struct CheckUpdateResponse {
 pub async fn check_for_updates() -> Result<Json<CheckUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
     let service = SystemUpdateService::new();
     
-    match service.check_for_updates().await {
-        Ok(result) => {
-            let response = if result.has_update {
-                let release = result.release_info.as_ref();
-                let asset = release.and_then(|r| {
-                    r.assets.iter()
-                        .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
-                });
-                
-                CheckUpdateResponse {
-                    has_update: true,
-                    current_version: result.current_version,
-                    latest_version: result.latest_version,
-                    download_url: asset.map(|a| a.browser_download_url.clone()),
-                    file_size: asset.map(|a| a.size),
-                    release_notes: release.and_then(|r| r.body.clone()),
-                    published_at: release.map(|r| r.published_at.clone()),
-                }
-            } else {
-                CheckUpdateResponse {
-                    has_update: false,
-                    current_version: result.current_version.clone(),
-                    latest_version: result.latest_version,
-                    download_url: None,
-                    file_size: None,
-                    release_notes: None,
-                    published_at: None,
-                }
-            };
-            
-            Ok(Json(response))
-        }
-        Err(e) => {
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "check_failed".to_string(),
-                    message: format!("检测更新失败: {}", e),
-                }),
-            ))
-        }
+    let result = service.check_for_updates().await;
+    
+    if result.error.is_some() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "check_failed".to_string(),
+                message: result.error.unwrap_or_default(),
+            }),
+        ));
     }
+    
+    let response = if result.has_update {
+        let release = result.release_info.as_ref();
+        let asset = release.and_then(|r| {
+            r.assets.iter()
+                .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
+        });
+        
+        CheckUpdateResponse {
+            has_update: true,
+            current_version: result.current_version,
+            latest_version: result.latest_version,
+            download_url: asset.map(|a| a.browser_download_url.clone()),
+            file_size: asset.map(|a| a.size),
+            release_notes: release.and_then(|r| r.body.clone()),
+            published_at: release.map(|r| r.published_at.clone()),
+        }
+    } else {
+        CheckUpdateResponse {
+            has_update: false,
+            current_version: result.current_version.clone(),
+            latest_version: result.latest_version,
+            download_url: None,
+            file_size: None,
+            release_notes: None,
+            published_at: None,
+        }
+    };
+    
+    Ok(Json(response))
 }
 
 pub async fn download_and_update() -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)> {
@@ -139,7 +138,7 @@ pub async fn get_version() -> Json<VersionResponse> {
 
 pub async fn get_update_status() -> Json<UpdateStatusResponse> {
     let service = SystemUpdateService::new();
-    let status = service.get_update_status();
+    let status = service.get_status();
 
     Json(UpdateStatusResponse {
         current_version: status.current_version,
@@ -212,6 +211,7 @@ pub async fn upload_and_update(
                 UpdateError::ValidationError(_) => "validation_error",
                 UpdateError::VersionError(_) => "version_error",
                 UpdateError::AlreadyUpdating => "already_updating",
+                UpdateError::NetworkError(_) => "network_error",
             };
 
             Err((
