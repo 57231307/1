@@ -321,7 +321,7 @@ impl DyeBatchPage {
     fn render_create_modal(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::ToggleCreateModal)}>
-                <div class="modal-content" onclick={|e| e.stop_propagation()}>
+                <div class="modal-content" onclick={|e: MouseEvent| e.stop_propagation()}>
                     <div class="modal-header">
                         <h2>{"新增缸号"}</h2>
                         <button class="modal-close" onclick={ctx.link().callback(|_| Msg::ToggleCreateModal)}>
@@ -339,7 +339,7 @@ impl DyeBatchPage {
     fn render_complete_modal(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::ToggleCompleteModal(None))}>
-                <div class="modal-content" onclick={|e| e.stop_propagation()}>
+                <div class="modal-content" onclick={|e: MouseEvent| e.stop_propagation()}>
                     <div class="modal-header">
                         <h2>{"完成缸号"}</h2>
                         <button class="modal-close" onclick={ctx.link().callback(|_| Msg::ToggleCompleteModal(None))}>

@@ -304,7 +304,7 @@ impl DyeRecipePage {
         if let Some(recipe) = &self.selected_recipe {
             html! {
                 <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
-                    <div class="modal-content modal-lg" onclick={|e| e.stop_propagation()}>
+                    <div class="modal-content modal-lg" onclick={|e: MouseEvent| e.stop_propagation()}>
                         <div class="modal-header">
                             <h2>{"配方详情"}</h2>
                             <button class="modal-close" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>

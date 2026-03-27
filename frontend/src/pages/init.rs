@@ -308,7 +308,7 @@ impl Component for InitPage {
             Msg::ConfirmPasswordChanged(target.value())
         });
 
-        let on_test_db = ctx.link().callback(|e: MouseEvent| {
+        let _on_test_db = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::TestDbConnection
         });

@@ -63,3 +63,4 @@ pub mod supplier_evaluation_handler;
 pub mod dye_batch_handler;
 pub mod dye_recipe_handler;
 pub mod greige_fabric_handler;
+pub mod system_update_handler;

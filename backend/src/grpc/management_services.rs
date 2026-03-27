@@ -8,10 +8,10 @@ use tonic::{Request, Response, Status};
 use sea_orm::DatabaseConnection;
 use chrono::TimeZone;
 
-use crate::services::{
-    PurchaseContractService, SalesContractService, 
-    FixedAssetService, BudgetManagementService,
-};
+use crate::services::purchase_contract_service::PurchaseContractService;
+use crate::services::sales_contract_service::SalesContractService;
+use crate::services::fixed_asset_service::FixedAssetService;
+use crate::services::budget_management_service::BudgetManagementService;
 
 // 引入生成的 gRPC 代码
 pub mod proto {
@@ -383,7 +383,7 @@ impl SalesContractServiceTrait for GrpcManagementServices {
         let delivery_date = chrono::NaiveDate::parse_from_str(&req.delivery_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
         
-        let create_req = crate::services::sales_contract_service::CreateContractRequest {
+        let create_req = crate::services::sales_contract_service::CreateSalesContractRequest {
             contract_no: req.contract_no,
             contract_name: req.contract_name,
             customer_id: req.customer_id,
@@ -436,7 +436,7 @@ impl SalesContractServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         let user_id = 1;
         
-        let execute_req = crate::services::sales_contract_service::ExecuteContractRequest {
+        let execute_req = crate::services::sales_contract_service::ExecuteSalesContractRequest {
             execution_type: req.execution_type,
             execution_amount: req.execution_amount.parse::<rust_decimal::Decimal>()
                 .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?,
@@ -597,7 +597,7 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         let disposal_date = chrono::NaiveDate::parse_from_str(&req.disposal_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
         
-        let dispose_req = crate::services::fixed_asset_service::DisposeAssetRequest {
+        let dispose_req = crate::services::fixed_asset_service::DisposalRequest {
             disposal_type: req.disposal_type,
             disposal_value,
             disposal_date,
