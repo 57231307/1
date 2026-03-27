@@ -4,7 +4,7 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::{ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, Set, ConnectionTrait};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -68,13 +68,13 @@ impl InitService {
             .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
 
         let result: Result<i32, DbErr> = db
-            .query_one(sea_orm::Query::select()
+            .query_one(sea_orm::sea_query::Query::select()
                 .expr(sea_orm::sea_query::Expr::value(1i32))
                 .to_owned())
             .await
-            .map(|v| v.map(|row| row.try_get::<i32>("", "").unwrap_or(1)))
+            .map(|v: Option<sea_orm::QueryResult>| v.map(|row: sea_orm::QueryResult| row.try_get::<i32>("", "").unwrap_or(1)))
             .transpose()
-            .map(|opt| opt.unwrap_or(0));
+            .map(|opt: Option<i32>| opt.unwrap_or(0));
 
         result.map(|_| ()).map_err(|e| {
             InitError::DatabaseError(format!("数据库测试查询失败: {}", e))

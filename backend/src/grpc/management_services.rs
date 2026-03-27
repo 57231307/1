@@ -98,8 +98,8 @@ impl GrpcManagementServices {
             delivery_location: contract.delivery_location.unwrap_or_default(),
             status: contract.status,
             created_by: contract.created_by,
-            created_at: contract.created_at.and_utc().timestamp(),
-            updated_at: contract.updated_at.and_utc().timestamp(),
+            created_at: contract.created_at.timestamp(),
+            updated_at: contract.updated_at.timestamp(),
         }
     }
     
@@ -122,8 +122,8 @@ impl GrpcManagementServices {
             delivery_location: contract.delivery_location.unwrap_or_default(),
             status: contract.status,
             created_by: contract.created_by,
-            created_at: contract.created_at.and_utc().timestamp(),
-            updated_at: contract.updated_at.and_utc().timestamp(),
+            created_at: contract.created_at.timestamp(),
+            updated_at: contract.updated_at.timestamp(),
         }
     }
     
@@ -133,7 +133,7 @@ impl GrpcManagementServices {
             id: asset.id,
             asset_no: asset.asset_no,
             asset_name: asset.asset_name,
-            asset_category: asset.asset_category,
+            asset_category: asset.asset_category.unwrap_or_default(),
             specification: asset.specification.unwrap_or_default(),
             model: asset.model.unwrap_or_default(),
             use_department_id: asset.use_department_id.unwrap_or(0),
@@ -155,8 +155,8 @@ impl GrpcManagementServices {
             supplier_id: asset.supplier_id.unwrap_or(0),
             supplier_name: asset.supplier_name.unwrap_or_default(),
             created_by: asset.created_by,
-            created_at: asset.created_at.and_utc().timestamp(),
-            updated_at: asset.updated_at.and_utc().timestamp(),
+            created_at: asset.created_at.timestamp(),
+            updated_at: asset.updated_at.timestamp(),
         }
     }
     
@@ -170,8 +170,8 @@ impl GrpcManagementServices {
             item_type: item.item_type,
             level: item.level,
             status: item.status,
-            created_at: item.created_at.and_utc().timestamp(),
-            updated_at: item.updated_at.and_utc().timestamp(),
+            created_at: item.created_at.timestamp(),
+            updated_at: item.updated_at.timestamp(),
         }
     }
 }
