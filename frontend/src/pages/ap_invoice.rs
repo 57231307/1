@@ -1,13 +1,15 @@
 //! 应付发票管理页面
 //!
-//! 应付发票（AP Invoice）管理功能
+//! 应付发票（AP Invoice）管理功能，包含账龄分析和余额汇总
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::services::ap_invoice_service::{
     ApInvoiceService, ApInvoice, ApInvoiceQueryParams,
+    AgingAnalysisItem, BalanceSummaryItem,
 };
+use crate::components::main_layout::MainLayout;
 
 /// 应付发票管理页面状态
 pub struct ApInvoicePage {
@@ -19,6 +21,16 @@ pub struct ApInvoicePage {
     page: u64,
     page_size: u64,
     total: u64,
+    // 当前标签页
+    active_tab: String,
+    // 账龄分析数据
+    aging_data: Vec<AgingAnalysisItem>,
+    aging_loading: bool,
+    // 余额汇总数据
+    balance_data: Vec<BalanceSummaryItem>,
+    balance_loading: bool,
+    // 筛选供应商ID
+    filter_supplier_id: Option<i32>,
 }
 
 /// 模态框模式
@@ -41,6 +53,14 @@ pub enum Msg {
     CancelInvoice(i32, String),
     ChangePage(u64),
     Refresh,
+    // 标签页切换
+    SetActiveTab(String),
+    // 账龄分析
+    LoadAgingAnalysis,
+    AgingAnalysisLoaded(Vec<AgingAnalysisItem>),
+    // 余额汇总
+    LoadBalanceSummary,
+    BalanceSummaryLoaded(Vec<BalanceSummaryItem>),
 }
 
 impl Component for ApInvoicePage {
@@ -57,6 +77,12 @@ impl Component for ApInvoicePage {
             page: 1,
             page_size: 20,
             total: 0,
+            active_tab: "list".to_string(),
+            aging_data: Vec::new(),
+            aging_loading: false,
+            balance_data: Vec::new(),
+            balance_loading: false,
+            filter_supplier_id: None,
         }
     }
 
@@ -71,7 +97,7 @@ impl Component for ApInvoicePage {
             Msg::LoadInvoices => {
                 self.loading = true;
                 let params = ApInvoiceQueryParams {
-                    supplier_id: None,
+                    supplier_id: self.filter_supplier_id,
                     invoice_status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
                     invoice_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
                     start_date: None,
@@ -154,6 +180,52 @@ impl Component for ApInvoicePage {
                 ctx.link().send_message(Msg::LoadInvoices);
                 false
             }
+            Msg::SetActiveTab(tab) => {
+                self.active_tab = tab.clone();
+                // 切换到账龄分析标签页时加载数据
+                if tab == "aging" && self.aging_data.is_empty() {
+                    ctx.link().send_message(Msg::LoadAgingAnalysis);
+                }
+                // 切换到余额汇总标签页时加载数据
+                if tab == "balance" && self.balance_data.is_empty() {
+                    ctx.link().send_message(Msg::LoadBalanceSummary);
+                }
+                true
+            }
+            Msg::LoadAgingAnalysis => {
+                self.aging_loading = true;
+                let link = ctx.link().clone();
+                let supplier_id = self.filter_supplier_id;
+                spawn_local(async move {
+                    match ApInvoiceService::get_aging_analysis(supplier_id).await {
+                        Ok(data) => link.send_message(Msg::AgingAnalysisLoaded(data)),
+                        Err(e) => link.send_message(Msg::LoadError(e)),
+                    }
+                });
+                false
+            }
+            Msg::AgingAnalysisLoaded(data) => {
+                self.aging_data = data;
+                self.aging_loading = false;
+                true
+            }
+            Msg::LoadBalanceSummary => {
+                self.balance_loading = true;
+                let link = ctx.link().clone();
+                let supplier_id = self.filter_supplier_id;
+                spawn_local(async move {
+                    match ApInvoiceService::get_balance_summary(supplier_id).await {
+                        Ok(data) => link.send_message(Msg::BalanceSummaryLoaded(data)),
+                        Err(e) => link.send_message(Msg::LoadError(e)),
+                    }
+                });
+                false
+            }
+            Msg::BalanceSummaryLoaded(data) => {
+                self.balance_data = data;
+                self.balance_loading = false;
+                true
+            }
         }
     }
 
@@ -169,45 +241,83 @@ impl Component for ApInvoicePage {
         });
 
         html! {
-            <div class="ap-invoice-page">
-                <div class="page-header">
-                    <h1>{"📋 应付发票管理"}</h1>
-                </div>
-
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>{"发票状态："}</label>
-                        <select value={self.filter_status.clone()} onchange={on_status_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="草稿">{"草稿"}</option>
-                            <option value="待审核">{"待审核"}</option>
-                            <option value="已审核">{"已审核"}</option>
-                            <option value="已付款">{"已付款"}</option>
-                            <option value="已取消">{"已取消"}</option>
-                        </select>
+            <MainLayout current_page="ap_invoices">
+                <div class="ap-invoice-page">
+                    <div class="page-header">
+                        <h1>{"应付发票管理"}</h1>
+                        <p class="subtitle">{"供应商应付发票管理、账龄分析和余额汇总"}</p>
                     </div>
-                    <div class="filter-item">
-                        <label>{"发票类型："}</label>
-                        <select value={self.filter_type.clone()} onchange={on_type_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="采购发票">{"采购发票"}</option>
-                            <option value="费用发票">{"费用发票"}</option>
-                            <option value="调整发票">{"调整发票"}</option>
-                        </select>
-                    </div>
-                    <button class="btn-refresh" onclick={ctx.link().callback(|_| Msg::Refresh)}>
-                        {"刷新"}
-                    </button>
-                </div>
 
-                {self.render_content(ctx)}
-            </div>
+                    // 标签页导航
+                    {self.render_tabs(ctx)}
+
+                    // 根据标签页显示内容
+                    if self.active_tab == "list" {
+                        <div class="filter-bar">
+                            <div class="filter-item">
+                                <label>{"发票状态："}</label>
+                                <select value={self.filter_status.clone()} onchange={on_status_change}>
+                                    <option value="全部">{"全部"}</option>
+                                    <option value="草稿">{"草稿"}</option>
+                                    <option value="待审核">{"待审核"}</option>
+                                    <option value="已审核">{"已审核"}</option>
+                                    <option value="已付款">{"已付款"}</option>
+                                    <option value="已取消">{"已取消"}</option>
+                                </select>
+                            </div>
+                            <div class="filter-item">
+                                <label>{"发票类型："}</label>
+                                <select value={self.filter_type.clone()} onchange={on_type_change}>
+                                    <option value="全部">{"全部"}</option>
+                                    <option value="采购发票">{"采购发票"}</option>
+                                    <option value="费用发票">{"费用发票"}</option>
+                                    <option value="调整发票">{"调整发票"}</option>
+                                </select>
+                            </div>
+                            <button class="btn-refresh" onclick={ctx.link().callback(|_| Msg::Refresh)}>
+                                {"刷新"}
+                            </button>
+                        </div>
+                        {self.render_list_content(ctx)}
+                    } else if self.active_tab == "aging" {
+                        {self.render_aging_content(ctx)}
+                    } else if self.active_tab == "balance" {
+                        {self.render_balance_content(ctx)}
+                    }
+                </div>
+            </MainLayout>
         }
     }
 }
 
 impl ApInvoicePage {
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
+    // 渲染标签页
+    fn render_tabs(&self, ctx: &Context<Self>) -> Html {
+        html! {
+            <div class="tabs">
+                <button
+                    class={if self.active_tab == "list" { "tab-btn active" } else { "tab-btn" }}
+                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("list".to_string()))}
+                >
+                    {"发票列表"}
+                </button>
+                <button
+                    class={if self.active_tab == "aging" { "tab-btn active" } else { "tab-btn" }}
+                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("aging".to_string()))}
+                >
+                    {"账龄分析"}
+                </button>
+                <button
+                    class={if self.active_tab == "balance" { "tab-btn active" } else { "tab-btn" }}
+                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("balance".to_string()))}
+                >
+                    {"余额汇总"}
+                </button>
+            </div>
+        }
+    }
+
+    fn render_list_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {
                 <div class="loading-container">
@@ -313,6 +423,122 @@ impl ApInvoicePage {
                     </div>
                 </div>
             </>
+        }
+    }
+
+    // 渲染账龄分析内容
+    fn render_aging_content(&self, ctx: &Context<Self>) -> Html {
+        html! {
+            <div class="card">
+                <div class="card-header">
+                    <h2>{"应付账款账龄分析"}</h2>
+                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadAgingAnalysis)}>
+                        {"刷新"}
+                    </button>
+                </div>
+                <div class="card-body">
+                    if self.aging_loading {
+                        <div class="loading-container">
+                            <div class="spinner"></div>
+                            <p>{"加载中..."}</p>
+                        </div>
+                    } else if self.aging_data.is_empty() {
+                        <div class="empty-state">
+                            <div class="empty-icon">{"📊"}</div>
+                            <p>{"暂无账龄分析数据"}</p>
+                        </div>
+                    } else {
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>{"供应商ID"}</th>
+                                        <th>{"供应商名称"}</th>
+                                        <th>{"当前金额"}</th>
+                                        <th>{"1-30天"}</th>
+                                        <th>{"31-60天"}</th>
+                                        <th>{"61-90天"}</th>
+                                        <th>{"90天以上"}</th>
+                                        <th>{"未付总额"}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {for self.aging_data.iter().map(|item| {
+                                        html! {
+                                            <tr>
+                                                <td>{item.supplier_id.to_string()}</td>
+                                                <td>{&item.supplier_name}</td>
+                                                <td class="numeric">{&item.current_amount}</td>
+                                                <td class="numeric">{&item.days_1_30}</td>
+                                                <td class="numeric">{&item.days_31_60}</td>
+                                                <td class="numeric">{&item.days_61_90}</td>
+                                                <td class="numeric highlight">{&item.days_over_90}</td>
+                                                <td class="numeric total">{&item.total_outstanding}</td>
+                                            </tr>
+                                        }
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    // 渲染余额汇总内容
+    fn render_balance_content(&self, ctx: &Context<Self>) -> Html {
+        html! {
+            <div class="card">
+                <div class="card-header">
+                    <h2>{"应付账款余额汇总"}</h2>
+                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadBalanceSummary)}>
+                        {"刷新"}
+                    </button>
+                </div>
+                <div class="card-body">
+                    if self.balance_loading {
+                        <div class="loading-container">
+                            <div class="spinner"></div>
+                            <p>{"加载中..."}</p>
+                        </div>
+                    } else if self.balance_data.is_empty() {
+                        <div class="empty-state">
+                            <div class="empty-icon">{"💰"}</div>
+                            <p>{"暂无余额汇总数据"}</p>
+                        </div>
+                    } else {
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>{"供应商ID"}</th>
+                                        <th>{"供应商名称"}</th>
+                                        <th>{"发票数量"}</th>
+                                        <th>{"总金额"}</th>
+                                        <th>{"已付金额"}</th>
+                                        <th>{"未付金额"}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {for self.balance_data.iter().map(|item| {
+                                        html! {
+                                            <tr>
+                                                <td>{item.supplier_id.to_string()}</td>
+                                                <td>{&item.supplier_name}</td>
+                                                <td class="numeric">{item.invoice_count.to_string()}</td>
+                                                <td class="numeric">{&item.total_amount}</td>
+                                                <td class="numeric">{&item.paid_amount}</td>
+                                                <td class="numeric highlight">{&item.outstanding_amount}</td>
+                                            </tr>
+                                        }
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
         }
     }
 }

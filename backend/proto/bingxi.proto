@@ -619,3 +619,582 @@ message ExecuteBudgetPlanResponse {
   bool success = 1;
   string message = 2;
 }
+
+// ===================== 辅助核算服务 =====================
+service AssistAccountingService {
+  // 初始化辅助核算维度
+  rpc InitializeDimensions(InitializeDimensionsRequest) returns (InitializeDimensionsResponse);
+  // 创建辅助核算记录
+  rpc CreateAssistRecord(CreateAssistRecordRequest) returns (CreateAssistRecordResponse);
+  // 按业务查询辅助核算记录
+  rpc FindByBusiness(FindByBusinessRequest) returns (FindByBusinessResponse);
+  // 按五维查询辅助核算记录
+  rpc FindByFiveDimension(FindByFiveDimensionRequest) returns (FindByFiveDimensionResponse);
+  // 生成月度汇总
+  rpc GenerateMonthlySummary(GenerateMonthlySummaryRequest) returns (GenerateMonthlySummaryResponse);
+  // 查询辅助核算明细
+  rpc QueryAssistRecords(QueryAssistRecordsRequest) returns (QueryAssistRecordsResponse);
+  // 删除辅助核算记录
+  rpc DeleteAssistRecord(DeleteAssistRecordRequest) returns (DeleteAssistRecordResponse);
+  // 查询所有启用的维度
+  rpc ListDimensions(ListDimensionsRequest) returns (ListDimensionsResponse);
+}
+
+message InitializeDimensionsRequest {}
+
+message InitializeDimensionsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message AssistAccountingRecord {
+  int32 id = 1;
+  string business_type = 2;
+  string business_no = 3;
+  int32 business_id = 4;
+  int32 account_subject_id = 5;
+  string debit_amount = 6;
+  string credit_amount = 7;
+  string five_dimension_id = 8;
+  int32 product_id = 9;
+  string batch_no = 10;
+  string color_no = 11;
+  string dye_lot_no = 12;
+  string grade = 13;
+  int32 warehouse_id = 14;
+  string quantity_meters = 15;
+  string quantity_kg = 16;
+  int32 workshop_id = 17;
+  int32 customer_id = 18;
+  int32 supplier_id = 19;
+  string remarks = 20;
+  int64 created_at = 21;
+  int32 created_by = 22;
+}
+
+message CreateAssistRecordRequest {
+  string business_type = 1;
+  string business_no = 2;
+  int32 business_id = 3;
+  int32 account_subject_id = 4;
+  string debit_amount = 5;
+  string credit_amount = 6;
+  string five_dimension_id = 7;
+  int32 product_id = 8;
+  string batch_no = 9;
+  string color_no = 10;
+  string dye_lot_no = 11;
+  string grade = 12;
+  int32 warehouse_id = 13;
+  string quantity_meters = 14;
+  string quantity_kg = 15;
+  int32 workshop_id = 16;
+  int32 customer_id = 17;
+  int32 supplier_id = 18;
+  string remarks = 19;
+  int32 created_by = 20;
+}
+
+message CreateAssistRecordResponse {
+  bool success = 1;
+  string message = 2;
+  AssistAccountingRecord record = 3;
+}
+
+message FindByBusinessRequest {
+  string business_type = 1;
+  string business_no = 2;
+}
+
+message FindByBusinessResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AssistAccountingRecord records = 3;
+}
+
+message FindByFiveDimensionRequest {
+  string five_dimension_id = 1;
+}
+
+message FindByFiveDimensionResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AssistAccountingRecord records = 3;
+}
+
+message GenerateMonthlySummaryRequest {
+  int32 year = 1;
+  int32 month = 2;
+}
+
+message GenerateMonthlySummaryResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message QueryAssistRecordsRequest {
+  string accounting_period = 1;
+  string dimension_code = 2;
+  string business_type = 3;
+  int32 warehouse_id = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+message QueryAssistRecordsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AssistAccountingRecord records = 3;
+  int32 total = 4;
+}
+
+message DeleteAssistRecordRequest {
+  int32 record_id = 1;
+}
+
+message DeleteAssistRecordResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message AssistAccountingDimension {
+  int32 id = 1;
+  string dimension_code = 2;
+  string dimension_name = 3;
+  string description = 4;
+  bool is_active = 5;
+  int32 sort_order = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+}
+
+message ListDimensionsRequest {}
+
+message ListDimensionsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AssistAccountingDimension dimensions = 3;
+}
+
+// ===================== 供应商评估服务 =====================
+service SupplierEvaluationService {
+  // 获取评估指标列表
+  rpc GetIndicatorsList(GetIndicatorsListRequest) returns (GetIndicatorsListResponse);
+  // 创建评估指标
+  rpc CreateIndicator(CreateIndicatorRequest) returns (CreateIndicatorResponse);
+  // 创建评估记录
+  rpc CreateEvaluationRecord(CreateEvaluationRecordRequest) returns (CreateEvaluationRecordResponse);
+  // 获取供应商评分
+  rpc GetSupplierScore(GetSupplierScoreRequest) returns (GetSupplierScoreResponse);
+  // 查询供应商评级列表
+  rpc ListRatings(ListRatingsRequest) returns (ListRatingsResponse);
+  // 查询供应商排名榜
+  rpc GetSupplierRankings(GetSupplierRankingsRequest) returns (GetSupplierRankingsResponse);
+  // 获取评估记录列表
+  rpc GetEvaluationRecords(GetEvaluationRecordsRequest) returns (GetEvaluationRecordsResponse);
+  // 获取评估记录详情
+  rpc GetEvaluationRecordById(GetEvaluationRecordByIdRequest) returns (GetEvaluationRecordByIdResponse);
+}
+
+message EvaluationIndicator {
+  int32 id = 1;
+  string indicator_name = 2;
+  string indicator_code = 3;
+  string category = 4;
+  string weight = 5;
+  int32 max_score = 6;
+  string evaluation_method = 7;
+  string status = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message GetIndicatorsListRequest {
+  string category = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetIndicatorsListResponse {
+  bool success = 1;
+  string message = 2;
+  repeated EvaluationIndicator indicators = 3;
+  int32 total = 4;
+}
+
+message CreateIndicatorRequest {
+  string indicator_name = 1;
+  string indicator_code = 2;
+  string category = 3;
+  string weight = 4;
+  int32 max_score = 5;
+  string evaluation_method = 6;
+}
+
+message CreateIndicatorResponse {
+  bool success = 1;
+  string message = 2;
+  EvaluationIndicator indicator = 3;
+}
+
+message SupplierEvaluationRecord {
+  int32 id = 1;
+  int32 supplier_id = 2;
+  string evaluation_period = 3;
+  int32 indicator_id = 4;
+  string score = 5;
+  int32 max_score = 6;
+  string weighted_score = 7;
+  int32 evaluator_id = 8;
+  string evaluation_date = 9;
+  string remark = 10;
+  int64 created_at = 11;
+}
+
+message CreateEvaluationRecordRequest {
+  int32 supplier_id = 1;
+  string evaluation_period = 2;
+  int32 indicator_id = 3;
+  string score = 4;
+  string remark = 5;
+}
+
+message CreateEvaluationRecordResponse {
+  bool success = 1;
+  string message = 2;
+  SupplierEvaluationRecord record = 3;
+}
+
+message SupplierScore {
+  int32 supplier_id = 1;
+  string average_score = 2;
+  int64 total_records = 3;
+  string rating = 4;
+  string latest_evaluation_date = 5;
+}
+
+message GetSupplierScoreRequest {
+  int32 supplier_id = 1;
+}
+
+message GetSupplierScoreResponse {
+  bool success = 1;
+  string message = 2;
+  SupplierScore score = 3;
+}
+
+message ListRatingsRequest {}
+
+message ListRatingsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated EvaluationIndicator ratings = 3;
+}
+
+message GetSupplierRankingsRequest {
+  int32 limit = 1;
+}
+
+message GetSupplierRankingsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated SupplierScore rankings = 3;
+}
+
+message GetEvaluationRecordsRequest {
+  int32 supplier_id = 1;
+  string period = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetEvaluationRecordsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated SupplierEvaluationRecord records = 3;
+}
+
+message GetEvaluationRecordByIdRequest {
+  int32 record_id = 1;
+}
+
+message GetEvaluationRecordByIdResponse {
+  bool success = 1;
+  string message = 2;
+  SupplierEvaluationRecord record = 3;
+}
+
+// ===================== 五维查询服务 =====================
+service FiveDimensionQueryService {
+  // 生成五维ID
+  rpc GenerateFiveDimensionId(GenerateFiveDimensionIdRequest) returns (GenerateFiveDimensionIdResponse);
+  // 解析五维ID
+  rpc ParseFiveDimensionId(ParseFiveDimensionIdRequest) returns (ParseFiveDimensionIdResponse);
+}
+
+message GenerateFiveDimensionIdRequest {
+  int32 product_id = 1;
+  string batch_no = 2;
+  string color_no = 3;
+  string dye_lot_no = 4;
+  string grade = 5;
+}
+
+message GenerateFiveDimensionIdResponse {
+  bool success = 1;
+  string message = 2;
+  string five_dimension_id = 3;
+}
+
+message FiveDimension {
+  int32 product_id = 1;
+  string batch_no = 2;
+  string color_no = 3;
+  string dye_lot_no = 4;
+  string grade = 5;
+}
+
+message ParseFiveDimensionIdRequest {
+  string five_dimension_id = 1;
+}
+
+message ParseFiveDimensionIdResponse {
+  bool success = 1;
+  string message = 2;
+  FiveDimension dimension = 3;
+}
+
+// ===================== 库存预留服务 =====================
+service InventoryReservationService {
+  // 创建库存预留
+  rpc CreateReservation(CreateReservationRequest) returns (CreateReservationResponse);
+  // 锁定预留
+  rpc LockReservation(LockReservationRequest) returns (LockReservationResponse);
+  // 释放预留
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse);
+  // 使用预留
+  rpc UseReservation(UseReservationRequest) returns (UseReservationResponse);
+  // 根据订单获取预留
+  rpc GetReservationsByOrder(GetReservationsByOrderRequest) returns (GetReservationsByOrderResponse);
+  // 根据订单获取已锁定的预留
+  rpc GetLockedReservationsByOrder(GetLockedReservationsByOrderRequest) returns (GetLockedReservationsByOrderResponse);
+  // 批量创建预留
+  rpc BatchCreateReservations(BatchCreateReservationsRequest) returns (BatchCreateReservationsResponse);
+  // 批量锁定预留
+  rpc BatchLockReservations(BatchLockReservationsRequest) returns (BatchLockReservationsResponse);
+  // 批量释放预留
+  rpc BatchReleaseReservations(BatchReleaseReservationsRequest) returns (BatchReleaseReservationsResponse);
+}
+
+message InventoryReservation {
+  int32 id = 1;
+  int32 order_id = 2;
+  int32 product_id = 3;
+  int32 warehouse_id = 4;
+  string quantity = 5;
+  string status = 6;
+  int64 reserved_at = 7;
+  int64 released_at = 8;
+  string notes = 9;
+  int32 created_by = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message CreateReservationRequest {
+  int32 order_id = 1;
+  int32 product_id = 2;
+  int32 warehouse_id = 3;
+  string quantity = 4;
+  int32 created_by = 5;
+  string notes = 6;
+}
+
+message CreateReservationResponse {
+  bool success = 1;
+  string message = 2;
+  InventoryReservation reservation = 3;
+}
+
+message LockReservationRequest {
+  int32 reservation_id = 1;
+}
+
+message LockReservationResponse {
+  bool success = 1;
+  string message = 2;
+  InventoryReservation reservation = 3;
+}
+
+message ReleaseReservationRequest {
+  int32 reservation_id = 1;
+}
+
+message ReleaseReservationResponse {
+  bool success = 1;
+  string message = 2;
+  InventoryReservation reservation = 3;
+}
+
+message UseReservationRequest {
+  int32 reservation_id = 1;
+}
+
+message UseReservationResponse {
+  bool success = 1;
+  string message = 2;
+  InventoryReservation reservation = 3;
+}
+
+message GetReservationsByOrderRequest {
+  int32 order_id = 1;
+}
+
+message GetReservationsByOrderResponse {
+  bool success = 1;
+  string message = 2;
+  repeated InventoryReservation reservations = 3;
+}
+
+message GetLockedReservationsByOrderRequest {
+  int32 order_id = 1;
+}
+
+message GetLockedReservationsByOrderResponse {
+  bool success = 1;
+  string message = 2;
+  repeated InventoryReservation reservations = 3;
+}
+
+message ReservationItem {
+  int32 product_id = 1;
+  int32 warehouse_id = 2;
+  string quantity = 3;
+}
+
+message BatchCreateReservationsRequest {
+  int32 order_id = 1;
+  repeated ReservationItem items = 2;
+  int32 created_by = 3;
+}
+
+message BatchCreateReservationsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated InventoryReservation reservations = 3;
+}
+
+message BatchLockReservationsRequest {
+  repeated int32 reservation_ids = 1;
+}
+
+message BatchLockReservationsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated InventoryReservation reservations = 3;
+}
+
+message BatchReleaseReservationsRequest {
+  repeated int32 reservation_ids = 1;
+}
+
+message BatchReleaseReservationsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated InventoryReservation reservations = 3;
+}
+
+// ===================== 财务分析服务 =====================
+service FinancialAnalysisService {
+  // 获取指标列表
+  rpc GetIndicatorsList(GetFinancialIndicatorsListRequest) returns (GetFinancialIndicatorsListResponse);
+  // 创建指标
+  rpc CreateIndicator(CreateFinancialIndicatorRequest) returns (CreateFinancialIndicatorResponse);
+  // 创建分析结果
+  rpc CreateAnalysisResult(CreateAnalysisResultRequest) returns (CreateAnalysisResultResponse);
+  // 获取趋势数据
+  rpc GetTrends(GetTrendsRequest) returns (GetTrendsResponse);
+}
+
+message FinancialIndicator {
+  int32 id = 1;
+  string indicator_name = 2;
+  string indicator_code = 3;
+  string indicator_type = 4;
+  string formula = 5;
+  string unit = 6;
+  string status = 7;
+  string remark = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message GetFinancialIndicatorsListRequest {
+  string indicator_type = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetFinancialIndicatorsListResponse {
+  bool success = 1;
+  string message = 2;
+  repeated FinancialIndicator indicators = 3;
+  int32 total = 4;
+}
+
+message CreateFinancialIndicatorRequest {
+  string indicator_name = 1;
+  string indicator_code = 2;
+  string indicator_type = 3;
+  string formula = 4;
+  string unit = 5;
+  string remark = 6;
+}
+
+message CreateFinancialIndicatorResponse {
+  bool success = 1;
+  string message = 2;
+  FinancialIndicator indicator = 3;
+}
+
+message FinancialAnalysisResult {
+  int32 id = 1;
+  string analysis_type = 2;
+  string period = 3;
+  int32 indicator_id = 4;
+  string indicator_value = 5;
+  string target_value = 6;
+  string variance = 7;
+  string variance_rate = 8;
+  string trend = 9;
+  string analysis_date = 10;
+  int32 created_by = 11;
+  int64 created_at = 12;
+}
+
+message CreateAnalysisResultRequest {
+  string analysis_type = 1;
+  string period = 2;
+  int32 indicator_id = 3;
+  string indicator_value = 4;
+  string target_value = 5;
+}
+
+message CreateAnalysisResultResponse {
+  bool success = 1;
+  string message = 2;
+  FinancialAnalysisResult result = 3;
+}
+
+message GetTrendsRequest {
+  int32 indicator_id = 1;
+  int32 limit = 2;
+}
+
+message GetTrendsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated FinancialAnalysisResult results = 3;
+}

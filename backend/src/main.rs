@@ -26,8 +26,15 @@ use crate::grpc::service::proto::purchase_contract_service_server::PurchaseContr
 use crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer;
 use crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer;
 use crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer;
+// 新增服务导入
+use crate::grpc::service::proto::assist_accounting_service_server::AssistAccountingServiceServer;
+use crate::grpc::service::proto::supplier_evaluation_service_server::SupplierEvaluationServiceServer;
+use crate::grpc::service::proto::five_dimension_query_service_server::FiveDimensionQueryServiceServer;
+use crate::grpc::service::proto::inventory_reservation_service_server::InventoryReservationServiceServer;
+use crate::grpc::service::proto::financial_analysis_service_server::FinancialAnalysisServiceServer;
 use crate::grpc::service::GrpcUserService;
 use crate::grpc::management_services::GrpcManagementServices;
+use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
 use crate::routes::create_router;
 
@@ -130,6 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let grpc_user_service = GrpcUserService::new(db_arc.clone(), settings.auth.jwt_secret.clone());
     let grpc_auth_service = grpc_user_service.clone();
     let grpc_management_services = GrpcManagementServices::new(db_arc.clone());
+    let grpc_new_services = GrpcNewServices::new(db_arc.clone());
 
     // 创建 gRPC 路由
     let grpc_router = tonic::transport::Server::builder()
@@ -138,7 +146,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(PurchaseContractServiceServer::new(grpc_management_services.clone()))
         .add_service(SalesContractServiceServer::new(grpc_management_services.clone()))
         .add_service(FixedAssetServiceServer::new(grpc_management_services.clone()))
-        .add_service(BudgetManagementServiceServer::new(grpc_management_services));
+        .add_service(BudgetManagementServiceServer::new(grpc_management_services))
+        // 注册新增服务
+        .add_service(AssistAccountingServiceServer::new(grpc_new_services.clone()))
+        .add_service(SupplierEvaluationServiceServer::new(grpc_new_services.clone()))
+        .add_service(FiveDimensionQueryServiceServer::new(grpc_new_services.clone()))
+        .add_service(InventoryReservationServiceServer::new(grpc_new_services.clone()))
+        .add_service(FinancialAnalysisServiceServer::new(grpc_new_services));
 
     // 启动 gRPC 服务器
     let grpc_addr: SocketAddr = format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;
