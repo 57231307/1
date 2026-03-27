@@ -1,4 +1,4 @@
-use chrono::{Utc, NaiveDate};
+use chrono::{Utc, NaiveDate, TimeZone};
 // ��־��������
 // �ṩ������־��ϵͳ��־����¼��־��API ������־�ļ�¼�Ͳ�ѯ����
 
@@ -364,16 +364,16 @@ impl LogService {
         }
 
         if let Some(start_date) = query.start_date {
-            let start_datetime = start_date.and_hms_opt(0, 0, 0).unwrap();
+            let start_datetime = Utc.from_utc_datetime(&start_date.and_hms_opt(0, 0, 0).unwrap());
             query_builder = query_builder.filter(
-                log_operation::Column::OperationTime.gte(start_datetime.and_utc())
+                log_operation::Column::OperationTime.gte(start_datetime)
             );
         }
 
         if let Some(end_date) = query.end_date {
-            let end_datetime = end_date.and_hms_opt(23, 59, 59).unwrap();
+            let end_datetime = Utc.from_utc_datetime(&end_date.and_hms_opt(23, 59, 59).unwrap());
             query_builder = query_builder.filter(
-                log_operation::Column::OperationTime.lte(end_datetime.and_utc())
+                log_operation::Column::OperationTime.lte(end_datetime)
             );
         }
 
@@ -429,16 +429,16 @@ impl LogService {
         }
 
         if let Some(start_date) = start_date {
-            let start_datetime = start_date.and_hms_opt(0, 0, 0).unwrap();
+            let start_datetime = Utc.from_utc_datetime(&start_date.and_hms_opt(0, 0, 0).unwrap());
             query_builder = query_builder.filter(
-                log_system::Column::LogTime.gte(start_datetime.and_utc())
+                log_system::Column::LogTime.gte(start_datetime)
             );
         }
 
         if let Some(end_date) = end_date {
-            let end_datetime = end_date.and_hms_opt(23, 59, 59).unwrap();
+            let end_datetime = Utc.from_utc_datetime(&end_date.and_hms_opt(23, 59, 59).unwrap());
             query_builder = query_builder.filter(
-                log_system::Column::LogTime.lte(end_datetime.and_utc())
+                log_system::Column::LogTime.lte(end_datetime)
             );
         }
 

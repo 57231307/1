@@ -22,7 +22,12 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::config::settings::AppSettings;
 use crate::grpc::service::proto::auth_service_server::AuthServiceServer;
 use crate::grpc::service::proto::user_service_server::UserServiceServer;
+use crate::grpc::service::proto::purchase_contract_service_server::PurchaseContractServiceServer;
+use crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer;
+use crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer;
+use crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer;
 use crate::grpc::service::GrpcUserService;
+use crate::grpc::management_services::GrpcManagementServices;
 use crate::middleware::auth::auth_middleware;
 use crate::routes::create_router;
 
@@ -124,11 +129,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建 gRPC 服务
     let grpc_user_service = GrpcUserService::new(db_arc.clone(), settings.auth.jwt_secret.clone());
     let grpc_auth_service = grpc_user_service.clone();
+    let grpc_management_services = GrpcManagementServices::new(db_arc.clone());
 
     // 创建 gRPC 路由
     let grpc_router = tonic::transport::Server::builder()
         .add_service(UserServiceServer::new(grpc_user_service))
-        .add_service(AuthServiceServer::new(grpc_auth_service));
+        .add_service(AuthServiceServer::new(grpc_auth_service))
+        .add_service(PurchaseContractServiceServer::new(grpc_management_services.clone()))
+        .add_service(SalesContractServiceServer::new(grpc_management_services.clone()))
+        .add_service(FixedAssetServiceServer::new(grpc_management_services.clone()))
+        .add_service(BudgetManagementServiceServer::new(grpc_management_services));
 
     // 启动 gRPC 服务器
     let grpc_addr: SocketAddr = format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;

@@ -68,12 +68,14 @@ impl InitService {
             .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
 
         let result: Result<i32, DbErr> = db
-            .query_one(sea_orm::sea_query::Query::select()
-                .expr(sea_orm::sea_query::Expr::value(1i32))
-                .to_owned())
+            .query_one(sea_orm::Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                "SELECT 1 as test".to_string(),
+            ))
             .await
-            .map(|v: Option<sea_orm::QueryResult>| v.map(|row: sea_orm::QueryResult| row.try_get::<i32>("", "").unwrap_or(1)))
-            .transpose()
+            .map(|v: Option<sea_orm::QueryResult>| {
+                v.map(|row: sea_orm::QueryResult| row.try_get::<i32>("", "test").unwrap_or(1))
+            })
             .map(|opt: Option<i32>| opt.unwrap_or(0));
 
         result.map(|_| ()).map_err(|e| {

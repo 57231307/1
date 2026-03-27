@@ -5,7 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::models::{
     assist_accounting_dimension, assist_accounting_record, assist_accounting_summary,

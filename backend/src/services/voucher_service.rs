@@ -14,7 +14,6 @@ use crate::models::voucher_item as vi;
 use crate::models::{account_subject, voucher, voucher_item};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::sea_query::Expr;
 
 /// 创建凭证请求
 #[derive(Debug, Clone)]
@@ -216,7 +215,7 @@ impl VoucherService {
         &self,
         id: i32,
         req: UpdateVoucherRequest,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<voucher::Model, AppError> {
         info!("更新凭证 ID: {}", id);
 

@@ -1,4 +1,4 @@
-use chrono::{Utc, NaiveDate};
+use chrono::Datelike;
 // 管理服务 gRPC 实现
 // 
 // 包含采购合同、销售合同、固定资产、预算管理等 gRPC 服务实现
@@ -6,20 +6,13 @@ use chrono::{Utc, NaiveDate};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use sea_orm::DatabaseConnection;
-use chrono::TimeZone;
 
 use crate::services::purchase_contract_service::PurchaseContractService;
 use crate::services::sales_contract_service::SalesContractService;
 use crate::services::fixed_asset_service::FixedAssetService;
 use crate::services::budget_management_service::BudgetManagementService;
 
-// 引入生成的 gRPC 代码
-pub mod proto {
-    tonic::include_proto!("bingxi");
-}
-
-use proto::{
-    // 采购合同相关
+use crate::grpc::service::proto::{
     purchase_contract_service_server::PurchaseContractService as PurchaseContractServiceTrait,
     PurchaseContract, ListPurchaseContractsRequest, ListPurchaseContractsResponse,
     GetPurchaseContractRequest, GetPurchaseContractResponse,
@@ -28,7 +21,6 @@ use proto::{
     ExecutePurchaseContractRequest, ExecutePurchaseContractResponse,
     CancelPurchaseContractRequest, CancelPurchaseContractResponse,
     
-    // 销售合同相关
     sales_contract_service_server::SalesContractService as SalesContractServiceTrait,
     SalesContract, ListSalesContractsRequest, ListSalesContractsResponse,
     GetSalesContractRequest, GetSalesContractResponse,
@@ -37,7 +29,6 @@ use proto::{
     ExecuteSalesContractRequest, ExecuteSalesContractResponse,
     CancelSalesContractRequest, CancelSalesContractResponse,
     
-    // 固定资产相关
     fixed_asset_service_server::FixedAssetService as FixedAssetServiceTrait,
     FixedAsset, ListFixedAssetsRequest, ListFixedAssetsResponse,
     GetFixedAssetRequest, GetFixedAssetResponse,
@@ -46,7 +37,6 @@ use proto::{
     DisposeFixedAssetRequest, DisposeFixedAssetResponse,
     DeleteFixedAssetRequest, DeleteFixedAssetResponse,
     
-    // 预算管理相关
     budget_management_service_server::BudgetManagementService as BudgetManagementServiceTrait,
     BudgetItem, ListBudgetItemsRequest, ListBudgetItemsResponse,
     GetBudgetItemRequest, GetBudgetItemResponse,
@@ -146,7 +136,7 @@ impl GrpcManagementServices {
             depreciation_method: asset.depreciation_method.unwrap_or_default(),
             useful_life: asset.useful_life.unwrap_or(0),
             monthly_depreciation: asset.monthly_depreciation.map(|d| d.to_string()).unwrap_or_default(),
-            accumulated_depreciation: asset.accumulated_depreciation.map(|d| d.to_string()).unwrap_or_default(),
+            accumulated_depreciation: asset.accumulated_depreciation.to_string(),
             net_value: asset.net_value.map(|d| d.to_string()).unwrap_or_default(),
             status: asset.status,
             purchase_date: asset.purchase_date.map(|d| d.to_string()).unwrap_or_default(),
@@ -184,8 +174,8 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListPurchaseContractsResponse>, Status> {
         let req = request.into_inner();
         
-        let page = req.page.max(1) as i64;
-        let page_size = req.page_size.max(1).min(100) as i64;
+        let _page = req.page.max(1) as i64;
+        let _page_size = req.page_size.max(1).min(100) as i64;
         
         // TODO: 实现查询逻辑
         // 暂时返回空列表
@@ -291,6 +281,7 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
             execution_type: req.execution_type,
             execution_amount: req.execution_amount.parse::<rust_decimal::Decimal>()
                 .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?,
+            execution_date: chrono::Utc::now().naive_utc().date(),
             related_bill_type: if req.related_bill_type.is_empty() { None } else { Some(req.related_bill_type) },
             related_bill_id: if req.related_bill_id == 0 { None } else { Some(req.related_bill_id) },
             remark: if req.remark.is_empty() { None } else { Some(req.remark) },
@@ -339,8 +330,8 @@ impl SalesContractServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListSalesContractsResponse>, Status> {
         let req = request.into_inner();
         
-        let page = req.page.max(1) as i64;
-        let page_size = req.page_size.max(1).min(100) as i64;
+        let _page = req.page.max(1) as i64;
+        let _page_size = req.page_size.max(1).min(100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListSalesContractsResponse {
@@ -487,8 +478,8 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListFixedAssetsResponse>, Status> {
         let req = request.into_inner();
         
-        let page = req.page.max(1) as i64;
-        let page_size = req.page_size.max(1).min(100) as i64;
+        let _page = req.page.max(1) as i64;
+        let _page_size = req.page_size.max(1).min(100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListFixedAssetsResponse {
@@ -537,12 +528,12 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         let create_req = crate::services::fixed_asset_service::CreateAssetRequest {
             asset_no: req.asset_no,
             asset_name: req.asset_name,
-            asset_category: req.asset_category,
+            asset_category: Some(req.asset_category),
             specification: if req.specification.is_empty() { None } else { Some(req.specification) },
             location: if req.location.is_empty() { None } else { Some(req.location) },
             original_value,
             useful_life: req.useful_life,
-            depreciation_method: req.depreciation_method,
+            depreciation_method: Some(req.depreciation_method),
             purchase_date,
             put_in_date,
             supplier_id: if req.supplier_id == 0 { None } else { Some(req.supplier_id) },
@@ -572,7 +563,7 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         let user_id = 1;
         
-        match self.fixed_asset_service.depreciate(req.asset_id, user_id).await {
+        match self.fixed_asset_service.depreciate(req.asset_id, &chrono::Utc::now().format("%Y-%m").to_string(), user_id).await {
             Ok(_) => {
                 Ok(Response::new(DepreciateFixedAssetResponse {
                     success: true,
@@ -649,8 +640,8 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListBudgetItemsResponse>, Status> {
         let req = request.into_inner();
         
-        let page = req.page.max(1) as i64;
-        let page_size = req.page_size.max(1).min(100) as i64;
+        let _page = req.page.max(1) as i64;
+        let _page_size = req.page_size.max(1).min(100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListBudgetItemsResponse {
@@ -667,7 +658,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<GetBudgetItemResponse>, Status> {
         let req = request.into_inner();
         
-        match self.budget_management_service.get_by_id(req.item_id).await {
+        match self.budget_management_service.get_item_by_id(req.item_id).await {
             Ok(item) => {
                 Ok(Response::new(GetBudgetItemResponse {
                     success: true,
@@ -692,12 +683,14 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
             item_name: req.item_name,
             parent_id: if req.parent_id == 0 { None } else { Some(req.parent_id) },
             item_type: req.item_type,
-            level: req.level,
+            budget_year: chrono::Utc::now().year(),
+            planned_amount: rust_decimal::Decimal::ZERO,
+            remark: None,
         };
         
         let user_id = 1;
         
-        match self.budget_management_service.create(create_req, user_id).await {
+        match self.budget_management_service.create_item(create_req, user_id).await {
             Ok(item) => {
                 Ok(Response::new(CreateBudgetItemResponse {
                     success: true,
@@ -717,18 +710,19 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<UpdateBudgetItemResponse>, Status> {
         let req = request.into_inner();
         
-        let update_req = crate::services::budget_management_service::CreateBudgetItemRequest {
-            item_code: String::new(), // 需从 get_by_id 获取原值
+        let _update_req = crate::services::budget_management_service::CreateBudgetItemRequest {
+            item_code: String::new(),
             item_name: req.item_name,
             parent_id: None,
             item_type: req.item_type,
-            level: 1,
+            budget_year: chrono::Utc::now().year(),
+            planned_amount: rust_decimal::Decimal::ZERO,
+            remark: None,
         };
         
-        let user_id = 1;
+        let _user_id = 1;
         
-        // TODO: 实现 update 方法
-        match self.budget_management_service.get_by_id(req.item_id).await {
+        match self.budget_management_service.get_item_by_id(req.item_id).await {
             Ok(_) => {
                 Ok(Response::new(UpdateBudgetItemResponse {
                     success: true,
@@ -749,7 +743,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         let user_id = 1;
         
-        match self.budget_management_service.delete(req.item_id, user_id).await {
+        match self.budget_management_service.delete_item(req.item_id, user_id).await {
             Ok(_) => {
                 Ok(Response::new(DeleteBudgetItemResponse {
                     success: true,
@@ -768,8 +762,8 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListBudgetPlansResponse>, Status> {
         let req = request.into_inner();
         
-        let page = req.page.max(1) as i64;
-        let page_size = req.page_size.max(1).min(100) as i64;
+        let _page = req.page.max(1) as i64;
+        let _page_size = req.page_size.max(1).min(100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListBudgetPlansResponse {
@@ -784,7 +778,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         &self,
         request: Request<GetBudgetPlanRequest>,
     ) -> Result<Response<GetBudgetPlanResponse>, Status> {
-        let req = request.into_inner();
+        let _req = request.into_inner();
         
         // TODO: 实现获取预算方案逻辑
         Ok(Response::new(GetBudgetPlanResponse {
@@ -798,7 +792,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         &self,
         request: Request<CreateBudgetPlanRequest>,
     ) -> Result<Response<CreateBudgetPlanResponse>, Status> {
-        let req = request.into_inner();
+        let _req = request.into_inner();
         
         // TODO: 实现创建预算方案逻辑
         Ok(Response::new(CreateBudgetPlanResponse {
@@ -812,7 +806,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         &self,
         request: Request<ApproveBudgetPlanRequest>,
     ) -> Result<Response<ApproveBudgetPlanResponse>, Status> {
-        let req = request.into_inner();
+        let _req = request.into_inner();
         
         // TODO: 实现审批预算方案逻辑
         Ok(Response::new(ApproveBudgetPlanResponse {
@@ -825,7 +819,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         &self,
         request: Request<ExecuteBudgetPlanRequest>,
     ) -> Result<Response<ExecuteBudgetPlanResponse>, Status> {
-        let req = request.into_inner();
+        let _req = request.into_inner();
         
         // TODO: 实现执行预算方案逻辑
         Ok(Response::new(ExecuteBudgetPlanResponse {
