@@ -103,3 +103,6 @@ pub use ap_report::ApReportPage;
 pub use finance_payment::FinancePaymentPage;
 pub use purchase_inspection::PurchaseInspectionPage;
 // 面料行业核心模块
+pub use dye_batch::DyeBatchPage;
+pub use dye_recipe::DyeRecipePage;
+pub use greige_fabric::GreigeFabricPage;

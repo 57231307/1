@@ -1,6 +1,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::pages::{LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage};
+use crate::pages::{LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage};
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {
@@ -102,6 +102,12 @@ pub enum Route {
     CostCollections,
     #[at("/purchase-inspections")]
     PurchaseInspections,
+    #[at("/dye-batches")]
+    DyeBatches,
+    #[at("/dye-recipes")]
+    DyeRecipes,
+    #[at("/greige-fabrics")]
+    GreigeFabrics,
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -177,6 +183,9 @@ fn switch(route: Route) -> Html {
         Route::PurchaseContracts => html! { <PurchaseContractPage /> },
         Route::CostCollections => html! { <CostCollectionPage /> },
         Route::PurchaseInspections => html! { <PurchaseInspectionPage /> },
+        Route::DyeBatches => html! { <DyeBatchPage /> },
+        Route::DyeRecipes => html! { <DyeRecipePage /> },
+        Route::GreigeFabrics => html! { <GreigeFabricPage /> },
         Route::NotFound => html! { <div>{"页面未找到"}</div> },
     }
 }
