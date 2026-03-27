@@ -1,10 +1,9 @@
 //! 系统更新服务
 
 use std::fs;
-use std::io::{self, Copy};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -110,28 +109,7 @@ impl SystemUpdateService {
         }
     }
 
-    pub async fn download_update(&self, download_url: &str, target_path: &Path) -> Result<PathBuf, UpdateError> {
-        let client = reqwest::Client::builder()
-            .user_agent("秉羲ERP系统更新检查")
-            .build();
-        
-        let response = client
-            .get(&format!("{}/repos/{}/releases/latest", GITHUB_REPO))
-            .header("User-Agent", "秉羲ERP系统更新")
-            .send()
-            .await
-            .map_err(|e| reqwest::Error::Request(e)) => {
-                return Err(UpdateError::NetworkError(format!("下载更新包失败: {}", e)));
-            })?;
-
-        let mut file = fs::File::create(target_path)?;
-        let mut response = response;
-        io::copy(&mut response, &mut file)?;
-        
-        Ok(target_path)
-    }
-
-}
+    pub fn get_status(&self) -> UpdateStatus {
         let current_version = self.get_current_version();
         let is_updating = self.is_updating.load(std::sync::atomic::Ordering::SeqCst);
 
@@ -433,7 +411,6 @@ impl SystemUpdateService {
             .append(true)
             .open(&log_file)
         {
-            use std::io::Write;
             let _ = file.write_all(log_entry.as_bytes());
         }
     }
@@ -582,5 +559,11 @@ impl SystemUpdateService {
         }
         
         Ok(result)
+    }
+}
+
+impl Default for SystemUpdateService {
+    fn default() -> Self {
+        Self::new()
     }
 }
