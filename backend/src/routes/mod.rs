@@ -925,7 +925,10 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
         .route("/backups", get(system_update_handler::get_backup_versions))
         .route("/rollback", post(system_update_handler::rollback_version))
         .route("/check", get(system_update_handler::check_for_updates))
-        .route("/download", post(system_update_handler::download_and_update));
+        .route("/download", post(system_update_handler::download_and_update))
+        .route("/local/check", get(system_update_handler::check_for_local_updates))
+        .route("/local/releases", get(system_update_handler::list_local_releases))
+        .route("/local/apply", post(system_update_handler::apply_local_update));
 
     // 健康检查路由
     let health_routes = Router::new()

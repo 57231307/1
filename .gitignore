@@ -4,6 +4,12 @@ frontend/target/
 frontend/dist/
 backend/target/
 
+# 忽略发布包（压缩包文件）
+releases/*.zip
+
+# 忽略部署文件夹
+deploy/server2/
+
 # 忽略临时文件
 *.log
 *.tmp

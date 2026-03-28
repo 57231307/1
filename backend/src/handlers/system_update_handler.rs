@@ -7,7 +7,7 @@ use axum::{
 };
 use std::path::PathBuf;
 use tokio::fs;
-use crate::services::system_update_service::{SystemUpdateService, UpdateError};
+use crate::services::system_update_service::{SystemUpdateService, UpdateError, LocalRelease};
 
 #[derive(Debug, serde::Serialize)]
 pub struct VersionResponse {
@@ -251,6 +251,120 @@ pub async fn rollback_version(
                 message: e.to_string(),
             }),
         )),
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct LocalReleasesResponse {
+    pub releases: Vec<LocalRelease>,
+    pub count: usize,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CheckLocalUpdateResponse {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub latest_release: Option<LocalRelease>,
+    pub error: Option<String>,
+}
+
+pub async fn check_for_local_updates() -> Result<Json<CheckLocalUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let service = SystemUpdateService::new();
+    
+    let result = service.check_local_updates();
+    
+    Ok(Json(CheckLocalUpdateResponse {
+        has_update: result.has_update,
+        current_version: result.current_version,
+        latest_version: result.latest_version,
+        latest_release: result.local_release,
+        error: result.error,
+    }))
+}
+
+pub async fn list_local_releases() -> Result<Json<LocalReleasesResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let service = SystemUpdateService::new();
+    
+    match service.list_local_releases() {
+        Ok(releases) => {
+            Ok(Json(LocalReleasesResponse {
+                count: releases.len(),
+                releases,
+            }))
+        }
+        Err(e) => {
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "list_failed".to_string(),
+                    message: e.to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ApplyLocalUpdateRequest {
+    pub version: String,
+}
+
+pub async fn apply_local_update(
+    Json(payload): Json<ApplyLocalUpdateRequest>,
+) -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)> {
+    let service = SystemUpdateService::new();
+    
+    let releases = service.list_local_releases().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "list_failed".to_string(),
+                message: e.to_string(),
+            }),
+        )
+    })?;
+    
+    let release = releases.into_iter()
+        .find(|r| r.version == payload.version)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "release_not_found".to_string(),
+                    message: format!("找不到版本 {} 的发布包", payload.version),
+                }),
+            )
+        })?;
+    
+    match service.apply_local_update(&release).await {
+        Ok(message) => {
+            let new_version = service.get_current_version();
+            Ok(Json(UpdateResult {
+                success: true,
+                message,
+                new_version: Some(new_version),
+            }))
+        }
+        Err(e) => {
+            let error_type = match &e {
+                UpdateError::IoError(_) => "io_error",
+                UpdateError::UnzipError(_) => "unzip_error",
+                UpdateError::BackupError(_) => "backup_error",
+                UpdateError::ValidationError(_) => "validation_error",
+                UpdateError::VersionError(_) => "version_error",
+                UpdateError::AlreadyUpdating => "already_updating",
+                _ => "update_failed",
+            };
+            
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: error_type.to_string(),
+                    message: e.to_string(),
+                }),
+            ))
+        }
     }
 }
 

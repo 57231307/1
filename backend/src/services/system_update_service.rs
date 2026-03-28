@@ -12,6 +12,24 @@ const GITHUB_REPO: &str = "57231307/1";
 const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalRelease {
+    pub version: String,
+    pub file_name: String,
+    pub file_path: PathBuf,
+    pub file_size: u64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalUpdateCheckResult {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub local_release: Option<LocalRelease>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionInfo {
     pub version: String,
     pub release_date: String,
@@ -98,6 +116,109 @@ impl SystemUpdateService {
             backup_dir,
             is_updating: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+
+    fn get_releases_dir(&self) -> PathBuf {
+        let mut releases_dir = self.app_dir.clone();
+        
+        if releases_dir.ends_with("backend") || releases_dir.ends_with("backend/target/release") {
+            releases_dir = releases_dir.ancestors()
+                .find(|p| p.join("releases").exists() || p.join("backend").exists())
+                .unwrap_or(&releases_dir)
+                .to_path_buf();
+        }
+        
+        releases_dir.join("releases")
+    }
+
+    pub fn list_local_releases(&self) -> Result<Vec<LocalRelease>, UpdateError> {
+        let releases_dir = self.get_releases_dir();
+        
+        if !releases_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut releases = Vec::new();
+
+        for entry in fs::read_dir(&releases_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_file() {
+                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                    if file_name.ends_with(".zip") && file_name.starts_with("bingxi-erp-") {
+                        if let Some(version) = self.extract_version_from_filename(file_name) {
+                            let metadata = fs::metadata(&path)?;
+                            let created_at: chrono::DateTime<chrono::Utc> = metadata.created()?.into();
+                            
+                            releases.push(LocalRelease {
+                                version,
+                                file_name: file_name.to_string(),
+                                file_path: path,
+                                file_size: metadata.len(),
+                                created_at: created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        releases.sort_by(|a, b| self.compare_versions_for_sort(&a.version, &b.version));
+        Ok(releases)
+    }
+
+    fn extract_version_from_filename(&self, filename: &str) -> Option<String> {
+        let parts: Vec<&str> = filename.split('-').collect();
+        if parts.len() >= 3 {
+            let version_part = parts[2];
+            let version = version_part.trim_end_matches(".zip");
+            if !version.is_empty() {
+                return Some(version.to_string());
+            }
+        }
+        None
+    }
+
+    pub fn check_local_updates(&self) -> LocalUpdateCheckResult {
+        let current_version = self.get_current_version();
+
+        match self.list_local_releases() {
+            Ok(releases) => {
+                if let Some(latest_release) = releases.first() {
+                    let has_update = self.compare_versions(&current_version, &latest_release.version);
+                    
+                    LocalUpdateCheckResult {
+                        has_update,
+                        current_version,
+                        latest_version: latest_release.version.clone(),
+                        local_release: Some(latest_release.clone()),
+                        error: None,
+                    }
+                } else {
+                    LocalUpdateCheckResult {
+                        has_update: false,
+                        current_version: current_version.clone(),
+                        latest_version: current_version,
+                        local_release: None,
+                        error: None,
+                    }
+                }
+            }
+            Err(e) => {
+                LocalUpdateCheckResult {
+                    has_update: false,
+                    current_version: current_version.clone(),
+                    latest_version: current_version,
+                    local_release: None,
+                    error: Some(e.to_string()),
+                }
+            }
+        }
+    }
+
+    pub async fn apply_local_update(&self, release: &LocalRelease) -> Result<String, UpdateError> {
+        self.apply_update(&release.file_path).await
     }
 
     pub fn get_current_version(&self) -> String {
@@ -494,6 +615,29 @@ impl SystemUpdateService {
         }
         
         false
+    }
+
+    fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
+        let parse_version = |v: &str| -> Vec<u32> {
+            v.split('.')
+                .filter_map(|s| s.parse().ok())
+                .collect()
+        };
+        
+        let a_parts = parse_version(a);
+        let b_parts = parse_version(b);
+        
+        for i in 0..std::cmp::max(a_parts.len(), b_parts.len()) {
+            let a_val = a_parts.get(i).unwrap_or(&0);
+            let b_val = b_parts.get(i).unwrap_or(&0);
+            
+            match b_val.cmp(a_val) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            }
+        }
+        
+        std::cmp::Ordering::Equal
     }
 
     pub async fn download_update(&self, asset_name: Option<&str>) -> Result<PathBuf, UpdateError> {
