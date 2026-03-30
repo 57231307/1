@@ -130,8 +130,6 @@ fn create_init_router() -> Router {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = AppSettings::new()?;
 
-    set_jwt_secret(settings.auth.jwt_secret.clone());
-
     let _log_level = settings.log.level.parse::<Level>()?;
     let log_dir = &settings.log.dir;
     std::fs::create_dir_all(log_dir)?;
@@ -189,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::io::stderr().flush().ok();
 
             let db_arc = Arc::new(db);
-            create_router(db_arc.clone())
+            create_router(db_arc.clone(), settings.auth.jwt_secret.clone())
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {
