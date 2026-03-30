@@ -334,4 +334,147 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", get(batch_new_handler::list_batches))
         .route("/", post(batch_new_handler::create_batch))
         .route("/:id", get(batch_new_handler::get_batch))
-        .route("/:id", put(batch_new_handler::update
+        .route("/:id", put(batch_new_handler::update_batch))
+        .route("/:id", delete(batch_new_handler::delete_batch))
+        .route("/:id/transfer", post(batch_new_handler::transfer_batch));
+
+    // 缸号管理路由（染色批次管理）
+    let dye_batch_routes = Router::new()
+        .route("/", get(dye_batch_handler::list_dye_batches))
+        .route("/", post(dye_batch_handler::create_dye_batch))
+        .route("/:id", get(dye_batch_handler::get_dye_batch))
+        .route("/:id", put(dye_batch_handler::update_dye_batch))
+        .route("/:id", delete(dye_batch_handler::delete_dye_batch))
+        .route("/:id/complete", post(dye_batch_handler::complete_dye_batch))
+        .route("/by-color/:color_code", get(dye_batch_handler::get_dye_batches_by_color));
+
+    // 坯布管理路由（原料布匹管理）
+    let greige_fabric_routes = Router::new()
+        .route("/", get(greige_fabric_handler::list_greige_fabrics))
+        .route("/", post(greige_fabric_handler::create_greige_fabric))
+        .route("/:id", get(greige_fabric_handler::get_greige_fabric))
+        .route("/:id", put(greige_fabric_handler::update_greige_fabric))
+        .route("/:id", delete(greige_fabric_handler::delete_greige_fabric))
+        .route("/:id/stock-in", post(greige_fabric_handler::stock_in))
+        .route("/:id/stock-out", post(greige_fabric_handler::stock_out))
+        .route("/by-supplier/:supplier_id", get(greige_fabric_handler::get_greige_by_supplier));
+
+    // 染色配方管理路由
+    let dye_recipe_routes = Router::new()
+        .route("/", get(dye_recipe_handler::list_dye_recipes))
+        .route("/", post(dye_recipe_handler::create_dye_recipe))
+        .route("/:id", get(dye_recipe_handler::get_dye_recipe))
+        .route("/:id", put(dye_recipe_handler::update_dye_recipe))
+        .route("/:id", delete(dye_recipe_handler::delete_dye_recipe))
+        .route("/:id/approve", post(dye_recipe_handler::approve_recipe))
+        .route("/:id/version", post(dye_recipe_handler::create_new_version))
+        .route("/by-color/:color_code", get(dye_recipe_handler::get_recipes_by_color))
+        .route("/:id/versions", get(dye_recipe_handler::get_recipe_versions));
+
+    // 总账管理路由
+    let gl_routes = Router::new()
+        // 科目管理
+        .route("/subjects", get(account_subject_handler::list_subjects))
+        .route(
+            "/subjects/tree",
+            get(account_subject_handler::get_subject_tree),
+        )
+        .route("/subjects", post(account_subject_handler::create_subject))
+        .route("/subjects/:id", get(account_subject_handler::get_subject))
+        .route(
+            "/subjects/:id",
+            put(account_subject_handler::update_subject),
+        )
+        .route(
+            "/subjects/:id",
+            delete(account_subject_handler::delete_subject),
+        )
+        // 凭证管理
+        .route("/vouchers", get(voucher_handler::list_vouchers))
+        .route("/vouchers/:id", get(voucher_handler::get_voucher))
+        .route("/vouchers", post(voucher_handler::create_voucher))
+        .route(
+            "/vouchers/:id/submit",
+            post(voucher_handler::submit_voucher),
+        )
+        .route(
+            "/vouchers/:id/review",
+            post(voucher_handler::review_voucher),
+        )
+        .route("/vouchers/:id/post", post(voucher_handler::post_voucher));
+
+    // 双计量单位换算路由
+    let dual_unit_routes = Router::new()
+        .route(
+            "/convert",
+            post(dual_unit_converter_handler::convert_dual_unit),
+        )
+        .route(
+            "/validate",
+            post(dual_unit_converter_handler::validate_dual_unit),
+        );
+
+    // 五维管理路由
+    let five_dimension_routes = Router::new()
+        .route(
+            "/stats",
+            get(five_dimension_handler::get_five_dimension_stats),
+        )
+        .route(
+            "/list",
+            get(five_dimension_handler::list_five_dimension_stats),
+        )
+        .route(
+            "/search",
+            get(five_dimension_handler::search_five_dimension),
+        )
+        .route(
+            "/:five_dimension_id",
+            get(five_dimension_handler::get_stats_by_five_dimension_id),
+        )
+        .route(
+            "/parse",
+            post(five_dimension_handler::parse_five_dimension_id),
+        );
+
+    // 辅助核算路由
+    let assist_accounting_routes = Router::new()
+        .route(
+            "/dimensions",
+            get(assist_accounting_handler::list_assist_dimensions),
+        )
+        .route(
+            "/records",
+            get(assist_accounting_handler::query_assist_records),
+        )
+        .route(
+            "/records/business",
+            get(assist_accounting_handler::get_assist_records_by_business),
+        )
+        .route(
+            "/records/five-dimension/:five_dimension_id",
+            get(assist_accounting_handler::get_assist_records_by_five_dimension),
+        )
+        .route(
+            "/summary",
+            get(assist_accounting_handler::get_assist_summary),
+        );
+
+    // 业务追溯路由
+    let business_trace_routes = Router::new()
+        .route(
+            "/five-dimension/:five_dimension_id",
+            get(business_trace_handler::get_trace_by_five_dimension),
+        )
+        .route("/forward", get(business_trace_handler::forward_trace))
+        .route("/backward", get(business_trace_handler::backward_trace))
+        .route(
+            "/snapshot/:trace_chain_id",
+            post(business_trace_handler::create_trace_snapshot),
+        );
+
+    // 供应商管理路由
+    let supplier_routes = Router::new()
+        .route("/", get(supplier_handler::list_suppliers))
+        .route("/", post(supplier_handler::create_supplier))
+        .route("/:id", get(supplier_handler::get_supplier))

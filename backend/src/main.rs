@@ -39,7 +39,6 @@ use crate::grpc::management_services::GrpcManagementServices;
 use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
 use crate::routes::create_router;
-use crate::handlers::auth_handler::set_jwt_secret;
 use crate::services::init_service::{DatabaseConfig, InitService};
 
 #[derive(Debug, serde::Serialize)]
