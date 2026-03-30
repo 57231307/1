@@ -189,7 +189,7 @@ impl SupplierEvaluationService {
                 .one(&*self.db)
                 .await
             {
-                total_weight = total_weight + indicator.weight;
+                total_weight += indicator.weight;
             }
         }
 
@@ -267,7 +267,7 @@ impl SupplierEvaluationService {
                 .entry(record.supplier_id)
                 .or_insert((Decimal::ZERO, 0));
             if let Some(weighted) = record.weighted_score {
-                entry.0 = entry.0 + weighted;
+                entry.0 += weighted;
             }
             entry.1 += 1;
         }

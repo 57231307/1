@@ -47,7 +47,7 @@ impl ApPaymentRequestService {
         req: CreateApPaymentRequest,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成付款申请单号
         let request_no = self.generate_request_no().await?;
@@ -128,7 +128,7 @@ impl ApPaymentRequestService {
         req: UpdateApPaymentRequest,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款申请
         let request = ap_payment_request::Entity::find_by_id(id)
@@ -189,7 +189,7 @@ impl ApPaymentRequestService {
 
     /// 删除付款申请（仅草稿/被拒状态）
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款申请
         let request = ap_payment_request::Entity::find_by_id(id)
@@ -221,7 +221,7 @@ impl ApPaymentRequestService {
         id: i32,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款申请
         let request = ap_payment_request::Entity::find_by_id(id)
@@ -270,7 +270,7 @@ impl ApPaymentRequestService {
         id: i32,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款申请
         let request = ap_payment_request::Entity::find_by_id(id)
@@ -312,7 +312,7 @@ impl ApPaymentRequestService {
         reason: String,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款申请
         let request = ap_payment_request::Entity::find_by_id(id)

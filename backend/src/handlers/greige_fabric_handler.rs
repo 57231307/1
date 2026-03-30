@@ -126,7 +126,7 @@ pub async fn list_greige_fabrics(
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取坯布列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取坯布列表失败：{}", e))),
         )
             .into_response(),
     }
@@ -145,7 +145,7 @@ pub async fn get_greige_fabric(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取坯布失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
         )
             .into_response(),
     }
@@ -161,9 +161,9 @@ pub async fn create_greige_fabric(
         fabric_name: Set(req.fabric_name),
         fabric_type: Set(req.fabric_type),
         color_code: Set(req.color_code),
-        width_cm: Set(req.width_cm.and_then(|w| Decimal::from_f64_retain(w))),
-        weight_kg: Set(req.weight_kg.and_then(|w| Decimal::from_f64_retain(w))),
-        length_m: Set(req.length_m.and_then(|l| Decimal::from_f64_retain(l))),
+        width_cm: Set(req.width_cm.and_then(Decimal::from_f64_retain)),
+        weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
+        length_m: Set(req.length_m.and_then(Decimal::from_f64_retain)),
         supplier_id: Set(req.supplier_id),
         batch_no: Set(req.batch_no),
         warehouse_id: Set(req.warehouse_id),
@@ -185,7 +185,7 @@ pub async fn create_greige_fabric(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("创建坯布失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("创建坯布失败：{}", e))),
         )
             .into_response(),
     }
@@ -209,7 +209,7 @@ pub async fn update_greige_fabric(
             Err(e) => {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(&format!("获取坯布失败：{}", e))),
+                    Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
                 )
                     .into_response();
             }
@@ -265,7 +265,7 @@ pub async fn update_greige_fabric(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("更新坯布失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("更新坯布失败：{}", e))),
         )
             .into_response(),
     }
@@ -283,7 +283,7 @@ pub async fn delete_greige_fabric(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("删除坯布失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("删除坯布失败：{}", e))),
         )
             .into_response(),
     }
@@ -307,7 +307,7 @@ pub async fn stock_in(
             Err(e) => {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(&format!("获取坯布失败：{}", e))),
+                    Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
                 )
                     .into_response();
             }
@@ -334,7 +334,7 @@ pub async fn stock_in(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("坯布入库失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("坯布入库失败：{}", e))),
         )
             .into_response(),
     }
@@ -357,7 +357,7 @@ pub async fn stock_out(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取坯布失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
             )
                 .into_response();
         }
@@ -402,7 +402,7 @@ pub async fn stock_out(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("坯布出库失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("坯布出库失败：{}", e))),
         )
             .into_response(),
     }
@@ -421,7 +421,7 @@ pub async fn get_greige_by_supplier(
         Ok(fabrics) => (StatusCode::OK, Json(ApiResponse::success(fabrics))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取坯布列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取坯布列表失败：{}", e))),
         )
             .into_response(),
     }

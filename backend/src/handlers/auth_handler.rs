@@ -1,4 +1,3 @@
-use crate::middleware::auth::validate_token;
 use crate::services::auth_service::AuthService;
 use crate::services::user_service::UserService;
 use axum::{
@@ -9,6 +8,18 @@ use axum::{
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use once_cell::sync::OnceCell;
+
+// 全局 JWT secret，在 main 函数中初始化
+static JWT_SECRET: OnceCell<String> = OnceCell::new();
+
+pub fn set_jwt_secret(secret: String) {
+    let _ = JWT_SECRET.set(secret);
+}
+
+pub fn get_jwt_secret() -> String {
+    JWT_SECRET.get().cloned().unwrap_or_else(|| "secret".to_string())
+}
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -69,10 +80,6 @@ pub async fn login(
     }
 }
 
-fn get_jwt_secret() -> String {
-    std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string())
-}
-
 /// 用户注销
 #[derive(Debug, Serialize)]
 pub struct LogoutResponse {
@@ -93,7 +100,7 @@ pub async fn logout(
 
     // 验证 Token 并获取 Claims
     let claims =
-        validate_token(token).map_err(|_| (StatusCode::UNAUTHORIZED, "无效的令牌".to_string()))?;
+        AuthService::validate_token_static(token, &get_jwt_secret()).map_err(|_| (StatusCode::UNAUTHORIZED, "无效的令牌".to_string()))?;
 
     // 更新用户最后登录时间（设置为 None 表示注销）
     let _user_service = UserService::new(db.clone());
@@ -128,7 +135,7 @@ pub async fn refresh_token(
 
     // 验证旧 Token 并获取 Claims
     let claims =
-        validate_token(token).map_err(|_| (StatusCode::UNAUTHORIZED, "无效的令牌".to_string()))?;
+        AuthService::validate_token_static(token, &get_jwt_secret()).map_err(|_| (StatusCode::UNAUTHORIZED, "无效的令牌".to_string()))?;
 
     // 使用 Claims 中的信息生成新 Token
     let auth_service = AuthService::new(db.clone(), get_jwt_secret());

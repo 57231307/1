@@ -81,8 +81,7 @@ pub async fn list_subjects(
 
     let subjects = service
         .get_list(query_params)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
     info!(
         "用户 {} 查询会计科目成功，共 {} 条",
         auth.username,
@@ -101,7 +100,7 @@ pub async fn get_subject(
     info!("用户 {} 查询会计科目 ID: {}", auth.username, id);
 
     let service = AccountSubjectService::new(db);
-    let subject = service.get_by_id(id).await.map_err(AppError::from)?;
+    let subject = service.get_by_id(id).await?;
     info!("用户 {} 查询会计科目成功", auth.username);
 
     Ok(Json(ApiResponse::success(subject)))
@@ -118,7 +117,7 @@ pub async fn get_subject_tree(
     info!("用户 {} 查询会计科目树", auth.username);
 
     let service = AccountSubjectService::new(db);
-    let tree = service.get_tree().await.map_err(AppError::from)?;
+    let tree = service.get_tree().await?;
     info!("用户 {} 查询会计科目树成功", auth.username);
 
     Ok(Json(ApiResponse::success(tree)))
@@ -179,8 +178,7 @@ pub async fn update_subject(
 
     let subject = service
         .update(id, update_req, auth.user_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
     info!("用户 {} 更新会计科目成功：{}", auth.username, subject.code);
 
     Ok(Json(ApiResponse::success_with_message(
@@ -198,7 +196,7 @@ pub async fn delete_subject(
     info!("用户 {} 删除会计科目 ID: {}", auth.username, id);
 
     let service = AccountSubjectService::new(db);
-    service.delete(id).await.map_err(AppError::from)?;
+    service.delete(id).await?;
     info!("用户 {} 删除会计科目成功", auth.username);
 
     Ok(Json(ApiResponse::success_with_message(

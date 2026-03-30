@@ -1,3 +1,5 @@
+pub mod sqlx_pool;
+
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use std::sync::Arc;
 

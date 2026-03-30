@@ -7,14 +7,16 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::http::Request;
+use axum::http::{Request, HeaderValue};
 use sea_orm::Database;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::classify::ServerErrorsFailureClass;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{Any, AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::{info, warn, Level, Span};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -37,11 +39,15 @@ use crate::grpc::management_services::GrpcManagementServices;
 use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
 use crate::routes::create_router;
+use crate::handlers::auth_handler::set_jwt_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 加载配置
     let settings = AppSettings::new()?;
+
+    // 设置全局 JWT secret
+    set_jwt_secret(settings.auth.jwt_secret.clone());
 
     // 初始化日志（根据配置文件设置日志级别和目录）
     let _log_level = settings.log.level.parse::<Level>()?;
@@ -52,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 使用日志轮转：每天轮转一次，保留 7 天
     let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
-
+    
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -86,15 +92,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 连接数据库
     let db = Database::connect(&settings.database.connection_string)
         .await
-        .expect("数据库连接失败");
+        .map_err(|e| {
+            eprintln!("数据库连接失败: {}", e);
+            e
+        })?;
     info!("数据库连接成功");
+    
+    // 强制刷新日志缓冲区
+    std::io::stdout().flush().ok();
+    std::io::stderr().flush().ok();
 
     // 运行数据库迁移
     // TODO: 实现迁移逻辑
 
-    // 创建 CORS 层
+    // 创建 CORS 层，从配置中读取允许的来源
+    let allowed_origins: Vec<HeaderValue> = settings
+        .cors
+        .allowed_origins
+        .iter()
+        .filter_map(|origin| HeaderValue::from_str(origin).ok())
+        .collect();
+
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(AllowOrigin::list(allowed_origins))
         .allow_methods(Any)
         .allow_headers(Any);
 
@@ -126,7 +146,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .layer(cors)
-        .layer(axum::middleware::from_fn(auth_middleware));
+        .layer(axum::middleware::from_fn(auth_middleware))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ));
 
     // 启动 HTTP 服务器
     let http_addr: SocketAddr =

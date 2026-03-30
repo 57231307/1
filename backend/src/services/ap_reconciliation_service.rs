@@ -47,7 +47,7 @@ impl ApReconciliationService {
         req: GenerateReconciliationRequest,
         user_id: i32,
     ) -> Result<ap_reconciliation::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成对账单号
         let reconciliation_no = self.generate_reconciliation_no().await?;
@@ -119,7 +119,7 @@ impl ApReconciliationService {
         id: i32,
         user_id: i32,
     ) -> Result<ap_reconciliation::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询对账单
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
@@ -157,7 +157,7 @@ impl ApReconciliationService {
         reason: String,
         user_id: i32,
     ) -> Result<ap_reconciliation::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询对账单
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)

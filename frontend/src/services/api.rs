@@ -10,7 +10,7 @@ pub struct ApiService;
 
 impl ApiService {
     /// 基础 API 路径
-    const API_BASE: &'static str = "/api/v1/erp";
+    const API_BASE: &'static str = "http://127.0.0.1:8080/api/v1/erp";
 
     /// 最大重试次数
     const MAX_RETRIES: u32 = 3;

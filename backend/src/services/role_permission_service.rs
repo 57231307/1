@@ -233,7 +233,7 @@ impl RolePermissionService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 删除角色权限
         RolePermissionEntity::delete_many()

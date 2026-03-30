@@ -41,7 +41,7 @@ impl SupplierService {
         req: CreateSupplierRequest,
         user_id: i32,
     ) -> Result<supplier::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成供应商编码
         let supplier_code = self.generate_supplier_code().await?;
@@ -191,7 +191,7 @@ impl SupplierService {
         let paginator = query.paginate(&*self.db, page_size);
         let num_pages = paginator.num_pages().await?;
         let data = paginator.fetch_page(page - 1).await?;
-        let total = num_pages as u64 * page_size;
+        let total = num_pages * page_size;
 
         Ok(PaginatedResponse {
             data,
@@ -581,7 +581,7 @@ pub struct CreateContactRequest {
 }
 
 fn validate_mobile_phone(phone: &str) -> Result<(), validator::ValidationError> {
-    let re = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
+    let re = regex::Regex::new(r"^1[3-9]\d{9}$").expect("手机号正则表达式编译失败");
     if re.is_match(phone) {
         Ok(())
     } else {

@@ -45,7 +45,7 @@ impl PurchaseReturnService {
         req: CreatePurchaseReturnRequest,
         user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         let return_no = self.generate_return_no().await?;
 

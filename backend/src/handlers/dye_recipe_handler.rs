@@ -111,7 +111,7 @@ pub async fn list_dye_recipes(
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取配方列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
         )
             .into_response(),
     }
@@ -130,7 +130,7 @@ pub async fn get_dye_recipe(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取配方失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
         )
             .into_response(),
     }
@@ -148,10 +148,10 @@ pub async fn create_dye_recipe(
         fabric_type: Set(req.fabric_type),
         dye_type: Set(req.dye_type),
         chemical_formula: Set(req.chemical_formula),
-        temperature: Set(req.temperature.and_then(|t| Decimal::from_f64_retain(t))),
+        temperature: Set(req.temperature.and_then(Decimal::from_f64_retain)),
         time_minutes: Set(req.time_minutes),
-        ph_value: Set(req.ph_value.and_then(|p| Decimal::from_f64_retain(p))),
-        liquor_ratio: Set(req.liquor_ratio.and_then(|l| Decimal::from_f64_retain(l))),
+        ph_value: Set(req.ph_value.and_then(Decimal::from_f64_retain)),
+        liquor_ratio: Set(req.liquor_ratio.and_then(Decimal::from_f64_retain)),
         auxiliaries: Set(req.auxiliaries),
         status: Set(req.status.unwrap_or_else(|| "草稿".to_string())),
         version: Set(req.version.or(Some(1))),
@@ -172,7 +172,7 @@ pub async fn create_dye_recipe(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("创建配方失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("创建配方失败：{}", e))),
         )
             .into_response(),
     }
@@ -195,7 +195,7 @@ pub async fn update_dye_recipe(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取配方失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
             )
                 .into_response();
         }
@@ -248,7 +248,7 @@ pub async fn update_dye_recipe(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("更新配方失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("更新配方失败：{}", e))),
         )
             .into_response(),
     }
@@ -266,7 +266,7 @@ pub async fn delete_dye_recipe(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("删除配方失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("删除配方失败：{}", e))),
         )
             .into_response(),
     }
@@ -289,7 +289,7 @@ pub async fn approve_recipe(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取配方失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
             )
                 .into_response();
         }
@@ -308,7 +308,7 @@ pub async fn approve_recipe(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("审核配方失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("审核配方失败：{}", e))),
         )
             .into_response(),
     }
@@ -331,7 +331,7 @@ pub async fn create_new_version(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取配方失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
             )
                 .into_response();
         }
@@ -372,7 +372,7 @@ pub async fn create_new_version(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("创建新版本失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("创建新版本失败：{}", e))),
         )
             .into_response(),
     }
@@ -392,7 +392,7 @@ pub async fn get_recipes_by_color(
         Ok(recipes) => (StatusCode::OK, Json(ApiResponse::success(recipes))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取配方列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
         )
             .into_response(),
     }
@@ -418,7 +418,7 @@ pub async fn get_recipe_versions(
         Ok(recipes) => (StatusCode::OK, Json(ApiResponse::success(recipes))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取配方版本失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取配方版本失败：{}", e))),
         )
             .into_response(),
     }

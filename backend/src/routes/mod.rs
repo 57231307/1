@@ -932,7 +932,7 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
 
     // 健康检查路由
     let health_routes = Router::new()
-        .route("/health", get(health_handler::health_check))
+        .route("/", get(health_handler::health_check))
         .route("/ready", get(health_handler::readiness_check))
         .route("/live", get(health_handler::liveness_check));
 
@@ -996,7 +996,10 @@ pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
         .nest("/dye-batches", dye_batch_routes)
         .nest("/greige-fabrics", greige_fabric_routes)
         .nest("/dye-recipes", dye_recipe_routes)
-        .nest("/system-update", system_update_routes);
+        .nest("/system-update", system_update_routes)
+        // 初始化和健康检查路由（也支持通过 /api/v1/erp/ 访问）
+        .nest("/health", health_routes.clone())
+        .nest("/init", init_routes.clone());
 
     // 公共路由（不需要认证）
     let public_routes = Router::new()

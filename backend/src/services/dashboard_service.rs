@@ -268,7 +268,7 @@ impl DashboardService {
         }
 
         Ok(InventoryStatistics {
-            total_quantity: total_quantity.clone(),
+            total_quantity,
             total_value: Decimal::ZERO,
             low_stock_count,
             zero_stock_count,

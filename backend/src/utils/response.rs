@@ -251,7 +251,7 @@ impl<T: Serialize> From<T> for ApiResponse<T> {
 // 实现 IntoResponse trait，让 ApiResponse 可以直接作为返回值
 impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        let status_code = self.status_code.unwrap_or_else(|| {
+        let status_code = self.status_code.unwrap_or({
             if self.success {
                 StatusCode::OK
             } else {

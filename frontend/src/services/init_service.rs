@@ -86,7 +86,8 @@ pub struct InitService;
 
 impl InitService {
     fn get_base_url() -> String {
-        super::api::API_BASE.to_string()
+        // 初始化相关的API直接在根路径下，不使用 /api/v1/erp 前缀
+        String::from("")
     }
 
     pub async fn check_status() -> Result<InitStatus, InitError> {

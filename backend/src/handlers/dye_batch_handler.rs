@@ -100,7 +100,7 @@ pub async fn list_dye_batches(
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取缸号列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
         )
             .into_response(),
     }
@@ -119,7 +119,7 @@ pub async fn get_dye_batch(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取缸号失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
         )
             .into_response(),
     }
@@ -135,7 +135,7 @@ pub async fn create_dye_batch(
         color_code: Set(req.color_code),
         color_name: Set(req.color_name),
         fabric_type: Set(req.fabric_type),
-        weight_kg: Set(req.weight_kg.and_then(|w| Decimal::from_f64_retain(w))),
+        weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
         status: Set(req.status.unwrap_or_else(|| "待生产".to_string())),
         production_date: Set(req.production_date),
         completion_date: Set(None),
@@ -154,7 +154,7 @@ pub async fn create_dye_batch(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("创建缸号失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("创建缸号失败：{}", e))),
         )
             .into_response(),
     }
@@ -177,7 +177,7 @@ pub async fn update_dye_batch(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取缸号失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
             )
                 .into_response();
         }
@@ -218,7 +218,7 @@ pub async fn update_dye_batch(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("更新缸号失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("更新缸号失败：{}", e))),
         )
             .into_response(),
     }
@@ -236,7 +236,7 @@ pub async fn delete_dye_batch(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("删除缸号失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("删除缸号失败：{}", e))),
         )
             .into_response(),
     }
@@ -259,7 +259,7 @@ pub async fn complete_dye_batch(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取缸号失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
             )
                 .into_response();
         }
@@ -281,7 +281,7 @@ pub async fn complete_dye_batch(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("完成缸号失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("完成缸号失败：{}", e))),
         )
             .into_response(),
     }
@@ -300,7 +300,7 @@ pub async fn get_dye_batches_by_color(
         Ok(batches) => (StatusCode::OK, Json(ApiResponse::success(batches))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取缸号列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
         )
             .into_response(),
     }

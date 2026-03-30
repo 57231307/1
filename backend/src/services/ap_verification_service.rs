@@ -47,7 +47,7 @@ impl ApVerificationService {
         supplier_id: i32,
         user_id: i32,
     ) -> Result<ap_verification::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询该供应商未核销的应付单（按到期日排序）
         let invoices = ap_invoice::Entity::find()
@@ -191,7 +191,7 @@ impl ApVerificationService {
         req: ManualVerifyRequest,
         user_id: i32,
     ) -> Result<ap_verification::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 验证所有应付单和付款单
         let mut total_amount = Decimal::new(0, 2);
@@ -294,7 +294,7 @@ impl ApVerificationService {
         reason: String,
         user_id: i32,
     ) -> Result<ap_verification::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询核销单
         let verification = ap_verification::Entity::find_by_id(id)

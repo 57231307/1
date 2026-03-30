@@ -262,7 +262,7 @@ impl CustomerCreditService {
         let new_available = new_limit - credit.used_credit;
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新信用额度
         let mut credit_active: customer_credit::ActiveModel = credit.into();

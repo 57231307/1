@@ -47,7 +47,7 @@ impl ApPaymentService {
         req: CreateApPaymentRequest,
         user_id: i32,
     ) -> Result<ap_payment::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成付款单号
         let payment_no = self.generate_payment_no().await?;
@@ -113,7 +113,7 @@ impl ApPaymentService {
         req: UpdateApPaymentRequest,
         user_id: i32,
     ) -> Result<ap_payment::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款单
         let payment = ap_payment::Entity::find_by_id(id)
@@ -165,7 +165,7 @@ impl ApPaymentService {
 
     /// 确认付款（执行支付）
     pub async fn confirm(&self, id: i32, user_id: i32) -> Result<ap_payment::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询付款单
         let payment = ap_payment::Entity::find_by_id(id)

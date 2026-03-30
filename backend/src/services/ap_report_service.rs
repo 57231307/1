@@ -185,17 +185,18 @@ impl ApReportService {
         month: u32,
         supplier_id: Option<i32>,
     ) -> Result<ApMonthlyReport, AppError> {
-        let start_date = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+        let start_date = NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::BadRequest("无效的日期参数".to_string()))?;
         let end_date = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
-                .unwrap()
+                .ok_or_else(|| AppError::BadRequest("无效的日期参数".to_string()))?
                 .pred_opt()
-                .unwrap()
+                .ok_or_else(|| AppError::BadRequest("无效的日期参数".to_string()))?
         } else {
             NaiveDate::from_ymd_opt(year, month + 1, 1)
-                .unwrap()
+                .ok_or_else(|| AppError::BadRequest("无效的日期参数".to_string()))?
                 .pred_opt()
-                .unwrap()
+                .ok_or_else(|| AppError::BadRequest("无效的日期参数".to_string()))?
         };
 
         // 获取统计报表

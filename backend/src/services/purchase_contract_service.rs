@@ -161,7 +161,7 @@ impl PurchaseContractService {
         // }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 创建执行记录
         let execution = crate::models::purchase_contract_execution::ActiveModel {

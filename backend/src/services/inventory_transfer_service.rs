@@ -110,10 +110,10 @@ impl InventoryTransferService {
         }
 
         // 分页
-        let paginator = query.paginate(&*self.db, page_req.page_size as u64);
+        let paginator = query.paginate(&*self.db, page_req.page_size);
         let total = paginator.num_items().await?;
         let transfers: Vec<inventory_transfer::Model> =
-            paginator.fetch_page(page_req.page as u64 - 1).await?;
+            paginator.fetch_page(page_req.page - 1).await?;
 
         // 转换为响应格式
         let transfer_details: Vec<InventoryTransferDetail> = transfers
@@ -209,7 +209,7 @@ impl InventoryTransferService {
         request: CreateInventoryTransferRequest,
     ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 生成调拨单号并检查唯一性
         let transfer_no = self.generate_transfer_no().await?;
@@ -311,7 +311,7 @@ impl InventoryTransferService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新调拨主表
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
@@ -395,7 +395,7 @@ impl InventoryTransferService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新调拨单状态
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
@@ -440,7 +440,7 @@ impl InventoryTransferService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()
@@ -474,11 +474,11 @@ impl InventoryTransferService {
                 // 扣减库存
                 let mut stock_active: inventory_stock::ActiveModel = stock_model.into();
                 stock_active.quantity_on_hand =
-                    sea_orm::ActiveValue::Set(&quantity_on_hand - &item.quantity);
+                    sea_orm::ActiveValue::Set(quantity_on_hand - item.quantity);
                 stock_active.quantity_available =
-                    sea_orm::ActiveValue::Set(&quantity_on_hand - &item.quantity);
+                    sea_orm::ActiveValue::Set(quantity_on_hand - item.quantity);
                 stock_active.quantity_meters =
-                    sea_orm::ActiveValue::Set(&quantity_meters - &item.quantity);
+                    sea_orm::ActiveValue::Set(quantity_meters - item.quantity);
                 stock_active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 stock_active.update(&txn).await?;
 
@@ -532,7 +532,7 @@ impl InventoryTransferService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()
@@ -555,11 +555,11 @@ impl InventoryTransferService {
                 let quantity_meters = stock_model.quantity_meters;
                 let mut stock_active: inventory_stock::ActiveModel = stock_model.into();
                 stock_active.quantity_on_hand =
-                    sea_orm::ActiveValue::Set(&quantity_on_hand + &item.quantity);
+                    sea_orm::ActiveValue::Set(quantity_on_hand + item.quantity);
                 stock_active.quantity_available =
-                    sea_orm::ActiveValue::Set(&quantity_on_hand + &item.quantity);
+                    sea_orm::ActiveValue::Set(quantity_on_hand + item.quantity);
                 stock_active.quantity_meters =
-                    sea_orm::ActiveValue::Set(&quantity_meters + &item.quantity);
+                    sea_orm::ActiveValue::Set(quantity_meters + item.quantity);
                 stock_active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 stock_active.update(&txn).await?;
 

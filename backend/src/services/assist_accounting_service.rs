@@ -25,16 +25,14 @@ impl AssistAccountingService {
     /// 初始化 8 个辅助核算维度
     #[allow(dead_code)]
     pub async fn initialize_dimensions(&self) -> Result<(), sea_orm::DbErr> {
-        let dimensions = vec![
-            ("BATCH", "批次核算", "按生产批次进行辅助核算"),
+        let dimensions = [("BATCH", "批次核算", "按生产批次进行辅助核算"),
             ("COLOR", "色号核算", "按产品色号进行辅助核算"),
             ("DYE_LOT", "缸号核算", "按染色缸次进行辅助核算"),
             ("GRADE", "等级核算", "按产品质量等级进行辅助核算"),
             ("WORKSHOP", "车间核算", "按生产车间进行辅助核算"),
             ("WAREHOUSE", "仓库核算", "按仓库进行辅助核算"),
             ("CUSTOMER", "客户核算", "按客户进行辅助核算"),
-            ("SUPPLIER", "供应商核算", "按供应商进行辅助核算"),
-        ];
+            ("SUPPLIER", "供应商核算", "按供应商进行辅助核算")];
 
         for (i, (code, name, desc)) in dimensions.iter().enumerate() {
             let dimension = assist_accounting_dimension::ActiveModel {
@@ -414,7 +412,7 @@ fn parse_period(period: &str) -> Result<(i32, u32), String> {
     }
     let year: i32 = parts[0].parse().map_err(|_| "年份解析错误")?;
     let month: u32 = parts[1].parse().map_err(|_| "月份解析错误")?;
-    if month < 1 || month > 12 {
+    if !(1..=12).contains(&month) {
         return Err("月份必须在1-12之间".to_string());
     }
     Ok((year, month))

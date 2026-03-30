@@ -112,10 +112,10 @@ impl InventoryCountService {
         }
 
         // 分页
-        let paginator = query.paginate(&*self.db, page_req.page_size as u64);
+        let paginator = query.paginate(&*self.db, page_req.page_size);
         let total = paginator.num_items().await?;
         let counts: Vec<inventory_count::Model> =
-            paginator.fetch_page(page_req.page as u64 - 1).await?;
+            paginator.fetch_page(page_req.page - 1).await?;
 
         // 转换为响应格式
         let count_details: Vec<InventoryCountDetail> = counts
@@ -214,7 +214,7 @@ impl InventoryCountService {
         request: CreateInventoryCountRequest,
     ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 生成盘点单号并检查唯一性
         let count_no = self.generate_count_no().await?;
@@ -318,7 +318,7 @@ impl InventoryCountService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新盘点主表
         let mut count_update: inventory_count::ActiveModel = count.into();
@@ -361,7 +361,7 @@ impl InventoryCountService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新盘点单状态
         let mut count_update: inventory_count::ActiveModel = count.into();
@@ -406,7 +406,7 @@ impl InventoryCountService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 获取盘点明细项
         let items = InventoryCountItemEntity::find()
@@ -430,7 +430,7 @@ impl InventoryCountService {
                 let quantity_book = stock_model.quantity_on_hand;
 
                 // 计算差异
-                let quantity_variance = &item.quantity_actual - &quantity_book;
+                let quantity_variance = item.quantity_actual - quantity_book;
 
                 // 更新明细项
                 let mut item_update: inventory_count_item::ActiveModel = item.clone().into();
@@ -449,7 +449,7 @@ impl InventoryCountService {
                     stock_update.quantity_available =
                         sea_orm::ActiveValue::Set(item.quantity_actual);
                     stock_update.quantity_meters = sea_orm::ActiveValue::Set(
-                        &stock_model.quantity_meters + &quantity_variance,
+                        stock_model.quantity_meters + quantity_variance,
                     );
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                     stock_update.update(&txn).await?;

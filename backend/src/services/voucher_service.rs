@@ -376,7 +376,7 @@ impl VoucherService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 验证凭证
         self.validate_voucher_in_transaction(id, &txn).await?;
@@ -433,7 +433,7 @@ impl VoucherService {
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
 
         if total_debit != total_credit {
-            return Err(AppError::BadRequest(format!("凭证借贷不平衡",)));
+            return Err(AppError::BadRequest("凭证借贷不平衡".to_string()));
         }
 
         Ok(())
@@ -490,10 +490,10 @@ impl VoucherService {
 
             // 累加借方和贷方发生额
             if !item.debit.is_zero() {
-                entry.0 = entry.0 + item.debit;
+                entry.0 += item.debit;
             }
             if !item.credit.is_zero() {
-                entry.1 = entry.1 + item.credit;
+                entry.1 += item.credit;
             }
         }
 
@@ -621,7 +621,7 @@ impl VoucherService {
         let year_month = format!("{:04}-{:02}", voucher_date.year(), voucher_date.month());
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("系统时间早于UNIX纪元")
             .as_millis();
 
         Ok(format!("{}{}-{:04}", prefix, year_month, timestamp % 10000))

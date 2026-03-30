@@ -81,7 +81,7 @@ impl FabricFiveDimension {
 
         // 解析缸号
         let dye_lot_no =
-            if parts[3] == "N" || parts[3].strip_prefix('D').map_or(false, |s| s.is_empty()) {
+            if parts[3] == "N" || parts[3].strip_prefix('D').is_some_and(|s| s.is_empty()) {
                 None
             } else {
                 Some(

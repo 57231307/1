@@ -4,7 +4,7 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::{ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, Set, ConnectionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, Set, ConnectionTrait};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -135,6 +135,18 @@ impl InitService {
     }
 
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
+        // 先检查admin角色是否已存在
+        let existing_admin = role::Entity::find()
+            .filter(role::Column::Code.eq("admin"))
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询角色失败: {}", e)))?;
+        
+        if let Some(admin_role) = existing_admin {
+            return Ok(admin_role);
+        }
+        
+        // 如果不存在，则创建角色
         let admin_role = role::ActiveModel {
             id: Set(0),
             name: Set("管理员".to_string()),
@@ -162,10 +174,10 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        manager_role
+        // 忽略manager角色的创建错误，因为可能已存在
+        let _ = manager_role
             .insert(self.db.as_ref())
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("创建经理角色失败: {}", e)))?;
+            .await;
 
         let operator_role = role::ActiveModel {
             id: Set(0),
@@ -179,15 +191,27 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        operator_role
+        // 忽略operator角色的创建错误
+        let _ = operator_role
             .insert(self.db.as_ref())
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("创建操作员角色失败: {}", e)))?;
+            .await;
 
         Ok(admin_role)
     }
 
     async fn create_default_departments(&self) -> Result<i32, InitError> {
+        // 先检查总经办是否已存在
+        let existing_dept = department::Entity::find()
+            .filter(department::Column::Code.eq("D001"))
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询部门失败: {}", e)))?;
+        
+        if let Some(dept) = existing_dept {
+            return Ok(dept.id);
+        }
+        
+        // 如果不存在，则创建部门
         let dept = department::ActiveModel {
             id: Set(0),
             name: Set("总经办".to_string()),

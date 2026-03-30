@@ -10,6 +10,12 @@ use sea_orm::{ColumnTrait, QueryFilter};
 #[allow(dead_code)]
 pub struct FiveDimensionQueryService;
 
+impl Default for FiveDimensionQueryService {
+    fn default() -> Self {
+        Self
+    }
+}
+
 #[allow(dead_code)]
 impl FiveDimensionQueryService {
     /// 创建查询构建器

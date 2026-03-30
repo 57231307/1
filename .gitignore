@@ -3,6 +3,8 @@ target/
 frontend/target/
 frontend/dist/
 backend/target/
+backend/server
+backend/logs/
 
 # 忽略发布包（压缩包文件）
 releases/*.zip

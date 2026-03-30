@@ -169,7 +169,7 @@ impl UserServiceTrait for GrpcUserService {
         let req = request.into_inner();
 
         let page = req.page.max(1) as u64;
-        let page_size = req.page_size.max(1).min(100) as u64;
+        let page_size = req.page_size.clamp(1, 100) as u64;
 
         match self.user_service.list_users(page, page_size).await {
             Ok((users, total)) => {

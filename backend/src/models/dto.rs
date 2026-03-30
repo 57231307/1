@@ -160,7 +160,7 @@ impl<T> PageResponse<T> {
         let total_pages = if total == 0 {
             0
         } else {
-            (total + page_size - 1) / page_size
+            total.div_ceil(page_size)
         };
         Self {
             total,

@@ -166,10 +166,10 @@ impl SalesService {
         }
 
         // 分页
-        let paginator = query.paginate(&*self.db, page_req.page_size as u64);
+        let paginator = query.paginate(&*self.db, page_req.page_size);
         let total = paginator.num_items().await?;
         let orders: Vec<sales_order::Model> =
-            paginator.fetch_page(page_req.page as u64 - 1).await?;
+            paginator.fetch_page(page_req.page - 1).await?;
 
         // 转换为响应格式
         let order_details: Vec<SalesOrderDetail> = orders
@@ -300,7 +300,7 @@ impl SalesService {
         request: CreateSalesOrderRequest,
     ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 生成订单号并检查唯一性
         let order_no = self.generate_order_no().await?;
@@ -362,10 +362,10 @@ impl SalesService {
             // 计算明细项金额
             let item_subtotal = item_req.quantity * item_req.unit_price;
             let item_discount =
-                &item_subtotal * (&discount_pct / rust_decimal::Decimal::new(100, 0));
-            let item_after_discount = &item_subtotal - &item_discount;
-            let item_tax = &item_after_discount * (&tax_pct / rust_decimal::Decimal::new(100, 0));
-            let item_total = &item_after_discount + &item_tax;
+                item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
+            let item_after_discount = item_subtotal - item_discount;
+            let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
+            let item_total = item_after_discount + item_tax;
 
             // 累加订单总额
             subtotal += &item_subtotal;
@@ -466,7 +466,7 @@ impl SalesService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新订单主表
         let mut order_update: sales_order::ActiveModel = order.into();
@@ -510,11 +510,11 @@ impl SalesService {
 
                 let item_subtotal = item_req.quantity * item_req.unit_price;
                 let item_discount =
-                    &item_subtotal * (&discount_pct / rust_decimal::Decimal::new(100, 0));
-                let item_after_discount = &item_subtotal - &item_discount;
+                    item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
+                let item_after_discount = item_subtotal - item_discount;
                 let item_tax =
-                    &item_after_discount * (&tax_pct / rust_decimal::Decimal::new(100, 0));
-                let item_total = &item_after_discount + &item_tax;
+                    item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
+                let item_total = item_after_discount + item_tax;
 
                 subtotal += &item_subtotal;
                 discount_amount += &item_discount;
@@ -613,7 +613,7 @@ impl SalesService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 删除订单明细项
         SalesOrderItemEntity::delete_many()
@@ -818,7 +818,7 @@ impl SalesService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 锁定库存
         let order_detail = self.get_order_detail(order_id).await?;
@@ -890,7 +890,7 @@ impl SalesService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 扣减库存
         self.reduce_inventory(order_id, &txn).await?;
@@ -933,7 +933,7 @@ impl SalesService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 更新订单状态为已完成
         let updated_order = sales_order::ActiveModel {

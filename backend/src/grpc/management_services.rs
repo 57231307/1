@@ -42,8 +42,7 @@ use crate::grpc::service::proto::{
     GetBudgetItemRequest, GetBudgetItemResponse,
     CreateBudgetItemRequest, CreateBudgetItemResponse,
     UpdateBudgetItemRequest, UpdateBudgetItemResponse,
-    DeleteBudgetItemRequest, DeleteBudgetItemResponse,
-    BudgetPlan, ListBudgetPlansRequest, ListBudgetPlansResponse,
+    DeleteBudgetItemRequest, DeleteBudgetItemResponse, ListBudgetPlansRequest, ListBudgetPlansResponse,
     GetBudgetPlanRequest, GetBudgetPlanResponse,
     CreateBudgetPlanRequest, CreateBudgetPlanResponse,
     ApproveBudgetPlanRequest, ApproveBudgetPlanResponse,
@@ -175,7 +174,7 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.max(1).min(100) as i64;
+        let _page_size = req.page_size.clamp(1, 100) as i64;
         
         // TODO: 实现查询逻辑
         // 暂时返回空列表
@@ -331,7 +330,7 @@ impl SalesContractServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.max(1).min(100) as i64;
+        let _page_size = req.page_size.clamp(1, 100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListSalesContractsResponse {
@@ -479,7 +478,7 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.max(1).min(100) as i64;
+        let _page_size = req.page_size.clamp(1, 100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListFixedAssetsResponse {
@@ -641,7 +640,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.max(1).min(100) as i64;
+        let _page_size = req.page_size.clamp(1, 100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListBudgetItemsResponse {
@@ -763,7 +762,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.max(1).min(100) as i64;
+        let _page_size = req.page_size.clamp(1, 100) as i64;
         
         // TODO: 实现查询逻辑
         Ok(Response::new(ListBudgetPlansResponse {

@@ -4,15 +4,11 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::{DateTime, Duration, Utc};
-use hmac::{Hmac, Mac};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
 use std::sync::Arc;
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppClaims {
@@ -25,17 +21,19 @@ pub struct AppClaims {
     pub iat: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AuthService {
     db: Arc<DatabaseConnection>,
-    secret: Vec<u8>,
+    encoding_key: EncodingKey,
+    decoding_key: DecodingKey,
 }
 
 impl AuthService {
     pub fn new(db: Arc<DatabaseConnection>, secret: String) -> Self {
         Self {
             db,
-            secret: secret.into_bytes(),
+            encoding_key: EncodingKey::from_secret(secret.as_bytes()),
+            decoding_key: DecodingKey::from_secret(secret.as_bytes()),
         }
     }
 
@@ -78,60 +76,32 @@ impl AuthService {
             iat: now,
         };
 
-        let json =
-            serde_json::to_string(&claims).map_err(|e| AuthError::JwtError(e.to_string()))?;
+        encode(&Header::default(), &claims, &self.encoding_key)
+            .map_err(|e| AuthError::JwtError(e.to_string()))
+    }
 
-        let encoded = BASE64.encode(json.as_bytes());
-        let signature = self.sign(&encoded);
-        let token = format!("{}.{}", encoded, signature);
+    /// 静态方法：验证JWT令牌（不依赖AuthService实例）
+    pub fn validate_token_static(token: &str, secret: &str) -> Result<AppClaims, AuthError> {
+        let decoding_key = DecodingKey::from_secret(secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+        validation.leeway = 60;
 
-        Ok(token)
+        let token_data = decode::<AppClaims>(token, &decoding_key, &validation)
+            .map_err(|e| AuthError::JwtError(e.to_string()))?;
+
+        Ok(token_data.claims)
     }
 
     pub fn validate_token(&self, token: &str) -> Result<AppClaims, AuthError> {
-        let parts: Vec<&str> = token.split('.').collect();
-        if parts.len() != 2 {
-            return Err(AuthError::JwtError("Invalid token format".to_string()));
-        }
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+        validation.leeway = 60;
 
-        let (encoded, signature) = (parts[0], parts[1]);
-        if !self.verify_signature(encoded, signature) {
-            return Err(AuthError::JwtError("Invalid signature".to_string()));
-        }
-
-        let json = BASE64
-            .decode(encoded)
+        let token_data = decode::<AppClaims>(token, &self.decoding_key, &validation)
             .map_err(|e| AuthError::JwtError(e.to_string()))?;
 
-        let claims: AppClaims =
-            serde_json::from_slice(&json).map_err(|e| AuthError::JwtError(e.to_string()))?;
-
-        if claims.exp < Utc::now() {
-            return Err(AuthError::JwtError("Token expired".to_string()));
-        }
-
-        Ok(claims)
-    }
-
-    fn sign(&self, data: &str) -> String {
-        let mut mac =
-            HmacSha256::new_from_slice(&self.secret).expect("HMAC can accept key of any size");
-        mac.update(data.as_bytes());
-        let result = mac.finalize();
-        BASE64.encode(result.into_bytes())
-    }
-
-    fn verify_signature(&self, data: &str, signature: &str) -> bool {
-        let mut mac = match HmacSha256::new_from_slice(&self.secret) {
-            Ok(m) => m,
-            Err(_) => return false,
-        };
-        mac.update(data.as_bytes());
-        let decoded_sig = match BASE64.decode(signature) {
-            Ok(s) => s,
-            Err(_) => return false,
-        };
-        mac.verify_slice(&decoded_sig).is_ok()
+        Ok(token_data.claims)
     }
 
     pub fn verify_password(&self, password: &str, hash: &str) -> bool {
@@ -152,11 +122,6 @@ impl AuthService {
             .map_err(|_| AuthError::HashError)?;
 
         Ok(hash.to_string())
-    }
-
-    #[allow(dead_code)]
-    pub fn get_secret(&self) -> &str {
-        std::str::from_utf8(&self.secret).unwrap_or("")
     }
 }
 

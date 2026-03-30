@@ -1,0 +1,6 @@
+server = { host = "127.0.0.1", port = "8080" }
+database = { connection_string = "postgres://test:yFcXH8mNZ4JDzWTFhdfghjasghsdgysdgy446def46df46d@39.99.34.194:5432/TEST", max_connections = 10 }
+auth = { jwt_secret = "your-jwt-secret-key-change-in-production", token_expiry_hours = 24 }
+grpc = { host = "127.0.0.1", port = 50051 }
+log = { level = "debug", dir = "./logs" }
+env = "development"

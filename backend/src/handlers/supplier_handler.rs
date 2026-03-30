@@ -22,8 +22,7 @@ pub async fn list_suppliers(
     let service = SupplierService::new(db);
     let result = service
         .list_suppliers(params)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success(
         serde_json::to_value(result).map_err(AppError::from)?,
@@ -36,7 +35,7 @@ pub async fn get_supplier(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(db);
-    let supplier = service.get_supplier(id).await.map_err(AppError::from)?;
+    let supplier = service.get_supplier(id).await?;
 
     Ok(Json(ApiResponse::success(
         serde_json::to_value(supplier).map_err(AppError::from)?,
@@ -57,8 +56,7 @@ pub async fn create_supplier(
 
     let supplier = service
         .create_supplier(req, user_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(supplier).map_err(AppError::from)?,
@@ -78,8 +76,7 @@ pub async fn update_supplier(
 
     let supplier = service
         .update_supplier(id, req, user_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(supplier).map_err(AppError::from)?,
@@ -93,7 +90,7 @@ pub async fn delete_supplier(
     State(db): State<Arc<DatabaseConnection>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(db);
-    service.delete_supplier(id).await.map_err(AppError::from)?;
+    service.delete_supplier(id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),
@@ -113,8 +110,7 @@ pub async fn toggle_supplier_status(
 
     let supplier = service
         .toggle_supplier_status(id, req.enable, user_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(supplier).map_err(AppError::from)?,
@@ -142,8 +138,7 @@ pub async fn list_supplier_contacts(
     let service = SupplierService::new(db);
     let contacts = service
         .list_supplier_contacts(supplier_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success(
         serde_json::to_value(contacts).map_err(AppError::from)?,
@@ -165,8 +160,7 @@ pub async fn create_supplier_contact(
 
     let contact = service
         .create_supplier_contact(supplier_id, req, user_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(contact).map_err(AppError::from)?,
@@ -186,8 +180,7 @@ pub async fn update_supplier_contact(
 
     let contact = service
         .update_supplier_contact(contact_id, req, user_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(contact).map_err(AppError::from)?,
@@ -203,8 +196,7 @@ pub async fn delete_supplier_contact(
     let service = SupplierService::new(db);
     service
         .delete_supplier_contact(contact_id)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),

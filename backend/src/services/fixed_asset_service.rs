@@ -193,7 +193,7 @@ impl FixedAssetService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 保留需要使用的字段值，避免 moved value 错误
         let accumulated_depreciation = asset.accumulated_depreciation;
@@ -237,7 +237,7 @@ impl FixedAssetService {
         }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 生成处置单号
         let disposal_no = format!("D{}{}", chrono::Local::now().format("%Y%m%d"), asset_id);

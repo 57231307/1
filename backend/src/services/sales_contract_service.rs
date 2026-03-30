@@ -160,7 +160,7 @@ impl SalesContractService {
         // }
 
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 创建执行记录
         // TODO: 需要创建 sales_contract_execution 模型

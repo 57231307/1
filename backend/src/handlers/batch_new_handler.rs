@@ -109,7 +109,7 @@ pub async fn list_batches(
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!(
+            Json(ApiResponse::<()>::error(format!(
                 "获取批次列表失败：{}",
                 e
             ))),
@@ -132,7 +132,7 @@ pub async fn get_batch(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取批次失败：{}", e))),
         )
             .into_response(),
     }
@@ -177,10 +177,10 @@ pub async fn create_batch(
         quantity_kg: Set(Decimal::from_f64_retain(req.quantity_kg).unwrap_or(Decimal::ZERO)),
         gram_weight: Set(req
             .gram_weight
-            .and_then(|w| rust_decimal::Decimal::from_f64_retain(w))),
+            .and_then(rust_decimal::Decimal::from_f64_retain)),
         width: Set(req
             .width
-            .and_then(|w| rust_decimal::Decimal::from_f64_retain(w))),
+            .and_then(rust_decimal::Decimal::from_f64_retain)),
         production_date: Set(req.production_date),
         expiry_date: Set(req.expiry_date),
         stock_status: Set("正常".to_string()),
@@ -199,7 +199,7 @@ pub async fn create_batch(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("创建批次失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("创建批次失败：{}", e))),
         )
             .into_response(),
     }
@@ -227,7 +227,7 @@ pub async fn update_batch(
             Err(e) => {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))),
+                    Json(ApiResponse::<()>::error(format!("获取批次失败：{}", e))),
                 )
                     .into_response();
             }
@@ -275,7 +275,7 @@ pub async fn update_batch(
             .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("更新批次失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("更新批次失败：{}", e))),
         )
             .into_response(),
     }
@@ -296,7 +296,7 @@ pub async fn delete_batch(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("删除批次失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("删除批次失败：{}", e))),
         )
             .into_response(),
     }
@@ -317,7 +317,7 @@ pub async fn transfer_batch(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("开启事务失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("开启事务失败：{}", e))),
             );
         }
     };
@@ -334,7 +334,7 @@ pub async fn transfer_batch(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!("获取批次失败：{}", e))),
+                Json(ApiResponse::<()>::error(format!("获取批次失败：{}", e))),
             );
         }
     };
@@ -370,7 +370,7 @@ pub async fn transfer_batch(
     if let Err(e) = source.update(&txn).await {
         return (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&format!("更新源批次失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("更新源批次失败：{}", e))),
         );
     }
 
@@ -394,7 +394,7 @@ pub async fn transfer_batch(
             if let Err(e) = target.update(&txn).await {
                 return (
                     StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(&format!(
+                    Json(ApiResponse::<()>::error(format!(
                         "更新目标批次失败：{}",
                         e
                     ))),
@@ -438,7 +438,7 @@ pub async fn transfer_batch(
             if let Err(e) = new_batch.insert(&txn).await {
                 return (
                     StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(&format!(
+                    Json(ApiResponse::<()>::error(format!(
                         "创建目标批次失败：{}",
                         e
                     ))),
@@ -448,7 +448,7 @@ pub async fn transfer_batch(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(&format!(
+                Json(ApiResponse::<()>::error(format!(
                     "查询目标批次失败：{}",
                     e
                 ))),
@@ -460,7 +460,7 @@ pub async fn transfer_batch(
     if let Err(e) = txn.commit().await {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&format!("提交事务失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("提交事务失败：{}", e))),
         );
     }
 

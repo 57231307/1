@@ -54,7 +54,7 @@ use crate::grpc::service::proto::{
     BatchCreateReservationsRequest, BatchCreateReservationsResponse,
     BatchLockReservationsRequest, BatchLockReservationsResponse,
     BatchReleaseReservationsRequest, BatchReleaseReservationsResponse,
-    InventoryReservation, ReservationItem,
+    InventoryReservation,
     
     // 财务分析服务
     financial_analysis_service_server::FinancialAnalysisService as FinancialAnalysisServiceTrait,
@@ -70,6 +70,7 @@ use crate::grpc::service::proto::{
 pub struct GrpcNewServices {
     assist_accounting_service: Arc<AssistAccountingService>,
     supplier_evaluation_service: Arc<SupplierEvaluationService>,
+    #[allow(dead_code)]
     five_dimension_query_service: Arc<FiveDimensionQueryService>,
     inventory_reservation_service: Arc<InventoryReservationService>,
     financial_analysis_service: Arc<FinancialAnalysisService>,
@@ -341,7 +342,7 @@ impl AssistAccountingServiceTrait for GrpcNewServices {
         let req = request.into_inner();
         
         let page = req.page.max(1) as u64;
-        let page_size = req.page_size.max(1).min(100) as u64;
+        let page_size = req.page_size.clamp(1, 100) as u64;
         
         let accounting_period = if req.accounting_period.is_empty() { None } else { Some(req.accounting_period.as_str()) };
         let dimension_code = if req.dimension_code.is_empty() { None } else { Some(req.dimension_code.as_str()) };

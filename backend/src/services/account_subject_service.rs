@@ -88,7 +88,7 @@ impl AccountSubjectService {
                 .await?;
             if parent.is_none() {
                 warn!("父科目不存在：{}", parent_id);
-                return Err(AppError::BadRequest(format!("父科目不存在")));
+                return Err(AppError::BadRequest("父科目不存在".to_string()));
             }
         }
 
@@ -97,7 +97,7 @@ impl AccountSubjectService {
             let parent = account_subject::Entity::find_by_id(parent_id)
                 .one(&*self.db)
                 .await?
-                .unwrap();
+                .ok_or_else(|| AppError::BadRequest("父科目不存在".to_string()))?;
             format!("{}.{}", parent.full_code.unwrap_or(parent.code), req.code)
         } else {
             req.code.clone()
@@ -153,8 +153,7 @@ impl AccountSubjectService {
         // 构建树
         for subject in &all_subjects {
             if let Some(parent_id) = subject.parent_id {
-                if subject_map.contains_key(&subject.id) {
-                    let node = subject_map.remove(&subject.id).unwrap();
+                if let Some(node) = subject_map.remove(&subject.id) {
                     if let Some(parent_node) = subject_map.get_mut(&parent_id) {
                         parent_node.children.push(node);
                     } else {

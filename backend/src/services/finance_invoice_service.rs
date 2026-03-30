@@ -186,7 +186,7 @@ impl FinanceInvoiceService {
         payment_method: String,
     ) -> Result<InvoiceModel, DbErr> {
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         let mut invoice: ActiveModel = FinanceInvoice::find_by_id(id)
             .one(&txn)

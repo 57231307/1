@@ -110,7 +110,7 @@ impl PurchaseInspectionService {
         req: CompleteInspectionRequest,
         _user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&txn)

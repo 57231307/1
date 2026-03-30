@@ -34,7 +34,7 @@ impl BusinessTraceService {
         created_by: Option<i32>,
     ) -> Result<business_trace_chain::Model, sea_orm::DbErr> {
         // 生成追溯链 ID
-        let trace_chain_id = self.generate_trace_chain_id(&five_dimension, &bill_type, &bill_no);
+        let trace_chain_id = self.generate_trace_chain_id(five_dimension, &bill_type, &bill_no);
 
         let active_trace = business_trace_chain::ActiveModel {
             id: Set(0),

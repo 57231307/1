@@ -53,7 +53,7 @@ impl InventoryAdjustmentService {
         request: CreateAdjustmentRequest,
     ) -> Result<AdjustmentDetail, DbErr> {
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 生成调整单号
         let adjustment_no = self.generate_adjustment_no().await?;
@@ -141,7 +141,7 @@ impl InventoryAdjustmentService {
         approved_by: i32,
     ) -> Result<inventory_adjustment::Model, DbErr> {
         // 开启事务
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 获取调整单
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)

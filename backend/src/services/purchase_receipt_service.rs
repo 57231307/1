@@ -48,7 +48,7 @@ impl PurchaseReceiptService {
         req: CreatePurchaseReceiptRequest,
         user_id: i32,
     ) -> Result<purchase_receipt::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成入库单号
         let receipt_no = self.generate_receipt_no().await?;
@@ -186,7 +186,7 @@ impl PurchaseReceiptService {
         receipt_id: i32,
         user_id: i32,
     ) -> Result<purchase_receipt::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询入库单
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)

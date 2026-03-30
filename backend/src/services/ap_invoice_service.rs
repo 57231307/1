@@ -47,7 +47,7 @@ impl ApInvoiceService {
         receipt_id: i32,
         user_id: i32,
     ) -> Result<ap_invoice::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询采购入库单
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
@@ -120,7 +120,7 @@ impl ApInvoiceService {
         return_id: i32,
         user_id: i32,
     ) -> Result<ap_invoice::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询采购退货单
         let return_doc = purchase_return::Entity::find_by_id(return_id)
@@ -186,7 +186,7 @@ impl ApInvoiceService {
         req: CreateApInvoiceRequest,
         user_id: i32,
     ) -> Result<ap_invoice::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成应付单号
         let invoice_no = self.generate_invoice_no().await?;
@@ -228,7 +228,7 @@ impl ApInvoiceService {
         req: UpdateApInvoiceRequest,
         user_id: i32,
     ) -> Result<ap_invoice::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询应付单
         let invoice = ap_invoice::Entity::find_by_id(id)
@@ -281,7 +281,7 @@ impl ApInvoiceService {
 
     /// 删除应付单（仅草稿状态）
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询应付单
         let invoice = ap_invoice::Entity::find_by_id(id)
@@ -309,7 +309,7 @@ impl ApInvoiceService {
 
     /// 审核应付单
     pub async fn approve(&self, id: i32, user_id: i32) -> Result<ap_invoice::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询应付单
         let invoice = ap_invoice::Entity::find_by_id(id)
@@ -347,7 +347,7 @@ impl ApInvoiceService {
         reason: String,
         user_id: i32,
     ) -> Result<ap_invoice::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 查询应付单
         let invoice = ap_invoice::Entity::find_by_id(id)

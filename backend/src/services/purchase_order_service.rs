@@ -63,7 +63,7 @@ impl PurchaseOrderService {
         req: CreatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
-        let txn = (&*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 生成订单号
         let order_no = self.generate_order_no().await?;
