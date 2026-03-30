@@ -1,6 +1,7 @@
 server = { host = "127.0.0.1", port = "8080" }
-database = { connection_string = "postgres://test:yFcXH8mNZ4JDzWTFhdfghjasghsdgysdgy446def46df46d@39.99.34.194:5432/TEST", max_connections = 10 }
-auth = { jwt_secret = "your-jwt-secret-key-change-in-production", token_expiry_hours = 24 }
+database = { connection_string = "postgres://postgres:postgres@localhost:5432/bingxi_erp", host = "localhost", port = 5432, name = "bingxi_erp", username = "postgres", password = "postgres", max_connections = 10, ssl_mode = "disable" }
+auth = { jwt_secret = "local-dev-secret-key-change-in-production", token_expiry_hours = 24 }
 grpc = { host = "127.0.0.1", port = 50051 }
 log = { level = "debug", dir = "./logs" }
+cors = { allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"] }
 env = "development"

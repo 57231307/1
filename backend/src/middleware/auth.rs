@@ -1,8 +1,9 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
-use crate::handlers::auth_handler::get_jwt_secret;
+use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
+    extract::State,
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
@@ -10,6 +11,7 @@ use axum::{
 use tracing::warn;
 
 pub async fn auth_middleware(
+    State(state): State<AppState>,
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -53,7 +55,7 @@ pub async fn auth_middleware(
                 return Err(StatusCode::UNAUTHORIZED);
             }
 
-            let claims = AuthService::validate_token_static(token, &get_jwt_secret());
+            let claims = AuthService::validate_token_static(token, &state.jwt_secret);
             match claims {
                 Ok(claims) => {
                     let auth_context = AuthContext::from_claims(claims);

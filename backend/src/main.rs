@@ -8,6 +8,7 @@ mod services;
 mod utils;
 
 use axum::http::{Request, HeaderValue};
+use axum::{routing::{get, post}, Router, Json};
 use sea_orm::Database;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -28,35 +29,114 @@ use crate::grpc::service::proto::purchase_contract_service_server::PurchaseContr
 use crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer;
 use crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer;
 use crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer;
-// 新增服务导入
 use crate::grpc::service::proto::assist_accounting_service_server::AssistAccountingServiceServer;
 use crate::grpc::service::proto::supplier_evaluation_service_server::SupplierEvaluationServiceServer;
 use crate::grpc::service::proto::five_dimension_query_service_server::FiveDimensionQueryServiceServer;
 use crate::grpc::service::proto::inventory_reservation_service_server::InventoryReservationServiceServer;
 use crate::grpc::service::proto::financial_analysis_service_server::FinancialAnalysisServiceServer;
-use crate::grpc::service::GrpcUserService;
+use crate::grpc::GrpcUserService;
 use crate::grpc::management_services::GrpcManagementServices;
 use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
 use crate::routes::create_router;
 use crate::handlers::auth_handler::set_jwt_secret;
+use crate::services::init_service::{DatabaseConfig, InitService};
+
+#[derive(Debug, serde::Serialize)]
+struct InitStatusResponse {
+    initialized: bool,
+    message: String,
+    mode: String,
+}
+
+async fn get_init_status() -> Json<InitStatusResponse> {
+    Json(InitStatusResponse {
+        initialized: false,
+        message: "系统未初始化，请先配置数据库".to_string(),
+        mode: "setup".to_string(),
+    })
+}
+
+async fn test_database_connection(
+    Json(payload): Json<DatabaseConfig>,
+) -> Result<Json<crate::handlers::init_handler::TestDatabaseResponse>, (axum::http::StatusCode, Json<crate::handlers::init_handler::ErrorResponse>)> {
+    match InitService::test_database(&payload).await {
+        Ok(_) => Ok(Json(crate::handlers::init_handler::TestDatabaseResponse {
+            success: true,
+            message: "数据库连接成功".to_string(),
+        })),
+        Err(e) => Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(crate::handlers::init_handler::ErrorResponse {
+                error: "database_connection_failed".to_string(),
+                message: e.to_string(),
+            }),
+        )),
+    }
+}
+
+async fn initialize_with_db(
+    Json(payload): Json<crate::handlers::init_handler::InitWithDbRequest>,
+) -> Result<
+    Json<crate::services::init_service::InitializationResult>,
+    (axum::http::StatusCode, Json<crate::handlers::init_handler::ErrorResponse>),
+> {
+    match InitService::initialize_with_db(
+        &payload.db_config,
+        &payload.admin_username,
+        &payload.admin_password,
+    )
+    .await
+    {
+        Ok(result) => Ok(Json(result)),
+        Err(e) => {
+            let error = match e {
+                crate::services::init_service::InitError::AlreadyInitialized => "already_initialized",
+                crate::services::init_service::InitError::HashError(_) => "hash_error",
+                crate::services::init_service::InitError::DatabaseError(_) => "database_error",
+                crate::services::init_service::InitError::UserNotFound => "user_not_found",
+                crate::services::init_service::InitError::ConfigError(_) => "config_error",
+            };
+
+            let message = match e {
+                crate::services::init_service::InitError::AlreadyInitialized => {
+                    "系统已经初始化，不能重复初始化".to_string()
+                }
+                crate::services::init_service::InitError::HashError(msg) => {
+                    format!("密码加密失败: {}", msg)
+                }
+                crate::services::init_service::InitError::DatabaseError(msg) => msg,
+                crate::services::init_service::InitError::UserNotFound => "用户不存在".to_string(),
+                crate::services::init_service::InitError::ConfigError(msg) => {
+                    format!("配置错误: {}", msg)
+                }
+            };
+
+            Err((
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(crate::handlers::init_handler::ErrorResponse { error: error.to_string(), message }),
+            ))
+        }
+    }
+}
+
+fn create_init_router() -> Router {
+    Router::new()
+        .route("/init/status", get(get_init_status))
+        .route("/init/test-database", post(test_database_connection))
+        .route("/init/initialize-with-db", post(initialize_with_db))
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 加载配置
     let settings = AppSettings::new()?;
 
-    // 设置全局 JWT secret
     set_jwt_secret(settings.auth.jwt_secret.clone());
 
-    // 初始化日志（根据配置文件设置日志级别和目录）
     let _log_level = settings.log.level.parse::<Level>()?;
     let log_dir = &settings.log.dir;
-
-    // 创建日志目录（如果不存在）
     std::fs::create_dir_all(log_dir)?;
 
-    // 使用日志轮转：每天轮转一次，保留 7 天
     let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
     
     tracing_subscriber::registry()
@@ -80,7 +160,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("运行环境：{}", settings.env);
     info!("===========================================");
 
-    // 加载配置
     info!("配置加载成功");
     info!(
         "服务器地址：{}:{}",
@@ -89,23 +168,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("gRPC 地址：{}:{}", settings.grpc.host, settings.grpc.port);
     info!("日志目录：{}", settings.log.dir);
 
-    // 连接数据库
-    let db = Database::connect(&settings.database.connection_string)
-        .await
-        .map_err(|e| {
-            eprintln!("数据库连接失败: {}", e);
-            e
-        })?;
-    info!("数据库连接成功");
-    
-    // 强制刷新日志缓冲区
-    std::io::stdout().flush().ok();
-    std::io::stderr().flush().ok();
-
-    // 运行数据库迁移
-    // TODO: 实现迁移逻辑
-
-    // 创建 CORS 层，从配置中读取允许的来源
     let allowed_origins: Vec<HeaderValue> = settings
         .cors
         .allowed_origins
@@ -118,102 +180,109 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // 创建路由，添加请求追踪中间件
-    let db_arc = Arc::new(db);
-    let app = create_router(db_arc.clone())
-        .layer(
-            TraceLayer::new_for_http()
-                .on_request(|request: &Request<_>, _span: &Span| {
-                    info!(
-                        method = %request.method(),
-                        uri = %request.uri(),
-                        "开始处理请求"
-                    );
-                })
-                .on_response(
-                    |response: &axum::response::Response, latency: Duration, _span: &Span| {
-                        info!(
-                            status = %response.status(),
-                            latency_ms = %latency.as_millis(),
-                            "请求完成"
-                        );
-                    },
-                )
-                .on_failure(
-                    |error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
-                        warn!("请求失败：{:?} (耗时: {}ms)", error, latency.as_millis());
-                    },
-                ),
-        )
-        .layer(cors)
-        .layer(axum::middleware::from_fn(auth_middleware))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::X_FRAME_OPTIONS,
-            HeaderValue::from_static("DENY"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::STRICT_TRANSPORT_SECURITY,
-            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-        ));
+    let db_result = Database::connect(&settings.database.connection_string).await;
 
-    // 启动 HTTP 服务器
+    let app = match db_result {
+        Ok(db) => {
+            info!("数据库连接成功，启动完整模式");
+            
+            std::io::stdout().flush().ok();
+            std::io::stderr().flush().ok();
+
+            let db_arc = Arc::new(db);
+            create_router(db_arc.clone())
+                .layer(
+                    TraceLayer::new_for_http()
+                        .on_request(|request: &Request<_>, _span: &Span| {
+                            info!(
+                                method = %request.method(),
+                                uri = %request.uri(),
+                                "开始处理请求"
+                            );
+                        })
+                        .on_response(
+                            |response: &axum::response::Response, latency: Duration, _span: &Span| {
+                                info!(
+                                    status = %response.status(),
+                                    latency_ms = %latency.as_millis(),
+                                    "请求完成"
+                                );
+                            },
+                        )
+                        .on_failure(
+                            |error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
+                                warn!("请求失败：{:?} (耗时: {}ms)", error, latency.as_millis());
+                            },
+                        ),
+                )
+                .layer(cors.clone())
+                .layer(axum::middleware::from_fn(auth_middleware))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_CONTENT_TYPE_OPTIONS,
+                    HeaderValue::from_static("nosniff"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_FRAME_OPTIONS,
+                    HeaderValue::from_static("DENY"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::CONTENT_SECURITY_POLICY,
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::STRICT_TRANSPORT_SECURITY,
+                    HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+                ))
+        }
+        Err(e) => {
+            info!("数据库连接失败: {}", e);
+            info!("启动初始化模式，提供数据库配置API");
+            
+            create_init_router()
+                .layer(
+                    TraceLayer::new_for_http()
+                        .on_request(|request: &Request<_>, _span: &Span| {
+                            info!(
+                                method = %request.method(),
+                                uri = %request.uri(),
+                                "开始处理请求"
+                            );
+                        })
+                        .on_response(
+                            |response: &axum::response::Response, latency: Duration, _span: &Span| {
+                                info!(
+                                    status = %response.status(),
+                                    latency_ms = %latency.as_millis(),
+                                    "请求完成"
+                                );
+                            },
+                        ),
+                )
+                .layer(cors.clone())
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_CONTENT_TYPE_OPTIONS,
+                    HeaderValue::from_static("nosniff"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_FRAME_OPTIONS,
+                    HeaderValue::from_static("DENY"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::CONTENT_SECURITY_POLICY,
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+                ))
+        }
+    };
+
     let http_addr: SocketAddr =
         format!("{}:{}", settings.server.host, settings.server.port).parse()?;
     info!("HTTP 服务器监听地址：{}", http_addr);
-
-    // 创建 gRPC 服务
-    let grpc_user_service = GrpcUserService::new(db_arc.clone(), settings.auth.jwt_secret.clone());
-    let grpc_auth_service = grpc_user_service.clone();
-    let grpc_management_services = GrpcManagementServices::new(db_arc.clone());
-    let grpc_new_services = GrpcNewServices::new(db_arc.clone());
-
-    // 创建 gRPC 路由
-    let grpc_router = tonic::transport::Server::builder()
-        .add_service(UserServiceServer::new(grpc_user_service))
-        .add_service(AuthServiceServer::new(grpc_auth_service))
-        .add_service(PurchaseContractServiceServer::new(grpc_management_services.clone()))
-        .add_service(SalesContractServiceServer::new(grpc_management_services.clone()))
-        .add_service(FixedAssetServiceServer::new(grpc_management_services.clone()))
-        .add_service(BudgetManagementServiceServer::new(grpc_management_services))
-        // 注册新增服务
-        .add_service(AssistAccountingServiceServer::new(grpc_new_services.clone()))
-        .add_service(SupplierEvaluationServiceServer::new(grpc_new_services.clone()))
-        .add_service(FiveDimensionQueryServiceServer::new(grpc_new_services.clone()))
-        .add_service(InventoryReservationServiceServer::new(grpc_new_services.clone()))
-        .add_service(FinancialAnalysisServiceServer::new(grpc_new_services));
-
-    // 启动 gRPC 服务器
-    let grpc_addr: SocketAddr = format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;
-    info!("gRPC 服务器监听地址：{}", grpc_addr);
 
     info!("===========================================");
     info!("系统启动完成，等待请求...");
     info!("===========================================");
 
-    // 并发运行 HTTP 和 gRPC 服务器
-    let http_future = axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app);
-    let grpc_future = grpc_router.serve(grpc_addr);
-
-    tokio::select! {
-        result = http_future => {
-            if let Err(e) = result {
-                info!("HTTP 服务器错误：{}", e);
-            }
-        }
-        result = grpc_future => {
-            if let Err(e) = result {
-                info!("gRPC 服务器错误：{}", e);
-            }
-        }
-    }
+    axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app).await?;
 
     Ok(())
 }
