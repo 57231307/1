@@ -1,74 +1,16 @@
 //! 缸号管理服务
 
+use crate::models::api_response::ApiResponse;
+use crate::models::dye_batch::{
+    CompleteDyeBatchRequest, CreateDyeBatchRequest, DyeBatch, DyeBatchListResponse, DyeBatchQuery,
+    UpdateDyeBatchRequest,
+};
 use crate::services::api::ApiService;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DyeBatch {
-    pub id: i32,
-    pub batch_no: String,
-    pub color_code: String,
-    pub color_name: String,
-    pub fabric_type: Option<String>,
-    pub weight_kg: Option<f64>,
-    pub status: String,
-    pub production_date: Option<String>,
-    pub completion_date: Option<String>,
-    pub quality_grade: Option<String>,
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct DyeBatchQuery {
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
-    pub batch_no: Option<String>,
-    pub color_code: Option<String>,
-    pub status: Option<String>,
-    pub quality_grade: Option<String>,
-    pub start_date: Option<String>,
-    pub end_date: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateDyeBatchRequest {
-    pub batch_no: String,
-    pub color_code: String,
-    pub color_name: String,
-    pub fabric_type: Option<String>,
-    pub weight_kg: Option<f64>,
-    pub status: Option<String>,
-    pub production_date: Option<String>,
-    pub quality_grade: Option<String>,
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateDyeBatchRequest {
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub weight_kg: Option<f64>,
-    pub status: Option<String>,
-    pub completion_date: Option<String>,
-    pub quality_grade: Option<String>,
-    pub remarks: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompleteDyeBatchRequest {
-    pub quality_grade: String,
-    pub remarks: Option<String>,
-}
 
 pub struct DyeBatchService;
 
 impl DyeBatchService {
-    pub async fn list(query: DyeBatchQuery) -> Result<Vec<DyeBatch>, String> {
+    pub async fn list(query: DyeBatchQuery) -> Result<DyeBatchListResponse, String> {
         let mut params = Vec::new();
         if let Some(page) = query.page {
             params.push(format!("page={}", page));
@@ -89,40 +31,42 @@ impl DyeBatchService {
             params.push(format!("quality_grade={}", quality_grade));
         }
 
-        let url = format!("/dye-batch?{}", params.join("&"));
-        ApiService::get(&url).await
+        let url = if params.is_empty() {
+            String::from("/dye-batch")
+        } else {
+            format!("/dye-batch?{}", params.join("&"))
+        };
+        let response: ApiResponse<DyeBatchListResponse> = ApiService::get(&url).await?;
+        response.into_result()
     }
 
     pub async fn get(id: i32) -> Result<DyeBatch, String> {
-        let url = format!("/dye-batch/{}", id);
-        ApiService::get(&url).await
+        let response: ApiResponse<DyeBatch> = ApiService::get(&format!("/dye-batch/{}", id)).await?;
+        response.into_result()
     }
 
     pub async fn create(req: CreateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let url = "/dye-batch";
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::post(url, &body).await
+        let response: ApiResponse<DyeBatch> = ApiService::post("/dye-batch", &req).await?;
+        response.into_result()
     }
 
     pub async fn update(id: i32, req: UpdateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let url = format!("/dye-batch/{}", id);
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::put(&url, &body).await
+        let response: ApiResponse<DyeBatch> = ApiService::put(&format!("/dye-batch/{}", id), &req).await?;
+        response.into_result()
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let url = format!("/dye-batch/{}", id);
-        ApiService::delete(&url).await
+        let response: ApiResponse<()> = ApiService::delete(&format!("/dye-batch/{}", id)).await?;
+        response.into_result()
     }
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {
-        let url = format!("/dye-batch/{}/complete", id);
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::post(&url, &body).await
+        let response: ApiResponse<DyeBatch> = ApiService::post(&format!("/dye-batch/{}/complete", id), &req).await?;
+        response.into_result()
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeBatch>, String> {
-        let url = format!("/dye-batch/by-color/{}", color_code);
-        ApiService::get(&url).await
+        let response: ApiResponse<Vec<DyeBatch>> = ApiService::get(&format!("/dye-batch/by-color/{}", color_code)).await?;
+        response.into_result()
     }
 }

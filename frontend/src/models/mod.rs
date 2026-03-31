@@ -20,3 +20,7 @@ pub mod sales_contract;
 pub mod business_trace;
 pub mod customer_credit;
 pub mod dashboard;
+pub mod dye_batch;
+pub mod dye_recipe;
+pub mod fixed_asset;
+pub mod greige_fabric;
