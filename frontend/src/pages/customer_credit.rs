@@ -2,10 +2,10 @@
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::customer_credit_service::{
-    CustomerCreditService, CustomerCredit, CreditQueryParams, CreditRatingRequest,
-    CreditLimitAdjustmentRequest,
+use crate::models::customer_credit::{
+    CustomerCredit, CreditQueryParams, CreditRatingRequest, CreditLimitAdjustmentRequest,
 };
+use crate::services::customer_credit_service::CustomerCreditService;
 
 pub struct CustomerCreditPage {
     credits: Vec<CustomerCredit>,

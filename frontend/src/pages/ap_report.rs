@@ -5,10 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::ap_report_service::{
-    ApReportService, ApStatisticsResponse, ApDailyResponse,
-    ApMonthlyResponse, ApAgingResponse,
+use crate::models::ap_report::{
+    ApStatisticsResponse, ApDailyResponse, ApMonthlyResponse, ApAgingResponse,
 };
+use crate::services::ap_report_service::ApReportService;
 
 /// 报表类型枚举
 #[derive(Clone, PartialEq)]

@@ -3,10 +3,10 @@
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::cost_collection_service::{
-    CostCollectionService, CostCollection, CostCollectionQuery,
-    CreateCostCollectionRequest,
+use crate::models::cost_collection::{
+    CostCollection, CostCollectionQuery, CreateCostCollectionRequest,
 };
+use crate::services::cost_collection_service::CostCollectionService;
 use crate::components::main_layout::MainLayout;
 
 /// 成本归集页面状态

@@ -2,10 +2,10 @@
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::services::sales_contract_service::{
-    SalesContract, SalesContractQueryParams, CreateSalesContractRequest,
-    ExecuteSalesContractRequest, SalesContractService,
+use crate::models::sales_contract::{
+    SalesContract, SalesContractQueryParams, CreateSalesContractRequest, ExecuteSalesContractRequest,
 };
+use crate::services::sales_contract_service::SalesContractService;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContractStatus {

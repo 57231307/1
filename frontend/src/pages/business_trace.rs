@@ -3,10 +3,11 @@
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::business_trace_service::{
-    BusinessTraceService, TraceChain, FullTraceChainResponse, TraceStageDetail,
+use crate::models::business_trace::{
+    TraceChain, FullTraceChainResponse, TraceStageDetail,
     ForwardTraceParams, BackwardTraceParams,
 };
+use crate::services::business_trace_service::BusinessTraceService;
 use crate::components::main_layout::MainLayout;
 
 /// 业务追溯页面状态

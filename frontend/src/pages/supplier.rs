@@ -3,10 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::supplier_service::{
-    SupplierService, Supplier, SupplierQuery,
-    CreateSupplierRequest, UpdateSupplierRequest,
+use crate::models::supplier::{
+    Supplier, SupplierQuery, CreateSupplierRequest, UpdateSupplierRequest,
 };
+use crate::services::supplier_service::SupplierService;
 
 pub struct SupplierPage {
     suppliers: Vec<Supplier>,

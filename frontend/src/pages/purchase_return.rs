@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::purchase_return_service::{
-    PurchaseReturnService, PurchaseReturn, PurchaseReturnQuery,
+use crate::models::purchase_return::{
+    PurchaseReturn, PurchaseReturnQuery,
 };
+use crate::services::purchase_return_service::PurchaseReturnService;
 
 /// 采购退货页面状态管理
 pub struct PurchaseReturnPage {

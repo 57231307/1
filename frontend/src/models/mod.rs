@@ -28,3 +28,6 @@ pub mod department;
 pub mod product;
 pub mod warehouse;
 pub mod inventory_adjustment;
+pub mod sales;
+pub mod voucher;
+pub mod account_subject;

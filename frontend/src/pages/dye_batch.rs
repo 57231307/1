@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::dye_batch_service::{
-    DyeBatchService, DyeBatch, DyeBatchQuery, CreateDyeBatchRequest, CompleteDyeBatchRequest,
+use crate::models::dye_batch::{
+    DyeBatch, DyeBatchQuery, CreateDyeBatchRequest, CompleteDyeBatchRequest,
 };
+use crate::services::dye_batch_service::DyeBatchService;
 
 pub struct DyeBatchPage {
     batches: Vec<DyeBatch>,

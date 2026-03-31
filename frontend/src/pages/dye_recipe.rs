@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::dye_recipe_service::{
-    DyeRecipeService, DyeRecipe, DyeRecipeQuery,
+use crate::models::dye_recipe::{
+    DyeRecipe, DyeRecipeQuery,
 };
+use crate::services::dye_recipe_service::DyeRecipeService;
 
 pub struct DyeRecipePage {
     recipes: Vec<DyeRecipe>,

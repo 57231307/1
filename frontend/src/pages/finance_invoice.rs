@@ -5,9 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::finance_invoice_service::{
-    FinanceInvoiceService, FinanceInvoice, InvoiceQueryParams,
+use crate::models::finance_invoice::{
+    FinanceInvoice, InvoiceQueryParams,
 };
+use crate::services::finance_invoice_service::FinanceInvoiceService;
 
 /// 财务发票管理页面状态
 pub struct FinanceInvoicePage {

@@ -1,7 +1,10 @@
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use chrono::{Datelike, Timelike};
-use crate::services::dashboard_service::{DashboardService, DashboardOverview, LowStockAlert};
+use crate::models::dashboard::{
+    DashboardOverview, LowStockAlert,
+};
+use crate::services::dashboard_service::DashboardService;
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,

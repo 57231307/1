@@ -1,9 +1,10 @@
 //! 双计量单位转换器页面
 
 use yew::prelude::*;
-use crate::services::dual_unit_converter_service::{
-    DualUnitConverterService, ConvertUnitResponse, ValidateDualUnitResponse,
+use crate::models::dual_unit_converter::{
+    ConvertUnitResponse, ValidateDualUnitResponse,
 };
+use crate::services::dual_unit_converter_service::DualUnitConverterService;
 
 /// 转换方向枚举
 #[derive(Debug, Clone, PartialEq)]

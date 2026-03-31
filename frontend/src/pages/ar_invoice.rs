@@ -5,9 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::ar_invoice_service::{
-    ArInvoiceService, ArInvoice, ArInvoiceQueryParams,
+use crate::models::ar_invoice::{
+    ArInvoice, ArInvoiceQueryParams,
 };
+use crate::services::ar_invoice_service::ArInvoiceService;
 
 /// 应收发票管理页面状态
 pub struct ArInvoicePage {

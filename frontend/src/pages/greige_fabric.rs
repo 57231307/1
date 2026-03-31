@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::greige_fabric_service::{
-    GreigeFabricService, GreigeFabric, GreigeFabricQuery,
+use crate::models::greige_fabric::{
+    GreigeFabric, GreigeFabricQuery,
 };
+use crate::services::greige_fabric_service::GreigeFabricService;
 
 pub struct GreigeFabricPage {
     fabrics: Vec<GreigeFabric>,

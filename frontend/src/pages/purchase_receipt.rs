@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::purchase_receipt_service::{
-    PurchaseReceiptService, PurchaseReceipt, PurchaseReceiptQuery,
+use crate::models::purchase_receipt::{
+    PurchaseReceipt, PurchaseReceiptQuery,
 };
+use crate::services::purchase_receipt_service::PurchaseReceiptService;
 
 /// 采购收货单页面状态
 pub struct PurchaseReceiptPage {

@@ -5,10 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::ap_verification_service::{
-    ApVerificationService, ApVerification, ApVerificationQueryParams,
-    ManualVerifyRequest, UnverifiedInvoiceItem, UnverifiedPaymentItem,
+use crate::models::ap_verification::{
+    ApVerification, ApVerificationQueryParams, ManualVerifyRequest, UnverifiedInvoiceItem, UnverifiedPaymentItem,
 };
+use crate::services::ap_verification_service::ApVerificationService;
 
 /// 应付核销管理页面状态
 pub struct ApVerificationPage {

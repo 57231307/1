@@ -3,10 +3,10 @@
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::five_dimension_service::{
-    FiveDimensionService, FiveDimensionStatsParams, FiveDimensionItem,
-    FiveDimensionStatsResponse, FiveDimensionListResponse, FiveDimensionSearchParams,
+use crate::models::five_dimension::{
+    FiveDimensionStatsParams, FiveDimensionItem, FiveDimensionStatsResponse, FiveDimensionListResponse, FiveDimensionSearchParams,
 };
+use crate::services::five_dimension_service::FiveDimensionService;
 use crate::components::main_layout::MainLayout;
 
 pub struct FiveDimensionPage {
