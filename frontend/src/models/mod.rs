@@ -24,3 +24,7 @@ pub mod dye_batch;
 pub mod dye_recipe;
 pub mod fixed_asset;
 pub mod greige_fabric;
+pub mod department;
+pub mod product;
+pub mod warehouse;
+pub mod inventory_adjustment;
