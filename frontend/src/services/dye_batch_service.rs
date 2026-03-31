@@ -89,40 +89,40 @@ impl DyeBatchService {
             params.push(format!("quality_grade={}", quality_grade));
         }
 
-        let url = format!("/api/v1/erp/dye-batch?{}", params.join("&"));
+        let url = format!("/dye-batch?{}", params.join("&"));
         ApiService::get(&url).await
     }
 
     pub async fn get(id: i32) -> Result<DyeBatch, String> {
-        let url = format!("/api/v1/erp/dye-batch/{}", id);
+        let url = format!("/dye-batch/{}", id);
         ApiService::get(&url).await
     }
 
     pub async fn create(req: CreateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let url = "/api/v1/erp/dye-batch";
+        let url = "/dye-batch";
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::post(url, &body).await
     }
 
     pub async fn update(id: i32, req: UpdateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let url = format!("/api/v1/erp/dye-batch/{}", id);
+        let url = format!("/dye-batch/{}", id);
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::put(&url, &body).await
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let url = format!("/api/v1/erp/dye-batch/{}", id);
+        let url = format!("/dye-batch/{}", id);
         ApiService::delete(&url).await
     }
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {
-        let url = format!("/api/v1/erp/dye-batch/{}/complete", id);
+        let url = format!("/dye-batch/{}/complete", id);
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::post(&url, &body).await
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeBatch>, String> {
-        let url = format!("/api/v1/erp/dye-batch/by-color/{}", color_code);
+        let url = format!("/dye-batch/by-color/{}", color_code);
         ApiService::get(&url).await
     }
 }

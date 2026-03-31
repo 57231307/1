@@ -96,7 +96,7 @@ impl SalesAnalysisService {
             query.push_str(&format!("&customer_id={}", cid));
         }
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/trend?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/trend?{}", query)).await
     }
 
     pub async fn get_product_ranking(
@@ -121,7 +121,7 @@ impl SalesAnalysisService {
         }
         query.push_str(&format!("limit={}", limit));
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/product-ranking?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/product-ranking?{}", query)).await
     }
 
     pub async fn get_customer_ranking(
@@ -146,7 +146,7 @@ impl SalesAnalysisService {
         }
         query.push_str(&format!("limit={}", limit));
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/customer-ranking?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/customer-ranking?{}", query)).await
     }
 
     pub async fn list_targets(
@@ -164,24 +164,24 @@ impl SalesAnalysisService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/targets?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/targets?{}", query)).await
     }
 
     pub async fn get_target(id: i32) -> Result<SalesTarget, String> {
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/targets/{}", id)).await
+        ApiService::get(&format!("/sales-analysis/targets/{}", id)).await
     }
 
     pub async fn create_target(req: CreateSalesTargetRequest) -> Result<SalesTarget, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/sales-analysis/targets", &payload).await
+        ApiService::post("/sales-analysis/targets", &payload).await
     }
 
     pub async fn update_target(id: i32, req: UpdateSalesTargetRequest) -> Result<SalesTarget, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/api/v1/erp/sales-analysis/targets/{}", id), &payload).await
+        ApiService::put(&format!("/sales-analysis/targets/{}", id), &payload).await
     }
 
     pub async fn delete_target(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/sales-analysis/targets/{}", id)).await
+        ApiService::delete(&format!("/sales-analysis/targets/{}", id)).await
     }
 }

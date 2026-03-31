@@ -73,7 +73,7 @@ impl DualUnitConverterService {
             width_cm: width_cm.to_string(),
         };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/dual-unit-convert", &payload).await
+        ApiService::post("/dual-unit-convert", &payload).await
     }
 
     /// 公斤数转米数
@@ -89,7 +89,7 @@ impl DualUnitConverterService {
             width_cm: width_cm.to_string(),
         };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/dual-unit-convert", &payload).await
+        ApiService::post("/dual-unit-convert", &payload).await
     }
 
     /// 验证双计量单位一致性
@@ -108,6 +108,6 @@ impl DualUnitConverterService {
             tolerance: tolerance.map(|s| s.to_string()),
         };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/dual-unit-validate", &payload).await
+        ApiService::post("/dual-unit-validate", &payload).await
     }
 }

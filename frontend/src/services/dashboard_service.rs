@@ -89,7 +89,7 @@ impl DashboardService {
         let token = storage::Storage::get_token().ok_or("未登录")?;
         
         let url = format!(
-            "/api/v1/erp/dashboard/overview?start_date={}&end_date={}",
+            "/dashboard/overview?start_date={}&end_date={}",
             start_date, end_date
         );
         
@@ -120,7 +120,7 @@ impl DashboardService {
         let token = storage::Storage::get_token().ok_or("未登录")?;
         
         let url = format!(
-            "/api/v1/erp/dashboard/sales-stats?start_date={}&end_date={}",
+            "/dashboard/sales-stats?start_date={}&end_date={}",
             start_date, end_date
         );
         
@@ -150,7 +150,7 @@ impl DashboardService {
     pub async fn get_inventory_statistics() -> Result<InventoryStatistics, String> {
         let token = storage::Storage::get_token().ok_or("未登录")?;
         
-        let response = Request::get("/api/v1/erp/dashboard/inventory-stats")
+        let response = Request::get("/dashboard/inventory-stats")
             .header("Authorization", &format!("Bearer {}", token))
             .send()
             .await
@@ -176,7 +176,7 @@ impl DashboardService {
     pub async fn get_low_stock_alerts() -> Result<Vec<LowStockAlert>, String> {
         let token = storage::Storage::get_token().ok_or("未登录")?;
         
-        let response = Request::get("/api/v1/erp/dashboard/low-stock-alerts")
+        let response = Request::get("/dashboard/low-stock-alerts")
             .header("Authorization", &format!("Bearer {}", token))
             .send()
             .await

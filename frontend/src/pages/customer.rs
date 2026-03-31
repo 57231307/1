@@ -3,8 +3,9 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::customer_service::{
-    CustomerService, Customer, CustomerQuery,
+use crate::services::customer_service::CustomerService;
+use crate::models::customer::{
+    Customer, CustomerQuery, CustomerListResponse,
     CreateCustomerRequest, UpdateCustomerRequest,
 };
 
@@ -31,7 +32,7 @@ pub enum ModalMode {
 
 pub enum Msg {
     LoadCustomers,
-    CustomersLoaded(Vec<Customer>),
+    CustomersLoaded(CustomerListResponse),
     LoadError(String),
     SetFilterStatus(String),
     SetFilterType(String),
@@ -90,8 +91,12 @@ impl Component for CustomerPage {
                 });
                 false
             }
-            Msg::CustomersLoaded(customers) => {
-                self.customers = customers;
+            Msg::CustomersLoaded(customer_list) => {
+                self.customers = if !customer_list.data.is_empty() {
+                    customer_list.data
+                } else {
+                    customer_list.items
+                };
                 self.loading = false;
                 true
             }

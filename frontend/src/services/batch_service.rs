@@ -126,7 +126,7 @@ impl BatchService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/batches{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/batches{}", query_string)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let batches: Vec<Batch> = data
@@ -140,7 +140,7 @@ impl BatchService {
     }
 
     pub async fn get(id: i32) -> Result<Batch, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/batches/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/batches/{}", id)).await?;
 
         response
             .get("data")
@@ -151,7 +151,7 @@ impl BatchService {
 
     pub async fn create(req: CreateBatchRequest) -> Result<Batch, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/batches", &body).await?;
+        let response: serde_json::Value = ApiService::post("/batches", &body).await?;
 
         response
             .get("data")
@@ -162,7 +162,7 @@ impl BatchService {
 
     pub async fn update(id: i32, req: UpdateBatchRequest) -> Result<Batch, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/batches/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/batches/{}", id), &body).await?;
 
         response
             .get("data")
@@ -172,12 +172,12 @@ impl BatchService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/batches/{}", id)).await
+        ApiService::delete(&format!("/batches/{}", id)).await
     }
 
     pub async fn transfer(id: i32, req: TransferBatchRequest) -> Result<Batch, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/batches/{}/transfer", id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/batches/{}/transfer", id), &body).await?;
 
         response
             .get("data")

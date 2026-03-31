@@ -65,7 +65,7 @@ pub struct CustomerCreditService;
 impl CustomerCreditService {
     /// 获取客户信用列表
     pub async fn list_credits(params: CreditQueryParams) -> Result<CustomerCreditListResponse, String> {
-        let mut url = String::from("/api/v1/erp/customer-credits?");
+        let mut url = String::from("/customer-credits?");
         if let Some(customer_id) = params.customer_id {
             url.push_str(&format!("customer_id={}&", customer_id));
         }
@@ -86,20 +86,20 @@ impl CustomerCreditService {
 
     /// 获取客户信用详情
     pub async fn get_credit(customer_id: i32) -> Result<CustomerCredit, String> {
-        ApiService::get::<CustomerCredit>(&format!("/api/v1/erp/customer-credits/{}", customer_id)).await
+        ApiService::get::<CustomerCredit>(&format!("/customer-credits/{}", customer_id)).await
     }
 
     /// 设置客户信用评级
     pub async fn set_credit_rating(req: CreditRatingRequest) -> Result<CustomerCredit, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/customer-credits/rating", &payload).await
+        ApiService::post("/customer-credits/rating", &payload).await
     }
 
     /// 占用信用额度
     pub async fn occupy_credit(customer_id: i32, amount: f64) -> Result<String, String> {
         let req = CreditAmountRequest { amount };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/customer-credits/{}/occupy", customer_id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/customer-credits/{}/occupy", customer_id), &payload).await?;
         Ok(format!("客户 {} 信用额度占用成功", customer_id))
     }
 
@@ -107,20 +107,20 @@ impl CustomerCreditService {
     pub async fn release_credit(customer_id: i32, amount: f64) -> Result<String, String> {
         let req = CreditAmountRequest { amount };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/customer-credits/{}/release", customer_id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/customer-credits/{}/release", customer_id), &payload).await?;
         Ok(format!("客户 {} 信用额度释放成功", customer_id))
     }
 
     /// 调整信用额度
     pub async fn adjust_credit_limit(customer_id: i32, req: CreditLimitAdjustmentRequest) -> Result<String, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/customer-credits/{}/adjust", customer_id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/customer-credits/{}/adjust", customer_id), &payload).await?;
         Ok(format!("客户 {} 信用额度调整成功", customer_id))
     }
 
     /// 停用客户信用
     pub async fn deactivate_credit(customer_id: i32) -> Result<String, String> {
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/customer-credits/{}/deactivate", customer_id), &serde_json::json!({})).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/customer-credits/{}/deactivate", customer_id), &serde_json::json!({})).await?;
         Ok(format!("客户 {} 信用停用成功", customer_id))
     }
 }

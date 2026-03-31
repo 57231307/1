@@ -79,7 +79,7 @@ pub struct FixedAssetService;
 impl FixedAssetService {
     /// 获取资产列表
     pub async fn list_assets(params: AssetQueryParams) -> Result<Vec<FixedAsset>, String> {
-        let mut url = String::from("/api/v1/erp/assets");
+        let mut url = String::from("/assets");
         let mut query_params = Vec::new();
 
         if let Some(keyword) = &params.keyword {
@@ -107,31 +107,31 @@ impl FixedAssetService {
 
     /// 获取资产详情
     pub async fn get_asset(id: i32) -> Result<FixedAsset, String> {
-        ApiService::get::<FixedAsset>(&format!("/api/v1/erp/assets/{}", id)).await
+        ApiService::get::<FixedAsset>(&format!("/assets/{}", id)).await
     }
 
     /// 创建资产
     pub async fn create_asset(req: CreateAssetRequest) -> Result<FixedAsset, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/assets", &payload).await
+        ApiService::post("/assets", &payload).await
     }
 
     /// 计提折旧
     pub async fn depreciate_asset(id: i32, req: DepreciateRequest) -> Result<String, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/assets/{}/depreciate", id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/assets/{}/depreciate", id), &payload).await?;
         Ok(format!("资产 {} 折旧计提成功", id))
     }
 
     /// 处置资产
     pub async fn dispose_asset(id: i32, req: DisposalRequest) -> Result<String, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/assets/{}/dispose", id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/assets/{}/dispose", id), &payload).await?;
         Ok(format!("资产 {} 处置成功", id))
     }
 
     /// 删除资产
     pub async fn delete_asset(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/assets/{}", id)).await
+        ApiService::delete(&format!("/assets/{}", id)).await
     }
 }

@@ -127,7 +127,7 @@ impl PurchaseInspectionService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchase-inspections{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchase-inspections{}", query_string)).await?;
 
         // 从响应中提取数据
         if let Some(data) = response.get("data") {
@@ -153,7 +153,7 @@ impl PurchaseInspectionService {
 
     /// 获取检验单详情
     pub async fn get(id: i32) -> Result<PurchaseInspection, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchase-inspections/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchase-inspections/{}", id)).await?;
 
         response
             .get("data")
@@ -165,7 +165,7 @@ impl PurchaseInspectionService {
     /// 创建采购检验单
     pub async fn create(req: CreatePurchaseInspectionRequest) -> Result<PurchaseInspection, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/purchase-inspections", &body).await?;
+        let response: serde_json::Value = ApiService::post("/purchase-inspections", &body).await?;
 
         response
             .get("data")
@@ -178,7 +178,7 @@ impl PurchaseInspectionService {
     #[allow(dead_code)]
     pub async fn update(id: i32, req: UpdatePurchaseInspectionRequest) -> Result<PurchaseInspection, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/purchase-inspections/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/purchase-inspections/{}", id), &body).await?;
 
         response
             .get("data")
@@ -190,7 +190,7 @@ impl PurchaseInspectionService {
     /// 完成采购检验单
     pub async fn complete(id: i32, req: CompleteInspectionRequest) -> Result<PurchaseInspection, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchase-inspections/{}/complete", id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchase-inspections/{}/complete", id), &body).await?;
 
         response
             .get("data")

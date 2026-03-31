@@ -139,33 +139,33 @@ impl VoucherService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/api/v1/erp/vouchers{}", query_string);
+        let url = format!("/vouchers{}", query_string);
         ApiService::get::<VoucherListResponse>(&url).await
     }
 
     /// 获取凭证详情
     pub async fn get_voucher(id: i32) -> Result<Voucher, String> {
-        ApiService::get::<Voucher>(&format!("/api/v1/erp/vouchers/{}", id)).await
+        ApiService::get::<Voucher>(&format!("/vouchers/{}", id)).await
     }
 
     /// 创建凭证
     pub async fn create_voucher(req: CreateVoucherRequest) -> Result<Voucher, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/vouchers", &payload).await
+        ApiService::post("/vouchers", &payload).await
     }
 
     /// 提交凭证
     pub async fn submit_voucher(id: i32) -> Result<serde_json::Value, String> {
-        ApiService::post(&format!("/api/v1/erp/vouchers/{}/submit", id), &serde_json::json!({})).await
+        ApiService::post(&format!("/vouchers/{}/submit", id), &serde_json::json!({})).await
     }
 
     /// 审核凭证
     pub async fn review_voucher(id: i32) -> Result<serde_json::Value, String> {
-        ApiService::post(&format!("/api/v1/erp/vouchers/{}/review", id), &serde_json::json!({})).await
+        ApiService::post(&format!("/vouchers/{}/review", id), &serde_json::json!({})).await
     }
 
     /// 过账凭证
     pub async fn post_voucher(id: i32) -> Result<serde_json::Value, String> {
-        ApiService::post(&format!("/api/v1/erp/vouchers/{}/post", id), &serde_json::json!({})).await
+        ApiService::post(&format!("/vouchers/{}/post", id), &serde_json::json!({})).await
     }
 }

@@ -169,7 +169,7 @@ impl PurchaseReceiptService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/receipts{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/receipts{}", query_string)).await?;
 
         if let Some(data) = response.get("data") {
             if let Some(items) = data.get("items").and_then(|v| v.as_array()) {
@@ -185,7 +185,7 @@ impl PurchaseReceiptService {
 
     /// 获取收货单详情
     pub async fn get(id: i32) -> Result<PurchaseReceipt, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/receipts/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/receipts/{}", id)).await?;
 
         response
             .get("data")
@@ -197,7 +197,7 @@ impl PurchaseReceiptService {
     /// 创建收货单
     pub async fn create(req: CreatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/purchases/receipts", &body).await?;
+        let response: serde_json::Value = ApiService::post("/purchases/receipts", &body).await?;
 
         response
             .get("data")
@@ -209,7 +209,7 @@ impl PurchaseReceiptService {
     /// 更新收货单
     pub async fn update(id: i32, req: UpdatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/purchases/receipts/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/purchases/receipts/{}", id), &body).await?;
 
         response
             .get("data")
@@ -220,7 +220,7 @@ impl PurchaseReceiptService {
 
     /// 确认收货单
     pub async fn confirm(id: i32) -> Result<PurchaseReceipt, String> {
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/receipts/{}/confirm", id), &serde_json::json!({})).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/receipts/{}/confirm", id), &serde_json::json!({})).await?;
 
         response
             .get("data")
@@ -231,7 +231,7 @@ impl PurchaseReceiptService {
 
     /// 获取收货单明细列表
     pub async fn list_items(receipt_id: i32) -> Result<Vec<PurchaseReceiptItem>, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/receipts/{}/items", receipt_id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/receipts/{}/items", receipt_id)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let items: Vec<PurchaseReceiptItem> = data
@@ -247,7 +247,7 @@ impl PurchaseReceiptService {
     /// 添加收货明细
     pub async fn create_item(receipt_id: i32, req: CreateReceiptItemRequest) -> Result<PurchaseReceiptItem, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/receipts/{}/items", receipt_id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/receipts/{}/items", receipt_id), &body).await?;
 
         response
             .get("data")
@@ -259,7 +259,7 @@ impl PurchaseReceiptService {
     /// 更新收货明细
     pub async fn update_item(receipt_id: i32, item_id: i32, req: UpdateReceiptItemRequest) -> Result<PurchaseReceiptItem, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/purchases/receipts/{}/items/{}", receipt_id, item_id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id), &body).await?;
 
         response
             .get("data")
@@ -270,6 +270,6 @@ impl PurchaseReceiptService {
 
     /// 删除收货明细
     pub async fn delete_item(receipt_id: i32, item_id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/purchases/receipts/{}/items/{}", receipt_id, item_id)).await
+        ApiService::delete(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id)).await
     }
 }

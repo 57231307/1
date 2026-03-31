@@ -53,7 +53,7 @@ pub struct FundManagementService;
 impl FundManagementService {
     /// 获取资金账户列表
     pub async fn list_accounts(params: FundAccountQueryParams) -> Result<Vec<FundAccount>, String> {
-        let mut url = "/api/v1/erp/fund-accounts".to_string();
+        let mut url = "/fund-accounts".to_string();
         let mut query_parts: Vec<String> = Vec::new();
 
         if let Some(account_type) = &params.account_type {
@@ -79,13 +79,13 @@ impl FundManagementService {
 
     /// 获取资金账户详情
     pub async fn get_account(id: i32) -> Result<FundAccount, String> {
-        ApiService::get::<FundAccount>(&format!("/api/v1/erp/fund-accounts/{}", id)).await
+        ApiService::get::<FundAccount>(&format!("/fund-accounts/{}", id)).await
     }
 
     /// 创建资金账户
     pub async fn create_account(req: CreateFundAccountRequest) -> Result<FundAccount, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/fund-accounts", &payload).await
+        ApiService::post("/fund-accounts", &payload).await
     }
 
     /// 账户存款
@@ -97,7 +97,7 @@ impl FundManagementService {
         }
         let req = DepositRequest { amount, remark };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/fund-accounts/{}/deposit", id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/deposit", id), &payload).await?;
         Ok("存款成功".to_string())
     }
 
@@ -110,7 +110,7 @@ impl FundManagementService {
         }
         let req = WithdrawRequest { amount, remark };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/fund-accounts/{}/withdraw", id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/withdraw", id), &payload).await?;
         Ok("取款成功".to_string())
     }
 
@@ -123,7 +123,7 @@ impl FundManagementService {
         }
         let req = FreezeRequest { amount, reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/fund-accounts/{}/freeze", id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/freeze", id), &payload).await?;
         Ok("冻结成功".to_string())
     }
 
@@ -136,13 +136,13 @@ impl FundManagementService {
         }
         let req = UnfreezeRequest { amount, remark };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/api/v1/erp/fund-accounts/{}/unfreeze", id), &payload).await?;
+        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/unfreeze", id), &payload).await?;
         Ok("解冻成功".to_string())
     }
 
     /// 删除资金账户
     pub async fn delete_account(id: i32) -> Result<String, String> {
-        ApiService::delete(&format!("/api/v1/erp/fund-accounts/{}", id))
+        ApiService::delete(&format!("/fund-accounts/{}", id))
             .await
             .map(|_| "删除成功".to_string())
     }

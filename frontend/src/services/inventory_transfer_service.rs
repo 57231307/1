@@ -137,7 +137,7 @@ impl InventoryTransferService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/inventory/transfers{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/inventory/transfers{}", query_string)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let transfers: Vec<InventoryTransfer> = data
@@ -152,7 +152,7 @@ impl InventoryTransferService {
 
     /// 获取库存调拨详情
     pub async fn get(id: i32) -> Result<InventoryTransferDetail, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/inventory/transfers/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/inventory/transfers/{}", id)).await?;
 
         response
             .get("data")
@@ -164,7 +164,7 @@ impl InventoryTransferService {
     /// 创建库存调拨
     pub async fn create(req: CreateInventoryTransferRequest) -> Result<InventoryTransferDetail, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/inventory/transfers", &body).await?;
+        let response: serde_json::Value = ApiService::post("/inventory/transfers", &body).await?;
 
         response
             .get("data")
@@ -176,7 +176,7 @@ impl InventoryTransferService {
     /// 更新库存调拨
     pub async fn update(id: i32, req: UpdateInventoryTransferRequest) -> Result<InventoryTransferDetail, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/inventory/transfers/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/inventory/transfers/{}", id), &body).await?;
 
         response
             .get("data")
@@ -189,7 +189,7 @@ impl InventoryTransferService {
     pub async fn approve(id: i32, approved: bool, notes: Option<String>) -> Result<InventoryTransferDetail, String> {
         let body = serde_json::to_value(&ApproveTransferRequest { approved, notes })
             .map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/inventory/transfers/{}/approve", id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/inventory/transfers/{}/approve", id), &body).await?;
 
         response
             .get("data")
@@ -200,7 +200,7 @@ impl InventoryTransferService {
 
     /// 发出库存调拨
     pub async fn ship(id: i32) -> Result<InventoryTransferDetail, String> {
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/inventory/transfers/{}/ship", id), &serde_json::json!({})).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/inventory/transfers/{}/ship", id), &serde_json::json!({})).await?;
 
         response
             .get("data")
@@ -211,7 +211,7 @@ impl InventoryTransferService {
 
     /// 接收库存调拨
     pub async fn receive(id: i32) -> Result<InventoryTransferDetail, String> {
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/inventory/transfers/{}/receive", id), &serde_json::json!({})).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/inventory/transfers/{}/receive", id), &serde_json::json!({})).await?;
 
         response
             .get("data")
@@ -222,6 +222,6 @@ impl InventoryTransferService {
 
     /// 删除库存调拨
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/inventory/transfers/{}", id)).await
+        ApiService::delete(&format!("/inventory/transfers/{}", id)).await
     }
 }

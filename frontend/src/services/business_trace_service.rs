@@ -90,7 +90,7 @@ impl BusinessTraceService {
     #[allow(dead_code)]
     pub async fn get_trace_by_five_dimension(five_dimension_id: &str) -> Result<FullTraceChainResponse, String> {
         ApiService::get::<FullTraceChainResponse>(
-            &format!("/api/v1/erp/business-trace/five-dimension/{}", five_dimension_id)
+            &format!("/business-trace/five-dimension/{}", five_dimension_id)
         ).await
     }
 
@@ -98,7 +98,7 @@ impl BusinessTraceService {
     #[allow(dead_code)]
     pub async fn forward_trace(supplier_id: i32, batch_no: &str) -> Result<TraceListResponse, String> {
         ApiService::get::<TraceListResponse>(
-            &format!("/api/v1/erp/business-trace/forward?supplier_id={}&batch_no={}", supplier_id, batch_no)
+            &format!("/business-trace/forward?supplier_id={}&batch_no={}", supplier_id, batch_no)
         ).await
     }
 
@@ -106,7 +106,7 @@ impl BusinessTraceService {
     #[allow(dead_code)]
     pub async fn backward_trace(customer_id: i32, batch_no: &str) -> Result<TraceListResponse, String> {
         ApiService::get::<TraceListResponse>(
-            &format!("/api/v1/erp/business-trace/backward?customer_id={}&batch_no={}", customer_id, batch_no)
+            &format!("/business-trace/backward?customer_id={}&batch_no={}", customer_id, batch_no)
         ).await
     }
 
@@ -114,7 +114,7 @@ impl BusinessTraceService {
     #[allow(dead_code)]
     pub async fn create_snapshot(trace_chain_id: &str) -> Result<String, String> {
         let _: serde_json::Value = ApiService::post(
-            &format!("/api/v1/erp/business-trace/snapshot/{}", trace_chain_id),
+            &format!("/business-trace/snapshot/{}", trace_chain_id),
             &serde_json::json!({})
         ).await?;
         Ok(format!("追溯快照 {} 创建成功", trace_chain_id))

@@ -6,7 +6,7 @@ pub struct SalesOrder {
     pub id: i32,
     pub order_no: String,
     pub customer_name: String,
-    pub total_amount: f64,
+    pub total_amount: String,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
@@ -24,7 +24,7 @@ pub struct SalesOrderListResponse {
 pub struct CreateSalesOrderRequest {
     pub order_no: String,
     pub customer_name: String,
-    pub total_amount: f64,
+    pub total_amount: String,
 }
 
 /// 更新销售订单请求
@@ -32,7 +32,7 @@ pub struct CreateSalesOrderRequest {
 pub struct UpdateSalesOrderRequest {
     pub order_no: Option<String>,
     pub customer_name: Option<String>,
-    pub total_amount: Option<f64>,
+    pub total_amount: Option<String>,
     pub status: Option<String>,
 }
 
@@ -41,24 +41,24 @@ pub struct SalesService;
 
 impl SalesService {
     pub async fn list_orders() -> Result<SalesOrderListResponse, String> {
-        ApiService::get::<SalesOrderListResponse>("/api/v1/erp/sales/orders").await
+        ApiService::get::<SalesOrderListResponse>("/sales/orders").await
     }
 
     pub async fn get_order(id: i32) -> Result<SalesOrder, String> {
-        ApiService::get::<SalesOrder>(&format!("/api/v1/erp/sales/orders/{}", id)).await
+        ApiService::get::<SalesOrder>(&format!("/sales/orders/{}", id)).await
     }
 
     pub async fn create_order(req: CreateSalesOrderRequest) -> Result<SalesOrder, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/sales/orders", &payload).await
+        ApiService::post("/sales/orders", &payload).await
     }
 
     pub async fn update_order(id: i32, req: UpdateSalesOrderRequest) -> Result<SalesOrder, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/api/v1/erp/sales/orders/{}", id), &payload).await
+        ApiService::put(&format!("/sales/orders/{}", id), &payload).await
     }
 
     pub async fn delete_order(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/sales/orders/{}", id)).await
+        ApiService::delete(&format!("/sales/orders/{}", id)).await
     }
 }

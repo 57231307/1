@@ -103,7 +103,7 @@ impl PurchasePriceService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/prices{}", query)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/prices{}", query)).await?;
         
         // 解析响应
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
@@ -119,7 +119,7 @@ impl PurchasePriceService {
 
     /// 获取采购价格详情
     pub async fn get(id: i32) -> Result<PurchasePrice, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/prices/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/prices/{}", id)).await?;
         
         response
             .get("data")
@@ -131,7 +131,7 @@ impl PurchasePriceService {
     /// 创建采购价格
     pub async fn create(req: CreatePurchasePriceRequest) -> Result<PurchasePrice, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/purchases/prices", &body).await?;
+        let response: serde_json::Value = ApiService::post("/purchases/prices", &body).await?;
         
         response
             .get("data")
@@ -143,7 +143,7 @@ impl PurchasePriceService {
     /// 更新采购价格
     pub async fn update(id: i32, req: UpdatePurchasePriceRequest) -> Result<PurchasePrice, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/purchases/prices/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/purchases/prices/{}", id), &body).await?;
         
         response
             .get("data")
@@ -160,7 +160,7 @@ impl PurchasePriceService {
     /// 审批采购价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<PurchasePrice, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/prices/{}/approve", id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/prices/{}/approve", id), &body).await?;
         
         response
             .get("data")
@@ -172,7 +172,7 @@ impl PurchasePriceService {
     /// 获取价格历史
     pub async fn history(product_id: i32, supplier_id: i32, limit: i64) -> Result<Vec<PurchasePrice>, String> {
         let response: serde_json::Value = ApiService::get(
-            &format!("/api/v1/erp/purchases/prices/history/{}/{}?limit={}", product_id, supplier_id, limit)
+            &format!("/purchases/prices/history/{}/{}?limit={}", product_id, supplier_id, limit)
         ).await?;
         
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
@@ -189,7 +189,7 @@ impl PurchasePriceService {
     /// 分析价格趋势
     pub async fn analyze_trend(product_id: i32, supplier_id: i32) -> Result<PriceTrendAnalysis, String> {
         let response: serde_json::Value = ApiService::get(
-            &format!("/api/v1/erp/purchases/prices/trend/{}/{}", product_id, supplier_id)
+            &format!("/purchases/prices/trend/{}/{}", product_id, supplier_id)
         ).await?;
         
         response

@@ -171,7 +171,7 @@ impl PurchaseReturnService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/returns{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/returns{}", query_string)).await?;
 
         if let Some(data) = response.get("data") {
             if let Some(items) = data.get("items").and_then(|v| v.as_array()) {
@@ -187,7 +187,7 @@ impl PurchaseReturnService {
 
     /// 获取退货单详情
     pub async fn get(id: i32) -> Result<PurchaseReturn, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/returns/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/returns/{}", id)).await?;
 
         response
             .get("data")
@@ -199,7 +199,7 @@ impl PurchaseReturnService {
     /// 创建退货单
     pub async fn create(req: CreatePurchaseReturnRequest) -> Result<PurchaseReturn, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/purchases/returns", &body).await?;
+        let response: serde_json::Value = ApiService::post("/purchases/returns", &body).await?;
 
         response
             .get("data")
@@ -211,7 +211,7 @@ impl PurchaseReturnService {
     /// 更新退货单
     pub async fn update(id: i32, req: UpdatePurchaseReturnRequest) -> Result<PurchaseReturn, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/purchases/returns/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/purchases/returns/{}", id), &body).await?;
 
         response
             .get("data")
@@ -222,7 +222,7 @@ impl PurchaseReturnService {
 
     /// 提交退货单
     pub async fn submit(id: i32) -> Result<PurchaseReturn, String> {
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/returns/{}/submit", id), &serde_json::json!({})).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/returns/{}/submit", id), &serde_json::json!({})).await?;
 
         response
             .get("data")
@@ -233,7 +233,7 @@ impl PurchaseReturnService {
 
     /// 审批退货单
     pub async fn approve(id: i32) -> Result<PurchaseReturn, String> {
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/returns/{}/approve", id), &serde_json::json!({})).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/returns/{}/approve", id), &serde_json::json!({})).await?;
 
         response
             .get("data")
@@ -245,7 +245,7 @@ impl PurchaseReturnService {
     /// 拒绝退货单
     pub async fn reject(id: i32, reason: String) -> Result<PurchaseReturn, String> {
         let body = serde_json::to_value(&RejectReturnRequest { reason }).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/returns/{}/reject", id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/returns/{}/reject", id), &body).await?;
 
         response
             .get("data")
@@ -256,7 +256,7 @@ impl PurchaseReturnService {
 
     /// 获取退货单明细列表
     pub async fn list_items(return_id: i32) -> Result<Vec<PurchaseReturnItem>, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/purchases/returns/{}/items", return_id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/purchases/returns/{}/items", return_id)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let items: Vec<PurchaseReturnItem> = data
@@ -272,7 +272,7 @@ impl PurchaseReturnService {
     /// 添加退货明细
     pub async fn create_item(return_id: i32, req: CreateReturnItemRequest) -> Result<PurchaseReturnItem, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/purchases/returns/{}/items", return_id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/purchases/returns/{}/items", return_id), &body).await?;
 
         response
             .get("data")
@@ -284,7 +284,7 @@ impl PurchaseReturnService {
     /// 更新退货明细
     pub async fn update_item(return_id: i32, item_id: i32, req: UpdateReturnItemRequest) -> Result<PurchaseReturnItem, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/purchases/returns/{}/items/{}", return_id, item_id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/purchases/returns/{}/items/{}", return_id, item_id), &body).await?;
 
         response
             .get("data")
@@ -295,6 +295,6 @@ impl PurchaseReturnService {
 
     /// 删除退货明细
     pub async fn delete_item(return_id: i32, item_id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/purchases/returns/{}/items/{}", return_id, item_id)).await
+        ApiService::delete(&format!("/purchases/returns/{}/items/{}", return_id, item_id)).await
     }
 }

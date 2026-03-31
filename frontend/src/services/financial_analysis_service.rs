@@ -84,11 +84,11 @@ pub struct FinancialAnalysisService;
 
 impl FinancialAnalysisService {
     pub async fn analyze_ratios(period: &str) -> Result<Vec<FinancialRatio>, String> {
-        ApiService::get(&format!("/api/v1/erp/financial-analysis/ratios?period={}", period)).await
+        ApiService::get(&format!("/financial-analysis/ratios?period={}", period)).await
     }
 
     pub async fn dupont_analysis(period: &str) -> Result<DupontAnalysis, String> {
-        ApiService::get(&format!("/api/v1/erp/financial-analysis/dupont?period={}", period)).await
+        ApiService::get(&format!("/financial-analysis/dupont?period={}", period)).await
     }
 
     pub async fn list_indicators(
@@ -106,25 +106,25 @@ impl FinancialAnalysisService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/financial-analysis/indicators?{}", query)).await
+        ApiService::get(&format!("/financial-analysis/indicators?{}", query)).await
     }
 
     pub async fn get_indicator(id: i32) -> Result<FinancialIndicator, String> {
-        ApiService::get(&format!("/api/v1/erp/financial-analysis/indicators/{}", id)).await
+        ApiService::get(&format!("/financial-analysis/indicators/{}", id)).await
     }
 
     pub async fn create_indicator(req: CreateIndicatorRequest) -> Result<FinancialIndicator, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/financial-analysis/indicators", &payload).await
+        ApiService::post("/financial-analysis/indicators", &payload).await
     }
 
     pub async fn update_indicator(id: i32, req: UpdateIndicatorRequest) -> Result<FinancialIndicator, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/api/v1/erp/financial-analysis/indicators/{}", id), &payload).await
+        ApiService::put(&format!("/financial-analysis/indicators/{}", id), &payload).await
     }
 
     pub async fn delete_indicator(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/financial-analysis/indicators/{}", id)).await
+        ApiService::delete(&format!("/financial-analysis/indicators/{}", id)).await
     }
 
     pub async fn get_indicator_trends(
@@ -132,7 +132,7 @@ impl FinancialAnalysisService {
         periods: i32,
     ) -> Result<Vec<FinancialRatio>, String> {
         ApiService::get(&format!(
-            "/api/v1/erp/financial-analysis/indicators/{}/trends?periods={}",
+            "/financial-analysis/indicators/{}/trends?periods={}",
             indicator_code, periods
         )).await
     }
@@ -152,15 +152,15 @@ impl FinancialAnalysisService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/financial-analysis/results?{}", query)).await
+        ApiService::get(&format!("/financial-analysis/results?{}", query)).await
     }
 
     pub async fn get_analysis_result(id: i32) -> Result<AnalysisResult, String> {
-        ApiService::get(&format!("/api/v1/erp/financial-analysis/results/{}", id)).await
+        ApiService::get(&format!("/financial-analysis/results/{}", id)).await
     }
 
     pub async fn create_analysis_result(req: CreateAnalysisResultRequest) -> Result<AnalysisResult, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/financial-analysis/results", &payload).await
+        ApiService::post("/financial-analysis/results", &payload).await
     }
 }

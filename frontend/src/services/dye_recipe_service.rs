@@ -113,51 +113,51 @@ impl DyeRecipeService {
             params.push(format!("status={}", status));
         }
 
-        let url = format!("/api/v1/erp/dye-recipe?{}", params.join("&"));
+        let url = format!("/dye-recipe?{}", params.join("&"));
         ApiService::get(&url).await
     }
 
     pub async fn get(id: i32) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}", id);
+        let url = format!("/dye-recipe/{}", id);
         ApiService::get(&url).await
     }
 
     pub async fn create(req: CreateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let url = "/api/v1/erp/dye-recipe";
+        let url = "/dye-recipe";
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::post(url, &body).await
     }
 
     pub async fn update(id: i32, req: UpdateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}", id);
+        let url = format!("/dye-recipe/{}", id);
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::put(&url, &body).await
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}", id);
+        let url = format!("/dye-recipe/{}", id);
         ApiService::delete(&url).await
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}/approve", id);
+        let url = format!("/dye-recipe/{}/approve", id);
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::post(&url, &body).await
     }
 
     pub async fn create_version(id: i32, req: CreateVersionRequest) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}/version", id);
+        let url = format!("/dye-recipe/{}/version", id);
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
         ApiService::post(&url, &body).await
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeRecipe>, String> {
-        let url = format!("/api/v1/erp/dye-recipe/by-color/{}", color_code);
+        let url = format!("/dye-recipe/by-color/{}", color_code);
         ApiService::get(&url).await
     }
 
     pub async fn get_versions(id: i32) -> Result<Vec<DyeRecipe>, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}/versions", id);
+        let url = format!("/dye-recipe/{}/versions", id);
         ApiService::get(&url).await
     }
 }

@@ -221,7 +221,7 @@ impl SupplierService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/suppliers{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/suppliers{}", query_string)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let suppliers: Vec<Supplier> = data
@@ -235,7 +235,7 @@ impl SupplierService {
     }
 
     pub async fn get(id: i32) -> Result<Supplier, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/suppliers/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/suppliers/{}", id)).await?;
 
         response
             .get("data")
@@ -246,7 +246,7 @@ impl SupplierService {
 
     pub async fn create(req: CreateSupplierRequest) -> Result<Supplier, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/suppliers", &body).await?;
+        let response: serde_json::Value = ApiService::post("/suppliers", &body).await?;
 
         response
             .get("data")
@@ -257,7 +257,7 @@ impl SupplierService {
 
     pub async fn update(id: i32, req: UpdateSupplierRequest) -> Result<Supplier, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/suppliers/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/suppliers/{}", id), &body).await?;
 
         response
             .get("data")
@@ -267,12 +267,12 @@ impl SupplierService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/suppliers/{}", id)).await
+        ApiService::delete(&format!("/suppliers/{}", id)).await
     }
 
     pub async fn toggle_status(id: i32, enable: bool) -> Result<Supplier, String> {
         let body = serde_json::json!({ "enable": enable });
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/suppliers/{}/toggle-status", id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/suppliers/{}/toggle-status", id), &body).await?;
 
         response
             .get("data")
@@ -282,7 +282,7 @@ impl SupplierService {
     }
 
     pub async fn list_contacts(supplier_id: i32) -> Result<Vec<SupplierContact>, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/suppliers/{}/contacts", supplier_id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/suppliers/{}/contacts", supplier_id)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let contacts: Vec<SupplierContact> = data
@@ -297,7 +297,7 @@ impl SupplierService {
 
     pub async fn create_contact(supplier_id: i32, req: CreateContactRequest) -> Result<SupplierContact, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/suppliers/{}/contacts", supplier_id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/suppliers/{}/contacts", supplier_id), &body).await?;
 
         response
             .get("data")
@@ -308,7 +308,7 @@ impl SupplierService {
 
     pub async fn update_contact(supplier_id: i32, contact_id: i32, req: UpdateContactRequest) -> Result<SupplierContact, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/suppliers/{}/contacts/{}", supplier_id, contact_id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/suppliers/{}/contacts/{}", supplier_id, contact_id), &body).await?;
 
         response
             .get("data")
@@ -318,11 +318,11 @@ impl SupplierService {
     }
 
     pub async fn delete_contact(supplier_id: i32, contact_id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/suppliers/{}/contacts/{}", supplier_id, contact_id)).await
+        ApiService::delete(&format!("/suppliers/{}/contacts/{}", supplier_id, contact_id)).await
     }
 
     pub async fn list_qualifications(supplier_id: i32) -> Result<Vec<SupplierQualification>, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/suppliers/{}/qualifications", supplier_id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/suppliers/{}/qualifications", supplier_id)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let qualifications: Vec<SupplierQualification> = data
@@ -337,7 +337,7 @@ impl SupplierService {
 
     pub async fn create_qualification(supplier_id: i32, req: CreateQualificationRequest) -> Result<SupplierQualification, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/suppliers/{}/qualifications", supplier_id), &body).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/suppliers/{}/qualifications", supplier_id), &body).await?;
 
         response
             .get("data")

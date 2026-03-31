@@ -152,7 +152,7 @@ impl FabricOrderService {
             format!("?{}", params.join("&"))
         };
 
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/sales/fabric-orders{}", query_string)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/sales/fabric-orders{}", query_string)).await?;
 
         if let Some(data) = response.get("data").and_then(|v| v.as_array()) {
             let orders: Vec<FabricOrder> = data
@@ -166,7 +166,7 @@ impl FabricOrderService {
     }
 
     pub async fn get(id: i32) -> Result<FabricOrder, String> {
-        let response: serde_json::Value = ApiService::get(&format!("/api/v1/erp/sales/fabric-orders/{}", id)).await?;
+        let response: serde_json::Value = ApiService::get(&format!("/sales/fabric-orders/{}", id)).await?;
 
         response
             .get("data")
@@ -177,7 +177,7 @@ impl FabricOrderService {
 
     pub async fn create(req: CreateFabricOrderRequest) -> Result<FabricOrder, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::post("/api/v1/erp/sales/fabric-orders", &body).await?;
+        let response: serde_json::Value = ApiService::post("/sales/fabric-orders", &body).await?;
 
         response
             .get("data")
@@ -188,7 +188,7 @@ impl FabricOrderService {
 
     pub async fn update(id: i32, req: UpdateFabricOrderRequest) -> Result<FabricOrder, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        let response: serde_json::Value = ApiService::put(&format!("/api/v1/erp/sales/fabric-orders/{}", id), &body).await?;
+        let response: serde_json::Value = ApiService::put(&format!("/sales/fabric-orders/{}", id), &body).await?;
 
         response
             .get("data")
@@ -198,11 +198,11 @@ impl FabricOrderService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/sales/fabric-orders/{}", id)).await
+        ApiService::delete(&format!("/sales/fabric-orders/{}", id)).await
     }
 
     pub async fn approve(id: i32) -> Result<FabricOrder, String> {
-        let response: serde_json::Value = ApiService::post(&format!("/api/v1/erp/sales/fabric-orders/{}/approve", id), &serde_json::json!({})).await?;
+        let response: serde_json::Value = ApiService::post(&format!("/sales/fabric-orders/{}/approve", id), &serde_json::json!({})).await?;
 
         response
             .get("data")

@@ -45,29 +45,29 @@ pub struct DepartmentService;
 
 impl DepartmentService {
     pub async fn list_departments() -> Result<DepartmentListResponse, String> {
-        ApiService::get::<DepartmentListResponse>("/api/v1/erp/departments").await
+        ApiService::get::<DepartmentListResponse>("/departments").await
     }
 
     pub async fn get_department(id: i32) -> Result<Department, String> {
-        ApiService::get::<Department>(&format!("/api/v1/erp/departments/{}", id)).await
+        ApiService::get::<Department>(&format!("/departments/{}", id)).await
     }
 
     pub async fn create_department(req: CreateDepartmentRequest) -> Result<Department, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/departments", &payload).await
+        ApiService::post("/departments", &payload).await
     }
 
     pub async fn update_department(id: i32, req: UpdateDepartmentRequest) -> Result<Department, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/api/v1/erp/departments/{}", id), &payload).await
+        ApiService::put(&format!("/departments/{}", id), &payload).await
     }
 
     pub async fn delete_department(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/departments/{}", id)).await
+        ApiService::delete(&format!("/departments/{}", id)).await
     }
 
     /// 获取部门树形结构
     pub async fn get_department_tree() -> Result<Vec<serde_json::Value>, String> {
-        ApiService::get::<Vec<serde_json::Value>>("/api/v1/erp/departments/tree").await
+        ApiService::get::<Vec<serde_json::Value>>("/departments/tree").await
     }
 }

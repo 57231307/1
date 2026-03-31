@@ -127,25 +127,25 @@ impl QualityInspectionService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/quality-inspections/standards?{}", query)).await
+        ApiService::get(&format!("/quality-inspections/standards?{}", query)).await
     }
 
     pub async fn get_standard(id: i32) -> Result<InspectionStandard, String> {
-        ApiService::get(&format!("/api/v1/erp/quality-inspections/standards/{}", id)).await
+        ApiService::get(&format!("/quality-inspections/standards/{}", id)).await
     }
 
     pub async fn create_standard(req: CreateInspectionStandardRequest) -> Result<InspectionStandard, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/quality-inspections/standards", &payload).await
+        ApiService::post("/quality-inspections/standards", &payload).await
     }
 
     pub async fn update_standard(id: i32, req: CreateInspectionStandardRequest) -> Result<InspectionStandard, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/api/v1/erp/quality-inspections/standards/{}", id), &payload).await
+        ApiService::put(&format!("/quality-inspections/standards/{}", id), &payload).await
     }
 
     pub async fn delete_standard(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/quality-inspections/standards/{}", id)).await
+        ApiService::delete(&format!("/quality-inspections/standards/{}", id)).await
     }
 
     pub async fn list_records(
@@ -175,16 +175,16 @@ impl QualityInspectionService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/quality-inspection/records?{}", query)).await
+        ApiService::get(&format!("/quality-inspection/records?{}", query)).await
     }
 
     pub async fn get_record(id: i32) -> Result<InspectionRecord, String> {
-        ApiService::get(&format!("/api/v1/erp/quality-inspection/records/{}", id)).await
+        ApiService::get(&format!("/quality-inspection/records/{}", id)).await
     }
 
     pub async fn create_record(req: CreateInspectionRecordRequest) -> Result<InspectionRecord, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/quality-inspections/records", &payload).await
+        ApiService::post("/quality-inspections/records", &payload).await
     }
 
     pub async fn get_statistics(product_id: Option<i32>) -> Result<QualityStatistics, String> {
@@ -193,7 +193,7 @@ impl QualityInspectionService {
         } else {
             String::new()
         };
-        ApiService::get(&format!("/api/v1/erp/quality-inspection/statistics{}", query)).await
+        ApiService::get(&format!("/quality-inspection/statistics{}", query)).await
     }
 
     pub async fn list_defects(
@@ -211,16 +211,16 @@ impl QualityInspectionService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/quality-inspection/defects?{}", query)).await
+        ApiService::get(&format!("/quality-inspection/defects?{}", query)).await
     }
 
     pub async fn create_defect(req: CreateQualityDefectRequest) -> Result<QualityDefect, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/quality-inspections/defects", &payload).await
+        ApiService::post("/quality-inspections/defects", &payload).await
     }
 
     pub async fn handle_defect(id: i32, req: HandleDefectRequest) -> Result<QualityDefect, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/api/v1/erp/quality-inspections/defects/{}/handle", id), &payload).await
+        ApiService::post(&format!("/quality-inspections/defects/{}/handle", id), &payload).await
     }
 }
