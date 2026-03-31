@@ -3,9 +3,8 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::purchase_order_service::{
-    PurchaseOrderService, PurchaseOrder, PurchaseOrderQuery,
-};
+use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
+use crate::services::purchase_order_service::PurchaseOrderService;
 
 pub struct PurchaseOrderPage {
     orders: Vec<PurchaseOrder>,

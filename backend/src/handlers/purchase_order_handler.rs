@@ -97,11 +97,11 @@ pub async fn update_order(
 pub async fn delete_order(
     Path(id): Path<i32>,
     State(db): State<Arc<DatabaseConnection>>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseOrderService::new(db);
     service.delete_order(id, 1).await?; // TODO: 从认证中获取 user_id
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok(Json(ApiResponse::success_with_msg((), "采购订单删除成功")))
 }
 
 /// 提交采购订单
@@ -225,11 +225,11 @@ pub async fn update_order_item(
 pub async fn delete_order_item(
     Path((_order_id, item_id)): Path<(i32, i32)>,
     State(db): State<Arc<DatabaseConnection>>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseOrderService::new(db);
     service.delete_order_item(item_id, 1).await?; // TODO: 从认证中获取 user_id
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok(Json(ApiResponse::success_with_msg((), "订单明细删除成功")))
 }
 
 // =====================================================
