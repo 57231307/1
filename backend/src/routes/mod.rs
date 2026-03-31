@@ -2,8 +2,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use sea_orm::DatabaseConnection;
-use std::sync::Arc;
+use crate::utils::app_state::AppState;
 
 use crate::handlers::{
     account_subject_handler,
@@ -67,7 +66,7 @@ use crate::handlers::{
 
 /// 创建路由配置
 /// 所有接口路径统一为 /api/v1/erp/* 格式
-pub fn create_router(db: Arc<DatabaseConnection>, _jwt_secret: String) -> Router {
+pub fn create_router(state: AppState) -> Router {
     // 认证路由
     let auth_routes = Router::new()
         .route("/login", post(auth_handler::login))
