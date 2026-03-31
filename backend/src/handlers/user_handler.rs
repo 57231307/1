@@ -1,5 +1,6 @@
 use crate::services::auth_service::AuthService;
 use crate::services::user_service::UserService;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -48,14 +49,19 @@ pub struct UserListResponse {
     pub page_size: u64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct DeleteUserResponse {
+    pub success: bool,
+}
+
 pub async fn get_user(
     State(db): State<Arc<DatabaseConnection>>,
     Path(id): Path<i32>,
-) -> Result<Json<UserResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(db.clone());
 
     match user_service.find_by_id(id).await {
-        Ok(user) => Ok(Json(UserResponse {
+        Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
             id: user.id,
             username: user.username,
             email: user.email,
@@ -64,19 +70,19 @@ pub async fn get_user(
             department_id: user.department_id,
             is_active: user.is_active,
             created_at: user.created_at,
-        })),
-        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
+        }))),
+        Err(e) => Err((StatusCode::NOT_FOUND, Json(ApiResponse::error(e.to_string())))),
     }
 }
 
 pub async fn create_user(
     State(db): State<Arc<DatabaseConnection>>,
     Json(payload): Json<CreateUserRequest>,
-) -> Result<Json<UserResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(db.clone());
 
     let password_hash = AuthService::hash_password(&payload.password)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
 
     match user_service
         .create_user(
@@ -89,7 +95,7 @@ pub async fn create_user(
         )
         .await
     {
-        Ok(user) => Ok(Json(UserResponse {
+        Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
             id: user.id,
             username: user.username,
             email: user.email,
@@ -98,15 +104,15 @@ pub async fn create_user(
             department_id: user.department_id,
             is_active: user.is_active,
             created_at: user.created_at,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
     }
 }
 
 pub async fn list_users(
     State(db): State<Arc<DatabaseConnection>>,
     Query(params): Query<ListUsersParams>,
-) -> Result<Json<UserListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<UserListResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(db.clone());
 
     match user_service
@@ -128,14 +134,14 @@ pub async fn list_users(
                 })
                 .collect();
 
-            Ok(Json(UserListResponse {
+            Ok(Json(ApiResponse::success(UserListResponse {
                 users: user_responses,
                 total,
                 page: params.page.unwrap_or(0),
                 page_size: params.page_size.unwrap_or(20),
-            }))
+            })))
         }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
     }
 }
 
@@ -152,7 +158,7 @@ pub async fn update_user(
     State(db): State<Arc<DatabaseConnection>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateUserRequest>,
-) -> Result<Json<UserResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(db.clone());
 
     match user_service
@@ -166,7 +172,7 @@ pub async fn update_user(
         )
         .await
     {
-        Ok(user) => Ok(Json(UserResponse {
+        Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
             id: user.id,
             username: user.username,
             email: user.email,
@@ -175,8 +181,8 @@ pub async fn update_user(
             department_id: user.department_id,
             is_active: user.is_active,
             created_at: user.created_at,
-        })),
-        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+        }))),
+        Err(e) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string())))),
     }
 }
 
@@ -184,14 +190,11 @@ pub async fn update_user(
 pub async fn delete_user(
     State(db): State<Arc<DatabaseConnection>>,
     Path(id): Path<i32>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<DeleteUserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(db.clone());
 
     match user_service.delete_user(id).await {
-        Ok(_) => Ok(Json(serde_json::json!({
-            "success": true,
-            "message": "用户删除成功"
-        }))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+        Ok(_) => Ok(Json(ApiResponse::success(DeleteUserResponse { success: true }))),
+        Err(e) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string())))),
     }
 }

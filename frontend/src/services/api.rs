@@ -1,5 +1,6 @@
 use gloo_net::http::{Request, Response};
 use serde::de::DeserializeOwned;
+use crate::models::api_response::ApiResponse;
 
 /// API 基础路径
 pub const API_BASE: &str = "/api/v1/erp";
@@ -10,7 +11,7 @@ pub struct ApiService;
 
 impl ApiService {
     /// 基础 API 路径
-    const API_BASE: &'static str = "http://127.0.0.1:8080/api/v1/erp";
+    const API_BASE: &'static str = "/api/v1/erp";
 
     /// 最大重试次数
     const MAX_RETRIES: u32 = 3;
@@ -33,7 +34,6 @@ impl ApiService {
     /// DELETE 请求（带重试）
     pub async fn delete(url: &str) -> Result<(), String> {
         let _result: serde_json::Value = Self::request_with_retry::<serde_json::Value>("DELETE", url, None).await?;
-        // DELETE 请求通常不需要返回值，忽略结果
         Ok(())
     }
 
@@ -58,26 +58,31 @@ impl ApiService {
         for attempt in 0..Self::MAX_RETRIES {
             match Self::do_request(method, &full_url, body).await {
                 Ok(response) => {
-                    // 尝试解析响应
-                    if method == "DELETE" {
-                        return Err("DELETE 请求不应返回数据".to_string());
-                    } else {
-                        match response.json::<T>().await {
-                            Ok(data) => return Ok(data),
-                            Err(e) => {
-                                last_error = Some(format!("解析响应失败：{}", e));
-                                // 解析错误不重试
-                                break;
+                    match response.json::<ApiResponse<T>>().await {
+                        Ok(api_response) => {
+                            if api_response.success {
+                                if let Some(data) = api_response.data {
+                                    return Ok(data);
+                                } else if method == "DELETE" {
+                                    return Ok(serde_json::from_value(serde_json::json!(null)).unwrap());
+                                }
+                            } else {
+                                let error_msg = api_response.error
+                                    .or(api_response.message)
+                                    .unwrap_or_else(|| "请求失败".to_string());
+                                return Err(error_msg);
                             }
+                        }
+                        Err(e) => {
+                            last_error = Some(format!("解析响应失败：{}", e));
+                            break;
                         }
                     }
                 }
                 Err(e) => {
                     last_error = Some(e.clone());
                     
-                    // 如果不是最后一次尝试，等待一段时间后重试
                     if attempt < Self::MAX_RETRIES - 1 {
-                        // 指数退避：1s, 2s, 4s
                         let delay_ms = 1000 * 2u64.pow(attempt);
                         gloo_timers::future::TimeoutFuture::new(delay_ms as u32).await;
                     }
@@ -94,11 +99,9 @@ impl ApiService {
         url: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<Response, String> {
-        // 获取 Token
         let token = crate::utils::storage::Storage::get_token()
             .unwrap_or_else(|| "".to_string());
 
-        // 构建请求
         let request_builder = match method {
             "GET" => Request::get(url),
             "POST" => Request::post(url),
@@ -107,7 +110,6 @@ impl ApiService {
             _ => return Err(format!("不支持的 HTTP 方法：{}", method)),
         };
 
-        // 添加请求头
         let mut request_with_headers = request_builder.header("Content-Type", "application/json");
         
         if !token.is_empty() {
@@ -115,7 +117,6 @@ impl ApiService {
             request_with_headers = request_with_headers.header("Authorization", auth_header.as_str());
         }
 
-        // 添加请求体（如果是 POST 或 PUT）
         let request = match body {
             Some(body_value) => request_with_headers.json(body_value)
                 .map_err(|e: gloo_net::Error| format!("序列化请求体失败：{}", e))?,
@@ -123,13 +124,11 @@ impl ApiService {
                 .map_err(|e: gloo_net::Error| format!("构建请求失败：{}", e))?,
         };
 
-        // 发送请求
         let response = request
             .send()
             .await
             .map_err(|e| format!("网络请求失败：{}", e))?;
 
-        // 检查响应状态
         if response.ok() {
             Ok(response)
         } else {
