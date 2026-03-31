@@ -117,7 +117,13 @@ impl AuthService {
 
     pub fn hash_password(password: &str) -> Result<String, AuthError> {
         let salt = SaltString::generate(&mut OsRng);
-        let hash = Argon2::default()
+        // 使用更安全的Argon2参数配置
+        let argon2 = Argon2::new(
+            argon2::Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            argon2::Params::new(19456, 2, 1, None).unwrap(),
+        );
+        let hash = argon2
             .hash_password(password.as_bytes(), &salt)
             .map_err(|_| AuthError::HashError)?;
 

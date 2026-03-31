@@ -4,7 +4,7 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, Set, ConnectionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -63,24 +63,39 @@ impl InitService {
             .connect_timeout(Duration::from_secs(5))
             .acquire_timeout(Duration::from_secs(5));
 
-        let db = Database::connect(opt)
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
+        // 添加重试机制
+        let max_retries = 3;
+        let mut last_error: Option<sea_orm::DbErr> = None;
 
-        let result: Result<i32, DbErr> = db
-            .query_one(sea_orm::Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                "SELECT 1 as test".to_string(),
-            ))
-            .await
-            .map(|v: Option<sea_orm::QueryResult>| {
-                v.map(|row: sea_orm::QueryResult| row.try_get::<i32>("", "test").unwrap_or(1))
-            })
-            .map(|opt: Option<i32>| opt.unwrap_or(0));
+        for attempt in 1..=max_retries {
+            match Database::connect(opt.clone()).await {
+                Ok(db) => {
+                    let result: Result<i32, DbErr> = db
+                        .query_one(sea_orm::Statement::from_string(
+                            sea_orm::DatabaseBackend::Postgres,
+                            "SELECT 1 as test".to_string(),
+                        ))
+                        .await
+                        .map(|v: Option<sea_orm::QueryResult>| {
+                            v.map(|row: sea_orm::QueryResult| row.try_get::<i32>("", "test").unwrap_or(1))
+                        })
+                        .map(|opt: Option<i32>| opt.unwrap_or(0));
 
-        result.map(|_| ()).map_err(|e| {
-            InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
-        })
+                    return result.map(|_| ()).map_err(|e| {
+                        InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
+                    });
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < max_retries {
+                        // 等待一段时间后重试
+                        tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
+                    }
+                }
+            }
+        }
+
+        Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))  
     }
 
     pub async fn initialize(
@@ -124,14 +139,28 @@ impl InitService {
             .connect_timeout(Duration::from_secs(10))
             .acquire_timeout(Duration::from_secs(10));
 
-        let db = Database::connect(opt)
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
+        // 添加重试机制
+        let max_retries = 3;
+        let mut last_error: Option<sea_orm::DbErr> = None;
 
-        let db = Arc::new(db);
-        let service = Self::new(db);
+        for attempt in 1..=max_retries {
+            match Database::connect(opt.clone()).await {
+                Ok(db) => {
+                    let db = Arc::new(db);
+                    let service = Self::new(db);
+                    return service.initialize(admin_username, admin_password).await;
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < max_retries {
+                        // 等待一段时间后重试
+                        tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
+                    }
+                }
+            }
+        }
 
-        service.initialize(admin_username, admin_password).await
+        Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))
     }
 
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
@@ -162,6 +191,7 @@ impl InitService {
             .await
             .map_err(|e| InitError::DatabaseError(format!("创建管理员角色失败: {}", e)))?;
 
+        // 创建部门经理角色
         let manager_role = role::ActiveModel {
             id: Set(0),
             name: Set("部门经理".to_string()),
@@ -174,11 +204,12 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        // 忽略manager角色的创建错误，因为可能已存在
-        let _ = manager_role
-            .insert(self.db.as_ref())
-            .await;
+        // 尝试创建，如果失败则记录但不中断初始化
+        if let Err(e) = manager_role.insert(self.db.as_ref()).await {
+            warn!("创建部门经理角色失败: {}, 可能已存在", e);
+        }
 
+        // 创建操作员角色
         let operator_role = role::ActiveModel {
             id: Set(0),
             name: Set("操作员".to_string()),
@@ -191,10 +222,10 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        // 忽略operator角色的创建错误
-        let _ = operator_role
-            .insert(self.db.as_ref())
-            .await;
+        // 尝试创建，如果失败则记录但不中断初始化
+        if let Err(e) = operator_role.insert(self.db.as_ref()).await {
+            warn!("创建操作员角色失败: {}, 可能已存在", e);
+        }
 
         Ok(admin_role)
     }
@@ -237,7 +268,7 @@ impl InitService {
         ];
 
         for (name, code, sort) in departments {
-            let _ = department::ActiveModel {
+            let dept_model = department::ActiveModel {
                 id: Set(0),
                 name: Set(name.to_string()),
                 code: Set(code.to_string()),
@@ -248,9 +279,12 @@ impl InitService {
                 is_active: Set(true),
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
+            };
+            
+            // 尝试创建，如果失败则记录但不中断初始化
+            if let Err(e) = dept_model.insert(self.db.as_ref()).await {
+                warn!("创建部门 {} ({}): {} 失败: {}, 可能已存在", name, code, sort, e);
             }
-            .insert(self.db.as_ref())
-            .await;
         }
 
         Ok(dept.id)
@@ -263,6 +297,17 @@ impl InitService {
         role_id: i32,
         department_id: i32,
     ) -> Result<user::Model, InitError> {
+        // 先检查用户是否已存在
+        let existing_user = user::Entity::find()
+            .filter(user::Column::Username.eq(username))
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询用户失败: {}", e)))?;
+        
+        if let Some(user) = existing_user {
+            return Ok(user);
+        }
+        
         let user = user::ActiveModel {
             id: Set(0),
             username: Set(username.to_string()),

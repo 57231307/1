@@ -71,7 +71,46 @@ impl AppSettings {
             .add_source(config::Environment::default().separator("__"))
             .build()?;
 
-        let mut app_settings: AppSettings = settings.try_deserialize()?;
+        // 尝试反序列化，如果失败则使用默认值
+        let mut app_settings = match settings.try_deserialize::<AppSettings>() {
+            Ok(settings) => settings,
+            Err(_) => {
+                // 使用默认值
+                AppSettings {
+                    server: ServerConfig {
+                        host: "0.0.0.0".to_string(),
+                        port: "8080".to_string(),
+                    },
+                    database: DatabaseConfig {
+                        connection_string: "".to_string(),
+                        host: "localhost".to_string(),
+                        port: 5432,
+                        name: "bingxi".to_string(),
+                        username: "postgres".to_string(),
+                        password: "".to_string(),
+                        max_connections: 10,
+                        ssl_mode: "prefer".to_string(),
+                        ssl_ca: None,
+                    },
+                    auth: AuthConfig {
+                        jwt_secret: "your-secret-key-change-in-production".to_string(),
+                        token_expiry_hours: 24,
+                    },
+                    grpc: GrpcConfig {
+                        host: "0.0.0.0".to_string(),
+                        port: 50051,
+                    },
+                    log: LogConfig {
+                        level: "info".to_string(),
+                        dir: "./logs".to_string(),
+                    },
+                    cors: CorsConfig {
+                        allowed_origins: vec!["http://localhost:3000".to_string()],
+                    },
+                    env: "development".to_string(),
+                }
+            }
+        };
 
         // 处理 CORS 允许来源的环境变量（逗号分隔列表）
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {
@@ -80,6 +119,18 @@ impl AppSettings {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
+        }
+
+        // 确保数据库连接字符串存在
+        if app_settings.database.connection_string.is_empty() {
+            app_settings.database.connection_string = format!(
+                "postgres://{}:{}@{}:{}/{}",
+                app_settings.database.username,
+                app_settings.database.password,
+                app_settings.database.host,
+                app_settings.database.port,
+                app_settings.database.name
+            );
         }
 
         Ok(app_settings)

@@ -7,15 +7,14 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::http::{Request, HeaderValue};
+use axum::http::{Request, HeaderValue, Method};
 use axum::{routing::{get, post}, Router, Json};
 use sea_orm::Database;
-use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::classify::ServerErrorsFailureClass;
-use tower_http::cors::{Any, AllowOrigin, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::{info, warn, Level, Span};
@@ -174,8 +173,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(allowed_origins))
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::X_REQUESTED_WITH,
+        ])
+        .allow_credentials(true)
+        .max_age(Duration::from_secs(86400)); // 24小时
 
     let db_result = Database::connect(&settings.database.connection_string).await;
 
@@ -223,12 +235,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("DENY"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_XSS_PROTECTION,
+                    HeaderValue::from_static("1; mode=block"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::STRICT_TRANSPORT_SECURITY,
-                    HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::REFERRER_POLICY,
+                    HeaderValue::from_static("strict-origin-when-cross-origin"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::PERMISSIONS_POLICY,
+                    HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
         }
         Err(e) => {
@@ -265,8 +289,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("DENY"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_XSS_PROTECTION,
+                    HeaderValue::from_static("1; mode=block"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::STRICT_TRANSPORT_SECURITY,
+                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::REFERRER_POLICY,
+                    HeaderValue::from_static("strict-origin-when-cross-origin"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::PERMISSIONS_POLICY,
+                    HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
         }
     };
