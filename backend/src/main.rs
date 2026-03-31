@@ -186,8 +186,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::io::stdout().flush().ok();
             std::io::stderr().flush().ok();
 
-            let db_arc = Arc::new(db);
-            create_router(db_arc.clone(), settings.auth.jwt_secret.clone())
+            let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+            create_router(app_state)
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {

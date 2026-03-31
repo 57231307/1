@@ -478,3 +478,223 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", get(supplier_handler::list_suppliers))
         .route("/", post(supplier_handler::create_supplier))
         .route("/:id", get(supplier_handler::get_supplier))
+        .route("/:id", put(supplier_handler::update_supplier))
+        .route("/:id", delete(supplier_handler::delete_supplier));
+
+    // 供应商评估路由
+    let supplier_evaluation_routes = Router::new()
+        .route("/", get(supplier_evaluation_handler::list_evaluations))
+        .route("/", post(supplier_evaluation_handler::create_evaluation))
+        .route("/:id", get(supplier_evaluation_handler::get_evaluation))
+        .route("/:id", put(supplier_evaluation_handler::update_evaluation))
+        .route("/:id", delete(supplier_evaluation_handler::delete_evaluation));
+
+    // 采购管理路由
+    let purchase_routes = Router::new()
+        .route("/orders", get(purchase_order_handler::list_orders))
+        .route("/orders", post(purchase_order_handler::create_order))
+        .route("/orders/:id", get(purchase_order_handler::get_order))
+        .route("/orders/:id", put(purchase_order_handler::update_order))
+        .route("/orders/:id", delete(purchase_order_handler::delete_order))
+        .route("/orders/:id/approve", post(purchase_order_handler::approve_order))
+        .route("/receipts", get(purchase_receipt_handler::list_receipts))
+        .route("/receipts", post(purchase_receipt_handler::create_receipt))
+        .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
+        .route("/inspections", get(purchase_inspection_handler::list_inspections))
+        .route("/inspections", post(purchase_inspection_handler::create_inspection))
+        .route("/inspections/:id", get(purchase_inspection_handler::get_inspection))
+        .route("/returns", get(purchase_return_handler::list_returns))
+        .route("/returns", post(purchase_return_handler::create_return))
+        .route("/returns/:id", get(purchase_return_handler::get_return));
+
+    // 采购合同路由
+    let purchase_contract_routes = Router::new()
+        .route("/", get(purchase_contract_handler::list_contracts))
+        .route("/", post(purchase_contract_handler::create_contract))
+        .route("/:id", get(purchase_contract_handler::get_contract))
+        .route("/:id", put(purchase_contract_handler::update_contract))
+        .route("/:id", delete(purchase_contract_handler::delete_contract))
+        .route("/:id/approve", post(purchase_contract_handler::approve_contract));
+
+    // 销售合同路由
+    let sales_contract_routes = Router::new()
+        .route("/", get(sales_contract_handler::list_contracts))
+        .route("/", post(sales_contract_handler::create_contract))
+        .route("/:id", get(sales_contract_handler::get_contract))
+        .route("/:id", put(sales_contract_handler::update_contract))
+        .route("/:id", delete(sales_contract_handler::delete_contract))
+        .route("/:id/approve", post(sales_contract_handler::approve_contract));
+
+    // 固定资产路由
+    let fixed_asset_routes = Router::new()
+        .route("/", get(fixed_asset_handler::list_assets))
+        .route("/", post(fixed_asset_handler::create_asset))
+        .route("/:id", get(fixed_asset_handler::get_asset))
+        .route("/:id", put(fixed_asset_handler::update_asset))
+        .route("/:id", delete(fixed_asset_handler::delete_asset))
+        .route("/:id/depreciate", post(fixed_asset_handler::depreciate_asset));
+
+    // 预算管理路由
+    let budget_management_routes = Router::new()
+        .route("/", get(budget_management_handler::list_budgets))
+        .route("/", post(budget_management_handler::create_budget))
+        .route("/:id", get(budget_management_handler::get_budget))
+        .route("/:id", put(budget_management_handler::update_budget))
+        .route("/:id", delete(budget_management_handler::delete_budget))
+        .route("/:id/approve", post(budget_management_handler::approve_budget));
+
+    // 客户信用路由
+    let customer_credit_routes = Router::new()
+        .route("/", get(customer_credit_handler::list_credits))
+        .route("/", post(customer_credit_handler::create_credit))
+        .route("/:id", get(customer_credit_handler::get_credit))
+        .route("/:id", put(customer_credit_handler::update_credit))
+        .route("/:id", delete(customer_credit_handler::delete_credit));
+
+    // 财务分析路由
+    let financial_analysis_routes = Router::new()
+        .route("/reports", get(financial_analysis_handler::list_reports))
+        .route("/reports", post(financial_analysis_handler::create_report))
+        .route("/reports/:id", get(financial_analysis_handler::get_report))
+        .route("/reports/:id/execute", post(financial_analysis_handler::execute_report));
+
+    // 资金管理路由
+    let fund_management_routes = Router::new()
+        .route("/accounts", get(fund_management_handler::list_accounts))
+        .route("/accounts", post(fund_management_handler::create_account))
+        .route("/accounts/:id", get(fund_management_handler::get_account))
+        .route("/accounts/:id", put(fund_management_handler::update_account))
+        .route("/transfers", get(fund_management_handler::list_transfers))
+        .route("/transfers", post(fund_management_handler::create_transfer))
+        .route("/transfers/:id", get(fund_management_handler::get_transfer));
+
+    // 质量检验路由
+    let quality_inspection_routes = Router::new()
+        .route("/", get(quality_inspection_handler::list_inspections))
+        .route("/", post(quality_inspection_handler::create_inspection))
+        .route("/:id", get(quality_inspection_handler::get_inspection))
+        .route("/:id", put(quality_inspection_handler::update_inspection))
+        .route("/:id", delete(quality_inspection_handler::delete_inspection));
+
+    // 质量标准路由
+    let quality_standard_routes = Router::new()
+        .route("/", get(quality_standard_handler::list_standards))
+        .route("/", post(quality_standard_handler::create_standard))
+        .route("/:id", get(quality_standard_handler::get_standard))
+        .route("/:id", put(quality_standard_handler::update_standard))
+        .route("/:id", delete(quality_standard_handler::delete_standard));
+
+    // 成本归集路由
+    let cost_collection_routes = Router::new()
+        .route("/", get(cost_collection_handler::list_collections))
+        .route("/", post(cost_collection_handler::create_collection))
+        .route("/:id", get(cost_collection_handler::get_collection))
+        .route("/:id", put(cost_collection_handler::update_collection))
+        .route("/:id", delete(cost_collection_handler::delete_collection))
+        .route("/:id/calculate", post(cost_collection_handler::calculate_cost));
+
+    // 销售分析路由
+    let sales_analysis_routes = Router::new()
+        .route("/reports", get(sales_analysis_handler::list_reports))
+        .route("/reports", post(sales_analysis_handler::create_report))
+        .route("/reports/:id", get(sales_analysis_handler::get_report))
+        .route("/reports/:id/execute", post(sales_analysis_handler::execute_report));
+
+    // 销售价格路由
+    let sales_price_routes = Router::new()
+        .route("/", get(sales_price_handler::list_prices))
+        .route("/", post(sales_price_handler::create_price))
+        .route("/:id", get(sales_price_handler::get_price))
+        .route("/:id", put(sales_price_handler::update_price))
+        .route("/:id", delete(sales_price_handler::delete_price));
+
+    // 采购价格路由
+    let purchase_price_routes = Router::new()
+        .route("/", get(purchase_price_handler::list_prices))
+        .route("/", post(purchase_price_handler::create_price))
+        .route("/:id", get(purchase_price_handler::get_price))
+        .route("/:id", put(purchase_price_handler::update_price))
+        .route("/:id", delete(purchase_price_handler::delete_price));
+
+    // 应付账款路由
+    let ap_routes = Router::new()
+        .route("/invoices", get(ap_invoice_handler::list_invoices))
+        .route("/invoices", post(ap_invoice_handler::create_invoice))
+        .route("/invoices/:id", get(ap_invoice_handler::get_invoice))
+        .route("/invoices/:id", put(ap_invoice_handler::update_invoice))
+        .route("/invoices/:id", delete(ap_invoice_handler::delete_invoice))
+        .route("/payments", get(ap_payment_handler::list_payments))
+        .route("/payments", post(ap_payment_handler::create_payment))
+        .route("/payments/:id", get(ap_payment_handler::get_payment))
+        .route("/payment-requests", get(ap_payment_request_handler::list_requests))
+        .route("/payment-requests", post(ap_payment_request_handler::create_request))
+        .route("/payment-requests/:id", get(ap_payment_request_handler::get_request))
+        .route("/verifications", get(ap_verification_handler::list_verifications))
+        .route("/verifications", post(ap_verification_handler::create_verification))
+        .route("/reconciliations", get(ap_reconciliation_handler::list_reconciliations))
+        .route("/reconciliations", post(ap_reconciliation_handler::create_reconciliation))
+        .route("/reports", get(ap_report_handler::list_reports));
+
+    // 应收账款路由
+    let ar_routes = Router::new()
+        .route("/invoices", get(ar_invoice_handler::list_invoices))
+        .route("/invoices", post(ar_invoice_handler::create_invoice))
+        .route("/invoices/:id", get(ar_invoice_handler::get_invoice))
+        .route("/invoices/:id", put(ar_invoice_handler::update_invoice))
+        .route("/invoices/:id", delete(ar_invoice_handler::delete_invoice));
+
+    // 系统更新路由
+    let system_update_routes = Router::new()
+        .route("/check", get(system_update_handler::check_update))
+        .route("/update", post(system_update_handler::do_update));
+
+    // 健康检查路由
+    let health_routes = Router::new()
+        .route("/", get(health_handler::health_check))
+        .route("/db", get(health_handler::db_check));
+
+    // 组装所有路由
+    Router::new()
+        .nest("/api/v1/erp/auth", auth_routes)
+        .nest("/api/v1/erp/users", user_routes)
+        .nest("/api/v1/erp/roles", role_routes)
+        .nest("/api/v1/erp/products", product_routes)
+        .nest("/api/v1/erp/product-categories", product_category_routes)
+        .nest("/api/v1/erp/warehouses", warehouse_routes)
+        .nest("/api/v1/erp/departments", department_routes)
+        .nest("/api/v1/erp/dashboard", dashboard_routes)
+        .nest("/api/v1/erp/finance", finance_routes)
+        .nest("/api/v1/erp/sales", sales_routes)
+        .nest("/api/v1/erp/inventory", inventory_routes)
+        .nest("/api/v1/erp/customers", customer_routes)
+        .nest("/api/v1/erp/batches", batch_routes)
+        .nest("/api/v1/erp/dye-batches", dye_batch_routes)
+        .nest("/api/v1/erp/greige-fabrics", greige_fabric_routes)
+        .nest("/api/v1/erp/dye-recipes", dye_recipe_routes)
+        .nest("/api/v1/erp/gl", gl_routes)
+        .nest("/api/v1/erp/dual-unit", dual_unit_routes)
+        .nest("/api/v1/erp/five-dimension", five_dimension_routes)
+        .nest("/api/v1/erp/assist-accounting", assist_accounting_routes)
+        .nest("/api/v1/erp/business-trace", business_trace_routes)
+        .nest("/api/v1/erp/suppliers", supplier_routes)
+        .nest("/api/v1/erp/supplier-evaluations", supplier_evaluation_routes)
+        .nest("/api/v1/erp/purchases", purchase_routes)
+        .nest("/api/v1/erp/purchase-contracts", purchase_contract_routes)
+        .nest("/api/v1/erp/sales-contracts", sales_contract_routes)
+        .nest("/api/v1/erp/fixed-assets", fixed_asset_routes)
+        .nest("/api/v1/erp/budgets", budget_management_routes)
+        .nest("/api/v1/erp/customer-credits", customer_credit_routes)
+        .nest("/api/v1/erp/financial-analysis", financial_analysis_routes)
+        .nest("/api/v1/erp/fund-management", fund_management_routes)
+        .nest("/api/v1/erp/quality-inspections", quality_inspection_routes)
+        .nest("/api/v1/erp/quality-standards", quality_standard_routes)
+        .nest("/api/v1/erp/cost-collections", cost_collection_routes)
+        .nest("/api/v1/erp/sales-analysis", sales_analysis_routes)
+        .nest("/api/v1/erp/sales-prices", sales_price_routes)
+        .nest("/api/v1/erp/purchase-prices", purchase_price_routes)
+        .nest("/api/v1/erp/ap", ap_routes)
+        .nest("/api/v1/erp/ar", ar_routes)
+        .nest("/api/v1/erp/system-update", system_update_routes)
+        .nest("/api/v1/erp/health", health_routes)
+        .with_state(db)
+}
