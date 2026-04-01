@@ -74,7 +74,7 @@ pub async fn list_standards(
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准列表", auth.username);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let query_params = crate::services::quality_standard_service::QualityStandardQueryParams {
         standard_type: params.standard_type,
         status: params.status,
@@ -110,7 +110,7 @@ pub async fn create_standard(
         })
         .transpose()?;
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service
         .create_standard(
             crate::services::quality_standard_service::CreateQualityStandardRequest {
@@ -139,7 +139,7 @@ pub async fn get_standard(
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在查询质量标准详情：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service.get_standard_by_id(id).await?;
 
     info!("质量标准详情查询成功：{}", standard.standard_code);
@@ -156,7 +156,7 @@ pub async fn update_standard(
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在更新质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service
         .update_standard(
             id,
@@ -183,7 +183,7 @@ pub async fn delete_standard(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     service.delete_standard(id, auth.user_id).await?;
 
     info!("质量标准删除成功：{}", id);
@@ -198,7 +198,7 @@ pub async fn list_versions(
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准版本历史：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let versions = service.get_version_history(id).await?;
 
     info!("质量标准版本历史查询成功，共 {} 个版本", versions.len());
@@ -215,7 +215,7 @@ pub async fn approve_standard(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     service
         .approve_standard(id, auth.user_id, req.approval_comment)
         .await?;
@@ -233,7 +233,7 @@ pub async fn publish_standard(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在发布质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     service.publish_standard(id, auth.user_id).await?;
 
     info!("质量标准发布成功：{}", id);
@@ -250,7 +250,7 @@ pub async fn create_version_history(
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在创建质量标准版本历史：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service
         .create_version_history(
             crate::services::quality_standard_service::CreateVersionHistoryRequest {

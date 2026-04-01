@@ -44,7 +44,7 @@ pub async fn list_requests(
         auth.username, params.supplier_id
     );
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let (requests, total) = service
         .get_list(
             params.supplier_id,
@@ -80,7 +80,7 @@ pub async fn get_request(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询付款申请详情 ID: {}", auth.username, id);
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.get_by_id(id).await?;
 
     info!(
@@ -108,7 +108,7 @@ pub async fn create_request(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.create(req, auth.user_id).await?;
 
     info!(
@@ -137,7 +137,7 @@ pub async fn update_request(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.update(id, req, auth.user_id).await?;
 
     info!(
@@ -159,7 +159,7 @@ pub async fn delete_request(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 删除付款申请 ID: {}", auth.username, id);
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     service.delete(id).await?;
 
     info!("用户 {} 删除付款申请成功", auth.username);
@@ -178,7 +178,7 @@ pub async fn submit_request(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 提交付款申请 ID: {}", auth.username, id);
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.submit(id, auth.user_id).await?;
 
     info!(
@@ -200,7 +200,7 @@ pub async fn approve_request(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 审批付款申请 ID: {}", auth.username, id);
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.approve(id, auth.user_id).await?;
 
     info!(
@@ -231,7 +231,7 @@ pub async fn reject_request(
         auth.username, id, req.reason
     );
 
-    let service = ApPaymentRequestService::new(db);
+    let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.reject(id, req.reason, auth.user_id).await?;
 
     info!(

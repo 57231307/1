@@ -1,6 +1,7 @@
 use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::net::SocketAddr;
 use dashmap::DashMap;
 use crate::utils::error::AppError;
 use once_cell::sync::Lazy;
@@ -76,7 +77,7 @@ pub async fn rate_limit_by_ip(
     // 从请求中获取IP地址
     let ip = req
         .extensions()
-        .get::<axum::extract::ConnectInfo<tokio::net::SocketAddr>>()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
         .map(|info| info.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
@@ -101,7 +102,7 @@ pub async fn rate_limit_by_user(
     // 暂时使用IP作为替代
     let user_id = req
         .extensions()
-        .get::<axum::extract::ConnectInfo<tokio::net::SocketAddr>>()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
         .map(|info| info.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
@@ -125,7 +126,7 @@ pub async fn anti_brute_force(
     // 从请求中获取IP地址
     let ip = req
         .extensions()
-        .get::<axum::extract::ConnectInfo<tokio::net::SocketAddr>>()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
         .map(|info| info.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 

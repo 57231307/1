@@ -66,7 +66,7 @@ pub async fn list_assets(
 ) -> Result<Json<ApiResponse<Vec<fixed_asset::Model>>>, AppError> {
     info!("用户 {} 正在查询资产列表", auth.user_id);
 
-    let service = FixedAssetService::new(db);
+    let service = FixedAssetService::new(state.db.clone());
     let query_params = crate::services::fixed_asset_service::AssetQueryParams {
         keyword: params.keyword,
         status: params.status,
@@ -89,7 +89,7 @@ pub async fn get_asset(
 ) -> Result<Json<ApiResponse<fixed_asset::Model>>, AppError> {
     info!("用户 {} 正在查询资产详情：{}", auth.user_id, id);
 
-    let service = FixedAssetService::new(db);
+    let service = FixedAssetService::new(state.db.clone());
     let asset = service.get_by_id(id).await?;
     info!("资产详情查询成功：{}", asset.asset_no);
 
@@ -105,7 +105,7 @@ pub async fn create_asset(
 ) -> Result<Json<ApiResponse<fixed_asset::Model>>, AppError> {
     info!("用户 {} 正在创建资产：{}", auth.user_id, req.asset_no);
 
-    let service = FixedAssetService::new(db);
+    let service = FixedAssetService::new(state.db.clone());
     let create_req = CreateAssetRequest {
         asset_no: req.asset_no,
         asset_name: req.asset_name,
@@ -140,7 +140,7 @@ pub async fn depreciate_asset(
         auth.user_id, id, req.period
     );
 
-    let service = FixedAssetService::new(db);
+    let service = FixedAssetService::new(state.db.clone());
     service.depreciate(id, &req.period, auth.user_id).await?;
 
     let message = format!("资产 {} 折旧计提成功", id);
@@ -159,7 +159,7 @@ pub async fn dispose_asset(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在处置资产 {}", auth.user_id, id);
 
-    let service = FixedAssetService::new(db);
+    let service = FixedAssetService::new(state.db.clone());
     let disposal_req = DisposalRequest {
         disposal_type: req.disposal_type,
         disposal_value: req.disposal_value,
@@ -184,11 +184,20 @@ pub async fn delete_asset(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除资产 {}", auth.user_id, id);
 
-    let service = FixedAssetService::new(db);
+    let service = FixedAssetService::new(state.db.clone());
     service.delete(id, auth.user_id).await?;
 
     let message = format!("资产 {} 删除成功", id);
     info!("{}", message);
 
     Ok(Json(ApiResponse::success(message)))
+}
+
+
+/// 固定资产更新功能尚未实现
+pub async fn update_asset(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在固定资产更新功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("固定资产更新功能尚未实现".to_string()))
 }

@@ -42,7 +42,7 @@ pub async fn list_prices(
 ) -> Result<Json<ApiResponse<Vec<purchase_price::Model>>>, AppError> {
     info!("用户 {} 正在查询采购价格列表", auth.user_id);
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     let query_params = crate::services::purchase_price_service::PurchasePriceQueryParams {
         product_id: params.product_id,
         supplier_id: params.supplier_id,
@@ -64,7 +64,7 @@ pub async fn get_price(
 ) -> Result<Json<ApiResponse<purchase_price::Model>>, AppError> {
     info!("用户 {} 正在查询采购价格，ID: {}", auth.user_id, id);
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     let price = service.get_price(id).await?;
     info!("采购价格查询成功，ID: {}", price.id);
 
@@ -81,7 +81,7 @@ pub async fn create_price(
         auth.user_id, req.product_id
     );
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     let price = service.create_price(req, auth.user_id).await?;
     info!("采购价格创建成功，ID: {}", price.id);
 
@@ -96,7 +96,7 @@ pub async fn update_price(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 正在更新采购价格，ID: {}", auth.user_id, id);
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     service
         .update_price(
             id,
@@ -119,7 +119,7 @@ pub async fn delete_price(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 正在删除采购价格，ID: {}", auth.user_id, id);
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     service.delete_price(id).await?;
     info!("采购价格删除成功，ID: {}", id);
 
@@ -134,7 +134,7 @@ pub async fn approve_price(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 正在批准采购价格，ID: {}", auth.user_id, id);
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     service.approve_price(id, auth.user_id).await?;
     info!("采购价格批准成功，ID: {}", id);
 
@@ -151,7 +151,7 @@ pub async fn get_price_history(
         auth.user_id, material_id
     );
 
-    let service = PurchasePriceService::new(db);
+    let service = PurchasePriceService::new(state.db.clone());
     let history = service.get_price_history(material_id).await?;
     info!("价格历史查询成功，共 {} 条记录", history.len());
 

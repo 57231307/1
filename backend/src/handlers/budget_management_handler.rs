@@ -103,7 +103,7 @@ pub async fn list_items(
 ) -> Result<Json<ApiResponse<Vec<budget_management::Model>>>, AppError> {
     info!("用户 {} 正在查询预算科目列表", auth.username);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
         status: params.status,
@@ -126,7 +126,7 @@ pub async fn create_item(
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
     info!("用户 {} 正在创建预算科目：{}", auth.username, req.item_code);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let item = service
         .create_item(
             crate::services::budget_management_service::CreateBudgetItemRequest {
@@ -154,7 +154,7 @@ pub async fn get_item(
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
     info!("用户 {} 正在查询预算科目详情：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let item = service.get_item_by_id(id).await?;
 
     info!("预算科目详情查询成功：{}", item.item_code);
@@ -171,7 +171,7 @@ pub async fn update_item(
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
     info!("用户 {} 正在更新预算科目：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let item = service
         .update_item(
             id,
@@ -198,7 +198,7 @@ pub async fn delete_item(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除预算科目：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     service.delete_item(id, auth.user_id).await?;
 
     info!("预算科目删除成功：{}", id);
@@ -213,7 +213,7 @@ pub async fn list_plans(
 ) -> Result<Json<ApiResponse<Vec<budget_plan::Model>>>, AppError> {
     info!("用户 {} 正在查询预算方案列表", auth.username);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let (plans, _total) = service
         .get_plans_list(
             params.item_type.and_then(|y| y.parse().ok()),
@@ -236,7 +236,7 @@ pub async fn create_plan(
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
     info!("用户 {} 正在创建预算方案：{}", auth.username, req.plan_no);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
 
     let start_date = NaiveDate::parse_from_str(&req.start_date, "%Y-%m-%d")
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
@@ -272,7 +272,7 @@ pub async fn get_plan(
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
     info!("用户 {} 正在查询预算方案详情：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let plan = service.get_plan_by_id(id).await?;
 
     info!("预算方案详情查询成功：ID={}", plan.id);
@@ -289,7 +289,7 @@ pub async fn approve_plan(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批预算方案：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     service
         .approve_plan(id, auth.user_id, req.approval_comment)
         .await?;
@@ -311,7 +311,7 @@ pub async fn execute_plan(
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     service
         .execute_plan(
             crate::services::budget_management_service::BudgetExecuteRequest {
@@ -337,7 +337,7 @@ pub async fn get_control(
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
     info!("用户 {} 正在查询预算控制情况：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let control = service.get_budget_control(id).await?;
 
     info!("预算控制情况查询成功：{}", id);
@@ -352,7 +352,7 @@ pub async fn get_budget_control_data(
 ) -> Result<Json<ApiResponse<BudgetControlResponse>>, AppError> {
     info!("用户 {} 正在查询预算控制数据：{}", auth.username, id);
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let control_data = service.get_budget_control_data(id).await?;
 
     info!("预算控制数据查询成功：{}", id);
@@ -375,7 +375,7 @@ pub async fn create_execution(
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
         .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let execution = service
         .create_execution(
             id,
@@ -405,9 +405,54 @@ pub async fn get_plan_executions(
         auth.username, id
     );
 
-    let service = BudgetManagementService::new(db);
+    let service = BudgetManagementService::new(state.db.clone());
     let executions = service.get_executions_by_plan(id).await?;
 
     info!("预算执行明细列表查询成功，共 {} 条记录", executions.len());
     Ok(Json(ApiResponse::success(executions)))
+}
+
+
+/// 预算列表查询功能尚未实现
+pub async fn list_budgets(
+    Query(_params): Query<serde_json::Value>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在预算列表查询功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("预算列表查询功能尚未实现".to_string()))
+}
+
+
+/// 预算创建功能尚未实现
+pub async fn create_budget(
+    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在预算创建功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("预算创建功能尚未实现".to_string()))
+}
+
+
+/// 预算更新功能尚未实现
+pub async fn update_budget(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在预算更新功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("预算更新功能尚未实现".to_string()))
+}
+
+
+/// 预算删除功能尚未实现
+pub async fn delete_budget(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在预算删除功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("预算删除功能尚未实现".to_string()))
+}
+
+
+/// 预算审批功能尚未实现
+pub async fn approve_budget(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在预算审批功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("预算审批功能尚未实现".to_string()))
 }

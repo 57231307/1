@@ -43,7 +43,7 @@ pub async fn list_invoices(
         auth.username, params.supplier_id
     );
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let (invoices, total) = service
         .get_list(
             params.supplier_id,
@@ -76,7 +76,7 @@ pub async fn get_invoice(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询应付单详情 ID: {}", auth.username, id);
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.get_by_id(id).await?;
 
     info!("查询成功：{}", invoice.invoice_no);
@@ -102,7 +102,7 @@ pub async fn create_invoice(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.create_manual(req, auth.user_id).await?;
 
     info!(
@@ -126,7 +126,7 @@ pub async fn update_invoice(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新应付单 ID: {}", auth.username, id);
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.update(id, req, auth.user_id).await?;
 
     info!(
@@ -148,7 +148,7 @@ pub async fn delete_invoice(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 删除应付单 ID: {}", auth.username, id);
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     service.delete(id).await?;
 
     info!("用户 {} 删除应付单成功", auth.username);
@@ -167,7 +167,7 @@ pub async fn approve_invoice(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 审核应付单 ID: {}", auth.username, id);
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.approve(id, auth.user_id).await?;
 
     info!(
@@ -198,7 +198,7 @@ pub async fn cancel_invoice(
         auth.username, id, req.reason
     );
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.cancel(id, req.reason.clone(), auth.user_id).await?;
 
     info!(
@@ -228,7 +228,7 @@ pub async fn auto_generate(
         auth.username, req.receipt_id
     );
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let invoice = service
         .auto_generate_from_receipt(req.receipt_id, auth.user_id)
         .await?;
@@ -255,7 +255,7 @@ pub async fn get_aging_analysis(
         auth.username, params.supplier_id
     );
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let aging_data = service.get_aging_analysis(params.supplier_id).await?;
 
     info!("查询账龄分析成功");
@@ -276,7 +276,7 @@ pub async fn get_balance_summary(
         auth.username, params.supplier_id
     );
 
-    let service = ApInvoiceService::new(db);
+    let service = ApInvoiceService::new(state.db.clone());
     let summary = service.get_balance_summary(params.supplier_id).await?;
 
     info!("查询应付余额表成功");

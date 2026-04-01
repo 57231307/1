@@ -62,7 +62,7 @@ pub async fn list_contracts(
 ) -> Result<Json<ApiResponse<Vec<purchase_contract::Model>>>, AppError> {
     info!("用户 {} 正在查询采购合同列表", auth.user_id);
 
-    let service = PurchaseContractService::new(db);
+    let service = PurchaseContractService::new(state.db.clone());
     let query_params = crate::services::purchase_contract_service::ContractQueryParams {
         keyword: params.keyword,
         status: params.status,
@@ -85,7 +85,7 @@ pub async fn get_contract(
 ) -> Result<Json<ApiResponse<purchase_contract::Model>>, AppError> {
     info!("用户 {} 正在查询采购合同详情：{}", auth.user_id, id);
 
-    let service = PurchaseContractService::new(db);
+    let service = PurchaseContractService::new(state.db.clone());
     let contract = service.get_by_id(id).await?;
     info!("采购合同详情查询成功：{}", contract.contract_no);
 
@@ -104,7 +104,7 @@ pub async fn create_contract(
         auth.user_id, req.contract_no
     );
 
-    let service = PurchaseContractService::new(db);
+    let service = PurchaseContractService::new(state.db.clone());
     let create_req = CreateContractRequest {
         contract_no: req.contract_no,
         contract_name: req.contract_name,
@@ -129,7 +129,7 @@ pub async fn approve_contract(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审核采购合同 {}", auth.user_id, id);
 
-    let service = PurchaseContractService::new(db);
+    let service = PurchaseContractService::new(state.db.clone());
     service.approve(id, auth.user_id).await?;
 
     let message = format!("合同 {} 审核成功", id);
@@ -148,7 +148,7 @@ pub async fn execute_contract(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在执行采购合同 {}", auth.user_id, id);
 
-    let service = PurchaseContractService::new(db);
+    let service = PurchaseContractService::new(state.db.clone());
     let execute_req = ExecuteContractRequest {
         execution_type: req.execution_type,
         execution_amount: req.execution_amount,
@@ -176,11 +176,31 @@ pub async fn cancel_contract(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在取消采购合同 {}", auth.user_id, id);
 
-    let service = PurchaseContractService::new(db);
+    let service = PurchaseContractService::new(state.db.clone());
     service.cancel(id, auth.user_id, req.reason).await?;
 
     let message = format!("合同 {} 取消成功", id);
     info!("{}", message);
 
     Ok(Json(ApiResponse::success(message)))
+}
+
+/// 更新合同
+pub async fn update_contract(
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在更新采购合同", auth.user_id);
+    Err(AppError::ValidationError("合同更新功能尚未实现".to_string()))
+}
+
+/// 删除合同
+pub async fn delete_contract(
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在删除采购合同", auth.user_id);
+    Err(AppError::ValidationError("合同删除功能尚未实现".to_string()))
 }

@@ -37,7 +37,7 @@ pub async fn list_indicators(
 ) -> Result<Json<ApiResponse<Vec<financial_analysis::Model>>>, AppError> {
     info!("用户 {} 正在查询财务指标列表", auth.user_id);
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let query_params = crate::services::financial_analysis_service::IndicatorQueryParams {
         indicator_type: params.indicator_type,
         status: params.status,
@@ -61,7 +61,7 @@ pub async fn create_indicator(
         auth.user_id, req.indicator_code
     );
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let indicator = service.create_indicator(req, auth.user_id).await?;
     info!("财务指标创建成功：{}", indicator.indicator_code);
 
@@ -75,7 +75,7 @@ pub async fn create_analysis_result(
 ) -> Result<Json<ApiResponse<financial_analysis_result::Model>>, AppError> {
     info!("用户 {} 正在创建财务分析结果", auth.user_id);
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let result = service.create_analysis_result(req, auth.user_id).await?;
     info!("财务分析结果创建成功");
 
@@ -89,7 +89,7 @@ pub async fn get_trends(
 ) -> Result<Json<ApiResponse<Vec<financial_analysis_result::Model>>>, AppError> {
     info!("用户 {} 正在查询财务趋势", auth.user_id);
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let trends = service
         .get_trends(params.indicator_id.unwrap_or(0), params.limit.unwrap_or(10))
         .await?;

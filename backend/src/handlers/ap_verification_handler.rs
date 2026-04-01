@@ -41,7 +41,7 @@ pub async fn list_verifications(
         auth.username, params.supplier_id
     );
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let (verifications, total) = service
         .get_list(
             params.supplier_id,
@@ -73,7 +73,7 @@ pub async fn get_verification(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询核销详情 ID: {}", auth.username, id);
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let verification = service.get_by_id(id).await?;
 
     info!(
@@ -102,7 +102,7 @@ pub async fn auto_verify(
         auth.username, req.supplier_id
     );
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let verification = service.auto_verify(req.supplier_id, auth.user_id).await?;
 
     info!(
@@ -133,7 +133,7 @@ pub async fn manual_verify(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let verification = service.manual_verify(req, auth.user_id).await?;
 
     info!(
@@ -164,7 +164,7 @@ pub async fn cancel_verification(
         auth.username, id, req.reason
     );
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let verification = service.cancel(id, req.reason, auth.user_id).await?;
 
     info!(
@@ -194,7 +194,7 @@ pub async fn get_unverified_invoices(
         auth.username, supplier_id
     );
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let invoices = service.get_unverified_invoices(supplier_id).await?;
 
     info!(
@@ -222,7 +222,7 @@ pub async fn get_unverified_payments(
         auth.username, supplier_id
     );
 
-    let service = ApVerificationService::new(db);
+    let service = ApVerificationService::new(state.db.clone());
     let payments = service.get_unverified_payments(supplier_id).await?;
 
     info!(

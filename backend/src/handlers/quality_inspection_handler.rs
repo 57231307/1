@@ -84,7 +84,7 @@ pub async fn list_standards(
 ) -> Result<Json<ApiResponse<Vec<quality_inspection::Model>>>, AppError> {
     info!("用户 {} 正在查询质量检验标准列表", auth.user_id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: params.inspection_type,
         status: params.status,
@@ -105,7 +105,7 @@ pub async fn create_standard(
 ) -> Result<Json<ApiResponse<quality_inspection::Model>>, AppError> {
     info!("用户 {} 正在创建质量检验标准", auth.user_id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let standard = service.create_standard(req, auth.user_id).await?;
     info!("质量检验标准创建成功，ID：{}", standard.id);
 
@@ -119,7 +119,7 @@ pub async fn list_records(
 ) -> Result<Json<ApiResponse<Vec<quality_inspection_record::Model>>>, AppError> {
     info!("用户 {} 正在查询质量检验记录列表", auth.user_id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: params.inspection_result,
         status: None,
@@ -141,7 +141,7 @@ pub async fn create_record(
 ) -> Result<Json<ApiResponse<quality_inspection_record::Model>>, AppError> {
     info!("用户 {} 正在创建质量检验记录", auth.user_id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let record = service.create_record(req, auth.user_id).await?;
     info!("质量检验记录创建成功，ID：{}", record.id);
 
@@ -155,7 +155,7 @@ pub async fn get_record(
 ) -> Result<Json<ApiResponse<quality_inspection_record::Model>>, AppError> {
     info!("用户 {} 正在查询质量检验记录，ID: {}", auth.user_id, id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let record = service.get_record_by_id(id).await?;
     info!("质量检验记录查询成功，ID：{}", record.id);
 
@@ -169,7 +169,7 @@ pub async fn list_defects(
 ) -> Result<Json<ApiResponse<Vec<unqualified_product::Model>>>, AppError> {
     info!("用户 {} 正在查询质量缺陷列表", auth.user_id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: None,
         status: params.status,
@@ -192,7 +192,7 @@ pub async fn process_defect(
 ) -> Result<Json<ApiResponse<unqualified_product::Model>>, AppError> {
     info!("用户 {} 正在处理质量缺陷，记录ID: {}", auth.user_id, id);
 
-    let service = QualityInspectionService::new(db);
+    let service = QualityInspectionService::new(state.db.clone());
     let result = service.process_unqualified(id, req, auth.user_id).await?;
     info!("质量缺陷处理成功，ID：{}", result.id);
 

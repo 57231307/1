@@ -60,7 +60,7 @@ pub async fn list_accounts(
 ) -> Result<Json<ApiResponse<Vec<fund_management::Model>>>, AppError> {
     info!("用户 {} 正在查询资金账户列表", auth.username);
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     let query_params = crate::services::fund_management_service::FundAccountQueryParams {
         account_type: params.account_type,
         status: params.status,
@@ -86,7 +86,7 @@ pub async fn create_account(
         auth.username, req.account_no
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     let account = service
         .create_account(
             crate::services::fund_management_service::CreateFundAccountRequest {
@@ -116,7 +116,7 @@ pub async fn get_account(
 ) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
     info!("用户 {} 正在查询资金账户详情：{}", auth.username, id);
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     let account = service.get_account_by_id(id).await?;
 
     info!("资金账户详情查询成功：{}", account.account_no);
@@ -136,7 +136,7 @@ pub async fn deposit(
         auth.username, id, req.amount
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service
         .deposit(id, req.amount, auth.user_id, req.remark)
         .await?;
@@ -158,7 +158,7 @@ pub async fn withdraw(
         auth.username, id, req.amount
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service
         .withdraw(id, req.amount, auth.user_id, req.remark)
         .await?;
@@ -180,7 +180,7 @@ pub async fn freeze_funds(
         auth.username, id, req.amount, req.reason
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service
         .freeze_funds(id, req.amount, auth.user_id, req.reason)
         .await?;
@@ -202,7 +202,7 @@ pub async fn unfreeze_funds(
         auth.username, id, req.amount
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service.unfreeze_funds(id, req.amount, auth.user_id).await?;
 
     info!("账户 {} 资金解冻成功", id);
@@ -217,7 +217,7 @@ pub async fn delete_account(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除资金账户：{}", auth.username, id);
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service.delete_account(id, auth.user_id).await?;
 
     info!("资金账户 {} 删除成功", id);

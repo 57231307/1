@@ -44,7 +44,7 @@ pub async fn list_payments(
         auth.username, params.supplier_id
     );
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let (payments, total) = service
         .get_list(
             params.supplier_id,
@@ -77,7 +77,7 @@ pub async fn get_payment(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询付款详情 ID: {}", auth.username, id);
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.get_by_id(id).await?;
 
     info!(
@@ -105,7 +105,7 @@ pub async fn create_payment(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.create(req, auth.user_id).await?;
 
     info!(
@@ -134,7 +134,7 @@ pub async fn update_payment(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.update(id, req, auth.user_id).await?;
 
     info!(
@@ -156,7 +156,7 @@ pub async fn confirm_payment(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认付款 ID: {}", auth.username, id);
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.confirm(id, auth.user_id).await?;
 
     info!(
@@ -188,7 +188,7 @@ pub async fn get_payment_schedule(
         auth.username, params.supplier_id
     );
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let schedule = service
         .get_payment_schedule(params.supplier_id, params.start_date, params.end_date)
         .await?;

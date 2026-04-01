@@ -24,7 +24,7 @@ pub async fn list_receipts(
     Query(params): Query<ReceiptQueryParams>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let (receipts, total) = service
         .list_receipts(
             params.page.unwrap_or(1),
@@ -50,7 +50,7 @@ pub async fn get_receipt(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let receipt = service.get_receipt(id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(receipt)?)))
@@ -66,7 +66,7 @@ pub async fn create_receipt(
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = 1; // TODO: 从认证中获取
 
     let receipt = service.create_receipt(req, user_id).await?;
@@ -84,7 +84,7 @@ pub async fn update_receipt(
     State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = 1; // TODO: 从认证中获取
 
     let receipt = service.update_receipt(id, req, user_id).await?;
@@ -100,7 +100,7 @@ pub async fn confirm_receipt(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = 1; // TODO: 从认证中获取
 
     let receipt = service.confirm_receipt(id, user_id).await?;
@@ -116,7 +116,7 @@ pub async fn list_receipt_items(
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let items = service.list_receipt_items(receipt_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
@@ -133,7 +133,7 @@ pub async fn create_receipt_item(
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = 1; // TODO: 从认证中获取
 
     let item = service.add_receipt_item(receipt_id, req, user_id).await?;
@@ -151,7 +151,7 @@ pub async fn update_receipt_item(
     State(state): State<AppState>,
     Json(req): Json<UpdateReceiptItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = 1; // TODO: 从认证中获取
 
     let item = service.update_receipt_item(item_id, req, user_id).await?;
@@ -167,7 +167,7 @@ pub async fn delete_receipt_item(
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {
-    let service = PurchaseReceiptService::new(db);
+    let service = PurchaseReceiptService::new(state.db.clone());
     service.delete_receipt_item(item_id, 1).await?; // TODO: 从认证中获取 user_id
 
     Ok(StatusCode::NO_CONTENT)

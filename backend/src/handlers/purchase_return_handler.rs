@@ -22,7 +22,7 @@ pub async fn list_returns(
     Query(params): Query<ReturnQueryParams>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let (returns, total) = service
         .list_returns(
             params.page.unwrap_or(1),
@@ -47,7 +47,7 @@ pub async fn get_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let return_order = service.get_return(id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(
@@ -64,7 +64,7 @@ pub async fn create_return(
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let user_id = 1;
 
     let return_order = service.create_return(req, user_id).await?;
@@ -82,7 +82,7 @@ pub async fn update_return(
     State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let user_id = 1;
 
     let return_order = service.update_return(id, req, user_id).await?;
@@ -98,7 +98,7 @@ pub async fn submit_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let user_id = 1;
 
     let return_order = service.submit_return(id, user_id).await?;
@@ -114,7 +114,7 @@ pub async fn approve_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let user_id = 1;
 
     let return_order = service.approve_return(id, user_id).await?;
@@ -132,7 +132,7 @@ pub async fn reject_return(
     State(state): State<AppState>,
     Json(req): Json<RejectReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseReturnService::new(db);
+    let service = PurchaseReturnService::new(state.db.clone());
     let user_id = 1;
 
     let return_order = service.reject_return(id, req.reason, user_id).await?;

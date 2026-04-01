@@ -43,7 +43,7 @@ pub async fn list_reconciliations(
         auth.username, params.supplier_id
     );
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let (reconciliations, total) = service
         .get_list(
             params.supplier_id,
@@ -75,7 +75,7 @@ pub async fn get_reconciliation(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询对账单详情 ID: {}", auth.username, id);
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.get_by_id(id).await?;
 
     info!(
@@ -105,7 +105,7 @@ pub async fn generate_reconciliation(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.generate_reconciliation(req, auth.user_id).await?;
 
     info!(
@@ -127,7 +127,7 @@ pub async fn confirm_reconciliation(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.confirm_reconciliation(id, auth.user_id).await?;
 
     info!(
@@ -158,7 +158,7 @@ pub async fn dispute_reconciliation(
         auth.username, id, req.reason
     );
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.dispute(id, req.reason, auth.user_id).await?;
 
     info!(
@@ -183,7 +183,7 @@ pub async fn get_supplier_summary(
         auth.username, params.supplier_id
     );
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let summary = service.get_supplier_summary(params.supplier_id).await?;
 
     info!("用户 {} 查询供应商应付汇总成功", auth.username);

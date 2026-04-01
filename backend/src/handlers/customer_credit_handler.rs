@@ -58,7 +58,7 @@ pub async fn list_credits(
 ) -> Result<Json<ApiResponse<Vec<customer_credit::Model>>>, AppError> {
     info!("用户 {} 正在查询客户信用列表", auth.user_id);
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     let query_params = CreditQueryParams {
         customer_id: params.customer_id,
         credit_level: params.credit_level,
@@ -84,7 +84,7 @@ pub async fn get_credit(
         auth.user_id, customer_id
     );
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     let credit = service
         .get_by_customer_id(customer_id)
         .await?
@@ -110,7 +110,7 @@ pub async fn set_credit_rating(
         auth.user_id, req.customer_id
     );
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     let rating_req = CreditRatingRequest {
         customer_id: req.customer_id,
         credit_level: req.credit_level,
@@ -139,7 +139,7 @@ pub async fn occupy_credit(
         auth.user_id, customer_id, req.amount
     );
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     service
         .occupy_credit(customer_id, req.amount, auth.user_id)
         .await?;
@@ -163,7 +163,7 @@ pub async fn release_credit(
         auth.user_id, customer_id, req.amount
     );
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     service
         .release_credit(customer_id, req.amount, auth.user_id)
         .await?;
@@ -187,7 +187,7 @@ pub async fn adjust_credit_limit(
         auth.user_id, customer_id
     );
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     let adjust_req = CreditLimitAdjustmentRequest {
         customer_id,
         adjustment_type: req.adjustment_type,
@@ -213,11 +213,29 @@ pub async fn deactivate_credit(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在停用客户 {} 的信用", auth.user_id, customer_id);
 
-    let service = CustomerCreditService::new(db);
+    let service = CustomerCreditService::new(state.db.clone());
     service.deactivate(customer_id, auth.user_id).await?;
 
     let message = format!("客户 {} 信用停用成功", customer_id);
     info!("{}", message);
 
     Ok(Json(ApiResponse::success(message)))
+}
+
+
+/// 客户信用创建功能尚未实现
+pub async fn create_credit(
+    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在客户信用创建功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("客户信用创建功能尚未实现".to_string()))
+}
+
+
+/// 客户信用更新功能尚未实现
+pub async fn update_credit(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在客户信用更新功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("客户信用更新功能尚未实现".to_string()))
 }

@@ -36,7 +36,7 @@ pub async fn get_statistics_report(
         auth.username, params.supplier_id, params.start_date, params.end_date
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service
         .get_statistics_report(params.supplier_id, params.start_date, params.end_date)
         .await?;
@@ -64,7 +64,7 @@ pub async fn get_daily_report(
         auth.username, params.report_date, params.supplier_id
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service
         .get_daily_report(params.report_date, params.supplier_id)
         .await?;
@@ -93,7 +93,7 @@ pub async fn get_monthly_report(
         auth.username, params.year, params.month, params.supplier_id
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service
         .get_monthly_report(params.year, params.month, params.supplier_id)
         .await?;
@@ -120,7 +120,7 @@ pub async fn get_aging_report(
         auth.username, params.supplier_id
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service.get_aging_report(params.supplier_id).await?;
 
     info!("用户 {} 查询账龄分析报告成功", auth.username);
