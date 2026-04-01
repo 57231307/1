@@ -31,3 +31,6 @@ pub mod inventory_adjustment;
 pub mod sales;
 pub mod voucher;
 pub mod account_subject;
+pub mod ap_invoice;
+pub mod ap_payment;
+pub mod ap_payment_request;
