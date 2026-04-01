@@ -219,7 +219,7 @@ pub async fn delete_user(
     let user_service = UserService::new(state.db.clone());
 
     // 检查用户是否存在
-    let user = user_service.find_by_id(id).await
+    user_service.find_by_id(id).await
         .map_err(|e| (StatusCode::NOT_FOUND, Json(ApiResponse::error(e.to_string()))))?;
 
     // 这里可以添加更多禁止删除的逻辑，例如：

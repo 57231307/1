@@ -304,7 +304,7 @@ mod tests {
     fn test_extract_client_ip_from_forwarded() {
         use axum::http::{Request, header};
 
-        let mut req = Request::builder().uri("/").body(axum::body::Empty::new()).unwrap();
+        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut().insert(
             "X-Forwarded-For",
             "203.0.113.195, 70.41.3.18, 150.172.238.178".parse().unwrap(),
@@ -318,7 +318,7 @@ mod tests {
     fn test_extract_client_ip_from_real_ip() {
         use axum::http::{Request, header};
 
-        let mut req = Request::builder().uri("/").body(axum::body::Empty::new()).unwrap();
+        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut()
             .insert("X-Real-IP", "192.168.1.100".parse().unwrap());
 
@@ -330,7 +330,7 @@ mod tests {
     fn test_extract_client_ip_default() {
         use axum::http::Request;
 
-        let req = Request::builder().uri("/").body(axum::body::Empty::new()).unwrap();
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
         let ip = extract_client_ip(&req);
         assert_eq!(ip, "unknown");
     }
