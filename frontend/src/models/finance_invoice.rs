@@ -1,3 +1,7 @@
+//! 财务发票模型
+//!
+//! 财务发票相关的数据结构
+
 use serde::{Deserialize, Serialize};
 
 /// 财务发票数据模型

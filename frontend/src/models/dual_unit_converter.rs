@@ -1,3 +1,7 @@
+//! 双计量单位转换模型
+//!
+//! 双计量单位转换相关的数据结构
+
 use serde::{Deserialize, Serialize};
 
 /// 单位换算请求
