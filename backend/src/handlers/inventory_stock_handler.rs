@@ -256,14 +256,13 @@ pub async fn list_stock(
     }
 }
 
-#[allow(dead_code)]
 pub async fn check_low_stock(
     State(db): State<Arc<DatabaseConnection>>,
     Query(params): Query<LowStockParams>,
 ) -> Result<Json<LowStockResponse>, (StatusCode, String)> {
     let service = InventoryStockService::new(db.clone());
 
-    match service.check_low_stock(params.warehouse_id).await {
+    match service.check_low_stock(params.warehouse_id, params.product_id, params.batch_no).await {
         Ok(stock_list) => {
             let stock_responses: Vec<StockResponse> = stock_list
                 .into_iter()
@@ -302,8 +301,9 @@ pub struct ListStockParams {
 
 #[derive(Debug, Deserialize)]
 pub struct LowStockParams {
-    #[allow(dead_code)]
     pub warehouse_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
 }
 
 // ========== 面料行业库存管理接口 ==========
@@ -380,6 +380,9 @@ pub async fn list_transactions(
             params.color_no,
             params.product_id,
             params.warehouse_id,
+            params.transaction_type,
+            params.start_date,
+            params.end_date,
         )
         .await
     {
@@ -516,11 +519,8 @@ pub struct ListTransactionParams {
     pub warehouse_id: Option<i32>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
-    #[allow(dead_code)]
     pub transaction_type: Option<String>,
-    #[allow(dead_code)]
     pub start_date: Option<chrono::NaiveDateTime>,
-    #[allow(dead_code)]
     pub end_date: Option<chrono::NaiveDateTime>,
 }
 

@@ -1,8 +1,12 @@
 use axum::{
     routing::{delete, get, post, put},
     Router,
+    middleware,
 };
+use std::sync::Arc;
 use crate::utils::app_state::AppState;
+use crate::middleware::rate_limit;
+use crate::services::metrics_service::{create_metrics_router, MetricsService};
 
 use crate::handlers::{
     account_subject_handler,
@@ -67,11 +71,12 @@ use crate::handlers::{
 /// 创建路由配置
 /// 所有接口路径统一为 /api/v1/erp/* 格式
 pub fn create_router(state: AppState) -> Router {
-    // 认证路由
+    // 认证路由 - 添加防暴力攻击中间件
     let auth_routes = Router::new()
         .route("/login", post(auth_handler::login))
         .route("/logout", post(auth_handler::logout))
-        .route("/refresh", post(auth_handler::refresh_token));
+        .route("/refresh", post(auth_handler::refresh_token))
+        .layer(middleware::from_fn(rate_limit::anti_brute_force));
 
     // 用户管理路由
     let user_routes = Router::new()
@@ -210,6 +215,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id", get(sales_order_handler::get_order))
         .route("/orders/:id", put(sales_order_handler::update_order))
         .route("/orders/:id", delete(sales_order_handler::delete_order))
+        .route("/orders/:id/approve", post(sales_order_handler::approve_order))
+        .route("/orders/:id/ship", post(sales_order_handler::ship_order))
+        .route("/orders/:id/complete", post(sales_order_handler::complete_order))
         // 面料行业销售订单路由
         .route(
             "/fabric-orders",
@@ -653,6 +661,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", get(health_handler::health_check))
         .route("/db", get(health_handler::db_check));
 
+    // 监控路由
+    let metrics_routes = create_metrics_router(state.metrics.clone());
+
     // 组装所有路由
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)
@@ -696,5 +707,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/ar", ar_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
-        .with_state(db)
+        .nest("/api/v1/erp/metrics", metrics_routes)
+        .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
+        .with_state(state)
 }

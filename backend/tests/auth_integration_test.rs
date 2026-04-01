@@ -14,7 +14,8 @@ use tower::ServiceExt;
 
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    create_router(Arc::new(db))
+    let app_state = crate::utils::app_state::AppState::new(Arc::new(db), "test_secret".to_string());
+    create_router(app_state)
 }
 
 /// 测试完整的登录流程

@@ -692,7 +692,6 @@ impl SalesService {
     }
 
     /// 锁定库存（创建预留记录）
-    #[allow(dead_code)]
     async fn lock_inventory(
         &self,
         order_id: i32,
@@ -742,7 +741,6 @@ impl SalesService {
     }
 
     /// 扣减库存
-    #[allow(dead_code)]
     async fn reduce_inventory(
         &self,
         order_id: i32,
@@ -799,7 +797,6 @@ impl SalesService {
     }
 
     /// 审核销售订单
-    #[allow(dead_code)]
     pub async fn approve_order(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
@@ -871,7 +868,6 @@ impl SalesService {
     }
 
     /// 发货处理
-    #[allow(dead_code)]
     pub async fn ship_order(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
@@ -914,7 +910,6 @@ impl SalesService {
     }
 
     /// 完成订单
-    #[allow(dead_code)]
     pub async fn complete_order(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)

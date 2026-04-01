@@ -156,16 +156,32 @@ impl InventoryStockService {
         Ok((stock_list, total))
     }
 
-    #[allow(dead_code)]
     pub async fn check_low_stock(
         &self,
         warehouse_id: Option<i32>,
+        product_id: Option<i32>,
+        batch_no: Option<String>,
     ) -> Result<Vec<inventory_stock::Model>, sea_orm::DbErr> {
-        // 简化版本：查询所有库存，不做低库存检查
-        let mut query = inventory_stock::Entity::find();
+        // 实现基于仓库和批次的精确低库存检查
+        let mut query = inventory_stock::Entity::find()
+            // 只检查正常状态的库存
+            .filter(inventory_stock::Column::StockStatus.eq("正常"))
+            .filter(inventory_stock::Column::QualityStatus.eq("合格"))
+            // 检查可用库存低于重新订购点
+            .filter(inventory_stock::Column::QuantityAvailable.lt(inventory_stock::Column::ReorderPoint))
+            // 只检查重新订购点大于0的记录
+            .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
 
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
+        }
+
+        if let Some(pid) = product_id {
+            query = query.filter(inventory_stock::Column::ProductId.eq(pid));
+        }
+
+        if let Some(batch) = batch_no {
+            query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
 
         query.all(&*self.db).await
@@ -385,6 +401,9 @@ impl InventoryStockService {
         color_no: Option<String>,
         product_id: Option<i32>,
         warehouse_id: Option<i32>,
+        transaction_type: Option<String>,
+        start_date: Option<chrono::NaiveDateTime>,
+        end_date: Option<chrono::NaiveDateTime>,
     ) -> Result<(Vec<inventory_transaction::Model>, u64), sea_orm::DbErr> {
         let mut query = inventory_transaction::Entity::find()
             .order_by(inventory_transaction::Column::CreatedAt, Order::Asc);
@@ -403,6 +422,18 @@ impl InventoryStockService {
 
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_transaction::Column::WarehouseId.eq(wid));
+        }
+
+        if let Some(transaction_type) = transaction_type {
+            query = query.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
+        }
+
+        if let Some(start_date) = start_date {
+            query = query.filter(inventory_transaction::Column::CreatedAt.gte(start_date));
+        }
+
+        if let Some(end_date) = end_date {
+            query = query.filter(inventory_transaction::Column::CreatedAt.lte(end_date));
         }
 
         let paginator = query.paginate(&*self.db, page_size);

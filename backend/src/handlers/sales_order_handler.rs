@@ -101,3 +101,48 @@ pub async fn delete_order(
     sales_service.delete_order(id).await?;
     Ok(Json(ApiResponse::success_with_msg((), "销售订单删除成功")))
 }
+
+/// 审核销售订单
+/// POST /api/v1/erp/sales/orders/:id/approve
+pub async fn approve_order(
+    State(db): State<Arc<DatabaseConnection>>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(db.clone());
+    let order = sales_service.approve_order(id).await?;
+    let order_json = serde_json::to_value(order).unwrap_or_default();
+    Ok(Json(ApiResponse::success_with_msg(
+        order_json,
+        "销售订单审核成功",
+    )))
+}
+
+/// 发货处理
+/// POST /api/v1/erp/sales/orders/:id/ship
+pub async fn ship_order(
+    State(db): State<Arc<DatabaseConnection>>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(db.clone());
+    let order = sales_service.ship_order(id).await?;
+    let order_json = serde_json::to_value(order).unwrap_or_default();
+    Ok(Json(ApiResponse::success_with_msg(
+        order_json,
+        "销售订单发货成功",
+    )))
+}
+
+/// 完成订单
+/// POST /api/v1/erp/sales/orders/:id/complete
+pub async fn complete_order(
+    State(db): State<Arc<DatabaseConnection>>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(db.clone());
+    let order = sales_service.complete_order(id).await?;
+    let order_json = serde_json::to_value(order).unwrap_or_default();
+    Ok(Json(ApiResponse::success_with_msg(
+        order_json,
+        "销售订单完成成功",
+    )))
+}
