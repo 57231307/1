@@ -14,6 +14,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -34,7 +35,7 @@ pub struct ApInvoiceQueryParams {
 /// 查询应付单列表
 pub async fn list_invoices(
     Query(params): Query<ApInvoiceQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -70,7 +71,7 @@ pub async fn list_invoices(
 /// 获取应付单详情
 pub async fn get_invoice(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询应付单详情 ID: {}", auth.username, id);
@@ -86,7 +87,7 @@ pub async fn get_invoice(
 /// 创建应付单
 #[axum::debug_handler]
 pub async fn create_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateApInvoiceRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -119,7 +120,7 @@ pub async fn create_invoice(
 #[axum::debug_handler]
 pub async fn update_invoice(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateApInvoiceRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -142,7 +143,7 @@ pub async fn update_invoice(
 /// 删除应付单
 pub async fn delete_invoice(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 删除应付单 ID: {}", auth.username, id);
@@ -161,7 +162,7 @@ pub async fn delete_invoice(
 /// 审核应付单
 pub async fn approve_invoice(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 审核应付单 ID: {}", auth.username, id);
@@ -188,7 +189,7 @@ pub struct CancelInvoiceRequest {
 
 pub async fn cancel_invoice(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CancelInvoiceRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -218,7 +219,7 @@ pub struct AutoGenerateRequest {
 }
 
 pub async fn auto_generate(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<AutoGenerateRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -246,7 +247,7 @@ pub async fn auto_generate(
 /// 获取账龄分析
 pub async fn get_aging_analysis(
     Query(params): Query<ApInvoiceQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -267,7 +268,7 @@ pub async fn get_aging_analysis(
 /// 获取应付余额表
 pub async fn get_balance_summary(
     Query(params): Query<ApInvoiceQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -286,7 +287,7 @@ pub async fn get_balance_summary(
 /// 获取应付统计报表
 pub async fn get_statistics(
     Query(_params): Query<ApInvoiceQueryParams>,
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询应付统计报表", auth.username);

@@ -7,6 +7,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -45,10 +46,10 @@ pub struct PaymentListResponse {
 }
 
 pub async fn get_payment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<PaymentResponse>, (StatusCode, String)> {
-    let service = FinancePaymentService::new(db.clone());
+    let service = FinancePaymentService::new(state.db.clone());
 
     match service.find_by_id(id).await {
         Ok(payment) => Ok(Json(PaymentResponse {
@@ -65,10 +66,10 @@ pub async fn get_payment(
 }
 
 pub async fn create_payment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreatePaymentRequest>,
 ) -> Result<Json<PaymentResponse>, (StatusCode, String)> {
-    let service = FinancePaymentService::new(db.clone());
+    let service = FinancePaymentService::new(state.db.clone());
 
     match service
         .create_payment(
@@ -101,10 +102,10 @@ pub async fn create_payment(
 }
 
 pub async fn list_payments(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListPaymentsParams>,
 ) -> Result<Json<PaymentListResponse>, (StatusCode, String)> {
-    let service = FinancePaymentService::new(db.clone());
+    let service = FinancePaymentService::new(state.db.clone());
 
     match service
         .list_payments(

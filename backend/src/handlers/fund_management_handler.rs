@@ -9,6 +9,7 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -54,7 +55,7 @@ pub struct FreezeFundsRequest {
 /// 获取资金账户列表
 pub async fn list_accounts(
     Query(params): Query<FundAccountQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<fund_management::Model>>>, AppError> {
     info!("用户 {} 正在查询资金账户列表", auth.username);
@@ -76,7 +77,7 @@ pub async fn list_accounts(
 /// 创建资金账户
 #[axum::debug_handler]
 pub async fn create_account(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateFundAccountRequest>,
 ) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
@@ -110,7 +111,7 @@ pub async fn create_account(
 /// 获取资金账户详情
 pub async fn get_account(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
     info!("用户 {} 正在查询资金账户详情：{}", auth.username, id);
@@ -126,7 +127,7 @@ pub async fn get_account(
 #[axum::debug_handler]
 pub async fn deposit(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -148,7 +149,7 @@ pub async fn deposit(
 #[axum::debug_handler]
 pub async fn withdraw(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -170,7 +171,7 @@ pub async fn withdraw(
 #[axum::debug_handler]
 pub async fn freeze_funds(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FreezeFundsRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -192,7 +193,7 @@ pub async fn freeze_funds(
 #[axum::debug_handler]
 pub async fn unfreeze_funds(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -211,7 +212,7 @@ pub async fn unfreeze_funds(
 /// 删除资金账户
 pub async fn delete_account(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除资金账户：{}", auth.username, id);

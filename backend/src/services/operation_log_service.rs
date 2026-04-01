@@ -1,5 +1,5 @@
 use crate::models::operation_log;
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, ActiveModelBehavior, DbErr, Order};
+use sea_orm::{EntityTrait, Set, ActiveModelTrait, ActiveModelBehavior, DbErr, Order, PaginatorTrait};
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use chrono::Utc;

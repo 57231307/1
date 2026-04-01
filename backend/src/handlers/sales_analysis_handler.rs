@@ -8,6 +8,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -39,7 +40,7 @@ pub struct TargetQuery {
 
 pub async fn list_statistics(
     Query(params): Query<SalesStatisticQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
     info!("用户 {} 正在查询销售统计列表", auth.user_id);
@@ -60,7 +61,7 @@ pub async fn list_statistics(
 
 pub async fn get_trends(
     Query(params): Query<TrendQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
     info!(
@@ -77,7 +78,7 @@ pub async fn get_trends(
 
 pub async fn get_rankings(
     Query(params): Query<RankingQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
     info!("用户 {} 正在查询销售排名", auth.user_id);
@@ -93,7 +94,7 @@ pub async fn get_rankings(
 
 pub async fn get_targets(
     Query(params): Query<TargetQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
     info!("用户 {} 正在查询销售目标", auth.user_id);
@@ -108,7 +109,7 @@ pub async fn get_targets(
 }
 
 pub async fn create_target(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateSalesTargetInput>,
 ) -> Result<Json<ApiResponse<sales_analysis::Model>>, AppError> {

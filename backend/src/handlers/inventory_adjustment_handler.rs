@@ -9,6 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -84,10 +85,10 @@ pub struct AdjustmentSummary {
 
 /// 创建调整单
 pub async fn create_adjustment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateAdjustmentRequestPayload>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
-    let service = InventoryAdjustmentService::new(db.clone());
+    let service = InventoryAdjustmentService::new(state.db.clone());
 
     // 解析日期
     let adjustment_date: DateTime<Utc> = payload
@@ -154,10 +155,10 @@ pub async fn create_adjustment(
 
 /// 审核调整单
 pub async fn approve_adjustment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
-    let service = InventoryAdjustmentService::new(db.clone());
+    let service = InventoryAdjustmentService::new(state.db.clone());
 
     match service.approve_adjustment(id, 1).await {
         // TODO: 从 Token 中获取用户 ID
@@ -201,10 +202,10 @@ pub async fn approve_adjustment(
 
 /// 驳回调整单
 pub async fn reject_adjustment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
-    let service = InventoryAdjustmentService::new(db.clone());
+    let service = InventoryAdjustmentService::new(state.db.clone());
 
     match service.reject_adjustment(id).await {
         Ok(_adjustment) => {
@@ -247,10 +248,10 @@ pub async fn reject_adjustment(
 
 /// 查询调整单列表
 pub async fn list_adjustments(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListAdjustmentsParams>,
 ) -> Result<Json<AdjustmentListResponse>, (StatusCode, String)> {
-    let service = InventoryAdjustmentService::new(db.clone());
+    let service = InventoryAdjustmentService::new(state.db.clone());
 
     match service
         .list_adjustments(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
@@ -286,10 +287,10 @@ pub struct ListAdjustmentsParams {
 
 /// 查询调整单详情
 pub async fn get_adjustment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
-    let service = InventoryAdjustmentService::new(db.clone());
+    let service = InventoryAdjustmentService::new(state.db.clone());
 
     match service.get_adjustment(id).await {
         Ok(detail) => Ok(Json(AdjustmentResponse {

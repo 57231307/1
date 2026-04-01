@@ -14,6 +14,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use validator::Validate;
@@ -21,7 +22,7 @@ use validator::Validate;
 /// 查询采购入库单列表
 pub async fn list_receipts(
     Query(params): Query<ReceiptQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let (receipts, total) = service
@@ -47,7 +48,7 @@ pub async fn list_receipts(
 /// 获取采购入库单详情
 pub async fn get_receipt(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let receipt = service.get_receipt(id).await?;
@@ -58,7 +59,7 @@ pub async fn get_receipt(
 /// 创建采购入库单
 #[axum::debug_handler]
 pub async fn create_receipt(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
@@ -80,7 +81,7 @@ pub async fn create_receipt(
 #[axum::debug_handler]
 pub async fn update_receipt(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
@@ -97,7 +98,7 @@ pub async fn update_receipt(
 /// 确认采购入库单
 pub async fn confirm_receipt(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let user_id = 1; // TODO: 从认证中获取
@@ -113,7 +114,7 @@ pub async fn confirm_receipt(
 /// 获取入库明细列表
 pub async fn list_receipt_items(
     Path(receipt_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
     let items = service.list_receipt_items(receipt_id).await?;
@@ -125,7 +126,7 @@ pub async fn list_receipt_items(
 #[axum::debug_handler]
 pub async fn create_receipt_item(
     Path(receipt_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateReceiptItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
@@ -147,7 +148,7 @@ pub async fn create_receipt_item(
 #[axum::debug_handler]
 pub async fn update_receipt_item(
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<UpdateReceiptItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(db);
@@ -164,7 +165,7 @@ pub async fn update_receipt_item(
 /// 删除入库明细
 pub async fn delete_receipt_item(
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {
     let service = PurchaseReceiptService::new(db);
     service.delete_receipt_item(item_id, 1).await?; // TODO: 从认证中获取 user_id

@@ -4,7 +4,6 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::services::dashboard_service::DashboardService;
 use crate::services::dashboard_service::{
@@ -28,7 +27,7 @@ fn naive_date_to_utc(date: NaiveDate) -> DateTime<Utc> {
 
 /// 获取仪表板概览数据
 pub async fn get_dashboard_overview(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(query): Query<DashboardQuery>,
 ) -> Result<Json<ApiResponse<DashboardOverview>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
@@ -42,7 +41,7 @@ pub async fn get_dashboard_overview(
 
 /// 获取销售统计数据
 pub async fn get_sales_statistics(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(query): Query<DashboardQuery>,
 ) -> Result<Json<ApiResponse<SalesStatistics>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
@@ -56,7 +55,7 @@ pub async fn get_sales_statistics(
 
 /// 获取库存统计数据
 pub async fn get_inventory_statistics(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(query): Query<DashboardQuery>,
 ) -> Result<Json<ApiResponse<InventoryStatistics>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
@@ -70,7 +69,7 @@ pub async fn get_inventory_statistics(
 
 /// 获取低库存预警数据
 pub async fn get_low_stock_alerts(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<LowStockAlert>>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
     let alerts = dashboard_service.get_low_stock_alerts().await?;

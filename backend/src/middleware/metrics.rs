@@ -13,10 +13,10 @@ use std::time::Instant;
 use crate::services::metrics_service::MetricsService;
 
 /// 监控中间件
-pub async fn metrics_middleware<B>(
+pub async fn metrics_middleware(
     State(metrics_service): State<Arc<MetricsService>>,
-    request: Request<B>,
-    next: Next<B>,
+    request: Request<Body>,
+    next: Next,
 ) -> Result<Response, StatusCode> {
     let start = Instant::now();
     

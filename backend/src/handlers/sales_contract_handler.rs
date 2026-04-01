@@ -10,6 +10,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -55,7 +56,7 @@ pub struct CancelSalesContractRequest {
 /// 获取销售合同列表
 pub async fn list_contracts(
     Query(params): Query<SalesContractQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_contract::Model>>>, AppError> {
     info!("用户 {} 正在查询销售合同列表", auth.user_id);
@@ -78,7 +79,7 @@ pub async fn list_contracts(
 /// 获取销售合同详情
 pub async fn get_contract(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<sales_contract::Model>>, AppError> {
     info!("用户 {} 正在查询销售合同详情：{}", auth.user_id, id);
@@ -93,7 +94,7 @@ pub async fn get_contract(
 /// 创建销售合同
 #[axum::debug_handler]
 pub async fn create_contract(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateSalesContractRequestDto>,
 ) -> Result<Json<ApiResponse<sales_contract::Model>>, AppError> {
@@ -122,7 +123,7 @@ pub async fn create_contract(
 /// 审核销售合同
 pub async fn approve_contract(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审核销售合同 {}", auth.user_id, id);
@@ -140,7 +141,7 @@ pub async fn approve_contract(
 #[axum::debug_handler]
 pub async fn execute_contract(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<ExecuteSalesContractRequestDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -167,7 +168,7 @@ pub async fn execute_contract(
 #[axum::debug_handler]
 pub async fn cancel_contract(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CancelSalesContractRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {

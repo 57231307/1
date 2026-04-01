@@ -9,6 +9,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -68,7 +69,7 @@ pub struct QualityApproveRequest {
 /// 获取质量标准列表
 pub async fn list_standards(
     Query(params): Query<QualityStandardQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准列表", auth.username);
@@ -90,7 +91,7 @@ pub async fn list_standards(
 /// 创建质量标准
 #[axum::debug_handler]
 pub async fn create_standard(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateQualityStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
@@ -133,7 +134,7 @@ pub async fn create_standard(
 /// 获取质量标准详情
 pub async fn get_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在查询质量标准详情：{}", auth.username, id);
@@ -149,7 +150,7 @@ pub async fn get_standard(
 #[axum::debug_handler]
 pub async fn update_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateQualityStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
@@ -177,7 +178,7 @@ pub async fn update_standard(
 /// 删除质量标准
 pub async fn delete_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除质量标准：{}", auth.username, id);
@@ -192,7 +193,7 @@ pub async fn delete_standard(
 /// 获取版本历史列表
 pub async fn list_versions(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准版本历史：{}", auth.username, id);
@@ -208,7 +209,7 @@ pub async fn list_versions(
 #[axum::debug_handler]
 pub async fn approve_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<QualityApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -227,7 +228,7 @@ pub async fn approve_standard(
 #[axum::debug_handler]
 pub async fn publish_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在发布质量标准：{}", auth.username, id);
@@ -244,7 +245,7 @@ pub async fn publish_standard(
 pub async fn create_version_history(
     Path(id): Path<i32>,
     Json(req): Json<CreateVersionHistoryRequest>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在创建质量标准版本历史：{}", auth.username, id);

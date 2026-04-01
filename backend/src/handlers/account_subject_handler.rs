@@ -7,7 +7,6 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tracing::info;
 
 use crate::middleware::auth_context::AuthContext;
@@ -15,6 +14,7 @@ use crate::models::account_subject;
 use crate::services::account_subject_service::{
     AccountSubjectService, CreateSubjectRequest, SubjectQueryParams, UpdateSubjectRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -66,12 +66,12 @@ pub struct UpdateSubjectRequestDto {
 #[axum::debug_handler]
 pub async fn list_subjects(
     Query(params): Query<SubjectQuery>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<account_subject::Model>>>, AppError> {
     info!("用户 {} 查询会计科目列表", auth.username);
 
-    let service = AccountSubjectService::new(db);
+    let service = AccountSubjectService::new(state.db.clone());
     let query_params = SubjectQueryParams {
         level: params.level,
         parent_id: params.parent_id,
@@ -94,12 +94,12 @@ pub async fn list_subjects(
 /// 查询单个科目
 pub async fn get_subject(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<account_subject::Model>>, AppError> {
     info!("用户 {} 查询会计科目 ID: {}", auth.username, id);
 
-    let service = AccountSubjectService::new(db);
+    let service = AccountSubjectService::new(state.db.clone());
     let subject = service.get_by_id(id).await?;
     info!("用户 {} 查询会计科目成功", auth.username);
 
@@ -108,7 +108,7 @@ pub async fn get_subject(
 
 /// 查询科目树
 pub async fn get_subject_tree(
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<
     Json<ApiResponse<Vec<crate::services::account_subject_service::SubjectTreeNode>>>,
@@ -116,7 +116,7 @@ pub async fn get_subject_tree(
 > {
     info!("用户 {} 查询会计科目树", auth.username);
 
-    let service = AccountSubjectService::new(db);
+    let service = AccountSubjectService::new(state.db.clone());
     let tree = service.get_tree().await?;
     info!("用户 {} 查询会计科目树成功", auth.username);
 
@@ -126,13 +126,13 @@ pub async fn get_subject_tree(
 /// 创建科目
 #[axum::debug_handler]
 pub async fn create_subject(
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateSubjectRequestDto>,
 ) -> Result<Json<ApiResponse<account_subject::Model>>, AppError> {
     info!("用户 {} 创建会计科目：{}", auth.username, req.code);
 
-    let service = AccountSubjectService::new(db);
+    let service = AccountSubjectService::new(state.db.clone());
     let create_req = CreateSubjectRequest {
         code: req.code,
         name: req.name,
@@ -159,13 +159,13 @@ pub async fn create_subject(
 #[axum::debug_handler]
 pub async fn update_subject(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateSubjectRequestDto>,
 ) -> Result<Json<ApiResponse<account_subject::Model>>, AppError> {
     info!("用户 {} 更新会计科目 ID: {}", auth.username, id);
 
-    let service = AccountSubjectService::new(db);
+    let service = AccountSubjectService::new(state.db.clone());
     let update_req = UpdateSubjectRequest {
         name: req.name,
         balance_direction: req.balance_direction,
@@ -190,12 +190,12 @@ pub async fn update_subject(
 /// 删除科目
 pub async fn delete_subject(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 删除会计科目 ID: {}", auth.username, id);
 
-    let service = AccountSubjectService::new(db);
+    let service = AccountSubjectService::new(state.db.clone());
     service.delete(id).await?;
     info!("用户 {} 删除会计科目成功", auth.username);
 

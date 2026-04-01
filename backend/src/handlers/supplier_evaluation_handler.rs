@@ -11,6 +11,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -25,7 +26,7 @@ pub struct EvaluationIndicatorQuery {
 
 pub async fn list_indicators(
     Query(params): Query<EvaluationIndicatorQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评估指标列表", auth.user_id);
@@ -46,7 +47,7 @@ pub async fn list_indicators(
 }
 
 pub async fn create_indicator(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateEvaluationIndicatorRequest>,
 ) -> Result<Json<ApiResponse<supplier_evaluation::Model>>, AppError> {
@@ -63,7 +64,7 @@ pub async fn create_indicator(
 }
 
 pub async fn create_evaluation_record(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<crate::services::supplier_evaluation_service::SupplierEvaluationRequest>,
 ) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
@@ -80,7 +81,7 @@ pub async fn create_evaluation_record(
 }
 
 pub async fn get_supplier_score(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(supplier_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<SupplierScoreResponse>>, AppError> {
@@ -97,7 +98,7 @@ pub async fn get_supplier_score(
 }
 
 pub async fn list_ratings(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
@@ -116,7 +117,7 @@ pub struct RankingQuery {
 
 pub async fn get_rankings(
     Query(params): Query<RankingQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<
     Json<ApiResponse<Vec<crate::services::supplier_evaluation_service::SupplierScoreResponse>>>,
@@ -143,7 +144,7 @@ pub struct EvaluationRecordQuery {
 
 pub async fn list_evaluation_records(
     Query(params): Query<EvaluationRecordQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation_record::Model>>>, AppError> {
     info!("用户 {} 正在查询评估记录列表", auth.user_id);
@@ -164,7 +165,7 @@ pub async fn list_evaluation_records(
 
 pub async fn get_evaluation_record(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
     info!("用户 {} 正在查询评估记录：{}", auth.user_id, id);

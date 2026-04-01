@@ -4,6 +4,7 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 
 /// 健康状态响应
 #[derive(Debug, Serialize)]
@@ -45,7 +46,7 @@ pub struct HealthCheckItem {
 }
 
 /// 健康检查接口
-pub async fn health_check(State(_db): State<Arc<DatabaseConnection>>) -> impl IntoResponse {
+pub async fn health_check(State(_state): State<AppState>) -> impl IntoResponse {
     let _start_time = std::time::Instant::now();
 
     // 检查数据库连接
@@ -139,7 +140,7 @@ fn get_uptime() -> u64 {
 }
 
 /// 就绪检查（检查所有依赖是否就绪）
-pub async fn readiness_check(State(_db): State<Arc<DatabaseConnection>>) -> impl IntoResponse {
+pub async fn readiness_check(State(_state): State<AppState>) -> impl IntoResponse {
     // 检查数据库是否可连接
     let db_status = check_database().await;
 

@@ -14,6 +14,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -34,7 +35,7 @@ pub struct ApReconciliationQueryParams {
 /// 查询对账单列表
 pub async fn list_reconciliations(
     Query(params): Query<ApReconciliationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -69,7 +70,7 @@ pub async fn list_reconciliations(
 /// 获取对账单详情
 pub async fn get_reconciliation(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询对账单详情 ID: {}", auth.username, id);
@@ -90,7 +91,7 @@ pub async fn get_reconciliation(
 /// 生成对账单
 #[axum::debug_handler]
 pub async fn generate_reconciliation(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<GenerateReconciliationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -121,7 +122,7 @@ pub async fn generate_reconciliation(
 /// 确认对账单
 pub async fn confirm_reconciliation(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);
@@ -148,7 +149,7 @@ pub struct DisputeRequest {
 
 pub async fn dispute_reconciliation(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<DisputeRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -174,7 +175,7 @@ pub async fn dispute_reconciliation(
 /// 获取供应商应付汇总
 pub async fn get_supplier_summary(
     Query(params): Query<ApReconciliationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(

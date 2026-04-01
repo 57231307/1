@@ -10,6 +10,7 @@ use axum::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -97,7 +98,7 @@ pub struct CreateBudgetExecutionRequest {
 /// 获取预算科目列表
 pub async fn list_items(
     Query(params): Query<BudgetItemQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<budget_management::Model>>>, AppError> {
     info!("用户 {} 正在查询预算科目列表", auth.username);
@@ -119,7 +120,7 @@ pub async fn list_items(
 /// 创建预算科目
 #[axum::debug_handler]
 pub async fn create_item(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateBudgetItemRequest>,
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
@@ -148,7 +149,7 @@ pub async fn create_item(
 /// 获取预算科目详情
 pub async fn get_item(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
     info!("用户 {} 正在查询预算科目详情：{}", auth.username, id);
@@ -164,7 +165,7 @@ pub async fn get_item(
 #[axum::debug_handler]
 pub async fn update_item(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateBudgetItemRequest>,
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
@@ -192,7 +193,7 @@ pub async fn update_item(
 /// 删除预算科目
 pub async fn delete_item(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除预算科目：{}", auth.username, id);
@@ -207,7 +208,7 @@ pub async fn delete_item(
 /// 获取预算方案列表
 pub async fn list_plans(
     Query(params): Query<BudgetItemQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<budget_plan::Model>>>, AppError> {
     info!("用户 {} 正在查询预算方案列表", auth.username);
@@ -229,7 +230,7 @@ pub async fn list_plans(
 /// 创建预算方案
 #[axum::debug_handler]
 pub async fn create_plan(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateBudgetPlanRequest>,
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
@@ -266,7 +267,7 @@ pub async fn create_plan(
 /// 获取预算方案详情
 pub async fn get_plan(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
     info!("用户 {} 正在查询预算方案详情：{}", auth.username, id);
@@ -283,7 +284,7 @@ pub async fn get_plan(
 pub async fn approve_plan(
     Path(id): Path<i32>,
     Json(req): Json<BudgetApproveRequest>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批预算方案：{}", auth.username, id);
@@ -301,7 +302,7 @@ pub async fn approve_plan(
 #[axum::debug_handler]
 pub async fn execute_plan(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<BudgetExecuteRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -331,7 +332,7 @@ pub async fn execute_plan(
 /// 获取预算控制情况
 pub async fn get_control(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
     info!("用户 {} 正在查询预算控制情况：{}", auth.username, id);
@@ -346,7 +347,7 @@ pub async fn get_control(
 /// 获取预算控制数据（含已下达、已执行、可用金额）
 pub async fn get_budget_control_data(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<BudgetControlResponse>>, AppError> {
     info!("用户 {} 正在查询预算控制数据：{}", auth.username, id);
@@ -362,7 +363,7 @@ pub async fn get_budget_control_data(
 #[axum::debug_handler]
 pub async fn create_execution(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateBudgetExecutionRequest>,
 ) -> Result<Json<ApiResponse<budget_execution::Model>>, AppError> {
@@ -396,7 +397,7 @@ pub async fn create_execution(
 /// 获取预算执行明细列表
 pub async fn get_plan_executions(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<budget_execution::Model>>>, AppError> {
     info!(

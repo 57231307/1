@@ -13,6 +13,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::models::inventory_stock;
+use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 批次列表
@@ -89,7 +90,7 @@ pub struct TransferBatchRequest {
 
 /// 获取批次列表
 pub async fn list_batches(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<BatchListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -98,7 +99,7 @@ pub async fn list_batches(
     // 使用库存服务查询批次
     match inventory_stock::Entity::find()
         .filter(inventory_stock::Column::BatchNo.ne(""))
-        .paginate(&*db, page_size)
+        .paginate(&*state.db, page_size)
         .fetch_page(page - 1)
         .await
     {
@@ -120,10 +121,10 @@ pub async fn list_batches(
 
 /// 获取批次详情
 pub async fn get_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match inventory_stock::Entity::find_by_id(id).one(&*db).await {
+    match inventory_stock::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(batch)) => (StatusCode::OK, Json(ApiResponse::success(batch))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -140,7 +141,7 @@ pub async fn get_batch(
 
 /// 创建批次（入库）
 pub async fn create_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateBatchRequest>,
 ) -> impl IntoResponse {
     use crate::models::inventory_stock;
@@ -191,7 +192,7 @@ pub async fn create_batch(
         bin_location: Set(None),
     };
 
-    match batch.insert(&*db).await {
+    match batch.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
             Json(ApiResponse::success_with_msg(created, "批次创建成功")),
@@ -207,7 +208,7 @@ pub async fn create_batch(
 
 /// 更新批次
 pub async fn update_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateBatchRequest>,
 ) -> impl IntoResponse {
@@ -215,7 +216,7 @@ pub async fn update_batch(
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     let mut batch: inventory_stock::ActiveModel =
-        match inventory_stock::Entity::find_by_id(id).one(&*db).await {
+        match inventory_stock::Entity::find_by_id(id).one(&*state.db).await {
             Ok(Some(b)) => b.into(),
             Ok(None) => {
                 return (
@@ -267,7 +268,7 @@ pub async fn update_batch(
 
     batch.updated_at = Set(Utc::now());
 
-    match batch.update(&*db).await {
+    match batch.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "批次更新成功")),
@@ -283,12 +284,12 @@ pub async fn update_batch(
 
 /// 删除批次
 pub async fn delete_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     use sea_orm::EntityTrait;
 
-    match inventory_stock::Entity::delete_by_id(id).exec(&*db).await {
+    match inventory_stock::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "批次删除成功")),
@@ -304,7 +305,7 @@ pub async fn delete_batch(
 
 /// 批次转移（调拨）
 pub async fn transfer_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<TransferBatchRequest>,
 ) -> impl IntoResponse {
@@ -312,7 +313,7 @@ pub async fn transfer_batch(
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     // 开启事务
-    let txn = match db.begin().await {
+    let txn = match state.db.begin().await {
         Ok(t) => t,
         Err(e) => {
             return (

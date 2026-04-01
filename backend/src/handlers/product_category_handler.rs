@@ -3,6 +3,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -38,13 +39,13 @@ pub struct UpdateProductCategoryRequest {
 
 /// 获取产品类别列表
 pub async fn list_product_categories(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<ProductCategoryListQuery>,
 ) -> Result<Json<ApiResponse<Vec<product_category::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(10);
 
-    let category_service = ProductCategoryService::new(db.clone());
+    let category_service = ProductCategoryService::new(state.db.clone());
     let (categories, total) = category_service
         .list_categories(page, page_size, query.parent_id, query.search)
         .await?;
@@ -56,20 +57,20 @@ pub async fn list_product_categories(
 
 /// 获取产品类别详情
 pub async fn get_product_category(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<product_category::Model>>, AppError> {
-    let category_service = ProductCategoryService::new(db.clone());
+    let category_service = ProductCategoryService::new(state.db.clone());
     let category = category_service.get_category(id).await?;
     Ok(Json(ApiResponse::success(category)))
 }
 
 /// 创建产品类别
 pub async fn create_product_category(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateProductCategoryRequest>,
 ) -> Result<Json<ApiResponse<product_category::Model>>, AppError> {
-    let category_service = ProductCategoryService::new(db.clone());
+    let category_service = ProductCategoryService::new(state.db.clone());
     let category = category_service
         .create_category(req.name, req.parent_id, req.description)
         .await?;
@@ -81,11 +82,11 @@ pub async fn create_product_category(
 
 /// 更新产品类别
 pub async fn update_product_category(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateProductCategoryRequest>,
 ) -> Result<Json<ApiResponse<product_category::Model>>, AppError> {
-    let category_service = ProductCategoryService::new(db.clone());
+    let category_service = ProductCategoryService::new(state.db.clone());
     let category = category_service
         .update_category(id, req.name, req.parent_id, req.description)
         .await?;
@@ -97,19 +98,19 @@ pub async fn update_product_category(
 
 /// 删除产品类别
 pub async fn delete_product_category(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let category_service = ProductCategoryService::new(db.clone());
+    let category_service = ProductCategoryService::new(state.db.clone());
     category_service.delete_category(id).await?;
     Ok(Json(ApiResponse::success_with_msg((), "产品类别删除成功")))
 }
 
 /// 获取产品类别树形结构
 pub async fn get_product_category_tree(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<product_category::Model>>>, AppError> {
-    let category_service = ProductCategoryService::new(db.clone());
+    let category_service = ProductCategoryService::new(state.db.clone());
     let tree = category_service.get_category_tree().await?;
     Ok(Json(ApiResponse::success(tree)))
 }

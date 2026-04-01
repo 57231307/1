@@ -63,7 +63,7 @@ pub struct CompleteDyeBatchRequest {
 }
 
 pub async fn list_dye_batches(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -107,7 +107,7 @@ pub async fn list_dye_batches(
 }
 
 pub async fn get_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match dye_batch::Entity::find_by_id(id).one(&*db).await {
@@ -126,7 +126,7 @@ pub async fn get_dye_batch(
 }
 
 pub async fn create_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateDyeBatchRequest>,
 ) -> impl IntoResponse {
     let batch = dye_batch::ActiveModel {
@@ -161,7 +161,7 @@ pub async fn create_dye_batch(
 }
 
 pub async fn update_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> impl IntoResponse {
@@ -225,7 +225,7 @@ pub async fn update_dye_batch(
 }
 
 pub async fn delete_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match dye_batch::Entity::delete_by_id(id).exec(&*db).await {
@@ -243,7 +243,7 @@ pub async fn delete_dye_batch(
 }
 
 pub async fn complete_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<CompleteDyeBatchRequest>,
 ) -> impl IntoResponse {
@@ -288,7 +288,7 @@ pub async fn complete_dye_batch(
 }
 
 pub async fn get_dye_batches_by_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(color_code): Path<String>,
 ) -> impl IntoResponse {
     match dye_batch::Entity::find()

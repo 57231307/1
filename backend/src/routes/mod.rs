@@ -661,9 +661,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", get(health_handler::health_check))
         .route("/db", get(health_handler::db_check));
 
-    // 监控路由
-    let metrics_routes = create_metrics_router(state.metrics.clone());
-
     // 组装所有路由
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)
@@ -707,7 +704,6 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/ar", ar_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
-        .nest("/api/v1/erp/metrics", metrics_routes)
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .with_state(state)
 }

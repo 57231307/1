@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -55,10 +56,10 @@ pub struct DeleteUserResponse {
 }
 
 pub async fn get_user(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let user_service = UserService::new(db.clone());
+    let user_service = UserService::new(state.db.clone());
 
     match user_service.find_by_id(id).await {
         Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
@@ -76,10 +77,10 @@ pub async fn get_user(
 }
 
 pub async fn create_user(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let user_service = UserService::new(db.clone());
+    let user_service = UserService::new(state.db.clone());
 
     let password_hash = AuthService::hash_password(&payload.password)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
@@ -110,10 +111,10 @@ pub async fn create_user(
 }
 
 pub async fn list_users(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListUsersParams>,
 ) -> Result<Json<ApiResponse<UserListResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let user_service = UserService::new(db.clone());
+    let user_service = UserService::new(state.db.clone());
 
     match user_service
         .list_users(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
@@ -155,11 +156,11 @@ use axum::extract::Query;
 
 /// 更新用户信息
 pub async fn update_user(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let user_service = UserService::new(db.clone());
+    let user_service = UserService::new(state.db.clone());
 
     match user_service
         .update_user(
@@ -188,10 +189,10 @@ pub async fn update_user(
 
 /// 删除用户（软删除）
 pub async fn delete_user(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<DeleteUserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let user_service = UserService::new(db.clone());
+    let user_service = UserService::new(state.db.clone());
 
     match user_service.delete_user(id).await {
         Ok(_) => Ok(Json(ApiResponse::success(DeleteUserResponse { success: true }))),

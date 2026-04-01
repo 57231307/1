@@ -12,6 +12,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -32,7 +33,7 @@ pub struct ApVerificationQueryParams {
 /// 查询核销列表
 pub async fn list_verifications(
     Query(params): Query<ApVerificationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -67,7 +68,7 @@ pub async fn list_verifications(
 /// 获取核销详情
 pub async fn get_verification(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询核销详情 ID: {}", auth.username, id);
@@ -92,7 +93,7 @@ pub struct AutoVerifyRequest {
 }
 
 pub async fn auto_verify(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<AutoVerifyRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -118,7 +119,7 @@ pub async fn auto_verify(
 /// 手工核销
 #[axum::debug_handler]
 pub async fn manual_verify(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<ManualVerifyRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -154,7 +155,7 @@ pub struct CancelVerificationRequest {
 
 pub async fn cancel_verification(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CancelVerificationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -180,7 +181,7 @@ pub async fn cancel_verification(
 /// 获取未核销应付单列表
 pub async fn get_unverified_invoices(
     Query(params): Query<ApVerificationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let supplier_id = params.supplier_id.ok_or_else(|| {
@@ -208,7 +209,7 @@ pub async fn get_unverified_invoices(
 /// 获取未核销付款单列表
 pub async fn get_unverified_payments(
     Query(params): Query<ApVerificationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let supplier_id = params.supplier_id.ok_or_else(|| {

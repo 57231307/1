@@ -7,6 +7,7 @@ use crate::config::settings::AppSettings;
 use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 use std::sync::Arc;
 use tracing::info;
+use tracing::warn;
 
 /// SQLx 数据库连接池包装
 #[derive(Clone)]
@@ -62,7 +63,6 @@ impl SqlxDatabase {
             .max_connections(settings.database.max_connections)
             .min_connections(5)
             .idle_timeout(std::time::Duration::from_secs(300))
-            .connect_timeout(std::time::Duration::from_secs(10))
             .acquire_timeout(std::time::Duration::from_secs(5));
 
         // 添加重试机制
@@ -70,7 +70,7 @@ impl SqlxDatabase {
         let mut last_error: Option<sqlx::Error> = None;
 
         for attempt in 1..=max_retries {
-            match pool_options.connect_with(options.clone()).await {
+            match pool_options.clone().connect_with(options.clone()).await {
                 Ok(pool) => {
                     info!("SQLx 数据库连接池初始化成功（尝试 {}）", attempt);
                     return Ok(Self {

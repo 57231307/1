@@ -8,7 +8,6 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::middleware::auth_context::AuthContext;
@@ -16,6 +15,7 @@ use crate::models::voucher;
 use crate::services::voucher_service::{
     CreateVoucherRequest, VoucherItemRequest, VoucherQueryParams, VoucherService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use rust_decimal::Decimal;
@@ -66,12 +66,12 @@ pub struct VoucherItemDto {
 /// 查询凭证列表
 pub async fn list_vouchers(
     Query(params): Query<VoucherQuery>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<voucher::Model>>>, (StatusCode, String)> {
     info!("用户 {} 查询凭证列表", auth.username);
 
-    let service = VoucherService::new(db);
+    let service = VoucherService::new(state.db.clone());
     let query_params = VoucherQueryParams {
         voucher_type: params.voucher_type,
         status: params.status,
@@ -95,12 +95,12 @@ pub async fn list_vouchers(
 /// 获取凭证详情
 pub async fn get_voucher(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
     info!("用户 {} 查询凭证详情 ID: {}", auth.username, id);
 
-    let service = VoucherService::new(db);
+    let service = VoucherService::new(state.db.clone());
     let detail = service
         .get_by_id(id)
         .await
@@ -116,7 +116,7 @@ pub async fn get_voucher(
 /// 创建凭证
 #[axum::debug_handler]
 pub async fn create_voucher(
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateVoucherRequestDto>,
 ) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
@@ -165,7 +165,7 @@ pub async fn create_voucher(
         items,
     };
 
-    let service = VoucherService::new(db);
+    let service = VoucherService::new(state.db.clone());
     let voucher = service
         .create(create_req, auth.user_id)
         .await?;
@@ -183,12 +183,12 @@ pub async fn create_voucher(
 /// 提交凭证
 pub async fn submit_voucher(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
     info!("用户 {} 提交凭证 ID: {}", auth.username, id);
 
-    let service = VoucherService::new(db);
+    let service = VoucherService::new(state.db.clone());
     let voucher = service
         .submit(id, auth.user_id)
         .await
@@ -207,12 +207,12 @@ pub async fn submit_voucher(
 /// 审核凭证
 pub async fn review_voucher(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
     info!("用户 {} 审核凭证 ID: {}", auth.username, id);
 
-    let service = VoucherService::new(db);
+    let service = VoucherService::new(state.db.clone());
     let voucher = service
         .review(id, auth.user_id)
         .await
@@ -231,12 +231,12 @@ pub async fn review_voucher(
 /// 凭证过账
 pub async fn post_voucher(
     Path(id): Path<i32>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
     info!("用户 {} 凭证过账 ID: {}", auth.username, id);
 
-    let service = VoucherService::new(db);
+    let service = VoucherService::new(state.db.clone());
     let voucher = service
         .post(id, auth.user_id)
         .await

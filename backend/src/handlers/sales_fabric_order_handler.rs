@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::models::sales_order;
 use crate::models::sales_order_item;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -109,7 +110,7 @@ pub struct UpdateFabricOrderRequest {
 
 /// 获取销售订单列表（面料行业版）
 pub async fn list_fabric_orders(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<FabricOrderQuery>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let page = query.page.unwrap_or(1);
@@ -132,7 +133,7 @@ pub async fn list_fabric_orders(
 
     let paginator = query_builder
         .order_by(sales_order::Column::CreatedAt, Order::Desc)
-        .paginate(&*db, page_size);
+        .paginate(&*state.db, page_size);
     let orders = paginator
         .fetch_page(page - 1)
         .await
@@ -154,11 +155,11 @@ pub async fn list_fabric_orders(
 
 /// 获取销售订单详情
 pub async fn get_fabric_order(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let order = sales_order::Entity::find_by_id(id)
-        .one(&*db)
+        .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?;
 
@@ -168,14 +169,14 @@ pub async fn get_fabric_order(
 
 /// 创建销售订单（面料行业版）
 pub async fn create_fabric_order(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateFabricOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use chrono::Utc;
     use rust_decimal::Decimal;
 
     // 开启事务
-    let txn = db
+    let txn = state.db
         .begin()
         .await
         .map_err(|e| AppError::InternalError(format!("开启事务失败：{}", e)))?;
@@ -303,12 +304,12 @@ pub async fn create_fabric_order(
 
 /// 更新销售订单
 pub async fn update_fabric_order(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateFabricOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let mut order: sales_order::ActiveModel = sales_order::Entity::find_by_id(id)
-        .one(&*db)
+        .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?
         .into();
@@ -331,7 +332,7 @@ pub async fn update_fabric_order(
     order.updated_at = Set(chrono::Utc::now());
 
     let updated = order
-        .update(&*db)
+        .update(&*state.db)
         .await
         .map_err(|e| AppError::BadRequest(format!("更新订单失败：{}", e)))?;
     let order_json = serde_json::to_value(updated).unwrap_or_default();
@@ -343,11 +344,11 @@ pub async fn update_fabric_order(
 
 /// 删除销售订单
 pub async fn delete_fabric_order(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     sales_order::Entity::delete_by_id(id)
-        .exec(&*db)
+        .exec(&*state.db)
         .await
         .map_err(|e| AppError::BadRequest(format!("删除订单失败：{}", e)))?;
 
@@ -356,13 +357,13 @@ pub async fn delete_fabric_order(
 
 /// 审核订单
 pub async fn approve_fabric_order(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use chrono::Utc;
 
     let mut order: sales_order::ActiveModel = sales_order::Entity::find_by_id(id)
-        .one(&*db)
+        .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?
         .into();
@@ -373,7 +374,7 @@ pub async fn approve_fabric_order(
     order.updated_at = Set(Utc::now());
 
     let updated = order
-        .update(&*db)
+        .update(&*state.db)
         .await
         .map_err(|e| AppError::BadRequest(format!("审核订单失败：{}", e)))?;
     let order_json = serde_json::to_value(updated).unwrap_or_default();

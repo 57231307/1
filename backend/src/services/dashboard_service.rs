@@ -4,15 +4,15 @@ use sea_orm::prelude::*;
 use sea_orm::{
     sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::models::{inventory_stock, product, sales_order, user, warehouse};
-use crate::utils::cache::AppCache;
+use crate::utils::cache::{AppCache, Cache};
 
 /// 仪表板概览数据
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct DashboardOverview {
     /// 总产品数
     pub total_products: i64,
@@ -31,7 +31,7 @@ pub struct DashboardOverview {
 }
 
 /// 销售统计数据
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct SalesStatistics {
     /// 销售总额
     pub total_sales_amount: Decimal,
@@ -48,7 +48,7 @@ pub struct SalesStatistics {
 }
 
 /// 库存统计数据
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct InventoryStatistics {
     /// 总库存数量
     pub total_quantity: Decimal,
@@ -63,7 +63,7 @@ pub struct InventoryStatistics {
 }
 
 /// 仓库库存统计
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct WarehouseStockStat {
     pub warehouse_id: i32,
     pub warehouse_name: String,
@@ -72,7 +72,7 @@ pub struct WarehouseStockStat {
 }
 
 /// 低库存预警项
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct LowStockAlert {
     pub product_id: i32,
     pub product_name: String,
@@ -103,8 +103,8 @@ impl DashboardService {
     ) -> Result<DashboardOverview, sea_orm::DbErr> {
         // 生成缓存键
         let cache_key = format!("dashboard:overview:{}-{}", 
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all"),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all")
+            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
+            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
         );
 
         // 尝试从缓存获取
@@ -169,8 +169,8 @@ impl DashboardService {
     ) -> Result<SalesStatistics, sea_orm::DbErr> {
         // 生成缓存键
         let cache_key = format!("dashboard:sales:{}-{}", 
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all"),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all")
+            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
+            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
         );
 
         // 尝试从缓存获取

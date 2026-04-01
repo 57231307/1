@@ -6,6 +6,7 @@ use axum::{
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -106,7 +107,7 @@ pub struct FiveDimensionSearchResponse {
 
 /// 获取五维统计信息
 pub async fn get_five_dimension_stats(
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
     Query(params): Query<FiveDimensionStatsParams>,
 ) -> Result<Json<FiveDimensionStatsResponse>, (StatusCode, String)> {
     // TODO: 实现数据库查询逻辑
@@ -155,7 +156,7 @@ pub async fn get_five_dimension_stats(
 
 /// 按五维 ID 查询统计信息
 pub async fn get_stats_by_five_dimension_id(
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
     Path(five_dimension_id): Path<String>,
 ) -> Result<Json<FiveDimensionStatsResponse>, (StatusCode, String)> {
     // 解析五维 ID
@@ -233,7 +234,7 @@ pub async fn parse_five_dimension_id(
 
 /// 五维搜索
 pub async fn search_five_dimension(
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
     Query(params): Query<FiveDimensionSearchParams>,
 ) -> Result<Json<FiveDimensionSearchResponse>, (StatusCode, String)> {
     let page = params.page.unwrap_or(0);
@@ -273,7 +274,7 @@ pub async fn search_five_dimension(
 
 /// 列出所有五维统计
 pub async fn list_five_dimension_stats(
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
     Query(params): Query<FiveDimensionStatsParams>,
 ) -> Result<Json<FiveDimensionListResponse>, (StatusCode, String)> {
     let page = params.page.unwrap_or(0);

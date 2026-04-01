@@ -10,6 +10,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -60,7 +61,7 @@ pub struct DisposalRequestDto {
 /// 获取资产列表
 pub async fn list_assets(
     Query(params): Query<AssetQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<fixed_asset::Model>>>, AppError> {
     info!("用户 {} 正在查询资产列表", auth.user_id);
@@ -83,7 +84,7 @@ pub async fn list_assets(
 /// 获取资产详情
 pub async fn get_asset(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<fixed_asset::Model>>, AppError> {
     info!("用户 {} 正在查询资产详情：{}", auth.user_id, id);
@@ -98,7 +99,7 @@ pub async fn get_asset(
 /// 创建资产
 #[axum::debug_handler]
 pub async fn create_asset(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateAssetRequestDto>,
 ) -> Result<Json<ApiResponse<fixed_asset::Model>>, AppError> {
@@ -130,7 +131,7 @@ pub async fn create_asset(
 #[axum::debug_handler]
 pub async fn depreciate_asset(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<DepreciateRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -152,7 +153,7 @@ pub async fn depreciate_asset(
 #[axum::debug_handler]
 pub async fn dispose_asset(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<DisposalRequestDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -178,7 +179,7 @@ pub async fn dispose_asset(
 /// 删除资产
 pub async fn delete_asset(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除资产 {}", auth.user_id, id);

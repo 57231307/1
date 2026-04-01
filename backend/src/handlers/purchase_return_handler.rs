@@ -12,6 +12,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use validator::Validate;
@@ -19,7 +20,7 @@ use validator::Validate;
 /// 查询采购退货单列表
 pub async fn list_returns(
     Query(params): Query<ReturnQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(db);
     let (returns, total) = service
@@ -44,7 +45,7 @@ pub async fn list_returns(
 /// 获取采购退货单详情
 pub async fn get_return(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(db);
     let return_order = service.get_return(id).await?;
@@ -57,7 +58,7 @@ pub async fn get_return(
 /// 创建采购退货单
 #[axum::debug_handler]
 pub async fn create_return(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()
@@ -78,7 +79,7 @@ pub async fn create_return(
 #[axum::debug_handler]
 pub async fn update_return(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(db);
@@ -95,7 +96,7 @@ pub async fn update_return(
 /// 提交采购退货单
 pub async fn submit_return(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(db);
     let user_id = 1;
@@ -111,7 +112,7 @@ pub async fn submit_return(
 /// 审批采购退货单
 pub async fn approve_return(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(db);
     let user_id = 1;
@@ -128,7 +129,7 @@ pub async fn approve_return(
 #[axum::debug_handler]
 pub async fn reject_return(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<RejectReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(db);

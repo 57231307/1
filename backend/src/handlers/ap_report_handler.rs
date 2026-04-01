@@ -12,6 +12,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -27,7 +28,7 @@ pub struct ApStatisticsQueryParams {
 /// 获取应付统计报表
 pub async fn get_statistics_report(
     Query(params): Query<ApStatisticsQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -55,7 +56,7 @@ pub struct ApDailyQueryParams {
 /// 获取应付日报
 pub async fn get_daily_report(
     Query(params): Query<ApDailyQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -84,7 +85,7 @@ pub struct ApMonthlyQueryParams {
 /// 获取应付月报
 pub async fn get_monthly_report(
     Query(params): Query<ApMonthlyQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -111,7 +112,7 @@ pub struct ApAgingQueryParams {
 /// 获取账龄分析报告
 pub async fn get_aging_report(
     Query(params): Query<ApAgingQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(

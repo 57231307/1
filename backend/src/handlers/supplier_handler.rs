@@ -9,6 +9,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -17,9 +18,9 @@ use validator::Validate;
 /// 查询供应商列表
 pub async fn list_suppliers(
     Query(params): Query<SupplierQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let result = service
         .list_suppliers(params)
         .await?;
@@ -32,9 +33,9 @@ pub async fn list_suppliers(
 /// 获取供应商详情
 pub async fn get_supplier(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let supplier = service.get_supplier(id).await?;
 
     Ok(Json(ApiResponse::success(
@@ -45,13 +46,13 @@ pub async fn get_supplier(
 /// 创建供应商
 #[axum::debug_handler]
 pub async fn create_supplier(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let user_id = 1;
 
     let supplier = service
@@ -68,10 +69,10 @@ pub async fn create_supplier(
 #[axum::debug_handler]
 pub async fn update_supplier(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<UpdateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let user_id = 1;
 
     let supplier = service
@@ -87,9 +88,9 @@ pub async fn update_supplier(
 /// 删除供应商
 pub async fn delete_supplier(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     service.delete_supplier(id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -102,10 +103,10 @@ pub async fn delete_supplier(
 #[axum::debug_handler]
 pub async fn toggle_supplier_status(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<ToggleStatusRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let user_id = 1;
 
     let supplier = service
@@ -133,9 +134,9 @@ pub struct ToggleStatusRequest {
 /// 获取供应商联系人列表
 pub async fn list_supplier_contacts(
     Path(supplier_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let contacts = service
         .list_supplier_contacts(supplier_id)
         .await?;
@@ -149,13 +150,13 @@ pub async fn list_supplier_contacts(
 #[axum::debug_handler]
 pub async fn create_supplier_contact(
     Path(supplier_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let user_id = 1;
 
     let contact = service
@@ -172,10 +173,10 @@ pub async fn create_supplier_contact(
 #[axum::debug_handler]
 pub async fn update_supplier_contact(
     Path((_supplier_id, contact_id)): Path<(i32, i32)>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<UpdateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     let user_id = 1;
 
     let contact = service
@@ -191,9 +192,9 @@ pub async fn update_supplier_contact(
 /// 删除供应商联系人
 pub async fn delete_supplier_contact(
     Path((_supplier_id, contact_id)): Path<(i32, i32)>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let service = SupplierService::new(db);
+    let service = SupplierService::new(state.db.clone());
     service
         .delete_supplier_contact(contact_id)
         .await?;
@@ -209,7 +210,7 @@ pub async fn delete_supplier_contact(
 /// 获取供应商资质列表
 pub async fn list_supplier_qualifications(
     Path(_supplier_id): Path<i32>,
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     Ok(Json(ApiResponse::success(serde_json::json!([]))))
 }
@@ -218,7 +219,7 @@ pub async fn list_supplier_qualifications(
 #[axum::debug_handler]
 pub async fn create_supplier_qualification(
     Path(supplier_id): Path<i32>,
-    State(_db): State<Arc<DatabaseConnection>>,
+    State(_state): State<AppState>,
     Json(req): Json<CreateQualificationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()

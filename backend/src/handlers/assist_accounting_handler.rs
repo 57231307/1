@@ -5,6 +5,7 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -88,11 +89,11 @@ pub struct AssistRecordQueryParams {
 
 /// 获取所有辅助核算维度
 pub async fn list_assist_dimensions(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<AssistDimensionResponse>>>, AppError> {
     info!("正在从数据库查询辅助核算维度列表");
 
-    let service = AssistAccountingService::new(db);
+    let service = AssistAccountingService::new(state.db.clone());
     let dimensions = service.list_dimensions().await?;
 
     let response: Vec<AssistDimensionResponse> = dimensions
@@ -113,10 +114,10 @@ pub async fn list_assist_dimensions(
 
 /// 查询辅助核算记录
 pub async fn query_assist_records(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<AssistRecordQueryParams>,
 ) -> Result<Json<AssistRecordListResponse>, (StatusCode, String)> {
-    let service = AssistAccountingService::new(db.clone());
+    let service = AssistAccountingService::new(state.db.clone());
 
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
@@ -173,10 +174,10 @@ pub async fn query_assist_records(
 
 /// 按业务单查询辅助核算记录
 pub async fn get_assist_records_by_business(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<BusinessQueryParams>,
 ) -> Result<Json<Vec<AssistRecordResponse>>, (StatusCode, String)> {
-    let service = AssistAccountingService::new(db.clone());
+    let service = AssistAccountingService::new(state.db.clone());
 
     match service
         .find_by_business(&params.business_type, &params.business_no)
@@ -225,10 +226,10 @@ pub struct BusinessQueryParams {
 
 /// 按五维 ID 查询辅助核算记录
 pub async fn get_assist_records_by_five_dimension(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(five_dimension_id): Path<String>,
 ) -> Result<Json<Vec<AssistRecordResponse>>, (StatusCode, String)> {
-    let service = AssistAccountingService::new(db.clone());
+    let service = AssistAccountingService::new(state.db.clone());
 
     match service.find_by_five_dimension(&five_dimension_id).await {
         Ok(records) => {
@@ -267,7 +268,7 @@ pub async fn get_assist_records_by_five_dimension(
 
 /// 获取辅助核算汇总
 pub async fn get_assist_summary(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<AssistSummaryQueryParams>,
 ) -> Result<Json<ApiResponse<Vec<AssistSummaryResponse>>>, AppError> {
     info!(
@@ -275,7 +276,7 @@ pub async fn get_assist_summary(
         params.accounting_period, params.dimension_code
     );
 
-    let service = AssistAccountingService::new(db);
+    let service = AssistAccountingService::new(state.db.clone());
 
     let dimension_code = params.dimension_code.as_deref().unwrap_or("");
 

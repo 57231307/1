@@ -10,6 +10,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -52,7 +53,7 @@ pub struct CreditAmountRequest {
 /// 获取客户信用列表
 pub async fn list_credits(
     Query(params): Query<CreditQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<customer_credit::Model>>>, AppError> {
     info!("用户 {} 正在查询客户信用列表", auth.user_id);
@@ -75,7 +76,7 @@ pub async fn list_credits(
 /// 获取客户信用详情
 pub async fn get_credit(
     Path(customer_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<customer_credit::Model>>, AppError> {
     info!(
@@ -100,7 +101,7 @@ pub async fn get_credit(
 /// 设置客户信用评级
 #[axum::debug_handler]
 pub async fn set_credit_rating(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreditRatingRequestDto>,
 ) -> Result<Json<ApiResponse<customer_credit::Model>>, AppError> {
@@ -129,7 +130,7 @@ pub async fn set_credit_rating(
 #[axum::debug_handler]
 pub async fn occupy_credit(
     Path(customer_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreditAmountRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -153,7 +154,7 @@ pub async fn occupy_credit(
 #[axum::debug_handler]
 pub async fn release_credit(
     Path(customer_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreditAmountRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -177,7 +178,7 @@ pub async fn release_credit(
 #[axum::debug_handler]
 pub async fn adjust_credit_limit(
     Path(customer_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreditLimitAdjustmentRequestDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -207,7 +208,7 @@ pub async fn adjust_credit_limit(
 /// 停用客户信用
 pub async fn deactivate_credit(
     Path(customer_id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在停用客户 {} 的信用", auth.user_id, customer_id);

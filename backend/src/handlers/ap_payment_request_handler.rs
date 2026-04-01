@@ -14,6 +14,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -35,7 +36,7 @@ pub struct ApPaymentRequestQueryParams {
 /// 查询付款申请列表
 pub async fn list_requests(
     Query(params): Query<ApPaymentRequestQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -74,7 +75,7 @@ pub async fn list_requests(
 /// 获取付款申请详情
 pub async fn get_request(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询付款申请详情 ID: {}", auth.username, id);
@@ -93,7 +94,7 @@ pub async fn get_request(
 /// 创建付款申请
 #[axum::debug_handler]
 pub async fn create_request(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -125,7 +126,7 @@ pub async fn create_request(
 #[axum::debug_handler]
 pub async fn update_request(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -153,7 +154,7 @@ pub async fn update_request(
 /// 删除付款申请
 pub async fn delete_request(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 删除付款申请 ID: {}", auth.username, id);
@@ -172,7 +173,7 @@ pub async fn delete_request(
 /// 提交付款申请
 pub async fn submit_request(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 提交付款申请 ID: {}", auth.username, id);
@@ -194,7 +195,7 @@ pub async fn submit_request(
 /// 审批付款申请
 pub async fn approve_request(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 审批付款申请 ID: {}", auth.username, id);
@@ -221,7 +222,7 @@ pub struct RejectRequest {
 
 pub async fn reject_request(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {

@@ -77,7 +77,7 @@ pub struct CreateVersionRequest {
 }
 
 pub async fn list_dye_recipes(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -118,7 +118,7 @@ pub async fn list_dye_recipes(
 }
 
 pub async fn get_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match dye_recipe::Entity::find_by_id(id).one(&*db).await {
@@ -137,7 +137,7 @@ pub async fn get_dye_recipe(
 }
 
 pub async fn create_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> impl IntoResponse {
     let recipe = dye_recipe::ActiveModel {
@@ -179,7 +179,7 @@ pub async fn create_dye_recipe(
 }
 
 pub async fn update_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> impl IntoResponse {
@@ -255,7 +255,7 @@ pub async fn update_dye_recipe(
 }
 
 pub async fn delete_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match dye_recipe::Entity::delete_by_id(id).exec(&*db).await {
@@ -273,7 +273,7 @@ pub async fn delete_dye_recipe(
 }
 
 pub async fn approve_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<ApproveRecipeRequest>,
 ) -> impl IntoResponse {
@@ -315,7 +315,7 @@ pub async fn approve_recipe(
 }
 
 pub async fn create_new_version(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<CreateVersionRequest>,
 ) -> impl IntoResponse {
@@ -379,7 +379,7 @@ pub async fn create_new_version(
 }
 
 pub async fn get_recipes_by_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(color_code): Path<String>,
 ) -> impl IntoResponse {
     match dye_recipe::Entity::find()
@@ -399,7 +399,7 @@ pub async fn get_recipes_by_color(
 }
 
 pub async fn get_recipe_versions(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     use sea_orm::QueryFilter;

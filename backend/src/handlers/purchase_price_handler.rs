@@ -8,6 +8,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
@@ -36,7 +37,7 @@ pub struct UpdatePriceRequest {
 
 pub async fn list_prices(
     Query(params): Query<PurchasePriceQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<purchase_price::Model>>>, AppError> {
     info!("用户 {} 正在查询采购价格列表", auth.user_id);
@@ -57,7 +58,7 @@ pub async fn list_prices(
 }
 
 pub async fn get_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<purchase_price::Model>>, AppError> {
@@ -71,7 +72,7 @@ pub async fn get_price(
 }
 
 pub async fn create_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreatePurchasePriceInput>,
 ) -> Result<Json<ApiResponse<purchase_price::Model>>, AppError> {
@@ -88,7 +89,7 @@ pub async fn create_price(
 }
 
 pub async fn update_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
     Json(req): Json<UpdatePriceRequest>,
@@ -112,7 +113,7 @@ pub async fn update_price(
 }
 
 pub async fn delete_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -126,7 +127,7 @@ pub async fn delete_price(
 }
 
 pub async fn approve_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
     Json(_req): Json<ApprovePriceRequest>,
@@ -141,7 +142,7 @@ pub async fn approve_price(
 }
 
 pub async fn get_price_history(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(material_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<purchase_price::Model>>>, AppError> {

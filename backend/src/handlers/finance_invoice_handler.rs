@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -77,9 +78,9 @@ pub struct UpdateInvoicePayload {
 
 /// 获取发票列表
 pub async fn list_invoices(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<InvoiceListResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.list_invoices().await {
         Ok(invoices) => {
@@ -119,10 +120,10 @@ pub async fn list_invoices(
 
 /// 获取发票详情
 pub async fn get_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.get_invoice(id).await {
         Ok(invoice) => Ok(Json(InvoiceResponse {
@@ -150,10 +151,10 @@ pub async fn get_invoice(
 
 /// 创建发票
 pub async fn create_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateInvoicePayload>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     let request = CreateInvoiceRequest {
         invoice_no: payload.invoice_no,
@@ -197,11 +198,11 @@ pub async fn create_invoice(
 
 /// 更新发票
 pub async fn update_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateInvoicePayload>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     let request = UpdateInvoiceRequest {
         invoice_no: payload.invoice_no,
@@ -246,10 +247,10 @@ pub async fn update_invoice(
 
 /// 删除发票
 pub async fn delete_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.delete_invoice(id).await {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
@@ -259,10 +260,10 @@ pub async fn delete_invoice(
 
 /// 审核发票
 pub async fn approve_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.approve_invoice(id).await {
         Ok(invoice) => Ok(Json(InvoiceResponse {
@@ -290,11 +291,11 @@ pub async fn approve_invoice(
 
 /// 核销发票
 pub async fn verify_invoice(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(db.clone());
+    let service = FinanceInvoiceService::new(state.db.clone());
 
     let paid_date = chrono::Utc::now();
     let payment_method = payload

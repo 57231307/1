@@ -7,7 +7,6 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::middleware::auth_context::AuthContext;
@@ -15,6 +14,7 @@ use crate::models::cost_collection;
 use crate::services::cost_collection_service::{
     CostCollectionService, CreateCostCollectionRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use rust_decimal::Decimal;
@@ -51,12 +51,12 @@ pub struct CreateCostCollectionRequestDto {
 /// 查询成本归集列表
 pub async fn list_collections(
     Query(params): Query<CostCollectionQuery>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<cost_collection::Model>>>, AppError> {
     info!("用户 {} 查询成本归集列表", auth.username);
 
-    let service = CostCollectionService::new(db);
+    let service = CostCollectionService::new(state.db.clone());
     let (collections, total) = service
         .get_list(
             params.batch_no,
@@ -74,7 +74,7 @@ pub async fn list_collections(
 /// 创建成本归集
 #[axum::debug_handler]
 pub async fn create_collection(
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateCostCollectionRequestDto>,
 ) -> Result<Json<ApiResponse<cost_collection::Model>>, AppError> {
@@ -105,7 +105,7 @@ pub async fn create_collection(
         output_quantity_kg: req.output_quantity_kg,
     };
 
-    let service = CostCollectionService::new(db);
+    let service = CostCollectionService::new(state.db.clone());
     let collection = service.create(create_req, auth.user_id).await?;
     info!(
         "用户 {} 创建成本归集成功：{}",

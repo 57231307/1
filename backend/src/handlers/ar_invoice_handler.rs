@@ -7,12 +7,12 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::ar_invoice;
 use crate::services::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use rust_decimal::Decimal;
@@ -46,12 +46,12 @@ pub struct CreateArInvoiceRequestDto {
 /// 查询应收单列表
 pub async fn list_invoices(
     Query(params): Query<ArInvoiceQuery>,
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<ar_invoice::Model>>>, AppError> {
     info!("用户 {} 查询应收单列表", auth.username);
 
-    let service = ArInvoiceService::new(db);
+    let service = ArInvoiceService::new(state.db.clone());
     let (invoices, total) = service
         .get_list(
             params.customer_id,
@@ -69,7 +69,7 @@ pub async fn list_invoices(
 /// 创建应收单
 #[axum::debug_handler]
 pub async fn create_invoice(
-    State(db): State<Arc<sea_orm::DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateArInvoiceRequestDto>,
 ) -> Result<Json<ApiResponse<ar_invoice::Model>>, AppError> {
@@ -102,7 +102,7 @@ pub async fn create_invoice(
         sales_order_no: req.sales_order_no,
     };
 
-    let service = ArInvoiceService::new(db);
+    let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.create(create_req, auth.user_id).await?;
     info!(
         "用户 {} 创建应收单成功：{}",

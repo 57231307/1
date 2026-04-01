@@ -168,7 +168,7 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"))
             // 检查可用库存低于重新订购点
-            .filter(inventory_stock::Column::QuantityAvailable.lt(inventory_stock::Column::ReorderPoint))
+            .filter(sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint)))
             // 只检查重新订购点大于0的记录
             .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
 

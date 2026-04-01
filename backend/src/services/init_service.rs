@@ -4,9 +4,10 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, Database, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::warn;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct DatabaseConfig {
@@ -70,18 +71,19 @@ impl InitService {
         for attempt in 1..=max_retries {
             match Database::connect(opt.clone()).await {
                 Ok(db) => {
-                    let result: Result<i32, DbErr> = db
+                    let query_result = db
                         .query_one(sea_orm::Statement::from_string(
                             sea_orm::DatabaseBackend::Postgres,
                             "SELECT 1 as test".to_string(),
                         ))
-                        .await
-                        .map(|v: Option<sea_orm::QueryResult>| {
-                            v.map(|row: sea_orm::QueryResult| row.try_get::<i32>("", "test").unwrap_or(1))
-                        })
-                        .map(|opt: Option<i32>| opt.unwrap_or(0));
+                        .await;
 
-                    return result.map(|_| ()).map_err(|e| {
+                    // 测试查询结果
+                    let _ = query_result.as_ref().map(|v| {
+                        v.as_ref().map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
+                    }).map(|opt| opt.unwrap_or(0));
+
+                    return query_result.map(|_| ()).map_err(|e| {
                         InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
                     });
                 }

@@ -14,6 +14,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -35,7 +36,7 @@ pub struct ApPaymentQueryParams {
 /// 查询付款列表
 pub async fn list_payments(
     Query(params): Query<ApPaymentQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -71,7 +72,7 @@ pub async fn list_payments(
 /// 获取付款详情
 pub async fn get_payment(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询付款详情 ID: {}", auth.username, id);
@@ -90,7 +91,7 @@ pub async fn get_payment(
 /// 创建付款
 #[axum::debug_handler]
 pub async fn create_payment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -122,7 +123,7 @@ pub async fn create_payment(
 #[axum::debug_handler]
 pub async fn update_payment(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -150,7 +151,7 @@ pub async fn update_payment(
 /// 确认付款
 pub async fn confirm_payment(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认付款 ID: {}", auth.username, id);
@@ -179,7 +180,7 @@ pub struct PaymentScheduleParams {
 
 pub async fn get_payment_schedule(
     Query(params): Query<PaymentScheduleParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(

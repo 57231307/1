@@ -86,7 +86,7 @@ pub struct StockOutRequest {
 }
 
 pub async fn list_greige_fabrics(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -133,7 +133,7 @@ pub async fn list_greige_fabrics(
 }
 
 pub async fn get_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match greige_fabric::Entity::find_by_id(id).one(&*db).await {
@@ -152,7 +152,7 @@ pub async fn get_greige_fabric(
 }
 
 pub async fn create_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> impl IntoResponse {
     let fabric = greige_fabric::ActiveModel {
@@ -192,7 +192,7 @@ pub async fn create_greige_fabric(
 }
 
 pub async fn update_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateGreigeFabricRequest>,
 ) -> impl IntoResponse {
@@ -272,7 +272,7 @@ pub async fn update_greige_fabric(
 }
 
 pub async fn delete_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match greige_fabric::Entity::delete_by_id(id).exec(&*db).await {
@@ -290,7 +290,7 @@ pub async fn delete_greige_fabric(
 }
 
 pub async fn stock_in(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<StockInRequest>,
 ) -> impl IntoResponse {
@@ -341,7 +341,7 @@ pub async fn stock_in(
 }
 
 pub async fn stock_out(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<StockOutRequest>,
 ) -> impl IntoResponse {
@@ -409,7 +409,7 @@ pub async fn stock_out(
 }
 
 pub async fn get_greige_by_supplier(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(supplier_id): Path<i32>,
 ) -> impl IntoResponse {
     match greige_fabric::Entity::find()
