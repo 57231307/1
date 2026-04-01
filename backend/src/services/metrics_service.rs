@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn test_create_metrics_router() {
         let metrics_service = Arc::new(MetricsService::new().unwrap());
-        let router = create_metrics_router(metrics_service);
+        let _router = create_metrics_router(metrics_service.clone());
         
         // 验证路由创建成功
         assert!(Arc::strong_count(&metrics_service) >= 1);

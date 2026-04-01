@@ -449,6 +449,14 @@ pub async fn delete_budget(
 }
 
 
+/// 预算获取功能尚未实现
+pub async fn get_budget(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在预算获取功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("预算获取功能尚未实现".to_string()))
+}
+
 /// 预算审批功能尚未实现
 pub async fn approve_budget(
     Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
