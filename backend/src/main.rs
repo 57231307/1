@@ -37,6 +37,7 @@ use crate::grpc::GrpcUserService;
 use crate::grpc::management_services::GrpcManagementServices;
 use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
+use crate::middleware::permission::permission_middleware;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
@@ -228,6 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(cors.clone())
                 .layer(axum::middleware::from_fn(request_validator_middleware))
                 .layer(axum::middleware::from_fn(auth_middleware))
+                .layer(axum::middleware::from_fn(permission_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
                     HeaderValue::from_static("nosniff"),
