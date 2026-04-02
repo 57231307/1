@@ -434,7 +434,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_dashboard_open(!*dashboard_open))}>
                         <span class="nav-group-title">{"仪表盘"}</span>
-                        <span class={if *dashboard_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *dashboard_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\\25bc"}</span>
                     </div>
                     {if *dashboard_open {
                         html! {
@@ -451,7 +451,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_system_open(!*system_open))}>
                         <span class="nav-group-title">{"系统管理"}</span>
-                        <span class={if *system_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *system_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *system_open {
                         html! {
@@ -474,7 +474,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_system_open(!*system_open))}>
                         <span class="nav-group-title">{"基础数据"}</span>
-                        <span class={if *system_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *system_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *system_open {
                         html! {
@@ -503,7 +503,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_inventory_open(!*inventory_open))}>
                         <span class="nav-group-title">{"库存管理"}</span>
-                        <span class={if *inventory_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *inventory_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *inventory_open {
                         html! {
@@ -529,7 +529,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_sales_open(!*sales_open))}>
                         <span class="nav-group-title">{"销售管理"}</span>
-                        <span class={if *sales_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *sales_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *sales_open {
                         html! {
@@ -561,7 +561,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_purchase_open(!*purchase_open))}>
                         <span class="nav-group-title">{"采购管理"}</span>
-                        <span class={if *purchase_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *purchase_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *purchase_open {
                         html! {
@@ -596,7 +596,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_finance_open(!*finance_open))}>
                         <span class="nav-group-title">{"财务管理"}</span>
-                        <span class={if *finance_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *finance_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *finance_open {
                         html! {
@@ -649,7 +649,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_fabric_open(!*fabric_open))}>
                         <span class="nav-group-title">{"面料行业特色"}</span>
-                        <span class={if *fabric_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *fabric_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *fabric_open {
                         html! {
@@ -672,7 +672,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 <div class="nav-group">
                     <div class="nav-group-header" onclick={Callback::from(move |_| set_analysis_open(!*analysis_open))}>
                         <span class="nav-group-title">{"分析报表"}</span>
-                        <span class={if *analysis_open { "nav-group-icon open" } else { "nav-group-icon" }}>▼</span>
+                        <span class={if *analysis_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"\u{25bc}"}</span>
                     </div>
                     {if *analysis_open {
                         html! {
