@@ -37,6 +37,7 @@ use crate::grpc::GrpcUserService;
 use crate::grpc::management_services::GrpcManagementServices;
 use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
+use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
 
@@ -186,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::ACCEPT,
             axum::http::header::X_REQUESTED_WITH,
         ])
-        .allow_credentials(true)
+        .allow_credentials(false)
         .max_age(Duration::from_secs(86400)); // 24小时
 
     let db_result = Database::connect(&settings.database.connection_string).await;
@@ -225,6 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ),
                 )
                 .layer(cors.clone())
+                .layer(axum::middleware::from_fn(request_validator_middleware))
                 .layer(axum::middleware::from_fn(auth_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,

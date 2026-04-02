@@ -179,3 +179,89 @@ pub struct UpdateContactRequest {
     pub is_primary: Option<bool>,
     pub remarks: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierProduct {
+    pub id: i32,
+    pub supplier_id: i32,
+    pub product_code: String,
+    pub product_name: String,
+    pub product_description: Option<String>,
+    pub unit: String,
+    pub is_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub created_by: Option<i32>,
+    pub updated_by: Option<i32>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierProductColor {
+    pub id: i32,
+    pub supplier_product_id: i32,
+    pub color_no: String,
+    pub color_name: String,
+    pub pantone_code: Option<String>,
+    pub extra_cost: String,
+    pub is_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductSupplierMapping {
+    pub id: i32,
+    pub product_id: i32,
+    pub product_color_id: Option<i32>,
+    pub supplier_id: i32,
+    pub supplier_product_id: i32,
+    pub supplier_product_color_id: Option<i32>,
+    pub is_primary: bool,
+    pub priority: i32,
+    pub supplier_price: Option<String>,
+    pub min_order_quantity: Option<String>,
+    pub lead_time: Option<i32>,
+    pub is_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub created_by: Option<i32>,
+    pub updated_by: Option<i32>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateSupplierProductRequest {
+    pub supplier_id: i32,
+    pub product_code: String,
+    pub product_name: String,
+    pub product_description: Option<String>,
+    pub unit: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateSupplierProductColorRequest {
+    pub supplier_product_id: i32,
+    pub color_no: String,
+    pub color_name: String,
+    pub pantone_code: Option<String>,
+    pub extra_cost: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateProductSupplierMappingRequest {
+    pub product_id: i32,
+    pub product_color_id: Option<i32>,
+    pub supplier_id: i32,
+    pub supplier_product_id: i32,
+    pub supplier_product_color_id: Option<i32>,
+    pub is_primary: bool,
+    pub priority: i32,
+    pub supplier_price: Option<String>,
+    pub min_order_quantity: Option<String>,
+    pub lead_time: Option<i32>,
+    pub remarks: Option<String>,
+}

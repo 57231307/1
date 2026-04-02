@@ -45,6 +45,9 @@ pub mod supplier_evaluation;
 pub mod supplier_evaluation_record;
 pub mod supplier_grade;
 pub mod supplier_qualification;
+pub mod supplier_product;
+pub mod supplier_product_color;
+pub mod product_supplier_mapping;
 // 采购管理模块
 pub mod purchase_order;
 pub mod purchase_order_item;

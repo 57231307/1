@@ -2,15 +2,15 @@ use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use chrono::{Datelike, Timelike};
 use crate::models::dashboard::{
-    DashboardOverview, LowStockAlert, SalesTrend, InventoryStatus,
+    DashboardOverview, LowStockAlert, SalesStatistics, InventoryStatistics,
 };
 use crate::services::dashboard_service::DashboardService;
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,
     low_stock_alerts: Vec<LowStockAlert>,
-    sales_trend: Vec<SalesTrend>,
-    inventory_status: Vec<InventoryStatus>,
+    sales_trend: Vec<SalesStatistics>,
+    inventory_status: Vec<InventoryStatistics>,
     loading: bool,
     error: Option<String>,
     auto_refresh: bool,
@@ -21,8 +21,8 @@ pub enum Msg {
     DataLoaded {
         overview: DashboardOverview,
         low_stock_alerts: Vec<LowStockAlert>,
-        sales_trend: Vec<SalesTrend>,
-        inventory_status: Vec<InventoryStatus>,
+        sales_trend: Vec<SalesStatistics>,
+        inventory_status: Vec<InventoryStatistics>,
     },
     Error(String),
     ToggleAutoRefresh,
