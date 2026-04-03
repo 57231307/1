@@ -7,9 +7,10 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::http::{Request, HeaderValue, Method};
+use axum::http::{Request, HeaderValue, Method, header};
 use axum::{routing::{get, post}, Router, Json};
 use sea_orm::Database;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -186,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::AUTHORIZATION,
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
-            axum::http::header::X_REQUESTED_WITH,
+            axum::http::header::HeaderName::from_static("x-requested-with"),
         ])
         .allow_credentials(false)
         .max_age(Duration::from_secs(86400)); // 24小时
@@ -201,6 +202,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::io::stderr().flush().ok();
 
             let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+            let app_state_clone = app_state.clone();
             create_router(app_state)
                 .layer(
                     TraceLayer::new_for_http()
@@ -228,8 +230,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .layer(cors.clone())
                 .layer(axum::middleware::from_fn(request_validator_middleware))
-                .layer(axum::middleware::from_fn(auth_middleware))
-                .layer(axum::middleware::from_fn(permission_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), auth_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
                     HeaderValue::from_static("nosniff"),
@@ -255,7 +257,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("strict-origin-when-cross-origin"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::PERMISSIONS_POLICY,
+                    axum::http::header::HeaderName::from_static("permissions-policy"),
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
         }
@@ -309,7 +311,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("strict-origin-when-cross-origin"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::PERMISSIONS_POLICY,
+                    axum::http::header::HeaderName::from_static("permissions-policy"),
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
         }

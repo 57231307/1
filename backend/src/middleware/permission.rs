@@ -13,15 +13,13 @@ use tracing::warn;
 
 pub async fn permission_middleware(
     State(state): State<AppState>,
-    auth: AuthContext,
-    request: Request<Body>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let method = request.method();
     let uri = request.uri();
     let path = uri.path();
 
-    // 公共路径不需要权限检查
     let public_paths = [
         "/health",
         "/ready",
@@ -41,15 +39,21 @@ pub async fn permission_middleware(
         return Ok(next.run(request).await);
     }
 
-    // 系统管理员（ID为1）拥有所有权限
+    let auth = request.extensions().get::<AuthContext>().cloned();
+    let auth = match auth {
+        Some(auth) => auth,
+        None => {
+            warn!("缺少认证上下文");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
+
     if auth.user_id == 1 {
         return Ok(next.run(request).await);
     }
 
-    // 从路径中提取资源类型和ID
     let (resource_type, resource_id) = extract_resource_info(path);
 
-    // 检查用户是否有权限
     let has_permission = check_permission(
         &state.db,
         auth.role_id.unwrap_or(0),
