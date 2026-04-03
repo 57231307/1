@@ -4,8 +4,8 @@
   "description": "秉羲管理系统前端 - Yew + Utoo",
   "main": "index.js",
   "scripts": {
-    "dev": "ut dev",
-    "build": "ut build",
+    "dev": "utoo dev",
+    "build": "utoo build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
