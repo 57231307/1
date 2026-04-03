@@ -5,7 +5,6 @@ use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::business_trace::{
     TraceChain, FullTraceChainResponse, TraceStageDetail,
-    ForwardTraceParams, BackwardTraceParams,
 };
 use crate::services::business_trace_service::BusinessTraceService;
 use crate::components::main_layout::MainLayout;
@@ -605,7 +604,7 @@ impl BusinessTracePage {
     }
 
     // 渲染追溯列表
-    fn render_trace_list(&self, ctx: &Context<Self>, traces: &[TraceChain], _mode: &str) -> Html {
+    fn render_trace_list(&self, _ctx: &Context<Self>, traces: &[TraceChain], _mode: &str) -> Html {
         html! {
             <div class="trace-list">
                 <h3>{"追溯结果"}</h3>

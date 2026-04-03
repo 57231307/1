@@ -3,8 +3,7 @@
 //! 与后端付款申请API交互
 
 use crate::models::ap_payment_request::{
-    ApPaymentRequest, ApPaymentRequestListResponse, ApPaymentRequestQueryParams,
-    ApPaymentRequestItemRequest, CreateApPaymentRequest, RejectApPaymentRequest,
+    ApPaymentRequest, ApPaymentRequestListResponse, ApPaymentRequestQueryParams, CreateApPaymentRequest, RejectApPaymentRequest,
     UpdateApPaymentRequest,
 };
 use crate::services::api::ApiService;

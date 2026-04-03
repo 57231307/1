@@ -9,11 +9,10 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dye_batch;
 use crate::utils::app_state::AppState;

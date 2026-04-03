@@ -13,10 +13,8 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::{info, warn};
 use validator::Validate;
 

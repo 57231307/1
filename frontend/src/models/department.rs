@@ -1,6 +1,5 @@
 //! 部门模型
 
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Department {

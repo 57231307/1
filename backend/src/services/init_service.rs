@@ -4,7 +4,7 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::warn;

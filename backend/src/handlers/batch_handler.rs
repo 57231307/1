@@ -4,10 +4,8 @@ use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
 use axum::{extract::State, http::StatusCode, Json};
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// 批量创建产品请求
 #[derive(Debug, Deserialize)]

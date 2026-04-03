@@ -2,10 +2,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::product;
 use crate::models::product_color;

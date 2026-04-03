@@ -8,10 +8,8 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// 创建调整单请求
 #[derive(Debug, Deserialize)]

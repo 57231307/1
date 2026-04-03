@@ -4,7 +4,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use wasm_bindgen::JsCast;
 use crate::app::Route;
 use crate::services::init_service::InitService;
 use web_sys::{HtmlInputElement, InputEvent};

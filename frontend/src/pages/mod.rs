@@ -84,7 +84,6 @@ pub use inventory_adjustment::InventoryAdjustmentPage;
 pub use account_subject::AccountSubjectPage;
 pub use voucher::VoucherPage;
 pub use fund_management::FundManagementPage;
-pub use budget_management::BudgetManagementPage;
 pub use fixed_asset::FixedAssetPage;
 pub use customer_credit::CustomerCreditPage;
 pub use dual_unit_converter::DualUnitConverterPage;

@@ -7,10 +7,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use crate::middleware::auth_context::AuthContext;
 
 #[derive(Debug, Deserialize)]

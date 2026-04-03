@@ -2,9 +2,7 @@
 
 use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus};
 use axum::{extract::State, http::StatusCode, Json};
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
-use std::sync::Arc;
 
 #[derive(Debug, serde::Serialize)]
 pub struct ErrorResponse {

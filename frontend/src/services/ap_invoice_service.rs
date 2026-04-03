@@ -3,7 +3,7 @@
 //! 与后端应付发票API交互
 
 use crate::models::ap_invoice::{
-    AgingAnalysisItem, ApInvoice, ApInvoiceItemRequest, ApInvoiceListResponse,
+    AgingAnalysisItem, ApInvoice, ApInvoiceListResponse,
     ApInvoiceQueryParams, AutoGenerateRequest, BalanceSummaryItem, CancelInvoiceRequest,
     CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };

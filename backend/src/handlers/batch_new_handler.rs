@@ -7,10 +7,9 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, TransactionTrait,
+    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, TransactionTrait,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::inventory_stock;
 use crate::utils::app_state::AppState;

@@ -8,11 +8,9 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-use std::sync::Arc;
 use validator::Validate;
 
 /// 查询供应商列表

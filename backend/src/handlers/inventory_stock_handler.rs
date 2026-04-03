@@ -7,10 +7,8 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateStockRequest {

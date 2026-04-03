@@ -3,10 +3,9 @@ use axum::{
     Json,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::location::Entity as LocationEntity;
 use crate::models::location::{self as location_model};

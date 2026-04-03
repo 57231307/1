@@ -121,7 +121,7 @@ pub async fn rate_limiter_middleware(
         }
         Err(RateLimitError::TooManyRequests { retry_after }) => {
             // 返回 429 错误
-            let mut response = Response::builder()
+            let response = Response::builder()
                 .status(StatusCode::TOO_MANY_REQUESTS)
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("Retry-After", retry_after.to_string())

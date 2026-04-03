@@ -1,6 +1,6 @@
 use crate::models::api_response::ApiResponse;
 use crate::models::business_trace::{
-    BackwardTraceParams, ForwardTraceParams, FullTraceChainResponse, TraceChain, TraceListResponse,
+    FullTraceChainResponse, TraceListResponse,
 };
 use crate::services::api::ApiService;
 
@@ -37,7 +37,7 @@ impl BusinessTraceService {
     /// 创建追溯快照
     #[allow(dead_code)]
     pub async fn create_snapshot(trace_chain_id: &str) -> Result<String, String> {
-        let response: ApiResponse<String> = ApiService::post(
+        let _response: ApiResponse<String> = ApiService::post(
             &format!("/business-trace/snapshot/{}", trace_chain_id),
             &serde_json::json!({})
         ).await?;

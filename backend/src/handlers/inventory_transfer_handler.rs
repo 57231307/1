@@ -2,10 +2,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::services::inventory_transfer_service::{

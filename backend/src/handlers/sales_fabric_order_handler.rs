@@ -3,11 +3,10 @@ use axum::{
     Json,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::sales_order;
 use crate::models::sales_order_item;

@@ -3,13 +3,11 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 
 /// 创建客户请求

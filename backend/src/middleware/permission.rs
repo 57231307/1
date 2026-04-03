@@ -13,7 +13,7 @@ use tracing::warn;
 
 pub async fn permission_middleware(
     State(state): State<AppState>,
-    mut request: Request<Body>,
+    request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let method = request.method();

@@ -1,9 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::Utc;
 use serde::Serialize;
-use std::sync::Arc;
 
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 
 /// 健康状态响应

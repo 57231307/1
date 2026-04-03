@@ -4,10 +4,8 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dto::{ApiResponse, PageRequest};
 use crate::services::inventory_count_service::{

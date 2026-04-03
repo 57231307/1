@@ -48,7 +48,7 @@ where
     V: Clone,
 {
     fn get(&self, key: &K) -> Option<V> {
-        if let Some(mut entry) = self.storage.get_mut(key) {
+        if let Some(entry) = self.storage.get_mut(key) {
             // 检查是否过期
             if let Some(expires_at) = entry.expires_at {
                 if Instant::now() > expires_at {

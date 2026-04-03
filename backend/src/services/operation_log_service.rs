@@ -1,5 +1,5 @@
 use crate::models::operation_log;
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, ActiveModelBehavior, DbErr, Order, PaginatorTrait};
+use sea_orm::{EntityTrait, Set, ActiveModelTrait, DbErr, Order, PaginatorTrait};
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use chrono::Utc;
@@ -132,7 +132,7 @@ impl OperationLogService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<operation_log::Model>, u64), DbErr> {
-        use sea_orm::{QueryOrder, ColumnTrait, QuerySelect};
+        use sea_orm::QueryOrder;
 
         let paginator = operation_log::Entity::find()
             .order_by(operation_log::Column::CreatedAt, Order::Desc)
@@ -151,7 +151,7 @@ impl OperationLogService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<operation_log::Model>, u64), DbErr> {
-        use sea_orm::{QueryFilter, ColumnTrait, QueryOrder, QuerySelect};
+        use sea_orm::{QueryFilter, ColumnTrait, QueryOrder};
 
         let paginator = operation_log::Entity::find()
             .filter(operation_log::Column::Module.eq(module))
@@ -171,7 +171,7 @@ impl OperationLogService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<operation_log::Model>, u64), DbErr> {
-        use sea_orm::{QueryFilter, ColumnTrait, QueryOrder, QuerySelect};
+        use sea_orm::{QueryFilter, ColumnTrait, QueryOrder};
 
         let paginator = operation_log::Entity::find()
             .filter(operation_log::Column::UserId.eq(user_id))

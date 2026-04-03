@@ -1,4 +1,4 @@
-use chrono::{Utc, NaiveDate};
+use chrono::Utc;
 // 操作日志中间件
 // 自动记录用户的 HTTP 请求操作
 
@@ -57,7 +57,7 @@ pub async fn operation_log_middleware(
     let duration_ms = (end_time - start_time).num_milliseconds();
     
     // 判断操作状态
-    let status = if response.status().is_success() {
+    let _status = if response.status().is_success() {
         "success"
     } else {
         "failure"

@@ -10,13 +10,10 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use validator::Validate;
 
 /// 查询采购订单列表

@@ -1,6 +1,5 @@
 //! 产品模型
 
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Product {

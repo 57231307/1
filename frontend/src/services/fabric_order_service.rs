@@ -3,7 +3,6 @@
 
 use crate::models::fabric_order::*;
 use crate::services::api::ApiService;
-use serde::Serialize;
 
 pub struct FabricOrderService;
 

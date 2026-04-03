@@ -1,5 +1,5 @@
 use crate::models::inventory_adjustment::{
-    AdjustmentItem, AdjustmentSummary, CreateAdjustmentItemRequest, CreateAdjustmentRequest,
+    CreateAdjustmentRequest,
     InventoryAdjustment, InventoryAdjustmentListResponse,
 };
 use crate::services::api::ApiService;

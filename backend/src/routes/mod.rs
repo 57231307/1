@@ -3,10 +3,8 @@ use axum::{
     Router,
     middleware,
 };
-use std::sync::Arc;
 use crate::utils::app_state::AppState;
 use crate::middleware::rate_limit;
-use crate::services::metrics_service::{create_metrics_router, MetricsService};
 
 use crate::handlers::{
     account_subject_handler,
@@ -39,7 +37,6 @@ use crate::handlers::{
     fund_management_handler,
     greige_fabric_handler,
     health_handler,
-    init_handler,
     inventory_adjustment_handler,
     inventory_count_handler,
     inventory_stock_handler,

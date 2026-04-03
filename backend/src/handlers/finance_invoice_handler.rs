@@ -5,10 +5,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use sea_orm::DatabaseConnection;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// 发票响应
 #[derive(Debug, Serialize)]
