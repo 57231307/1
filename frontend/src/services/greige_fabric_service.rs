@@ -62,8 +62,7 @@ impl GreigeFabricService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> = ApiService::delete(&format!("/greige-fabric/{}", id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/greige-fabric/{}", id)).await
     }
 
     pub async fn stock_in(id: i32, req: StockInRequest) -> Result<GreigeFabric, String> {

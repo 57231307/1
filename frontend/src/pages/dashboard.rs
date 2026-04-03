@@ -1,16 +1,13 @@
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use chrono::{Datelike, Timelike};
-use crate::models::dashboard::{
-    DashboardOverview, LowStockAlert, SalesStatistics, InventoryStatistics,
-};
-use crate::services::dashboard_service::DashboardService;
+use crate::services::dashboard_service::{DashboardService, DashboardOverview, LowStockAlert, SalesStatistics, InventoryStatistics};
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,
     low_stock_alerts: Vec<LowStockAlert>,
-    sales_trend: Vec<SalesStatistics>,
-    inventory_status: Vec<InventoryStatistics>,
+    sales_trend: Option<SalesStatistics>,
+    inventory_status: Option<InventoryStatistics>,
     loading: bool,
     error: Option<String>,
     auto_refresh: bool,
@@ -21,8 +18,8 @@ pub enum Msg {
     DataLoaded {
         overview: DashboardOverview,
         low_stock_alerts: Vec<LowStockAlert>,
-        sales_trend: Vec<SalesStatistics>,
-        inventory_status: Vec<InventoryStatistics>,
+        sales_trend: SalesStatistics,
+        inventory_status: InventoryStatistics,
     },
     Error(String),
     ToggleAutoRefresh,
@@ -38,8 +35,8 @@ impl Component for DashboardPage {
         Self {
             overview: None,
             low_stock_alerts: Vec::new(),
-            sales_trend: Vec::new(),
-            inventory_status: Vec::new(),
+            sales_trend: None,
+            inventory_status: None,
             loading: true,
             error: None,
             auto_refresh: false,
@@ -61,7 +58,7 @@ impl Component for DashboardPage {
                     ).await;
                     
                     let alerts_result = DashboardService::get_low_stock_alerts().await;
-                    let sales_trend_result = DashboardService::get_sales_statistics().await;
+                    let sales_trend_result = DashboardService::get_sales_statistics("2026-01-01", "2026-03-31").await;
                     let inventory_status_result = DashboardService::get_inventory_statistics().await;
                     
                     match (overview_result, alerts_result, sales_trend_result, inventory_status_result) {
@@ -83,8 +80,8 @@ impl Component for DashboardPage {
             Msg::DataLoaded { overview, low_stock_alerts, sales_trend, inventory_status } => {
                 self.overview = Some(overview);
                 self.low_stock_alerts = low_stock_alerts;
-                self.sales_trend = sales_trend;
-                self.inventory_status = inventory_status;
+                self.sales_trend = Some(sales_trend);
+                self.inventory_status = Some(inventory_status);
                 self.loading = false;
                 true
             }
@@ -221,70 +218,88 @@ impl DashboardPage {
     }
 
     fn render_sales_chart(&self) -> Html {
-        if self.sales_trend.is_empty() {
-            return html! {
+        if let Some(sales_data) = &self.sales_trend {
+            if sales_data.daily_sales.is_empty() {
+                return html! {
+                    <div class="empty-state">
+                        <div class="empty-icon">{"📈"}</div>
+                        <p>{"暂无销售数据"}</p>
+                    </div>
+                };
+            }
+
+            // 生成销售趋势图表（这里使用简单的HTML表示，实际项目中可以使用Chart.js等库）
+            html! {
+                <div class="chart-container">
+                    <div class="chart-content">
+                        <div class="sales-trend-chart">
+                            {for sales_data.daily_sales.iter().map(|trend| {
+                                html! {
+                                    <div class="chart-bar">
+                                        <div class="bar-label">{&trend.date}</div>
+                                        <div class="bar-container">
+                                            <div 
+                                                class="bar-fill" 
+                                                style={format!("width: {}%", trend.amount.parse::<f64>().unwrap_or(0.0) / 10000.0 * 100.0)}
+                                            ></div>
+                                        </div>
+                                        <div class="bar-value">{&trend.amount}</div>
+                                    </div>
+                                }
+                            })}
+                        </div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {
                 <div class="empty-state">
                     <div class="empty-icon">{"📈"}</div>
                     <p>{"暂无销售数据"}</p>
                 </div>
-            };
+            }
         }
+    }
 
-        // 生成销售趋势图表（这里使用简单的HTML表示，实际项目中可以使用Chart.js等库）
-        html! {
-            <div class="chart-container">
-                <div class="chart-content">
-                    <div class="sales-trend-chart">
-                        {for self.sales_trend.iter().map(|trend| {
+    fn render_inventory_chart(&self) -> Html {
+        if let Some(inventory_data) = &self.inventory_status {
+            if inventory_data.by_warehouse.is_empty() {
+                return html! {
+                    <div class="empty-state">
+                        <div class="empty-icon">{"📊"}</div>
+                        <p>{"暂无库存数据"}</p>
+                    </div>
+                };
+            }
+
+            // 生成库存状态图表
+            html! {
+                <div class="chart-container">
+                    <div class="inventory-status-chart">
+                        {for inventory_data.by_warehouse.iter().map(|warehouse| {
                             html! {
-                                <div class="chart-bar">
-                                    <div class="bar-label">{&trend.date}</div>
-                                    <div class="bar-container">
+                                <div class="inventory-item">
+                                    <div class="inventory-label">{&warehouse.warehouse_name}</div>
+                                    <div class="inventory-progress">
                                         <div 
-                                            class="bar-fill" 
-                                            style={format!("width: {}%", trend.amount.parse::<f64>().unwrap_or(0.0) / 10000.0 * 100.0)}
+                                            class="inventory-progress-bar" 
+                                            style={format!("width: 50%")}
                                         ></div>
                                     </div>
-                                    <div class="bar-value">{&trend.amount}</div>
+                                    <div class="inventory-value">{&warehouse.quantity}</div>
                                 </div>
                             }
                         })}
                     </div>
                 </div>
-            </div>
-        }
-    }
-
-    fn render_inventory_chart(&self) -> Html {
-        if self.inventory_status.is_empty() {
-            return html! {
+            }
+        } else {
+            html! {
                 <div class="empty-state">
                     <div class="empty-icon">{"📊"}</div>
                     <p>{"暂无库存数据"}</p>
                 </div>
-            };
-        }
-
-        // 生成库存状态图表
-        html! {
-            <div class="chart-container">
-                <div class="inventory-status-chart">
-                    {for self.inventory_status.iter().map(|status| {
-                        html! {
-                            <div class="inventory-item">
-                                <div class="inventory-label">{&status.warehouse_name}</div>
-                                <div class="inventory-progress">
-                                    <div 
-                                        class="inventory-progress-bar" 
-                                        style={format!("width: {}%", status.fill_rate)}
-                                    ></div>
-                                </div>
-                                <div class="inventory-value">{&status.fill_rate}%</div>
-                            </div>
-                        }
-                    })}
-                </div>
-            </div>
+            }
         }
     }
 

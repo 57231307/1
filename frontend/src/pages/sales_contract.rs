@@ -168,7 +168,7 @@ impl Component for SalesContractPage {
                 wasm_bindgen_futures::spawn_local(async move {
                     match SalesContractService::list_contracts(params).await {
                         Ok(response) => {
-                            link.send_message(Msg::SetContracts(response.data, response.total));
+                            link.send_message(Msg::SetContracts(response.items, response.total));
                         }
                         Err(e) => {
                             link.send_message(Msg::SetError(Some(e)));

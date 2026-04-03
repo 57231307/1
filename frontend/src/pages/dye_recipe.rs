@@ -75,7 +75,7 @@ impl Component for DyeRecipePage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match DyeRecipeService::list(query).await {
-                        Ok(recipes) => link.send_message(Msg::RecipesLoaded(recipes)),
+                        Ok(recipes) => link.send_message(Msg::RecipesLoaded(recipes.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -119,7 +119,7 @@ impl Component for DyeRecipePage {
             Msg::ApproveRecipe(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    let req = crate::services::dye_recipe_service::ApproveRecipeRequest {
+                    let req = crate::models::dye_recipe::ApproveRecipeRequest {
                         approved_by: 1,
                     };
                     match DyeRecipeService::approve(id, req).await {
@@ -267,9 +267,9 @@ impl DyeRecipePage {
                                     <td>{&recipe.color_code}</td>
                                     <td>{&recipe.color_name}</td>
                                     <td>{recipe.dye_type.as_deref().unwrap_or("-")}</td>
-                                    <td class="numeric">{recipe.temperature.map(|t| format!("{:.1}", t)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{recipe.time_minutes.map(|t| t.to_string()).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{recipe.liquor_ratio.map(|l| format!("1:{}", l)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{recipe.temperature.clone().map(|t| format!("{:.1}", t)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{recipe.ph_value.clone().map(|p| format!("{:.1}", p)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{recipe.liquor_ratio.clone().map(|l| format!("1:{}", l)).unwrap_or("-".to_string())}</td>
                                     <td class="numeric">{format!("V{}", recipe.version.unwrap_or(1))}</td>
                                     <td>
                                         <span class={format!("status-badge status-{}", if is_draft { "draft" } else { "approved" })}>
@@ -336,7 +336,7 @@ impl DyeRecipePage {
                                 </div>
                                 <div class="detail-item">
                                     <label>{"温度："}</label>
-                                    <span>{recipe.temperature.map(|t| format!("{}℃", t)).unwrap_or("-".to_string())}</span>
+                                    <span>{recipe.temperature.clone().map(|t| format!("{}℃", t)).unwrap_or("-".to_string())}</span>
                                 </div>
                                 <div class="detail-item">
                                     <label>{"时间："}</label>
@@ -344,11 +344,11 @@ impl DyeRecipePage {
                                 </div>
                                 <div class="detail-item">
                                     <label>{"pH值："}</label>
-                                    <span>{recipe.ph_value.map(|p| format!("{:.1}", p)).unwrap_or("-".to_string())}</span>
+                                    <span>{recipe.ph_value.clone().map(|p| format!("{:.1}", p)).unwrap_or("-".to_string())}</span>
                                 </div>
                                 <div class="detail-item">
                                     <label>{"浴比："}</label>
-                                    <span>{recipe.liquor_ratio.map(|l| format!("1:{}", l)).unwrap_or("-".to_string())}</span>
+                                    <span>{recipe.liquor_ratio.clone().map(|l| format!("1:{}", l)).unwrap_or("-".to_string())}</span>
                                 </div>
                                 <div class="detail-item">
                                     <label>{"版本："}</label>

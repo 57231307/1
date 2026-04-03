@@ -66,7 +66,6 @@ impl FixedAssetService {
 
     /// 删除资产
     pub async fn delete_asset(id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> = ApiService::delete(&format!("/assets/{}", id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/assets/{}", id)).await
     }
 }

@@ -59,8 +59,7 @@ impl DyeRecipeService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> = ApiService::delete(&format!("/dye-recipe/{}", id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/dye-recipe/{}", id)).await
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {

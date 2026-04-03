@@ -35,10 +35,10 @@ impl InventoryAdjustmentService {
     }
 
     pub async fn approve_adjustment(id: i32) -> Result<InventoryAdjustment, String> {
-        ApiService::post::<InventoryAdjustment>(&format!("/inventory-adjustments/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post::<InventoryAdjustment, serde_json::Value>(&format!("/inventory-adjustments/{}/approve", id), &serde_json::json!({})).await
     }
 
     pub async fn reject_adjustment(id: i32) -> Result<InventoryAdjustment, String> {
-        ApiService::post::<InventoryAdjustment>(&format!("/inventory-adjustments/{}/reject", id), &serde_json::json!({})).await
+        ApiService::post::<InventoryAdjustment, serde_json::Value>(&format!("/inventory-adjustments/{}/reject", id), &serde_json::json!({})).await
     }
 }

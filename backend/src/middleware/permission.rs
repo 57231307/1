@@ -2,6 +2,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::role_permission;
 use crate::utils::app_state::AppState;
 use axum::{
+    body::Body,
     extract::State,
     http::{Request, StatusCode, Method},
     middleware::Next,
@@ -13,7 +14,7 @@ use tracing::warn;
 pub async fn permission_middleware(
     State(state): State<AppState>,
     auth: AuthContext,
-    request: Request<axum::body::Body>,
+    request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let method = request.method();

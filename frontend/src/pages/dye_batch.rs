@@ -78,7 +78,7 @@ impl Component for DyeBatchPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match DyeBatchService::list(query).await {
-                        Ok(batches) => link.send_message(Msg::BatchesLoaded(batches)),
+                        Ok(batches) => link.send_message(Msg::BatchesLoaded(batches.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -290,7 +290,7 @@ impl DyeBatchPage {
                                     <td>{&batch.color_code}</td>
                                     <td>{&batch.color_name}</td>
                                     <td>{batch.fabric_type.as_deref().unwrap_or("-")}</td>
-                                    <td class="numeric">{batch.weight_kg.map(|w| format!("{:.2}", w)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{batch.weight_kg.clone().map(|w| format!("{:.2}", w)).unwrap_or("-".to_string())}</td>
                                     <td>
                                         <span class={format!("status-badge status-{}", status)}>
                                             {&status}

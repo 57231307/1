@@ -1,5 +1,5 @@
 use gloo_net::http::{Request, Response};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use crate::models::api_response::ApiResponse;
 
 /// API 基础路径
@@ -22,13 +22,15 @@ impl ApiService {
     }
 
     /// POST 请求（带重试）
-    pub async fn post<T: DeserializeOwned>(url: &str, body: &serde_json::Value) -> Result<T, String> {
-        Self::request_with_retry::<T>("POST", url, Some(body)).await
+    pub async fn post<T: DeserializeOwned, B: Serialize>(url: &str, body: &B) -> Result<T, String> {
+        let body_value = serde_json::to_value(body).map_err(|e| format!("序列化请求体失败：{}", e))?;
+        Self::request_with_retry::<T>("POST", url, Some(&body_value)).await
     }
 
     /// PUT 请求（带重试）
-    pub async fn put<T: DeserializeOwned>(url: &str, body: &serde_json::Value) -> Result<T, String> {
-        Self::request_with_retry::<T>("PUT", url, Some(body)).await
+    pub async fn put<T: DeserializeOwned, B: Serialize>(url: &str, body: &B) -> Result<T, String> {
+        let body_value = serde_json::to_value(body).map_err(|e| format!("序列化请求体失败：{}", e))?;
+        Self::request_with_retry::<T>("PUT", url, Some(&body_value)).await
     }
 
     /// DELETE 请求（带重试）

@@ -104,8 +104,6 @@ impl PurchaseReturnService {
 
     /// 删除退货明细
     pub async fn delete_item(return_id: i32, item_id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> =
-            ApiService::delete(&format!("/purchases/returns/{}/items/{}", return_id, item_id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/purchases/returns/{}/items/{}", return_id, item_id)).await
     }
 }

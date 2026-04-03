@@ -1,0 +1,23 @@
+{
+  "name": "bingxi-frontend",
+  "version": "1.0.0",
+  "description": "秉羲管理系统前端 - Yew + Utoo",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ut dev",
+    "build": "ut build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "rust",
+    "yew",
+    "wasm",
+    "utoo"
+  ],
+  "author": "秉羲团队",
+  "license": "MIT",
+  "devDependencies": {
+    "@utoo/pack": "latest",
+    "@utoo/pack-cli": "latest"
+  }
+}

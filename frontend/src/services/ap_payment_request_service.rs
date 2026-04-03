@@ -76,12 +76,12 @@ impl ApPaymentRequestService {
 
     /// 提交付款申请
     pub async fn submit_request(id: i32) -> Result<ApPaymentRequest, String> {
-        ApiService::post::<ApPaymentRequest>(&format!("/ap-payment-requests/{}/submit", id), &serde_json::json!({})).await
+        ApiService::post::<ApPaymentRequest, serde_json::Value>(&format!("/ap-payment-requests/{}/submit", id), &serde_json::json!({})).await
     }
 
     /// 审批付款申请
     pub async fn approve_request(id: i32) -> Result<ApPaymentRequest, String> {
-        ApiService::post::<ApPaymentRequest>(&format!("/ap-payment-requests/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post::<ApPaymentRequest, serde_json::Value>(&format!("/ap-payment-requests/{}/approve", id), &serde_json::json!({})).await
     }
 
     /// 拒绝付款申请

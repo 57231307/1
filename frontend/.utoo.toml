@@ -1,0 +1,4 @@
+[values]
+"build.cmd" = "up build"
+"dev.cmd" = "up dev"
+"*.cmd" = "up"

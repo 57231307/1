@@ -34,7 +34,7 @@ impl AuthService {
     /// 用户注销
     /// 调用后端接口并清除本地存储的 Token
     pub async fn logout(&self) -> Result<(), String> {
-        let _ = ApiService::post::<serde_json::Value>("/auth/logout", &serde_json::json!({})).await;
+        let _ = ApiService::post::<serde_json::Value, serde_json::Value>("/auth/logout", &serde_json::json!({})).await;
         crate::utils::storage::Storage::remove_token();
         Ok(())
     }

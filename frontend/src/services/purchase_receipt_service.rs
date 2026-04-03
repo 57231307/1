@@ -93,8 +93,6 @@ impl PurchaseReceiptService {
 
     /// 删除收货明细
     pub async fn delete_item(receipt_id: i32, item_id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> =
-            ApiService::delete(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id)).await
     }
 }

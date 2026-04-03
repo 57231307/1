@@ -72,9 +72,7 @@ impl SupplierService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> =
-            ApiService::delete(&format!("/suppliers/{}", id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/suppliers/{}", id)).await
     }
 
     pub async fn toggle_status(id: i32, enable: bool) -> Result<Supplier, String> {
@@ -102,9 +100,7 @@ impl SupplierService {
     }
 
     pub async fn delete_contact(supplier_id: i32, contact_id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> =
-            ApiService::delete(&format!("/suppliers/{}/contacts/{}", supplier_id, contact_id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/suppliers/{}/contacts/{}", supplier_id, contact_id)).await
     }
 
     pub async fn list_qualifications(supplier_id: i32) -> Result<Vec<SupplierQualification>, String> {

@@ -103,7 +103,7 @@ impl Component for CustomerCreditPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match CustomerCreditService::list_credits(params).await {
-                        Ok(response) => link.send_message(Msg::CreditsLoaded(response.data)),
+                        Ok(response) => link.send_message(Msg::CreditsLoaded(response.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -193,7 +193,7 @@ impl Component for CustomerCreditPage {
                         customer_id,
                         credit_level: level,
                         credit_score: score,
-                        credit_limit: limit,
+                        credit_limit: limit.to_string(),
                         credit_days: days,
                         remark,
                     };
@@ -220,7 +220,7 @@ impl Component for CustomerCreditPage {
                     
                     let req = CreditLimitAdjustmentRequest {
                         adjustment_type: adj_type,
-                        amount,
+                        amount: amount.to_string(),
                         reason,
                     };
                     
@@ -240,7 +240,7 @@ impl Component for CustomerCreditPage {
             Msg::OccupyCredit(customer_id, amount) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerCreditService::occupy_credit(customer_id, amount).await {
+                    match CustomerCreditService::occupy_credit(customer_id, amount.to_string()).await {
                         Ok(_) => link.send_message(Msg::LoadCredits),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -250,7 +250,7 @@ impl Component for CustomerCreditPage {
             Msg::ReleaseCredit(customer_id, amount) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerCreditService::release_credit(customer_id, amount).await {
+                    match CustomerCreditService::release_credit(customer_id, amount.to_string()).await {
                         Ok(_) => link.send_message(Msg::LoadCredits),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -333,9 +333,9 @@ impl Component for CustomerCreditPage {
                                         <td>{credit.customer_id}</td>
                                         <td>{credit.credit_level.as_ref().unwrap_or(&"-".to_string())}</td>
                                         <td>{credit.credit_score.unwrap_or(0)}</td>
-                                        <td>{credit.credit_limit.map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
-                                        <td>{credit.used_credit.map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
-                                        <td>{credit.available_credit.map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
+                                        <td>{credit.credit_limit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
+                                        <td>{credit.used_credit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
+                                        <td>{credit.available_credit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
                                         <td>{credit.credit_days.unwrap_or(0)}</td>
                                         <td>{credit.status.as_ref().unwrap_or(&"-".to_string())}</td>
                                         <td class="actions">

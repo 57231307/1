@@ -75,7 +75,7 @@ impl FinanceInvoiceService {
 
     /// 审核财务发票
     pub async fn approve_invoice(id: i32) -> Result<FinanceInvoice, String> {
-        ApiService::post::<FinanceInvoice>(&format!("/finance-invoices/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post::<FinanceInvoice, serde_json::Value>(&format!("/finance-invoices/{}/approve", id), &serde_json::json!({})).await
     }
 
     /// 核销财务发票

@@ -75,7 +75,7 @@ impl ApPaymentService {
 
     /// 确认付款
     pub async fn confirm_payment(id: i32) -> Result<ApPayment, String> {
-        ApiService::post::<ApPayment>(&format!("/ap-payments/{}/confirm", id), &serde_json::json!({})).await
+        ApiService::post::<ApPayment, serde_json::Value>(&format!("/ap-payments/{}/confirm", id), &serde_json::json!({})).await
     }
 
     /// 获取付款计划

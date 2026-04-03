@@ -56,8 +56,7 @@ impl DyeBatchService {
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> = ApiService::delete(&format!("/dye-batch/{}", id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/dye-batch/{}", id)).await
     }
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {

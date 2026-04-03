@@ -74,7 +74,7 @@ impl ApReconciliationService {
 
     /// 确认对账单
     pub async fn confirm_reconciliation(id: i32) -> Result<ApReconciliation, String> {
-        ApiService::post::<ApReconciliation>(&format!("/ap-reconciliations/{}/confirm", id), &serde_json::json!({})).await
+        ApiService::post::<ApReconciliation, serde_json::Value>(&format!("/ap-reconciliations/{}/confirm", id), &serde_json::json!({})).await
     }
 
     /// 提出争议

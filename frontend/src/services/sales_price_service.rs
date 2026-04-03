@@ -73,9 +73,7 @@ impl SalesPriceService {
 
     /// 删除销售价格
     pub async fn delete(id: i32) -> Result<(), String> {
-        let response: ApiResponse<()> =
-            ApiService::delete(&format!("/sales/prices/{}", id)).await?;
-        response.into_result()
+        ApiService::delete(&format!("/sales/prices/{}", id)).await
     }
 
     /// 审批销售价格
