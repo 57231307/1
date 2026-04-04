@@ -8,9 +8,8 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 
 /// 资金账户查询参数 DTO
@@ -54,12 +53,12 @@ pub struct FreezeFundsRequest {
 /// 获取资金账户列表
 pub async fn list_accounts(
     Query(params): Query<FundAccountQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<fund_management::Model>>>, AppError> {
     info!("用户 {} 正在查询资金账户列表", auth.username);
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     let query_params = crate::services::fund_management_service::FundAccountQueryParams {
         account_type: params.account_type,
         status: params.status,
@@ -76,7 +75,7 @@ pub async fn list_accounts(
 /// 创建资金账户
 #[axum::debug_handler]
 pub async fn create_account(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateFundAccountRequest>,
 ) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
@@ -85,7 +84,7 @@ pub async fn create_account(
         auth.username, req.account_no
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     let account = service
         .create_account(
             crate::services::fund_management_service::CreateFundAccountRequest {
@@ -110,12 +109,12 @@ pub async fn create_account(
 /// 获取资金账户详情
 pub async fn get_account(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
     info!("用户 {} 正在查询资金账户详情：{}", auth.username, id);
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     let account = service.get_account_by_id(id).await?;
 
     info!("资金账户详情查询成功：{}", account.account_no);
@@ -126,7 +125,7 @@ pub async fn get_account(
 #[axum::debug_handler]
 pub async fn deposit(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -135,7 +134,7 @@ pub async fn deposit(
         auth.username, id, req.amount
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service
         .deposit(id, req.amount, auth.user_id, req.remark)
         .await?;
@@ -148,7 +147,7 @@ pub async fn deposit(
 #[axum::debug_handler]
 pub async fn withdraw(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -157,7 +156,7 @@ pub async fn withdraw(
         auth.username, id, req.amount
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service
         .withdraw(id, req.amount, auth.user_id, req.remark)
         .await?;
@@ -170,7 +169,7 @@ pub async fn withdraw(
 #[axum::debug_handler]
 pub async fn freeze_funds(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FreezeFundsRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -179,7 +178,7 @@ pub async fn freeze_funds(
         auth.username, id, req.amount, req.reason
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service
         .freeze_funds(id, req.amount, auth.user_id, req.reason)
         .await?;
@@ -192,7 +191,7 @@ pub async fn freeze_funds(
 #[axum::debug_handler]
 pub async fn unfreeze_funds(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -201,7 +200,7 @@ pub async fn unfreeze_funds(
         auth.username, id, req.amount
     );
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service.unfreeze_funds(id, req.amount, auth.user_id).await?;
 
     info!("账户 {} 资金解冻成功", id);
@@ -211,12 +210,12 @@ pub async fn unfreeze_funds(
 /// 删除资金账户
 pub async fn delete_account(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除资金账户：{}", auth.username, id);
 
-    let service = FundManagementService::new(db);
+    let service = FundManagementService::new(state.db.clone());
     service.delete_account(id, auth.user_id).await?;
 
     info!("资金账户 {} 删除成功", id);

@@ -10,9 +10,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
@@ -25,12 +24,12 @@ pub struct EvaluationIndicatorQuery {
 
 pub async fn list_indicators(
     Query(params): Query<EvaluationIndicatorQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评估指标列表", auth.user_id);
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let query_params =
         crate::services::supplier_evaluation_service::EvaluationIndicatorQueryParams {
             category: params.category,
@@ -46,7 +45,7 @@ pub async fn list_indicators(
 }
 
 pub async fn create_indicator(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateEvaluationIndicatorRequest>,
 ) -> Result<Json<ApiResponse<supplier_evaluation::Model>>, AppError> {
@@ -55,7 +54,7 @@ pub async fn create_indicator(
         auth.user_id, req.indicator_code
     );
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let indicator = service.create_indicator(req, auth.user_id).await?;
     info!("评估指标创建成功：{}", indicator.indicator_code);
 
@@ -63,7 +62,7 @@ pub async fn create_indicator(
 }
 
 pub async fn create_evaluation_record(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<crate::services::supplier_evaluation_service::SupplierEvaluationRequest>,
 ) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
@@ -72,7 +71,7 @@ pub async fn create_evaluation_record(
         auth.user_id, req.supplier_id
     );
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let record = service.create_evaluation_record(req, auth.user_id).await?;
     info!("评估记录创建成功");
 
@@ -80,7 +79,7 @@ pub async fn create_evaluation_record(
 }
 
 pub async fn get_supplier_score(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(supplier_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<SupplierScoreResponse>>, AppError> {
@@ -89,7 +88,7 @@ pub async fn get_supplier_score(
         auth.user_id, supplier_id
     );
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let score = service.get_supplier_score(supplier_id).await?;
     info!("供应商评分查询成功");
 
@@ -97,12 +96,12 @@ pub async fn get_supplier_score(
 }
 
 pub async fn list_ratings(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let ratings = service.list_ratings().await?;
     info!("供应商评级列表查询成功，共 {} 条记录", ratings.len());
 
@@ -116,7 +115,7 @@ pub struct RankingQuery {
 
 pub async fn get_rankings(
     Query(params): Query<RankingQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<
     Json<ApiResponse<Vec<crate::services::supplier_evaluation_service::SupplierScoreResponse>>>,
@@ -124,7 +123,7 @@ pub async fn get_rankings(
 > {
     info!("用户 {} 正在查询供应商排名榜", auth.user_id);
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let rankings = service
         .get_supplier_rankings(params.limit.unwrap_or(10))
         .await?;
@@ -143,12 +142,12 @@ pub struct EvaluationRecordQuery {
 
 pub async fn list_evaluation_records(
     Query(params): Query<EvaluationRecordQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation_record::Model>>>, AppError> {
     info!("用户 {} 正在查询评估记录列表", auth.user_id);
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let records = service
         .get_evaluation_records(
             params.supplier_id,
@@ -164,14 +163,89 @@ pub async fn list_evaluation_records(
 
 pub async fn get_evaluation_record(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
     info!("用户 {} 正在查询评估记录：{}", auth.user_id, id);
 
-    let service = SupplierEvaluationService::new(db);
+    let service = SupplierEvaluationService::new(state.db.clone());
     let record = service.get_evaluation_record_by_id(id).await?;
     info!("评估记录查询成功：{}", id);
 
     Ok(Json(ApiResponse::success(record)))
+}
+
+/// 获取评估列表
+pub async fn list_evaluations(
+    Query(params): Query<EvaluationRecordQuery>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<supplier_evaluation_record::Model>>>, AppError> {
+    info!("用户 {} 正在查询评估列表", auth.user_id);
+
+    let service = SupplierEvaluationService::new(state.db.clone());
+    let records = service
+        .get_evaluation_records(
+            params.supplier_id,
+            params.period,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
+    info!("评估列表查询成功，共 {} 条记录", records.len());
+
+    Ok(Json(ApiResponse::success(records)))
+}
+
+/// 创建评估
+pub async fn create_evaluation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::services::supplier_evaluation_service::SupplierEvaluationRequest>,
+) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
+    info!(
+        "用户 {} 正在创建评估，供应商：{}",
+        auth.user_id, req.supplier_id
+    );
+
+    let service = SupplierEvaluationService::new(state.db.clone());
+    let record = service.create_evaluation_record(req, auth.user_id).await?;
+    info!("评估创建成功");
+
+    Ok(Json(ApiResponse::success(record)))
+}
+
+/// 获取评估详情
+pub async fn get_evaluation(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
+    info!("用户 {} 正在查询评估详情：{}", auth.user_id, id);
+
+    let service = SupplierEvaluationService::new(state.db.clone());
+    let record = service.get_evaluation_record_by_id(id).await?;
+    info!("评估详情查询成功：{}", id);
+
+    Ok(Json(ApiResponse::success(record)))
+}
+
+/// 更新评估
+pub async fn update_evaluation(
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在更新评估", auth.user_id);
+    Err(AppError::ValidationError("评估更新功能尚未实现".to_string()))
+}
+
+/// 删除评估
+pub async fn delete_evaluation(
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在删除评估", auth.user_id);
+    Err(AppError::ValidationError("评估删除功能尚未实现".to_string()))
 }

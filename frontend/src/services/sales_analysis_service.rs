@@ -1,79 +1,8 @@
-use serde::{Deserialize, Serialize};
+use crate::models::sales_analysis::{
+    CreateSalesTargetRequest, CustomerRanking, ProductRanking, SalesTarget,
+    SalesTrendAnalysis, UpdateSalesTargetRequest,
+};
 use crate::services::api::ApiService;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SalesTrendAnalysis {
-    pub period: String,
-    pub start_date: String,
-    pub end_date: String,
-    pub total_sales_amount: String,
-    pub total_sales_quantity: i64,
-    pub average_daily_sales: String,
-    pub growth_rate: String,
-    pub trend_direction: String,
-    pub peak_date: Option<String>,
-    pub lowest_date: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProductRanking {
-    pub rank: i32,
-    pub product_id: i32,
-    pub product_name: Option<String>,
-    pub product_code: Option<String>,
-    pub category_id: Option<i32>,
-    pub total_sales_amount: String,
-    pub total_sales_quantity: i64,
-    pub gross_profit: String,
-    pub gross_margin: String,
-    pub customer_count: i64,
-    pub order_count: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CustomerRanking {
-    pub rank: i32,
-    pub customer_id: i32,
-    pub customer_name: Option<String>,
-    pub customer_type: String,
-    pub total_sales_amount: String,
-    pub total_sales_quantity: i64,
-    pub gross_profit: String,
-    pub order_count: i64,
-    pub average_order_value: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SalesTarget {
-    pub id: i32,
-    pub target_type: String,
-    pub target_id: i32,
-    pub period: String,
-    pub target_amount: String,
-    pub actual_amount: String,
-    pub completion_rate: String,
-    pub start_date: String,
-    pub end_date: String,
-    pub status: String,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSalesTargetRequest {
-    pub target_type: String,
-    pub target_id: i32,
-    pub period: String,
-    pub target_amount: String,
-    pub start_date: String,
-    pub end_date: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateSalesTargetRequest {
-    pub target_amount: Option<String>,
-    pub status: Option<String>,
-}
 
 pub struct SalesAnalysisService;
 
@@ -96,7 +25,7 @@ impl SalesAnalysisService {
             query.push_str(&format!("&customer_id={}", cid));
         }
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/trend?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/trend?{}", query)).await
     }
 
     pub async fn get_product_ranking(
@@ -121,7 +50,7 @@ impl SalesAnalysisService {
         }
         query.push_str(&format!("limit={}", limit));
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/product-ranking?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/product-ranking?{}", query)).await
     }
 
     pub async fn get_customer_ranking(
@@ -146,7 +75,7 @@ impl SalesAnalysisService {
         }
         query.push_str(&format!("limit={}", limit));
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/customer-ranking?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/customer-ranking?{}", query)).await
     }
 
     pub async fn list_targets(
@@ -164,24 +93,24 @@ impl SalesAnalysisService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/targets?{}", query)).await
+        ApiService::get(&format!("/sales-analysis/targets?{}", query)).await
     }
 
     pub async fn get_target(id: i32) -> Result<SalesTarget, String> {
-        ApiService::get(&format!("/api/v1/erp/sales-analysis/targets/{}", id)).await
+        ApiService::get(&format!("/sales-analysis/targets/{}", id)).await
     }
 
     pub async fn create_target(req: CreateSalesTargetRequest) -> Result<SalesTarget, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/api/v1/erp/sales-analysis/targets", &payload).await
+        ApiService::post("/sales-analysis/targets", &payload).await
     }
 
     pub async fn update_target(id: i32, req: UpdateSalesTargetRequest) -> Result<SalesTarget, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/api/v1/erp/sales-analysis/targets/{}", id), &payload).await
+        ApiService::put(&format!("/sales-analysis/targets/{}", id), &payload).await
     }
 
     pub async fn delete_target(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/api/v1/erp/sales-analysis/targets/{}", id)).await
+        ApiService::delete(&format!("/sales-analysis/targets/{}", id)).await
     }
 }

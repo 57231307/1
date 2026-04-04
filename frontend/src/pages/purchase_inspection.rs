@@ -3,10 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::purchase_inspection_service::{
-    PurchaseInspectionService, PurchaseInspection, PurchaseInspectionQuery,
-    CreatePurchaseInspectionRequest, CompleteInspectionRequest,
+use crate::models::purchase_inspection::{
+    PurchaseInspection, PurchaseInspectionQuery, CreatePurchaseInspectionRequest, CompleteInspectionRequest,
 };
+use crate::services::purchase_inspection_service::PurchaseInspectionService;
 
 /// 采购检验页面组件
 pub struct PurchaseInspectionPage {
@@ -107,7 +107,7 @@ impl Component for PurchaseInspectionPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseInspectionService::list(query).await {
-                        Ok(inspections) => link.send_message(Msg::InspectionsLoaded(inspections)),
+                        Ok(inspections) => link.send_message(Msg::InspectionsLoaded(inspections.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });

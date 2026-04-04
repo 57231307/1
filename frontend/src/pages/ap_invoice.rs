@@ -5,10 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::ap_invoice_service::{
-    ApInvoiceService, ApInvoice, ApInvoiceQueryParams,
-    AgingAnalysisItem, BalanceSummaryItem,
+use crate::models::ap_invoice::{
+    ApInvoice, ApInvoiceQueryParams, AgingAnalysisItem, BalanceSummaryItem,
 };
+use crate::services::ap_invoice_service::ApInvoiceService;
 use crate::components::main_layout::MainLayout;
 
 /// 应付发票管理页面状态

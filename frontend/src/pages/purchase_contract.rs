@@ -2,10 +2,10 @@
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::services::purchase_contract_service::{
-    PurchaseContract, PurchaseContractQueryParams, CreatePurchaseContractRequest,
-    ExecutePurchaseContractRequest, PurchaseContractService,
+use crate::models::purchase_contract::{
+    PurchaseContract, PurchaseContractQueryParams, CreatePurchaseContractRequest, ExecutePurchaseContractRequest,
 };
+use crate::services::purchase_contract_service::PurchaseContractService;
 
 /// 采购合同状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -169,7 +169,7 @@ impl Component for PurchaseContractPage {
                 wasm_bindgen_futures::spawn_local(async move {
                     match PurchaseContractService::list_contracts(params).await {
                         Ok(response) => {
-                            link.send_message(Msg::SetContracts(response.data, response.total));
+                            link.send_message(Msg::SetContracts(response.items, response.total));
                         }
                         Err(e) => {
                             link.send_message(Msg::SetError(Some(e)));

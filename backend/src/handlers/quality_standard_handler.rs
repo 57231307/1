@@ -8,9 +8,8 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 
 /// 质量标准查询参数 DTO
@@ -68,12 +67,12 @@ pub struct QualityApproveRequest {
 /// 获取质量标准列表
 pub async fn list_standards(
     Query(params): Query<QualityStandardQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准列表", auth.username);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let query_params = crate::services::quality_standard_service::QualityStandardQueryParams {
         standard_type: params.standard_type,
         status: params.status,
@@ -90,7 +89,7 @@ pub async fn list_standards(
 /// 创建质量标准
 #[axum::debug_handler]
 pub async fn create_standard(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateQualityStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
@@ -109,7 +108,7 @@ pub async fn create_standard(
         })
         .transpose()?;
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service
         .create_standard(
             crate::services::quality_standard_service::CreateQualityStandardRequest {
@@ -133,12 +132,12 @@ pub async fn create_standard(
 /// 获取质量标准详情
 pub async fn get_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在查询质量标准详情：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service.get_standard_by_id(id).await?;
 
     info!("质量标准详情查询成功：{}", standard.standard_code);
@@ -149,13 +148,13 @@ pub async fn get_standard(
 #[axum::debug_handler]
 pub async fn update_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateQualityStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在更新质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service
         .update_standard(
             id,
@@ -177,12 +176,12 @@ pub async fn update_standard(
 /// 删除质量标准
 pub async fn delete_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     service.delete_standard(id, auth.user_id).await?;
 
     info!("质量标准删除成功：{}", id);
@@ -192,12 +191,12 @@ pub async fn delete_standard(
 /// 获取版本历史列表
 pub async fn list_versions(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准版本历史：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let versions = service.get_version_history(id).await?;
 
     info!("质量标准版本历史查询成功，共 {} 个版本", versions.len());
@@ -208,13 +207,13 @@ pub async fn list_versions(
 #[axum::debug_handler]
 pub async fn approve_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<QualityApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     service
         .approve_standard(id, auth.user_id, req.approval_comment)
         .await?;
@@ -227,12 +226,12 @@ pub async fn approve_standard(
 #[axum::debug_handler]
 pub async fn publish_standard(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在发布质量标准：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     service.publish_standard(id, auth.user_id).await?;
 
     info!("质量标准发布成功：{}", id);
@@ -244,12 +243,12 @@ pub async fn publish_standard(
 pub async fn create_version_history(
     Path(id): Path<i32>,
     Json(req): Json<CreateVersionHistoryRequest>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在创建质量标准版本历史：{}", auth.username, id);
 
-    let service = QualityStandardService::new(db);
+    let service = QualityStandardService::new(state.db.clone());
     let standard = service
         .create_version_history(
             crate::services::quality_standard_service::CreateVersionHistoryRequest {

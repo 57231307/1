@@ -7,6 +7,7 @@ use crate::config::settings::AppSettings;
 use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 use std::sync::Arc;
 use tracing::info;
+use tracing::warn;
 
 /// SQLx 数据库连接池包装
 #[derive(Clone)]
@@ -57,18 +58,38 @@ impl SqlxDatabase {
             settings.database.ssl_mode
         );
 
-        let pool = PgPoolOptions::new()
+        // 配置连接池选项
+        let pool_options = PgPoolOptions::new()
             .max_connections(settings.database.max_connections)
             .min_connections(5)
             .idle_timeout(std::time::Duration::from_secs(300))
-            .connect_with(options)
-            .await?;
+            .acquire_timeout(std::time::Duration::from_secs(5));
 
-        info!("SQLx 数据库连接池初始化成功");
+        // 添加重试机制
+        let max_retries = 3;
+        let mut last_error: Option<sqlx::Error> = None;
 
-        Ok(Self {
-            pool: Arc::new(pool),
-        })
+        for attempt in 1..=max_retries {
+            match pool_options.clone().connect_with(options.clone()).await {
+                Ok(pool) => {
+                    info!("SQLx 数据库连接池初始化成功（尝试 {}）", attempt);
+                    return Ok(Self {
+                        pool: Arc::new(pool),
+                    });
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    warn!("数据库连接尝试 {} 失败: {}", attempt, last_error.as_ref().unwrap());
+                    if attempt < max_retries {
+                        // 等待一段时间后重试
+                        tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
+                    }
+                }
+            }
+        }
+
+        // 所有重试都失败
+        Err(last_error.unwrap_or_else(|| sqlx::Error::Configuration("数据库连接失败".into())))
     }
 
     /// 获取数据库连接池引用

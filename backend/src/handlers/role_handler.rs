@@ -7,9 +7,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// 角色响应
 #[derive(Debug, Serialize)]
@@ -82,9 +81,9 @@ pub struct AssignPermissionPayload {
 
 /// 获取角色列表
 pub async fn list_roles(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<RoleListResponse>, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     match service.list_roles().await {
         Ok(roles) => {
@@ -114,10 +113,10 @@ pub async fn list_roles(
 
 /// 获取角色详情
 pub async fn get_role(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     match service.get_role_detail(id).await {
         Ok(role) => {
@@ -151,10 +150,10 @@ pub async fn get_role(
 
 /// 创建角色
 pub async fn create_role(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     let request = CreateRoleRequest {
         name: payload.name,
@@ -195,11 +194,11 @@ pub async fn create_role(
 
 /// 更新角色
 pub async fn update_role(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateRolePayload>,
 ) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     let request = UpdateRoleRequest {
         name: payload.name,
@@ -240,10 +239,10 @@ pub async fn update_role(
 
 /// 删除角色
 pub async fn delete_role(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     match service.delete_role(id).await {
         Ok(()) => Ok(StatusCode::NO_CONTENT),
@@ -253,11 +252,11 @@ pub async fn delete_role(
 
 /// 分配权限
 pub async fn assign_permission(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(role_id): Path<i32>,
     Json(payload): Json<AssignPermissionPayload>,
 ) -> Result<Json<PermissionResponse>, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     let request = AssignPermissionRequest {
         role_id,
@@ -281,10 +280,10 @@ pub async fn assign_permission(
 
 /// 移除权限
 pub async fn remove_permission(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     match service.remove_permission(id).await {
         Ok(()) => Ok(StatusCode::NO_CONTENT),
@@ -294,10 +293,10 @@ pub async fn remove_permission(
 
 /// 获取角色权限列表
 pub async fn get_role_permissions(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(role_id): Path<i32>,
 ) -> Result<Json<Vec<PermissionResponse>>, (StatusCode, String)> {
-    let service = RolePermissionService::new(db.clone());
+    let service = RolePermissionService::new(state.db.clone());
 
     match service.get_role_permissions(role_id).await {
         Ok(permissions) => {

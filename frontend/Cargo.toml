@@ -2,7 +2,7 @@
 name = "bingxi_frontend"
 version = "1.0.0"
 edition = "2021"
-description = "秉羲管理系统前端 - Yew + Trunk"
+description = "秉羲管理系统前端 - Yew + Utoo"
 authors = ["秉羲团队"]
 
 [dependencies]

@@ -4,7 +4,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use wasm_bindgen::JsCast;
 use crate::app::Route;
 use crate::services::init_service::InitService;
 use web_sys::{HtmlInputElement, InputEvent};
@@ -136,7 +135,7 @@ impl Component for InitPage {
             Msg::TestDbConnection => {
                 self.is_loading = true;
                 self.error_message = None;
-                let db_config = crate::services::init_service::DatabaseConfig {
+                let db_config = crate::models::init::DatabaseConfig {
                     host: self.db_host.clone(),
                     port: self.db_port.clone(),
                     name: self.db_name.clone(),
@@ -242,7 +241,7 @@ impl Component for InitPage {
                 self.success_message = None;
                 self.init_progress = 10;
 
-                let db_config = crate::services::init_service::DatabaseConfig {
+                let db_config = crate::models::init::DatabaseConfig {
                     host: self.db_host.clone(),
                     port: self.db_port.clone(),
                     name: self.db_name.clone(),

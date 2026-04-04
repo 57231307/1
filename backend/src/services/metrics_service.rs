@@ -58,10 +58,10 @@ impl Metrics {
         
         // HTTP 请求耗时
         let http_request_duration_seconds = Histogram::with_opts(
-            prometheus::opts!(
+            prometheus::HistogramOpts::new(
                 "http_request_duration_seconds",
                 "HTTP request duration in seconds"
-            ).buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0])
+            )
         )?;
         registry.register(Box::new(http_request_duration_seconds.clone()))?;
         
@@ -74,10 +74,10 @@ impl Metrics {
         
         // 数据库查询耗时
         let db_query_duration_seconds = Histogram::with_opts(
-            prometheus::opts!(
+            prometheus::HistogramOpts::new(
                 "db_query_duration_seconds",
                 "Database query duration in seconds"
-            ).buckets(vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0])
+            )
         )?;
         registry.register(Box::new(db_query_duration_seconds.clone()))?;
         
@@ -190,7 +190,7 @@ pub async fn metrics_handler(
 }
 
 /// 创建监控路由
-pub fn create_metrics_router(metrics_service: Arc<MetricsService>) -> Router {
+pub fn create_metrics_router(metrics_service: Arc<MetricsService>) -> Router<Arc<MetricsService>> {
     Router::new()
         .route("/metrics", get(metrics_handler))
         .with_state(metrics_service)
@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn test_create_metrics_router() {
         let metrics_service = Arc::new(MetricsService::new().unwrap());
-        let router = create_metrics_router(metrics_service);
+        let _router = create_metrics_router(metrics_service.clone());
         
         // 验证路由创建成功
         assert!(Arc::strong_count(&metrics_service) >= 1);

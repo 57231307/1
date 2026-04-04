@@ -4,8 +4,8 @@
 
 use axum::{
     body::Body,
-    extract::{Request, State},
-    http::{StatusCode, header},
+    extract::{State},
+    http::{Request, StatusCode, header},
     middleware::Next,
     response::Response,
 };
@@ -105,10 +105,10 @@ impl std::fmt::Display for RateLimitError {
 }
 
 /// 限流中间件
-pub async fn rate_limiter_middleware<B>(
+pub async fn rate_limiter_middleware(
     State(state): State<Arc<RateLimiterState>>,
-    request: Request<B>,
-    next: Next<B>,
+    request: Request<Body>,
+    next: Next,
 ) -> Result<Response, StatusCode> {
     // 提取客户端 IP
     let client_ip = extract_client_ip(&request);
@@ -121,7 +121,7 @@ pub async fn rate_limiter_middleware<B>(
         }
         Err(RateLimitError::TooManyRequests { retry_after }) => {
             // 返回 429 错误
-            let mut response = Response::builder()
+            let response = Response::builder()
                 .status(StatusCode::TOO_MANY_REQUESTS)
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("Retry-After", retry_after.to_string())
@@ -141,7 +141,7 @@ pub async fn rate_limiter_middleware<B>(
 }
 
 /// 从请求中提取客户端 IP
-fn extract_client_ip<B>(request: &Request<B>) -> String {
+fn extract_client_ip(request: &Request<Body>) -> String {
     // 尝试从 X-Forwarded-For 头获取
     if let Some(forwarded) = request.headers().get("X-Forwarded-For") {
         if let Ok(value) = forwarded.to_str() {
@@ -304,7 +304,7 @@ mod tests {
     fn test_extract_client_ip_from_forwarded() {
         use axum::http::{Request, header};
 
-        let mut req = Request::builder().uri("/").body(()).unwrap();
+        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut().insert(
             "X-Forwarded-For",
             "203.0.113.195, 70.41.3.18, 150.172.238.178".parse().unwrap(),
@@ -318,7 +318,7 @@ mod tests {
     fn test_extract_client_ip_from_real_ip() {
         use axum::http::{Request, header};
 
-        let mut req = Request::builder().uri("/").body(()).unwrap();
+        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut()
             .insert("X-Real-IP", "192.168.1.100".parse().unwrap());
 
@@ -330,7 +330,7 @@ mod tests {
     fn test_extract_client_ip_default() {
         use axum::http::Request;
 
-        let req = Request::builder().uri("/").body(()).unwrap();
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
         let ip = extract_client_ip(&req);
         assert_eq!(ip, "unknown");
     }

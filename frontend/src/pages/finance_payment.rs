@@ -5,9 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::finance_payment_service::{
-    FinancePaymentService, FinancePayment, PaymentQueryParams,
+use crate::models::finance_payment::{
+    FinancePayment, PaymentQueryParams,
 };
+use crate::services::finance_payment_service::FinancePaymentService;
 
 /// 财务付款管理页面状态
 pub struct FinancePaymentPage {

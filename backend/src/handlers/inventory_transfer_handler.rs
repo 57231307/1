@@ -2,9 +2,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::services::inventory_transfer_service::{
@@ -33,10 +32,10 @@ pub struct ApproveTransferRequest {
 
 /// 获取库存调拨列表
 pub async fn list_transfers(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<InventoryTransferQuery>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
 
     let page_req = PageRequest {
         page: query.page.unwrap_or(1),
@@ -64,10 +63,10 @@ pub async fn list_transfers(
 
 /// 获取库存调拨详情
 pub async fn get_transfer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.get_transfer_detail(id).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
     Ok(Json(ApiResponse::success(transfer_json)))
@@ -75,10 +74,10 @@ pub async fn get_transfer(
 
 /// 创建库存调拨
 pub async fn create_transfer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(request): Json<CreateInventoryTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.create_transfer(request).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
     Ok(Json(ApiResponse::success_with_msg(
@@ -89,11 +88,11 @@ pub async fn create_transfer(
 
 /// 更新库存调拨
 pub async fn update_transfer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(request): Json<UpdateInventoryTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.update_transfer(id, request).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
     Ok(Json(ApiResponse::success_with_msg(
@@ -104,11 +103,11 @@ pub async fn update_transfer(
 
 /// 审核库存调拨
 pub async fn approve_transfer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(request): Json<ApproveTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service
         .approve_transfer(id, request.approved, request.notes)
         .await?;
@@ -123,10 +122,10 @@ pub async fn approve_transfer(
 
 /// 发出库存调拨
 pub async fn ship_transfer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.ship_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
     Ok(Json(ApiResponse::success_with_msg(
@@ -137,10 +136,10 @@ pub async fn ship_transfer(
 
 /// 接收库存调拨
 pub async fn receive_transfer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_service = InventoryTransferService::new(db.clone());
+    let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.receive_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer).unwrap_or_default();
     Ok(Json(ApiResponse::success_with_msg(

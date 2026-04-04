@@ -9,13 +9,13 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dye_batch;
+use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 #[derive(Debug, Deserialize)]
@@ -63,7 +63,7 @@ pub struct CompleteDyeBatchRequest {
 }
 
 pub async fn list_dye_batches(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -92,7 +92,7 @@ pub async fn list_dye_batches(
 
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
-    match q.paginate(&*db, page_size).fetch_page(page - 1).await {
+    match q.paginate(&*state.db, page_size).fetch_page(page - 1).await {
         Ok(batches) => {
             let total = batches.len() as u64;
             let paginated = PaginatedResponse::new(batches, total, page, page_size);
@@ -107,10 +107,10 @@ pub async fn list_dye_batches(
 }
 
 pub async fn get_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match dye_batch::Entity::find_by_id(id).one(&*db).await {
+    match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(batch)) => (StatusCode::OK, Json(ApiResponse::success(batch))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -126,7 +126,7 @@ pub async fn get_dye_batch(
 }
 
 pub async fn create_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateDyeBatchRequest>,
 ) -> impl IntoResponse {
     let batch = dye_batch::ActiveModel {
@@ -146,7 +146,7 @@ pub async fn create_dye_batch(
         updated_at: Set(Utc::now()),
     };
 
-    match batch.insert(&*db).await {
+    match batch.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
             Json(ApiResponse::success_with_msg(created, "缸号创建成功")),
@@ -161,11 +161,11 @@ pub async fn create_dye_batch(
 }
 
 pub async fn update_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*db).await {
+    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(b)) => b.into(),
         Ok(None) => {
             return (
@@ -210,7 +210,7 @@ pub async fn update_dye_batch(
 
     batch.updated_at = Set(Utc::now());
 
-    match batch.update(&*db).await {
+    match batch.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "缸号更新成功")),
@@ -225,10 +225,10 @@ pub async fn update_dye_batch(
 }
 
 pub async fn delete_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match dye_batch::Entity::delete_by_id(id).exec(&*db).await {
+    match dye_batch::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "缸号删除成功")),
@@ -243,11 +243,11 @@ pub async fn delete_dye_batch(
 }
 
 pub async fn complete_dye_batch(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<CompleteDyeBatchRequest>,
 ) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*db).await {
+    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(b)) => b.into(),
         Ok(None) => {
             return (
@@ -273,7 +273,7 @@ pub async fn complete_dye_batch(
     }
     batch.updated_at = Set(Utc::now());
 
-    match batch.update(&*db).await {
+    match batch.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "缸号完成成功")),
@@ -288,13 +288,13 @@ pub async fn complete_dye_batch(
 }
 
 pub async fn get_dye_batches_by_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(color_code): Path<String>,
 ) -> impl IntoResponse {
     match dye_batch::Entity::find()
         .filter(dye_batch::Column::ColorCode.eq(color_code))
         .order_by_desc(dye_batch::Column::CreatedAt)
-        .all(&*db)
+        .all(&*state.db)
         .await
     {
         Ok(batches) => (StatusCode::OK, Json(ApiResponse::success(batches))).into_response(),

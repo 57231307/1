@@ -3,10 +3,11 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::fabric_order_service::{
-    FabricOrderService, FabricOrder, FabricOrderQuery,
+use crate::models::fabric_order::{
+    FabricOrder, FabricOrderQuery,
     CreateFabricOrderRequest, UpdateFabricOrderRequest,
 };
+use crate::services::fabric_order_service::FabricOrderService;
 
 pub struct FabricOrderPage {
     orders: Vec<FabricOrder>,

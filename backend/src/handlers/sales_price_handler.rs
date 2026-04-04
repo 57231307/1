@@ -7,9 +7,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
@@ -29,12 +28,12 @@ pub struct ApprovePriceRequest {
 
 pub async fn list_prices(
     Query(params): Query<SalesPriceQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
     info!("用户 {} 正在查询销售价格列表", auth.user_id);
 
-    let service = SalesPriceService::new(db);
+    let service = SalesPriceService::new(state.db.clone());
     let query_params = crate::services::sales_price_service::SalesPriceQueryParams {
         product_id: params.product_id,
         customer_type: params.customer_type,
@@ -50,13 +49,13 @@ pub async fn list_prices(
 }
 
 pub async fn get_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<sales_price::Model>>, AppError> {
     info!("用户 {} 正在查询销售价格，ID: {}", auth.user_id, id);
 
-    let service = SalesPriceService::new(db);
+    let service = SalesPriceService::new(state.db.clone());
     let price = service.get_price(id).await?;
     info!("销售价格查询成功，ID: {}", price.id);
 
@@ -64,7 +63,7 @@ pub async fn get_price(
 }
 
 pub async fn create_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateSalesPriceInput>,
 ) -> Result<Json<ApiResponse<sales_price::Model>>, AppError> {
@@ -73,7 +72,7 @@ pub async fn create_price(
         auth.user_id, req.product_id
     );
 
-    let service = SalesPriceService::new(db);
+    let service = SalesPriceService::new(state.db.clone());
     let price = service.create_price(req, auth.user_id).await?;
     info!("销售价格创建成功，ID: {}", price.id);
 
@@ -81,14 +80,14 @@ pub async fn create_price(
 }
 
 pub async fn approve_price(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
     Json(_req): Json<ApprovePriceRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 正在批准销售价格，ID: {}", auth.user_id, id);
 
-    let service = SalesPriceService::new(db);
+    let service = SalesPriceService::new(state.db.clone());
     service.approve_price(id, auth.user_id).await?;
     info!("销售价格批准成功，ID: {}", id);
 
@@ -96,7 +95,7 @@ pub async fn approve_price(
 }
 
 pub async fn get_price_history(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(product_id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
@@ -105,7 +104,7 @@ pub async fn get_price_history(
         auth.user_id, product_id
     );
 
-    let service = SalesPriceService::new(db);
+    let service = SalesPriceService::new(state.db.clone());
     let history = service.get_price_history(product_id).await?;
     info!("价格历史查询成功，共 {} 条记录", history.len());
 
@@ -113,12 +112,12 @@ pub async fn get_price_history(
 }
 
 pub async fn list_strategies(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
     info!("用户 {} 正在查询销售价格策略", auth.user_id);
 
-    let service = SalesPriceService::new(db);
+    let service = SalesPriceService::new(state.db.clone());
     let strategies = service.list_strategies().await?;
     info!("销售价格策略查询成功，共 {} 条记录", strategies.len());
 

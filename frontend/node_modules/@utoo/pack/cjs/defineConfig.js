@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.defineConfig = defineConfig;
+/**
+ * Type-safe config helper for utoopack.config.mjs / utoopack.config.js.
+ * Provides type inference and editor support, similar to Vite/Rollup defineConfig.
+ *
+ * @example
+ * ```ts
+ * // utoopack.config.mjs
+ * import { defineConfig } from '@utoo/pack';
+ * export default defineConfig({
+ *   entry: [{ import: './src/index.ts', html: { template: './index.html' } }],
+ *   output: { path: './dist', clean: true },
+ * });
+ * ```
+ */
+function defineConfig(config) {
+    return config;
+}

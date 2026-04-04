@@ -2,10 +2,10 @@
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::services::sales_contract_service::{
-    SalesContract, SalesContractQueryParams, CreateSalesContractRequest,
-    ExecuteSalesContractRequest, SalesContractService,
+use crate::models::sales_contract::{
+    SalesContract, SalesContractQueryParams, CreateSalesContractRequest, ExecuteSalesContractRequest,
 };
+use crate::services::sales_contract_service::SalesContractService;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContractStatus {
@@ -168,7 +168,7 @@ impl Component for SalesContractPage {
                 wasm_bindgen_futures::spawn_local(async move {
                     match SalesContractService::list_contracts(params).await {
                         Ok(response) => {
-                            link.send_message(Msg::SetContracts(response.data, response.total));
+                            link.send_message(Msg::SetContracts(response.items, response.total));
                         }
                         Err(e) => {
                             link.send_message(Msg::SetError(Some(e)));

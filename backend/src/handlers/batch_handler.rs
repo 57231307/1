@@ -4,9 +4,8 @@ use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
 use axum::{extract::State, http::StatusCode, Json};
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// 批量创建产品请求
 #[derive(Debug, Deserialize)]
@@ -41,10 +40,10 @@ pub struct BatchResponse<T> {
 
 /// 批量创建产品
 pub async fn batch_create_products(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<BatchCreateProductsPayload>,
 ) -> Result<Json<BatchResponse<Vec<serde_json::Value>>>, (StatusCode, String)> {
-    let service = BatchService::new(db.clone());
+    let service = BatchService::new(state.db.clone());
 
     match service.batch_create_products(payload.products).await {
         Ok(result) => {
@@ -89,10 +88,10 @@ pub async fn batch_create_products(
 
 /// 批量更新产品
 pub async fn batch_update_products(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<BatchUpdateProductsPayload>,
 ) -> Result<Json<BatchResponse<Vec<serde_json::Value>>>, (StatusCode, String)> {
-    let service = BatchService::new(db.clone());
+    let service = BatchService::new(state.db.clone());
 
     match service.batch_update_products(payload.products).await {
         Ok(result) => {
@@ -137,10 +136,10 @@ pub async fn batch_update_products(
 
 /// 批量删除产品
 pub async fn batch_delete_products(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<BatchDeleteProductsPayload>,
 ) -> Result<Json<BatchResponse<()>>, (StatusCode, String)> {
-    let service = BatchService::new(db.clone());
+    let service = BatchService::new(state.db.clone());
 
     match service.batch_delete_products(payload.ids).await {
         Ok(result) => {

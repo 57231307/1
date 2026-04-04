@@ -4,9 +4,8 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dto::{ApiResponse, PageRequest};
 use crate::services::inventory_count_service::{
@@ -34,10 +33,10 @@ pub struct ApproveCountRequest {
 /// 获取库存盘点列表
 /// GET /api/v1/erp/inventory/counts
 pub async fn list_counts(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<InventoryCountQuery>,
 ) -> impl IntoResponse {
-    let count_service = InventoryCountService::new(db.clone());
+    let count_service = InventoryCountService::new(state.db.clone());
 
     let page_req = PageRequest {
         page: query.page.unwrap_or(1),
@@ -64,10 +63,10 @@ pub async fn list_counts(
 /// 获取库存盘点详情
 /// GET /api/v1/erp/inventory/counts/:id
 pub async fn get_count(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    let count_service = InventoryCountService::new(db.clone());
+    let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service.get_count_detail(id).await {
         Ok(count) => ApiResponse::success(count).into_response(),
@@ -92,10 +91,10 @@ pub async fn get_count(
 /// 创建库存盘点
 /// POST /api/v1/erp/inventory/counts
 pub async fn create_count(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(request): Json<CreateInventoryCountRequest>,
 ) -> impl IntoResponse {
-    let count_service = InventoryCountService::new(db.clone());
+    let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service.create_count(request).await {
         Ok(count) => (
@@ -117,11 +116,11 @@ pub async fn create_count(
 /// 更新库存盘点
 /// PUT /api/v1/erp/inventory/counts/:id
 pub async fn update_count(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(request): Json<UpdateInventoryCountRequest>,
 ) -> impl IntoResponse {
-    let count_service = InventoryCountService::new(db.clone());
+    let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service.update_count(id, request).await {
         Ok(count) => {
@@ -150,11 +149,11 @@ pub async fn update_count(
 /// 审核库存盘点
 /// POST /api/v1/erp/inventory/counts/:id/approve
 pub async fn approve_count(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(request): Json<ApproveCountRequest>,
 ) -> impl IntoResponse {
-    let count_service = InventoryCountService::new(db.clone());
+    let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service
         .approve_count(id, request.approved, request.notes)
@@ -189,10 +188,10 @@ pub async fn approve_count(
 /// 完成库存盘点并调整库存
 /// POST /api/v1/erp/inventory/counts/:id/complete
 pub async fn complete_count(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    let count_service = InventoryCountService::new(db.clone());
+    let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service.complete_count(id).await {
         Ok(count) => {

@@ -7,7 +7,7 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::http::{Request, HeaderValue};
+use axum::http::{Request, HeaderValue, Method};
 use axum::{routing::{get, post}, Router, Json};
 use sea_orm::Database;
 use std::io::Write;
@@ -15,7 +15,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::classify::ServerErrorsFailureClass;
-use tower_http::cors::{Any, AllowOrigin, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::{info, warn, Level, Span};
@@ -23,21 +23,9 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::settings::AppSettings;
-use crate::grpc::service::proto::auth_service_server::AuthServiceServer;
-use crate::grpc::service::proto::user_service_server::UserServiceServer;
-use crate::grpc::service::proto::purchase_contract_service_server::PurchaseContractServiceServer;
-use crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer;
-use crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer;
-use crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer;
-use crate::grpc::service::proto::assist_accounting_service_server::AssistAccountingServiceServer;
-use crate::grpc::service::proto::supplier_evaluation_service_server::SupplierEvaluationServiceServer;
-use crate::grpc::service::proto::five_dimension_query_service_server::FiveDimensionQueryServiceServer;
-use crate::grpc::service::proto::inventory_reservation_service_server::InventoryReservationServiceServer;
-use crate::grpc::service::proto::financial_analysis_service_server::FinancialAnalysisServiceServer;
-use crate::grpc::GrpcUserService;
-use crate::grpc::management_services::GrpcManagementServices;
-use crate::grpc::new_services::GrpcNewServices;
 use crate::middleware::auth::auth_middleware;
+use crate::middleware::permission::permission_middleware;
+use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
 
@@ -174,8 +162,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(allowed_origins))
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::HeaderName::from_static("x-requested-with"),
+        ])
+        .allow_credentials(false)
+        .max_age(Duration::from_secs(86400)); // 24小时
 
     let db_result = Database::connect(&settings.database.connection_string).await;
 
@@ -187,6 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::io::stderr().flush().ok();
 
             let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+            let app_state_clone = app_state.clone();
             create_router(app_state)
                 .layer(
                     TraceLayer::new_for_http()
@@ -213,7 +215,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ),
                 )
                 .layer(cors.clone())
-                .layer(axum::middleware::from_fn(auth_middleware))
+                .layer(axum::middleware::from_fn(request_validator_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), auth_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
                     HeaderValue::from_static("nosniff"),
@@ -223,12 +227,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("DENY"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_XSS_PROTECTION,
+                    HeaderValue::from_static("1; mode=block"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::STRICT_TRANSPORT_SECURITY,
-                    HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::REFERRER_POLICY,
+                    HeaderValue::from_static("strict-origin-when-cross-origin"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::HeaderName::from_static("permissions-policy"),
+                    HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
         }
         Err(e) => {
@@ -265,8 +281,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("DENY"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::X_XSS_PROTECTION,
+                    HeaderValue::from_static("1; mode=block"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"),
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::STRICT_TRANSPORT_SECURITY,
+                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::REFERRER_POLICY,
+                    HeaderValue::from_static("strict-origin-when-cross-origin"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::HeaderName::from_static("permissions-policy"),
+                    HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
         }
     };

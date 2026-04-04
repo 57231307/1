@@ -5,9 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::ap_payment_request_service::{
-    ApPaymentRequestService, ApPaymentRequest, ApPaymentRequestQueryParams,
+use crate::models::ap_payment_request::{
+    ApPaymentRequest, ApPaymentRequestQueryParams,
 };
+use crate::services::ap_payment_request_service::ApPaymentRequestService;
 
 /// 付款申请管理页面状态
 pub struct ApPaymentRequestPage {

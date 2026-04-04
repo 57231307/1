@@ -2,9 +2,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::product;
 use crate::models::product_color;
@@ -102,10 +101,10 @@ pub struct BatchCreateColorsRequest {
 
 /// 获取产品列表
 pub async fn list_products(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<ProductListQuery>,
 ) -> Result<Json<ApiResponse<Vec<product::Model>>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(10);
@@ -127,20 +126,20 @@ pub async fn list_products(
 
 /// 获取产品详情
 pub async fn get_product(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
     let product = product_service.get_product(id).await?;
     Ok(Json(ApiResponse::success(product)))
 }
 
 /// 创建产品
 pub async fn create_product(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
 
     let product = product_service
         .create_product(
@@ -171,11 +170,11 @@ pub async fn create_product(
 
 /// 更新产品
 pub async fn update_product(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
 
     let product = product_service
         .update_product(
@@ -205,10 +204,10 @@ pub async fn update_product(
 
 /// 删除产品
 pub async fn delete_product(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
     product_service.delete_product(id).await?;
     Ok(Json(ApiResponse::success_with_msg((), "产品删除成功")))
 }
@@ -217,21 +216,21 @@ pub async fn delete_product(
 
 /// 获取产品色号列表
 pub async fn list_product_colors(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(product_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
     let colors = product_service.list_product_colors(product_id).await?;
     Ok(Json(ApiResponse::success(colors)))
 }
 
 /// 创建产品色号
 pub async fn create_product_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(product_id): Path<i32>,
     Json(req): Json<CreateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
 
     let color = product_service
         .create_product_color(
@@ -250,11 +249,11 @@ pub async fn create_product_color(
 
 /// 更新产品色号
 pub async fn update_product_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path((_product_id, color_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
 
     let color = product_service
         .update_product_color(
@@ -273,21 +272,21 @@ pub async fn update_product_color(
 
 /// 删除产品色号
 pub async fn delete_product_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path((_product_id, color_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
     product_service.delete_product_color(color_id).await?;
     Ok(Json(ApiResponse::success_with_msg((), "色号删除成功")))
 }
 
 /// 批量创建色号
 pub async fn batch_create_colors(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(product_id): Path<i32>,
     Json(req): Json<BatchCreateColorsRequest>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
-    let product_service = ProductService::new(db.clone());
+    let product_service = ProductService::new(state.db.clone());
 
     let colors_input: Vec<_> = req
         .colors

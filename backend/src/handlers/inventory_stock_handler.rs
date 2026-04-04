@@ -7,9 +7,8 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateStockRequest {
@@ -79,10 +78,10 @@ pub struct LowStockResponse {
 }
 
 pub async fn get_stock(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     match service.find_by_id(id).await {
         Ok(stock) => Ok(Json(StockResponse {
@@ -102,10 +101,10 @@ pub async fn get_stock(
 }
 
 pub async fn create_stock(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     match service
         .create_stock(
@@ -141,11 +140,11 @@ pub async fn create_stock(
 }
 
 pub async fn update_stock(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateStockRequest>,
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     let stock = match service.find_by_id(id).await {
         Ok(s) => s,
@@ -175,7 +174,7 @@ pub async fn update_stock(
     }
     active_model.updated_at = Set(Utc::now());
 
-    match active_model.update(&*db).await {
+    match active_model.update(&*state.db).await {
         Ok(updated) => Ok(Json(StockResponse {
             id: updated.id,
             warehouse_id: updated.warehouse_id,
@@ -193,10 +192,10 @@ pub async fn update_stock(
 }
 
 pub async fn delete_stock(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<()>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     match service.find_by_id(id).await {
         Ok(_) => {}
@@ -205,7 +204,7 @@ pub async fn delete_stock(
 
     use sea_orm::EntityTrait;
     match crate::models::inventory_stock::Entity::delete_by_id(id)
-        .exec(&*db)
+        .exec(&*state.db)
         .await
     {
         Ok(_) => Ok(Json(())),
@@ -214,10 +213,10 @@ pub async fn delete_stock(
 }
 
 pub async fn list_stock(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<StockListResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     match service
         .list_stock(
@@ -256,14 +255,13 @@ pub async fn list_stock(
     }
 }
 
-#[allow(dead_code)]
 pub async fn check_low_stock(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<LowStockParams>,
 ) -> Result<Json<LowStockResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
-    match service.check_low_stock(params.warehouse_id).await {
+    match service.check_low_stock(params.warehouse_id, params.product_id, params.batch_no).await {
         Ok(stock_list) => {
             let stock_responses: Vec<StockResponse> = stock_list
                 .into_iter()
@@ -302,18 +300,19 @@ pub struct ListStockParams {
 
 #[derive(Debug, Deserialize)]
 pub struct LowStockParams {
-    #[allow(dead_code)]
     pub warehouse_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
 }
 
 // ========== 面料行业库存管理接口 ==========
 
 /// 按批次 + 色号查询库存（面料行业版）
 pub async fn list_stock_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListStockFabricParams>,
 ) -> Result<Json<StockFabricListResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
@@ -364,10 +363,10 @@ pub async fn list_stock_fabric(
 
 /// 查询库存流水
 pub async fn list_transactions(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListTransactionParams>,
 ) -> Result<Json<TransactionListResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
@@ -380,6 +379,9 @@ pub async fn list_transactions(
             params.color_no,
             params.product_id,
             params.warehouse_id,
+            params.transaction_type,
+            params.start_date,
+            params.end_date,
         )
         .await
     {
@@ -419,10 +421,10 @@ pub async fn list_transactions(
 
 /// 获取库存汇总（按批次 + 色号）
 pub async fn get_inventory_summary(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ListStockFabricParams>,
 ) -> Result<Json<InventorySummaryResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     match service
         .get_inventory_summary(
@@ -516,11 +518,8 @@ pub struct ListTransactionParams {
     pub warehouse_id: Option<i32>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
-    #[allow(dead_code)]
     pub transaction_type: Option<String>,
-    #[allow(dead_code)]
     pub start_date: Option<chrono::NaiveDateTime>,
-    #[allow(dead_code)]
     pub end_date: Option<chrono::NaiveDateTime>,
 }
 
@@ -598,10 +597,10 @@ pub struct InventorySummaryResponse {
 /// - 计算公式：公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
 /// - 如果同时提供了 `quantity_kg`，将使用自动计算的值（更精确）
 pub async fn create_stock_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<StockFabricResponse>, (StatusCode, String)> {
-    let service = InventoryStockService::new(db.clone());
+    let service = InventoryStockService::new(state.db.clone());
 
     // 如果提供了克重和幅宽，自动计算公斤数
     let quantity_kg = if let (Some(gram_weight), Some(width)) = (payload.gram_weight, payload.width)

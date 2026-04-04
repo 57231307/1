@@ -3,13 +3,12 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 
 /// 创建客户请求
 #[derive(Debug, Deserialize)]
@@ -81,7 +80,7 @@ pub struct CustomerResponse {
 
 /// 获取客户列表
 pub async fn list_customers(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<CustomerListQuery>,
 ) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<serde_json::Value>>>, AppError>
 {
@@ -90,7 +89,7 @@ pub async fn list_customers(
         page_size: query.page_size.unwrap_or(20),
     };
 
-    let customer_service = CustomerService::new(db.clone());
+    let customer_service = CustomerService::new(state.db.clone());
     let result = customer_service
         .list_customers(page_req, query.status, query.customer_type, query.keyword)
         .await?;
@@ -113,10 +112,10 @@ pub async fn list_customers(
 
 /// 获取客户详情
 pub async fn get_customer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let customer_service = CustomerService::new(db.clone());
+    let customer_service = CustomerService::new(state.db.clone());
     let customer = customer_service.get_customer(id).await?;
     let customer_json = serde_json::to_value(customer).unwrap_or_default();
     Ok(Json(ApiResponse::success(customer_json)))
@@ -124,10 +123,10 @@ pub async fn get_customer(
 
 /// 创建客户
 pub async fn create_customer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let customer_service = CustomerService::new(db.clone());
+    let customer_service = CustomerService::new(state.db.clone());
 
     let credit_limit = payload
         .credit_limit
@@ -170,11 +169,11 @@ pub async fn create_customer(
 
 /// 更新客户
 pub async fn update_customer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let customer_service = CustomerService::new(db.clone());
+    let customer_service = CustomerService::new(state.db.clone());
 
     let credit_limit = payload
         .credit_limit
@@ -211,10 +210,10 @@ pub async fn update_customer(
 
 /// 删除客户
 pub async fn delete_customer(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let customer_service = CustomerService::new(db.clone());
+    let customer_service = CustomerService::new(state.db.clone());
     customer_service.delete_customer(id).await?;
     Ok(Json(ApiResponse::success_with_msg((), "客户删除成功")))
 }

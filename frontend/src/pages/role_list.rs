@@ -169,7 +169,7 @@ impl Component for RoleListPage {
                         "is_system": is_system
                     });
 
-                    match ApiService::post::<serde_json::Value>("/api/v1/erp/roles", &payload).await {
+                    match ApiService::post::<serde_json::Value, serde_json::Value>("/api/v1/erp/roles", &payload).await {
                         Ok(_) => {
                             link.send_message(Msg::CloseCreateModal);
                             link.send_message(Msg::LoadRoles);
@@ -202,7 +202,7 @@ impl Component for RoleListPage {
                         "is_system": is_system
                     });
 
-                    match ApiService::put::<serde_json::Value>(&format!("/api/v1/erp/roles/{}", role_id), &payload).await {
+                    match ApiService::put::<serde_json::Value, serde_json::Value>(&format!("/api/v1/erp/roles/{}", role_id), &payload).await {
                         Ok(_) => {
                             link.send_message(Msg::CloseEditModal);
                             link.send_message(Msg::LoadRoles);

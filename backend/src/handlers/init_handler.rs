@@ -2,8 +2,7 @@
 
 use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus};
 use axum::{extract::State, http::StatusCode, Json};
-use sea_orm::DatabaseConnection;
-use std::sync::Arc;
+use crate::utils::app_state::AppState;
 
 #[derive(Debug, serde::Serialize)]
 pub struct ErrorResponse {
@@ -33,8 +32,8 @@ pub struct InitWithDbRequest {
     pub admin_password: String,
 }
 
-pub async fn get_init_status(State(db): State<Arc<DatabaseConnection>>) -> Json<InitStatus> {
-    let init_service = InitService::new(db);
+pub async fn get_init_status(State(state): State<AppState>) -> Json<InitStatus> {
+    let init_service = InitService::new(state.db.clone());
     let (initialized, message) = init_service.check_initialized().await;
     Json(InitStatus {
         initialized,
@@ -69,13 +68,13 @@ pub async fn test_database_connection(
 }
 
 pub async fn initialize_system(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<InitRequest>,
 ) -> Result<
     Json<crate::services::init_service::InitializationResult>,
     (StatusCode, Json<ErrorResponse>),
 > {
-    let init_service = InitService::new(db);
+    let init_service = InitService::new(state.db.clone());
 
     match init_service
         .initialize(&payload.admin_username, &payload.admin_password)
@@ -171,10 +170,10 @@ pub struct ResetPasswordResponse {
 }
 
 pub async fn reset_admin_password(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<ResetPasswordRequest>,
 ) -> Result<Json<ResetPasswordResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let init_service = InitService::new(db);
+    let init_service = InitService::new(state.db.clone());
 
     match init_service.reset_password(&payload.username, &payload.new_password).await {
         Ok(_) => Ok(Json(ResetPasswordResponse {

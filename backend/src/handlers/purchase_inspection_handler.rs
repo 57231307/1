@@ -12,17 +12,16 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use validator::Validate;
 
 /// 查询采购质检单列表
 pub async fn list_inspections(
     Query(params): Query<InspectionQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseInspectionService::new(db);
+    let service = PurchaseInspectionService::new(state.db.clone());
     let (inspections, total) = service
         .list_inspections(
             params.page.unwrap_or(1),
@@ -45,9 +44,9 @@ pub async fn list_inspections(
 /// 获取采购质检单详情
 pub async fn get_inspection(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseInspectionService::new(db);
+    let service = PurchaseInspectionService::new(state.db.clone());
     let inspection = service.get_inspection(id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(
@@ -58,13 +57,13 @@ pub async fn get_inspection(
 /// 创建采购质检单
 #[axum::debug_handler]
 pub async fn create_inspection(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreatePurchaseInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = PurchaseInspectionService::new(db);
+    let service = PurchaseInspectionService::new(state.db.clone());
     let user_id = 1;
 
     let inspection = service.create_inspection(req, user_id).await?;
@@ -79,10 +78,10 @@ pub async fn create_inspection(
 #[axum::debug_handler]
 pub async fn update_inspection(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = PurchaseInspectionService::new(db);
+    let service = PurchaseInspectionService::new(state.db.clone());
     let user_id = 1;
 
     let inspection = service.update_inspection(id, req, user_id).await?;
@@ -97,13 +96,13 @@ pub async fn update_inspection(
 #[axum::debug_handler]
 pub async fn complete_inspection(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CompleteInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-    let service = PurchaseInspectionService::new(db);
+    let service = PurchaseInspectionService::new(state.db.clone());
     let user_id = 1;
 
     let inspection = service.complete_inspection(id, req, user_id).await?;

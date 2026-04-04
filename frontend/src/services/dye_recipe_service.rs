@@ -1,95 +1,16 @@
 //! 染色配方管理服务
 
+use crate::models::api_response::ApiResponse;
+use crate::models::dye_recipe::{
+    ApproveRecipeRequest, CreateDyeRecipeRequest, CreateVersionRequest, DyeRecipe,
+    DyeRecipeListResponse, DyeRecipeQuery, UpdateDyeRecipeRequest,
+};
 use crate::services::api::ApiService;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DyeRecipe {
-    pub id: i32,
-    pub recipe_no: String,
-    pub color_code: String,
-    pub color_name: String,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<f64>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<f64>,
-    pub liquor_ratio: Option<f64>,
-    pub auxiliaries: Option<serde_json::Value>,
-    pub status: String,
-    pub version: Option<i32>,
-    pub parent_recipe_id: Option<i32>,
-    pub approved_by: Option<i32>,
-    pub approved_at: Option<String>,
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct DyeRecipeQuery {
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
-    pub recipe_no: Option<String>,
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub dye_type: Option<String>,
-    pub status: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateDyeRecipeRequest {
-    pub recipe_no: String,
-    pub color_code: String,
-    pub color_name: String,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<f64>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<f64>,
-    pub liquor_ratio: Option<f64>,
-    pub auxiliaries: Option<serde_json::Value>,
-    pub status: Option<String>,
-    pub version: Option<i32>,
-    pub parent_recipe_id: Option<i32>,
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateDyeRecipeRequest {
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<f64>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<f64>,
-    pub liquor_ratio: Option<f64>,
-    pub auxiliaries: Option<serde_json::Value>,
-    pub status: Option<String>,
-    pub remarks: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApproveRecipeRequest {
-    pub approved_by: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateVersionRequest {
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
-}
 
 pub struct DyeRecipeService;
 
 impl DyeRecipeService {
-    pub async fn list(query: DyeRecipeQuery) -> Result<Vec<DyeRecipe>, String> {
+    pub async fn list(query: DyeRecipeQuery) -> Result<DyeRecipeListResponse, String> {
         let mut params = Vec::new();
         if let Some(page) = query.page {
             params.push(format!("page={}", page));
@@ -113,51 +34,41 @@ impl DyeRecipeService {
             params.push(format!("status={}", status));
         }
 
-        let url = format!("/api/v1/erp/dye-recipe?{}", params.join("&"));
-        ApiService::get(&url).await
+        let url = if params.is_empty() {
+            String::from("/dye-recipe")
+        } else {
+            format!("/dye-recipe?{}", params.join("&"))
+        };
+        let response: ApiResponse<DyeRecipeListResponse> = ApiService::get(&url).await?;
+        response.into_result()
     }
 
     pub async fn get(id: i32) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}", id);
-        ApiService::get(&url).await
+        let response: ApiResponse<DyeRecipe> = ApiService::get(&format!("/dye-recipe/{}", id)).await?;
+        response.into_result()
     }
 
     pub async fn create(req: CreateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let url = "/api/v1/erp/dye-recipe";
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::post(url, &body).await
+        let response: ApiResponse<DyeRecipe> = ApiService::post("/dye-recipe", &req).await?;
+        response.into_result()
     }
 
     pub async fn update(id: i32, req: UpdateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}", id);
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::put(&url, &body).await
+        let response: ApiResponse<DyeRecipe> = ApiService::put(&format!("/dye-recipe/{}", id), &req).await?;
+        response.into_result()
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}", id);
-        ApiService::delete(&url).await
+        ApiService::delete(&format!("/dye-recipe/{}", id)).await
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}/approve", id);
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::post(&url, &body).await
+        let response: ApiResponse<DyeRecipe> = ApiService::post(&format!("/dye-recipe/{}/approve", id), &req).await?;
+        response.into_result()
     }
 
     pub async fn create_version(id: i32, req: CreateVersionRequest) -> Result<DyeRecipe, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}/version", id);
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败: {}", e))?;
-        ApiService::post(&url, &body).await
-    }
-
-    pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeRecipe>, String> {
-        let url = format!("/api/v1/erp/dye-recipe/by-color/{}", color_code);
-        ApiService::get(&url).await
-    }
-
-    pub async fn get_versions(id: i32) -> Result<Vec<DyeRecipe>, String> {
-        let url = format!("/api/v1/erp/dye-recipe/{}/versions", id);
-        ApiService::get(&url).await
+        let response: ApiResponse<DyeRecipe> = ApiService::post(&format!("/dye-recipe/{}/version", id), &req).await?;
+        response.into_result()
     }
 }

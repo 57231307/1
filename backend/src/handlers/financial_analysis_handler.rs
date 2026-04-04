@@ -7,12 +7,11 @@ use crate::services::financial_analysis_service::{
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
@@ -31,12 +30,12 @@ pub struct TrendQuery {
 
 pub async fn list_indicators(
     Query(params): Query<IndicatorQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<financial_analysis::Model>>>, AppError> {
     info!("用户 {} 正在查询财务指标列表", auth.user_id);
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let query_params = crate::services::financial_analysis_service::IndicatorQueryParams {
         indicator_type: params.indicator_type,
         status: params.status,
@@ -51,7 +50,7 @@ pub async fn list_indicators(
 }
 
 pub async fn create_indicator(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateIndicatorRequest>,
 ) -> Result<Json<ApiResponse<financial_analysis::Model>>, AppError> {
@@ -60,7 +59,7 @@ pub async fn create_indicator(
         auth.user_id, req.indicator_code
     );
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let indicator = service.create_indicator(req, auth.user_id).await?;
     info!("财务指标创建成功：{}", indicator.indicator_code);
 
@@ -68,13 +67,13 @@ pub async fn create_indicator(
 }
 
 pub async fn create_analysis_result(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<FinancialAnalysisRequest>,
 ) -> Result<Json<ApiResponse<financial_analysis_result::Model>>, AppError> {
     info!("用户 {} 正在创建财务分析结果", auth.user_id);
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let result = service.create_analysis_result(req, auth.user_id).await?;
     info!("财务分析结果创建成功");
 
@@ -83,16 +82,52 @@ pub async fn create_analysis_result(
 
 pub async fn get_trends(
     Query(params): Query<TrendQuery>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<financial_analysis_result::Model>>>, AppError> {
     info!("用户 {} 正在查询财务趋势", auth.user_id);
 
-    let service = FinancialAnalysisService::new(db);
+    let service = FinancialAnalysisService::new(state.db.clone());
     let trends = service
         .get_trends(params.indicator_id.unwrap_or(0), params.limit.unwrap_or(10))
         .await?;
     info!("财务趋势查询成功，共 {} 条记录", trends.len());
 
     Ok(Json(ApiResponse::success(trends)))
+}
+
+
+/// 财务分析报告列表功能尚未实现
+pub async fn list_reports(
+    Query(_params): Query<serde_json::Value>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在财务分析报告列表功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("财务分析报告列表功能尚未实现".to_string()))
+}
+
+
+/// 财务分析报告创建功能尚未实现
+pub async fn create_report(
+    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在财务分析报告创建功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("财务分析报告创建功能尚未实现".to_string()))
+}
+
+
+/// 财务分析报告获取功能尚未实现
+pub async fn get_report(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在财务分析报告获取功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("财务分析报告获取功能尚未实现".to_string()))
+}
+
+
+/// 财务分析报告执行功能尚未实现
+pub async fn execute_report(
+    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在财务分析报告执行功能尚未实现", auth.user_id);
+    Err(AppError::ValidationError("财务分析报告执行功能尚未实现".to_string()))
 }

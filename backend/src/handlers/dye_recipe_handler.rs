@@ -9,13 +9,13 @@ use axum::{
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::dye_recipe;
+use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 #[derive(Debug, Deserialize)]
@@ -77,7 +77,7 @@ pub struct CreateVersionRequest {
 }
 
 pub async fn list_dye_recipes(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -103,7 +103,7 @@ pub async fn list_dye_recipes(
 
     q = q.order_by_desc(dye_recipe::Column::CreatedAt);
 
-    match q.paginate(&*db, page_size).fetch_page(page - 1).await {
+    match q.paginate(&*state.db, page_size).fetch_page(page - 1).await {
         Ok(recipes) => {
             let total = recipes.len() as u64;
             let paginated = PaginatedResponse::new(recipes, total, page, page_size);
@@ -118,10 +118,10 @@ pub async fn list_dye_recipes(
 }
 
 pub async fn get_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match dye_recipe::Entity::find_by_id(id).one(&*db).await {
+    match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(recipe)) => (StatusCode::OK, Json(ApiResponse::success(recipe))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -137,7 +137,7 @@ pub async fn get_dye_recipe(
 }
 
 pub async fn create_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> impl IntoResponse {
     let recipe = dye_recipe::ActiveModel {
@@ -164,7 +164,7 @@ pub async fn create_dye_recipe(
         updated_at: Set(Utc::now()),
     };
 
-    match recipe.insert(&*db).await {
+    match recipe.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
             Json(ApiResponse::success_with_msg(created, "配方创建成功")),
@@ -179,11 +179,11 @@ pub async fn create_dye_recipe(
 }
 
 pub async fn update_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*db).await {
+    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(r)) => r.into(),
         Ok(None) => {
             return (
@@ -240,7 +240,7 @@ pub async fn update_dye_recipe(
 
     recipe.updated_at = Set(Utc::now());
 
-    match recipe.update(&*db).await {
+    match recipe.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "配方更新成功")),
@@ -255,10 +255,10 @@ pub async fn update_dye_recipe(
 }
 
 pub async fn delete_dye_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match dye_recipe::Entity::delete_by_id(id).exec(&*db).await {
+    match dye_recipe::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "配方删除成功")),
@@ -273,11 +273,11 @@ pub async fn delete_dye_recipe(
 }
 
 pub async fn approve_recipe(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<ApproveRecipeRequest>,
 ) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*db).await {
+    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(r)) => r.into(),
         Ok(None) => {
             return (
@@ -300,7 +300,7 @@ pub async fn approve_recipe(
     recipe.approved_at = Set(Some(Utc::now()));
     recipe.updated_at = Set(Utc::now());
 
-    match recipe.update(&*db).await {
+    match recipe.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "配方审核成功")),
@@ -315,11 +315,11 @@ pub async fn approve_recipe(
 }
 
 pub async fn create_new_version(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<CreateVersionRequest>,
 ) -> impl IntoResponse {
-    let original = match dye_recipe::Entity::find_by_id(id).one(&*db).await {
+    let original = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(r)) => r,
         Ok(None) => {
             return (
@@ -364,7 +364,7 @@ pub async fn create_new_version(
         updated_at: Set(Utc::now()),
     };
 
-    match new_recipe.insert(&*db).await {
+    match new_recipe.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
             Json(ApiResponse::success_with_msg(created, "配方新版本创建成功")),
@@ -379,14 +379,14 @@ pub async fn create_new_version(
 }
 
 pub async fn get_recipes_by_color(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(color_code): Path<String>,
 ) -> impl IntoResponse {
     match dye_recipe::Entity::find()
         .filter(dye_recipe::Column::ColorCode.eq(color_code))
         .filter(dye_recipe::Column::Status.eq("已审核"))
         .order_by_desc(dye_recipe::Column::Version)
-        .all(&*db)
+        .all(&*state.db)
         .await
     {
         Ok(recipes) => (StatusCode::OK, Json(ApiResponse::success(recipes))).into_response(),
@@ -399,7 +399,7 @@ pub async fn get_recipes_by_color(
 }
 
 pub async fn get_recipe_versions(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     use sea_orm::QueryFilter;
@@ -412,7 +412,7 @@ pub async fn get_recipe_versions(
                 .add(dye_recipe::Column::Id.eq(id))
         )
         .order_by_asc(dye_recipe::Column::Version)
-        .all(&*db)
+        .all(&*state.db)
         .await
     {
         Ok(recipes) => (StatusCode::OK, Json(ApiResponse::success(recipes))).into_response(),

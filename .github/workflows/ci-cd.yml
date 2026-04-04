@@ -1,0 +1,136 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run tests
+        run: |
+          cd backend
+          cargo test --all
+      
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build backend
+        run: |
+          cd backend
+          cargo build --release
+      
+      - name: Build frontend
+        run: |
+          cd frontend
+          # 安装 Trunk (WebAssembly 构建工具)
+          curl -sSL https://trunkrs.dev/install.sh | bash
+          trunk build --release
+      
+      - name: Package release
+        run: |
+          mkdir -p release/bingxi-erp/backend
+          mkdir -p release/bingxi-erp/frontend
+          mkdir -p release/bingxi-erp/deploy
+          
+          # 复制后端文件
+          cp backend/target/release/bingxi_backend release/bingxi-erp/backend/
+          cp backend/.env.example release/bingxi-erp/backend/
+          
+          # 复制前端文件
+          cp -r frontend/dist/* release/bingxi-erp/frontend/
+          
+          # 复制部署文件
+          cp -r deploy/* release/bingxi-erp/deploy/
+          
+          # 创建发布包
+          cd release
+          tar -czvf bingxi-erp-$(date +%Y%m%d_%H%M%S).tar.gz bingxi-erp
+      
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingxi-erp-release
+          path: release/*.tar.gz
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bingxi-erp-release
+      
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            # 创建部署目录
+            mkdir -p /opt/bingxi-erp/deploy
+            
+            # 上传发布包
+            scp bingxi-erp-*.tar.gz ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/bingxi-erp/deploy/
+            
+            # 解压并部署
+            cd /opt/bingxi-erp/deploy
+            tar -xzvf bingxi-erp-*.tar.gz
+            
+            # 运行部署脚本
+            chmod +x bingxi-erp/deploy/deploy.sh
+            cd bingxi-erp/deploy
+            ./deploy.sh
+            
+            # 清理临时文件
+            rm -f /opt/bingxi-erp/deploy/bingxi-erp-*.tar.gz
+
+  notify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Send deployment notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

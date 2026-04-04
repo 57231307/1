@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::greige_fabric_service::{
-    GreigeFabricService, GreigeFabric, GreigeFabricQuery,
+use crate::models::greige_fabric::{
+    GreigeFabric, GreigeFabricQuery,
 };
+use crate::services::greige_fabric_service::GreigeFabricService;
 
 pub struct GreigeFabricPage {
     fabrics: Vec<GreigeFabric>,
@@ -67,7 +68,7 @@ impl Component for GreigeFabricPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match GreigeFabricService::list(query).await {
-                        Ok(fabrics) => link.send_message(Msg::FabricsLoaded(fabrics)),
+                        Ok(fabrics) => link.send_message(Msg::FabricsLoaded(fabrics.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -230,9 +231,9 @@ impl GreigeFabricPage {
                                     <td>{&fabric.fabric_no}</td>
                                     <td>{&fabric.fabric_name}</td>
                                     <td>{&fabric.fabric_type}</td>
-                                    <td class="numeric">{fabric.width_cm.map(|w| format!("{:.1}", w)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{fabric.weight_kg.map(|w| format!("{:.2}", w)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{fabric.length_m.map(|l| format!("{:.2}", l)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{fabric.width_cm.clone().map(|w| format!("{:.1}", w)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{fabric.weight_kg.clone().map(|w| format!("{:.2}", w)).unwrap_or("-".to_string())}</td>
+                                    <td class="numeric">{fabric.length_m.clone().map(|l| format!("{:.2}", l)).unwrap_or("-".to_string())}</td>
                                     <td>
                                         <span class={format!("status-badge status-{}", status)}>
                                             {&status}

@@ -5,9 +5,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::ap_reconciliation_service::{
-    ApReconciliationService, ApReconciliation, ApReconciliationQueryParams,
+use crate::models::ap_reconciliation::{
+    ApReconciliation, ApReconciliationQueryParams,
 };
+use crate::services::ap_reconciliation_service::ApReconciliationService;
 
 /// 应付对账管理页面状态
 pub struct ApReconciliationPage {

@@ -1,8 +1,10 @@
 use axum::{
     routing::{delete, get, post, put},
     Router,
+    middleware,
 };
 use crate::utils::app_state::AppState;
+use crate::middleware::rate_limit;
 
 use crate::handlers::{
     account_subject_handler,
@@ -35,7 +37,6 @@ use crate::handlers::{
     fund_management_handler,
     greige_fabric_handler,
     health_handler,
-    init_handler,
     inventory_adjustment_handler,
     inventory_count_handler,
     inventory_stock_handler,
@@ -67,11 +68,12 @@ use crate::handlers::{
 /// 创建路由配置
 /// 所有接口路径统一为 /api/v1/erp/* 格式
 pub fn create_router(state: AppState) -> Router {
-    // 认证路由
+    // 认证路由 - 添加防暴力攻击中间件
     let auth_routes = Router::new()
         .route("/login", post(auth_handler::login))
         .route("/logout", post(auth_handler::logout))
-        .route("/refresh", post(auth_handler::refresh_token));
+        .route("/refresh", post(auth_handler::refresh_token))
+        .layer(middleware::from_fn(rate_limit::anti_brute_force));
 
     // 用户管理路由
     let user_routes = Router::new()
@@ -210,6 +212,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id", get(sales_order_handler::get_order))
         .route("/orders/:id", put(sales_order_handler::update_order))
         .route("/orders/:id", delete(sales_order_handler::delete_order))
+        .route("/orders/:id/approve", post(sales_order_handler::approve_order))
+        .route("/orders/:id/ship", post(sales_order_handler::ship_order))
+        .route("/orders/:id/complete", post(sales_order_handler::complete_order))
         // 面料行业销售订单路由
         .route(
             "/fabric-orders",
@@ -563,18 +568,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/accounts", get(fund_management_handler::list_accounts))
         .route("/accounts", post(fund_management_handler::create_account))
         .route("/accounts/:id", get(fund_management_handler::get_account))
-        .route("/accounts/:id", put(fund_management_handler::update_account))
-        .route("/transfers", get(fund_management_handler::list_transfers))
-        .route("/transfers", post(fund_management_handler::create_transfer))
-        .route("/transfers/:id", get(fund_management_handler::get_transfer));
+        .route("/accounts/:id/deposit", post(fund_management_handler::deposit))
+        .route("/accounts/:id/withdraw", post(fund_management_handler::withdraw))
+        .route("/accounts/:id/freeze", post(fund_management_handler::freeze_funds))
+        .route("/accounts/:id/unfreeze", post(fund_management_handler::unfreeze_funds))
+        .route("/accounts/:id", delete(fund_management_handler::delete_account));
 
     // 质量检验路由
     let quality_inspection_routes = Router::new()
-        .route("/", get(quality_inspection_handler::list_inspections))
-        .route("/", post(quality_inspection_handler::create_inspection))
-        .route("/:id", get(quality_inspection_handler::get_inspection))
-        .route("/:id", put(quality_inspection_handler::update_inspection))
-        .route("/:id", delete(quality_inspection_handler::delete_inspection));
+        .route("/standards", get(quality_inspection_handler::list_standards))
+        .route("/standards", post(quality_inspection_handler::create_standard))
+        .route("/records", get(quality_inspection_handler::list_records))
+        .route("/records", post(quality_inspection_handler::create_record))
+        .route("/records/:id", get(quality_inspection_handler::get_record))
+        .route("/defects", get(quality_inspection_handler::list_defects))
+        .route("/defects/:id/process", post(quality_inspection_handler::process_defect));
 
     // 质量标准路由
     let quality_standard_routes = Router::new()
@@ -587,26 +595,24 @@ pub fn create_router(state: AppState) -> Router {
     // 成本归集路由
     let cost_collection_routes = Router::new()
         .route("/", get(cost_collection_handler::list_collections))
-        .route("/", post(cost_collection_handler::create_collection))
-        .route("/:id", get(cost_collection_handler::get_collection))
-        .route("/:id", put(cost_collection_handler::update_collection))
-        .route("/:id", delete(cost_collection_handler::delete_collection))
-        .route("/:id/calculate", post(cost_collection_handler::calculate_cost));
+        .route("/", post(cost_collection_handler::create_collection));
 
     // 销售分析路由
     let sales_analysis_routes = Router::new()
-        .route("/reports", get(sales_analysis_handler::list_reports))
-        .route("/reports", post(sales_analysis_handler::create_report))
-        .route("/reports/:id", get(sales_analysis_handler::get_report))
-        .route("/reports/:id/execute", post(sales_analysis_handler::execute_report));
+        .route("/statistics", get(sales_analysis_handler::list_statistics))
+        .route("/trends", get(sales_analysis_handler::get_trends))
+        .route("/rankings", get(sales_analysis_handler::get_rankings))
+        .route("/targets", get(sales_analysis_handler::get_targets))
+        .route("/targets", post(sales_analysis_handler::create_target));
 
     // 销售价格路由
     let sales_price_routes = Router::new()
         .route("/", get(sales_price_handler::list_prices))
         .route("/", post(sales_price_handler::create_price))
         .route("/:id", get(sales_price_handler::get_price))
-        .route("/:id", put(sales_price_handler::update_price))
-        .route("/:id", delete(sales_price_handler::delete_price));
+        .route("/:id/approve", post(sales_price_handler::approve_price))
+        .route("/history/:product_id", get(sales_price_handler::get_price_history))
+        .route("/strategies", get(sales_price_handler::list_strategies));
 
     // 采购价格路由
     let purchase_price_routes = Router::new()
@@ -630,28 +636,41 @@ pub fn create_router(state: AppState) -> Router {
         .route("/payment-requests", post(ap_payment_request_handler::create_request))
         .route("/payment-requests/:id", get(ap_payment_request_handler::get_request))
         .route("/verifications", get(ap_verification_handler::list_verifications))
-        .route("/verifications", post(ap_verification_handler::create_verification))
+        .route("/verifications/:id", get(ap_verification_handler::get_verification))
+        .route("/verifications/auto", post(ap_verification_handler::auto_verify))
+        .route("/verifications/manual", post(ap_verification_handler::manual_verify))
+        .route("/verifications/:id/cancel", post(ap_verification_handler::cancel_verification))
+        .route("/verifications/unverified/invoices", get(ap_verification_handler::get_unverified_invoices))
+        .route("/verifications/unverified/payments", get(ap_verification_handler::get_unverified_payments))
         .route("/reconciliations", get(ap_reconciliation_handler::list_reconciliations))
-        .route("/reconciliations", post(ap_reconciliation_handler::create_reconciliation))
-        .route("/reports", get(ap_report_handler::list_reports));
+        .route("/reconciliations/:id", get(ap_reconciliation_handler::get_reconciliation))
+        .route("/reconciliations/generate", post(ap_reconciliation_handler::generate_reconciliation))
+        .route("/reconciliations/:id/confirm", post(ap_reconciliation_handler::confirm_reconciliation))
+        .route("/reconciliations/:id/dispute", post(ap_reconciliation_handler::dispute_reconciliation))
+        .route("/reconciliations/summary", get(ap_reconciliation_handler::get_supplier_summary))
+        .route("/reports/statistics", get(ap_report_handler::get_statistics_report))
+        .route("/reports/daily", get(ap_report_handler::get_daily_report))
+        .route("/reports/monthly", get(ap_report_handler::get_monthly_report))
+        .route("/reports/aging", get(ap_report_handler::get_aging_report));
 
     // 应收账款路由
     let ar_routes = Router::new()
         .route("/invoices", get(ar_invoice_handler::list_invoices))
-        .route("/invoices", post(ar_invoice_handler::create_invoice))
-        .route("/invoices/:id", get(ar_invoice_handler::get_invoice))
-        .route("/invoices/:id", put(ar_invoice_handler::update_invoice))
-        .route("/invoices/:id", delete(ar_invoice_handler::delete_invoice));
+        .route("/invoices", post(ar_invoice_handler::create_invoice));
 
     // 系统更新路由
     let system_update_routes = Router::new()
-        .route("/check", get(system_update_handler::check_update))
-        .route("/update", post(system_update_handler::do_update));
+        .route("/check", get(system_update_handler::check_for_updates))
+        .route("/update", post(system_update_handler::download_and_update))
+        .route("/version", get(system_update_handler::get_version))
+        .route("/status", get(system_update_handler::get_update_status));
+
 
     // 健康检查路由
     let health_routes = Router::new()
         .route("/", get(health_handler::health_check))
-        .route("/db", get(health_handler::db_check));
+        .route("/readiness", get(health_handler::readiness_check))
+        .route("/liveness", get(health_handler::liveness_check));
 
     // 组装所有路由
     Router::new()
@@ -696,5 +715,6 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/ar", ar_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
-        .with_state(db)
+        .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
+        .with_state(state)
 }

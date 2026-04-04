@@ -4,10 +4,11 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::inventory_count_service::{
-    InventoryCountService, InventoryCount, InventoryCountDetail,
+use crate::models::inventory_count::{
+    InventoryCount, InventoryCountDetail,
     InventoryCountQuery, CreateInventoryCountRequest, UpdateInventoryCountRequest,
 };
+use crate::services::inventory_count_service::InventoryCountService;
 use crate::components::navigation::Navigation;
 
 pub struct InventoryCountPage {

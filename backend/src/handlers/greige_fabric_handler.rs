@@ -9,13 +9,13 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::greige_fabric;
+use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 #[derive(Debug, Deserialize)]
@@ -86,7 +86,7 @@ pub struct StockOutRequest {
 }
 
 pub async fn list_greige_fabrics(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
 ) -> impl IntoResponse {
     let page = query.page.unwrap_or(1);
@@ -118,7 +118,7 @@ pub async fn list_greige_fabrics(
 
     q = q.order_by_desc(greige_fabric::Column::CreatedAt);
 
-    match q.paginate(&*db, page_size).fetch_page(page - 1).await {
+    match q.paginate(&*state.db, page_size).fetch_page(page - 1).await {
         Ok(fabrics) => {
             let total = fabrics.len() as u64;
             let paginated = PaginatedResponse::new(fabrics, total, page, page_size);
@@ -133,10 +133,10 @@ pub async fn list_greige_fabrics(
 }
 
 pub async fn get_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match greige_fabric::Entity::find_by_id(id).one(&*db).await {
+    match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(fabric)) => (StatusCode::OK, Json(ApiResponse::success(fabric))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -152,7 +152,7 @@ pub async fn get_greige_fabric(
 }
 
 pub async fn create_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> impl IntoResponse {
     let fabric = greige_fabric::ActiveModel {
@@ -177,7 +177,7 @@ pub async fn create_greige_fabric(
         updated_at: Set(Utc::now()),
     };
 
-    match fabric.insert(&*db).await {
+    match fabric.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
             Json(ApiResponse::success_with_msg(created, "坯布创建成功")),
@@ -192,12 +192,12 @@ pub async fn create_greige_fabric(
 }
 
 pub async fn update_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateGreigeFabricRequest>,
 ) -> impl IntoResponse {
     let mut fabric: greige_fabric::ActiveModel =
-        match greige_fabric::Entity::find_by_id(id).one(&*db).await {
+        match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
             Ok(Some(f)) => f.into(),
             Ok(None) => {
                 return (
@@ -257,7 +257,7 @@ pub async fn update_greige_fabric(
 
     fabric.updated_at = Set(Utc::now());
 
-    match fabric.update(&*db).await {
+    match fabric.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "坯布更新成功")),
@@ -272,10 +272,10 @@ pub async fn update_greige_fabric(
 }
 
 pub async fn delete_greige_fabric(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match greige_fabric::Entity::delete_by_id(id).exec(&*db).await {
+    match greige_fabric::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "坯布删除成功")),
@@ -290,12 +290,12 @@ pub async fn delete_greige_fabric(
 }
 
 pub async fn stock_in(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<StockInRequest>,
 ) -> impl IntoResponse {
     let mut fabric: greige_fabric::ActiveModel =
-        match greige_fabric::Entity::find_by_id(id).one(&*db).await {
+        match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
             Ok(Some(f)) => f.into(),
             Ok(None) => {
                 return (
@@ -326,7 +326,7 @@ pub async fn stock_in(
     }
     fabric.updated_at = Set(Utc::now());
 
-    match fabric.update(&*db).await {
+    match fabric.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "坯布入库成功")),
@@ -341,11 +341,11 @@ pub async fn stock_in(
 }
 
 pub async fn stock_out(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<StockOutRequest>,
 ) -> impl IntoResponse {
-    let fabric = match greige_fabric::Entity::find_by_id(id).one(&*db).await {
+    let fabric = match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(f)) => f,
         Ok(None) => {
             return (
@@ -394,7 +394,7 @@ pub async fn stock_out(
     update_fabric.status = Set("已出库".to_string());
     update_fabric.updated_at = Set(Utc::now());
 
-    match update_fabric.update(&*db).await {
+    match update_fabric.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg(updated, "坯布出库成功")),
@@ -409,13 +409,13 @@ pub async fn stock_out(
 }
 
 pub async fn get_greige_by_supplier(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(supplier_id): Path<i32>,
 ) -> impl IntoResponse {
     match greige_fabric::Entity::find()
         .filter(greige_fabric::Column::SupplierId.eq(supplier_id))
         .order_by_desc(greige_fabric::Column::CreatedAt)
-        .all(&*db)
+        .all(&*state.db)
         .await
     {
         Ok(fabrics) => (StatusCode::OK, Json(ApiResponse::success(fabrics))).into_response(),

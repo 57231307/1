@@ -4,10 +4,11 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::inventory_transfer_service::{
-    InventoryTransferService, InventoryTransfer, InventoryTransferDetail,
+use crate::models::inventory_transfer::{
+    InventoryTransfer, InventoryTransferDetail,
     InventoryTransferQuery, CreateInventoryTransferRequest, UpdateInventoryTransferRequest,
 };
+use crate::services::inventory_transfer_service::InventoryTransferService;
 use crate::components::navigation::Navigation;
 
 pub struct InventoryTransferPage {

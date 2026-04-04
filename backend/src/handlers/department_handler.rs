@@ -2,9 +2,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::models::department;
 use crate::services::department_service::DepartmentService;
@@ -39,13 +38,13 @@ pub struct UpdateDepartmentRequest {
 
 /// 获取部门列表
 pub async fn list_departments(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<DepartmentListQuery>,
 ) -> Result<Json<ApiResponse<Vec<department::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(10);
 
-    let department_service = DepartmentService::new(db.clone());
+    let department_service = DepartmentService::new(state.db.clone());
     let (departments, total) = department_service
         .list_departments(page, page_size, query.parent_id, query.search)
         .await?;
@@ -57,20 +56,20 @@ pub async fn list_departments(
 
 /// 获取部门详情
 pub async fn get_department(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<department::Model>>, AppError> {
-    let department_service = DepartmentService::new(db.clone());
+    let department_service = DepartmentService::new(state.db.clone());
     let department = department_service.get_department(id).await?;
     Ok(Json(ApiResponse::success(department)))
 }
 
 /// 创建部门
 pub async fn create_department(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateDepartmentRequest>,
 ) -> Result<Json<ApiResponse<department::Model>>, AppError> {
-    let department_service = DepartmentService::new(db.clone());
+    let department_service = DepartmentService::new(state.db.clone());
     let department = department_service
         .create_department(req.name, req.description, req.parent_id)
         .await?;
@@ -82,11 +81,11 @@ pub async fn create_department(
 
 /// 更新部门
 pub async fn update_department(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateDepartmentRequest>,
 ) -> Result<Json<ApiResponse<department::Model>>, AppError> {
-    let department_service = DepartmentService::new(db.clone());
+    let department_service = DepartmentService::new(state.db.clone());
     let department = department_service
         .update_department(id, req.name, req.description, req.parent_id)
         .await?;
@@ -98,19 +97,19 @@ pub async fn update_department(
 
 /// 删除部门
 pub async fn delete_department(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let department_service = DepartmentService::new(db.clone());
+    let department_service = DepartmentService::new(state.db.clone());
     department_service.delete_department(id).await?;
     Ok(Json(ApiResponse::success_with_msg((), "部门删除成功")))
 }
 
 /// 获取部门树形结构
 pub async fn get_department_tree(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<DepartmentTreeNode>>>, AppError> {
-    let department_service = DepartmentService::new(db.clone());
+    let department_service = DepartmentService::new(state.db.clone());
     let tree = department_service.get_department_tree().await?;
     Ok(Json(ApiResponse::success(tree)))
 }

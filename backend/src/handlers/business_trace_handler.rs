@@ -4,9 +4,8 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::services::business_trace_service::BusinessTraceService;
 
@@ -88,10 +87,10 @@ pub struct TraceListResponse {
 
 /// 按五维 ID 查询追溯链
 pub async fn get_trace_by_five_dimension(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(five_dimension_id): Path<String>,
 ) -> Result<Json<FullTraceChainResponse>, (StatusCode, String)> {
-    let service = BusinessTraceService::new(db.clone());
+    let service = BusinessTraceService::new(state.db.clone());
 
     match service
         .find_trace_chain_by_five_dimension(&five_dimension_id)
@@ -155,10 +154,10 @@ pub async fn get_trace_by_five_dimension(
 
 /// 正向追溯
 pub async fn forward_trace(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<ForwardTraceParams>,
 ) -> Result<Json<TraceListResponse>, (StatusCode, String)> {
-    let service = BusinessTraceService::new(db.clone());
+    let service = BusinessTraceService::new(state.db.clone());
 
     match service
         .forward_trace(params.supplier_id, &params.batch_no)
@@ -202,10 +201,10 @@ pub async fn forward_trace(
 
 /// 反向追溯
 pub async fn backward_trace(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(params): Query<BackwardTraceParams>,
 ) -> Result<Json<TraceListResponse>, (StatusCode, String)> {
-    let service = BusinessTraceService::new(db.clone());
+    let service = BusinessTraceService::new(state.db.clone());
 
     match service
         .backward_trace(params.customer_id, &params.batch_no)
@@ -249,10 +248,10 @@ pub async fn backward_trace(
 
 /// 创建追溯快照
 pub async fn create_trace_snapshot(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(trace_chain_id): Path<String>,
 ) -> Result<Json<String>, (StatusCode, String)> {
-    let service = BusinessTraceService::new(db.clone());
+    let service = BusinessTraceService::new(state.db.clone());
 
     match service.create_snapshot(&trace_chain_id).await {
         Ok(snapshot) => Ok(Json(format!("追溯快照创建成功，快照 ID: {}", snapshot.id))),

@@ -13,10 +13,9 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::sync::Arc;
 use tracing::{info, warn};
 use validator::Validate;
 
@@ -34,7 +33,7 @@ pub struct ApReconciliationQueryParams {
 /// 查询对账单列表
 pub async fn list_reconciliations(
     Query(params): Query<ApReconciliationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -42,7 +41,7 @@ pub async fn list_reconciliations(
         auth.username, params.supplier_id
     );
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let (reconciliations, total) = service
         .get_list(
             params.supplier_id,
@@ -69,12 +68,12 @@ pub async fn list_reconciliations(
 /// 获取对账单详情
 pub async fn get_reconciliation(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询对账单详情 ID: {}", auth.username, id);
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.get_by_id(id).await?;
 
     info!(
@@ -90,7 +89,7 @@ pub async fn get_reconciliation(
 /// 生成对账单
 #[axum::debug_handler]
 pub async fn generate_reconciliation(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<GenerateReconciliationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -104,7 +103,7 @@ pub async fn generate_reconciliation(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.generate_reconciliation(req, auth.user_id).await?;
 
     info!(
@@ -121,12 +120,12 @@ pub async fn generate_reconciliation(
 /// 确认对账单
 pub async fn confirm_reconciliation(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.confirm_reconciliation(id, auth.user_id).await?;
 
     info!(
@@ -148,7 +147,7 @@ pub struct DisputeRequest {
 
 pub async fn dispute_reconciliation(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<DisputeRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -157,7 +156,7 @@ pub async fn dispute_reconciliation(
         auth.username, id, req.reason
     );
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let reconciliation = service.dispute(id, req.reason, auth.user_id).await?;
 
     info!(
@@ -174,7 +173,7 @@ pub async fn dispute_reconciliation(
 /// 获取供应商应付汇总
 pub async fn get_supplier_summary(
     Query(params): Query<ApReconciliationQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -182,7 +181,7 @@ pub async fn get_supplier_summary(
         auth.username, params.supplier_id
     );
 
-    let service = ApReconciliationService::new(db);
+    let service = ApReconciliationService::new(state.db.clone());
     let summary = service.get_supplier_summary(params.supplier_id).await?;
 
     info!("用户 {} 查询供应商应付汇总成功", auth.username);

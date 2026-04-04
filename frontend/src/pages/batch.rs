@@ -3,9 +3,10 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::batch_service::{
-    BatchService, Batch, BatchQuery,
+use crate::models::batch::{
+    Batch, BatchQuery,
 };
+use crate::services::batch_service::BatchService;
 
 pub struct BatchPage {
     batches: Vec<Batch>,

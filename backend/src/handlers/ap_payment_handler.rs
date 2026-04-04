@@ -13,10 +13,9 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-use std::sync::Arc;
 use tracing::{info, warn};
 use validator::Validate;
 
@@ -35,7 +34,7 @@ pub struct ApPaymentQueryParams {
 /// 查询付款列表
 pub async fn list_payments(
     Query(params): Query<ApPaymentQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -43,7 +42,7 @@ pub async fn list_payments(
         auth.username, params.supplier_id
     );
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let (payments, total) = service
         .get_list(
             params.supplier_id,
@@ -71,12 +70,12 @@ pub async fn list_payments(
 /// 获取付款详情
 pub async fn get_payment(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 查询付款详情 ID: {}", auth.username, id);
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.get_by_id(id).await?;
 
     info!(
@@ -90,7 +89,7 @@ pub async fn get_payment(
 /// 创建付款
 #[axum::debug_handler]
 pub async fn create_payment(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -104,7 +103,7 @@ pub async fn create_payment(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.create(req, auth.user_id).await?;
 
     info!(
@@ -122,7 +121,7 @@ pub async fn create_payment(
 #[axum::debug_handler]
 pub async fn update_payment(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateApPaymentRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
@@ -133,7 +132,7 @@ pub async fn update_payment(
         AppError::ValidationError(e.to_string())
     })?;
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.update(id, req, auth.user_id).await?;
 
     info!(
@@ -150,12 +149,12 @@ pub async fn update_payment(
 /// 确认付款
 pub async fn confirm_payment(
     Path(id): Path<i32>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认付款 ID: {}", auth.username, id);
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let payment = service.confirm(id, auth.user_id).await?;
 
     info!(
@@ -179,7 +178,7 @@ pub struct PaymentScheduleParams {
 
 pub async fn get_payment_schedule(
     Query(params): Query<PaymentScheduleParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
@@ -187,7 +186,7 @@ pub async fn get_payment_schedule(
         auth.username, params.supplier_id
     );
 
-    let service = ApPaymentService::new(db);
+    let service = ApPaymentService::new(state.db.clone());
     let schedule = service
         .get_payment_schedule(params.supplier_id, params.start_date, params.end_date)
         .await?;

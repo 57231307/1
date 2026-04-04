@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use std::sync::Arc;
 use crate::services::base_data_service::{BaseDataService, BaseDataConfig, CreateBaseDataRequest, UpdateBaseDataRequest, ImportItem, ImportResult};
 use crate::utils::response::ApiResponse;
@@ -23,7 +24,7 @@ pub struct ListQuery {
 }
 
 pub async fn list_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Query(query): Query<ListQuery>,
 ) -> Json<ApiResponse<Vec<BaseDataConfig>>> {
     let service = BaseDataService::new(db);
@@ -37,7 +38,7 @@ pub async fn list_base_data(
 }
 
 pub async fn get_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Json<ApiResponse<BaseDataConfig>> {
     let service = BaseDataService::new(db);
@@ -49,7 +50,7 @@ pub async fn get_base_data(
 }
 
 pub async fn create_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateBaseDataRequest>,
 ) -> Result<Json<ApiResponse<BaseDataConfig>>, (StatusCode, Json<ApiResponse<()>>)> {
     let service = BaseDataService::new(db);
@@ -64,7 +65,7 @@ pub async fn create_base_data(
 }
 
 pub async fn update_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateBaseDataRequest>,
 ) -> Result<Json<ApiResponse<BaseDataConfig>>, (StatusCode, Json<ApiResponse<()>>)> {
@@ -80,7 +81,7 @@ pub async fn update_base_data(
 }
 
 pub async fn delete_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Json<ApiResponse<()>> {
     let service = BaseDataService::new(db);
@@ -92,7 +93,7 @@ pub async fn delete_base_data(
 }
 
 pub async fn import_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(category): Path<String>,
     Json(items): Json<Vec<ImportItem>>,
 ) -> Json<ApiResponse<ImportResult>> {
@@ -108,7 +109,7 @@ pub async fn import_base_data(
 }
 
 pub async fn export_base_data(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     Path(category): Path<String>,
 ) -> Json<ApiResponse<Vec<BaseDataConfig>>> {
     let service = BaseDataService::new(db);

@@ -11,9 +11,8 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use sea_orm::DatabaseConnection;
+use crate::utils::app_state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 
 /// 查询统计报表参数
@@ -27,7 +26,7 @@ pub struct ApStatisticsQueryParams {
 /// 获取应付统计报表
 pub async fn get_statistics_report(
     Query(params): Query<ApStatisticsQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -35,7 +34,7 @@ pub async fn get_statistics_report(
         auth.username, params.supplier_id, params.start_date, params.end_date
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service
         .get_statistics_report(params.supplier_id, params.start_date, params.end_date)
         .await?;
@@ -55,7 +54,7 @@ pub struct ApDailyQueryParams {
 /// 获取应付日报
 pub async fn get_daily_report(
     Query(params): Query<ApDailyQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -63,7 +62,7 @@ pub async fn get_daily_report(
         auth.username, params.report_date, params.supplier_id
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service
         .get_daily_report(params.report_date, params.supplier_id)
         .await?;
@@ -84,7 +83,7 @@ pub struct ApMonthlyQueryParams {
 /// 获取应付月报
 pub async fn get_monthly_report(
     Query(params): Query<ApMonthlyQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -92,7 +91,7 @@ pub async fn get_monthly_report(
         auth.username, params.year, params.month, params.supplier_id
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service
         .get_monthly_report(params.year, params.month, params.supplier_id)
         .await?;
@@ -111,7 +110,7 @@ pub struct ApAgingQueryParams {
 /// 获取账龄分析报告
 pub async fn get_aging_report(
     Query(params): Query<ApAgingQueryParams>,
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
@@ -119,7 +118,7 @@ pub async fn get_aging_report(
         auth.username, params.supplier_id
     );
 
-    let service = ApReportService::new(db);
+    let service = ApReportService::new(state.db.clone());
     let report = service.get_aging_report(params.supplier_id).await?;
 
     info!("用户 {} 查询账龄分析报告成功", auth.username);
