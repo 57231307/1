@@ -1,136 +1,363 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline - 自动构建和发布
 
 on:
   push:
     branches:
       - main
+      - master
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
+      - master
+  release:
+    types: [created]
+
+env:
+  RUST_VERSION: 1.94.1
+  CARGO_TERM_COLOR: always
 
 jobs:
   test:
+    name: 运行测试
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v5
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Run tests
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+
+      - name: 安装系统依赖
         run: |
-          cd backend
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
+
+      - name: 运行后端测试
+        working-directory: backend
+        run: |
           cargo test --all
-      
-  build:
+
+  build-backend:
+    name: 构建后端
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v5
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Build backend
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-backend-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-backend-
+
+      - name: 安装系统依赖
         run: |
-          cd backend
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+
+      - name: 构建后端 (Release模式)
+        working-directory: backend
+        run: |
           cargo build --release
-      
-      - name: Build frontend
+
+      - name: 验证后端可执行文件
         run: |
-          cd frontend
-          # 安装 Trunk (WebAssembly 构建工具)
-          curl -sSL https://trunkrs.dev/install.sh | bash
+          if [ -f "backend/target/release/server" ]; then
+            echo "后端构建成功！"
+            ls -lh backend/target/release/
+          else
+            echo "错误：找不到后端可执行文件"
+            exit 1
+          fi
+
+      - name: 上传后端编译产物
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-binary
+          path: backend/target/release/server
+          retention-days: 30
+
+  build-frontend:
+    name: 构建前端
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32-unknown-unknown
+
+      - name: 安装 Trunk
+        run: |
+          cargo install --locked trunk
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/target
+          key: ${{ runner.os }}-cargo-frontend-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-frontend-
+
+      - name: 构建前端 (Release模式)
+        working-directory: frontend
+        run: |
           trunk build --release
-      
-      - name: Package release
+
+      - name: 验证前端构建产物
         run: |
+          if [ -d "frontend/dist" ]; then
+            echo "前端构建成功！"
+            ls -lh frontend/dist/
+          else
+            echo "错误：找不到前端构建目录"
+            exit 1
+          fi
+
+      - name: 上传前端编译产物
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 30
+
+  package-release:
+    name: 创建发布包
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 下载后端产物
+        uses: actions/download-artifact@v5
+        with:
+          name: backend-binary
+          path: release/backend
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v5
+        with:
+          name: frontend-dist
+          path: release/frontend/dist
+
+      - name: 准备发布包目录结构
+        run: |
+          # 创建目录结构
           mkdir -p release/bingxi-erp/backend
           mkdir -p release/bingxi-erp/frontend
           mkdir -p release/bingxi-erp/deploy
+          mkdir -p release/bingxi-erp/docs
           
           # 复制后端文件
-          cp backend/target/release/bingxi_backend release/bingxi-erp/backend/
+          chmod +x release/backend/server
+          cp release/backend/server release/bingxi-erp/backend/
           cp backend/.env.example release/bingxi-erp/backend/
+          cp backend/config.toml release/bingxi-erp/backend/ 2>/dev/null || true
+          cp backend/config.yaml release/bingxi-erp/backend/ 2>/dev/null || true
           
           # 复制前端文件
-          cp -r frontend/dist/* release/bingxi-erp/frontend/
+          cp -r release/frontend/dist/* release/bingxi-erp/frontend/
           
           # 复制部署文件
           cp -r deploy/* release/bingxi-erp/deploy/
           
-          # 创建发布包
-          cd release
-          tar -czvf bingxi-erp-$(date +%Y%m%d_%H%M%S).tar.gz bingxi-erp
-      
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bingxi-erp-release
-          path: release/*.tar.gz
+          # 复制数据库迁移文件
+          if [ -d "backend/database" ]; then
+            cp -r backend/database release/bingxi-erp/ 2>/dev/null || true
+          fi
+          
+          # 复制文档
+          cp DOCUMENTATION_INDEX.md release/bingxi-erp/docs/ 2>/dev/null || true
+          cp README.md release/bingxi-erp/ 2>/dev/null || true
+          
+          # 显示目录结构
+          echo "发布包目录结构："
+          ls -la release/bingxi-erp/
 
-  deploy:
-    needs: build
+      - name: 生成版本号
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "构建版本: $VERSION"
+
+      - name: 创建ZIP发布包
+        working-directory: release
+        run: |
+          ZIP_NAME="bingxi-erp-${{ steps.version.outputs.version }}.zip"
+          zip -r "../$ZIP_NAME" bingxi-erp/
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+          echo "发布包大小："
+          ls -lh "../$ZIP_NAME"
+
+      - name: 上传发布包
+        uses: actions/upload-artifact@v5
+        with:
+          name: bingxi-erp-release-zip
+          path: bingxi-erp-${{ steps.version.outputs.version }}.zip
+          retention-days: 90
+
+  github-release:
+    name: 发布到 GitHub Release
+    needs: package-release
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 下载发布包
+        uses: actions/download-artifact@v5
         with:
-          name: bingxi-erp-release
-      
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
+          name: bingxi-erp-release-zip
+          path: ./
+
+      - name: 生成版本号
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: 生成发布说明
+        id: release-notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # 秉羲管理系统 - ${{ steps.version.outputs.version }}
+
+          ## 📦 发布内容
+
+          本次发布包含完整的秉羲管理系统，包括：
+
+          - ✅ 后端服务（Rust Axum）
+          - ✅ 前端应用（Yew WebAssembly）
+          - ✅ 部署脚本和配置文件
+          - ✅ 完整的项目文档
+
+          ## 🚀 快速开始
+
+          ### 1. 解压发布包
+          ```bash
+          unzip bingxi-erp-${{ steps.version.outputs.version }}.zip
+          cd bingxi-erp
+          ```
+
+          ### 2. 配置环境
+          ```bash
+          cd backend
+          cp .env.example .env
+          # 编辑 .env 文件，配置数据库连接等信息
+          ```
+
+          ### 3. 使用部署脚本
+          ```bash
+          cd deploy
+          chmod +x deploy.sh
+          ./deploy.sh
+          ```
+
+          ## 📋 系统要求
+
+          - **操作系统**: Linux (推荐 Ubuntu 20.04+)
+          - **CPU**: 至少 2 核
+          - **内存**: 至少 4GB
+          - **磁盘**: 至少 20GB
+          - **数据库**: PostgreSQL 14+
+
+          ## 🔧 技术栈
+
+          - **后端**: Rust 2021 + Axum 0.7 + SeaORM 1.0
+          - **前端**: Yew 0.21 (Rust WebAssembly)
+          - **数据库**: PostgreSQL 14+
+          - **部署**: Systemd + Nginx
+
+          ## 📚 文档
+
+          完整文档请查看 docs/ 目录或访问项目仓库。
+
+          ## 🐛 问题反馈
+
+          如有问题，请提交 Issue 或联系开发团队。
+
+          ---
+          *发布时间: $(date +'%Y-%m-%d %H:%M:%S')*
+          EOF
+
+      - name: 创建或更新 GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          port: 22
-          script: |
-            # 创建部署目录
-            mkdir -p /opt/bingxi-erp/deploy
-            
-            # 上传发布包
-            scp bingxi-erp-*.tar.gz ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/bingxi-erp/deploy/
-            
-            # 解压并部署
-            cd /opt/bingxi-erp/deploy
-            tar -xzvf bingxi-erp-*.tar.gz
-            
-            # 运行部署脚本
-            chmod +x bingxi-erp/deploy/deploy.sh
-            cd bingxi-erp/deploy
-            ./deploy.sh
-            
-            # 清理临时文件
-            rm -f /opt/bingxi-erp/deploy/bingxi-erp-*.tar.gz
+          tag_name: v${{ steps.version.outputs.version }}
+          name: 秉羲管理系统 v${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          files: bingxi-erp-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
-    needs: deploy
+    name: 构建通知
+    needs: [test, build-backend, build-frontend, package-release, github-release]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: always()
     steps:
-      - name: Send deployment notification
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          channel: '#deployments'
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: 构建状态总结
+        run: |
+          echo "========================================"
+          echo "  秉羲管理系统 CI/CD 构建总结"
+          echo "========================================"
+          echo ""
+          echo "测试状态: ${{ needs.test.result }}"
+          echo "后端构建状态: ${{ needs.build-backend.result }}"
+          echo "前端构建状态: ${{ needs.build-frontend.result }}"
+          echo "发布包创建状态: ${{ needs.package-release.result }}"
+          echo "GitHub Release状态: ${{ needs.github-release.result }}"
+          echo ""
+          echo "========================================"
