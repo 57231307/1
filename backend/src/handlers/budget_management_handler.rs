@@ -280,10 +280,10 @@ pub async fn get_plan(
 /// 预算方案审批
 #[allow(dead_code)]
 pub async fn approve_plan(
-    Path(id): Path<i32>,
-    Json(req): Json<BudgetApproveRequest>,
     State(state): State<AppState>,
     auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<BudgetApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批预算方案：{}", auth.username, id);
 

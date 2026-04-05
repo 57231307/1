@@ -26,25 +26,25 @@ impl QualityInspectionService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
         
-        ApiService::get(&format!("/quality-inspections/standards?{}", query)).await
+        ApiService::get(&format!("/quality-standards?{}", query)).await
     }
 
     pub async fn get_standard(id: i32) -> Result<InspectionStandard, String> {
-        ApiService::get(&format!("/quality-inspections/standards/{}", id)).await
+        ApiService::get(&format!("/quality-standards/{}", id)).await
     }
 
     pub async fn create_standard(req: CreateInspectionStandardRequest) -> Result<InspectionStandard, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/quality-inspections/standards", &payload).await
+        ApiService::post("/quality-standards", &payload).await
     }
 
     pub async fn update_standard(id: i32, req: CreateInspectionStandardRequest) -> Result<InspectionStandard, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/quality-inspections/standards/{}", id), &payload).await
+        ApiService::put(&format!("/quality-standards/{}", id), &payload).await
     }
 
     pub async fn delete_standard(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/quality-inspections/standards/{}", id)).await
+        ApiService::delete(&format!("/quality-standards/{}", id)).await
     }
 
     pub async fn list_records(

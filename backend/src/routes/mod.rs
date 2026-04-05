@@ -510,7 +510,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/inspections/:id", get(purchase_inspection_handler::get_inspection))
         .route("/returns", get(purchase_return_handler::list_returns))
         .route("/returns", post(purchase_return_handler::create_return))
-        .route("/returns/:id", get(purchase_return_handler::get_return));
+        .route("/returns/:id", get(purchase_return_handler::get_return))
+        .route("/returns/:id", put(purchase_return_handler::update_return))
+        .route("/returns/:id/submit", post(purchase_return_handler::submit_return))
+        .route("/returns/:id/approve", post(purchase_return_handler::approve_return))
+        .route("/returns/:id/reject", post(purchase_return_handler::reject_return));
 
     // 采购合同路由
     let purchase_contract_routes = Router::new()
@@ -546,7 +550,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(budget_management_handler::get_budget))
         .route("/:id", put(budget_management_handler::update_budget))
         .route("/:id", delete(budget_management_handler::delete_budget))
-        .route("/:id/approve", post(budget_management_handler::approve_budget));
+        .route("/:id/approve", post(budget_management_handler::approve_budget))
+        .route("/items", get(budget_management_handler::list_items))
+        .route("/items", post(budget_management_handler::create_item))
+        .route("/items/:id", get(budget_management_handler::get_item))
+        .route("/items/:id", put(budget_management_handler::update_item))
+        .route("/items/:id", delete(budget_management_handler::delete_item))
+        .route("/plans", get(budget_management_handler::list_plans))
+        .route("/plans", post(budget_management_handler::create_plan))
+        .route("/plans/:id", get(budget_management_handler::get_plan))
+        .route("/plans/:id/approve", post(budget_management_handler::approve_plan))
+        .route("/plans/:id/execute", post(budget_management_handler::execute_plan))
+        .route("/plans/:id/executions", get(budget_management_handler::get_plan_executions))
+        .route("/plans/:id/executions", post(budget_management_handler::create_execution))
+        .route("/control/:plan_id", get(budget_management_handler::get_control))
+        .route("/control/:plan_id/data", get(budget_management_handler::get_budget_control_data));
 
     // 客户信用路由
     let customer_credit_routes = Router::new()
@@ -554,7 +572,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(customer_credit_handler::create_credit))
         .route("/:id", get(customer_credit_handler::get_credit))
         .route("/:id", put(customer_credit_handler::update_credit))
-        .route("/:id", delete(customer_credit_handler::delete_credit));
+        .route("/:id", delete(customer_credit_handler::delete_credit))
+        .route("/:id/rating", post(customer_credit_handler::set_credit_rating))
+        .route("/:id/occupy", post(customer_credit_handler::occupy_credit))
+        .route("/:id/release", post(customer_credit_handler::release_credit))
+        .route("/:id/adjust", post(customer_credit_handler::adjust_credit_limit))
+        .route("/:id/deactivate", post(customer_credit_handler::deactivate_credit));
 
     // 财务分析路由
     let financial_analysis_routes = Router::new()
@@ -582,7 +605,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/records", post(quality_inspection_handler::create_record))
         .route("/records/:id", get(quality_inspection_handler::get_record))
         .route("/defects", get(quality_inspection_handler::list_defects))
-        .route("/defects/:id/process", post(quality_inspection_handler::process_defect));
+        .route("/defects/:id/process", post(quality_inspection_handler::process_defect))
+        .route("/defects/:id/handle", post(quality_inspection_handler::process_defect));
 
     // 质量标准路由
     let quality_standard_routes = Router::new()
@@ -590,7 +614,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(quality_standard_handler::create_standard))
         .route("/:id", get(quality_standard_handler::get_standard))
         .route("/:id", put(quality_standard_handler::update_standard))
-        .route("/:id", delete(quality_standard_handler::delete_standard));
+        .route("/:id", delete(quality_standard_handler::delete_standard))
+        .route("/:id/versions", get(quality_standard_handler::list_versions))
+        .route("/:id/versions", post(quality_standard_handler::create_version_history))
+        .route("/:id/approve", post(quality_standard_handler::approve_standard))
+        .route("/:id/publish", post(quality_standard_handler::publish_standard));
 
     // 成本归集路由
     let cost_collection_routes = Router::new()
@@ -632,9 +660,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/payments", get(ap_payment_handler::list_payments))
         .route("/payments", post(ap_payment_handler::create_payment))
         .route("/payments/:id", get(ap_payment_handler::get_payment))
+        .route("/payments/:id", put(ap_payment_handler::update_payment))
+        .route("/payments/:id/confirm", post(ap_payment_handler::confirm_payment))
         .route("/payment-requests", get(ap_payment_request_handler::list_requests))
         .route("/payment-requests", post(ap_payment_request_handler::create_request))
         .route("/payment-requests/:id", get(ap_payment_request_handler::get_request))
+        .route("/payment-requests/:id", put(ap_payment_request_handler::update_request))
+        .route("/payment-requests/:id", delete(ap_payment_request_handler::delete_request))
+        .route("/payment-requests/:id/submit", post(ap_payment_request_handler::submit_request))
+        .route("/payment-requests/:id/approve", post(ap_payment_request_handler::approve_request))
+        .route("/payment-requests/:id/reject", post(ap_payment_request_handler::reject_request))
         .route("/verifications", get(ap_verification_handler::list_verifications))
         .route("/verifications/:id", get(ap_verification_handler::get_verification))
         .route("/verifications/auto", post(ap_verification_handler::auto_verify))

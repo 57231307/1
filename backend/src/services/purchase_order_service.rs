@@ -3,17 +3,72 @@
 //! 采购订单服务层，负责采购订单的核心业务逻辑
 //! 包含订单创建、审批、执行、退货等全流程管理
 
-use crate::models::{purchase_order, purchase_order_item};
+use crate::models::{
+    department, inventory_stock, product, purchase_order, purchase_order_item, supplier, warehouse,
+};
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, PaginatorTrait,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
+
+#[derive(Debug, Clone, FromQueryResult, Serialize)]
+pub struct PurchaseOrderDto {
+    pub id: i32,
+    pub order_no: String,
+    pub supplier_id: i32,
+    pub supplier_name: Option<String>,
+    pub order_date: chrono::NaiveDate,
+    pub expected_delivery_date: Option<chrono::NaiveDate>,
+    pub actual_delivery_date: Option<chrono::NaiveDate>,
+    pub warehouse_id: i32,
+    pub warehouse_name: Option<String>,
+    pub department_id: i32,
+    pub department_name: Option<String>,
+    pub purchaser_id: i32,
+    pub currency: String,
+    pub exchange_rate: rust_decimal::Decimal,
+    pub total_amount: rust_decimal::Decimal,
+    pub total_amount_foreign: rust_decimal::Decimal,
+    pub total_quantity: rust_decimal::Decimal,
+    pub total_quantity_alt: rust_decimal::Decimal,
+    #[serde(rename = "status")]
+    pub order_status: String,
+    pub payment_terms: Option<String>,
+    pub shipping_terms: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, FromQueryResult, Serialize)]
+pub struct PurchaseOrderItemDto {
+    pub id: i32,
+    pub order_id: i32,
+    pub line_no: i32,
+    #[serde(rename = "material_id")]
+    pub product_id: i32,
+    #[serde(rename = "material_code")]
+    pub material_code: Option<String>,
+    #[serde(rename = "material_name")]
+    pub material_name: Option<String>,
+    #[serde(rename = "quantity_ordered")]
+    pub quantity: rust_decimal::Decimal,
+    pub unit_price: rust_decimal::Decimal,
+    #[serde(rename = "tax_rate")]
+    pub tax_percent: rust_decimal::Decimal,
+    pub amount: rust_decimal::Decimal,
+    pub tax_amount: rust_decimal::Decimal,
+    pub total_amount: rust_decimal::Decimal,
+    pub received_quantity: rust_decimal::Decimal,
+    pub returned_quantity: rust_decimal::Decimal,
+    pub notes: Option<String>,
+}
 
 /// 采购订单服务
 pub struct PurchaseOrderService {
@@ -614,8 +669,15 @@ impl PurchaseOrderService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
-    ) -> Result<(Vec<purchase_order::Model>, u64), AppError> {
-        let mut query = purchase_order::Entity::find();
+    ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
+        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        let mut query = purchase_order::Entity::find()
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .column_as(warehouse::Column::Name, "warehouse_name")
+            .column_as(department::Column::Name, "department_name")
+            .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
+            .join(JoinType::LeftJoin, purchase_order::Relation::Warehouse.def())
+            .join(JoinType::LeftJoin, purchase_order::Relation::Department.def());
 
         // 添加筛选条件
         if let Some(status) = status {
@@ -627,7 +689,8 @@ impl PurchaseOrderService {
 
         // 分页查询
         let paginator = query
-            .order_by(purchase_order::Column::CreatedAt, Order::Desc)
+            .order_by(purchase_order::Column::CreatedAt, sea_orm::Order::Desc)
+            .into_model::<PurchaseOrderDto>()
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
@@ -637,8 +700,16 @@ impl PurchaseOrderService {
     }
 
     /// 获取订单详情
-    pub async fn get_order(&self, order_id: i32) -> Result<purchase_order::Model, AppError> {
+    pub async fn get_order(&self, order_id: i32) -> Result<PurchaseOrderDto, AppError> {
+        use sea_orm::{QuerySelect, JoinType, RelationTrait};
         let order = purchase_order::Entity::find_by_id(order_id)
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .column_as(warehouse::Column::Name, "warehouse_name")
+            .column_as(department::Column::Name, "department_name")
+            .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
+            .join(JoinType::LeftJoin, purchase_order::Relation::Warehouse.def())
+            .join(JoinType::LeftJoin, purchase_order::Relation::Department.def())
+            .into_model::<PurchaseOrderDto>()
             .one(&*self.db)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
@@ -650,9 +721,14 @@ impl PurchaseOrderService {
     pub async fn list_order_items(
         &self,
         order_id: i32,
-    ) -> Result<Vec<purchase_order_item::Model>, AppError> {
+    ) -> Result<Vec<PurchaseOrderItemDto>, AppError> {
+        use sea_orm::{QuerySelect, JoinType, RelationTrait};
         let items = purchase_order_item::Entity::find()
+            .column_as(product::Column::Code, "material_code")
+            .column_as(product::Column::Name, "material_name")
+            .join(JoinType::LeftJoin, purchase_order_item::Relation::Product.def())
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
+            .into_model::<PurchaseOrderItemDto>()
             .all(&*self.db)
             .await?;
 

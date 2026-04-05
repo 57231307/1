@@ -11,7 +11,7 @@ pub struct BudgetManagementService;
 impl BudgetManagementService {
     /// 获取预算科目列表
     pub async fn list_items(query: BudgetItemQuery) -> Result<BudgetItemListResponse, String> {
-        let mut url = String::from("/budget-items?");
+        let mut url = String::from("/budgets/items?");
         if let Some(item_type) = &query.item_type {
             url.push_str(&format!("item_type={}&", item_type));
         }
@@ -29,29 +29,29 @@ impl BudgetManagementService {
 
     /// 获取预算科目详情
     pub async fn get_item(id: i32) -> Result<BudgetItem, String> {
-        ApiService::get::<BudgetItem>(&format!("/budget-items/{}", id)).await
+        ApiService::get::<BudgetItem>(&format!("/budgets/items/{}", id)).await
     }
 
     /// 创建预算科目
     pub async fn create_item(req: CreateBudgetItemRequest) -> Result<BudgetItem, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/budget-items", &payload).await
+        ApiService::post("/budgets/items", &payload).await
     }
 
     /// 更新预算科目
     pub async fn update_item(id: i32, req: UpdateBudgetItemRequest) -> Result<BudgetItem, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/budget-items/{}", id), &payload).await
+        ApiService::put(&format!("/budgets/items/{}", id), &payload).await
     }
 
     /// 删除预算科目
     pub async fn delete_item(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/budget-items/{}", id)).await
+        ApiService::delete(&format!("/budgets/items/{}", id)).await
     }
 
     /// 获取预算方案列表
     pub async fn list_plans(query: BudgetItemQuery) -> Result<BudgetPlanListResponse, String> {
-        let mut url = String::from("/budget-plans?");
+        let mut url = String::from("/budgets/plans?");
         if let Some(page) = query.page {
             url.push_str(&format!("page={}&", page));
         }
@@ -63,29 +63,29 @@ impl BudgetManagementService {
 
     /// 获取预算方案详情
     pub async fn get_plan(id: i32) -> Result<BudgetPlan, String> {
-        ApiService::get::<BudgetPlan>(&format!("/budget-plans/{}", id)).await
+        ApiService::get::<BudgetPlan>(&format!("/budgets/plans/{}", id)).await
     }
 
     /// 创建预算方案
     pub async fn create_plan(req: CreateBudgetPlanRequest) -> Result<BudgetPlan, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/budget-plans", &payload).await
+        ApiService::post("/budgets/plans", &payload).await
     }
 
     /// 审批预算方案
     pub async fn approve_plan(id: i32, req: BudgetApproveRequest) -> Result<String, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/budget-plans/{}/approve", id), &payload).await
+        ApiService::post(&format!("/budgets/plans/{}/approve", id), &payload).await
     }
 
     /// 执行预算方案
     pub async fn execute_plan(id: i32, req: BudgetExecuteRequest) -> Result<String, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/budget-plans/{}/execute", id), &payload).await
+        ApiService::post(&format!("/budgets/plans/{}/execute", id), &payload).await
     }
 
     /// 获取预算控制情况
     pub async fn get_control(id: i32) -> Result<BudgetControl, String> {
-        ApiService::get::<BudgetControl>(&format!("/budget-control/{}", id)).await
+        ApiService::get::<BudgetControl>(&format!("/budgets/control/{}", id)).await
     }
 }

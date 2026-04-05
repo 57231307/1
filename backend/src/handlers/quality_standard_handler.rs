@@ -241,10 +241,10 @@ pub async fn publish_standard(
 /// 创建版本历史（版本升级）
 #[allow(dead_code)]
 pub async fn create_version_history(
-    Path(id): Path<i32>,
-    Json(req): Json<CreateVersionHistoryRequest>,
     State(state): State<AppState>,
     auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<CreateVersionHistoryRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在创建质量标准版本历史：{}", auth.username, id);
 
