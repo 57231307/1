@@ -115,6 +115,9 @@ impl InitService {
             return Err(InitError::AlreadyInitialized);
         }
 
+        // Run migrations before creating roles
+        self.run_migrations().await?;
+
         let password_hash =
             AuthService::hash_password(admin_password).map_err(|e| InitError::HashError(e.to_string()))?;
 
@@ -168,6 +171,67 @@ impl InitService {
         }
 
         Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))
+    }
+
+    async fn run_migrations(&self) -> Result<(), InitError> {
+        use sea_orm::{ConnectionTrait, Statement, DatabaseBackend};
+        use std::path::PathBuf;
+        use tracing::{info, warn};
+        
+        let possible_paths = [
+            PathBuf::from("database/migration"),
+            PathBuf::from("../database/migration"),
+            PathBuf::from("/opt/bingxi-erp/database/migration"),
+            PathBuf::from("/opt/bingxi/database/migration"),
+        ];
+
+        let mut migration_dir = None;
+        for path in &possible_paths {
+            if path.exists() && path.is_dir() {
+                migration_dir = Some(path.clone());
+                break;
+            }
+        }
+
+        let migration_dir = match migration_dir {
+            Some(dir) => dir,
+            None => {
+                warn!("未找到数据库迁移脚本目录，跳过自动建表");
+                return Ok(());
+            }
+        };
+
+        info!("找到迁移脚本目录: {:?}", migration_dir);
+        let mut entries: Vec<_> = std::fs::read_dir(&migration_dir)
+            .map_err(|e| InitError::DatabaseError(format!("读取迁移目录失败: {}", e)))?
+            .filter_map(Result::ok)
+            .collect();
+
+        // 确保按文件名排序执行
+        entries.sort_by_key(|e| e.path());
+
+        for entry in entries {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("sql") {
+                info!("准备执行数据库迁移脚本: {:?}", path.file_name().unwrap());
+                let sql = std::fs::read_to_string(&path)
+                    .map_err(|e| InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e)))?;
+                
+                // 跳过空的SQL文件
+                if sql.trim().is_empty() {
+                    continue;
+                }
+
+                self.db.execute(Statement::from_string(DatabaseBackend::Postgres, sql))
+                    .await
+                    .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
+                
+                info!("成功执行脚本: {:?}", path.file_name().unwrap());
+            }
+        }
+
+        info!("所有数据库迁移脚本执行完成");
+        Ok(())
     }
 
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
