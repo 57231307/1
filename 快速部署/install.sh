@@ -1,6 +1,6 @@
 #!/bin/bash
 # 秉羲ERP系统 - 一键安装与管理脚本
-# 使用方法: curl -fsSL https://raw.githubusercontent.com/57231307/1/main/install.sh | sudo bash -s {install|update|start|stop|status}
+# 使用方法: curl -fsSL --retry 3 https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh | sudo bash -s {install|update|start|stop|status}
 
 set -e
 
@@ -78,7 +78,7 @@ case "$1" in
         sudo systemctl status bingxi-backend --no-pager
         ;;
     update)
-        curl -fsSL https://raw.githubusercontent.com/57231307/1/main/install.sh | sudo bash -s update
+        curl -fsSL --retry 3 https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh | sudo bash -s update
         ;;
     *)
         echo "秉羲管理系统 CLI 工具"
