@@ -12,7 +12,7 @@ use crate::services::api::ApiService;
 pub struct SupplierService;
 
 impl SupplierService {
-    pub async fn list(query: SupplierQuery) -> Result<Vec<Supplier>, String> {
+    pub async fn list(query: SupplierQuery) -> Result<crate::models::supplier::SupplierListResponse, String> {
         let mut params = Vec::new();
         if let Some(page) = query.page {
             params.push(format!("page={}", page));
@@ -48,7 +48,7 @@ impl SupplierService {
             format!("?{}", params.join("&"))
         };
 
-        let response: ApiResponse<Vec<Supplier>> =
+        let response: ApiResponse<crate::models::supplier::SupplierListResponse> =
             ApiService::get(&format!("/suppliers{}", query_string)).await?;
         response.into_result()
     }

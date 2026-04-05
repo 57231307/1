@@ -90,6 +90,19 @@ pub enum Relation {
     /// 供应商 - 黑名单（一对一）
     #[sea_orm(has_one = "super::supplier_blacklist::Entity")]
     SupplierBlacklist,
+    /// 供应商 - 用户（多对一，创建人）
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::CreatedBy",
+        to = "super::user::Column::Id"
+    )]
+    User,
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::User.def()
+    }
 }
 
 impl Related<super::supplier_contact::Entity> for Entity {

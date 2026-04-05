@@ -31,7 +31,7 @@ pub enum ModalMode {
 
 pub enum Msg {
     LoadSuppliers,
-    SuppliersLoaded(Vec<Supplier>),
+    SuppliersLoaded(crate::models::supplier::SupplierListResponse),
     LoadError(String),
     SetFilterStatus(String),
     SetFilterType(String),
@@ -95,8 +95,8 @@ impl Component for SupplierPage {
                 });
                 false
             }
-            Msg::SuppliersLoaded(suppliers) => {
-                self.suppliers = suppliers;
+            Msg::SuppliersLoaded(response) => {
+                self.suppliers = response.data;
                 self.loading = false;
                 true
             }

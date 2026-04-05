@@ -26,7 +26,7 @@ pub struct SalesOrderQuery {
 pub async fn list_orders(
     State(state): State<AppState>,
     Query(query): Query<SalesOrderQuery>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
 
     let page_req = PageRequest {
@@ -38,13 +38,7 @@ pub async fn list_orders(
         .list_orders(page_req, query.status, query.customer_id, query.order_no)
         .await?;
 
-    let orders_json: Vec<serde_json::Value> = orders
-        .data
-        .into_iter()
-        .map(|o| serde_json::to_value(o).unwrap_or_default())
-        .collect();
-
-    Ok(Json(ApiResponse::success(orders_json)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(orders).unwrap_or_default())))
 }
 
 /// 获取销售订单详情

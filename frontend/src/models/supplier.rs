@@ -265,3 +265,11 @@ pub struct CreateProductSupplierMappingRequest {
     pub lead_time: Option<i32>,
     pub remarks: Option<String>,
 }
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SupplierListResponse {
+    pub data: Vec<Supplier>,
+    pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
+}

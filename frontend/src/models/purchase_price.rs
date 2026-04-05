@@ -29,7 +29,7 @@ pub struct CreatePurchasePriceRequest {
     pub product_id: i32,
     pub supplier_id: i32,
     pub price: String,
-    pub currency: Option<String>,
+    pub currency: String,
     pub unit: String,
     pub min_order_qty: Option<String>,
     pub price_type: Option<String>,
