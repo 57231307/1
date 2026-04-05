@@ -94,6 +94,21 @@ pub async fn create_adjustment(
         .parse::<DateTime<Utc>>()
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("日期格式错误：{}", e)))?;
 
+    let mut items = Vec::with_capacity(payload.items.len());
+    for item in payload.items {
+        let quantity = item
+            .quantity
+            .parse::<Decimal>()
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("数量格式错误：{}", e)))?;
+        
+        items.push(AdjustmentItemRequest {
+            stock_id: item.stock_id,
+            quantity,
+            unit_cost: item.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+            notes: item.notes,
+        });
+    }
+
     // 转换请求
     let request = CreateAdjustmentRequest {
         warehouse_id: payload.warehouse_id,
@@ -103,20 +118,7 @@ pub async fn create_adjustment(
         reason_description: payload.reason_description,
         notes: payload.notes,
         created_by: Some(1), // TODO: 从 Token 中获取
-        items: payload
-            .items
-            .into_iter()
-            .map(|item| AdjustmentItemRequest {
-                stock_id: item.stock_id,
-                quantity: item
-                    .quantity
-                    .parse::<Decimal>()
-                    .map_err(|e| format!("数量格式错误：{}", e))
-                    .unwrap(),
-                unit_cost: item.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
-                notes: item.notes,
-            })
-            .collect(),
+        items,
     };
 
     match service.create_adjustment(request).await {
