@@ -16,7 +16,7 @@ async fn test_database_config_to_connection_string() {
     };
     
     let conn_str = config.to_connection_string();
-    assert_eq!(conn_str, "postgres://test_user:test_pass@localhost:5432/test_db");
+    assert_eq!(conn_str, "postgres://test_user:test_pass@localhost:5432/test_db?sslmode=disable");
 }
 
 /// 测试初始化服务的基本功能
