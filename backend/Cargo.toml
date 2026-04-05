@@ -102,13 +102,14 @@ path = "src/main.rs"
 
 [profile.dev]
 opt-level = 0
+debug = 0
 
 [profile.release]
-opt-level = 3
+opt-level = 1
 lto = false
 codegen-units = 16
 debug = false
 
 [profile.test]
 opt-level = 0
-debug = 1
+debug = 0
