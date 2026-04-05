@@ -108,12 +108,12 @@ pub async fn delete_order(
 }
 
 /// 提交采购订单
-pub async fn submit_order(
+pub async fn submit_order(auth: AuthContext, 
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let order = service.submit_order(id, user_id).await?;
 
@@ -142,13 +142,13 @@ pub async fn approve_order(
 
 /// 拒绝采购订单
 #[axum::debug_handler]
-pub async fn reject_order(
+pub async fn reject_order(auth: AuthContext, 
     Path(id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let order = service.reject_order(id, req.reason, user_id).await?;
 
@@ -159,12 +159,12 @@ pub async fn reject_order(
 }
 
 /// 关闭采购订单
-pub async fn close_order(
+pub async fn close_order(auth: AuthContext, 
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let order = service.close_order(id, user_id).await?;
 
@@ -175,7 +175,7 @@ pub async fn close_order(
 }
 
 /// 获取订单明细列表
-pub async fn list_order_items(
+pub async fn list_order_items(auth: AuthContext, 
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -187,7 +187,7 @@ pub async fn list_order_items(
 
 /// 添加订单明细
 #[axum::debug_handler]
-pub async fn create_order_item(
+pub async fn create_order_item(auth: AuthContext, 
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<CreateOrderItemRequest>,
@@ -197,7 +197,7 @@ pub async fn create_order_item(
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let item = service.add_order_item(order_id, req, user_id).await?;
 
@@ -209,13 +209,13 @@ pub async fn create_order_item(
 
 /// 更新订单明细
 #[axum::debug_handler]
-pub async fn update_order_item(
+pub async fn update_order_item(auth: AuthContext, 
     Path((_order_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     Json(req): Json<UpdateOrderItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let item = service.update_order_item(item_id, req, user_id).await?;
 
@@ -226,12 +226,12 @@ pub async fn update_order_item(
 }
 
 /// 删除订单明细
-pub async fn delete_order_item(
+pub async fn delete_order_item(auth: AuthContext, 
     Path((_order_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    service.delete_order_item(item_id, 1).await?; // TODO: 从认证中获取 user_id
+    service.delete_order_item(item_id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_msg((), "订单明细删除成功")))
 }
