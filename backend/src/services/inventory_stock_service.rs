@@ -458,32 +458,39 @@ impl InventoryStockService {
             "s.stock_status = '正常'".to_string(),
             "s.quality_status = '合格'".to_string(),
         ];
+        
+        let mut values = vec![];
 
         if let Some(wid) = warehouse_id {
-            where_clauses.push(format!("w.id = {}", wid));
+            where_clauses.push(format!("w.id = ${}", values.len() + 1));
+            values.push(wid.into());
         }
 
         if let Some(pid) = product_id {
-            where_clauses.push(format!("p.id = {}", pid));
+            where_clauses.push(format!("p.id = ${}", values.len() + 1));
+            values.push(pid.into());
         }
 
-        if let Some(ref batch) = batch_no {
-            where_clauses.push(format!("s.batch_no = '{}'", batch.replace('\'', "''")));
+        if let Some(batch) = batch_no {
+            where_clauses.push(format!("s.batch_no = ${}", values.len() + 1));
+            values.push(batch.into());
         }
 
-        if let Some(ref color) = color_no {
-            where_clauses.push(format!("s.color_no = '{}'", color.replace('\'', "''")));
+        if let Some(color) = color_no {
+            where_clauses.push(format!("s.color_no = ${}", values.len() + 1));
+            values.push(color.into());
         }
 
-        if let Some(ref g) = grade {
-            where_clauses.push(format!("s.grade = '{}'", g.replace('\'', "''")));
+        if let Some(g) = grade {
+            where_clauses.push(format!("s.grade = ${}", values.len() + 1));
+            values.push(g.into());
         }
 
         let where_clause = where_clauses.join(" AND ");
 
         let sql = format!(
             r#"
-        SELECT 
+        SELECT
             p.id AS product_id,
             p.name AS product_name,
             w.name AS warehouse_name,
@@ -504,9 +511,10 @@ impl InventoryStockService {
 
         let result = self
             .db
-            .query_all(sea_orm::Statement::from_string(
+            .query_all(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
+                values,
             ))
             .await?;
 
