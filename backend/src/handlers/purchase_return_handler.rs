@@ -3,7 +3,7 @@
 //! 采购退货 HTTP 接口层
 
 use crate::services::purchase_return_service::{
-    CreatePurchaseReturnRequest, PurchaseReturnService, UpdatePurchaseReturnRequest,
+    CreatePurchaseReturnRequest, PurchaseReturnService, UpdatePurchaseReturnRequest, CreateReturnItemRequest, UpdateReturnItemRequest
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -158,4 +158,47 @@ pub struct ReturnQueryParams {
 #[derive(Debug, Deserialize)]
 pub struct RejectReturnRequest {
     pub reason: String,
+}
+
+
+pub async fn list_items(
+    State(state): State<AppState>,
+    _auth: crate::middleware::auth_context::AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>, AppError> {
+    let service = PurchaseReturnService::new(state.db.clone());
+    let items = service.list_items(id).await?;
+    Ok(Json(ApiResponse::success(items)))
+}
+
+pub async fn create_item(
+    State(state): State<AppState>,
+    _auth: crate::middleware::auth_context::AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<CreateReturnItemRequest>,
+) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
+    let service = PurchaseReturnService::new(state.db.clone());
+    let item = service.create_item(id, req).await?;
+    Ok(Json(ApiResponse::success(item)))
+}
+
+pub async fn update_item(
+    State(state): State<AppState>,
+    _auth: crate::middleware::auth_context::AuthContext,
+    Path((_id, item_id)): Path<(i32, i32)>,
+    Json(req): Json<UpdateReturnItemRequest>,
+) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
+    let service = PurchaseReturnService::new(state.db.clone());
+    let item = service.update_item(item_id, req).await?;
+    Ok(Json(ApiResponse::success(item)))
+}
+
+pub async fn delete_item(
+    State(state): State<AppState>,
+    _auth: crate::middleware::auth_context::AuthContext,
+    Path((_id, item_id)): Path<(i32, i32)>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = PurchaseReturnService::new(state.db.clone());
+    service.delete_item(item_id).await?;
+    Ok(Json(ApiResponse::success(())))
 }

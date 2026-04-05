@@ -514,7 +514,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/returns/:id", put(purchase_return_handler::update_return))
         .route("/returns/:id/submit", post(purchase_return_handler::submit_return))
         .route("/returns/:id/approve", post(purchase_return_handler::approve_return))
-        .route("/returns/:id/reject", post(purchase_return_handler::reject_return));
+        .route("/returns/:id/reject", post(purchase_return_handler::reject_return))
+        .route("/returns/:id/items", get(purchase_return_handler::list_items))
+        .route("/returns/:id/items", post(purchase_return_handler::create_item))
+        .route("/returns/:id/items/:item_id", put(purchase_return_handler::update_item))
+        .route("/returns/:id/items/:item_id", delete(purchase_return_handler::delete_item));
 
     // 采购合同路由
     let purchase_contract_routes = Router::new()

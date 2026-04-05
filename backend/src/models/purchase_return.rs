@@ -65,6 +65,9 @@ pub struct Model {
 /// 采购退货关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::purchase_return_item::Entity")]
+    Items,
+
     /// 采购退货 - 供应商（多对一）
     #[sea_orm(
         belongs_to = "super::supplier::Entity",
@@ -119,6 +122,12 @@ impl Related<super::purchase_order::Entity> for Entity {
 impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Creator.def()
+    }
+}
+
+impl Related<super::purchase_return_item::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Items.def()
     }
 }
 

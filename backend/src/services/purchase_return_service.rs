@@ -2,13 +2,13 @@
 //!
 //! 采购退货服务层，负责采购退货的核心业务逻辑
 
-use crate::models::purchase_return;
+use crate::models::{purchase_return, purchase_return_item, product};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -285,4 +285,234 @@ pub struct CreatePurchaseReturnRequest {
 pub struct UpdatePurchaseReturnRequest {
     pub reason_detail: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreateReturnItemRequest {
+    pub line_no: i32,
+    pub material_id: i32,
+    pub quantity_ordered: Option<Decimal>,
+    pub quantity_returned: Decimal,
+    pub unit_price: Decimal,
+    pub tax_rate: Option<Decimal>,
+    pub discount_percent: Option<Decimal>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UpdateReturnItemRequest {
+    pub line_no: Option<i32>,
+    pub material_id: Option<i32>,
+    pub quantity_returned: Option<Decimal>,
+    pub unit_price: Option<Decimal>,
+    pub tax_rate: Option<Decimal>,
+    pub discount_percent: Option<Decimal>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, FromQueryResult)]
+pub struct PurchaseReturnItemDto {
+    pub id: i32,
+    pub return_id: i32,
+    pub line_no: i32,
+    pub material_id: i32,
+    pub material_code: Option<String>,
+    pub material_name: Option<String>,
+    pub quantity_returned: Decimal,
+    pub unit_price: Decimal,
+    pub tax_rate: Decimal,
+    pub discount_percent: Decimal,
+    pub subtotal: Decimal,
+    pub tax_amount: Decimal,
+    pub discount_amount: Decimal,
+    pub total_amount: Decimal,
+    pub notes: Option<String>,
+}
+
+impl PurchaseReturnService {
+    /// 获取退货单明细列表
+    pub async fn list_items(&self, return_id: i32) -> Result<Vec<PurchaseReturnItemDto>, AppError> {
+        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        let items = purchase_return_item::Entity::find()
+            .column_as(product::Column::Code, "material_code")
+            .column_as(product::Column::Name, "material_name")
+            .column_as(purchase_return_item::Column::ProductId, "material_id")
+            .column_as(purchase_return_item::Column::Quantity, "quantity_returned")
+            .column_as(purchase_return_item::Column::TaxPercent, "tax_rate")
+            .join(JoinType::LeftJoin, purchase_return_item::Relation::Product.def())
+            .filter(purchase_return_item::Column::ReturnId.eq(return_id))
+            .order_by_asc(purchase_return_item::Column::LineNo)
+            .into_model::<PurchaseReturnItemDto>()
+            .all(&*self.db)
+            .await?;
+
+        Ok(items)
+    }
+
+    /// 添加退货单明细
+    pub async fn create_item(&self, return_id: i32, req: CreateReturnItemRequest) -> Result<purchase_return_item::Model, AppError> {
+        let txn = self.db.begin().await?;
+
+        // 验证主表状态（只有草稿可以修改明细，实际业务可能放宽，这里简化）
+        let return_record = purchase_return::Entity::find_by_id(return_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
+
+        if return_record.status != "DRAFT" {
+            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+        }
+
+        let quantity = req.quantity_returned;
+        let unit_price = req.unit_price;
+        let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
+        let tax_percent = req.tax_rate.unwrap_or(Decimal::ZERO);
+
+        let subtotal = quantity * unit_price;
+        let discount_amount = subtotal * (discount_percent / Decimal::new(100, 0));
+        let taxable_amount = subtotal - discount_amount;
+        let tax_amount = taxable_amount * (tax_percent / Decimal::new(100, 0));
+        let total_amount = taxable_amount + tax_amount;
+
+        let item = purchase_return_item::ActiveModel {
+            id: Set(0),
+            return_id: Set(return_id),
+            line_no: Set(req.line_no),
+            product_id: Set(req.material_id),
+            quantity: Set(quantity),
+            quantity_alt: Set(Decimal::ZERO),
+            unit_price: Set(unit_price),
+            unit_price_foreign: Set(unit_price),
+            discount_percent: Set(discount_percent),
+            tax_percent: Set(tax_percent),
+            subtotal: Set(subtotal),
+            tax_amount: Set(tax_amount),
+            discount_amount: Set(discount_amount),
+            total_amount: Set(total_amount),
+            notes: Set(req.notes),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        }
+        .insert(&txn)
+        .await?;
+
+        self.update_return_totals(return_id, &txn).await?;
+        txn.commit().await?;
+
+        Ok(item)
+    }
+
+    /// 更新退货单明细
+    pub async fn update_item(&self, item_id: i32, req: UpdateReturnItemRequest) -> Result<purchase_return_item::Model, AppError> {
+        let txn = self.db.begin().await?;
+
+        let item = purchase_return_item::Entity::find_by_id(item_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货明细 {}", item_id)))?;
+
+        let return_record = purchase_return::Entity::find_by_id(item.return_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
+
+        if return_record.status != "DRAFT" {
+            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+        }
+
+        let mut active_item: purchase_return_item::ActiveModel = item.clone().into();
+
+        if let Some(line_no) = req.line_no { active_item.line_no = Set(line_no); }
+        if let Some(material_id) = req.material_id { active_item.product_id = Set(material_id); }
+        
+        let quantity = req.quantity_returned.unwrap_or(item.quantity);
+        let unit_price = req.unit_price.unwrap_or(item.unit_price);
+        let discount_percent = req.discount_percent.unwrap_or(item.discount_percent);
+        let tax_percent = req.tax_rate.unwrap_or(item.tax_percent);
+
+        active_item.quantity = Set(quantity);
+        active_item.unit_price = Set(unit_price);
+        active_item.unit_price_foreign = Set(unit_price);
+        active_item.discount_percent = Set(discount_percent);
+        active_item.tax_percent = Set(tax_percent);
+
+        let subtotal = quantity * unit_price;
+        let discount_amount = subtotal * (discount_percent / Decimal::new(100, 0));
+        let taxable_amount = subtotal - discount_amount;
+        let tax_amount = taxable_amount * (tax_percent / Decimal::new(100, 0));
+        let total_amount = taxable_amount + tax_amount;
+
+        active_item.subtotal = Set(subtotal);
+        active_item.discount_amount = Set(discount_amount);
+        active_item.tax_amount = Set(tax_amount);
+        active_item.total_amount = Set(total_amount);
+
+        if let Some(notes) = req.notes { active_item.notes = Set(Some(notes)); }
+        
+        active_item.updated_at = Set(Utc::now());
+
+        let updated_item = active_item.update(&txn).await?;
+
+        self.update_return_totals(updated_item.return_id, &txn).await?;
+        txn.commit().await?;
+
+        Ok(updated_item)
+    }
+
+    /// 删除退货单明细
+    pub async fn delete_item(&self, item_id: i32) -> Result<(), AppError> {
+        let txn = self.db.begin().await?;
+
+        let item = purchase_return_item::Entity::find_by_id(item_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货明细 {}", item_id)))?;
+
+        let return_record = purchase_return::Entity::find_by_id(item.return_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
+
+        if return_record.status != "DRAFT" {
+            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+        }
+
+        purchase_return_item::Entity::delete_by_id(item_id).exec(&txn).await?;
+        
+        self.update_return_totals(item.return_id, &txn).await?;
+        txn.commit().await?;
+
+        Ok(())
+    }
+
+    /// 更新主单合计金额和数量
+    async fn update_return_totals(&self, return_id: i32, txn: &sea_orm::DatabaseTransaction) -> Result<(), AppError> {
+        let items = purchase_return_item::Entity::find()
+            .filter(purchase_return_item::Column::ReturnId.eq(return_id))
+            .all(txn)
+            .await?;
+
+        let mut total_quantity = Decimal::ZERO;
+        let mut total_quantity_alt = Decimal::ZERO;
+        let mut total_amount = Decimal::ZERO;
+
+        for item in items {
+            total_quantity += item.quantity;
+            total_quantity_alt += item.quantity_alt;
+            total_amount += item.total_amount;
+        }
+
+        let return_record = purchase_return::Entity::find_by_id(return_id)
+            .one(txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
+
+        let mut active_return: purchase_return::ActiveModel = return_record.into();
+        active_return.total_amount = Set(total_amount);
+        active_return.updated_at = Set(Utc::now());
+
+        active_return.update(txn).await?;
+
+        Ok(())
+    }
 }

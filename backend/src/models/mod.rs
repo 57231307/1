@@ -90,6 +90,7 @@ pub mod quality_inspection_record;
 pub mod unqualified_product;
 // 采购退货模块
 pub mod purchase_return;
+pub mod purchase_return_item;
 // 采购检验模块
 pub mod purchase_inspection;
 // 采购合同执行模块
