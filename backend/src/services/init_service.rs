@@ -20,9 +20,14 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     pub fn to_connection_string(&self) -> String {
+        let encoded_username = urlencoding::encode(&self.username);
+        let encoded_password = urlencoding::encode(&self.password);
+        let encoded_host = urlencoding::encode(&self.host);
+        let encoded_name = urlencoding::encode(&self.name);
+
         format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username, self.password, self.host, self.port, self.name
+            "postgres://{}:{}@{}:{}/{}?sslmode=disable",
+            encoded_username, encoded_password, encoded_host, self.port, encoded_name
         )
     }
 }
