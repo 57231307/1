@@ -41,6 +41,18 @@ pub enum Relation {
         to = "super::customer::Column::Id"
     )]
     Customer,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::CreatedBy",
+        to = "super::user::Column::Id"
+    )]
+    Creator,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::ApprovedBy",
+        to = "super::user::Column::Id"
+    )]
+    Approver,
 }
 
 impl Related<super::customer::Entity> for Entity {

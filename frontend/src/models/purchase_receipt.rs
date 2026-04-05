@@ -68,22 +68,27 @@ pub struct PurchaseReceiptQuery {
 /// 创建采购收货单请求
 #[derive(Debug, Clone, Serialize)]
 pub struct CreatePurchaseReceiptRequest {
-    pub order_id: i32,
+    pub order_id: Option<i32>,
+    pub supplier_id: i32,
     pub receipt_date: String,
     pub warehouse_id: i32,
-    pub department_id: i32,
-    pub inspector: Option<String>,
+    pub department_id: Option<i32>,
+    pub inspector_id: Option<i32>,
     pub notes: Option<String>,
+    pub attachment_urls: Option<Vec<String>>,
+    pub items: Vec<CreateReceiptItemRequest>,
 }
 
 /// 更新采购收货单请求
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdatePurchaseReceiptRequest {
+    pub supplier_id: Option<i32>,
     pub receipt_date: Option<String>,
     pub warehouse_id: Option<i32>,
     pub department_id: Option<i32>,
-    pub inspector: Option<String>,
+    pub inspector_id: Option<i32>,
     pub notes: Option<String>,
+    pub attachment_urls: Option<Vec<String>>,
 }
 
 /// 创建收货明细请求
