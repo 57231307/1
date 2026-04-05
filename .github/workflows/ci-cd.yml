@@ -51,7 +51,7 @@ jobs:
       - name: 运行后端测试
         working-directory: backend
         run: |
-          cargo test --all
+          cargo test --all --jobs 2
 
   build-backend:
     name: 构建后端
