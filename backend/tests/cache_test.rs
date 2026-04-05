@@ -1,6 +1,6 @@
 //! 缓存模块单元测试
 
-use crate::utils::cache::{AppCache, CacheKey, MemoryCache};
+use bingxi_backend::utils::cache::{AppCache, CacheKey, MemoryCache};
 use std::time::Duration;
 
 /// 测试内存缓存基本功能

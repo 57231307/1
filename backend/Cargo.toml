@@ -100,9 +100,15 @@ tonic-build = "0.12"
 name = "server"
 path = "src/main.rs"
 
+[profile.dev]
+opt-level = 0
+
 [profile.release]
-# 优化配置 - 适配服务器1.9GB内存限制
-lto = "thin"          # 使用thin LTO减少内存消耗，比full LTO节省约50%内存
-codegen-units = 4      # 适度并行代码生成，减少内存压力
-opt-level = 3          # 最高优化级别
-strip = true           # 去除调试信息
+opt-level = 3
+lto = false
+codegen-units = 16
+debug = false
+
+[profile.test]
+opt-level = 0
+debug = 1
