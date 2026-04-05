@@ -312,7 +312,11 @@ impl SystemUpdateService {
         let new_version = self.read_version_from_dir(&extract_dir)?;
 
         self.log_update("步骤4: 应用更新");
-        self.apply_files(&extract_dir)?;
+        if let Err(e) = self.apply_files(&extract_dir) {
+            self.log_update(&format!("应用更新文件失败: {}，正在回滚", e));
+            let _ = self.rollback(&backup_path); // 尽量回滚
+            return Err(UpdateError::ValidationError(format!("应用文件失败并已回滚: {}", e)));
+        }
         self.log_update("文件已更新");
 
         self.log_update("步骤5: 验证更新结果");
@@ -405,6 +409,18 @@ impl SystemUpdateService {
                 }
                 let mut outfile = fs::File::create(&outpath)?;
                 io::copy(&mut file, &mut outfile)?;
+
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Some(mode) = file.unix_mode() {
+                        if let Ok(metadata) = fs::metadata(&outpath) {
+                            let mut perms = metadata.permissions();
+                            perms.set_mode(mode);
+                            let _ = fs::set_permissions(&outpath, perms);
+                        }
+                    }
+                }
             }
         }
 
@@ -441,7 +457,15 @@ impl SystemUpdateService {
 
             if src.exists() {
                 if dst.exists() {
-                    fs::remove_dir_all(&dst)?;
+                    // Windows 下尝试重命名运行中的文件，而不是直接删除
+                    let old_dst = self.app_dir.join(format!("{}.old", dir));
+                    if old_dst.exists() {
+                        let _ = fs::remove_dir_all(&old_dst); // 尽量清理之前的遗留
+                    }
+                    if let Err(e) = fs::rename(&dst, &old_dst) {
+                        // 如果重命名失败，退退回直接删除（对非运行中的文件有效）
+                        fs::remove_dir_all(&dst).map_err(|_| e)?;
+                    }
                 }
                 self.copy_dir(&src, &dst)?;
             }
