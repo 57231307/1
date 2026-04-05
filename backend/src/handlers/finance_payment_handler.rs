@@ -1,3 +1,4 @@
+use crate::middleware::auth_context::AuthContext;
 use crate::services::finance_payment_service::FinancePaymentService;
 use axum::{
     extract::{Path, State},
@@ -65,6 +66,7 @@ pub async fn get_payment(
 
 pub async fn create_payment(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<CreatePaymentRequest>,
 ) -> Result<Json<PaymentResponse>, (StatusCode, String)> {
     let service = FinancePaymentService::new(state.db.clone());
@@ -82,7 +84,7 @@ pub async fn create_payment(
             payload.payment_method,
             payload.reference_no,
             payload.notes,
-            Some(1), // TODO: 从认证信息中获取
+            Some(auth.user_id),
         )
         .await
     {

@@ -27,7 +27,7 @@ pub struct InitService;
 
 impl InitService {
     fn get_base_url() -> String {
-        String::from("/api/v1/erp")
+        String::from(crate::services::api::API_BASE)
     }
 
     pub async fn check_status() -> Result<InitStatus, InitError> {
