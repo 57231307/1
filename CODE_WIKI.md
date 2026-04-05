@@ -1,475 +1,177 @@
-# 秉羲管理系统 - Code Wiki
+# 秉羲管理系统 (BingXi ERP) - 核心代码 Wiki
 
-## 1. 项目概述
+## 1. 项目整体架构
 
-秉羲管理系统是一个基于Rust语言开发的企业资源规划（ERP）系统，专为面料行业定制，提供完整的企业管理功能。
+秉羲管理系统是一个专为面料行业定制的现代化企业资源规划（ERP）系统。项目采用**前后端分离**架构，并在全栈使用 **Rust** 语言进行开发，以保证极致的性能、内存安全和高并发处理能力。
 
-**主要功能模块**：
-- 用户与权限管理
-- 产品管理
-- 仓库管理
-- 库存管理（支持面料行业特色功能）
-- 销售管理
-- 采购管理
-- 财务管理
-- 生产管理
-- 数据分析与报表
-
-**系统特点**：
-- 基于Rust语言开发，性能优异
-- 前后端分离架构
-- 支持多租户
-- 模块化设计，易于扩展
-- 完整的面料行业特色功能
-
-## 2. 技术栈
-
-### 后端技术
-- **语言**：Rust 2021
-- **Web框架**：Axum 0.7
-- **数据库**：PostgreSQL
-- **ORM**：SeaORM
-- **认证**：JWT
-- **gRPC**：Tonic
-- **API文档**：OpenAPI/Swagger
-
-### 前端技术
-- **框架**：Yew 0.21 (Rust WebAssembly)
-- **路由**：Yew Router
-- **状态管理**：Yew Context API
-- **HTTP客户端**：Gloo Net
-
-### 部署与监控
-- **部署**：Systemd + Nginx
-- **监控**：Prometheus + Grafana
-- **日志**：Tracing
-
-## 3. 项目结构
-
-### 目录结构
-
-```
-├── backend/             # 后端应用
-│   ├── src/             # 源代码
-│   │   ├── config/      # 配置管理
-│   │   ├── database/    # 数据库连接
-│   │   ├── grpc/        # gRPC服务
-│   │   ├── handlers/    # API处理函数
-│   │   ├── middleware/  # 中间件
-│   │   ├── models/      # 数据模型
-│   │   ├── routes/      # 路由配置
-│   │   ├── services/    # 业务逻辑
-│   │   ├── utils/       # 工具函数
-│   │   ├── lib.rs       # 库入口
-│   │   └── main.rs      # 应用入口
-│   ├── database/        # 数据库迁移
-│   ├── proto/           # gRPC协议定义
-│   ├── Cargo.toml       # 依赖管理
-│   └── config.toml      # 配置文件
-├── frontend/            # 前端应用
-│   ├── src/             # 源代码
-│   │   ├── app/         # 应用组件
-│   │   ├── components/  # 通用组件
-│   │   ├── models/      # 数据模型
-│   │   ├── pages/       # 页面组件
-│   │   ├── services/    # API服务
-│   │   ├── utils/       # 工具函数
-│   │   └── main.rs      # 应用入口
-│   ├── static/          # 静态资源
-│   ├── styles/          # 样式文件
-│   ├── Cargo.toml       # 依赖管理
-│   └── Trunk.toml       # Trunk配置
-├── deploy/              # 部署脚本
-├── monitoring/          # 监控配置
-└── releases/            # 发布包
-```
-
-### 核心模块职责
-
-| 模块 | 主要职责 | 文件位置 |
-|------|---------|----------|
-| 认证模块 | 用户登录、注销、令牌刷新 | [backend/src/services/auth_service.rs](file:///workspace/backend/src/services/auth_service.rs) |
-| 用户管理 | 用户CRUD操作 | [backend/src/services/user_service.rs](file:///workspace/backend/src/services/user_service.rs) |
-| 库存管理 | 库存查询、调整、盘点 | [backend/src/services/inventory_stock_service.rs](file:///workspace/backend/src/services/inventory_stock_service.rs) |
-| 销售管理 | 销售订单处理 | [backend/src/services/sales_service.rs](file:///workspace/backend/src/services/sales_service.rs) |
-| 采购管理 | 采购订单处理 | [backend/src/services/purchase_order_service.rs](file:///workspace/backend/src/services/purchase_order_service.rs) |
-| 财务管理 | 财务凭证、发票处理 | [backend/src/services/voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) |
-| 面料行业特色 | 批次管理、双计量单位 | [backend/src/services/batch_service.rs](file:///workspace/backend/src/services/batch_service.rs) |
-
-## 4. 核心功能模块
-
-### 4.1 认证与用户管理
-
-**认证服务**：
-- JWT令牌生成与验证
-- 密码哈希与验证
-- 用户认证逻辑
-
-**用户管理**：
-- 用户CRUD操作
-- 角色分配
-- 部门关联
-- 权限管理
-
-### 4.2 库存管理
-
-**核心功能**：
-- 库存查询与统计
-- 库存调拨
-- 库存盘点
-- 库存调整
-
-**面料行业特色**：
-- 批次管理
-- 色号管理
-- 双计量单位（米/公斤）自动换算
-- 缸号管理
-- 坯布管理
-
-### 4.3 销售管理
-
-**核心功能**：
-- 销售订单创建与管理
-- 销售合同管理
-- 销售价格管理
-- 销售分析
-
-**面料行业特色**：
-- 面料销售订单（支持米/公斤双计量单位）
-- 色号管理
-- 批次追踪
-
-### 4.4 采购管理
-
-**核心功能**：
-- 采购订单创建与管理
-- 采购合同管理
-- 采购收货
-- 采购退货
-- 采购价格管理
-
-### 4.5 财务管理
-
-**核心功能**：
-- 总账管理
-- 科目管理
-- 凭证管理
-- 应付账款
-- 应收账款
-- 财务分析
-
-### 4.6 业务追溯
-
-**核心功能**：
-- 五维度管理（产品、批次、色号、等级、仓库）
-- 业务流程追溯
-- 数据快照
-
-## 5. 数据库结构
-
-### 核心表结构
-
-| 表名 | 主要功能 | 关键字段 |
-|------|---------|----------|
-| users | 用户信息 | id, username, password_hash, role_id |
-| roles | 角色信息 | id, name, permissions |
-| departments | 部门信息 | id, name, parent_id |
-| products | 产品信息 | id, code, name, category_id |
-| product_categories | 产品类别 | id, name, parent_id |
-| warehouses | 仓库信息 | id, code, name, status |
-| inventory_stocks | 库存信息 | id, product_id, warehouse_id, batch_no, color_code |
-| inventory_transfers | 库存调拨 | id, transfer_no, from_warehouse_id, to_warehouse_id |
-| sales_orders | 销售订单 | id, order_no, customer_name, status |
-| purchase_orders | 采购订单 | id, order_no, supplier_id, status |
-| finance_invoices | 发票信息 | id, invoice_no, amount, status |
-| vouchers | 财务凭证 | id, voucher_no, amount, status |
-
-### 面料行业特色表
-
-| 表名 | 主要功能 | 关键字段 |
-|------|---------|----------|
-| dye_batches | 染色批次 | id, batch_no, color_code, status |
-| greige_fabrics | 坯布管理 | id, batch_no, supplier_id, quantity |
-| dye_recipes | 染色配方 | id, recipe_no, color_code, formula |
-| inventory_stocks | 库存信息（扩展） | batch_no, color_code, quantity_meters, quantity_kg |
-
-## 6. API接口
-
-### 6.1 认证接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/auth/login | POST | 用户登录 | [auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) |
-| /api/v1/erp/auth/logout | POST | 用户注销 | [auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) |
-| /api/v1/erp/auth/refresh | POST | 刷新令牌 | [auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) |
-
-### 6.2 用户管理接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/users | GET | 获取用户列表 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users | POST | 创建用户 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users/:id | GET | 获取用户详情 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users/:id | PUT | 更新用户 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users/:id | DELETE | 删除用户 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-
-### 6.3 库存管理接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/inventory/stock | GET | 获取库存列表 | [inventory_stock_handler.rs](file:///workspace/backend/src/handlers/inventory_stock_handler.rs) |
-| /api/v1/erp/inventory/stock | POST | 创建库存记录 | [inventory_stock_handler.rs](file:///workspace/backend/src/handlers/inventory_stock_handler.rs) |
-| /api/v1/erp/inventory/transfers | GET | 获取调拨列表 | [inventory_transfer_handler.rs](file:///workspace/backend/src/handlers/inventory_transfer_handler.rs) |
-| /api/v1/erp/inventory/transfers | POST | 创建调拨单 | [inventory_transfer_handler.rs](file:///workspace/backend/src/handlers/inventory_transfer_handler.rs) |
-| /api/v1/erp/inventory/counts | GET | 获取盘点列表 | [inventory_count_handler.rs](file:///workspace/backend/src/handlers/inventory_count_handler.rs) |
-| /api/v1/erp/inventory/counts | POST | 创建盘点单 | [inventory_count_handler.rs](file:///workspace/backend/src/handlers/inventory_count_handler.rs) |
-
-### 6.4 销售管理接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/sales/orders | GET | 获取销售订单列表 | [sales_order_handler.rs](file:///workspace/backend/src/handlers/sales_order_handler.rs) |
-| /api/v1/erp/sales/orders | POST | 创建销售订单 | [sales_order_handler.rs](file:///workspace/backend/src/handlers/sales_order_handler.rs) |
-| /api/v1/erp/sales/fabric-orders | GET | 获取面料销售订单列表 | [sales_fabric_order_handler.rs](file:///workspace/backend/src/handlers/sales_fabric_order_handler.rs) |
-| /api/v1/erp/sales/fabric-orders | POST | 创建面料销售订单 | [sales_fabric_order_handler.rs](file:///workspace/backend/src/handlers/sales_fabric_order_handler.rs) |
-
-## 7. 部署与监控
-
-### 7.1 部署方案
-
-**部署流程**：
-1. 解压发布包到部署目录
-2. 配置系统服务（systemd）
-3. 配置Nginx反向代理
-4. 启动服务
-
-**部署脚本**：
-- [deploy.sh](file:///workspace/deploy/deploy.sh) - 主部署脚本
-- [deploy-backend.sh](file:///workspace/deploy/deploy-backend.sh) - 后端部署脚本
-- [deploy-frontend.sh](file:///workspace/deploy/deploy-frontend.sh) - 前端部署脚本
-
-**系统服务配置**：
-- [bingxi-backend.service](file:///workspace/deploy/bingxi-backend.service) - 后端服务配置
-
-**Nginx配置**：
-- [nginx.conf](file:///workspace/deploy/nginx.conf) - Nginx主配置
-- [nginx-simple.conf](file:///workspace/deploy/nginx-simple.conf) - 简化版配置
-
-### 7.2 监控方案
-
-**监控组件**：
-- **Prometheus** - 指标收集
-- **Grafana** - 指标可视化
-- **Alertmanager** - 告警管理
-
-**监控配置**：
-- [prometheus.yml](file:///workspace/monitoring/prometheus/prometheus.yml) - Prometheus配置
-- [alert_rules.yml](file:///workspace/monitoring/prometheus/alert_rules.yml) - 告警规则
-- [alertmanager.yml](file:///workspace/monitoring/alertmanager/alertmanager.yml) - Alertmanager配置
-- [bingxi-erp-overview.json](file:///workspace/monitoring/grafana/dashboards/bingxi-erp-overview.json) - Grafana仪表盘
-
-**监控指标**：
-- 系统指标（CPU、内存、磁盘）
-- 应用指标（请求数、响应时间）
-- 数据库指标（连接数、查询性能）
-- 业务指标（订单量、库存水平）
-
-## 8. 运行方式
-
-### 8.1 开发环境
-
-**后端运行**：
-```bash
-# 进入后端目录
-cd backend
-
-# 安装依赖
-cargo build
-
-# 运行开发服务器
-cargo run
-```
-
-**前端运行**：
-```bash
-# 进入前端目录
-cd frontend
-
-# 安装依赖
-cargo build
-
-# 运行开发服务器
-trunk serve
-```
-
-### 8.2 生产环境
-
-**构建发布包**：
-```bash
-# 构建后端
-cd backend
-cargo build --release
-
-# 构建前端
-cd ../frontend
-trunk build --release
-```
-
-**部署**：
-```bash
-# 使用部署脚本
-./deploy/deploy.sh
-```
-
-**服务管理**：
-```bash
-# 启动服务
-sudo systemctl start bingxi-backend
-
-# 停止服务
-sudo systemctl stop bingxi-backend
-
-# 重启服务
-sudo systemctl restart bingxi-backend
-
-# 查看服务状态
-sudo systemctl status bingxi-backend
-```
-
-## 9. 开发指南
-
-### 9.1 代码规范
-
-**命名约定**：
-- 变量和函数：蛇形命名法（snake_case）
-- 结构体和枚举：驼峰命名法（CamelCase）
-- 常量：全大写蛇形命名法（SNAKE_CASE）
-
-**代码组织**：
-- 每个功能模块独立成文件
-- 相关代码放在同一目录
-- 函数职责单一
-- 保持适当的抽象层次
-
-**注释规范**：
-- 公共API需要详细文档
-- 复杂逻辑需要注释说明
-- 注释应该解释为什么，而不是做什么
-
-### 9.2 开发流程
-
-**新功能开发**：
-1. 创建分支
-2. 实现功能
-3. 编写测试
-4. 提交代码
-5. 进行代码审查
-6. 合并到主分支
-
-**Bug修复**：
-1. 复现问题
-2. 分析原因
-3. 修复代码
-4. 编写测试
-5. 验证修复
-6. 提交代码
-
-### 9.3 测试指南
-
-**单元测试**：
-```bash
-# 运行后端单元测试
-cd backend
-cargo test
-
-# 运行前端单元测试
-cd ../frontend
-cargo test
-```
-
-**集成测试**：
-```bash
-# 运行后端集成测试
-cd backend
-cargo test --test api_test
-```
-
-**性能测试**：
-```bash
-# 使用ab进行性能测试
-./backend/scripts/performance_test_ab.sh
-
-# 使用wrk进行性能测试
-./backend/scripts/performance_test_wrk.sh
-```
-
-## 10. 总结
-
-秉羲管理系统是一个功能完整、架构清晰的企业资源规划系统，专为面料行业定制。系统采用现代化的技术栈，具有以下特点：
-
-- **高性能**：基于Rust语言开发，性能优异
-- **可扩展**：模块化设计，易于添加新功能
-- **行业特色**：支持面料行业的特殊需求，如批次管理、双计量单位等
-- **完整功能**：涵盖企业管理的各个方面，从采购到销售，从库存到财务
-- **易于部署**：提供完整的部署脚本和监控方案
-
-系统已经具备生产环境运行的条件，可以根据企业的具体需求进行定制和扩展。
-
-## 11. 附录
-
-### 11.1 环境变量
-
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
-| DATABASE_URL | 数据库连接字符串 | - |
-| JWT_SECRET | JWT密钥 | - |
-| SERVER_HOST | 服务器主机 | 0.0.0.0 |
-| SERVER_PORT | 服务器端口 | 8080 |
-| LOG_LEVEL | 日志级别 | info |
-| CORS_ALLOWED_ORIGINS | CORS允许的来源 | * |
-
-### 11.2 系统要求
-
-**硬件要求**：
-- CPU：至少2核
-- 内存：至少2GB
-- 磁盘：至少20GB
-
-**软件要求**：
-- Rust 1.70+ 
-- PostgreSQL 14+
-- Nginx 1.18+
-- Systemd
-- Trunk (前端构建工具)
-
-### 11.3 常见问题
-
-**数据库连接失败**：
-- 检查数据库服务是否运行
-- 检查连接字符串是否正确
-- 检查数据库用户权限
-
-**服务启动失败**：
-- 检查端口是否被占用
-- 检查配置文件是否正确
-- 查看日志文件获取详细错误信息
-
-**前端访问404**：
-- 检查Nginx配置是否正确
-- 检查前端文件是否正确部署
-- 检查路由配置是否正确
-
-**性能问题**：
-- 检查数据库索引
-- 检查SQL查询优化
-- 考虑使用缓存
-
-## 12. 联系方式
-
-**开发团队**：秉羲团队
-**邮箱**：contact@bingxi-erp.com
-**网站**：https://www.bingxi-erp.com
+- **后端应用 (`backend/`)**：基于 `Axum` 框架构建的 RESTful API 服务，使用 `SeaORM` 作为 ORM 访问 PostgreSQL 数据库，并集成了 JWT 认证、RBAC 权限控制、Tracing 日志和 Prometheus 监控。
+- **前端应用 (`frontend/`)**：基于 `Yew` 框架构建的单页应用（SPA），通过 WebAssembly (WASM) 运行在浏览器端，通过 HTTP/JSON 与后端进行通信。
+- **监控与部署 (`monitoring/`, `deploy/`)**：提供了基于 Nginx 反向代理、Systemd 服务管理以及 Prometheus + Grafana 的全套部署和监控配置。
 
 ---
 
-*本文档由秉羲团队维护，定期更新。*
+## 2. 核心技术栈与依赖关系
+
+### 2.1 后端核心依赖 (Cargo.toml)
+| 依赖库 | 作用说明 |
+|---|---|
+| **axum** (0.7) | 核心 Web 框架，处理 HTTP 路由和请求。 |
+| **sea-orm** (1.0) | 异步 ORM 框架，负责 PostgreSQL 数据库的映射与查询。 |
+| **tokio** (1.0) | 异步运行时，提供非阻塞 I/O 支持。 |
+| **jsonwebtoken** (9.0) | JWT 令牌的生成与验证，用于身份认证。 |
+| **tracing** / **tracing-subscriber** | 结构化日志收集与输出，支持日志按天滚动切割。 |
+| **tonic** / **prost** | 提供 gRPC 服务支持（内部服务间通信或高性能接口）。 |
+| **rust_xlsxwriter** | 纯 Rust 实现的 Excel 导出库，用于报表导出。 |
+| **utoipa** | OpenAPI (Swagger) 文档自动生成。 |
+
+### 2.2 前端核心依赖 (Cargo.toml / package.json)
+| 依赖库 | 作用说明 |
+|---|---|
+| **yew** (0.21) | 核心前端组件化框架，基于 Rust 和 WASM。 |
+| **yew-router** | 客户端路由管理。 |
+| **gloo-net** | 提供基于 `fetch` 的 HTTP 客户端调用封装。 |
+| **serde** / **serde_json** | 用于 JSON 数据的前后端序列化/反序列化。 |
+| **wasm-bindgen** | 提供 Rust 与 JavaScript 的交互桥梁。 |
+
+---
+
+## 3. 主要模块职责
+
+项目遵循清晰的领域驱动设计（DDD）目录结构。
+
+### 3.1 后端目录结构 (`backend/src/`)
+- **`config/`**: 配置加载模块，读取 `.env` 或 `config.yaml`。
+- **`models/`**: 数据库实体定义，由 SeaORM 自动生成或手动定义，包含业务字段及关联关系。
+- **`handlers/`**: 控制器层（API 视图），负责接收 HTTP 请求，解析参数，调用 Service，并返回 JSON 响应。
+- **`services/`**: 业务逻辑层，处理复杂的业务规则、事务控制及跨模块调用。
+- **`middleware/`**: 包含认证（Auth）、权限拦截（Permission）、请求校验、日志和限流等中间件。
+- **`utils/`**: 工具类集合，包含 `AppState` (全局应用状态)、错误处理统一定义、缓存及业务辅助函数（如单位换算）。
+- **`grpc/`**: gRPC 服务实现端。
+
+### 3.2 业务模块划分
+1. **基础数据与系统管理**：用户(User)、角色(Role)、部门(Department)、系统初始化(Init)。
+2. **面料行业特色模块**：
+   - 批次与缸号管理 (`dye_batch`, `greige_fabric`, `batch`)。
+   - 双计量单位换算 (`dual_unit_converter`)。
+   - 五维度查询管理 (`five_dimension`：产品、批次、色号、等级、仓库)。
+3. **供应链管理**：采购(Purchase)、销售(Sales)、库存(Inventory)、供应商与客户管理。
+4. **财务管理**：应收/应付(AR/AP)、资金管理、总账/辅助核算(Assist Accounting)、财务分析。
+
+---
+
+## 4. 关键类与函数说明
+
+### 4.1 后端关键类与函数
+
+- **`crate::main()`** ( `backend/src/main.rs` )
+  - **说明**：后端应用入口点。
+  - **职责**：加载配置，初始化 Tracing 日志，建立 PostgreSQL 连接池。创建全局 `AppState`，挂载全局中间件（CORS, Auth, 日志），最终绑定端口并启动 Axum Server。在未初始化时，会自动启动配置路由 (`create_init_router`) 提供首次安装界面。
+
+- **`AppState`** ( `backend/src/utils/app_state.rs` )
+  - **说明**：全局状态容器，实现了 `Clone`。
+  - **核心属性**：`db: Arc<DatabaseConnection>` (数据库连接池)，`jwt_secret: String`。
+
+- **`AuthMiddleware`** ( `backend/src/middleware/auth.rs` )
+  - **函数 `auth_middleware`**：拦截器，从请求头提取 `Bearer Token`，调用 `AuthService::verify_token` 校验，成功后将用户信息注入到请求的 Extension 中供下游 `Handler` 使用。
+
+- **`AuthService::login`** ( `backend/src/services/auth_service.rs` )
+  - **说明**：用户登录核心逻辑。
+  - **流程**：根据用户名查询数据库，使用 `argon2` 验证密码 Hash，成功后调用 `jsonwebtoken` 签发 Token，并记录登录日志。
+
+- **`InventoryStockService`** ( `backend/src/services/inventory_stock_service.rs` )
+  - **关键函数 `adjust_stock`**：库存调整。
+  - **行业特色**：处理库存时不仅处理产品 ID 和仓库，还强关联 `batch_no` (批次号) 和 `color_code` (色号)，并同时处理米(meters)和公斤(kg)的双计量单位同步扣减/增加，确保库存数据的五维度准确性。
+
+- **`SalesOrderService`** ( `backend/src/services/sales_service.rs` / `sales_order_service.rs` )
+  - **说明**：处理销售订单。
+  - **关联函数**：创建销售订单时，自动调用财务服务生成应收账款（AR）记录，并锁定对应仓库的产品库存。
+
+### 4.2 前端关键类与函数
+
+- **`App`** ( `frontend/src/app/mod.rs` )
+  - **说明**：Yew 根组件。
+  - **职责**：配置 `yew_router::BrowserRouter`，处理页面级别的组件路由分发（如跳转到 `/login` 或 `/dashboard`）。
+
+- **`Navigation`** ( `frontend/src/components/navigation.rs` )
+  - **说明**：侧边栏导航组件。读取当前用户的权限列表，动态渲染可见的菜单项。
+
+- **前端 Services (例如 `frontend/src/services/auth.rs`)**
+  - **说明**：基于 `gloo_net::http::Request` 封装的异步请求函数，处理与后端的交互。所有响应数据使用 `serde_json` 自动反序列化为 `models/` 下定义的结构体。
+
+---
+
+## 5. 数据流与依赖流转示例
+
+**以“创建销售订单”为例：**
+1. **Frontend**: 用户在 `sales_order.rs` 页面填写表单，触发 `SalesService::create_order`。
+2. **Frontend -> Backend**: HTTP POST `/api/v1/erp/sales/orders`。
+3. **Backend Middleware**: `auth_middleware` 校验 Token，`permission_middleware` 校验是否有 `sales:write` 权限。
+4. **Backend Handler**: `sales_order_handler::create_sales_order` 接收 JSON，验证字段合法性。
+5. **Backend Service**: `SalesOrderService::create` 开启数据库事务 (`txn`)：
+   - 插入 `sales_orders` 主表和 `sales_order_items` 明细表。
+   - 调用 `InventoryStockService::reserve_stock` 预扣减库存。
+   - 调用 `ArInvoiceService::create_from_sales` 生成应收预估账款。
+   - 提交事务 (`txn.commit()`)。
+6. **Backend -> Frontend**: 返回 200 OK 及新订单 ID。
+7. **Frontend**: 页面提示成功，调用路由跳转回订单列表页。
+
+---
+
+## 6. 项目运行方式及使用说明
+
+### 6.1 环境准备
+- 安装 **Rust 工具链** (推荐使用 `rustup`，版本 >= 1.70)。
+- 安装 **PostgreSQL** (>= 14) 数据库服务。
+- 前端需安装 **Trunk**：`cargo install trunk`
+- 添加 WASM 编译目标：`rustup target add wasm32-unknown-unknown`
+
+### 6.2 数据库初始化
+后端程序内置了数据库迁移（Migrations）和首次启动引导：
+1. 启动空的 PostgreSQL 实例。
+2. 首次运行后端时，若未配置数据库或表为空，系统将提供 `/init` 系列接口进行系统初始化建表及创建超级管理员账号。
+
+### 6.3 运行后端
+```bash
+cd backend
+# 复制并配置环境变量
+cp .env.example .env
+# 配置数据库连接，例如：DATABASE_URL=postgres://user:pass@localhost/bingxi_erp
+
+# 开发模式运行
+cargo run
+
+# 或编译为 Release 版本（生产环境）
+cargo build --release
+```
+默认情况下，后端服务监听 `0.0.0.0:8080`。
+
+### 6.4 运行前端
+```bash
+cd frontend
+
+# 使用 Trunk 启动开发服务器（支持热更新）
+trunk serve --port 8081
+
+# 或构建生产环境静态文件
+trunk build --release
+# 构建产物将输出到 frontend/dist 目录，可通过 Nginx 部署
+```
+
+### 6.5 生产部署与监控
+项目在 `deploy/` 和 `monitoring/` 目录提供了相关脚本：
+1. **Nginx 配置**：将 `deploy/nginx.conf` 放入 `/etc/nginx/conf.d/`。
+2. **Systemd**：使用 `deploy/bingxi-backend.service` 管理后端进程守护。
+3. **监控接入**：启动 Prometheus 并加载 `monitoring/prometheus/prometheus.yml`，在 Grafana 中导入 `bingxi-erp-overview.json` 面板，即可监控系统的 QPS、数据库连接池及内存使用情况。
+
+---
+
+## 7. 代码规范与约定
+
+1. **统一错误处理**：后端通过 `thiserror` 统一定义 `AppError`，并在 handler 层通过实现 `IntoResponse` 统一返回标准的 `{"error": "...", "message": "..."}` 格式。不要在业务代码中直接 `unwrap()` 导致 panic。
+2. **异步数据库操作**：业务逻辑在操作数据库时必须传递或使用 `&DatabaseConnection` 或 `&DatabaseTransaction`。跨表修改必须包裹在事务中。
+3. **前端状态管理**：跨组件共享状态尽量使用 Yew Context API 或通过 URL 路由参数传递，保持组件状态的单一数据源。
+4. **日志打印**：使用 `tracing::info!`, `warn!`, `error!` 记录关键业务节点，尤其是在核心单据流转和权限拦截处。
+
+---
+*文档维护者：秉羲团队*  
+*生成时间：2026-04-05*
