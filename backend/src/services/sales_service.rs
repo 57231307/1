@@ -1,6 +1,5 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QuerySelect, QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -11,13 +10,15 @@ use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
+use sea_orm::{FromQueryResult, JoinType, RelationTrait};
 
 /// 销售订单详情响应
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, FromQueryResult)]
 pub struct SalesOrderDetail {
     pub id: i32,
     pub order_no: String,
     pub customer_id: i32,
+    pub customer_name: Option<String>,
     pub order_date: chrono::DateTime<chrono::Utc>,
     pub required_date: chrono::DateTime<chrono::Utc>,
     pub ship_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -37,15 +38,18 @@ pub struct SalesOrderDetail {
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    #[sea_orm(skip)]
     pub items: Vec<SalesOrderItemDetail>,
 }
 
 /// 销售订单明细项详情
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, FromQueryResult)]
 pub struct SalesOrderItemDetail {
     pub id: i32,
     pub order_id: i32,
     pub product_id: i32,
+    pub product_code: Option<String>,
+    pub product_name: Option<String>,
     pub quantity: rust_decimal::Decimal,
     pub unit_price: rust_decimal::Decimal,
     pub discount_percent: rust_decimal::Decimal,
@@ -151,8 +155,9 @@ impl SalesService {
         customer_id: Option<i32>,
         order_no: Option<String>,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, sea_orm::DbErr> {
-        let mut query =
-            SalesOrderEntity::find().order_by(sales_order::Column::CreatedAt, Order::Desc);
+        let mut query = SalesOrderEntity::find()
+            .column_as(crate::models::customer::Column::CustomerName, "customer_name")
+            .join(JoinType::LeftJoin, sales_order::Relation::Customer.def());
 
         // 应用过滤条件
         if let Some(s) = status {
@@ -166,40 +171,19 @@ impl SalesService {
         }
 
         // 分页
-        let paginator = query.paginate(&*self.db, page_req.page_size);
+        let paginator = query
+            .order_by(sales_order::Column::CreatedAt, Order::Desc)
+            .into_model::<SalesOrderDetail>()
+            .paginate(&*self.db, page_req.page_size);
+
         let total = paginator.num_items().await?;
-        let orders: Vec<sales_order::Model> =
+        let mut order_details: Vec<SalesOrderDetail> =
             paginator.fetch_page(page_req.page - 1).await?;
 
-        // 转换为响应格式
-        let order_details: Vec<SalesOrderDetail> = orders
-            .into_iter()
-            .map(|order| SalesOrderDetail {
-                id: order.id,
-                order_no: order.order_no,
-                customer_id: order.customer_id,
-                order_date: order.order_date,
-                required_date: order.required_date,
-                ship_date: order.ship_date,
-                status: order.status,
-                subtotal: order.subtotal,
-                tax_amount: order.tax_amount,
-                discount_amount: order.discount_amount,
-                shipping_cost: order.shipping_cost,
-                total_amount: order.total_amount,
-                paid_amount: order.paid_amount,
-                balance_amount: order.balance_amount,
-                shipping_address: order.shipping_address,
-                billing_address: order.billing_address,
-                notes: order.notes,
-                created_by: order.created_by,
-                approved_by: order.approved_by,
-                approved_at: order.approved_at,
-                created_at: order.created_at,
-                updated_at: order.updated_at,
-                items: vec![], // 列表接口不返回明细项
-            })
-            .collect();
+        // 列表接口不返回明细项，确保 items 初始化
+        for order in &mut order_details {
+            order.items = vec![];
+        }
 
         Ok(PaginatedResponse::new(
             order_details,
@@ -215,7 +199,10 @@ impl SalesService {
         order_id: i32,
     ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 获取订单主表数据
-        let order = SalesOrderEntity::find_by_id(order_id)
+        let mut order = SalesOrderEntity::find_by_id(order_id)
+            .column_as(crate::models::customer::Column::CustomerName, "customer_name")
+            .join(JoinType::LeftJoin, sales_order::Relation::Customer.def())
+            .into_model::<SalesOrderDetail>()
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
@@ -223,75 +210,19 @@ impl SalesService {
             })?;
 
         // 获取订单明细项
+        use crate::models::product;
         let items = SalesOrderItemEntity::find()
+            .column_as(product::Column::Code, "product_code")
+            .column_as(product::Column::Name, "product_name")
+            .join(JoinType::LeftJoin, sales_order_item::Relation::Product.def())
             .filter(sales_order_item::Column::OrderId.eq(order_id))
             .order_by(sales_order_item::Column::Id, Order::Asc)
+            .into_model::<SalesOrderItemDetail>()
             .all(&*self.db)
             .await?;
 
-        // 转换为响应格式
-        let item_details: Vec<SalesOrderItemDetail> = items
-            .into_iter()
-            .map(|item| SalesOrderItemDetail {
-                id: item.id,
-                order_id: item.order_id,
-                product_id: item.product_id,
-                quantity: item.quantity,
-                unit_price: item.unit_price,
-                discount_percent: item.discount_percent,
-                tax_percent: item.tax_percent,
-                subtotal: item.subtotal,
-                tax_amount: item.tax_amount,
-                discount_amount: item.discount_amount,
-                total_amount: item.total_amount,
-                shipped_quantity: item.shipped_quantity,
-                notes: item.notes,
-                created_at: item.created_at,
-                updated_at: item.updated_at,
-                color_no: item.color_no,
-                color_name: item.color_name,
-                pantone_code: item.pantone_code,
-                grade_required: item.grade_required,
-                quantity_meters: item.quantity_meters,
-                quantity_kg: item.quantity_kg,
-                gram_weight: item.gram_weight,
-                width: item.width,
-                batch_requirement: item.batch_requirement,
-                dye_lot_requirement: item.dye_lot_requirement,
-                base_price: item.base_price,
-                color_extra_cost: item.color_extra_cost,
-                grade_price_diff: item.grade_price_diff,
-                final_price: item.final_price,
-                shipped_quantity_meters: item.shipped_quantity_meters,
-                shipped_quantity_kg: item.shipped_quantity_kg,
-            })
-            .collect();
-
-        Ok(SalesOrderDetail {
-            id: order.id,
-            order_no: order.order_no,
-            customer_id: order.customer_id,
-            order_date: order.order_date,
-            required_date: order.required_date,
-            ship_date: order.ship_date,
-            status: order.status,
-            subtotal: order.subtotal,
-            tax_amount: order.tax_amount,
-            discount_amount: order.discount_amount,
-            shipping_cost: order.shipping_cost,
-            total_amount: order.total_amount,
-            paid_amount: order.paid_amount,
-            balance_amount: order.balance_amount,
-            shipping_address: order.shipping_address,
-            billing_address: order.billing_address,
-            notes: order.notes,
-            created_by: order.created_by,
-            approved_by: order.approved_by,
-            approved_at: order.approved_at,
-            created_at: order.created_at,
-            updated_at: order.updated_at,
-            items: item_details,
-        })
+        order.items = items;
+        Ok(order)
     }
 
     /// 创建销售订单
