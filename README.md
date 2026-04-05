@@ -1441,153 +1441,44 @@
 
 ## 部署指南
 
-### 1. 环境要求
+项目现已支持纯物理机环境的 **一键自动化部署**，无需 Docker 容器。该脚本将自动下载最新代码、配置运行环境、设置 Nginx 反向代理，并注册 Systemd 服务实现开机自启和崩溃保活。
+
+### 1. 一键快速部署
+
+在您的 Linux 服务器（推荐 Ubuntu/Debian/CentOS）上，直接运行以下命令即可完成全自动安装：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/57231307/1/main/install.sh | sudo bash -s install
+```
+
+### 2. 一键管理工具 (bingxi)
+
+安装成功后，系统会自动为您在终端注入一个叫做 `bingxi` 的全局命令。后续日常运维非常极简：
+
+```bash
+sudo bingxi start    # 启动系统 (后端及Nginx网关)
+sudo bingxi stop     # 停止系统
+sudo bingxi restart  # 重启系统
+sudo bingxi status   # 查看系统运行与保活状态
+sudo bingxi update   # 一键平滑升级（自动拉取最新 Release 包并平滑重启）
+```
+
+### 3. 环境要求与手动配置
 
 **硬件要求**：
-- CPU：至少2核
-- 内存：至少4GB
-- 磁盘：至少20GB
+- CPU：至少 2 核
+- 内存：至少 4GB
+- 磁盘：至少 20GB
+- 操作系统：Linux (推荐 Ubuntu 20.04+)
 
-**软件要求**：
-- Rust 1.70+
-- PostgreSQL 14+
-- Nginx 1.18+
-- Systemd
-- Trunk (前端构建工具)
-
-### 2. 后端部署
-
-#### 2.1 构建后端
-
+**手动配置 (可选)**：
+如果需要修改数据库连接或其它高级配置，请编辑配置文件：
 ```bash
-cd backend
-cargo build --release
+nano /etc/bingxi/.env
 ```
-
-#### 2.2 配置环境变量
-
-复制环境配置文件并修改：
-
+修改完成后，重启服务使其生效：
 ```bash
-cp .env.example .env
-# 编辑 .env 文件，配置数据库连接等信息
-```
-
-主要配置项：
-- `SERVER__HOST` - 服务器监听地址
-- `SERVER__PORT` - 服务器端口
-- `DATABASE__CONNECTION_STRING` - 数据库连接字符串
-- `AUTH__JWT_SECRET` - JWT密钥
-
-#### 2.3 数据库迁移
-
-执行数据库迁移：
-
-```bash
-# 使用SeaORM进行数据库迁移
-cargo run -- migrate
-```
-
-#### 2.4 配置Systemd服务
-
-使用提供的服务配置文件：
-
-```bash
-sudo cp deploy/bingxi-backend.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable bingxi-backend
-sudo systemctl start bingxi-backend
-```
-
-**服务管理命令**：
-```bash
-# 启动服务
-sudo systemctl start bingxi-backend
-
-# 停止服务
-sudo systemctl stop bingxi-backend
-
-# 重启服务
-sudo systemctl restart bingxi-backend
-
-# 查看服务状态
-sudo systemctl status bingxi-backend
-
-# 查看服务日志
-sudo journalctl -u bingxi-backend -f
-```
-
-### 3. 前端部署
-
-#### 3.1 构建前端
-
-```bash
-cd frontend
-trunk build --release
-```
-
-构建产物将输出到 `dist/` 目录。
-
-#### 3.2 部署前端文件
-
-将构建产物复制到Nginx静态文件目录：
-
-```bash
-sudo mkdir -p /var/www/bingxi
-sudo cp -r frontend/dist/* /var/www/bingxi/
-sudo chown -R www-data:www-data /var/www/bingxi/
-```
-
-### 4. Nginx配置
-
-#### 4.1 配置Nginx
-
-使用提供的Nginx配置文件：
-
-```bash
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/bingxi
-sudo ln -s /etc/nginx/sites-available/bingxi /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-**Nginx配置说明**：
-- 静态资源托管
-- API反向代理到后端服务
-- 添加`X-Requested-With`请求头
-- 配置前端路由支持（SPA）
-- 配置静态资源缓存
-- 配置WASM文件支持
-
-#### 4.2 Nginx配置示例
-
-关键配置项：
-- 监听端口：80
-- 根目录：`/var/www/bingxi`
-- API代理：`http://127.0.0.1:8081`
-- 添加`X-Requested-With: XMLHttpRequest`请求头
-- SPA路由支持：`try_files $uri $uri/ /index.html`
-
-### 5. 部署脚本
-
-系统提供了完整的部署脚本：
-
-- [deploy.sh](file:///workspace/deploy/deploy.sh) - 主部署脚本
-- [deploy-backend.sh](file:///workspace/deploy/deploy-backend.sh) - 后端部署脚本
-- [deploy-frontend.sh](file:///workspace/deploy/deploy-frontend.sh) - 前端部署脚本
-- [deploy-prepare.sh](file:///workspace/deploy/deploy-prepare.sh) - 部署准备脚本
-
-**使用部署脚本**：
-
-```bash
-# 完整部署
-./deploy/deploy.sh
-
-# 仅部署后端
-./deploy/deploy-backend.sh
-
-# 仅部署前端
-./deploy/deploy-frontend.sh
+sudo bingxi restart
 ```
 
 ---
