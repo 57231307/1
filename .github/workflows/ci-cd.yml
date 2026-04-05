@@ -160,9 +160,13 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: 下载后端产物
         uses: actions/download-artifact@v5
@@ -214,9 +218,37 @@ jobs:
         id: version
         run: |
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
+            VERSION=${GITHUB_REF#refs/tags/v}
           else
-            VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
+            git fetch --tags
+            LATEST_TAG=$(git describe --tags --match "v*.*.*.*.*" --abbrev=0 2>/dev/null || echo "")
+            
+            if [ -z "$LATEST_TAG" ]; then
+              NEW_NUM=10000
+            else
+              LATEST_NUM=$(echo $LATEST_TAG | sed 's/^v//' | sed 's/\.//g')
+              COMMITS=$(git log ${LATEST_TAG}..HEAD --format="%s")
+            
+              SCORE=0
+              while read -r commit; do
+                if [[ -z "$commit" ]]; then continue; fi
+                if echo "$commit" | grep -iqE "BREAKING CHANGE|!:|特大改动"; then
+                  SCORE=$((SCORE + 100))
+                elif echo "$commit" | grep -iqE "^feat|^major|大改动"; then
+                  SCORE=$((SCORE + 10))
+                else
+                  SCORE=$((SCORE + 1))
+                fi
+              done <<< "$COMMITS"
+            
+              if [ "$SCORE" -eq 0 ]; then
+                NEW_NUM=$LATEST_NUM
+              else
+                NEW_NUM=$((LATEST_NUM + SCORE))
+              fi
+            fi
+            
+            VERSION=$(echo $NEW_NUM | sed -e 's/\(.\)/\1./g' -e 's/\.$//')
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "构建版本: $VERSION"
@@ -247,6 +279,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: 下载发布包
         uses: actions/download-artifact@v5
@@ -254,21 +288,29 @@ jobs:
           name: bingxi-erp-release-zip
           path: ./
 
-      - name: 生成版本号
-        id: version
-        run: |
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-          else
-            VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: 生成发布说明
         id: release-notes
         run: |
-          cat > release_notes.md << 'EOF'
-          # 秉羲管理系统 - ${{ steps.version.outputs.version }}
+          git fetch --tags
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            PREV_TAG=$(git describe --tags --match "v*.*.*.*.*" --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          else
+            PREV_TAG=$(git describe --tags --match "v*.*.*.*.*" --abbrev=0 2>/dev/null || echo "")
+          fi
+          
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --oneline --no-merges -n 50)
+          else
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --oneline --no-merges)
+          fi
+
+          # 写入 CHANGELOG
+          echo "CHANGELOG<<DELIMITER" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "DELIMITER" >> $GITHUB_ENV
+
+          cat > release_notes.md << EOF
+          # 秉羲管理系统 - ${{ needs.package-release.outputs.version }}
 
           ## 📦 发布内容
 
@@ -279,11 +321,15 @@ jobs:
           - ✅ 部署脚本和配置文件
           - ✅ 完整的项目文档
 
+          ## ✨ 详细改动变化
+
+$CHANGELOG
+
           ## 🚀 快速开始
 
           ### 1. 解压发布包
           ```bash
-          unzip bingxi-erp-${{ steps.version.outputs.version }}.zip
+          unzip bingxi-erp-${{ needs.package-release.outputs.version }}.zip
           cd bingxi-erp
           ```
 
@@ -331,10 +377,10 @@ jobs:
       - name: 创建或更新 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: 秉羲管理系统 v${{ steps.version.outputs.version }}
+          tag_name: v${{ needs.package-release.outputs.version }}
+          name: 秉羲管理系统 v${{ needs.package-release.outputs.version }}
           body_path: release_notes.md
-          files: bingxi-erp-${{ steps.version.outputs.version }}.zip
+          files: bingxi-erp-${{ needs.package-release.outputs.version }}.zip
           draft: false
           prerelease: false
           make_latest: true
