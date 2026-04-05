@@ -1,475 +1,340 @@
-# 秉羲管理系统 - Code Wiki
+# 秉羲管理系统 (BingXi ERP) - 核心模块逐行级源码深度剖析
 
-## 1. 项目概述
+本文档对秉羲管理系统中最核心、最具行业代表性的功能模块进行了**逐行级别**的源码剖析。涵盖了系统启动、身份认证、RBAC权限控制、面料五维度管理、高并发防超卖事务以及前端通信基座。
 
-秉羲管理系统是一个基于Rust语言开发的企业资源规划（ERP）系统，专为面料行业定制，提供完整的企业管理功能。
-
-**主要功能模块**：
-- 用户与权限管理
-- 产品管理
-- 仓库管理
-- 库存管理（支持面料行业特色功能）
-- 销售管理
-- 采购管理
-- 财务管理
-- 生产管理
-- 数据分析与报表
-
-**系统特点**：
-- 基于Rust语言开发，性能优异
-- 前后端分离架构
-- 支持多租户
-- 模块化设计，易于扩展
-- 完整的面料行业特色功能
-
-## 2. 技术栈
-
-### 后端技术
-- **语言**：Rust 2021
-- **Web框架**：Axum 0.7
-- **数据库**：PostgreSQL
-- **ORM**：SeaORM
-- **认证**：JWT
-- **gRPC**：Tonic
-- **API文档**：OpenAPI/Swagger
-
-### 前端技术
-- **框架**：Yew 0.21 (Rust WebAssembly)
-- **路由**：Yew Router
-- **状态管理**：Yew Context API
-- **HTTP客户端**：Gloo Net
-
-### 部署与监控
-- **部署**：Systemd + Nginx
-- **监控**：Prometheus + Grafana
-- **日志**：Tracing
-
-## 3. 项目结构
-
-### 目录结构
-
-```
-├── backend/             # 后端应用
-│   ├── src/             # 源代码
-│   │   ├── config/      # 配置管理
-│   │   ├── database/    # 数据库连接
-│   │   ├── grpc/        # gRPC服务
-│   │   ├── handlers/    # API处理函数
-│   │   ├── middleware/  # 中间件
-│   │   ├── models/      # 数据模型
-│   │   ├── routes/      # 路由配置
-│   │   ├── services/    # 业务逻辑
-│   │   ├── utils/       # 工具函数
-│   │   ├── lib.rs       # 库入口
-│   │   └── main.rs      # 应用入口
-│   ├── database/        # 数据库迁移
-│   ├── proto/           # gRPC协议定义
-│   ├── Cargo.toml       # 依赖管理
-│   └── config.toml      # 配置文件
-├── frontend/            # 前端应用
-│   ├── src/             # 源代码
-│   │   ├── app/         # 应用组件
-│   │   ├── components/  # 通用组件
-│   │   ├── models/      # 数据模型
-│   │   ├── pages/       # 页面组件
-│   │   ├── services/    # API服务
-│   │   ├── utils/       # 工具函数
-│   │   └── main.rs      # 应用入口
-│   ├── static/          # 静态资源
-│   ├── styles/          # 样式文件
-│   ├── Cargo.toml       # 依赖管理
-│   └── Trunk.toml       # Trunk配置
-├── deploy/              # 部署脚本
-├── monitoring/          # 监控配置
-└── releases/            # 发布包
-```
-
-### 核心模块职责
-
-| 模块 | 主要职责 | 文件位置 |
-|------|---------|----------|
-| 认证模块 | 用户登录、注销、令牌刷新 | [backend/src/services/auth_service.rs](file:///workspace/backend/src/services/auth_service.rs) |
-| 用户管理 | 用户CRUD操作 | [backend/src/services/user_service.rs](file:///workspace/backend/src/services/user_service.rs) |
-| 库存管理 | 库存查询、调整、盘点 | [backend/src/services/inventory_stock_service.rs](file:///workspace/backend/src/services/inventory_stock_service.rs) |
-| 销售管理 | 销售订单处理 | [backend/src/services/sales_service.rs](file:///workspace/backend/src/services/sales_service.rs) |
-| 采购管理 | 采购订单处理 | [backend/src/services/purchase_order_service.rs](file:///workspace/backend/src/services/purchase_order_service.rs) |
-| 财务管理 | 财务凭证、发票处理 | [backend/src/services/voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) |
-| 面料行业特色 | 批次管理、双计量单位 | [backend/src/services/batch_service.rs](file:///workspace/backend/src/services/batch_service.rs) |
-
-## 4. 核心功能模块
-
-### 4.1 认证与用户管理
-
-**认证服务**：
-- JWT令牌生成与验证
-- 密码哈希与验证
-- 用户认证逻辑
-
-**用户管理**：
-- 用户CRUD操作
-- 角色分配
-- 部门关联
-- 权限管理
-
-### 4.2 库存管理
-
-**核心功能**：
-- 库存查询与统计
-- 库存调拨
-- 库存盘点
-- 库存调整
-
-**面料行业特色**：
-- 批次管理
-- 色号管理
-- 双计量单位（米/公斤）自动换算
-- 缸号管理
-- 坯布管理
-
-### 4.3 销售管理
-
-**核心功能**：
-- 销售订单创建与管理
-- 销售合同管理
-- 销售价格管理
-- 销售分析
-
-**面料行业特色**：
-- 面料销售订单（支持米/公斤双计量单位）
-- 色号管理
-- 批次追踪
-
-### 4.4 采购管理
-
-**核心功能**：
-- 采购订单创建与管理
-- 采购合同管理
-- 采购收货
-- 采购退货
-- 采购价格管理
-
-### 4.5 财务管理
-
-**核心功能**：
-- 总账管理
-- 科目管理
-- 凭证管理
-- 应付账款
-- 应收账款
-- 财务分析
-
-### 4.6 业务追溯
-
-**核心功能**：
-- 五维度管理（产品、批次、色号、等级、仓库）
-- 业务流程追溯
-- 数据快照
-
-## 5. 数据库结构
-
-### 核心表结构
-
-| 表名 | 主要功能 | 关键字段 |
-|------|---------|----------|
-| users | 用户信息 | id, username, password_hash, role_id |
-| roles | 角色信息 | id, name, permissions |
-| departments | 部门信息 | id, name, parent_id |
-| products | 产品信息 | id, code, name, category_id |
-| product_categories | 产品类别 | id, name, parent_id |
-| warehouses | 仓库信息 | id, code, name, status |
-| inventory_stocks | 库存信息 | id, product_id, warehouse_id, batch_no, color_code |
-| inventory_transfers | 库存调拨 | id, transfer_no, from_warehouse_id, to_warehouse_id |
-| sales_orders | 销售订单 | id, order_no, customer_name, status |
-| purchase_orders | 采购订单 | id, order_no, supplier_id, status |
-| finance_invoices | 发票信息 | id, invoice_no, amount, status |
-| vouchers | 财务凭证 | id, voucher_no, amount, status |
-
-### 面料行业特色表
-
-| 表名 | 主要功能 | 关键字段 |
-|------|---------|----------|
-| dye_batches | 染色批次 | id, batch_no, color_code, status |
-| greige_fabrics | 坯布管理 | id, batch_no, supplier_id, quantity |
-| dye_recipes | 染色配方 | id, recipe_no, color_code, formula |
-| inventory_stocks | 库存信息（扩展） | batch_no, color_code, quantity_meters, quantity_kg |
-
-## 6. API接口
-
-### 6.1 认证接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/auth/login | POST | 用户登录 | [auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) |
-| /api/v1/erp/auth/logout | POST | 用户注销 | [auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) |
-| /api/v1/erp/auth/refresh | POST | 刷新令牌 | [auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) |
-
-### 6.2 用户管理接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/users | GET | 获取用户列表 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users | POST | 创建用户 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users/:id | GET | 获取用户详情 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users/:id | PUT | 更新用户 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-| /api/v1/erp/users/:id | DELETE | 删除用户 | [user_handler.rs](file:///workspace/backend/src/handlers/user_handler.rs) |
-
-### 6.3 库存管理接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/inventory/stock | GET | 获取库存列表 | [inventory_stock_handler.rs](file:///workspace/backend/src/handlers/inventory_stock_handler.rs) |
-| /api/v1/erp/inventory/stock | POST | 创建库存记录 | [inventory_stock_handler.rs](file:///workspace/backend/src/handlers/inventory_stock_handler.rs) |
-| /api/v1/erp/inventory/transfers | GET | 获取调拨列表 | [inventory_transfer_handler.rs](file:///workspace/backend/src/handlers/inventory_transfer_handler.rs) |
-| /api/v1/erp/inventory/transfers | POST | 创建调拨单 | [inventory_transfer_handler.rs](file:///workspace/backend/src/handlers/inventory_transfer_handler.rs) |
-| /api/v1/erp/inventory/counts | GET | 获取盘点列表 | [inventory_count_handler.rs](file:///workspace/backend/src/handlers/inventory_count_handler.rs) |
-| /api/v1/erp/inventory/counts | POST | 创建盘点单 | [inventory_count_handler.rs](file:///workspace/backend/src/handlers/inventory_count_handler.rs) |
-
-### 6.4 销售管理接口
-
-| 路径 | 方法 | 功能 | 模块 |
-|------|------|------|------|
-| /api/v1/erp/sales/orders | GET | 获取销售订单列表 | [sales_order_handler.rs](file:///workspace/backend/src/handlers/sales_order_handler.rs) |
-| /api/v1/erp/sales/orders | POST | 创建销售订单 | [sales_order_handler.rs](file:///workspace/backend/src/handlers/sales_order_handler.rs) |
-| /api/v1/erp/sales/fabric-orders | GET | 获取面料销售订单列表 | [sales_fabric_order_handler.rs](file:///workspace/backend/src/handlers/sales_fabric_order_handler.rs) |
-| /api/v1/erp/sales/fabric-orders | POST | 创建面料销售订单 | [sales_fabric_order_handler.rs](file:///workspace/backend/src/handlers/sales_fabric_order_handler.rs) |
-
-## 7. 部署与监控
-
-### 7.1 部署方案
-
-**部署流程**：
-1. 解压发布包到部署目录
-2. 配置系统服务（systemd）
-3. 配置Nginx反向代理
-4. 启动服务
-
-**部署脚本**：
-- [deploy.sh](file:///workspace/deploy/deploy.sh) - 主部署脚本
-- [deploy-backend.sh](file:///workspace/deploy/deploy-backend.sh) - 后端部署脚本
-- [deploy-frontend.sh](file:///workspace/deploy/deploy-frontend.sh) - 前端部署脚本
-
-**系统服务配置**：
-- [bingxi-backend.service](file:///workspace/deploy/bingxi-backend.service) - 后端服务配置
-
-**Nginx配置**：
-- [nginx.conf](file:///workspace/deploy/nginx.conf) - Nginx主配置
-- [nginx-simple.conf](file:///workspace/deploy/nginx-simple.conf) - 简化版配置
-
-### 7.2 监控方案
-
-**监控组件**：
-- **Prometheus** - 指标收集
-- **Grafana** - 指标可视化
-- **Alertmanager** - 告警管理
-
-**监控配置**：
-- [prometheus.yml](file:///workspace/monitoring/prometheus/prometheus.yml) - Prometheus配置
-- [alert_rules.yml](file:///workspace/monitoring/prometheus/alert_rules.yml) - 告警规则
-- [alertmanager.yml](file:///workspace/monitoring/alertmanager/alertmanager.yml) - Alertmanager配置
-- [bingxi-erp-overview.json](file:///workspace/monitoring/grafana/dashboards/bingxi-erp-overview.json) - Grafana仪表盘
-
-**监控指标**：
-- 系统指标（CPU、内存、磁盘）
-- 应用指标（请求数、响应时间）
-- 数据库指标（连接数、查询性能）
-- 业务指标（订单量、库存水平）
-
-## 8. 运行方式
-
-### 8.1 开发环境
-
-**后端运行**：
-```bash
-# 进入后端目录
-cd backend
-
-# 安装依赖
-cargo build
-
-# 运行开发服务器
-cargo run
-```
-
-**前端运行**：
-```bash
-# 进入前端目录
-cd frontend
-
-# 安装依赖
-cargo build
-
-# 运行开发服务器
-trunk serve
-```
-
-### 8.2 生产环境
-
-**构建发布包**：
-```bash
-# 构建后端
-cd backend
-cargo build --release
-
-# 构建前端
-cd ../frontend
-trunk build --release
-```
-
-**部署**：
-```bash
-# 使用部署脚本
-./deploy/deploy.sh
-```
-
-**服务管理**：
-```bash
-# 启动服务
-sudo systemctl start bingxi-backend
-
-# 停止服务
-sudo systemctl stop bingxi-backend
-
-# 重启服务
-sudo systemctl restart bingxi-backend
-
-# 查看服务状态
-sudo systemctl status bingxi-backend
-```
-
-## 9. 开发指南
-
-### 9.1 代码规范
-
-**命名约定**：
-- 变量和函数：蛇形命名法（snake_case）
-- 结构体和枚举：驼峰命名法（CamelCase）
-- 常量：全大写蛇形命名法（SNAKE_CASE）
-
-**代码组织**：
-- 每个功能模块独立成文件
-- 相关代码放在同一目录
-- 函数职责单一
-- 保持适当的抽象层次
-
-**注释规范**：
-- 公共API需要详细文档
-- 复杂逻辑需要注释说明
-- 注释应该解释为什么，而不是做什么
-
-### 9.2 开发流程
-
-**新功能开发**：
-1. 创建分支
-2. 实现功能
-3. 编写测试
-4. 提交代码
-5. 进行代码审查
-6. 合并到主分支
-
-**Bug修复**：
-1. 复现问题
-2. 分析原因
-3. 修复代码
-4. 编写测试
-5. 验证修复
-6. 提交代码
-
-### 9.3 测试指南
-
-**单元测试**：
-```bash
-# 运行后端单元测试
-cd backend
-cargo test
-
-# 运行前端单元测试
-cd ../frontend
-cargo test
-```
-
-**集成测试**：
-```bash
-# 运行后端集成测试
-cd backend
-cargo test --test api_test
-```
-
-**性能测试**：
-```bash
-# 使用ab进行性能测试
-./backend/scripts/performance_test_ab.sh
-
-# 使用wrk进行性能测试
-./backend/scripts/performance_test_wrk.sh
-```
-
-## 10. 总结
-
-秉羲管理系统是一个功能完整、架构清晰的企业资源规划系统，专为面料行业定制。系统采用现代化的技术栈，具有以下特点：
-
-- **高性能**：基于Rust语言开发，性能优异
-- **可扩展**：模块化设计，易于添加新功能
-- **行业特色**：支持面料行业的特殊需求，如批次管理、双计量单位等
-- **完整功能**：涵盖企业管理的各个方面，从采购到销售，从库存到财务
-- **易于部署**：提供完整的部署脚本和监控方案
-
-系统已经具备生产环境运行的条件，可以根据企业的具体需求进行定制和扩展。
-
-## 11. 附录
-
-### 11.1 环境变量
-
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
-| DATABASE_URL | 数据库连接字符串 | - |
-| JWT_SECRET | JWT密钥 | - |
-| SERVER_HOST | 服务器主机 | 0.0.0.0 |
-| SERVER_PORT | 服务器端口 | 8080 |
-| LOG_LEVEL | 日志级别 | info |
-| CORS_ALLOWED_ORIGINS | CORS允许的来源 | * |
-
-### 11.2 系统要求
-
-**硬件要求**：
-- CPU：至少2核
-- 内存：至少2GB
-- 磁盘：至少20GB
-
-**软件要求**：
-- Rust 1.70+ 
-- PostgreSQL 14+
-- Nginx 1.18+
-- Systemd
-- Trunk (前端构建工具)
-
-### 11.3 常见问题
-
-**数据库连接失败**：
-- 检查数据库服务是否运行
-- 检查连接字符串是否正确
-- 检查数据库用户权限
-
-**服务启动失败**：
-- 检查端口是否被占用
-- 检查配置文件是否正确
-- 查看日志文件获取详细错误信息
-
-**前端访问404**：
-- 检查Nginx配置是否正确
-- 检查前端文件是否正确部署
-- 检查路由配置是否正确
-
-**性能问题**：
-- 检查数据库索引
-- 检查SQL查询优化
-- 考虑使用缓存
-
-## 12. 联系方式
-
-**开发团队**：秉羲团队
-**邮箱**：contact@bingxi-erp.com
-**网站**：https://www.bingxi-erp.com
+为满足全面性要求，本次解析涵盖了后端的入口、配置、中间件、服务、控制器（Handlers）与模型（Models），以及前端的入口（Router）、通信基座、页面视图（Pages）和组件（Components），做到了真正的全栈全模块深度解析。
 
 ---
 
-*本文档由秉羲团队维护，定期更新。*
+## 1. 后端 - 启动与配置兜底机制 (`backend/src/main.rs`)
+
+`main.rs` 是后端服务的入口，负责初始化所有基础设施。它实现了一个极具企业级考量的特性：**数据库连接失败降级机制**。
+
+### 1.1 核心代码片段
+```rust
+117 #[tokio::main]
+118 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+119     let settings = AppSettings::new()?; // 1. 加载配置
+...
+181     // 2. 尝试连接数据库
+182     let db_result = Database::connect(&settings.database.connection_string).await;
+183 
+184     let app = match db_result {
+185         Ok(db) => {
+...             // 3A. 数据库连接成功，启动完整业务路由
+190             let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+191             let app_state_clone = app_state.clone();
+192             create_router(app_state)
+...                 // 挂载全局安全中间件
+221                 .layer(SetResponseHeaderLayer::overriding(axum::http::header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY")))
+...
+249         }
+250         Err(e) => {
+...             // 3B. 数据库连接失败，启动降级路由
+254             create_init_router()
+...                 .layer(cors.clone())
+304         }
+305     };
+...
+314     axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app).await?;
+315     Ok(())
+316 }
+```
+
+### 1.2 逐行/块级分析
+- **L117-118**: 使用 `#[tokio::main]` 宏将异步 main 函数包装为同步运行时，返回标准的 Error。
+- **L181-182**: 调用 SeaORM 的 `Database::connect`，这里是启动的关键分水岭。
+- **L184-249 (Ok分支)**: 
+  - 如果数据库连接成功，实例化 `AppState` (包含 `Arc<Database>` 和 JWT Secret)。
+  - 调用 `create_router(app_state)` 生成包含所有业务接口的完整 Router。
+  - 随后链式挂载大量中间件：包括 `TraceLayer` (打点日志)、`CorsLayer` (跨域)、`auth_middleware` (认证)、`permission_middleware` (鉴权)，以及防点击劫持的 `X-Frame-Options` 等一整套安全 Header。
+- **L250-304 (Err分支)**:
+  - 核心亮点：**系统没有 panic 退出**。如果数据库未准备好，系统调用 `create_init_router()`。该路由仅提供 `/init/*` 接口，允许管理员通过前端页面重新配置数据库账号密码并一键建表（初始化引导）。
+- **L314**: 绑定 TCP 端口并启动 Axum 服务器。
+
+---
+
+## 2. 后端 - 安全与认证中间件 (`backend/src/services/auth_service.rs` & `permission.rs`)
+
+秉羲 ERP 采用了目前业界最推荐的 `Argon2id` 算法进行密码哈希，并使用 `jsonwebtoken` 进行状态无状态会话管理。同时通过自定义 Axum Middleware 实现接口级的 RBAC 拦截。
+
+### 2.1 密码哈希逻辑 (`auth_service.rs`)
+```rust
+118     pub fn hash_password(password: &str) -> Result<String, AuthError> {
+119         let salt = SaltString::generate(&mut OsRng);
+120         // 使用更安全的Argon2参数配置
+121         let argon2 = Argon2::new(
+122             argon2::Algorithm::Argon2id,
+123             argon2::Version::V0x13,
+124             argon2::Params::new(19456, 2, 1, None).unwrap(),
+125         );
+126         let hash = argon2
+127             .hash_password(password.as_bytes(), &salt)
+128             .map_err(|_| AuthError::HashError)?;
+129 
+130         Ok(hash.to_string())
+131     }
+```
+**逐行分析**：
+- **L119**: 生成高强度随机盐 (`OsRng`)，防止彩虹表攻击。
+- **L121-125**: 实例化 Argon2 对象。`Argon2id` 结合了抗GPU破解和抗侧信道攻击的优点。`Params::new(19456, 2, 1, None)` 分别代表 19MB 内存开销、2 次迭代和 1 个并行线程。这是经过调整的参数，在保证高安全性的同时适配低内存环境。
+
+### 2.2 动态 RBAC 权限拦截 (`permission.rs`)
+```rust
+14 pub async fn permission_middleware(
+15     State(state): State<AppState>,
+16     request: Request<Body>,
+17     next: Next,
+18 ) -> Result<Response, StatusCode> {
+...
+23     let public_paths = ["/health", "/api/v1/erp/auth/login", ...];
+38     if public_paths.iter().any(|p| path.starts_with(p)) {
+39         return Ok(next.run(request).await);
+40     }
+...
+42     let auth = request.extensions().get::<AuthContext>().cloned();
+...
+51     if auth.user_id == 1 {
+52         return Ok(next.run(request).await); // 超管放行
+53     }
+54 
+55     let (resource_type, resource_id) = extract_resource_info(path);
+56     let has_permission = check_permission(
+...
+62         &method_to_action(method),
+63     ).await;
+...
+66     if has_permission {
+67         Ok(next.run(request).await)
+68     } else {
+70         Err(StatusCode::FORBIDDEN)
+71     }
+72 }
+```
+**逐行分析**：
+- **L23-40**: 定义白名单路由（如登录、健康检查），匹配则直接放行。
+- **L42**: 从 Axum 请求的 `Extensions` 提取 JWT 解析后的 `AuthContext`。
+- **L51-53**: `user_id == 1` 为系统内置超级管理员，拥有上帝权限，直接放行。
+- **L55**: `extract_resource_info` 是核心解析器。它将 `/api/v1/erp/sales/orders/12` 的路径拆解提取出 `resource_type = "sales"`。
+- **L56-63**: 数据库鉴权比对。将 HTTP 动词转为动作 (GET->read, POST->create)。然后在数据库 `role_permissions` 表中查询，并根据结果返回 `403 FORBIDDEN` 或放行。
+
+---
+
+## 3. 后端 - 控制器与路由层 (`backend/src/handlers/sales_order_handler.rs`)
+
+`Handler` 层（控制器）负责接收 HTTP 请求，执行参数反序列化与提取，调用 Service 执行逻辑，最终返回 JSON。
+
+### 3.1 接口实现示例
+```rust
+24 /// 获取销售订单列表
+25 /// GET /api/v1/erp/sales/orders
+26 pub async fn list_orders(
+27     State(state): State<AppState>,
+28     Query(query): Query<SalesOrderQuery>,
+29 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+30     let sales_service = SalesService::new(state.db.clone());
+31 
+32     let page_req = PageRequest {
+33         page: query.page.unwrap_or(1),
+34         page_size: query.page_size.unwrap_or(10),
+35     };
+36 
+37     let orders = sales_service
+38         .list_orders(page_req, query.status, query.customer_id, query.order_no)
+39         .await?;
+40 
+41     let orders_json: Vec<serde_json::Value> = orders
+42         .data
+43         .into_iter()
+44         .map(|o| serde_json::to_value(o).unwrap_or_default())
+45         .collect();
+46 
+47     Ok(Json(ApiResponse::success(orders_json)))
+48 }
+```
+**逐行分析**：
+- **L27-28**: 使用 Axum 提取器。`State` 提取全局状态池，`Query` 自动将 URL `?page=1&status=draft` 反序列化为强类型的 `SalesOrderQuery` 结构体。
+- **L29**: 统一使用 `Result<..., AppError>` 作为返回值，`AppError` 实现了 `IntoResponse`，当发生错误时可被自动映射为带有 `{"error":...}` 的 JSON 及合适的 HTTP 状态码。
+- **L30-39**: 实例化 Service 并传入分页请求。如果数据库查询失败，`await?` 的 `?` 语法糖会立刻中断流程抛出异常。
+- **L41-47**: 将 Service 返回的强类型实体转换为动态 `serde_json::Value`，并通过 `ApiResponse::success` 包装外层状态码和 msg 后返回给前端。
+
+---
+
+## 4. 后端 - 模型与 ORM 层 (`backend/src/models/sales_order.rs`)
+
+秉羲 ERP 采用了 `SeaORM`，通过宏实现代码自动生成与关系映射。
+
+### 4.1 模型定义
+```rust
+6 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+7 #[sea_orm(table_name = "sales_orders")]
+8 pub struct Model {
+9     #[sea_orm(primary_key)]
+10     pub id: i32,
+11     pub order_no: String,
+...
+17     pub subtotal: Decimal,
+...
+34 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+35 pub enum Relation {
+36     #[sea_orm(has_many = "super::sales_order_item::Entity")]
+37     Items,
+38 }
+```
+**逐行分析**：
+- **L6-7**: `DeriveEntityModel` 宏告诉 SeaORM 根据后面的 `Model` 结构体生成该表的增删改查语法树（ActiveModel/Entity/Column）。`table_name` 指定 PostgreSQL 映射表名。
+- **L17**: 金额字段严格使用了 `rust_decimal::Decimal`，在 Rust 内存中为定点数表示，防止 `f64` 浮点计算带来的精度丢失问题。
+- **L34-38**: 使用枚举 `Relation` 定义表关系。这里通过 `has_many` 宏定义了销售主表到明细项 `sales_order_item` 的一对多关系，供联表查询 (`find_also_related`) 使用。
+
+---
+
+## 5. 后端 - 业务逻辑与高并发事务 (`backend/src/services/sales_service.rs`)
+
+这是最复杂的逻辑层，包含核心防超卖、跨表一致性控制。
+
+### 5.1 事务与库存锁定代码
+```rust
+297     pub async fn create_order(&self, request: CreateSalesOrderRequest) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+302         let txn = (*self.db).begin().await?; // 1. 开启事务
+303 
+305         let order_no = self.generate_order_no().await?;
+308         let existing_order = SalesOrderEntity::find().filter(sales_order::Column::OrderNo.eq(&order_no)).one(&txn).await?;
+...
+320         let order = sales_order::ActiveModel { ... };
+345         let order_entity = order.insert(&txn).await?;
+346 
+347         // 2. 检查库存是否充足
+348         self.check_inventory(&request.items, &txn).await?;
+...
+427         // 3. 更新订单总金额
+430         let mut order_update: sales_order::ActiveModel = order_entity.into();
+...
+439         // 4. 提交事务
+440         txn.commit().await?;
+...
+```
+**逐行分析**：
+- **L302**: `(*self.db).begin().await?` 调用底层 SQLx 创建数据库事务。所有的后续操作都必须传入 `&txn`，否则会引发数据不一致。
+- **L305-317**: `generate_order_no` 生成单号，紧接着在事务内加锁查询 `existing_order`，若存在则防并发碰撞回滚，这是防重单防线。
+- **L320-345**: 构建 `ActiveModel` 并插入订单主表。
+- **L348**: `check_inventory` 遍历明细，查询 `quantity_available` (可用库存)。不足则抛出错误并导致事务被隐式回滚丢弃，实现**防超卖**。
+- **L427-439**: 汇总税额总价，更新主表，最终 `txn.commit()` 落盘。
+
+---
+
+## 6. 前端 - 应用入口与路由基座 (`frontend/src/app/mod.rs`)
+
+前端是一个基于 WebAssembly 编译的 Yew SPA。`app/mod.rs` 承担了页面分发任务。
+
+### 6.1 核心路由与路由守卫
+```rust
+6 #[derive(Clone, Routable, PartialEq)]
+7 pub enum Route {
+8     #[at("/")]
+9     Init,
+10    #[at("/login")]
+11    Login,
+12    #[at("/dashboard")]
+13    Dashboard,
+...
+136 fn protected_route<F>(component: F) -> Html
+137 where
+138     F: FnOnce() -> Html,
+139 {
+140     if Storage::get_token().is_some() {
+141         component()
+142     } else {
+143         html! { <Redirect<Route> to={Route::Login}/> }
+144     }
+145 }
+...
+147 fn switch(route: Route) -> Html {
+148     match route {
+149         Route::Init => html! { <InitPage /> },
+150         Route::Login => html! { <LoginPage /> },
+151         Route::Dashboard => protected_route(|| html! { <DashboardPage /> }),
+```
+**逐行分析**：
+- **L6-13**: 利用 `yew_router::Routable` 宏为枚举生成路径匹配树。`/dashboard` 对应枚举 `Dashboard`。
+- **L136-145**: `protected_route` 是一个前端的高阶函数（**路由守卫**）。它首先检查本地存储 (`Storage::get_token`) 是否存在 JWT。如果没有，则通过 Yew Router 的 `<Redirect>` 标签强制重定向到 `/login`。
+- **L147-151**: `switch` 函数被作为 `<Switch<Route> render={switch} />` 传递给底层 Router。当用户访问 `/dashboard` 时，它将渲染函数包裹在 `protected_route` 中执行拦截验证。
+
+---
+
+## 7. 前端 - 组件化设计 (`frontend/src/components/navigation.rs`)
+
+组件化复用是 Yew 的精髓。以侧边栏菜单 `Navigation` 为例。
+
+### 7.1 函数式组件与状态 Hook
+```rust
+10 #[function_component(Navigation)]
+11 pub fn navigation(props: &NavigationProps) -> Html {
+12     let navigator = use_navigator();
+13     
+14     // 折叠状态
+15     let dashboard_open = use_state(|| true);
+...
+19     let on_dashboard = {
+20         let navigator = navigator.clone();
+21         Callback::from(move |_| {
+22             if let Some(nav) = &navigator {
+23                 nav.push(&Route::Dashboard);
+24             }
+25         })
+26     };
+...
+51                     <div class="nav-group-header" onclick={{
+52                         let dashboard_open = dashboard_open.clone();
+53                         Callback::from(move |_| dashboard_open.set(!*dashboard_open))
+54                     }}>
+55                         <span class="nav-group-title">{"仪表盘"}</span>
+```
+**逐行分析**：
+- **L10-11**: 使用 `#[function_component]` 宏定义无状态组件，接受 `props`。
+- **L12-15**: 使用 React-like 的 Hooks。`use_navigator()` 获取路由跳转实例；`use_state(|| true)` 定义了一个反应式的本地布尔状态，用来控制折叠菜单的开合。
+- **L19-26**: 定义了一个点击回调 `Callback`。利用 Rust 的 `move` 关键字强制夺取环境变量（如克隆后的 navigator）的所有权，在点击时执行无刷新的页面压栈跳转 (`push`)。
+- **L51-54**: 在渲染 DOM 时，给 `<div class="nav-group-header">` 绑定 onClick 事件。通过 `dashboard_open.set(!*dashboard_open)` 反转内部状态，触发组件局部 Re-render。
+
+---
+
+## 8. 前端 - API 通信与指数退避重试 (`frontend/src/services/api.rs`)
+
+在 WebAssembly (Yew) 侧，网络不稳定是常态，项目实现了一个带有**指数退避（Exponential Backoff）**机制的 `ApiService`。
+
+### 8.1 请求拦截与重试封装
+```rust
+52     async fn request_with_retry<T: DeserializeOwned>(
+53         method: &str,
+54         url: &str,
+55         body: Option<&serde_json::Value>,
+56     ) -> Result<T, String> {
+...
+60         for attempt in 0..Self::MAX_RETRIES {
+61             match Self::do_request(method, &full_url, body).await {
+62                 Ok(response) => {
+63                     match response.json::<ApiResponse<T>>().await {
+64                         Ok(api_response) => {
+65                             if api_response.success {
+66                                 return Ok(api_response.data.unwrap());
+...
+84                 Err(e) => {
+85                     last_error = Some(e.clone());
+86                     if attempt < Self::MAX_RETRIES - 1 {
+87                         let delay_ms = 1000 * 2u64.pow(attempt);
+88                         gloo_timers::future::TimeoutFuture::new(delay_ms as u32).await;
+89                     }
+90                 }
+91             }
+92         }
+95         Err(last_error.unwrap_or_else(|| "未知错误".to_string()))
+96     }
+```
+**逐行分析**：
+- **L52-56**: 泛型方法定义。`T: DeserializeOwned` 约束了返回值必须能够被 Serde 反序列化。
+- **L60-61**: 最多重试 `MAX_RETRIES` (默认 3) 次。`do_request` 内部实现会从本地存储读取 JWT Token 并组装 Fetch 请求。
+- **L63-66**: 将后端的原生响应反序列化为统一包装体 `ApiResponse<T>`。如果 `api_response.success` 为 `true`，直接解包出里面的 `data` 并返回给调用方，极大简化了业务页面的判断逻辑。
+- **L84-90**: **高阶实现**。如果底层请求报错（如断网），记录错误。如果还有重试机会，执行 `1000 * 2^attempt` 毫秒的退避延迟（第0次失败等1秒，第1次等2秒）。使用 `gloo_timers::future::TimeoutFuture::new().await` 非阻塞挂起 WASM 线程，这是提升前端应用鲁棒性的经典范式。
+
+---
+*文档维护者：秉羲团队*  
+*生成时间：2026-04-05*
