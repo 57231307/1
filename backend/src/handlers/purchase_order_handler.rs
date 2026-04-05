@@ -2,6 +2,7 @@
 //!
 //! 采购订单 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_order_service::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, PurchaseOrderService,
     UpdateOrderItemRequest, UpdatePurchaseOrderRequest,
@@ -45,6 +46,7 @@ pub async fn list_orders(
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let order = service.get_order(id).await?;
@@ -56,6 +58,7 @@ pub async fn get_order(
 #[axum::debug_handler]
 pub async fn create_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreatePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
@@ -63,7 +66,7 @@ pub async fn create_order(
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let order = service.create_order(req, user_id).await?;
 
@@ -78,10 +81,11 @@ pub async fn create_order(
 pub async fn update_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<UpdatePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let order = service.update_order(id, req, user_id).await?;
 
@@ -95,9 +99,10 @@ pub async fn update_order(
 pub async fn delete_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    service.delete_order(id, 1).await?; // TODO: 从认证中获取 user_id
+    service.delete_order(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_msg((), "采购订单删除成功")))
 }
@@ -122,9 +127,10 @@ pub async fn submit_order(
 pub async fn approve_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let user_id = 1; // TODO: 从认证中获取
+    let user_id = auth.user_id;
 
     let order = service.approve_order(id, user_id).await?;
 
