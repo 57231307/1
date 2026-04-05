@@ -6,11 +6,13 @@ use bingxi_backend::services::auth_service::AuthService;
 use bingxi_backend::services::user_service::UserService;
 use sea_orm::Database;
 use std::sync::Arc;
+use bingxi_backend::utils::app_state::AppState;
 
 #[allow(dead_code)]
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    create_router(Arc::new(db))
+    let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
+    create_router(state)
 }
 
 /// 测试用户创建和查询流程

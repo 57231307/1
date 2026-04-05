@@ -10,15 +10,20 @@ use axum::{
 use sea_orm::Database;
 use serde_json::json;
 use std::sync::Arc;
+use bingxi_backend::utils::app_state::AppState;
 use tower::ServiceExt;
 
 // 导入后端的路由创建函数
 use bingxi_backend::routes::create_router;
 
+use bingxi_backend::middleware::auth::auth_middleware;
+
 /// 设置测试应用
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    create_router(Arc::new(db))
+    let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
+    create_router(state.clone())
+        .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
 }
 
 /// 测试健康检查
@@ -30,7 +35,7 @@ async fn test_health_check() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/health")
+                .uri("/api/v1/erp/health")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -51,7 +56,7 @@ async fn test_login_user_not_found() {
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/api/auth/login")
+                .uri("/api/v1/erp/auth/login")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({
@@ -77,7 +82,7 @@ async fn test_get_users_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/users")
+                .uri("/api/v1/erp/users")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -97,7 +102,7 @@ async fn test_get_inventory_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/inventory/stock")
+                .uri("/api/v1/erp/inventory/stock")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -116,7 +121,7 @@ async fn test_get_orders_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/sales/orders")
+                .uri("/api/v1/erp/sales/orders")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -135,7 +140,7 @@ async fn test_get_payments_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/finance/payments")
+                .uri("/api/v1/erp/finance/payments")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -154,7 +159,7 @@ async fn test_404_route() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/nonexistent")
+                .uri("/health/nonexistent")
                 .body(Body::empty())
                 .unwrap(),
         )

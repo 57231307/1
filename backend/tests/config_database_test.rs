@@ -1,8 +1,7 @@
 //! 配置和数据库连接测试
 
 use bingxi_backend::config::settings::AppSettings;
-use bingxi_backend::database::sqlx_pool::SqlxDatabase;
-use std::env;
+// Tests for config database
 
 /// 测试配置文件加载
 #[tokio::test]

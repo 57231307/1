@@ -1,6 +1,6 @@
 //! 初始化服务测试
 
-use bingxi_backend::services::init_service::{DatabaseConfig, InitService, InitializationResult};
+use bingxi_backend::services::init_service::{DatabaseConfig, InitService};
 use sea_orm::Database;
 use std::sync::Arc;
 

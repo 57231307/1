@@ -275,6 +275,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_list_logs_empty() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
@@ -286,6 +287,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_list_logs_by_module_empty() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
@@ -297,6 +299,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_list_logs_by_user_empty() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));

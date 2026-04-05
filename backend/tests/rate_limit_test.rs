@@ -1,6 +1,6 @@
 //! 速率限制中间件单元测试
 
-use crate::middleware::rate_limit::RateLimiter;
+use bingxi_backend::middleware::rate_limit::RateLimiter;
 use std::time::Duration;
 
 /// 测试速率限制器基本功能

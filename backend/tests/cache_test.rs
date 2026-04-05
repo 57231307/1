@@ -82,18 +82,18 @@ async fn test_app_cache_management() {
     let inventory_cache = app_cache.get_inventory_cache();
 
     // 测试在不同缓存中存储数据
-    dashboard_cache.set("overview", "dashboard_data", None);
-    product_cache.set("product_1", "product_data", None);
-    inventory_cache.set("stock_1", "inventory_data", None);
+    dashboard_cache.set("overview".to_string(), serde_json::json!("dashboard_data"), None);
+    product_cache.set("product_1".to_string(), serde_json::json!("product_data"), None);
+    inventory_cache.set("stock_1".to_string(), serde_json::json!("inventory_data"), None);
 
     // 测试获取数据
-    assert_eq!(dashboard_cache.get(&"overview"), Some("dashboard_data"));
-    assert_eq!(product_cache.get(&"product_1"), Some("product_data"));
-    assert_eq!(inventory_cache.get(&"stock_1"), Some("inventory_data"));
+    assert_eq!(dashboard_cache.get(&"overview".to_string()), Some(serde_json::json!("dashboard_data")));
+    assert_eq!(product_cache.get(&"product_1".to_string()), Some(serde_json::json!("product_data")));
+    assert_eq!(inventory_cache.get(&"stock_1".to_string()), Some(serde_json::json!("inventory_data")));
 
     // 测试清空所有缓存
     app_cache.clear_all();
-    assert_eq!(dashboard_cache.get(&"overview"), None);
-    assert_eq!(product_cache.get(&"product_1"), None);
-    assert_eq!(inventory_cache.get(&"stock_1"), None);
+    assert_eq!(dashboard_cache.get(&"overview".to_string()), None);
+    assert_eq!(product_cache.get(&"product_1".to_string()), None);
+    assert_eq!(inventory_cache.get(&"stock_1".to_string()), None);
 }

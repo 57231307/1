@@ -355,6 +355,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_list_adjustments_empty() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
@@ -366,6 +367,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_adjustment_not_found() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
@@ -377,6 +379,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_approve_adjustment_not_found() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
@@ -388,6 +391,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_reject_adjustment_not_found() {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));

@@ -14,7 +14,7 @@ use tower::ServiceExt;
 
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    let app_state = crate::utils::app_state::AppState::new(Arc::new(db), "test_secret".to_string());
+    let app_state = bingxi_backend::utils::app_state::AppState::new(Arc::new(db), "test_secret".to_string());
     create_router(app_state)
 }
 

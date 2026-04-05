@@ -81,7 +81,7 @@ impl FabricFiveDimension {
 
         // 解析缸号
         let dye_lot_no =
-            if parts[3] == "N" || parts[3].strip_prefix('D').is_some_and(|s| s.is_empty()) {
+            if parts[3] == "DN" || parts[3] == "N" || parts[3].strip_prefix('D').is_some_and(|s| s.is_empty()) {
                 None
             } else {
                 Some(
@@ -302,33 +302,33 @@ mod tests {
 
     #[test]
     fn test_generate_unique_id() {
-        let dim = FabricFiveDimension::new(
-            100,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            Some("D20240101001".to_string()),
-            "一等品".to_string(),
-        );
+        let dim = FabricFiveDimension {
+            product_id: 100,
+            batch_no: "20240101".to_string(),
+            color_no: "001".to_string(),
+            dye_lot_no: Some("20240101001".to_string()),
+            grade: "一等品".to_string(),
+        };
 
         let unique_id = dim.generate_unique_id();
-        assert_eq!(unique_id, "P100|B20240101|C001|D20240101001|G 一等品");
+        assert_eq!(unique_id, "P100|B20240101|C001|D20240101001|G一等品");
     }
 
     #[test]
     fn test_from_unique_id() {
-        let unique_id = "P100|B20240101|C001|D20240101001|G 一等品";
+        let unique_id = "P100|B20240101|C001|D20240101001|G一等品";
         let dim = FabricFiveDimension::from_unique_id(unique_id).unwrap();
 
         assert_eq!(dim.product_id, 100);
-        assert_eq!(dim.batch_no, "B20240101");
-        assert_eq!(dim.color_no, "C001");
-        assert_eq!(dim.dye_lot_no, Some("D20240101001".to_string()));
+        assert_eq!(dim.batch_no, "20240101");
+        assert_eq!(dim.color_no, "001");
+        assert_eq!(dim.dye_lot_no, Some("20240101001".to_string()));
         assert_eq!(dim.grade, "一等品");
     }
 
     #[test]
     fn test_from_unique_id_without_dye_lot() {
-        let unique_id = "P100|B20240101|C001|DN|G 一等品";
+        let unique_id = "P100|B20240101|C001|DN|G一等品";
         let dim = FabricFiveDimension::from_unique_id(unique_id).unwrap();
 
         assert_eq!(dim.product_id, 100);

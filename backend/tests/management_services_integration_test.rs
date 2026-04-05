@@ -14,16 +14,12 @@ use tower::ServiceExt;
 
 // 导入后端的路由创建函数
 use bingxi_backend::routes::create_router;
-use bingxi_backend::state::AppState;
+use bingxi_backend::utils::app_state::AppState;
 
 /// 设置测试应用
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    // 假设 create_router 期望的参数类型是 AppState，而不是 Arc<DatabaseConnection>
-    let state = AppState {
-        db: Arc::new(db),
-        // 如果 AppState 还需要其他字段（例如 cache），请在这里初始化
-    };
+    let state = AppState::new(Arc::new(db), "test_secret".to_string());
     create_router(state)
 }
 
