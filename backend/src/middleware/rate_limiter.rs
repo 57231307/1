@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_extract_client_ip_from_forwarded() {
-        use axum::http::{Request, header};
+        use axum::http::Request;
 
         let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut().insert(
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_extract_client_ip_from_real_ip() {
-        use axum::http::{Request, header};
+        use axum::http::Request;
 
         let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut()
