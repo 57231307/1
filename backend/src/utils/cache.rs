@@ -48,16 +48,22 @@ where
     V: Clone,
 {
     fn get(&self, key: &K) -> Option<V> {
-        if let Some(entry) = self.storage.get_mut(key) {
-            // 检查是否过期
+        let is_expired = if let Some(entry) = self.storage.get(key) {
             if let Some(expires_at) = entry.expires_at {
-                if Instant::now() > expires_at {
-                    // 过期了，移除该条目
-                    self.storage.remove(key);
-                    return None;
-                }
+                Instant::now() > expires_at
+            } else {
+                false
             }
-            // 返回值的克隆
+        } else {
+            return None;
+        };
+
+        if is_expired {
+            self.storage.remove(key);
+            return None;
+        }
+
+        if let Some(entry) = self.storage.get(key) {
             Some(entry.value.clone())
         } else {
             None

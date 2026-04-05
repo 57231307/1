@@ -7,6 +7,7 @@ use axum::{
 };
 use bingxi_backend::routes::create_router;
 use bingxi_backend::services::auth_service::AuthService;
+use bingxi_backend::middleware::auth::auth_middleware;
 use sea_orm::Database;
 use serde_json::json;
 use std::sync::Arc;
@@ -15,7 +16,8 @@ use tower::ServiceExt;
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let app_state = bingxi_backend::utils::app_state::AppState::new(Arc::new(db), "test_secret".to_string());
-    create_router(app_state)
+    create_router(app_state.clone())
+        .layer(axum::middleware::from_fn_with_state(app_state, auth_middleware))
 }
 
 /// 测试完整的登录流程
@@ -28,7 +30,7 @@ async fn test_complete_login_flow() {
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/api/auth/login")
+                .uri("/api/v1/erp/auth/login")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({
