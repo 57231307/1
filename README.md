@@ -1448,7 +1448,7 @@
 在您的 Linux 服务器（推荐 Ubuntu/Debian/CentOS）上，直接运行以下命令即可完成全自动安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh | sudo bash -s install
+curl -fsSL https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install
 ```
 
 ### 2. 一键管理工具 (bingxi)

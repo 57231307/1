@@ -25,7 +25,7 @@ new_block = """cat > release_notes.md << EOF
 
           ### 1. 一键安装
           \\`\\`\\`bash
-          curl -fsSL https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh | sudo bash -s install
+          curl -fsSL https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install
           \\`\\`\\`
 
           ### 2. 常用命令
@@ -94,7 +94,7 @@ safer_block = """echo "# 秉羲管理系统 - ${{ needs.package-release.outputs.
           echo "" >> release_notes.md
           echo "### 1. 一键部署" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
-          echo "curl -fsSL https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh | sudo bash -s install" >> release_notes.md
+          echo "curl -fsSL https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install" >> release_notes.md
           echo "\`\`\`" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 2. 常用命令" >> release_notes.md
