@@ -102,3 +102,5 @@ debug = false
 [profile.test]
 opt-level = 0
 debug = 0
+codegen-units = 16
+lto = false
