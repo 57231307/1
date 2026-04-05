@@ -500,12 +500,12 @@ pub struct PaginatedResponse<T> {
 /// 创建供应商请求
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateSupplierRequest {
-    #[validate(length(min = 2, max = 200))]
+    #[validate(length(min = 2, max = 200, message = "供应商名称长度必须在2到200个字符之间"))]
     pub supplier_name: String,
-    #[validate(length(min = 2, max = 100))]
+    #[validate(length(min = 2, max = 100, message = "供应商简称长度必须在2到100个字符之间"))]
     pub supplier_short_name: String,
     pub supplier_type: String,
-    #[validate(length(equal = 18))]
+    #[validate(length(equal = 18, message = "统一社会信用代码长度必须为18位"))]
     pub credit_code: String,
     pub registered_address: String,
     pub business_address: Option<String>,
@@ -566,11 +566,11 @@ pub struct UpdateSupplierRequest {
 /// 创建联系人请求
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateContactRequest {
-    #[validate(length(min = 1, max = 50))]
+    #[validate(length(min = 1, max = 50, message = "联系人名称长度必须在1到50个字符之间"))]
     pub contact_name: String,
     pub department: Option<String>,
     pub position: Option<String>,
-    #[validate(custom(function = "validate_mobile_phone"))]
+    #[validate(custom(function = "validate_mobile_phone", message = "手机号格式不正确"))]
     pub mobile_phone: String,
     pub tel_phone: Option<String>,
     pub email: Option<String>,
@@ -607,7 +607,7 @@ pub struct UpdateContactRequest {
 /// 创建资质请求
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateQualificationRequest {
-    #[validate(length(min = 1, max = 200))]
+    #[validate(length(min = 1, max = 200, message = "资质名称长度必须在1到200个字符之间"))]
     pub qualification_name: String,
     pub qualification_type: String,
     pub qualification_no: String,

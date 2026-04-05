@@ -13,10 +13,10 @@ impl<T> ApiResponse<T> {
         if self.success {
             match self.data {
                 Some(data) => Ok(data),
-                None => Err("No data returned".to_string()),
+                None => Err("未返回任何数据".to_string()),
             }
         } else {
-            Err(self.error.unwrap_or("Unknown error".to_string()))
+            Err(self.error.unwrap_or("未知错误".to_string()))
         }
     }
 }

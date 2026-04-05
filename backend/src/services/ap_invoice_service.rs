@@ -544,7 +544,7 @@ pub struct CreateApInvoiceRequest {
     pub supplier_id: i32,
 
     /// 应付类型
-    #[validate(length(min = 1, max = 20))]
+    #[validate(length(min = 1, max = 20, message = "发票号码长度必须在1到20个字符之间"))]
     pub invoice_type: String,
 
     /// 应付日期
@@ -554,7 +554,7 @@ pub struct CreateApInvoiceRequest {
     pub due_date: NaiveDate,
 
     /// 账期（天）
-    #[validate(range(min = 0, max = 365))]
+    #[validate(range(min = 0, max = 365, message = "账期必须在0到365天之间"))]
     pub payment_terms: i32,
 
     /// 应付金额

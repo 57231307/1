@@ -453,11 +453,11 @@ pub struct CreateApPaymentRequest {
     pub request_date: NaiveDate,
 
     /// 付款类型
-    #[validate(length(min = 1, max = 20))]
+    #[validate(length(min = 1, max = 20, message = "申请单号长度必须在1到20个字符之间"))]
     pub payment_type: String,
 
     /// 付款方式
-    #[validate(length(min = 1, max = 20))]
+    #[validate(length(min = 1, max = 20, message = "申请单号长度必须在1到20个字符之间"))]
     pub payment_method: String,
 
     /// 申请金额
