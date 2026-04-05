@@ -711,7 +711,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/readiness", get(health_handler::readiness_check))
         .route("/liveness", get(health_handler::liveness_check));
 
-    // 组装所有路由
+    // 添加 /init/status 路由，用于前端检测系统是否已初始化
+    let init_routes = Router::new()
+        .route("/status", get(|| async {
+            axum::Json(serde_json::json!({
+                "initialized": true,
+                "message": "系统已初始化",
+                "mode": "normal"
+            }))
+        }));
+
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)
@@ -754,6 +763,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/ar", ar_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
+        .nest("/api/v1/erp/init", init_routes)
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .with_state(state)
 }

@@ -108,10 +108,13 @@ async fn initialize_with_db(
 }
 
 fn create_init_router() -> Router {
-    Router::new()
-        .route("/init/status", get(get_init_status))
-        .route("/init/test-database", post(test_database_connection))
-        .route("/init/initialize-with-db", post(initialize_with_db))
+    Router::new().nest(
+        "/api/v1/erp",
+        Router::new()
+            .route("/init/status", get(get_init_status))
+            .route("/init/test-database", post(test_database_connection))
+            .route("/init/initialize-with-db", post(initialize_with_db)),
+    )
 }
 
 #[tokio::main]
