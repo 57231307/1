@@ -9,13 +9,13 @@ After=network.target postgresql.service
 Type=simple
 
 # 工作目录
-WorkingDirectory=/opt/bingxi
+WorkingDirectory=/opt/bingxi-erp/backend
 
 # 可执行文件路径
-ExecStart=/opt/bingxi/server --addr 0.0.0.0:8080
+ExecStart=/opt/bingxi-erp/backend/server
 
 # 环境配置文件
-EnvironmentFile=/opt/bingxi/.env
+EnvironmentFile=/etc/bingxi/.env
 
 # 重启策略（服务失败时自动重启）
 Restart=always

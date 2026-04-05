@@ -15,6 +15,7 @@ on:
     types: [created]
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   RUST_VERSION: 1.94.1
   CARGO_TERM_COLOR: always
 
@@ -254,13 +255,13 @@ jobs:
           echo "构建版本: $VERSION"
 
       - name: 创建ZIP发布包
-        working-directory: release
+        working-directory: release/bingxi-erp
         run: |
           ZIP_NAME="bingxi-erp-${{ steps.version.outputs.version }}.zip"
-          zip -r "../$ZIP_NAME" bingxi-erp/
+          zip -r "../../$ZIP_NAME" ./*
           echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
           echo "发布包大小："
-          ls -lh "../$ZIP_NAME"
+          ls -lh "../../$ZIP_NAME"
 
       - name: 上传发布包
         uses: actions/upload-artifact@v5
@@ -327,24 +328,25 @@ jobs:
 
           ## 🚀 快速开始
 
-          ### 1. 解压发布包
+          ### 1. 一键安装
           ```bash
-          unzip bingxi-erp-${{ needs.package-release.outputs.version }}.zip
-          cd bingxi-erp
+          curl -fsSL https://raw.githubusercontent.com/57231307/1/main/install.sh | sudo bash -s install
           ```
 
-          ### 2. 配置环境
+          ### 2. 常用命令
+          安装成功后，你可以使用以下命令管理系统：
           ```bash
-          cd backend
-          cp .env.example .env
-          # 编辑 .env 文件，配置数据库连接等信息
+          sudo bingxi start    # 启动系统
+          sudo bingxi stop     # 停止系统
+          sudo bingxi status   # 查看状态
+          sudo bingxi update   # 在线更新到最新版本
           ```
 
-          ### 3. 使用部署脚本
+          ### 3. 手动配置环境 (可选)
+          如果需要修改数据库连接或其它高级配置，请编辑 `/etc/bingxi/.env` 文件并重启服务：
           ```bash
-          cd deploy
-          chmod +x deploy.sh
-          ./deploy.sh
+          nano /etc/bingxi/.env
+          sudo bingxi restart
           ```
 
           ## 📋 系统要求

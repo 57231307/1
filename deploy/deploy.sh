@@ -106,7 +106,7 @@ main() {
     log "SUCCESS" "目录创建完成"
     
     # 备份当前版本
-    if [ -f "$DEPLOY_DIR/backend/bingxi_backend" ]; then
+    if [ -f "$DEPLOY_DIR/backend/server" ]; then
         log "INFO" "[2/8] 备份当前版本..."
         BACKUP_NAME="backup_$(date +%Y%m%d_%H%M%S)"
         mkdir -p $BACKUP_DIR/$BACKUP_NAME
@@ -122,11 +122,15 @@ main() {
     
     # 解压发布包
     log "INFO" "[3/8] 解压发布包..."
-    if [ -f "bingxi-erp-*.tar.gz" ]; then
+    if ls bingxi-erp-*.zip 1> /dev/null 2>&1; then
+        check_command "unzip"
+        unzip -o bingxi-erp-*.zip -d $DEPLOY_DIR
+        log "SUCCESS" "发布包解压完成"
+    elif ls bingxi-erp-*.tar.gz 1> /dev/null 2>&1; then
         tar -xzvf bingxi-erp-*.tar.gz -C $DEPLOY_DIR
         log "SUCCESS" "发布包解压完成"
     else
-        log "ERROR" "找不到发布包"
+        log "ERROR" "找不到发布包 (支持 .zip 或 .tar.gz)"
         exit 1
     fi
     
@@ -145,7 +149,7 @@ main() {
     
     # 设置权限
     log "INFO" "[5/8] 设置权限..."
-    chmod +x $DEPLOY_DIR/backend/bingxi_backend
+    chmod +x $DEPLOY_DIR/backend/server
     chown -R www-data:www-data $DEPLOY_DIR
     chown -R www-data:www-data $LOG_DIR
     chown -R www-data:www-data $CONFIG_DIR
@@ -190,7 +194,7 @@ main() {
     
     # 清理临时文件
     log "INFO" "清理临时文件..."
-    rm -f bingxi-erp-*.tar.gz
+    rm -f bingxi-erp-*.tar.gz bingxi-erp-*.zip
     log "SUCCESS" "临时文件清理完成"
     
     log "INFO" "========================================"
