@@ -26,6 +26,14 @@ impl UserService {
         ApiService::post("/users", &payload).await
     }
 
+    pub async fn update_user(&self, id: i32, user: &serde_json::Value) -> Result<User, String> {
+        ApiService::put(&format!("/users/{}", id), user).await
+    }
+
+    pub async fn change_password(&self, id: i32, payload: &serde_json::Value) -> Result<(), String> {
+        ApiService::post(&format!("/users/{}/password", id), payload).await
+    }
+
     pub async fn delete_user(&self, id: i32) -> Result<(), String> {
         ApiService::delete(&format!("/users/{}", id)).await
     }

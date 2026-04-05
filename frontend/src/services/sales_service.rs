@@ -23,6 +23,18 @@ impl SalesService {
         ApiService::put(&format!("/sales/orders/{}", id), &payload).await
     }
 
+    pub async fn approve_order(id: i32) -> Result<SalesOrder, String> {
+        ApiService::post(&format!("/sales/orders/{}/approve", id), &serde_json::json!({})).await
+    }
+
+    pub async fn ship_order(id: i32) -> Result<SalesOrder, String> {
+        ApiService::post(&format!("/sales/orders/{}/ship", id), &serde_json::json!({})).await
+    }
+
+    pub async fn complete_order(id: i32) -> Result<SalesOrder, String> {
+        ApiService::post(&format!("/sales/orders/{}/complete", id), &serde_json::json!({})).await
+    }
+
     pub async fn delete_order(id: i32) -> Result<(), String> {
         ApiService::delete(&format!("/sales/orders/{}", id)).await
     }
