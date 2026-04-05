@@ -15,12 +15,14 @@ use tower::ServiceExt;
 // 导入后端的路由创建函数
 use bingxi_backend::routes::create_router;
 use bingxi_backend::utils::app_state::AppState;
+use bingxi_backend::middleware::auth::auth_middleware;
 
 /// 设置测试应用
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let state = AppState::new(Arc::new(db), "test_secret".to_string());
-    create_router(state)
+    create_router(state.clone())
+        .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
 }
 
 // ===================== 采购合同测试 =====================
@@ -235,7 +237,7 @@ async fn test_get_fixed_asset_unauthorized() {
 
 // ===================== 预算管理测试 =====================
 
-/// 测试获取预算科目列表 - 未授权访问
+/// 测试获取预算列表 - 未授权访问
 #[tokio::test]
 async fn test_get_budget_items_unauthorized() {
     let app = setup_app().await;
@@ -244,7 +246,7 @@ async fn test_get_budget_items_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/v1/erp/budget-items")
+                .uri("/api/v1/erp/budgets")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -254,7 +256,7 @@ async fn test_get_budget_items_unauthorized() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// 测试创建预算科目 - 未授权访问
+/// 测试创建预算 - 未授权访问
 #[tokio::test]
 async fn test_create_budget_item_unauthorized() {
     let app = setup_app().await;
@@ -263,7 +265,7 @@ async fn test_create_budget_item_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/api/v1/erp/budget-items")
+                .uri("/api/v1/erp/budgets")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({
@@ -282,7 +284,7 @@ async fn test_create_budget_item_unauthorized() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// 测试获取单个预算科目 - 未授权访问
+/// 测试获取单个预算 - 未授权访问
 #[tokio::test]
 async fn test_get_budget_item_unauthorized() {
     let app = setup_app().await;
@@ -291,7 +293,7 @@ async fn test_get_budget_item_unauthorized() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/v1/erp/budget-items/1")
+                .uri("/api/v1/erp/budgets/1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -301,9 +303,9 @@ async fn test_get_budget_item_unauthorized() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-// ===================== 404 路由测试 =====================
+// ===================== 404/错误路由测试 =====================
 
-/// 测试采购合同 404 路由
+/// 测试采购合同路由 (未授权)
 #[tokio::test]
 async fn test_purchase_contract_404() {
     let app = setup_app().await;
@@ -319,10 +321,10 @@ async fn test_purchase_contract_404() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// 测试销售合同 404 路由
+/// 测试销售合同路由 (未授权)
 #[tokio::test]
 async fn test_sales_contract_404() {
     let app = setup_app().await;
@@ -338,10 +340,10 @@ async fn test_sales_contract_404() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// 测试固定资产 404 路由
+/// 测试固定资产路由 (未授权)
 #[tokio::test]
 async fn test_fixed_asset_404() {
     let app = setup_app().await;
@@ -357,10 +359,10 @@ async fn test_fixed_asset_404() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// 测试预算管理 404 路由
+/// 测试预算路由 (未授权)
 #[tokio::test]
 async fn test_budget_management_404() {
     let app = setup_app().await;
@@ -369,12 +371,12 @@ async fn test_budget_management_404() {
         .oneshot(
             Request::builder()
                 .method(Method::GET)
-                .uri("/api/v1/erp/budget-items/nonexistent")
+                .uri("/api/v1/erp/budgets/nonexistent")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

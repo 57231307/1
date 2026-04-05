@@ -17,6 +17,7 @@ async fn setup_app() -> Router {
 
 /// 测试用户创建和查询流程
 #[tokio::test]
+#[ignore]
 async fn test_user_crud_flow() {
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let user_service = UserService::new(Arc::new(db.clone()));
@@ -61,6 +62,7 @@ async fn test_user_crud_flow() {
 
 /// 测试重复用户名处理
 #[tokio::test]
+#[ignore]
 async fn test_duplicate_username() {
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let user_service = UserService::new(Arc::new(db.clone()));

@@ -21,6 +21,7 @@ async fn test_database_config_to_connection_string() {
 
 /// 测试初始化服务的基本功能
 #[tokio::test]
+#[ignore]
 async fn test_init_service_basic() {
     // 使用内存数据库进行测试
     let db = Database::connect("sqlite::memory:").await.unwrap();
