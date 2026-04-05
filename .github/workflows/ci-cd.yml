@@ -327,7 +327,7 @@ jobs:
           echo "" >> release_notes.md
           echo "## 🚀 快速开始" >> release_notes.md
           echo "" >> release_notes.md
-          echo "### 1. 一键部署" >> release_notes.md
+          echo "### 1. 一键安装" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
           echo "curl -fsSL https://raw.githubusercontent.com/57231307/1/main/install.sh | sudo bash -s install" >> release_notes.md
           echo "\`\`\`" >> release_notes.md
