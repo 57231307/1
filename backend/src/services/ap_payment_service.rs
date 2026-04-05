@@ -211,17 +211,19 @@ impl ApPaymentService {
 
             for item in items {
                 if total_apply_amount > Decimal::new(0, 2) {
-                    let ratio = item.apply_amount / total_apply_amount;
-                    let paid_amount = payment.payment_amount * ratio;
+                    let ratio = item.apply_amount.checked_div(total_apply_amount).unwrap_or_default();
+                    let paid_amount = payment.payment_amount.checked_mul(ratio).unwrap_or_default();
 
                     // 更新应付单
+                    use sea_orm::QuerySelect;
                     let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
+                        .lock_exclusive()
                         .one(&txn)
                         .await?;
 
                     if let Some(mut inv) = invoice {
-                        inv.paid_amount += paid_amount;
-                        inv.unpaid_amount = inv.amount - inv.paid_amount;
+                        inv.paid_amount = inv.paid_amount.checked_add(paid_amount).unwrap_or(inv.paid_amount);
+                        inv.unpaid_amount = inv.amount.checked_sub(inv.paid_amount).unwrap_or(inv.amount);
 
                         // 更新应付状态
                         inv.invoice_status = if inv.unpaid_amount <= Decimal::new(0, 2) {

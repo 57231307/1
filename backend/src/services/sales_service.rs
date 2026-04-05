@@ -754,8 +754,10 @@ impl SalesService {
 
         for item in items {
             // 查询库存记录
+            use sea_orm::QuerySelect;
             let stock = InventoryStockEntity::find()
                 .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+                .lock_exclusive()
                 .one(txn)
                 .await?;
 

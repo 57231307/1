@@ -21,8 +21,8 @@ pub struct DashboardQuery {
 }
 
 /// 将 NaiveDate 转换为 DateTime<Utc>（一天的开始）
-fn naive_date_to_utc(date: NaiveDate) -> DateTime<Utc> {
-    Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
+fn naive_date_to_utc(date: NaiveDate) -> Option<DateTime<Utc>> {
+    date.and_hms_opt(0, 0, 0).map(|dt| Utc.from_utc_datetime(&dt))
 }
 
 /// 获取仪表板概览数据
@@ -31,8 +31,8 @@ pub async fn get_dashboard_overview(
     Query(query): Query<DashboardQuery>,
 ) -> Result<Json<ApiResponse<DashboardOverview>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
-    let start_datetime = query.start_date.map(naive_date_to_utc);
-    let end_datetime = query.end_date.map(naive_date_to_utc);
+    let start_datetime = query.start_date.and_then(naive_date_to_utc);
+    let end_datetime = query.end_date.and_then(naive_date_to_utc);
     let overview = dashboard_service
         .get_overview(start_datetime, end_datetime)
         .await?;
@@ -45,8 +45,8 @@ pub async fn get_sales_statistics(
     Query(query): Query<DashboardQuery>,
 ) -> Result<Json<ApiResponse<SalesStatistics>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
-    let start_datetime = query.start_date.map(naive_date_to_utc);
-    let end_datetime = query.end_date.map(naive_date_to_utc);
+    let start_datetime = query.start_date.and_then(naive_date_to_utc);
+    let end_datetime = query.end_date.and_then(naive_date_to_utc);
     let stats = dashboard_service
         .get_sales_statistics(start_datetime, end_datetime)
         .await?;
@@ -59,8 +59,8 @@ pub async fn get_inventory_statistics(
     Query(query): Query<DashboardQuery>,
 ) -> Result<Json<ApiResponse<InventoryStatistics>>, AppError> {
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
-    let start_datetime = query.start_date.map(naive_date_to_utc);
-    let end_datetime = query.end_date.map(naive_date_to_utc);
+    let start_datetime = query.start_date.and_then(naive_date_to_utc);
+    let end_datetime = query.end_date.and_then(naive_date_to_utc);
     let stats = dashboard_service
         .get_inventory_statistics(start_datetime, end_datetime)
         .await?;

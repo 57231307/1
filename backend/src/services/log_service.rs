@@ -364,17 +364,21 @@ impl LogService {
         }
 
         if let Some(start_date) = query.start_date {
-            let start_datetime = Utc.from_utc_datetime(&start_date.and_hms_opt(0, 0, 0).expect("无效的开始日期时间"));
-            query_builder = query_builder.filter(
-                log_operation::Column::OperationTime.gte(start_datetime)
-            );
+            if let Some(dt) = start_date.and_hms_opt(0, 0, 0) {
+                let start_datetime = Utc.from_utc_datetime(&dt);
+                query_builder = query_builder.filter(
+                    log_operation::Column::OperationTime.gte(start_datetime)
+                );
+            }
         }
 
         if let Some(end_date) = query.end_date {
-            let end_datetime = Utc.from_utc_datetime(&end_date.and_hms_opt(23, 59, 59).expect("无效的结束日期时间"));
-            query_builder = query_builder.filter(
-                log_operation::Column::OperationTime.lte(end_datetime)
-            );
+            if let Some(dt) = end_date.and_hms_opt(23, 59, 59) {
+                let end_datetime = Utc.from_utc_datetime(&dt);
+                query_builder = query_builder.filter(
+                    log_operation::Column::OperationTime.lte(end_datetime)
+                );
+            }
         }
 
         query_builder = query_builder.order_by(log_operation::Column::OperationTime, Order::Desc);
@@ -429,17 +433,21 @@ impl LogService {
         }
 
         if let Some(start_date) = start_date {
-            let start_datetime = Utc.from_utc_datetime(&start_date.and_hms_opt(0, 0, 0).expect("无效的开始日期时间"));
-            query_builder = query_builder.filter(
-                log_system::Column::LogTime.gte(start_datetime)
-            );
+            if let Some(dt) = start_date.and_hms_opt(0, 0, 0) {
+                let start_datetime = Utc.from_utc_datetime(&dt);
+                query_builder = query_builder.filter(
+                    log_system::Column::LogTime.gte(start_datetime)
+                );
+            }
         }
 
         if let Some(end_date) = end_date {
-            let end_datetime = Utc.from_utc_datetime(&end_date.and_hms_opt(23, 59, 59).expect("无效的结束日期时间"));
-            query_builder = query_builder.filter(
-                log_system::Column::LogTime.lte(end_datetime)
-            );
+            if let Some(dt) = end_date.and_hms_opt(23, 59, 59) {
+                let end_datetime = Utc.from_utc_datetime(&dt);
+                query_builder = query_builder.filter(
+                    log_system::Column::LogTime.lte(end_datetime)
+                );
+            }
         }
 
         query_builder = query_builder.order_by(log_system::Column::LogTime, Order::Desc);
@@ -489,17 +497,19 @@ impl LogService {
         }
 
         if let Some(start_date) = start_date {
-            let start_datetime = start_date.and_hms_opt(0, 0, 0).expect("无效的开始日期时间");
-            query_builder = query_builder.filter(
-                log_login::Column::LoginTime.gte(start_datetime.and_utc())
-            );
+            if let Some(start_datetime) = start_date.and_hms_opt(0, 0, 0) {
+                query_builder = query_builder.filter(
+                    log_login::Column::LoginTime.gte(start_datetime.and_utc())
+                );
+            }
         }
 
         if let Some(end_date) = end_date {
-            let end_datetime = end_date.and_hms_opt(23, 59, 59).expect("无效的结束日期时间");
-            query_builder = query_builder.filter(
-                log_login::Column::LoginTime.lte(end_datetime.and_utc())
-            );
+            if let Some(end_datetime) = end_date.and_hms_opt(23, 59, 59) {
+                query_builder = query_builder.filter(
+                    log_login::Column::LoginTime.lte(end_datetime.and_utc())
+                );
+            }
         }
 
         query_builder = query_builder.order_by(log_login::Column::LoginTime, Order::Desc);
@@ -566,17 +576,19 @@ impl LogService {
         }
 
         if let Some(start_date) = start_date {
-            let start_datetime = start_date.and_hms_opt(0, 0, 0).expect("无效的开始日期时间");
-            query_builder = query_builder.filter(
-                log_api_access::Column::AccessTime.gte(start_datetime.and_utc())
-            );
+            if let Some(start_datetime) = start_date.and_hms_opt(0, 0, 0) {
+                query_builder = query_builder.filter(
+                    log_api_access::Column::AccessTime.gte(start_datetime.and_utc())
+                );
+            }
         }
 
         if let Some(end_date) = end_date {
-            let end_datetime = end_date.and_hms_opt(23, 59, 59).expect("无效的结束日期时间");
-            query_builder = query_builder.filter(
-                log_api_access::Column::AccessTime.lte(end_datetime.and_utc())
-            );
+            if let Some(end_datetime) = end_date.and_hms_opt(23, 59, 59) {
+                query_builder = query_builder.filter(
+                    log_api_access::Column::AccessTime.lte(end_datetime.and_utc())
+                );
+            }
         }
 
         query_builder = query_builder.order_by(log_api_access::Column::AccessTime, Order::Desc);
