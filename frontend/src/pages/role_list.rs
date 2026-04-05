@@ -97,7 +97,7 @@ impl Component for RoleListPage {
                 let link = ctx.link().clone();
 
                 spawn_local(async move {
-                    match ApiService::get::<RoleListResponse>("/api/v1/erp/roles").await {
+                    match ApiService::get::<RoleListResponse>("/roles").await {
                         Ok(response) => {
                             link.send_message(Msg::RolesLoaded(response.roles, response.total));
                         }
@@ -169,7 +169,7 @@ impl Component for RoleListPage {
                         "is_system": is_system
                     });
 
-                    match ApiService::post::<serde_json::Value, serde_json::Value>("/api/v1/erp/roles", &payload).await {
+                    match ApiService::post::<serde_json::Value, serde_json::Value>("/roles", &payload).await {
                         Ok(_) => {
                             link.send_message(Msg::CloseCreateModal);
                             link.send_message(Msg::LoadRoles);
@@ -202,7 +202,7 @@ impl Component for RoleListPage {
                         "is_system": is_system
                     });
 
-                    match ApiService::put::<serde_json::Value, serde_json::Value>(&format!("/api/v1/erp/roles/{}", role_id), &payload).await {
+                    match ApiService::put::<serde_json::Value, serde_json::Value>(&format!("/roles/{}", role_id), &payload).await {
                         Ok(_) => {
                             link.send_message(Msg::CloseEditModal);
                             link.send_message(Msg::LoadRoles);
@@ -222,7 +222,7 @@ impl Component for RoleListPage {
                         .confirm_with_message("确定要删除这个角色吗？")
                         .unwrap_or(false)
                     {
-                        match ApiService::delete(&format!("/api/v1/erp/roles/{}", id)).await {
+                        match ApiService::delete(&format!("/roles/{}", id)).await {
                             Ok(_) => {
                                 link.send_message(Msg::LoadRoles);
                             }

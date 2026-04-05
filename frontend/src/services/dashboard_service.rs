@@ -1,6 +1,5 @@
-use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
-use crate::utils::storage;
+use crate::services::api::ApiService;
 
 /// 仪表板概览数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,123 +85,29 @@ pub struct DashboardService;
 impl DashboardService {
     /// 获取仪表板概览数据
     pub async fn get_overview(start_date: &str, end_date: &str) -> Result<DashboardOverview, String> {
-        let token = storage::Storage::get_token().ok_or("未登录")?;
-        
         let url = format!(
             "/dashboard/overview?start_date={}&end_date={}",
             start_date, end_date
         );
-        
-        let response = Request::get(&url)
-            .header("Authorization", &format!("Bearer {}", token))
-            .send()
-            .await
-            .map_err(|e| format!("请求失败：{}", e))?;
-        
-        if !response.ok() {
-            return Err(format!("请求失败：{}", response.status()));
-        }
-        
-        let api_response: ApiResponse<DashboardOverview> = response
-            .json()
-            .await
-            .map_err(|e| format!("解析失败：{}", e))?;
-        
-        if api_response.success {
-            Ok(api_response.data.ok_or("数据为空")?)
-        } else {
-            Err(api_response.message.unwrap_or("未知错误".to_string()))
-        }
+        ApiService::get(&url).await
     }
 
     /// 获取销售统计
     pub async fn get_sales_statistics(start_date: &str, end_date: &str) -> Result<SalesStatistics, String> {
-        let token = storage::Storage::get_token().ok_or("未登录")?;
-        
         let url = format!(
             "/dashboard/sales-stats?start_date={}&end_date={}",
             start_date, end_date
         );
-        
-        let response = Request::get(&url)
-            .header("Authorization", &format!("Bearer {}", token))
-            .send()
-            .await
-            .map_err(|e| format!("请求失败：{}", e))?;
-        
-        if !response.ok() {
-            return Err(format!("请求失败：{}", response.status()));
-        }
-        
-        let api_response: ApiResponse<SalesStatistics> = response
-            .json()
-            .await
-            .map_err(|e| format!("解析失败：{}", e))?;
-        
-        if api_response.success {
-            Ok(api_response.data.ok_or("数据为空")?)
-        } else {
-            Err(api_response.message.unwrap_or("未知错误".to_string()))
-        }
+        ApiService::get(&url).await
     }
 
     /// 获取库存统计
     pub async fn get_inventory_statistics() -> Result<InventoryStatistics, String> {
-        let token = storage::Storage::get_token().ok_or("未登录")?;
-        
-        let response = Request::get("/dashboard/inventory-stats")
-            .header("Authorization", &format!("Bearer {}", token))
-            .send()
-            .await
-            .map_err(|e| format!("请求失败：{}", e))?;
-        
-        if !response.ok() {
-            return Err(format!("请求失败：{}", response.status()));
-        }
-        
-        let api_response: ApiResponse<InventoryStatistics> = response
-            .json()
-            .await
-            .map_err(|e| format!("解析失败：{}", e))?;
-        
-        if api_response.success {
-            Ok(api_response.data.ok_or("数据为空")?)
-        } else {
-            Err(api_response.message.unwrap_or("未知错误".to_string()))
-        }
+        ApiService::get("/dashboard/inventory-stats").await
     }
 
     /// 获取低库存预警
     pub async fn get_low_stock_alerts() -> Result<Vec<LowStockAlert>, String> {
-        let token = storage::Storage::get_token().ok_or("未登录")?;
-        
-        let response = Request::get("/dashboard/low-stock-alerts")
-            .header("Authorization", &format!("Bearer {}", token))
-            .send()
-            .await
-            .map_err(|e| format!("请求失败：{}", e))?;
-        
-        if !response.ok() {
-            return Err(format!("请求失败：{}", response.status()));
-        }
-        
-        let api_response: ApiResponse<Vec<LowStockAlert>> = response
-            .json()
-            .await
-            .map_err(|e| format!("解析失败：{}", e))?;
-        
-        if api_response.success {
-            Ok(api_response.data.ok_or("数据为空")?)
-        } else {
-            Err(api_response.message.unwrap_or("未知错误".to_string()))
-        }
+        ApiService::get("/dashboard/low-stock-alerts").await
     }
-}
-
-/// API 响应结构
-#[derive(Debug, Serialize, Deserialize)]
-struct ApiResponse<T> {
-    success: bool,
-    message: Option<String>,
-    data: Option<T>,
 }

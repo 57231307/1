@@ -527,7 +527,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(purchase_contract_handler::get_contract))
         .route("/:id", put(purchase_contract_handler::update_contract))
         .route("/:id", delete(purchase_contract_handler::delete_contract))
-        .route("/:id/approve", post(purchase_contract_handler::approve_contract));
+        .route("/:id/approve", post(purchase_contract_handler::approve_contract))
+        .route("/:id/execute", put(purchase_contract_handler::execute_contract))
+        .route("/:id/cancel", put(purchase_contract_handler::cancel_contract));
 
     // 销售合同路由
     let sales_contract_routes = Router::new()
@@ -536,7 +538,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(sales_contract_handler::get_contract))
         .route("/:id", put(sales_contract_handler::update_contract))
         .route("/:id", delete(sales_contract_handler::delete_contract))
-        .route("/:id/approve", post(sales_contract_handler::approve_contract));
+        .route("/:id/approve", post(sales_contract_handler::approve_contract))
+        .route("/:id/execute", put(sales_contract_handler::execute_contract))
+        .route("/:id/cancel", put(sales_contract_handler::cancel_contract));
 
     // 固定资产路由
     let fixed_asset_routes = Router::new()
