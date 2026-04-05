@@ -1,3 +1,4 @@
+use crate::middleware::auth_context::AuthContext;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
@@ -82,7 +83,7 @@ pub struct AdjustmentSummary {
 }
 
 /// 创建调整单
-pub async fn create_adjustment(
+pub async fn create_adjustment(auth: AuthContext, 
     State(state): State<AppState>,
     Json(payload): Json<CreateAdjustmentRequestPayload>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
@@ -117,7 +118,7 @@ pub async fn create_adjustment(
         reason_type: payload.reason_type,
         reason_description: payload.reason_description,
         notes: payload.notes,
-        created_by: Some(1), // TODO: 从 Token 中获取
+        created_by: Some(auth.user_id),
         items,
     };
 
@@ -154,14 +155,14 @@ pub async fn create_adjustment(
 }
 
 /// 审核调整单
-pub async fn approve_adjustment(
+pub async fn approve_adjustment(auth: AuthContext, 
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    let user_id = auth.user_id;
 
-    match service.approve_adjustment(id, 1).await {
-        // TODO: 从 Token 中获取用户 ID
+    match service.approve_adjustment(id, user_id).await {
         Ok(_adjustment) => {
             let detail = service
                 .get_adjustment(id)
