@@ -323,7 +323,7 @@ jobs:
 
           ## ✨ 详细改动变化
 
-$CHANGELOG
+          $CHANGELOG
 
           ## 🚀 快速开始
 
