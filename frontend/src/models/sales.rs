@@ -1,3 +1,20 @@
+use serde::{Deserialize, Serialize};
+use rust_decimal::Decimal;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ShipOrderItemRequest {
+    pub order_item_id: i32,
+    pub product_id: i32,
+    pub quantity: Decimal,
+    pub warehouse_id: i32,
+    pub batch_no: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ShipOrderRequest {
+    pub items: Vec<ShipOrderItemRequest>,
+}
+
 /// 销售订单数据模型
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct SalesOrder {

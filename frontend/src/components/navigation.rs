@@ -15,6 +15,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
     let dashboard_open = use_state(|| true);
     let system_open = use_state(|| true);
     let basic_data_open = use_state(|| true);
+    let sales_open = use_state(|| true);
 
     let on_dashboard = {
         let navigator = navigator.clone();
@@ -39,6 +40,15 @@ pub fn navigation(props: &NavigationProps) -> Html {
         Callback::from(move |_| {
             if let Some(nav) = &navigator {
                 nav.push(&Route::Products);
+            }
+        })
+    };
+
+    let on_sales_returns = {
+        let navigator = navigator.clone();
+        Callback::from(move |_| {
+            if let Some(nav) = &navigator {
+                nav.push(&Route::SalesReturns);
             }
         })
     };
@@ -104,6 +114,25 @@ pub fn navigation(props: &NavigationProps) -> Html {
                     } else { html! {} }}
                 </div>
             </div>
+
+                <div class="nav-group">
+                    <div class="nav-group-header" onclick={{
+                        let sales_open = sales_open.clone();
+                        Callback::from(move |_| sales_open.set(!*sales_open))
+                    }}>
+                        <span class="nav-group-title">{"销售管理"}</span>
+                        <span class={if *sales_open { "nav-group-icon open" } else { "nav-group-icon" }}>{"▼"}</span>
+                    </div>
+                    {if *sales_open {
+                        html! {
+                            <div class="nav-group-content">
+                                <a class={if props.current_page == "sales_returns" { "nav-item active" } else { "nav-item" }} onclick={on_sales_returns}>
+                                    {"销售退货"}
+                                </a>
+                            </div>
+                        }
+                    } else { html! {} }}
+                </div>
         </nav>
     }
 }

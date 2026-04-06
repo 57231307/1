@@ -27,8 +27,8 @@ impl SalesService {
         ApiService::post(&format!("/sales/orders/{}/approve", id), &serde_json::json!({})).await
     }
 
-    pub async fn ship_order(id: i32) -> Result<SalesOrder, String> {
-        ApiService::post(&format!("/sales/orders/{}/ship", id), &serde_json::json!({})).await
+    pub async fn ship_order(id: i32, req: crate::models::sales::ShipOrderRequest) -> Result<SalesOrder, String> {
+        ApiService::post(&format!("/sales/orders/{}/ship", id), &serde_json::to_value(req).unwrap_or_default()).await
     }
 
     pub async fn complete_order(id: i32) -> Result<SalesOrder, String> {

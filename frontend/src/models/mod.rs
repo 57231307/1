@@ -50,3 +50,4 @@ pub mod init;
 pub mod quality_inspection;
 pub mod sales_analysis;
 pub mod supplier_evaluation;
+pub mod sales_return;

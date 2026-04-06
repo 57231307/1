@@ -115,9 +115,10 @@ pub async fn approve_order(
 pub async fn ship_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    Json(payload): Json<crate::services::sales_service::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    let order = sales_service.ship_order(id).await?;
+    let order = sales_service.ship_order(id, payload).await?;
     let order_json = serde_json::to_value(order).unwrap_or_default();
     Ok(Json(ApiResponse::success_with_msg(
         order_json,

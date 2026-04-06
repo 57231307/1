@@ -137,7 +137,21 @@ pub struct UpdateSalesOrderRequest {
     pub items: Option<Vec<SalesOrderItemRequest>>,
 }
 
-/// 销售服务
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ShipOrderItemRequest {
+    pub order_item_id: i32,
+    pub product_id: i32,
+    pub quantity: rust_decimal::Decimal,
+    pub warehouse_id: i32,
+    pub batch_no: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ShipOrderRequest {
+    pub items: Vec<ShipOrderItemRequest>,
+}
+
+/// 销售订单服务
 pub struct SalesService {
     db: Arc<DatabaseConnection>,
 }
@@ -232,6 +246,57 @@ impl SalesService {
     ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 开启事务
         let txn = (*self.db).begin().await?;
+
+        // 客户信用风控拦截
+        let customer = crate::models::customer::Entity::find_by_id(request.customer_id)
+            .one(&txn)
+            .await?
+            .ok_or(sea_orm::DbErr::Custom(format!("客户 {} 不存在", request.customer_id)))?;
+            
+        let credit_limit = customer.credit_limit;
+        
+        // 计算当前未付应收账款总额 (AR invoices that are not 'paid')
+        use sea_orm::{QuerySelect, QueryFilter, ColumnTrait};
+        let unpaid_invoices = crate::models::finance_invoice::Entity::find()
+            .filter(crate::models::finance_invoice::Column::CustomerId.eq(request.customer_id))
+            .filter(crate::models::finance_invoice::Column::InvoiceType.eq("AR"))
+            .filter(crate::models::finance_invoice::Column::Status.ne("paid"))
+            .all(&txn)
+            .await?;
+            
+        let mut total_unpaid = rust_decimal::Decimal::new(0, 0);
+        for inv in unpaid_invoices {
+            total_unpaid += inv.total_amount;
+        }
+        
+        // 计算本单金额
+        let mut order_amount = rust_decimal::Decimal::new(0, 0);
+        for item in &request.items {
+            let qty = item.quantity;
+            let price = item.unit_price;
+            let discount = item.discount_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
+            let tax = item.tax_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
+            
+            let mut subtotal = qty * price;
+            if discount > rust_decimal::Decimal::new(0, 0) {
+                let disc_amt = subtotal * discount / rust_decimal::Decimal::new(100, 0);
+                subtotal -= disc_amt;
+            }
+            if tax > rust_decimal::Decimal::new(0, 0) {
+                let tax_amt = subtotal * tax / rust_decimal::Decimal::new(100, 0);
+                subtotal += tax_amt;
+            }
+            order_amount += subtotal;
+        }
+        
+        // 判断是否超额
+        if credit_limit > rust_decimal::Decimal::new(0, 0) && (total_unpaid + order_amount) > credit_limit {
+            txn.rollback().await?;
+            return Err(sea_orm::DbErr::Custom(format!(
+                "信用风控拦截：客户当前未付账款 {} + 本单金额 {} = {}，超出了信用额度 {}",
+                total_unpaid, order_amount, total_unpaid + order_amount, credit_limit
+            )));
+        }
 
         // 生成订单号并检查唯一性
         let order_no = self.generate_order_no().await?;
@@ -675,24 +740,29 @@ impl SalesService {
     async fn reduce_inventory(
         &self,
         order_id: i32,
+        ship_items: &Vec<ShipOrderItemRequest>,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), sea_orm::DbErr> {
-        // 获取订单明细
-        let items = SalesOrderItemEntity::find()
-            .filter(sales_order_item::Column::OrderId.eq(order_id))
-            .all(txn)
-            .await?;
-
-        for item in items {
+        for item in ship_items {
             // 查询库存记录
             use sea_orm::QuerySelect;
             let stock = InventoryStockEntity::find()
                 .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+                .filter(inventory_stock::Column::WarehouseId.eq(item.warehouse_id))
+                .filter(inventory_stock::Column::BatchNo.eq(&item.batch_no))
                 .lock_exclusive()
                 .one(txn)
                 .await?;
 
             if let Some(s) = stock {
+                // 检查库存是否充足
+                if s.quantity_on_hand < item.quantity {
+                    return Err(sea_orm::DbErr::Custom(format!(
+                        "产品 {} 在仓库 {} (批次 {}) 库存不足，当前可用 {}，需要 {}",
+                        item.product_id, item.warehouse_id, item.batch_no, s.quantity_on_hand, item.quantity
+                    )));
+                }
+
                 // 扣减库存
                 let new_quantity_on_hand = s.quantity_on_hand - item.quantity;
                 let new_quantity_available = s.quantity_available - item.quantity;
@@ -709,6 +779,7 @@ impl SalesService {
                 let reservation = InventoryReservationEntity::find()
                     .filter(inventory_reservation::Column::OrderId.eq(order_id))
                     .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
+                    .filter(inventory_reservation::Column::WarehouseId.eq(item.warehouse_id))
                     .filter(inventory_reservation::Column::Status.eq("pending"))
                     .one(txn)
                     .await?;
@@ -721,9 +792,20 @@ impl SalesService {
                 }
             } else {
                 return Err(sea_orm::DbErr::Custom(format!(
-                    "产品 {} 没有库存记录，无法扣减",
-                    item.product_id
+                    "产品 {} 在仓库 {} (批次 {}) 没有库存记录，无法扣减",
+                    item.product_id, item.warehouse_id, item.batch_no
                 )));
+            }
+            
+            // 更新订单明细的已发货数量
+            let order_item = SalesOrderItemEntity::find_by_id(item.order_item_id)
+                .one(txn)
+                .await?;
+            if let Some(oi) = order_item {
+                let mut oi_update: sales_order_item::ActiveModel = oi.into();
+                let current_shipped = oi_update.shipped_quantity.clone().unwrap();
+                oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
+                oi_update.update(txn).await?;
             }
         }
         Ok(())
@@ -801,7 +883,7 @@ impl SalesService {
     }
 
     /// 发货处理
-    pub async fn ship_order(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn ship_order(&self, order_id: i32, req: ShipOrderRequest) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -822,7 +904,7 @@ impl SalesService {
         let txn = (*self.db).begin().await?;
 
         // 扣减库存
-        self.reduce_inventory(order_id, &txn).await?;
+        self.reduce_inventory(order_id, &req.items, &txn).await?;
 
         // 更新订单状态为已发货
         let updated_order = sales_order::ActiveModel {

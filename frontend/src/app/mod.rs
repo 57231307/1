@@ -1,6 +1,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::pages::{LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage};
+use crate::pages::{LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesReturnPage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage};
 use crate::utils::storage::Storage;
 
 #[derive(Clone, Routable, PartialEq)]
@@ -43,6 +43,8 @@ pub enum Route {
     PurchasePrices,
     #[at("/sales-prices")]
     SalesPrices,
+    #[at("/sales-returns")]
+    SalesReturns,
     #[at("/sales-analysis")]
     SalesAnalysis,
     #[at("/quality-inspection")]
@@ -165,6 +167,7 @@ fn switch(route: Route) -> Html {
         Route::FinancePayments => protected_route(|| html! { <FinancePaymentPage /> }),
         Route::PurchasePrices => protected_route(|| html! { <PurchasePricePage /> }),
         Route::SalesPrices => protected_route(|| html! { <SalesPricePage /> }),
+        Route::SalesReturns => protected_route(|| html! { <SalesReturnPage /> }),
         Route::SalesAnalysis => protected_route(|| html! { <SalesAnalysisPage /> }),
         Route::QualityInspection => protected_route(|| html! { <QualityInspectionPage /> }),
         Route::FinancialAnalysis => protected_route(|| html! { <FinancialAnalysisPage /> }),

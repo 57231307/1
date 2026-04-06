@@ -106,3 +106,5 @@ pub use purchase_inspection::PurchaseInspectionPage;
 pub use dye_batch::DyeBatchPage;
 pub use dye_recipe::DyeRecipePage;
 pub use greige_fabric::GreigeFabricPage;
+pub mod sales_return;
+pub use sales_return::SalesReturnPage;

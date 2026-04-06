@@ -59,3 +59,4 @@ pub mod sales_price_service;
 pub mod system_update_service;
 pub mod metrics_service;
 pub mod operation_log_service;
+pub mod sales_return_service;

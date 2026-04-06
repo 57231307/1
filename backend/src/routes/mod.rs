@@ -57,6 +57,7 @@ use crate::handlers::{
     sales_fabric_order_handler,
     sales_order_handler,
     sales_price_handler,
+    sales_return_handler,
     supplier_evaluation_handler,
     supplier_handler,
     user_handler,
@@ -658,6 +659,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", put(purchase_price_handler::update_price))
         .route("/:id", delete(purchase_price_handler::delete_price));
 
+    let sales_return_routes = sales_return_handler::router();
+
     // 应付账款路由
     let ap_routes = Router::new()
         .route("/invoices", get(ap_invoice_handler::list_invoices))
@@ -762,6 +765,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/cost-collections", cost_collection_routes)
         .nest("/api/v1/erp/sales-analysis", sales_analysis_routes)
         .nest("/api/v1/erp/sales-prices", sales_price_routes)
+        .nest("/api/v1/erp/sales-returns", sales_return_routes)
         .nest("/api/v1/erp/purchase-prices", purchase_price_routes)
         .nest("/api/v1/erp/ap", ap_routes)
         .nest("/api/v1/erp/ar", ar_routes)

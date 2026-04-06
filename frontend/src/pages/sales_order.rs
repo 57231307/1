@@ -2,8 +2,22 @@
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::sales::SalesOrder;
+use crate::models::sales::{SalesOrder, ShipOrderRequest, ShipOrderItemRequest};
 use crate::services::sales_service::SalesService;
+use crate::models::warehouse::Warehouse;
+use crate::services::warehouse_service::WarehouseService;
+use std::str::FromStr;
+use rust_decimal::Decimal;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ShipItemData {
+    pub order_item_id: i32,
+    pub product_id: i32,
+    pub product_name: String,
+    pub quantity: f64,
+    pub warehouse_id: Option<i32>,
+    pub batch_no: String,
+}
 
 pub struct SalesOrderPage {
     orders: Vec<SalesOrder>,
@@ -13,6 +27,12 @@ pub struct SalesOrderPage {
     page_size: u64,
     printing_order: Option<SalesOrder>,
     print_trigger: bool,
+    
+    // 发货相关状态
+    warehouses: Vec<Warehouse>,
+    shipping_order: Option<SalesOrder>,
+    ship_items: Vec<ShipItemData>,
+    submitting_ship: bool,
 }
 
 pub enum Msg {
@@ -21,6 +41,18 @@ pub enum Msg {
     LoadError(String),
     PreparePrint(i32),
     PrintReady(SalesOrder),
+    
+    // 发货相关消息
+    LoadWarehouses,
+    WarehousesLoaded(Vec<Warehouse>),
+    PrepareShip(i32),
+    ShipReady(SalesOrder),
+    CloseShipModal,
+    UpdateShipItemWarehouse(usize, i32),
+    UpdateShipItemBatch(usize, String),
+    SubmitShip,
+    ShipSuccess,
+    ShipError(String),
 }
 
 impl Component for SalesOrderPage {
@@ -36,12 +68,17 @@ impl Component for SalesOrderPage {
             page_size: 20,
             printing_order: None,
             print_trigger: false,
+            warehouses: Vec::new(),
+            shipping_order: None,
+            ship_items: Vec::new(),
+            submitting_ship: false,
         }
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             ctx.link().send_message(Msg::LoadOrders);
+            ctx.link().send_message(Msg::LoadWarehouses);
         }
         if self.print_trigger {
             self.print_trigger = false;
@@ -91,6 +128,127 @@ impl Component for SalesOrderPage {
             Msg::PrintReady(order) => {
                 self.printing_order = Some(order);
                 self.print_trigger = true;
+                true
+            }
+            Msg::LoadWarehouses => {
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    if let Ok(res) = WarehouseService::list_warehouses().await {
+                        link.send_message(Msg::WarehousesLoaded(res.warehouses));
+                    }
+                });
+                false
+            }
+            Msg::WarehousesLoaded(warehouses) => {
+                self.warehouses = warehouses;
+                true
+            }
+            Msg::PrepareShip(id) => {
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    match SalesService::get_order(id).await {
+                        Ok(order) => {
+                            link.send_message(Msg::ShipReady(order));
+                        }
+                        Err(e) => {
+                            link.send_message(Msg::ShipError(format!("加载订单数据失败: {}", e)));
+                        }
+                    }
+                });
+                false
+            }
+            Msg::ShipReady(order) => {
+                let mut items = Vec::new();
+                if let Some(order_items) = &order.items {
+                    for item in order_items {
+                        items.push(ShipItemData {
+                            order_item_id: item.id,
+                            product_id: item.product_id,
+                            product_name: item.product_name.clone().unwrap_or_default(),
+                            quantity: item.quantity,
+                            warehouse_id: None,
+                            batch_no: String::new(),
+                        });
+                    }
+                }
+                self.ship_items = items;
+                self.shipping_order = Some(order);
+                true
+            }
+            Msg::CloseShipModal => {
+                self.shipping_order = None;
+                self.ship_items.clear();
+                self.submitting_ship = false;
+                true
+            }
+            Msg::UpdateShipItemWarehouse(idx, warehouse_id) => {
+                if let Some(item) = self.ship_items.get_mut(idx) {
+                    if warehouse_id > 0 {
+                        item.warehouse_id = Some(warehouse_id);
+                    } else {
+                        item.warehouse_id = None;
+                    }
+                }
+                true
+            }
+            Msg::UpdateShipItemBatch(idx, batch_no) => {
+                if let Some(item) = self.ship_items.get_mut(idx) {
+                    item.batch_no = batch_no;
+                }
+                true
+            }
+            Msg::SubmitShip => {
+                if let Some(order) = &self.shipping_order {
+                    let mut req_items = Vec::new();
+                    // 校验并收集数据
+                    for item in &self.ship_items {
+                        if item.warehouse_id.is_none() {
+                            ctx.link().send_message(Msg::ShipError("请选择发货仓库".into()));
+                            return false;
+                        }
+                        if item.batch_no.trim().is_empty() {
+                            ctx.link().send_message(Msg::ShipError("请输入批次号".into()));
+                            return false;
+                        }
+                        
+                        let quantity_dec = Decimal::from_f64_retain(item.quantity).unwrap_or_default();
+                        
+                        req_items.push(ShipOrderItemRequest {
+                            order_item_id: item.order_item_id,
+                            product_id: item.product_id,
+                            quantity: quantity_dec,
+                            warehouse_id: item.warehouse_id.unwrap(),
+                            batch_no: item.batch_no.clone(),
+                        });
+                    }
+                    
+                    self.submitting_ship = true;
+                    let order_id = order.id;
+                    let req = ShipOrderRequest { items: req_items };
+                    let link = ctx.link().clone();
+                    
+                    spawn_local(async move {
+                        match SalesService::ship_order(order_id, req).await {
+                            Ok(_) => link.send_message(Msg::ShipSuccess),
+                            Err(e) => link.send_message(Msg::ShipError(e)),
+                        }
+                    });
+                    return true;
+                }
+                false
+            }
+            Msg::ShipSuccess => {
+                self.shipping_order = None;
+                self.submitting_ship = false;
+                ctx.link().send_message(Msg::LoadOrders);
+                true
+            }
+            Msg::ShipError(e) => {
+                self.submitting_ship = false;
+                web_sys::window()
+                    .unwrap()
+                    .alert_with_message(&e)
+                    .unwrap();
                 true
             }
         }
@@ -169,6 +327,9 @@ impl SalesOrderPage {
                                         <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>
                                             {"打印"}
                                         </button>
+                                        <button class="btn-primary" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::PrepareShip(id))}>
+                                            {"发货"}
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -177,7 +338,104 @@ impl SalesOrderPage {
                 </table>
             </div>
             {self.render_print_view()}
+            {self.render_ship_modal(ctx)}
             </>
+        }
+    }
+
+    fn render_ship_modal(&self, ctx: &Context<Self>) -> Html {
+        if let Some(order) = &self.shipping_order {
+            html! {
+                <div class="modal-overlay">
+                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
+                        <div class="modal-header">
+                            <h2>{"订单发货 - "}{&order.order_no}</h2>
+                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>{"商品名称"}</th>
+                                        <th>{"数量"}</th>
+                                        <th>{"发货仓库"}</th>
+                                        <th>{"批次号"}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {for self.ship_items.iter().enumerate().map(|(idx, item)| {
+                                        let on_warehouse_change = ctx.link().callback(move |e: Event| {
+                                            use wasm_bindgen::JsCast;
+                                            use web_sys::HtmlSelectElement;
+                                            let target = e.target().unwrap();
+                                            let select = target.unchecked_into::<HtmlSelectElement>();
+                                            if let Ok(wid) = select.value().parse::<i32>() {
+                                                Msg::UpdateShipItemWarehouse(idx, wid)
+                                            } else {
+                                                Msg::UpdateShipItemWarehouse(idx, 0)
+                                            }
+                                        });
+                                        
+                                        let on_batch_change = ctx.link().callback(move |e: Event| {
+                                            use wasm_bindgen::JsCast;
+                                            use web_sys::HtmlInputElement;
+                                            let target = e.target().unwrap();
+                                            let input = target.unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateShipItemBatch(idx, input.value())
+                                        });
+
+                                        html! {
+                                            <tr>
+                                                <td>{&item.product_name}</td>
+                                                <td>{item.quantity}</td>
+                                                <td>
+                                                    <select 
+                                                        class="form-control" 
+                                                        onchange={on_warehouse_change}
+                                                        value={item.warehouse_id.map(|id| id.to_string()).unwrap_or_default()}
+                                                    >
+                                                        <option value="">{"请选择仓库"}</option>
+                                                        {for self.warehouses.iter().map(|w| {
+                                                            html! { <option value={w.id.to_string()}>{&w.name}</option> }
+                                                        })}
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <input 
+                                                        type="text" 
+                                                        class="form-control" 
+                                                        value={item.batch_no.clone()}
+                                                        onchange={on_batch_change}
+                                                        placeholder="请输入批次号"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        }
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>
+                                {"取消"}
+                            </button>
+                            <button 
+                                class="btn-primary" 
+                                onclick={ctx.link().callback(|_| Msg::SubmitShip)}
+                                disabled={self.submitting_ship}
+                            >
+                                if self.submitting_ship {
+                                    {"提交中..."}
+                                } else {
+                                    {"确认发货"}
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 

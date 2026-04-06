@@ -144,3 +144,5 @@ pub mod log_system;
 // 报表模块
 pub mod report_definition;
 // AR模块（应收账款模块）- 在第62行已定义
+pub mod sales_return;
+pub mod sales_return_item;

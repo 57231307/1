@@ -233,6 +233,14 @@ impl PurchaseReceiptService {
 
         // 7. 提交事务
         txn.commit().await?;
+        
+        // 8. 自动生成应付账款
+        let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
+        if let Err(e) = ap_service.auto_generate_from_receipt(receipt.id, user_id).await {
+            tracing::error!("自动生成应付账单失败 (入库单 {}): {}", receipt.receipt_no, e);
+        } else {
+            tracing::info!("成功自动生成应付账单 (入库单 {})", receipt.receipt_no);
+        }
 
         Ok(receipt)
     }
