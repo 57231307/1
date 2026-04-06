@@ -66,43 +66,31 @@ impl InitService {
         let mut opt = ConnectOptions::new(&conn_str);
         opt.max_connections(1)
             .min_connections(0)
-            .connect_timeout(Duration::from_secs(5))
-            .acquire_timeout(Duration::from_secs(5));
+            .connect_timeout(Duration::from_secs(3))
+            .acquire_timeout(Duration::from_secs(3));
 
-        // 添加重试机制
-        let max_retries = 3;
-        let mut last_error: Option<sea_orm::DbErr> = None;
+        match Database::connect(opt).await {
+            Ok(db) => {
+                let query_result = db
+                    .query_one(sea_orm::Statement::from_string(
+                        sea_orm::DatabaseBackend::Postgres,
+                        "SELECT 1 as test".to_string(),
+                    ))
+                    .await;
 
-        for attempt in 1..=max_retries {
-            match Database::connect(opt.clone()).await {
-                Ok(db) => {
-                    let query_result = db
-                        .query_one(sea_orm::Statement::from_string(
-                            sea_orm::DatabaseBackend::Postgres,
-                            "SELECT 1 as test".to_string(),
-                        ))
-                        .await;
+                // 测试查询结果
+                let _ = query_result.as_ref().map(|v| {
+                    v.as_ref().map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
+                }).map(|opt| opt.unwrap_or(0));
 
-                    // 测试查询结果
-                    let _ = query_result.as_ref().map(|v| {
-                        v.as_ref().map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
-                    }).map(|opt| opt.unwrap_or(0));
-
-                    return query_result.map(|_| ()).map_err(|e| {
-                        InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
-                    });
-                }
-                Err(e) => {
-                    last_error = Some(e);
-                    if attempt < max_retries {
-                        // 等待一段时间后重试
-                        tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
-                    }
-                }
+                return query_result.map(|_| ()).map_err(|e| {
+                    InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
+                });
+            }
+            Err(e) => {
+                return Err(InitError::DatabaseError(format!("数据库连接失败: {}", e)));
             }
         }
-
-        Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))  
     }
 
     pub async fn initialize(
