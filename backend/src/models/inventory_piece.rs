@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// 库存匹数 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "inventory_pieces")]
+#[sea_orm(table_name = "inventory_piece")]
 pub struct Model {
     /// 匹数 ID（主键）
     #[sea_orm(primary_key)]

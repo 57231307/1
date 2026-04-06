@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// 批次染色批次 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "batch_dye_lots")]
+#[sea_orm(table_name = "batch_dye_lot")]
 pub struct Model {
     /// 批次染色 ID（主键）
     #[sea_orm(primary_key)]

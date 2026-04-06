@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// 匹号映射 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "piece_mappings")]
+#[sea_orm(table_name = "piece_mapping")]
 pub struct Model {
     /// 映射 ID（主键）
     #[sea_orm(primary_key)]

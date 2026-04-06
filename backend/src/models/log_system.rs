@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// 系统日志 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "log_systems")]
+#[sea_orm(table_name = "log_system")]
 pub struct Model {
     /// 日志 ID（主键）
     #[sea_orm(primary_key)]

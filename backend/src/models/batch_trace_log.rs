@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// 批次追溯日志 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "batch_trace_logs")]
+#[sea_orm(table_name = "batch_trace_log")]
 pub struct Model {
     /// 日志 ID（主键）
     #[sea_orm(primary_key)]

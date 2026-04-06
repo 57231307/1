@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// 库存实体模型（面料行业版）
 /// 包含批次、色号、缸号、等级、双计量单位等面料行业特色字段
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "inventory_stock")]
+#[sea_orm(table_name = "inventory_stocks")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,

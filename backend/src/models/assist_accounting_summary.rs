@@ -8,7 +8,7 @@ use sea_orm::entity::prelude::*;
 
 /// 辅助核算汇总 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "assist_accounting_summaries")]
+#[sea_orm(table_name = "assist_accounting_summary")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,

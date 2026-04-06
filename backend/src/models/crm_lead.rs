@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// CRM 线索 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "crm_leads")]
+#[sea_orm(table_name = "crm_lead")]
 pub struct Model {
     /// 线索 ID（主键）
     #[sea_orm(primary_key)]

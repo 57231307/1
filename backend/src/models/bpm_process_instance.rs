@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// BPM 流程实例 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "bpm_process_instances")]
+#[sea_orm(table_name = "bpm_process_instance")]
 pub struct Model {
     /// 流程实例 ID（主键）
     #[sea_orm(primary_key)]

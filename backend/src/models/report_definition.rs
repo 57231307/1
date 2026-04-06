@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// 报表定义 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "report_definitions")]
+#[sea_orm(table_name = "report_definition")]
 pub struct Model {
     /// 报表 ID（主键）
     #[sea_orm(primary_key)]

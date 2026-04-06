@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// 销售交货明细 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "sales_delivery_items")]
+#[sea_orm(table_name = "sales_delivery_item")]
 pub struct Model {
     /// 交货明细 ID（主键）
     #[sea_orm(primary_key)]

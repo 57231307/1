@@ -7,7 +7,7 @@ use sea_orm::entity::prelude::*;
 
 /// 辅助核算维度 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "assist_accounting_dimensions")]
+#[sea_orm(table_name = "assist_accounting_dimension")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,

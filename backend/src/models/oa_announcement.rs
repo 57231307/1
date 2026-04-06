@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// OA 公告 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "oa_announcements")]
+#[sea_orm(table_name = "oa_announcement")]
 pub struct Model {
     /// 公告 ID（主键）
     #[sea_orm(primary_key)]

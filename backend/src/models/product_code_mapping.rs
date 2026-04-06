@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// 产品编码映射 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "product_code_mappings")]
+#[sea_orm(table_name = "product_code_mapping")]
 pub struct Model {
     /// 映射 ID（主键）
     #[sea_orm(primary_key)]

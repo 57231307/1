@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// 采购订单明细 Model
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "purchase_order_items")]
+#[sea_orm(table_name = "purchase_order_item")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
