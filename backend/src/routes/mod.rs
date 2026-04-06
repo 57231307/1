@@ -64,6 +64,7 @@ use crate::handlers::{
     system_update_handler,
     voucher_handler,
     warehouse_handler,
+    init_handler,
 };
 
 /// 创建路由配置
@@ -726,7 +727,9 @@ pub fn create_router(state: AppState) -> Router {
                 "message": "系统已初始化",
                 "mode": "normal"
             }))
-        }));
+        }))
+        .route("/test-database", post(init_handler::test_database_connection))
+        .route("/initialize-with-db", post(init_handler::initialize_system_with_db));
 
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)
