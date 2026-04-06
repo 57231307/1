@@ -237,12 +237,158 @@ impl Component for SupplierPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_modal(ctx)}
             </div>
         }
     }
 }
 
 impl SupplierPage {
+    
+    
+    fn render_modal(&self, ctx: &Context<Self>) -> Html {
+        if !self.show_modal {
+            return html! {};
+        }
+
+        let title = match self.modal_mode {
+            ModalMode::Create => "新建供应商",
+            ModalMode::Edit => "编辑供应商",
+            ModalMode::View => "供应商详情",
+        };
+
+        let is_readonly = self.modal_mode == ModalMode::View;
+
+        let name = self.current_supplier.as_ref().map(|s| s.supplier_name.clone()).unwrap_or_default();
+        let short_name = self.current_supplier.as_ref().map(|s| s.supplier_short_name.clone()).unwrap_or_default();
+        let credit_code = self.current_supplier.as_ref().map(|s| s.credit_code.clone()).unwrap_or_default();
+        let reg_address = self.current_supplier.as_ref().map(|s| s.registered_address.clone()).unwrap_or_default();
+        let legal_rep = self.current_supplier.as_ref().map(|s| s.legal_representative.clone()).unwrap_or_default();
+        let reg_cap = self.current_supplier.as_ref().map(|s| s.registered_capital.clone()).unwrap_or_default();
+        let est_date = self.current_supplier.as_ref().map(|s| s.establishment_date.clone()).unwrap_or_default();
+        let tax_type = self.current_supplier.as_ref().map(|s| s.taxpayer_type.clone()).unwrap_or_default();
+        let bank_name = self.current_supplier.as_ref().map(|s| s.bank_name.clone()).unwrap_or_default();
+        let bank_account = self.current_supplier.as_ref().map(|s| s.bank_account.clone()).unwrap_or_default();
+        let contact_phone = self.current_supplier.as_ref().map(|s| s.contact_phone.clone()).unwrap_or_default();
+
+        let onsubmit = ctx.link().callback(move |e: SubmitEvent| {
+            e.prevent_default();
+            let form = e.target_unchecked_into::<web_sys::HtmlFormElement>();
+            
+            let name_input = form.elements().named_item("supplier_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let short_name_input = form.elements().named_item("supplier_short_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let credit_input = form.elements().named_item("credit_code").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let reg_addr_input = form.elements().named_item("registered_address").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let legal_input = form.elements().named_item("legal_representative").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let reg_cap_input = form.elements().named_item("registered_capital").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let est_date_input = form.elements().named_item("establishment_date").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let tax_type_input = form.elements().named_item("taxpayer_type").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let bank_name_input = form.elements().named_item("bank_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let bank_account_input = form.elements().named_item("bank_account").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let contact_phone_input = form.elements().named_item("contact_phone").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            
+            let req = CreateSupplierRequest {
+                supplier_name: name_input.value(),
+                supplier_short_name: short_name_input.value(),
+                supplier_type: "默认".to_string(),
+                credit_code: credit_input.value(),
+                registered_address: reg_addr_input.value(),
+                business_address: None,
+                legal_representative: legal_input.value(),
+                registered_capital: reg_cap_input.value(),
+                establishment_date: est_date_input.value(),
+                business_term: None,
+                business_scope: None,
+                taxpayer_type: tax_type_input.value(),
+                bank_name: bank_name_input.value(),
+                bank_account: bank_account_input.value(),
+                contact_phone: contact_phone_input.value(),
+                fax: None,
+                website: None,
+                email: None,
+                main_business: None,
+                main_market: None,
+                employee_count: None,
+                annual_revenue: None,
+                contacts: vec![],
+                qualifications: vec![],
+            };
+            Msg::CreateSupplier(req)
+        });
+
+        html! {
+            <div class="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
+                <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onclick={ctx.link().callback(|_| Msg::CloseModal)}></div>
+                <div class="relative w-full max-w-4xl mx-auto my-6 z-50">
+                    <div class="relative flex flex-col w-full bg-white border-0 rounded-xl shadow-2xl outline-none focus:outline-none p-6 max-h-[90vh] overflow-y-auto">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-4">{title}</h3>
+                        <form onsubmit={onsubmit}>
+                            <div class="grid grid-cols-3 gap-4 mb-4">
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"供应商名称 *"}</label>
+                                    <input name="supplier_name" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={name} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"简称 *"}</label>
+                                    <input name="supplier_short_name" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={short_name} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"统一信用代码 *"}</label>
+                                    <input name="credit_code" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={credit_code} readonly={is_readonly} required=true />
+                                </div>
+                                
+                                <div class="col-span-2">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"注册地址 *"}</label>
+                                    <input name="registered_address" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={reg_address} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"法人代表 *"}</label>
+                                    <input name="legal_representative" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={legal_rep} readonly={is_readonly} required=true />
+                                </div>
+                                
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"注册资本 *"}</label>
+                                    <input name="registered_capital" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={reg_cap} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"成立日期 *"}</label>
+                                    <input name="establishment_date" type="text" placeholder="2026-01-01" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={est_date} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"纳税人类型 *"}</label>
+                                    <input name="taxpayer_type" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={tax_type} readonly={is_readonly} required=true />
+                                </div>
+
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"开户行 *"}</label>
+                                    <input name="bank_name" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={bank_name} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"银行账号 *"}</label>
+                                    <input name="bank_account" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={bank_account} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"公司联系电话 *"}</label>
+                                    <input name="contact_phone" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={contact_phone} readonly={is_readonly} required=true />
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-6 pt-4 border-t">
+                                <button type="button" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"取消"}</button>
+                                {if !is_readonly {
+                                    html! {
+                                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">{"保存"}</button>
+                                    }
+                                } else {
+                                    html! {}
+                                }}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {
