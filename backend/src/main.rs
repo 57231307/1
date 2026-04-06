@@ -75,7 +75,16 @@ async fn initialize_with_db(
     )
     .await
     {
-        Ok(result) => Ok(Json(result)),
+        Ok(result) => {
+            // 初始化成功后，等待1秒确保响应发送给前端，然后退出进程
+            // 由 systemd 自动重启服务，重启后将进入完整模式
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                tracing::info!("系统初始化完成，准备重启服务以加载完整模式...");
+                std::process::exit(0);
+            });
+            Ok(Json(result))
+        }
         Err(e) => {
             let error = match e {
                 crate::services::init_service::InitError::AlreadyInitialized => "already_initialized",
@@ -185,70 +194,92 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = match db_result {
         Ok(db) => {
-            info!("数据库连接成功，启动完整模式");
-            
-            std::io::stdout().flush().ok();
-            std::io::stderr().flush().ok();
+            let is_initialized = crate::services::init_service::InitService::new(Arc::new(db.clone()))
+                .check_initialized()
+                .await
+                .0;
 
-            let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
-            let app_state_clone = app_state.clone();
-            create_router(app_state)
-                .layer(
-                    TraceLayer::new_for_http()
-                        .on_request(|request: &Request<_>, _span: &Span| {
-                            info!(
-                                method = %request.method(),
-                                uri = %request.uri(),
-                                "开始处理请求"
-                            );
-                        })
-                        .on_response(
-                            |response: &axum::response::Response, latency: Duration, _span: &Span| {
+            if !is_initialized {
+                info!("数据库连接成功，但系统未初始化，启动初始化模式");
+                std::io::stdout().flush().ok();
+
+                create_init_router()
+                    .layer(
+                        TraceLayer::new_for_http()
+                            .on_request(|request: &Request<_>, _span: &Span| {
+                                info!(method = %request.method(), uri = %request.uri(), "开始处理初始化请求");
+                            })
+                            .on_response(|response: &axum::response::Response, latency: Duration, _span: &Span| {
+                                info!(status = %response.status(), latency_ms = %latency.as_millis(), "请求完成");
+                            }),
+                    )
+                    .layer(cors)
+            } else {
+                info!("数据库连接成功且已初始化，启动完整模式");
+
+                std::io::stdout().flush().ok();
+                std::io::stderr().flush().ok();
+
+                let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+                let app_state_clone = app_state.clone();
+                create_router(app_state)
+                    .layer(
+                        TraceLayer::new_for_http()
+                            .on_request(|request: &Request<_>, _span: &Span| {
                                 info!(
-                                    status = %response.status(),
-                                    latency_ms = %latency.as_millis(),
-                                    "请求完成"
+                                    method = %request.method(),
+                                    uri = %request.uri(),
+                                    "开始处理请求"
                                 );
-                            },
-                        )
-                        .on_failure(
-                            |error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
-                                warn!("请求失败：{:?} (耗时: {}ms)", error, latency.as_millis());
-                            },
-                        ),
-                )
-                .layer(cors.clone())
-                .layer(axum::middleware::from_fn(request_validator_middleware))
-                .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), auth_middleware))
-                .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::X_CONTENT_TYPE_OPTIONS,
-                    HeaderValue::from_static("nosniff"),
-                ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::X_FRAME_OPTIONS,
-                    HeaderValue::from_static("DENY"),
-                ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::X_XSS_PROTECTION,
-                    HeaderValue::from_static("1; mode=block"),
-                ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
-                ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::STRICT_TRANSPORT_SECURITY,
-                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
-                ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::REFERRER_POLICY,
-                    HeaderValue::from_static("strict-origin-when-cross-origin"),
-                ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::HeaderName::from_static("permissions-policy"),
-                    HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
-                ))
+                            })
+                            .on_response(
+                                |response: &axum::response::Response, latency: Duration, _span: &Span| {
+                                    info!(
+                                        status = %response.status(),
+                                        latency_ms = %latency.as_millis(),
+                                        "请求完成"
+                                    );
+                                },
+                            )
+                            .on_failure(
+                                |error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
+                                    warn!("请求失败：{:?} (耗时: {}ms)", error, latency.as_millis());
+                                },
+                            ),
+                    )
+                    .layer(cors.clone())
+                    .layer(axum::middleware::from_fn(request_validator_middleware))
+                    .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), auth_middleware))
+                    .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+                        HeaderValue::from_static("nosniff"),
+                    ))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::X_FRAME_OPTIONS,
+                        HeaderValue::from_static("DENY"),
+                    ))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::X_XSS_PROTECTION,
+                        HeaderValue::from_static("1; mode=block"),
+                    ))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::CONTENT_SECURITY_POLICY,
+                        HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
+                    ))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::STRICT_TRANSPORT_SECURITY,
+                        HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+                    ))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::REFERRER_POLICY,
+                        HeaderValue::from_static("strict-origin-when-cross-origin"),
+                    ))
+                    .layer(SetResponseHeaderLayer::overriding(
+                        axum::http::header::HeaderName::from_static("permissions-policy"),
+                        HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
+                    ))
+            }
         }
         Err(e) => {
             info!("数据库连接失败: {}", e);

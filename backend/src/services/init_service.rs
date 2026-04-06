@@ -142,7 +142,7 @@ impl InitService {
         Self::test_database(db_config).await?;
 
         let conn_str = db_config.to_connection_string();
-        
+
         let mut opt = ConnectOptions::new(&conn_str);
         opt.max_connections(10)
             .min_connections(1)
@@ -158,19 +158,105 @@ impl InitService {
                 Ok(db) => {
                     let db = Arc::new(db);
                     let service = Self::new(db);
+                    
+                    // 首先保存配置到 .env 文件
+                    if let Err(e) = Self::save_db_config(db_config) {
+                        tracing::error!("保存数据库配置失败: {}", e);
+                        // 虽然保存失败，但我们仍尝试继续初始化
+                    }
+
                     return service.initialize(admin_username, admin_password).await;
                 }
                 Err(e) => {
                     last_error = Some(e);
                     if attempt < max_retries {
-                        // 等待一段时间后重试
-                        tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
+                        tokio::time::sleep(Duration::from_secs(2 * attempt)).await;
                     }
                 }
             }
         }
 
         Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))
+    }
+
+    fn save_db_config(config: &DatabaseConfig) -> Result<(), InitError> {
+        use std::fs;
+        use std::path::PathBuf;
+
+        let possible_paths = [
+            PathBuf::from("/etc/bingxi/.env"),
+            PathBuf::from("/opt/bingxi-erp/.env"),
+            PathBuf::from(".env"),
+            PathBuf::from("../backend/.env"),
+        ];
+
+        let mut env_path = None;
+        for path in &possible_paths {
+            if path.exists() {
+                env_path = Some(path.clone());
+                break;
+            }
+        }
+
+        // 如果都没找到，默认写入当前目录的 .env
+        let env_path = env_path.unwrap_or_else(|| PathBuf::from(".env"));
+        tracing::info!("准备将数据库配置保存至: {:?}", env_path);
+
+        let content = fs::read_to_string(&env_path).unwrap_or_else(|_| "".to_string());
+        let mut new_content = String::new();
+        let mut updated_keys = std::collections::HashSet::new();
+
+        let conn_str = config.to_connection_string();
+
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("DATABASE__CONNECTION_STRING=") {
+                new_content.push_str(&format!("DATABASE__CONNECTION_STRING={}\n", conn_str));
+                updated_keys.insert("DATABASE__CONNECTION_STRING");
+            } else if trimmed.starts_with("DATABASE__HOST=") {
+                new_content.push_str(&format!("DATABASE__HOST={}\n", config.host));
+                updated_keys.insert("DATABASE__HOST");
+            } else if trimmed.starts_with("DATABASE__PORT=") {
+                new_content.push_str(&format!("DATABASE__PORT={}\n", config.port));
+                updated_keys.insert("DATABASE__PORT");
+            } else if trimmed.starts_with("DATABASE__NAME=") {
+                new_content.push_str(&format!("DATABASE__NAME={}\n", config.name));
+                updated_keys.insert("DATABASE__NAME");
+            } else if trimmed.starts_with("DATABASE__USERNAME=") {
+                new_content.push_str(&format!("DATABASE__USERNAME={}\n", config.username));
+                updated_keys.insert("DATABASE__USERNAME");
+            } else if trimmed.starts_with("DATABASE__PASSWORD=") {
+                new_content.push_str(&format!("DATABASE__PASSWORD={}\n", config.password));
+                updated_keys.insert("DATABASE__PASSWORD");
+            } else {
+                new_content.push_str(line);
+                new_content.push('\n');
+            }
+        }
+
+        if !updated_keys.contains("DATABASE__CONNECTION_STRING") {
+            new_content.push_str(&format!("DATABASE__CONNECTION_STRING={}\n", conn_str));
+        }
+        if !updated_keys.contains("DATABASE__HOST") {
+            new_content.push_str(&format!("DATABASE__HOST={}\n", config.host));
+        }
+        if !updated_keys.contains("DATABASE__PORT") {
+            new_content.push_str(&format!("DATABASE__PORT={}\n", config.port));
+        }
+        if !updated_keys.contains("DATABASE__NAME") {
+            new_content.push_str(&format!("DATABASE__NAME={}\n", config.name));
+        }
+        if !updated_keys.contains("DATABASE__USERNAME") {
+            new_content.push_str(&format!("DATABASE__USERNAME={}\n", config.username));
+        }
+        if !updated_keys.contains("DATABASE__PASSWORD") {
+            new_content.push_str(&format!("DATABASE__PASSWORD={}\n", config.password));
+        }
+
+        fs::write(&env_path, new_content)
+            .map_err(|e| InitError::ConfigError(format!("写入配置文件失败: {}", e)))?;
+
+        Ok(())
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
