@@ -4,7 +4,7 @@ use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::purchase_receipt::{
-    PurchaseReceipt, PurchaseReceiptQuery,
+    PurchaseReceipt, PurchaseReceiptQuery, PurchaseReceiptItem
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 
@@ -16,6 +16,8 @@ pub struct PurchaseReceiptPage {
     filter_status: String,
     page: u64,
     page_size: u64,
+    printing_receipt: Option<(PurchaseReceipt, Vec<PurchaseReceiptItem>)>,
+    print_trigger: bool,
 }
 
 /// 模态框模式
@@ -34,6 +36,9 @@ pub enum Msg {
     ViewReceipt(i32),
     ConfirmReceipt(i32),
     ChangePage(u64),
+    PreparePrint(i32),
+    PrintReady(PurchaseReceipt, Vec<PurchaseReceiptItem>),
+    ClearPrint,
 }
 
 impl Component for PurchaseReceiptPage {
@@ -48,12 +53,20 @@ impl Component for PurchaseReceiptPage {
             filter_status: String::from("全部"),
             page: 1,
             page_size: 20,
+            printing_receipt: None,
+            print_trigger: false,
         }
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             ctx.link().send_message(Msg::LoadReceipts);
+        }
+        if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+            }
         }
     }
 
@@ -110,6 +123,31 @@ impl Component for PurchaseReceiptPage {
                 self.page = page;
                 ctx.link().send_message(Msg::LoadReceipts);
                 false
+            }
+            Msg::PreparePrint(id) => {
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    let receipt_res = PurchaseReceiptService::get(id).await;
+                    let items_res = PurchaseReceiptService::list_items(id).await;
+                    match (receipt_res, items_res) {
+                        (Ok(receipt), Ok(items)) => {
+                            link.send_message(Msg::PrintReady(receipt, items));
+                        }
+                        _ => {
+                            link.send_message(Msg::LoadError("加载打印数据失败".into()));
+                        }
+                    }
+                });
+                false
+            }
+            Msg::PrintReady(receipt, items) => {
+                self.printing_receipt = Some((receipt, items));
+                self.print_trigger = true;
+                true
+            }
+            Msg::ClearPrint => {
+                self.printing_receipt = None;
+                true
             }
         }
     }
@@ -177,6 +215,7 @@ impl PurchaseReceiptPage {
         }
 
         html! {
+            <>
             <div class="table-responsive">
                 <table class="data-table">
                     <thead>
@@ -189,11 +228,13 @@ impl PurchaseReceiptPage {
                             <th>{"总数量"}</th>
                             <th>{"总金额"}</th>
                             <th>{"仓库"}</th>
+                            <th>{"操作"}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {for self.receipts.iter().map(|receipt| {
                             let status = receipt.status.clone();
+                            let id = receipt.id;
                             html! {
                                 <tr>
                                     <td>{&receipt.receipt_no}</td>
@@ -204,12 +245,96 @@ impl PurchaseReceiptPage {
                                     <td class="numeric">{&receipt.total_quantity}</td>
                                     <td class="numeric">{&receipt.total_amount}</td>
                                     <td>{receipt.warehouse_name.as_deref().unwrap_or("-")}</td>
+                                    <td>
+                                        <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>
+                                            {"打印"}
+                                        </button>
+                                    </td>
                                 </tr>
                             }
                         })}
                     </tbody>
                 </table>
             </div>
+            {self.render_print_view()}
+            </>
+        }
+    }
+
+    fn render_print_view(&self) -> Html {
+        if let Some((receipt, items)) = &self.printing_receipt {
+            html! {
+                <div class="print-view" style="display: none;">
+                    <style>
+                        {"
+                        @media print {
+                            body * {
+                                visibility: hidden;
+                            }
+                            .print-view, .print-view * {
+                                visibility: visible;
+                            }
+                            .print-view {
+                                position: absolute;
+                                left: 0;
+                                top: 0;
+                                width: 100%;
+                                display: block !important;
+                                padding: 20px;
+                            }
+                            .print-header {
+                                text-align: center;
+                                margin-bottom: 20px;
+                            }
+                            .print-table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            .print-table th, .print-table td {
+                                border: 1px solid #000;
+                                padding: 8px;
+                                text-align: left;
+                            }
+                        }
+                        "}
+                    </style>
+                    <div class="print-header">
+                        <h2>{"采购收货单"}</h2>
+                        <p>{"单号: "}{&receipt.receipt_no}</p>
+                    </div>
+                    <div class="print-info" style="margin-bottom: 20px;">
+                        <p>{"供应商: "}{receipt.supplier_name.as_deref().unwrap_or("-")}</p>
+                        <p>{"收货日期: "}{&receipt.receipt_date}</p>
+                        <p>{"仓库: "}{receipt.warehouse_name.as_deref().unwrap_or("-")}</p>
+                    </div>
+                    <table class="print-table">
+                        <thead>
+                            <tr>
+                                <th>{"序号"}</th>
+                                <th>{"物料名称"}</th>
+                                <th>{"规格"}</th>
+                                <th>{"数量"}</th>
+                                <th>{"单价"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {for items.iter().map(|item| {
+                                html! {
+                                    <tr>
+                                        <td>{item.line_no}</td>
+                                        <td>{&item.material_name}</td>
+                                        <td>{item.specification.as_deref().unwrap_or("-")}</td>
+                                        <td>{&item.quantity_received}</td>
+                                        <td>{&item.unit_price}</td>
+                                    </tr>
+                                }
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 }

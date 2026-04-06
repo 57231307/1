@@ -9,6 +9,21 @@ pub struct SalesOrder {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    pub items: Option<Vec<SalesOrderItemDetail>>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct SalesOrderItemDetail {
+    pub id: i32,
+    pub order_id: i32,
+    pub product_id: i32,
+    pub product_name: Option<String>,
+    pub quantity: f64,
+    pub unit_price: f64,
+    pub discount_percent: f64,
+    pub tax_percent: f64,
+    pub total_amount: f64,
+    pub notes: Option<String>,
 }
 
 /// 销售订单列表响应
