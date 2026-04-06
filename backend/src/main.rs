@@ -117,8 +117,6 @@ fn create_init_router() -> Router {
     )
 }
 
-#[tokio::main]
-
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -343,7 +341,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("===========================================");
 
     axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app)
-        .with_graceful_shutdown(async { shutdown_signal(); })
+        .with_graceful_shutdown(async { shutdown_signal().await; })
         .await?;
 
     Ok(())
