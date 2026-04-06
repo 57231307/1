@@ -51,7 +51,7 @@ pub struct CreateSubjectRequestDto {
 
 /// 更新请求
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct UpdateSubjectRequestDto {
     pub name: Option<String>,
     pub balance_direction: Option<String>,

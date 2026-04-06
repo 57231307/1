@@ -33,7 +33,7 @@ pub struct CostCollectionQuery {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateCostCollectionRequest {
     pub collection_date: String,
     pub cost_object_type: Option<String>,

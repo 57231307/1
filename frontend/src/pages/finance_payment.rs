@@ -248,7 +248,7 @@ impl FinancePaymentPage {
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status}</span>
                                         </td>
-                                        <td class="numeric">{&payment.amount}</td>
+                                        <td class="numeric">{payment.amount.to_string()}</td>
                                         <td>{payment.payment_method.as_deref().unwrap_or("-")}</td>
                                         <td>{payment.reference_no.as_deref().unwrap_or("-")}</td>
                                         <td>{&payment.created_at}</td>

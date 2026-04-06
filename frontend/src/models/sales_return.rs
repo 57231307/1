@@ -49,3 +49,22 @@ pub struct SalesReturnQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSalesReturnItemRequest {
+    pub product_id: i32,
+    pub quantity: Decimal,
+    pub unit_price: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSalesReturnRequest {
+    pub return_no: String,
+    pub sales_order_id: Option<i32>,
+    pub customer_id: i32,
+    pub return_date: Option<String>,
+    pub warehouse_id: i32,
+    pub reason: String,
+    pub remarks: Option<String>,
+    pub items: Vec<CreateSalesReturnItemRequest>,
+}

@@ -226,12 +226,113 @@ impl Component for CustomerPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_modal(ctx)}
             </div>
         }
     }
 }
 
 impl CustomerPage {
+    
+    fn render_modal(&self, ctx: &Context<Self>) -> Html {
+        if !self.show_modal {
+            return html! {};
+        }
+
+        let title = match self.modal_mode {
+            ModalMode::Create => "新建客户",
+            ModalMode::Edit => "编辑客户",
+            ModalMode::View => "客户详情",
+        };
+
+        let is_readonly = self.modal_mode == ModalMode::View;
+
+        let code = self.current_customer.as_ref().map(|c| c.customer_code.clone()).unwrap_or_default();
+        let name = self.current_customer.as_ref().map(|c| c.customer_name.clone()).unwrap_or_default();
+        let contact = self.current_customer.as_ref().and_then(|c| c.contact_person.clone()).unwrap_or_default();
+        let phone = self.current_customer.as_ref().and_then(|c| c.contact_phone.clone()).unwrap_or_default();
+
+        let onsubmit = ctx.link().callback(move |e: SubmitEvent| {
+            e.prevent_default();
+            let form = e.target_unchecked_into::<web_sys::HtmlFormElement>();
+            
+            let code_input = form.elements().named_item("customer_code").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let name_input = form.elements().named_item("customer_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let contact_input = form.elements().named_item("contact_person").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let phone_input = form.elements().named_item("contact_phone").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            
+            let req = CreateCustomerRequest {
+                customer_code: code_input.value(),
+                customer_name: name_input.value(),
+                contact_person: if contact_input.value().is_empty() { None } else { Some(contact_input.value()) },
+                contact_phone: if phone_input.value().is_empty() { None } else { Some(phone_input.value()) },
+                contact_email: None,
+                address: None,
+                city: None,
+                province: None,
+                postal_code: None,
+                credit_limit: None,
+                payment_terms: None,
+                tax_id: None,
+                bank_name: None,
+                bank_account: None,
+                customer_type: Some("普通".to_string()),
+                notes: None,
+            };
+            Msg::CreateCustomer(req)
+        });
+
+        html! {
+            <div class="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
+                <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onclick={ctx.link().callback(|_| Msg::CloseModal)}></div>
+                <div class="relative w-full max-w-2xl mx-auto my-6 z-50">
+                    <div class="relative flex flex-col w-full bg-white border-0 rounded-xl shadow-2xl outline-none focus:outline-none">
+                        <div class="flex items-start justify-between p-5 border-b border-solid border-gray-200 rounded-t">
+                            <h3 class="text-2xl font-semibold text-gray-800">{title}</h3>
+                            <button class="p-1 ml-auto bg-transparent border-0 text-gray-500 float-right text-3xl leading-none font-semibold outline-none focus:outline-none hover:text-gray-800" onclick={ctx.link().callback(|_| Msg::CloseModal)}>
+                                <span class="block w-6 h-6 text-2xl outline-none focus:outline-none">{"×"}</span>
+                            </button>
+                        </div>
+                        <form onsubmit={onsubmit}>
+                            <div class="relative p-6 flex-auto grid grid-cols-2 gap-4">
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"客户编码 *"}</label>
+                                    <input name="customer_code" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={code} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"客户名称 *"}</label>
+                                    <input name="customer_name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={name} readonly={is_readonly} required=true />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"联系人"}</label>
+                                    <input name="contact_person" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={contact} readonly={is_readonly} />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"联系电话"}</label>
+                                    <input name="contact_phone" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={phone} readonly={is_readonly} />
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end p-6 border-t border-solid border-gray-200 rounded-b">
+                                <button type="button" class="text-gray-500 bg-transparent font-bold uppercase px-6 py-2 text-sm outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150 hover:bg-gray-100 rounded" onclick={ctx.link().callback(|_| Msg::CloseModal)}>
+                                    {"取消"}
+                                </button>
+                                {if !is_readonly {
+                                    html! {
+                                        <button type="submit" class="bg-indigo-600 text-white active:bg-indigo-700 font-bold uppercase text-sm px-6 py-3 rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150">
+                                            {"保存"}
+                                        </button>
+                                    }
+                                } else {
+                                    html! {}
+                                }}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {

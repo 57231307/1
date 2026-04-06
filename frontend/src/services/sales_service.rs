@@ -1,3 +1,4 @@
+use crate::models::api_response::ApiResponse;
 use crate::models::sales::{CreateSalesOrderRequest, SalesOrder, SalesOrderListResponse, UpdateSalesOrderRequest};
 use crate::services::api::ApiService;
 
@@ -5,6 +6,17 @@ use crate::services::api::ApiService;
 pub struct SalesService;
 
 impl SalesService {
+    pub async fn submit_order(id: i32) -> Result<SalesOrder, String> {
+        let url = format!("/sales/orders/{}/submit", id);
+        let empty_body: Option<serde_json::Value> = None;
+        let response: ApiResponse<SalesOrder> = ApiService::post(&url, &empty_body).await?;
+        if response.success {
+            Ok(response.data.unwrap())
+        } else {
+            Err(response.error.unwrap_or_else(|| "提交失败".to_string()))
+        }
+    }
+
     pub async fn list_orders() -> Result<SalesOrderListResponse, String> {
         ApiService::get::<SalesOrderListResponse>("/sales/orders").await
     }

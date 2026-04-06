@@ -3,7 +3,7 @@
 
 use crate::models::api_response::ApiResponse;
 use crate::models::purchase_return::{
-    CreatePurchaseReturnRequest, CreateReturnItemRequest, PaginatedReturns, PurchaseReturn,
+    CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest, PaginatedReturns, PurchaseReturn,
     PurchaseReturnItem, PurchaseReturnQuery, RejectReturnRequest, UpdatePurchaseReturnRequest,
     UpdateReturnItemRequest,
 };
@@ -89,7 +89,7 @@ impl PurchaseReturnService {
     }
 
     /// 添加退货明细
-    pub async fn create_item(return_id: i32, req: CreateReturnItemRequest) -> Result<PurchaseReturnItem, String> {
+    pub async fn create_item(return_id: i32, req: CreatePurchaseReturnItemRequest) -> Result<PurchaseReturnItem, String> {
         let response: ApiResponse<PurchaseReturnItem> =
             ApiService::post(&format!("/purchases/returns/{}/items", return_id), &req).await?;
         response.into_result()

@@ -2,13 +2,17 @@
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::sales_return::{
-    SalesReturn, SalesReturnQuery,
-};
+use crate::models::sales_return::{CreateSalesReturnRequest, CreateSalesReturnItemRequest, SalesReturn, SalesReturnQuery};
 use crate::services::sales_return_service::SalesReturnService;
 
 /// 销售退货页面状态管理
 pub struct SalesReturnPage {
+    show_modal: bool,
+    new_return_no: String,
+    new_customer_id: String,
+    new_product_id: String,
+    new_quantity: String,
+    new_reason: String,
     returns: Vec<SalesReturn>,
     loading: bool,
     error: Option<String>,
@@ -37,6 +41,12 @@ impl Component for SalesReturnPage {
         Self {
             returns: Vec::new(),
             loading: true,
+            show_modal: false,
+            new_return_no: String::new(),
+            new_customer_id: String::new(),
+            new_product_id: String::new(),
+            new_quantity: String::new(),
+            new_reason: String::new(),
             error: None,
             filter_status: String::from("全部"),
             page: 1,

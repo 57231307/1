@@ -1,6 +1,7 @@
-//! 财务付款模型
-//!
-//! 财务付款相关的数据结构
+use rust_decimal::Decimal;
+// 财务付款模型
+//
+// 财务付款相关的数据结构
 
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +15,7 @@ pub struct FinancePayment {
     pub order_id: Option<i32>,
     pub customer_id: Option<i32>,
     pub supplier_id: Option<i32>,
-    pub amount: String,
+    pub amount: Decimal,
     pub status: String,
     pub payment_date: String,
     pub payment_method: Option<String>,
@@ -57,7 +58,7 @@ pub struct CreatePaymentRequest {
     pub order_id: Option<i32>,
     pub customer_id: Option<i32>,
     pub supplier_id: Option<i32>,
-    pub amount: String,
+    pub amount: Decimal,
     pub payment_date: String,
     pub payment_method: Option<String>,
     pub reference_no: Option<String>,

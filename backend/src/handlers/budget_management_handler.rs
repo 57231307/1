@@ -24,7 +24,7 @@ pub struct BudgetItemQuery {
 
 /// 创建预算科目请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateBudgetItemRequest {
     pub item_code: String,
     pub item_name: String,
@@ -37,7 +37,7 @@ pub struct CreateBudgetItemRequest {
 
 /// 更新预算科目请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct UpdateBudgetItemRequest {
     pub item_name: Option<String>,
     pub item_type: Option<String>,
@@ -48,7 +48,7 @@ pub struct UpdateBudgetItemRequest {
 
 /// 创建预算方案请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateBudgetPlanRequest {
     pub plan_no: String,
     pub plan_name: String,
@@ -62,7 +62,7 @@ pub struct CreateBudgetPlanRequest {
 
 /// 预算执行请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 #[allow(dead_code)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
@@ -74,7 +74,7 @@ pub struct BudgetExecuteRequest {
 
 /// 预算审批请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 #[allow(dead_code)]
 pub struct BudgetApproveRequest {
     pub approval_comment: Option<String>,
@@ -82,7 +82,7 @@ pub struct BudgetApproveRequest {
 
 /// 创建预算执行明细请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateBudgetExecutionRequest {
     pub execution_type: String,
     pub amount: Decimal,

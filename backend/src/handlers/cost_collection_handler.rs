@@ -30,7 +30,7 @@ pub struct CostCollectionQuery {
 
 /// 创建请求
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateCostCollectionRequestDto {
     pub collection_date: String,
     pub cost_object_type: Option<String>,

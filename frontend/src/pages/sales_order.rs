@@ -48,6 +48,7 @@ pub enum Msg {
     PrepareShip(i32),
     ShipReady(SalesOrder),
     CloseShipModal,
+    SubmitOrder(i32),
     UpdateShipItemWarehouse(usize, i32),
     UpdateShipItemBatch(usize, String),
     SubmitShip,
@@ -175,7 +176,16 @@ impl Component for SalesOrderPage {
                 self.shipping_order = Some(order);
                 true
             }
-            Msg::CloseShipModal => {
+            
+            Msg::SubmitOrder(id) => {
+                let link = ctx.link().clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let _ = crate::services::sales_service::SalesService::submit_order(id).await;
+                    link.send_message(Msg::LoadOrders);
+                });
+                true
+            }
+Msg::CloseShipModal => {
                 self.shipping_order = None;
                 self.ship_items.clear();
                 self.submitting_ship = false;

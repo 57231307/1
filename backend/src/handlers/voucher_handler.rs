@@ -35,7 +35,7 @@ pub struct VoucherQuery {
 
 /// 创建请求
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateVoucherRequestDto {
     pub voucher_type: String,
     pub voucher_date: String,
@@ -49,7 +49,7 @@ pub struct CreateVoucherRequestDto {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct VoucherItemDto {
     pub line_no: i32,
     pub subject_code: String,

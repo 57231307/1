@@ -219,7 +219,7 @@ impl PurchaseOrderService {
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "DRAFT" {
+        if order.order_status != "DRAFT" && order.order_status != "REJECTED" {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许修改，当前状态：{}",
                 order.order_status
@@ -321,7 +321,7 @@ impl PurchaseOrderService {
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "DRAFT" {
+        if order.order_status != "DRAFT" && order.order_status != "REJECTED" {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许提交，当前状态：{}",
                 order.order_status

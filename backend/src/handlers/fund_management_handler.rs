@@ -23,7 +23,7 @@ pub struct FundAccountQuery {
 
 /// 创建资金账户请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateFundAccountRequest {
     pub account_name: String,
     pub account_no: String,
@@ -36,7 +36,7 @@ pub struct CreateFundAccountRequest {
 
 /// 存款/取款请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct FundTransactionRequest {
     pub amount: Decimal,
     pub remark: Option<String>,
@@ -44,7 +44,7 @@ pub struct FundTransactionRequest {
 
 /// 冻结资金请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct FreezeFundsRequest {
     pub amount: Decimal,
     pub reason: String,

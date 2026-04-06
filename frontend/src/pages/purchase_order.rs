@@ -229,11 +229,14 @@ impl PurchaseOrderPage {
                             <th>{"订单状态"}</th>
                             <th>{"总金额"}</th>
                             <th>{"仓库"}</th>
+                            <th>{"操作"}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {for self.orders.iter().map(|order| {
                             let status = order.status.clone();
+                            let order_id = order.id;
+                            let status_check = status.clone();
                             html! {
                                 <tr>
                                     <td>{&order.order_no}</td>
@@ -243,6 +246,15 @@ impl PurchaseOrderPage {
                                     <td>{status}</td>
                                     <td class="numeric">{&order.total_amount}</td>
                                     <td>{order.warehouse_name.as_deref().unwrap_or("-")}</td>
+                                    <td>
+                                        {if status_check == "REJECTED" || status_check == "DRAFT" {
+                                            html! {
+                                                <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
+                                            }
+                                        } else {
+                                            html! {}
+                                        }}
+                                    </td>
                                 </tr>
                             }
                         })}

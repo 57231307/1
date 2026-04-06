@@ -3,13 +3,19 @@
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::purchase_return::{
+use crate::models::purchase_return::{CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest, 
     PurchaseReturn, PurchaseReturnQuery,
 };
 use crate::services::purchase_return_service::PurchaseReturnService;
 
 /// 采购退货页面状态管理
 pub struct PurchaseReturnPage {
+    show_modal: bool,
+    new_return_no: String,
+    new_supplier_id: String,
+    new_product_id: String,
+    new_quantity: String,
+    new_reason: String,
     returns: Vec<PurchaseReturn>,
     loading: bool,
     error: Option<String>,
@@ -30,6 +36,10 @@ pub enum Msg {
     ApproveReturn(i32),
     RejectReturn(i32),
     ChangePage(u64),
+    OpenModal,
+    CloseModal,
+    UpdateInput(String, String),
+    SubmitCreate,
 }
 
 impl Component for PurchaseReturnPage {
@@ -40,6 +50,12 @@ impl Component for PurchaseReturnPage {
         Self {
             returns: Vec::new(),
             loading: true,
+            show_modal: false,
+            new_return_no: String::new(),
+            new_supplier_id: String::new(),
+            new_product_id: String::new(),
+            new_quantity: String::new(),
+            new_reason: String::new(),
             error: None,
             filter_status: String::from("全部"),
             page: 1,
@@ -125,6 +141,50 @@ impl Component for PurchaseReturnPage {
                 });
                 false
             }
+
+            Msg::OpenModal => {
+                self.show_modal = true;
+                true
+            }
+            Msg::CloseModal => {
+                self.show_modal = false;
+                true
+            }
+            Msg::UpdateInput(field, value) => {
+                match field.as_str() {
+                    "return_no" => self.new_return_no = value,
+                    "supplier_id" => self.new_supplier_id = value,
+                    "product_id" => self.new_product_id = value,
+                    "quantity" => self.new_quantity = value,
+                    "reason" => self.new_reason = value,
+                    _ => {}
+                }
+                true
+            }
+            Msg::SubmitCreate => {
+                use std::str::FromStr;
+                let req = CreatePurchaseReturnRequest {
+                    return_no: self.new_return_no.clone(),
+                    supplier_id: i32::from_str(&self.new_supplier_id).unwrap_or(0),
+                    order_id: None,
+                    return_date: Some(String::new()),
+                    reason_type: "质量问题".to_string(),
+                    reason_detail: Some(self.new_reason.clone()),
+                    remarks: None,
+                    items: vec![CreatePurchaseReturnItemRequest {
+                        product_id: i32::from_str(&self.new_product_id).unwrap_or(0),
+                        quantity: rust_decimal::Decimal::from_str(&self.new_quantity).unwrap_or_default(),
+                        unit_price: None,
+                    }],
+                };
+                let link = ctx.link().clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let _ = crate::services::purchase_return_service::PurchaseReturnService::create(req).await;
+                    link.send_message(Msg::LoadReturns);
+                    link.send_message(Msg::CloseModal);
+                });
+                true
+            }
             Msg::ChangePage(page) => {
                 self.page = page;
                 ctx.link().send_message(Msg::LoadReturns);
@@ -159,12 +219,45 @@ impl Component for PurchaseReturnPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_modal(ctx)}
             </div>
         }
     }
 }
 
 impl PurchaseReturnPage {
+    
+    fn render_modal(&self, ctx: &Context<Self>) -> Html {
+        if !self.show_modal { return html! {}; }
+        let on_input = |field: &'static str| {
+            ctx.link().callback(move |e: InputEvent| {
+                let input = e.target_unchecked_into::<web_sys::HtmlInputElement>();
+                Msg::UpdateInput(field.to_string(), input.value())
+            })
+        };
+        html! {
+            <div class="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
+                <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onclick={ctx.link().callback(|_| Msg::CloseModal)}></div>
+                <div class="relative w-full max-w-lg mx-auto my-6 z-50">
+                    <div class="relative flex flex-col w-full bg-white border-0 rounded-xl shadow-2xl outline-none focus:outline-none p-6">
+                        <h3 class="text-2xl font-semibold mb-4">{"新建采购退货单"}</h3>
+                        <div class="grid grid-cols-1 gap-4 mb-4">
+                            <input placeholder="退单号 (例如: PR20260401)" class="w-full px-3 py-2 border rounded" oninput={on_input("return_no")} value={self.new_return_no.clone()} />
+                            <input placeholder="退货原因说明" class="w-full px-3 py-2 border rounded" oninput={on_input("reason")} value={self.new_reason.clone()} />
+                            <h4 class="font-semibold">{"退回商品明细"}</h4>
+                            <input placeholder="产品 ID" class="w-full px-3 py-2 border rounded" oninput={on_input("product_id")} value={self.new_product_id.clone()} />
+                            <input placeholder="退回数量" class="w-full px-3 py-2 border rounded" oninput={on_input("quantity")} value={self.new_quantity.clone()} />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"取消"}</button>
+                            <button class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>{"确认创建"}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {

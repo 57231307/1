@@ -28,7 +28,7 @@ pub struct ArInvoiceQuery {
 
 /// 创建请求
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateArInvoiceRequestDto {
     pub invoice_date: String,
     pub due_date: String,

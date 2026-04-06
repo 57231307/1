@@ -5,6 +5,16 @@ use crate::services::api::ApiService;
 pub struct SalesReturnService;
 
 impl SalesReturnService {
+    pub async fn create(req: crate::models::sales_return::CreateSalesReturnRequest) -> Result<SalesReturn, String> {
+        let url = "/sales-returns";
+        let response: ApiResponse<SalesReturn> = ApiService::post(url, &req).await?;
+        if response.success {
+            Ok(response.data.unwrap())
+        } else {
+            Err(response.error.unwrap_or_else(|| "创建失败".to_string()))
+        }
+    }
+
     pub async fn list(query: SalesReturnQuery) -> Result<PaginatedResponse<SalesReturn>, String> {
         let mut query_params = Vec::new();
         if let Some(page) = query.page {

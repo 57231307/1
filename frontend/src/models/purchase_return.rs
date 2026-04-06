@@ -1,4 +1,5 @@
-//! 采购退货模型
+use rust_decimal::Decimal;
+// 采购退货模型
 
 use serde::{Deserialize, Serialize};
 
@@ -64,43 +65,9 @@ pub struct PurchaseReturnQuery {
 }
 
 /// 创建采购退货单请求
-#[derive(Debug, Clone, Serialize)]
-pub struct CreatePurchaseReturnRequest {
-    pub order_id: i32,
-    pub return_date: String,
-    pub warehouse_id: i32,
-    pub department_id: i32,
-    pub reason: Option<String>,
-    pub notes: Option<String>,
-    pub items: Vec<CreateReturnItemRequest>,
-}
 
-/// 创建退货明细请求
-#[derive(Debug, Clone, Serialize)]
-pub struct CreateReturnItemRequest {
-    pub line_no: i32,
-    pub material_id: i32,
-    pub material_code: String,
-    pub material_name: String,
-    pub specification: Option<String>,
-    pub batch_no: Option<String>,
-    pub color_code: Option<String>,
-    pub lot_no: Option<String>,
-    pub grade: Option<String>,
-    pub gram_weight: Option<String>,
-    pub width: Option<String>,
-    pub unit_price: String,
-    pub quantity_ordered: String,
-    pub quantity_returned: String,
-    pub unit_master: String,
-    pub unit_alt: Option<String>,
-    pub conversion_factor: Option<String>,
-    pub quantity_alt: Option<String>,
-    pub tax_rate: Option<String>,
-    pub discount_percent: Option<String>,
-    pub warehouse_id: Option<i32>,
-    pub notes: Option<String>,
-}
+
+
 
 /// 更新采购退货单请求
 #[derive(Debug, Clone, Serialize)]
@@ -142,4 +109,23 @@ pub struct PaginatedReturns {
     pub total: i64,
     pub page: u64,
     pub page_size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePurchaseReturnItemRequest {
+    pub product_id: i32,
+    pub quantity: Decimal,
+    pub unit_price: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePurchaseReturnRequest {
+    pub return_no: String,
+    pub supplier_id: i32,
+    pub order_id: Option<i32>,
+    pub return_date: Option<String>,
+    pub reason_type: String,
+    pub reason_detail: Option<String>,
+    pub remarks: Option<String>,
+    pub items: Vec<CreatePurchaseReturnItemRequest>,
 }

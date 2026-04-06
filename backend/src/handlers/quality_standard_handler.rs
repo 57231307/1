@@ -23,7 +23,7 @@ pub struct QualityStandardQuery {
 
 /// 创建质量标准请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct CreateQualityStandardRequest {
     pub standard_code: String,
     pub standard_name: String,
@@ -37,7 +37,7 @@ pub struct CreateQualityStandardRequest {
 
 /// 更新质量标准请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct UpdateQualityStandardRequest {
     pub standard_name: Option<String>,
     pub standard_type: Option<String>,
@@ -48,7 +48,7 @@ pub struct UpdateQualityStandardRequest {
 
 /// 创建版本历史请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 #[allow(dead_code)]
 pub struct CreateVersionHistoryRequest {
     pub standard_id: i32,
@@ -59,7 +59,7 @@ pub struct CreateVersionHistoryRequest {
 
 /// 质量标准审批请求 DTO
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+
 pub struct QualityApproveRequest {
     pub approval_comment: Option<String>,
 }
