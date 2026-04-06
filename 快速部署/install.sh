@@ -43,13 +43,16 @@ download_latest() {
     log "获取最新版本信息..."
     # 查找最新 release 中的 zip 资产
     DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
-    
+
     if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
         error "无法找到最新的 .zip 发布包"
     fi
-    
-    log "下载最新发布包: $DOWNLOAD_URL"
-    curl -L -o /tmp/bingxi-erp-latest.zip "$DOWNLOAD_URL"
+
+    # 使用国内加速镜像加速 GitHub Releases 下载
+    PROXY_URL="https://mirror.ghproxy.com/$DOWNLOAD_URL"
+
+    log "下载最新发布包: $PROXY_URL"
+    curl -L -o /tmp/bingxi-erp-latest.zip "$PROXY_URL" || curl -L -o /tmp/bingxi-erp-latest.zip "https://ghproxy.net/$DOWNLOAD_URL"
 }
 
 setup_cli() {
@@ -78,7 +81,7 @@ case "$1" in
         sudo systemctl status bingxi-backend --no-pager
         ;;
     update)
-        curl -fsSL --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
+        curl -fsSL --retry 3 https://mirror.ghproxy.com/https://raw.githubusercontent.com/57231307/1/main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
         ;;
     *)
         echo "秉羲管理系统 CLI 工具"
