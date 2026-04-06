@@ -96,12 +96,12 @@ CREATE TABLE fund_monitoring (
 );
 
 -- 创建索引
-CREATE INDEX idx_fund_accounts_type ON fund_accounts(account_type);
-CREATE INDEX idx_fund_plans_period ON fund_plans(period);
-CREATE INDEX idx_fund_transfers_date ON fund_transfers(transfer_date);
-CREATE INDEX idx_fund_transactions_account ON fund_transactions(account_id);
-CREATE INDEX idx_fund_transactions_date ON fund_transactions(transaction_date);
-CREATE INDEX idx_fund_monitoring_date ON fund_monitoring(monitoring_date);
+CREATE INDEX IF NOT EXISTS idx_fund_accounts_type ON fund_accounts(account_type);
+CREATE INDEX IF NOT EXISTS idx_fund_plans_period ON fund_plans(period);
+CREATE INDEX IF NOT EXISTS idx_fund_transfers_date ON fund_transfers(transfer_date);
+CREATE INDEX IF NOT EXISTS idx_fund_transactions_account ON fund_transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_fund_transactions_date ON fund_transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_fund_monitoring_date ON fund_monitoring(monitoring_date);
 
 -- 添加中文注释
 COMMENT ON TABLE fund_accounts IS '资金账户表';

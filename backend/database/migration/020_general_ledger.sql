@@ -74,10 +74,10 @@ COMMENT ON COLUMN account_subjects.assist_color_no IS '色号辅助核算';
 COMMENT ON COLUMN account_subjects.enable_dual_unit IS '启用双计量单位';
 
 -- 索引
-CREATE INDEX idx_account_subjects_code ON account_subjects(code);
-CREATE INDEX idx_account_subjects_parent ON account_subjects(parent_id);
-CREATE INDEX idx_account_subjects_level ON account_subjects(level);
-CREATE INDEX idx_account_subjects_status ON account_subjects(status);
+CREATE INDEX IF NOT EXISTS idx_account_subjects_code ON account_subjects(code);
+CREATE INDEX IF NOT EXISTS idx_account_subjects_parent ON account_subjects(parent_id);
+CREATE INDEX IF NOT EXISTS idx_account_subjects_level ON account_subjects(level);
+CREATE INDEX IF NOT EXISTS idx_account_subjects_status ON account_subjects(status);
 
 -- 2. 凭证表（基础版）
 -- ============================================
@@ -134,11 +134,11 @@ COMMENT ON COLUMN vouchers.reviewed_by IS '审核人 ID';
 COMMENT ON COLUMN vouchers.posted_by IS '过账人 ID';
 
 -- 索引
-CREATE INDEX idx_vouchers_no ON vouchers(voucher_no);
-CREATE INDEX idx_vouchers_date ON vouchers(voucher_date);
-CREATE INDEX idx_vouchers_type ON vouchers(voucher_type);
-CREATE INDEX idx_vouchers_status ON vouchers(status);
-CREATE INDEX idx_vouchers_created_by ON vouchers(created_by);
+CREATE INDEX IF NOT EXISTS idx_vouchers_no ON vouchers(voucher_no);
+CREATE INDEX IF NOT EXISTS idx_vouchers_date ON vouchers(voucher_date);
+CREATE INDEX IF NOT EXISTS idx_vouchers_type ON vouchers(voucher_type);
+CREATE INDEX IF NOT EXISTS idx_vouchers_status ON vouchers(status);
+CREATE INDEX IF NOT EXISTS idx_vouchers_created_by ON vouchers(created_by);
 
 -- 3. 凭证分录表
 -- ============================================
@@ -190,9 +190,9 @@ COMMENT ON COLUMN voucher_items.assist_batch_id IS '批次辅助核算 ID';
 COMMENT ON COLUMN voucher_items.assist_color_no_id IS '色号辅助核算 ID';
 
 -- 索引
-CREATE INDEX idx_voucher_items_voucher ON voucher_items(voucher_id);
-CREATE INDEX idx_voucher_items_subject ON voucher_items(subject_code);
-CREATE INDEX idx_voucher_items_line_no ON voucher_items(voucher_id, line_no);
+CREATE INDEX IF NOT EXISTS idx_voucher_items_voucher ON voucher_items(voucher_id);
+CREATE INDEX IF NOT EXISTS idx_voucher_items_subject ON voucher_items(subject_code);
+CREATE INDEX IF NOT EXISTS idx_voucher_items_line_no ON voucher_items(voucher_id, line_no);
 
 -- 4. 科目余额表（基础版）
 -- ============================================
@@ -245,11 +245,11 @@ COMMENT ON COLUMN account_balances.ending_balance_debit IS '期末借方余额';
 COMMENT ON COLUMN account_balances.ending_balance_credit IS '期末贷方余额';
 
 -- 索引
-CREATE INDEX idx_account_balances_period ON account_balances(period);
-CREATE INDEX idx_account_balances_subject ON account_balances(subject_id);
-CREATE INDEX idx_account_balances_subject_period ON account_balances(subject_id, period);
-CREATE INDEX idx_account_balances_batch ON account_balances(assist_batch_id);
-CREATE INDEX idx_account_balances_color_no ON account_balances(assist_color_no_id);
+CREATE INDEX IF NOT EXISTS idx_account_balances_period ON account_balances(period);
+CREATE INDEX IF NOT EXISTS idx_account_balances_subject ON account_balances(subject_id);
+CREATE INDEX IF NOT EXISTS idx_account_balances_subject_period ON account_balances(subject_id, period);
+CREATE INDEX IF NOT EXISTS idx_account_balances_batch ON account_balances(assist_batch_id);
+CREATE INDEX IF NOT EXISTS idx_account_balances_color_no ON account_balances(assist_color_no_id);
 
 -- 5. 插入预设科目（基础科目）
 -- ============================================

@@ -50,9 +50,9 @@ COMMENT ON COLUMN purchase_contracts.contract_no IS '合同编号';
 COMMENT ON COLUMN purchase_contracts.total_amount IS '合同总金额';
 COMMENT ON COLUMN purchase_contracts.status IS '合同状态';
 
-CREATE INDEX idx_purchase_contracts_no ON purchase_contracts(contract_no);
-CREATE INDEX idx_purchase_contracts_supplier ON purchase_contracts(supplier_id);
-CREATE INDEX idx_purchase_contracts_status ON purchase_contracts(status);
+CREATE INDEX IF NOT EXISTS idx_purchase_contracts_no ON purchase_contracts(contract_no);
+CREATE INDEX IF NOT EXISTS idx_purchase_contracts_supplier ON purchase_contracts(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_contracts_status ON purchase_contracts(status);
 
 -- 2. 合同执行表
 -- ============================================
@@ -83,7 +83,7 @@ COMMENT ON TABLE contract_executions IS '合同执行表';
 COMMENT ON COLUMN contract_executions.execution_type IS '执行类型';
 COMMENT ON COLUMN contract_executions.execution_amount IS '执行金额';
 
-CREATE INDEX idx_contract_executions_contract ON contract_executions(contract_id);
+CREATE INDEX IF NOT EXISTS idx_contract_executions_contract ON contract_executions(contract_id);
 
 -- ============================================
 -- 迁移完成

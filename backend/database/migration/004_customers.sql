@@ -28,11 +28,11 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 -- 创建索引
-CREATE INDEX idx_customers_code ON customers(customer_code);
-CREATE INDEX idx_customers_name ON customers(customer_name);
-CREATE INDEX idx_customers_status ON customers(status);
-CREATE INDEX idx_customers_type ON customers(customer_type);
-CREATE INDEX idx_customers_created_at ON customers(created_at);
+CREATE INDEX IF NOT EXISTS idx_customers_code ON customers(customer_code);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(customer_name);
+CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
+CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(customer_type);
+CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at);
 
 -- 添加注释
 COMMENT ON TABLE customers IS '客户信息表';

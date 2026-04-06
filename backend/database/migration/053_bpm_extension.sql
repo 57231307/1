@@ -45,12 +45,12 @@ ALTER TABLE bpm_task_notification ADD CONSTRAINT fk_bpm_tn_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- 索引
-CREATE INDEX idx_bpm_tn_task ON bpm_task_notification(task_id);
-CREATE INDEX idx_bpm_tn_instance ON bpm_task_notification(instance_id);
-CREATE INDEX idx_bpm_tn_user ON bpm_task_notification(user_id);
-CREATE INDEX idx_bpm_tn_status ON bpm_task_notification(status);
-CREATE INDEX idx_bpm_tn_is_read ON bpm_task_notification(is_read);
-CREATE INDEX idx_bpm_tn_sent_at ON bpm_task_notification(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bpm_tn_task ON bpm_task_notification(task_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tn_instance ON bpm_task_notification(instance_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tn_user ON bpm_task_notification(user_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tn_status ON bpm_task_notification(status);
+CREATE INDEX IF NOT EXISTS idx_bpm_tn_is_read ON bpm_task_notification(is_read);
+CREATE INDEX IF NOT EXISTS idx_bpm_tn_sent_at ON bpm_task_notification(sent_at DESC);
 
 -- ========================================
 -- 11. 流程统计表
@@ -93,8 +93,8 @@ ALTER TABLE bpm_statistics_daily ADD CONSTRAINT fk_bpm_sd_process_definition
 ALTER TABLE bpm_statistics_daily ADD CONSTRAINT uk_sd_date_process UNIQUE (statistics_date, process_definition_id);
 
 -- 索引
-CREATE INDEX idx_bpm_sd_date ON bpm_statistics_daily(statistics_date);
-CREATE INDEX idx_bpm_sd_process_definition ON bpm_statistics_daily(process_definition_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_sd_date ON bpm_statistics_daily(statistics_date);
+CREATE INDEX IF NOT EXISTS idx_bpm_sd_process_definition ON bpm_statistics_daily(process_definition_id);
 
 -- ========================================
 -- 12. 流程超时配置表
@@ -136,10 +136,10 @@ ALTER TABLE bpm_timeout_config ADD CONSTRAINT fk_bpm_tc_process_definition
     FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
 
 -- 索引
-CREATE INDEX idx_bpm_tc_process_definition ON bpm_timeout_config(process_definition_id);
-CREATE INDEX idx_bpm_tc_node ON bpm_timeout_config(node_id);
-CREATE INDEX idx_bpm_tc_active ON bpm_timeout_config(is_active);
-CREATE INDEX idx_bpm_tc_priority ON bpm_timeout_config(priority);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_process_definition ON bpm_timeout_config(process_definition_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_node ON bpm_timeout_config(node_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_active ON bpm_timeout_config(is_active);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_priority ON bpm_timeout_config(priority);
 
 -- ========================================
 -- 触发器

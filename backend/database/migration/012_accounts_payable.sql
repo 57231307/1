@@ -49,13 +49,13 @@ ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoice_cancelled_by
     FOREIGN KEY (cancelled_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_ap_invoice_no ON ap_invoice(invoice_no);
-CREATE INDEX idx_ap_invoice_supplier_id ON ap_invoice(supplier_id);
-CREATE INDEX idx_ap_invoice_date ON ap_invoice(invoice_date);
-CREATE INDEX idx_ap_invoice_due_date ON ap_invoice(due_date);
-CREATE INDEX idx_ap_invoice_status ON ap_invoice(invoice_status);
-CREATE INDEX idx_ap_invoice_source ON ap_invoice(source_type, source_id);
-CREATE INDEX idx_ap_invoice_created_by ON ap_invoice(created_by);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_no ON ap_invoice(invoice_no);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_supplier_id ON ap_invoice(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_date ON ap_invoice(invoice_date);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_due_date ON ap_invoice(due_date);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_status ON ap_invoice(invoice_status);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_source ON ap_invoice(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_ap_invoice_created_by ON ap_invoice(created_by);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_ap_invoice_updated_at
@@ -139,11 +139,11 @@ ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_rejected_by
     FOREIGN KEY (rejected_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_ap_request_no ON ap_payment_request(request_no);
-CREATE INDEX idx_ap_request_supplier_id ON ap_payment_request(supplier_id);
-CREATE INDEX idx_ap_request_date ON ap_payment_request(request_date);
-CREATE INDEX idx_ap_request_status ON ap_payment_request(approval_status);
-CREATE INDEX idx_ap_request_created_by ON ap_payment_request(created_by);
+CREATE INDEX IF NOT EXISTS idx_ap_request_no ON ap_payment_request(request_no);
+CREATE INDEX IF NOT EXISTS idx_ap_request_supplier_id ON ap_payment_request(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ap_request_date ON ap_payment_request(request_date);
+CREATE INDEX IF NOT EXISTS idx_ap_request_status ON ap_payment_request(approval_status);
+CREATE INDEX IF NOT EXISTS idx_ap_request_created_by ON ap_payment_request(created_by);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_ap_payment_request_updated_at
@@ -168,8 +168,8 @@ CREATE TABLE ap_payment_request_item (
 );
 
 -- 索引
-CREATE INDEX idx_ap_request_item_request_id ON ap_payment_request_item(request_id);
-CREATE INDEX idx_ap_request_item_invoice_id ON ap_payment_request_item(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_ap_request_item_request_id ON ap_payment_request_item(request_id);
+CREATE INDEX IF NOT EXISTS idx_ap_request_item_invoice_id ON ap_payment_request_item(invoice_id);
 
 
 -- =====================================================
@@ -213,12 +213,12 @@ ALTER TABLE ap_payment ADD CONSTRAINT fk_ap_payment_confirmed_by
     FOREIGN KEY (confirmed_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_ap_payment_no ON ap_payment(payment_no);
-CREATE INDEX idx_ap_payment_supplier_id ON ap_payment(supplier_id);
-CREATE INDEX idx_ap_payment_date ON ap_payment(payment_date);
-CREATE INDEX idx_ap_payment_status ON ap_payment(payment_status);
-CREATE INDEX idx_ap_payment_request_id ON ap_payment(request_id);
-CREATE INDEX idx_ap_payment_created_by ON ap_payment(created_by);
+CREATE INDEX IF NOT EXISTS idx_ap_payment_no ON ap_payment(payment_no);
+CREATE INDEX IF NOT EXISTS idx_ap_payment_supplier_id ON ap_payment(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ap_payment_date ON ap_payment(payment_date);
+CREATE INDEX IF NOT EXISTS idx_ap_payment_status ON ap_payment(payment_status);
+CREATE INDEX IF NOT EXISTS idx_ap_payment_request_id ON ap_payment(request_id);
+CREATE INDEX IF NOT EXISTS idx_ap_payment_created_by ON ap_payment(created_by);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_ap_payment_updated_at
@@ -254,11 +254,11 @@ ALTER TABLE ap_verification ADD CONSTRAINT fk_ap_verification_cancelled_by
     FOREIGN KEY (cancelled_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_ap_verification_no ON ap_verification(verification_no);
-CREATE INDEX idx_ap_verification_supplier_id ON ap_verification(supplier_id);
-CREATE INDEX idx_ap_verification_date ON ap_verification(verification_date);
-CREATE INDEX idx_ap_verification_status ON ap_verification(verification_status);
-CREATE INDEX idx_ap_verification_created_by ON ap_verification(created_by);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_no ON ap_verification(verification_no);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_supplier_id ON ap_verification(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_date ON ap_verification(verification_date);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_status ON ap_verification(verification_status);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_created_by ON ap_verification(created_by);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_ap_verification_updated_at
@@ -286,9 +286,9 @@ CREATE TABLE ap_verification_item (
 );
 
 -- 索引
-CREATE INDEX idx_ap_verification_item_verification_id ON ap_verification_item(verification_id);
-CREATE INDEX idx_ap_verification_item_invoice_id ON ap_verification_item(invoice_id);
-CREATE INDEX idx_ap_verification_item_payment_id ON ap_verification_item(payment_id);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_item_verification_id ON ap_verification_item(verification_id);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_item_invoice_id ON ap_verification_item(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_ap_verification_item_payment_id ON ap_verification_item(payment_id);
 
 
 -- =====================================================
@@ -326,11 +326,11 @@ ALTER TABLE ap_reconciliation ADD CONSTRAINT fk_ap_reconciliation_disputed_by
     FOREIGN KEY (disputed_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_ap_reconciliation_no ON ap_reconciliation(reconciliation_no);
-CREATE INDEX idx_ap_reconciliation_supplier_id ON ap_reconciliation(supplier_id);
-CREATE INDEX idx_ap_reconciliation_date ON ap_reconciliation(start_date, end_date);
-CREATE INDEX idx_ap_reconciliation_status ON ap_reconciliation(reconciliation_status);
-CREATE INDEX idx_ap_reconciliation_created_by ON ap_reconciliation(created_by);
+CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_no ON ap_reconciliation(reconciliation_no);
+CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_supplier_id ON ap_reconciliation(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_date ON ap_reconciliation(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_status ON ap_reconciliation(reconciliation_status);
+CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_created_by ON ap_reconciliation(created_by);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_ap_reconciliation_updated_at
@@ -359,9 +359,9 @@ LEFT JOIN ap_invoice inv ON s.id = inv.supplier_id AND inv.invoice_status NOT IN
 GROUP BY s.id, s.supplier_code, s.supplier_name;
 
 -- 物化视图索引
-CREATE INDEX idx_mv_supplier_ap_summary_supplier_id ON mv_supplier_ap_summary(supplier_id);
-CREATE INDEX idx_mv_supplier_ap_summary_code ON mv_supplier_ap_summary(supplier_code);
-CREATE INDEX idx_mv_supplier_ap_summary_name ON mv_supplier_ap_summary(supplier_name);
+CREATE INDEX IF NOT EXISTS idx_mv_supplier_ap_summary_supplier_id ON mv_supplier_ap_summary(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_mv_supplier_ap_summary_code ON mv_supplier_ap_summary(supplier_code);
+CREATE INDEX IF NOT EXISTS idx_mv_supplier_ap_summary_name ON mv_supplier_ap_summary(supplier_name);
 
 -- 刷新物化视图的函数
 CREATE OR REPLACE FUNCTION refresh_mv_supplier_ap_summary()

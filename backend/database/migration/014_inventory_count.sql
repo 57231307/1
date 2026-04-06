@@ -24,13 +24,13 @@ CREATE TABLE IF NOT EXISTS inventory_counts (
 );
 
 -- 为盘点单号创建索引（高频查询字段）
-CREATE INDEX idx_inventory_counts_count_no ON inventory_counts(count_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_counts_count_no ON inventory_counts(count_no);
 -- 为仓库 ID 创建索引
-CREATE INDEX idx_inventory_counts_warehouse ON inventory_counts(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_counts_warehouse ON inventory_counts(warehouse_id);
 -- 为状态创建索引
-CREATE INDEX idx_inventory_counts_status ON inventory_counts(status);
+CREATE INDEX IF NOT EXISTS idx_inventory_counts_status ON inventory_counts(status);
 -- 为盘点日期创建索引
-CREATE INDEX idx_inventory_counts_count_date ON inventory_counts(count_date);
+CREATE INDEX IF NOT EXISTS idx_inventory_counts_count_date ON inventory_counts(count_date);
 
 -- 添加表注释
 COMMENT ON TABLE inventory_counts IS '库存盘点单表';
@@ -70,9 +70,9 @@ CREATE TABLE IF NOT EXISTS inventory_count_items (
 );
 
 -- 为盘点单 ID 创建索引（高频查询字段）
-CREATE INDEX idx_count_items_count_id ON inventory_count_items(count_id);
+CREATE INDEX IF NOT EXISTS idx_count_items_count_id ON inventory_count_items(count_id);
 -- 为产品 ID 创建索引
-CREATE INDEX idx_count_items_product_id ON inventory_count_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_count_items_product_id ON inventory_count_items(product_id);
 
 -- 添加表注释
 COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';

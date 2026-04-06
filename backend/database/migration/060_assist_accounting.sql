@@ -27,8 +27,8 @@ COMMENT ON COLUMN assist_accounting_dimension.is_active IS '是否启用';
 COMMENT ON COLUMN assist_accounting_dimension.sort_order IS '排序顺序';
 
 -- 索引
-CREATE INDEX idx_dimension_code ON assist_accounting_dimension(dimension_code);
-CREATE INDEX idx_dimension_active ON assist_accounting_dimension(is_active);
+CREATE INDEX IF NOT EXISTS idx_dimension_code ON assist_accounting_dimension(dimension_code);
+CREATE INDEX IF NOT EXISTS idx_dimension_active ON assist_accounting_dimension(is_active);
 
 -- 2. 辅助核算记录表
 -- ============================================
@@ -80,15 +80,15 @@ COMMENT ON COLUMN assist_accounting_record.remarks IS '备注';
 COMMENT ON COLUMN assist_accounting_record.created_by IS '创建人 ID';
 
 -- 索引
-CREATE INDEX idx_record_business ON assist_accounting_record(business_type, business_no);
-CREATE INDEX idx_record_five_dimension ON assist_accounting_record(five_dimension_id);
-CREATE INDEX idx_record_subject ON assist_accounting_record(account_subject_id);
-CREATE INDEX idx_record_batch ON assist_accounting_record(batch_no);
-CREATE INDEX idx_record_color_no ON assist_accounting_record(color_no);
-CREATE INDEX idx_record_warehouse ON assist_accounting_record(warehouse_id);
-CREATE INDEX idx_record_created_at ON assist_accounting_record(created_at);
-CREATE INDEX idx_record_business_five ON assist_accounting_record(business_type, five_dimension_id);
-CREATE INDEX idx_record_period ON assist_accounting_record(created_at, account_subject_id);
+CREATE INDEX IF NOT EXISTS idx_record_business ON assist_accounting_record(business_type, business_no);
+CREATE INDEX IF NOT EXISTS idx_record_five_dimension ON assist_accounting_record(five_dimension_id);
+CREATE INDEX IF NOT EXISTS idx_record_subject ON assist_accounting_record(account_subject_id);
+CREATE INDEX IF NOT EXISTS idx_record_batch ON assist_accounting_record(batch_no);
+CREATE INDEX IF NOT EXISTS idx_record_color_no ON assist_accounting_record(color_no);
+CREATE INDEX IF NOT EXISTS idx_record_warehouse ON assist_accounting_record(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_record_created_at ON assist_accounting_record(created_at);
+CREATE INDEX IF NOT EXISTS idx_record_business_five ON assist_accounting_record(business_type, five_dimension_id);
+CREATE INDEX IF NOT EXISTS idx_record_period ON assist_accounting_record(created_at, account_subject_id);
 
 -- 3. 辅助核算汇总表
 -- ============================================
@@ -124,10 +124,10 @@ COMMENT ON COLUMN assist_accounting_summary.total_quantity_kg IS '数量（公�
 COMMENT ON COLUMN assist_accounting_summary.record_count IS '记录数';
 
 -- 索引
-CREATE INDEX idx_summary_period ON assist_accounting_summary(accounting_period);
-CREATE INDEX idx_summary_dimension ON assist_accounting_summary(dimension_code);
-CREATE INDEX idx_summary_subject ON assist_accounting_summary(account_subject_id);
-CREATE INDEX idx_summary_period_dimension ON assist_accounting_summary(accounting_period, dimension_code, dimension_value_id);
+CREATE INDEX IF NOT EXISTS idx_summary_period ON assist_accounting_summary(accounting_period);
+CREATE INDEX IF NOT EXISTS idx_summary_dimension ON assist_accounting_summary(dimension_code);
+CREATE INDEX IF NOT EXISTS idx_summary_subject ON assist_accounting_summary(account_subject_id);
+CREATE INDEX IF NOT EXISTS idx_summary_period_dimension ON assist_accounting_summary(accounting_period, dimension_code, dimension_value_id);
 
 -- 4. 插入预设的 8 个辅助核算维度
 -- ============================================

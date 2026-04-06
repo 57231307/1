@@ -24,15 +24,15 @@ CREATE TABLE IF NOT EXISTS inventory_transfers (
 );
 
 -- 为调拨单号创建索引（高频查询字段）
-CREATE INDEX idx_inventory_transfers_transfer_no ON inventory_transfers(transfer_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_transfer_no ON inventory_transfers(transfer_no);
 -- 为源仓库 ID 创建索引
-CREATE INDEX idx_inventory_transfers_from_warehouse ON inventory_transfers(from_warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_from_warehouse ON inventory_transfers(from_warehouse_id);
 -- 为目标仓库 ID 创建索引
-CREATE INDEX idx_inventory_transfers_to_warehouse ON inventory_transfers(to_warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_to_warehouse ON inventory_transfers(to_warehouse_id);
 -- 为状态创建索引
-CREATE INDEX idx_inventory_transfers_status ON inventory_transfers(status);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_status ON inventory_transfers(status);
 -- 为调拨日期创建索引
-CREATE INDEX idx_inventory_transfers_transfer_date ON inventory_transfers(transfer_date);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_transfer_date ON inventory_transfers(transfer_date);
 
 -- 添加表注释
 COMMENT ON TABLE inventory_transfers IS '库存调拨单表';
@@ -68,9 +68,9 @@ CREATE TABLE IF NOT EXISTS inventory_transfer_items (
 );
 
 -- 为调拨单 ID 创建索引（高频查询字段）
-CREATE INDEX idx_transfer_items_transfer_id ON inventory_transfer_items(transfer_id);
+CREATE INDEX IF NOT EXISTS idx_transfer_items_transfer_id ON inventory_transfer_items(transfer_id);
 -- 为产品 ID 创建索引
-CREATE INDEX idx_transfer_items_product_id ON inventory_transfer_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_transfer_items_product_id ON inventory_transfer_items(product_id);
 
 -- 添加表注释
 COMMENT ON TABLE inventory_transfer_items IS '库存调拨明细表';

@@ -57,9 +57,9 @@ COMMENT ON COLUMN fixed_assets.original_value IS '原值';
 COMMENT ON COLUMN fixed_assets.accumulated_depreciation IS '累计折旧';
 COMMENT ON COLUMN fixed_assets.net_value IS '净值';
 
-CREATE INDEX idx_fixed_assets_no ON fixed_assets(asset_no);
-CREATE INDEX idx_fixed_assets_category ON fixed_assets(asset_category);
-CREATE INDEX idx_fixed_assets_status ON fixed_assets(status);
+CREATE INDEX IF NOT EXISTS idx_fixed_assets_no ON fixed_assets(asset_no);
+CREATE INDEX IF NOT EXISTS idx_fixed_assets_category ON fixed_assets(asset_category);
+CREATE INDEX IF NOT EXISTS idx_fixed_assets_status ON fixed_assets(status);
 
 -- 2. 折旧记录表
 -- ============================================
@@ -86,8 +86,8 @@ COMMENT ON TABLE depreciation_records IS '折旧记录表';
 COMMENT ON COLUMN depreciation_records.period IS '会计期间';
 COMMENT ON COLUMN depreciation_records.monthly_depreciation IS '月折旧额';
 
-CREATE INDEX idx_depreciation_records_asset ON depreciation_records(asset_id);
-CREATE INDEX idx_depreciation_records_period ON depreciation_records(period);
+CREATE INDEX IF NOT EXISTS idx_depreciation_records_asset ON depreciation_records(asset_id);
+CREATE INDEX IF NOT EXISTS idx_depreciation_records_period ON depreciation_records(period);
 
 -- 3. 资产处置表
 -- ============================================
@@ -118,8 +118,8 @@ COMMENT ON TABLE asset_disposals IS '资产处置表';
 COMMENT ON COLUMN asset_disposals.disposal_type IS '处置类型';
 COMMENT ON COLUMN asset_disposals.net_gain_loss IS '处置损益';
 
-CREATE INDEX idx_asset_disposals_no ON asset_disposals(disposal_no);
-CREATE INDEX idx_asset_disposals_asset ON asset_disposals(asset_id);
+CREATE INDEX IF NOT EXISTS idx_asset_disposals_no ON asset_disposals(disposal_no);
+CREATE INDEX IF NOT EXISTS idx_asset_disposals_asset ON asset_disposals(asset_id);
 
 -- ============================================
 -- 迁移完成

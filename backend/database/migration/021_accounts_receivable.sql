@@ -62,12 +62,12 @@ COMMENT ON COLUMN ar_invoices.invoice_amount IS '应收金额';
 COMMENT ON COLUMN ar_invoices.received_amount IS '已收金额';
 COMMENT ON COLUMN ar_invoices.unpaid_amount IS '未收金额';
 
-CREATE INDEX idx_ar_invoices_no ON ar_invoices(invoice_no);
-CREATE INDEX idx_ar_invoices_customer ON ar_invoices(customer_id);
-CREATE INDEX idx_ar_invoices_date ON ar_invoices(invoice_date);
-CREATE INDEX idx_ar_invoices_status ON ar_invoices(status);
-CREATE INDEX idx_ar_invoices_batch ON ar_invoices(batch_no);
-CREATE INDEX idx_ar_invoices_color_no ON ar_invoices(color_no);
+CREATE INDEX IF NOT EXISTS idx_ar_invoices_no ON ar_invoices(invoice_no);
+CREATE INDEX IF NOT EXISTS idx_ar_invoices_customer ON ar_invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ar_invoices_date ON ar_invoices(invoice_date);
+CREATE INDEX IF NOT EXISTS idx_ar_invoices_status ON ar_invoices(status);
+CREATE INDEX IF NOT EXISTS idx_ar_invoices_batch ON ar_invoices(batch_no);
+CREATE INDEX IF NOT EXISTS idx_ar_invoices_color_no ON ar_invoices(color_no);
 
 -- 2. 收款申请单表
 -- ============================================
@@ -116,9 +116,9 @@ COMMENT ON COLUMN ar_collection_requests.customer_id IS '客户 ID';
 COMMENT ON COLUMN ar_collection_requests.collection_amount IS '收款金额';
 COMMENT ON COLUMN ar_collection_requests.approval_status IS '审批状态';
 
-CREATE INDEX idx_ar_collection_requests_no ON ar_collection_requests(request_no);
-CREATE INDEX idx_ar_collection_requests_customer ON ar_collection_requests(customer_id);
-CREATE INDEX idx_ar_collection_requests_status ON ar_collection_requests(status);
+CREATE INDEX IF NOT EXISTS idx_ar_collection_requests_no ON ar_collection_requests(request_no);
+CREATE INDEX IF NOT EXISTS idx_ar_collection_requests_customer ON ar_collection_requests(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ar_collection_requests_status ON ar_collection_requests(status);
 
 -- 3. 收款单表
 -- ============================================
@@ -159,10 +159,10 @@ COMMENT ON COLUMN ar_collections.customer_id IS '客户 ID';
 COMMENT ON COLUMN ar_collections.collection_amount IS '收款金额';
 COMMENT ON COLUMN ar_collections.collection_method IS '收款方式';
 
-CREATE INDEX idx_ar_collections_no ON ar_collections(collection_no);
-CREATE INDEX idx_ar_collections_customer ON ar_collections(customer_id);
-CREATE INDEX idx_ar_collections_date ON ar_collections(collection_date);
-CREATE INDEX idx_ar_collections_status ON ar_collections(status);
+CREATE INDEX IF NOT EXISTS idx_ar_collections_no ON ar_collections(collection_no);
+CREATE INDEX IF NOT EXISTS idx_ar_collections_customer ON ar_collections(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ar_collections_date ON ar_collections(collection_date);
+CREATE INDEX IF NOT EXISTS idx_ar_collections_status ON ar_collections(status);
 
 -- 4. 核销记录表
 -- ============================================
@@ -206,9 +206,9 @@ COMMENT ON COLUMN ar_verifications.verification_no IS '核销单编号';
 COMMENT ON COLUMN ar_verifications.customer_id IS '客户 ID';
 COMMENT ON COLUMN ar_verifications.verification_amount IS '核销金额';
 
-CREATE INDEX idx_ar_verifications_no ON ar_verifications(verification_no);
-CREATE INDEX idx_ar_verifications_customer ON ar_verifications(customer_id);
-CREATE INDEX idx_ar_verifications_date ON ar_verifications(verification_date);
+CREATE INDEX IF NOT EXISTS idx_ar_verifications_no ON ar_verifications(verification_no);
+CREATE INDEX IF NOT EXISTS idx_ar_verifications_customer ON ar_verifications(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ar_verifications_date ON ar_verifications(verification_date);
 
 -- 5. 对账单表
 -- ============================================
@@ -251,9 +251,9 @@ COMMENT ON COLUMN ar_reconciliations.customer_id IS '客户 ID';
 COMMENT ON COLUMN ar_reconciliations.opening_balance IS '期初余额';
 COMMENT ON COLUMN ar_reconciliations.closing_balance IS '期末余额';
 
-CREATE INDEX idx_ar_reconciliations_no ON ar_reconciliations(reconciliation_no);
-CREATE INDEX idx_ar_reconciliations_customer ON ar_reconciliations(customer_id);
-CREATE INDEX idx_ar_reconciliations_period ON ar_reconciliations(period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_ar_reconciliations_no ON ar_reconciliations(reconciliation_no);
+CREATE INDEX IF NOT EXISTS idx_ar_reconciliations_customer ON ar_reconciliations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ar_reconciliations_period ON ar_reconciliations(period_start, period_end);
 
 -- 6. 收款计划表
 -- ============================================
@@ -287,8 +287,8 @@ COMMENT ON COLUMN ar_collection_plans.customer_id IS '客户 ID';
 COMMENT ON COLUMN ar_collection_plans.plan_amount IS '计划收款金额';
 COMMENT ON COLUMN ar_collection_plans.plan_date IS '计划收款日期';
 
-CREATE INDEX idx_ar_collection_plans_customer ON ar_collection_plans(customer_id);
-CREATE INDEX idx_ar_collection_plans_date ON ar_collection_plans(plan_date);
+CREATE INDEX IF NOT EXISTS idx_ar_collection_plans_customer ON ar_collection_plans(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ar_collection_plans_date ON ar_collection_plans(plan_date);
 
 -- ============================================
 -- 迁移完成

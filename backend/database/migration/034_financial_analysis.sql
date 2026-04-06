@@ -58,9 +58,9 @@ CREATE TABLE financial_report_configs (
 );
 
 -- 创建索引
-CREATE INDEX idx_financial_indicators_type ON financial_indicators(indicator_type);
-CREATE INDEX idx_financial_analysis_period ON financial_analysis_results(period);
-CREATE INDEX idx_financial_trends_period ON financial_trends(period);
+CREATE INDEX IF NOT EXISTS idx_financial_indicators_type ON financial_indicators(indicator_type);
+CREATE INDEX IF NOT EXISTS idx_financial_analysis_period ON financial_analysis_results(period);
+CREATE INDEX IF NOT EXISTS idx_financial_trends_period ON financial_trends(period);
 
 -- 添加中文注释
 COMMENT ON TABLE financial_indicators IS '财务指标表';

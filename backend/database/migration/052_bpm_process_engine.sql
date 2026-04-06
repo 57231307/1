@@ -54,11 +54,11 @@ COMMENT ON COLUMN bpm_process_definition.initiator_roles IS '发起人角色 ID 
 ALTER TABLE bpm_process_definition ADD CONSTRAINT uk_process_key_version UNIQUE (process_key, process_version);
 
 -- 索引
-CREATE INDEX idx_bpm_pd_process_key ON bpm_process_definition(process_key);
-CREATE INDEX idx_bpm_pd_status ON bpm_process_definition(status);
-CREATE INDEX idx_bpm_pd_category ON bpm_process_definition(process_category);
-CREATE INDEX idx_bpm_pd_published ON bpm_process_definition(is_published);
-CREATE INDEX idx_bpm_pd_created_at ON bpm_process_definition(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bpm_pd_process_key ON bpm_process_definition(process_key);
+CREATE INDEX IF NOT EXISTS idx_bpm_pd_status ON bpm_process_definition(status);
+CREATE INDEX IF NOT EXISTS idx_bpm_pd_category ON bpm_process_definition(process_category);
+CREATE INDEX IF NOT EXISTS idx_bpm_pd_published ON bpm_process_definition(is_published);
+CREATE INDEX IF NOT EXISTS idx_bpm_pd_created_at ON bpm_process_definition(created_at DESC);
 
 -- ========================================
 -- 2. 流程实例表
@@ -115,15 +115,15 @@ ALTER TABLE bpm_process_instance ADD CONSTRAINT fk_pi_initiator
     FOREIGN KEY (initiator_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_bpm_pi_instance_no ON bpm_process_instance(instance_no);
-CREATE INDEX idx_bpm_pi_process_definition ON bpm_process_instance(process_definition_id);
-CREATE INDEX idx_bpm_pi_business ON bpm_process_instance(business_type, business_id);
-CREATE INDEX idx_bpm_pi_initiator ON bpm_process_instance(initiator_id);
-CREATE INDEX idx_bpm_pi_status ON bpm_process_instance(status);
-CREATE INDEX idx_bpm_pi_current_node ON bpm_process_instance(current_node_id);
-CREATE INDEX idx_bpm_pi_current_handler ON bpm_process_instance USING GIN (current_handler_ids);
-CREATE INDEX idx_bpm_pi_started_at ON bpm_process_instance(started_at DESC);
-CREATE INDEX idx_bpm_pi_completed_at ON bpm_process_instance(completed_at);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_instance_no ON bpm_process_instance(instance_no);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_process_definition ON bpm_process_instance(process_definition_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_business ON bpm_process_instance(business_type, business_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_initiator ON bpm_process_instance(initiator_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_status ON bpm_process_instance(status);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_current_node ON bpm_process_instance(current_node_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_current_handler ON bpm_process_instance USING GIN (current_handler_ids);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_started_at ON bpm_process_instance(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bpm_pi_completed_at ON bpm_process_instance(completed_at);
 
 -- ========================================
 -- 3. 流程任务表
@@ -191,17 +191,17 @@ ALTER TABLE bpm_task ADD CONSTRAINT fk_bpm_task_actual_handler
     FOREIGN KEY (actual_handler_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_bpm_task_task_no ON bpm_task(task_no);
-CREATE INDEX idx_bpm_task_instance ON bpm_task(instance_id);
-CREATE INDEX idx_bpm_task_process_definition ON bpm_task(process_definition_id);
-CREATE INDEX idx_bpm_task_node ON bpm_task(node_id);
-CREATE INDEX idx_bpm_task_status ON bpm_task(status);
-CREATE INDEX idx_bpm_task_assignee_ids ON bpm_task USING GIN (assignee_ids);
-CREATE INDEX idx_bpm_task_candidate_user_ids ON bpm_task USING GIN (candidate_user_ids);
-CREATE INDEX idx_bpm_task_actual_handler ON bpm_task(actual_handler_id);
-CREATE INDEX idx_bpm_task_created_at ON bpm_task(created_at DESC);
-CREATE INDEX idx_bpm_task_due_date ON bpm_task(due_date);
-CREATE INDEX idx_bpm_task_overdue ON bpm_task(is_overdue);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_task_no ON bpm_task(task_no);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_instance ON bpm_task(instance_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_process_definition ON bpm_task(process_definition_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_node ON bpm_task(node_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_status ON bpm_task(status);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_assignee_ids ON bpm_task USING GIN (assignee_ids);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_candidate_user_ids ON bpm_task USING GIN (candidate_user_ids);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_actual_handler ON bpm_task(actual_handler_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_created_at ON bpm_task(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_due_date ON bpm_task(due_date);
+CREATE INDEX IF NOT EXISTS idx_bpm_task_overdue ON bpm_task(is_overdue);
 
 -- ========================================
 -- 4. 流程操作日志表
@@ -251,11 +251,11 @@ ALTER TABLE bpm_operation_log ADD CONSTRAINT fk_bpm_log_operator
     FOREIGN KEY (operator_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_bpm_log_instance ON bpm_operation_log(instance_id);
-CREATE INDEX idx_bpm_log_task ON bpm_operation_log(task_id);
-CREATE INDEX idx_bpm_log_operator ON bpm_operation_log(operator_id);
-CREATE INDEX idx_bpm_log_operated_at ON bpm_operation_log(operated_at DESC);
-CREATE INDEX idx_bpm_log_operation_type ON bpm_operation_log(operation_type);
+CREATE INDEX IF NOT EXISTS idx_bpm_log_instance ON bpm_operation_log(instance_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_log_task ON bpm_operation_log(task_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_log_operator ON bpm_operation_log(operator_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_log_operated_at ON bpm_operation_log(operated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bpm_log_operation_type ON bpm_operation_log(operation_type);
 
 -- ========================================
 -- 5. 流程节点配置表
@@ -308,9 +308,9 @@ ALTER TABLE bpm_node_config ADD CONSTRAINT fk_bpm_nc_process_definition
 ALTER TABLE bpm_node_config ADD CONSTRAINT uk_nc_process_node UNIQUE (process_definition_id, node_id);
 
 -- 索引
-CREATE INDEX idx_bpm_nc_process_definition ON bpm_node_config(process_definition_id);
-CREATE INDEX idx_bpm_nc_node_type ON bpm_node_config(node_type);
-CREATE INDEX idx_bpm_nc_active ON bpm_node_config(is_active);
+CREATE INDEX IF NOT EXISTS idx_bpm_nc_process_definition ON bpm_node_config(process_definition_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_nc_node_type ON bpm_node_config(node_type);
+CREATE INDEX IF NOT EXISTS idx_bpm_nc_active ON bpm_node_config(is_active);
 
 -- ========================================
 -- 6. 流程流转条件表
@@ -345,10 +345,10 @@ ALTER TABLE bpm_transition_condition ADD CONSTRAINT fk_bpm_tc_process_definition
     FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
 
 -- 索引
-CREATE INDEX idx_bpm_tc_process_definition ON bpm_transition_condition(process_definition_id);
-CREATE INDEX idx_bpm_tc_from_node ON bpm_transition_condition(from_node_id);
-CREATE INDEX idx_bpm_tc_to_node ON bpm_transition_condition(to_node_id);
-CREATE INDEX idx_bpm_tc_active ON bpm_transition_condition(is_active);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_process_definition ON bpm_transition_condition(process_definition_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_from_node ON bpm_transition_condition(from_node_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_to_node ON bpm_transition_condition(to_node_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_tc_active ON bpm_transition_condition(is_active);
 
 -- ========================================
 -- 7. 流程委托表
@@ -389,11 +389,11 @@ ALTER TABLE bpm_task_delegation ADD CONSTRAINT fk_bpm_td_delegatee
     FOREIGN KEY (delegatee_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_bpm_td_task ON bpm_task_delegation(task_id);
-CREATE INDEX idx_bpm_td_delegator ON bpm_task_delegation(delegator_id);
-CREATE INDEX idx_bpm_td_delegatee ON bpm_task_delegation(delegatee_id);
-CREATE INDEX idx_bpm_td_status ON bpm_task_delegation(status);
-CREATE INDEX idx_bpm_td_date_range ON bpm_task_delegation(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_bpm_td_task ON bpm_task_delegation(task_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_td_delegator ON bpm_task_delegation(delegator_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_td_delegatee ON bpm_task_delegation(delegatee_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_td_status ON bpm_task_delegation(status);
+CREATE INDEX IF NOT EXISTS idx_bpm_td_date_range ON bpm_task_delegation(start_date, end_date);
 
 -- ========================================
 -- 8. 流程催办表
@@ -427,9 +427,9 @@ ALTER TABLE bpm_task_urge ADD CONSTRAINT fk_bpm_urge_instance
     FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE;
 
 -- 索引
-CREATE INDEX idx_bpm_urge_task ON bpm_task_urge(task_id);
-CREATE INDEX idx_bpm_urge_instance ON bpm_task_urge(instance_id);
-CREATE INDEX idx_bpm_urge_created_at ON bpm_task_urge(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bpm_urge_task ON bpm_task_urge(task_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_urge_instance ON bpm_task_urge(instance_id);
+CREATE INDEX IF NOT EXISTS idx_bpm_urge_created_at ON bpm_task_urge(created_at DESC);
 
 -- ========================================
 -- 9. 触发器函数

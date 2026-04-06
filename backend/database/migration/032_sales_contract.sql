@@ -50,9 +50,9 @@ COMMENT ON COLUMN sales_contracts.contract_no IS '合同编号';
 COMMENT ON COLUMN sales_contracts.total_amount IS '合同总金额';
 COMMENT ON COLUMN sales_contracts.status IS '合同状态';
 
-CREATE INDEX idx_sales_contracts_no ON sales_contracts(contract_no);
-CREATE INDEX idx_sales_contracts_customer ON sales_contracts(customer_id);
-CREATE INDEX idx_sales_contracts_status ON sales_contracts(status);
+CREATE INDEX IF NOT EXISTS idx_sales_contracts_no ON sales_contracts(contract_no);
+CREATE INDEX IF NOT EXISTS idx_sales_contracts_customer ON sales_contracts(customer_id);
+CREATE INDEX IF NOT EXISTS idx_sales_contracts_status ON sales_contracts(status);
 
 -- ============================================
 -- 迁移完成

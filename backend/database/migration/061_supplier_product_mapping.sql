@@ -33,9 +33,9 @@ COMMENT ON COLUMN supplier_products.product_name IS '供应商产品名称';
 ALTER TABLE supplier_products ADD CONSTRAINT uk_supplier_product_code UNIQUE (supplier_id, product_code);
 
 -- 索引
-CREATE INDEX idx_supplier_products_supplier_id ON supplier_products(supplier_id);
-CREATE INDEX idx_supplier_products_code ON supplier_products(product_code);
-CREATE INDEX idx_supplier_products_enabled ON supplier_products(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_supplier_products_supplier_id ON supplier_products(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_products_code ON supplier_products(product_code);
+CREATE INDEX IF NOT EXISTS idx_supplier_products_enabled ON supplier_products(is_enabled);
 
 -- ========================================
 -- 2. 供应商产品颜色表
@@ -62,9 +62,9 @@ COMMENT ON COLUMN supplier_product_colors.color_no IS '供应商色号编码';
 ALTER TABLE supplier_product_colors ADD CONSTRAINT uk_supplier_product_color UNIQUE (supplier_product_id, color_no);
 
 -- 索引
-CREATE INDEX idx_supplier_product_colors_product_id ON supplier_product_colors(supplier_product_id);
-CREATE INDEX idx_supplier_product_colors_color_no ON supplier_product_colors(color_no);
-CREATE INDEX idx_supplier_product_colors_enabled ON supplier_product_colors(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_supplier_product_colors_product_id ON supplier_product_colors(supplier_product_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_product_colors_color_no ON supplier_product_colors(color_no);
+CREATE INDEX IF NOT EXISTS idx_supplier_product_colors_enabled ON supplier_product_colors(is_enabled);
 
 -- ========================================
 -- 3. 系统产品与供应商产品映射表
@@ -105,12 +105,12 @@ ALTER TABLE product_supplier_mappings ADD CONSTRAINT uk_product_supplier_mapping
 );
 
 -- 索引
-CREATE INDEX idx_product_supplier_mappings_product ON product_supplier_mappings(product_id);
-CREATE INDEX idx_product_supplier_mappings_product_color ON product_supplier_mappings(product_color_id);
-CREATE INDEX idx_product_supplier_mappings_supplier ON product_supplier_mappings(supplier_id);
-CREATE INDEX idx_product_supplier_mappings_supplier_product ON product_supplier_mappings(supplier_product_id);
-CREATE INDEX idx_product_supplier_mappings_primary ON product_supplier_mappings(is_primary);
-CREATE INDEX idx_product_supplier_mappings_enabled ON product_supplier_mappings(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_product_supplier_mappings_product ON product_supplier_mappings(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_supplier_mappings_product_color ON product_supplier_mappings(product_color_id);
+CREATE INDEX IF NOT EXISTS idx_product_supplier_mappings_supplier ON product_supplier_mappings(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_product_supplier_mappings_supplier_product ON product_supplier_mappings(supplier_product_id);
+CREATE INDEX IF NOT EXISTS idx_product_supplier_mappings_primary ON product_supplier_mappings(is_primary);
+CREATE INDEX IF NOT EXISTS idx_product_supplier_mappings_enabled ON product_supplier_mappings(is_enabled);
 
 -- ========================================
 -- 4. 触发器函数

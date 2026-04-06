@@ -62,13 +62,13 @@ COMMENT ON COLUMN log_operation.request_body IS '请求体';
 COMMENT ON COLUMN log_operation.response_body IS '响应体';
 
 -- 索引
-CREATE INDEX idx_log_op_log_no ON log_operation(log_no);
-CREATE INDEX idx_log_op_module ON log_operation(module);
-CREATE INDEX idx_log_op_operation_type ON log_operation(operation_type);
-CREATE INDEX idx_log_op_user ON log_operation(user_id);
-CREATE INDEX idx_log_op_business ON log_operation(business_type, business_id);
-CREATE INDEX idx_log_op_operation_time ON log_operation(operation_time DESC);
-CREATE INDEX idx_log_op_module_time ON log_operation(module, operation_time DESC);
+CREATE INDEX IF NOT EXISTS idx_log_op_log_no ON log_operation(log_no);
+CREATE INDEX IF NOT EXISTS idx_log_op_module ON log_operation(module);
+CREATE INDEX IF NOT EXISTS idx_log_op_operation_type ON log_operation(operation_type);
+CREATE INDEX IF NOT EXISTS idx_log_op_user ON log_operation(user_id);
+CREATE INDEX IF NOT EXISTS idx_log_op_business ON log_operation(business_type, business_id);
+CREATE INDEX IF NOT EXISTS idx_log_op_operation_time ON log_operation(operation_time DESC);
+CREATE INDEX IF NOT EXISTS idx_log_op_module_time ON log_operation(module, operation_time DESC);
 
 -- ========================================
 -- 2. 系统日志表
@@ -112,11 +112,11 @@ COMMENT ON COLUMN log_system.logger_name IS '记录器名称';
 COMMENT ON COLUMN log_system.log_data IS '日志数据';
 
 -- 索引
-CREATE INDEX idx_log_sys_log_no ON log_system(log_no);
-CREATE INDEX idx_log_sys_level ON log_system(log_level);
-CREATE INDEX idx_log_sys_logger ON log_system(logger_name);
-CREATE INDEX idx_log_sys_time ON log_system(log_time DESC);
-CREATE INDEX idx_log_sys_level_time ON log_system(log_level, log_time DESC);
+CREATE INDEX IF NOT EXISTS idx_log_sys_log_no ON log_system(log_no);
+CREATE INDEX IF NOT EXISTS idx_log_sys_level ON log_system(log_level);
+CREATE INDEX IF NOT EXISTS idx_log_sys_logger ON log_system(logger_name);
+CREATE INDEX IF NOT EXISTS idx_log_sys_time ON log_system(log_time DESC);
+CREATE INDEX IF NOT EXISTS idx_log_sys_level_time ON log_system(log_level, log_time DESC);
 
 -- ========================================
 -- 3. 登录日志表
@@ -159,12 +159,12 @@ COMMENT ON COLUMN log_login.login_status IS '登录状态（success/failed/locke
 COMMENT ON COLUMN log_login.login_type IS '登录类型（password/sms/email/oauth）';
 
 -- 索引
-CREATE INDEX idx_log_login_log_no ON log_login(log_no);
-CREATE INDEX idx_log_login_user ON log_login(user_id);
-CREATE INDEX idx_log_login_username ON log_login(username);
-CREATE INDEX idx_log_login_status ON log_login(login_status);
-CREATE INDEX idx_log_login_time ON log_login(login_time DESC);
-CREATE INDEX idx_log_login_ip ON log_login(ip_address);
+CREATE INDEX IF NOT EXISTS idx_log_login_log_no ON log_login(log_no);
+CREATE INDEX IF NOT EXISTS idx_log_login_user ON log_login(user_id);
+CREATE INDEX IF NOT EXISTS idx_log_login_username ON log_login(username);
+CREATE INDEX IF NOT EXISTS idx_log_login_status ON log_login(login_status);
+CREATE INDEX IF NOT EXISTS idx_log_login_time ON log_login(login_time DESC);
+CREATE INDEX IF NOT EXISTS idx_log_login_ip ON log_login(ip_address);
 
 -- ========================================
 -- 4. API 访问日志表
@@ -220,14 +220,14 @@ COMMENT ON COLUMN log_api_access.response_headers IS '响应头';
 COMMENT ON COLUMN log_api_access.db_query_count IS '数据库查询次数';
 
 -- 索引
-CREATE INDEX idx_log_api_log_no ON log_api_access(log_no);
-CREATE INDEX idx_log_api_request_id ON log_api_access(request_id);
-CREATE INDEX idx_log_api_method ON log_api_access(request_method);
-CREATE INDEX idx_log_api_status ON log_api_access(response_status);
-CREATE INDEX idx_log_api_user ON log_api_access(user_id);
-CREATE INDEX idx_log_api_time ON log_api_access(access_time DESC);
-CREATE INDEX idx_log_api_path ON log_api_access(request_path);
-CREATE INDEX idx_log_api_client_ip ON log_api_access(client_ip);
+CREATE INDEX IF NOT EXISTS idx_log_api_log_no ON log_api_access(log_no);
+CREATE INDEX IF NOT EXISTS idx_log_api_request_id ON log_api_access(request_id);
+CREATE INDEX IF NOT EXISTS idx_log_api_method ON log_api_access(request_method);
+CREATE INDEX IF NOT EXISTS idx_log_api_status ON log_api_access(response_status);
+CREATE INDEX IF NOT EXISTS idx_log_api_user ON log_api_access(user_id);
+CREATE INDEX IF NOT EXISTS idx_log_api_time ON log_api_access(access_time DESC);
+CREATE INDEX IF NOT EXISTS idx_log_api_path ON log_api_access(request_path);
+CREATE INDEX IF NOT EXISTS idx_log_api_client_ip ON log_api_access(client_ip);
 
 -- ========================================
 -- 5. 触发器函数
@@ -346,11 +346,11 @@ CREATE TABLE log_operation_202612 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-12-01') TO ('2027-01-01');
 
 -- 分区表索引
-CREATE INDEX idx_lop_partitioned_module ON log_operation_partitioned(module);
-CREATE INDEX idx_lop_partitioned_operation_type ON log_operation_partitioned(operation_type);
-CREATE INDEX idx_lop_partitioned_user ON log_operation_partitioned(user_id);
-CREATE INDEX idx_lop_partitioned_business ON log_operation_partitioned(business_type, business_id);
-CREATE INDEX idx_lop_partitioned_operation_time ON log_operation_partitioned(operation_time DESC);
+CREATE INDEX IF NOT EXISTS idx_lop_partitioned_module ON log_operation_partitioned(module);
+CREATE INDEX IF NOT EXISTS idx_lop_partitioned_operation_type ON log_operation_partitioned(operation_type);
+CREATE INDEX IF NOT EXISTS idx_lop_partitioned_user ON log_operation_partitioned(user_id);
+CREATE INDEX IF NOT EXISTS idx_lop_partitioned_business ON log_operation_partitioned(business_type, business_id);
+CREATE INDEX IF NOT EXISTS idx_lop_partitioned_operation_time ON log_operation_partitioned(operation_time DESC);
 
 -- 为分区表创建触发器以自动生成日志编号
 CREATE TRIGGER trg_log_operation_partitioned_generate_no

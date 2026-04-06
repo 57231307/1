@@ -42,8 +42,8 @@ COMMENT ON COLUMN customer_credit_ratings.credit_level IS '信用等级';
 COMMENT ON COLUMN customer_credit_ratings.credit_limit IS '信用额度';
 COMMENT ON COLUMN customer_credit_ratings.available_credit IS '可用额度';
 
-CREATE INDEX idx_customer_credit_ratings_customer ON customer_credit_ratings(customer_id);
-CREATE INDEX idx_customer_credit_ratings_level ON customer_credit_ratings(credit_level);
+CREATE INDEX IF NOT EXISTS idx_customer_credit_ratings_customer ON customer_credit_ratings(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_credit_ratings_level ON customer_credit_ratings(credit_level);
 
 -- 2. 信用变更记录表
 -- ============================================
@@ -70,7 +70,7 @@ CREATE TABLE customer_credit_changes (
 COMMENT ON TABLE customer_credit_changes IS '客户信用变更记录表';
 COMMENT ON COLUMN customer_credit_changes.change_type IS '变更类型';
 
-CREATE INDEX idx_customer_credit_changes_customer ON customer_credit_changes(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_credit_changes_customer ON customer_credit_changes(customer_id);
 
 -- ============================================
 -- 迁移完成

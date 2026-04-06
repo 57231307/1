@@ -67,12 +67,12 @@ CREATE TABLE sales_targets (
 );
 
 -- 创建索引
-CREATE INDEX idx_sales_statistics_period ON sales_statistics(period);
-CREATE INDEX idx_sales_statistics_type ON sales_statistics(statistic_type);
-CREATE INDEX idx_sales_trends_period ON sales_trends(period);
-CREATE INDEX idx_sales_trends_product ON sales_trends(product_id);
-CREATE INDEX idx_sales_performance_rankings_period ON sales_performance_rankings(period);
-CREATE INDEX idx_sales_targets_period ON sales_targets(target_period);
+CREATE INDEX IF NOT EXISTS idx_sales_statistics_period ON sales_statistics(period);
+CREATE INDEX IF NOT EXISTS idx_sales_statistics_type ON sales_statistics(statistic_type);
+CREATE INDEX IF NOT EXISTS idx_sales_trends_period ON sales_trends(period);
+CREATE INDEX IF NOT EXISTS idx_sales_trends_product ON sales_trends(product_id);
+CREATE INDEX IF NOT EXISTS idx_sales_performance_rankings_period ON sales_performance_rankings(period);
+CREATE INDEX IF NOT EXISTS idx_sales_targets_period ON sales_targets(target_period);
 
 -- 添加中文注释
 COMMENT ON TABLE sales_statistics IS '销售统计表';

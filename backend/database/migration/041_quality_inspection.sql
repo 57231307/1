@@ -89,11 +89,11 @@ CREATE TABLE quality_statistics (
 );
 
 -- 创建索引
-CREATE INDEX idx_quality_standards_product ON quality_inspection_standards(product_id);
-CREATE INDEX idx_quality_records_inspection_date ON quality_inspection_records(inspection_date);
-CREATE INDEX idx_quality_records_product ON quality_inspection_records(product_id);
-CREATE INDEX idx_unqualified_products_batch ON unqualified_products(batch_no);
-CREATE INDEX idx_quality_statistics_period ON quality_statistics(period);
+CREATE INDEX IF NOT EXISTS idx_quality_standards_product ON quality_inspection_standards(product_id);
+CREATE INDEX IF NOT EXISTS idx_quality_records_inspection_date ON quality_inspection_records(inspection_date);
+CREATE INDEX IF NOT EXISTS idx_quality_records_product ON quality_inspection_records(product_id);
+CREATE INDEX IF NOT EXISTS idx_unqualified_products_batch ON unqualified_products(batch_no);
+CREATE INDEX IF NOT EXISTS idx_quality_statistics_period ON quality_statistics(period);
 
 -- 添加中文注释
 COMMENT ON TABLE quality_inspection_standards IS '质量检验标准表';

@@ -58,9 +58,9 @@ COMMENT ON COLUMN product_colors.color_type IS '色号类型：常规色/定制�
 COMMENT ON COLUMN product_colors.dye_formula IS '染色配方（保密）';
 COMMENT ON COLUMN product_colors.extra_cost IS '特殊色号加价（元/米）';
 
-CREATE INDEX idx_product_colors_product_id ON product_colors(product_id);
-CREATE INDEX idx_product_colors_color_no ON product_colors(color_no);
-CREATE INDEX idx_product_colors_color_type ON product_colors(color_type);
+CREATE INDEX IF NOT EXISTS idx_product_colors_product_id ON product_colors(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_colors_color_no ON product_colors(color_no);
+CREATE INDEX IF NOT EXISTS idx_product_colors_color_type ON product_colors(color_type);
 
 -- 创建触发器：自动更新 updated_at
 CREATE OR REPLACE FUNCTION update_product_colors_updated_at()
@@ -113,7 +113,7 @@ COMMENT ON COLUMN warehouse_locations.location_type IS '库位类型：平面库
 COMMENT ON COLUMN warehouse_locations.is_batch_managed IS '是否批次管理';
 COMMENT ON COLUMN warehouse_locations.is_color_managed IS '是否色号管理';
 
-CREATE UNIQUE INDEX idx_location_code ON warehouse_locations(warehouse_id, location_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_location_code ON warehouse_locations(warehouse_id, location_code);
 
 -- 创建触发器：自动更新 updated_at
 CREATE TRIGGER trg_warehouse_locations_updated_at
@@ -217,11 +217,11 @@ COMMENT ON COLUMN inventory_transactions.quantity_kg IS '数量（公斤）';
 COMMENT ON COLUMN inventory_transactions.source_bill_type IS '来源单据类型';
 COMMENT ON COLUMN inventory_transactions.source_bill_no IS '来源单据号';
 
-CREATE INDEX idx_inventory_transactions_batch ON inventory_transactions(batch_no, color_no);
-CREATE INDEX idx_inventory_transactions_product ON inventory_transactions(product_id);
-CREATE INDEX idx_inventory_transactions_warehouse ON inventory_transactions(warehouse_id);
-CREATE INDEX idx_inventory_transactions_source ON inventory_transactions(source_bill_type, source_bill_id);
-CREATE INDEX idx_inventory_transactions_created ON inventory_transactions(created_at);
+CREATE INDEX IF NOT EXISTS idx_inventory_transactions_batch ON inventory_transactions(batch_no, color_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_transactions_product ON inventory_transactions(product_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transactions_warehouse ON inventory_transactions(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transactions_source ON inventory_transactions(source_bill_type, source_bill_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transactions_created ON inventory_transactions(created_at);
 
 -- ========================================
 -- 4. 销售订单模块面料行业适配

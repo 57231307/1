@@ -52,10 +52,10 @@ CREATE TABLE quality_standard_references (
 );
 
 -- 创建索引
-CREATE INDEX idx_quality_standards_type ON quality_standards(standard_type);
-CREATE INDEX idx_quality_standards_product ON quality_standards(product_id);
-CREATE INDEX idx_quality_standard_versions_standard ON quality_standard_versions(standard_id);
-CREATE INDEX idx_quality_standard_references_standard ON quality_standard_references(standard_id);
+CREATE INDEX IF NOT EXISTS idx_quality_standards_type ON quality_standards(standard_type);
+CREATE INDEX IF NOT EXISTS idx_quality_standards_product ON quality_standards(product_id);
+CREATE INDEX IF NOT EXISTS idx_quality_standard_versions_standard ON quality_standard_versions(standard_id);
+CREATE INDEX IF NOT EXISTS idx_quality_standard_references_standard ON quality_standard_references(standard_id);
 
 -- 添加中文注释
 COMMENT ON TABLE quality_standards IS '质量标准表';

@@ -54,11 +54,11 @@ CREATE TABLE purchase_price_history (
 );
 
 -- 创建索引
-CREATE INDEX idx_purchase_prices_product ON purchase_prices(product_id);
-CREATE INDEX idx_purchase_prices_supplier ON purchase_prices(supplier_id);
-CREATE INDEX idx_purchase_prices_effective ON purchase_prices(effective_date);
-CREATE INDEX idx_purchase_price_history_product ON purchase_price_history(product_id);
-CREATE INDEX idx_purchase_price_history_date ON purchase_price_history(price_date);
+CREATE INDEX IF NOT EXISTS idx_purchase_prices_product ON purchase_prices(product_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_prices_supplier ON purchase_prices(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_prices_effective ON purchase_prices(effective_date);
+CREATE INDEX IF NOT EXISTS idx_purchase_price_history_product ON purchase_price_history(product_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_price_history_date ON purchase_price_history(price_date);
 
 -- 添加中文注释
 COMMENT ON TABLE purchase_prices IS '采购价格表';

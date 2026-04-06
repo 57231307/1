@@ -62,13 +62,13 @@ ALTER TABLE oa_announcement ADD CONSTRAINT fk_oa_ann_publisher
     FOREIGN KEY (publisher_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_oa_ann_announcement_no ON oa_announcement(announcement_no);
-CREATE INDEX idx_oa_ann_type ON oa_announcement(announcement_type);
-CREATE INDEX idx_oa_ann_status ON oa_announcement(status);
-CREATE INDEX idx_oa_ann_priority ON oa_announcement(priority);
-CREATE INDEX idx_oa_ann_publish_date ON oa_announcement(publish_date DESC);
-CREATE INDEX idx_oa_ann_is_top ON oa_announcement(is_top);
-CREATE INDEX idx_oa_ann_effective ON oa_announcement(effective_date);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_announcement_no ON oa_announcement(announcement_no);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_type ON oa_announcement(announcement_type);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_status ON oa_announcement(status);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_priority ON oa_announcement(priority);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_publish_date ON oa_announcement(publish_date DESC);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_is_top ON oa_announcement(is_top);
+CREATE INDEX IF NOT EXISTS idx_oa_ann_effective ON oa_announcement(effective_date);
 
 -- ========================================
 -- 2. 公告阅读记录表
@@ -100,9 +100,9 @@ ALTER TABLE oa_announcement_read ADD CONSTRAINT fk_oa_ar_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- 索引
-CREATE INDEX idx_oa_ar_announcement ON oa_announcement_read(announcement_id);
-CREATE INDEX idx_oa_ar_user ON oa_announcement_read(user_id);
-CREATE INDEX idx_oa_ar_is_read ON oa_announcement_read(is_read);
+CREATE INDEX IF NOT EXISTS idx_oa_ar_announcement ON oa_announcement_read(announcement_id);
+CREATE INDEX IF NOT EXISTS idx_oa_ar_user ON oa_announcement_read(user_id);
+CREATE INDEX IF NOT EXISTS idx_oa_ar_is_read ON oa_announcement_read(is_read);
 
 -- ========================================
 -- 3. 站内消息表
@@ -153,12 +153,12 @@ ALTER TABLE oa_message ADD CONSTRAINT fk_oa_msg_sender
     FOREIGN KEY (sender_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_oa_msg_message_no ON oa_message(message_no);
-CREATE INDEX idx_oa_msg_type ON oa_message(message_type);
-CREATE INDEX idx_oa_msg_sender ON oa_message(sender_id);
-CREATE INDEX idx_oa_msg_receiver_ids ON oa_message USING GIN (receiver_ids);
-CREATE INDEX idx_oa_msg_send_time ON oa_message(send_time DESC);
-CREATE INDEX idx_oa_msg_business ON oa_message(business_type, business_id);
+CREATE INDEX IF NOT EXISTS idx_oa_msg_message_no ON oa_message(message_no);
+CREATE INDEX IF NOT EXISTS idx_oa_msg_type ON oa_message(message_type);
+CREATE INDEX IF NOT EXISTS idx_oa_msg_sender ON oa_message(sender_id);
+CREATE INDEX IF NOT EXISTS idx_oa_msg_receiver_ids ON oa_message USING GIN (receiver_ids);
+CREATE INDEX IF NOT EXISTS idx_oa_msg_send_time ON oa_message(send_time DESC);
+CREATE INDEX IF NOT EXISTS idx_oa_msg_business ON oa_message(business_type, business_id);
 
 -- ========================================
 -- 4. 用户消息状态表
@@ -192,10 +192,10 @@ ALTER TABLE oa_user_message_status ADD CONSTRAINT fk_oa_ums_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- 索引
-CREATE INDEX idx_oa_ums_message ON oa_user_message_status(message_id);
-CREATE INDEX idx_oa_ums_user ON oa_user_message_status(user_id);
-CREATE INDEX idx_oa_ums_is_read ON oa_user_message_status(is_read);
-CREATE INDEX idx_oa_ums_is_starred ON oa_user_message_status(is_starred);
+CREATE INDEX IF NOT EXISTS idx_oa_ums_message ON oa_user_message_status(message_id);
+CREATE INDEX IF NOT EXISTS idx_oa_ums_user ON oa_user_message_status(user_id);
+CREATE INDEX IF NOT EXISTS idx_oa_ums_is_read ON oa_user_message_status(is_read);
+CREATE INDEX IF NOT EXISTS idx_oa_ums_is_starred ON oa_user_message_status(is_starred);
 
 -- ========================================
 -- 5. 触发器函数

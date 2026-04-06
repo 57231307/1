@@ -58,10 +58,10 @@ COMMENT ON COLUMN report_definition.filter_config IS '筛选器配置（JSON 格
 ALTER TABLE report_definition ADD CONSTRAINT uk_report_key UNIQUE (report_key);
 
 -- 索引
-CREATE INDEX idx_report_def_category ON report_definition(report_category);
-CREATE INDEX idx_report_def_type ON report_definition(report_type);
-CREATE INDEX idx_report_def_status ON report_definition(status);
-CREATE INDEX idx_report_def_system ON report_definition(is_system);
+CREATE INDEX IF NOT EXISTS idx_report_def_category ON report_definition(report_category);
+CREATE INDEX IF NOT EXISTS idx_report_def_type ON report_definition(report_type);
+CREATE INDEX IF NOT EXISTS idx_report_def_status ON report_definition(status);
+CREATE INDEX IF NOT EXISTS idx_report_def_system ON report_definition(is_system);
 
 -- ========================================
 -- 2. 仪表板表
@@ -101,9 +101,9 @@ COMMENT ON COLUMN report_dashboard.widgets_config IS '组件配置（JSON 格式
 ALTER TABLE report_dashboard ADD CONSTRAINT uk_dashboard_code UNIQUE (dashboard_code);
 
 -- 索引
-CREATE INDEX idx_report_dash_status ON report_dashboard(status);
-CREATE INDEX idx_report_dash_public ON report_dashboard(is_public);
-CREATE INDEX idx_report_dash_default ON report_dashboard(is_default);
+CREATE INDEX IF NOT EXISTS idx_report_dash_status ON report_dashboard(status);
+CREATE INDEX IF NOT EXISTS idx_report_dash_public ON report_dashboard(is_public);
+CREATE INDEX IF NOT EXISTS idx_report_dash_default ON report_dashboard(is_default);
 
 -- ========================================
 -- 3. 报表组件表
@@ -139,9 +139,9 @@ COMMENT ON COLUMN report_widget.data_source_config IS '数据源配置';
 COMMENT ON COLUMN report_widget.visual_config IS '可视化配置';
 
 -- 索引
-CREATE INDEX idx_report_widget_type ON report_widget(widget_type);
-CREATE INDEX idx_report_widget_category ON report_widget(widget_category);
-CREATE INDEX idx_report_widget_active ON report_widget(is_active);
+CREATE INDEX IF NOT EXISTS idx_report_widget_type ON report_widget(widget_type);
+CREATE INDEX IF NOT EXISTS idx_report_widget_category ON report_widget(widget_category);
+CREATE INDEX IF NOT EXISTS idx_report_widget_active ON report_widget(is_active);
 
 -- ========================================
 -- 4. 报表订阅表
@@ -189,10 +189,10 @@ ALTER TABLE report_subscription ADD CONSTRAINT fk_report_sub_user
 ALTER TABLE report_subscription ADD CONSTRAINT uk_report_sub_user UNIQUE (report_id, user_id, subscription_type);
 
 -- 索引
-CREATE INDEX idx_report_sub_report ON report_subscription(report_id);
-CREATE INDEX idx_report_sub_user ON report_subscription(user_id);
-CREATE INDEX idx_report_sub_active ON report_subscription(is_active);
-CREATE INDEX idx_report_sub_frequency ON report_subscription(frequency);
+CREATE INDEX IF NOT EXISTS idx_report_sub_report ON report_subscription(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_sub_user ON report_subscription(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_sub_active ON report_subscription(is_active);
+CREATE INDEX IF NOT EXISTS idx_report_sub_frequency ON report_subscription(frequency);
 
 -- ========================================
 -- 5. 报表导出历史表
@@ -237,11 +237,11 @@ ALTER TABLE report_export_history ADD CONSTRAINT fk_report_exp_user
     FOREIGN KEY (user_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_report_exp_export_no ON report_export_history(export_no);
-CREATE INDEX idx_report_exp_report ON report_export_history(report_id);
-CREATE INDEX idx_report_exp_user ON report_export_history(user_id);
-CREATE INDEX idx_report_exp_status ON report_export_history(export_status);
-CREATE INDEX idx_report_exp_requested ON report_export_history(requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_report_exp_export_no ON report_export_history(export_no);
+CREATE INDEX IF NOT EXISTS idx_report_exp_report ON report_export_history(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_exp_user ON report_export_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_exp_status ON report_export_history(export_status);
+CREATE INDEX IF NOT EXISTS idx_report_exp_requested ON report_export_history(requested_at DESC);
 
 -- ========================================
 -- 6. 物化视图日志表
@@ -270,9 +270,9 @@ CREATE TABLE report_mv_refresh_log (
 COMMENT ON TABLE report_mv_refresh_log IS '物化视图刷新日志表';
 
 -- 索引
-CREATE INDEX idx_report_mv_mv_name ON report_mv_refresh_log(mv_name);
-CREATE INDEX idx_report_mv_status ON report_mv_refresh_log(refresh_status);
-CREATE INDEX idx_report_mv_started ON report_mv_refresh_log(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_report_mv_mv_name ON report_mv_refresh_log(mv_name);
+CREATE INDEX IF NOT EXISTS idx_report_mv_status ON report_mv_refresh_log(refresh_status);
+CREATE INDEX IF NOT EXISTS idx_report_mv_started ON report_mv_refresh_log(started_at DESC);
 
 -- ========================================
 -- 7. 触发器函数

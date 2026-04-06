@@ -57,13 +57,13 @@ ALTER TABLE batch_dye_lot ADD CONSTRAINT uk_dye_lot_no UNIQUE (dye_lot_no);
 ALTER TABLE batch_dye_lot ADD CONSTRAINT uk_dye_lot_product_color_supplier UNIQUE (product_id, color_id, supplier_id, dye_lot_no);
 
 -- 索引
-CREATE INDEX idx_batch_dye_lot_product ON batch_dye_lot(product_id);
-CREATE INDEX idx_batch_dye_lot_color ON batch_dye_lot(color_id);
-CREATE INDEX idx_batch_dye_lot_supplier ON batch_dye_lot(supplier_id);
-CREATE INDEX idx_batch_dye_lot_dye_lot_no ON batch_dye_lot(dye_lot_no);
-CREATE INDEX idx_batch_dye_lot_quality_status ON batch_dye_lot(quality_status);
-CREATE INDEX idx_batch_dye_lot_production_date ON batch_dye_lot(production_date);
-CREATE INDEX idx_batch_dye_lot_created_at ON batch_dye_lot(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_product ON batch_dye_lot(product_id);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_color ON batch_dye_lot(color_id);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_supplier ON batch_dye_lot(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_dye_lot_no ON batch_dye_lot(dye_lot_no);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_quality_status ON batch_dye_lot(quality_status);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_production_date ON batch_dye_lot(production_date);
+CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_created_at ON batch_dye_lot(created_at DESC);
 
 -- ========================================
 -- 2. 匹号管理表
@@ -109,13 +109,13 @@ ALTER TABLE inventory_piece ADD CONSTRAINT fk_piece_warehouse
     FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
 
 -- 索引
-CREATE INDEX idx_inventory_piece_piece_no ON inventory_piece(piece_no);
-CREATE INDEX idx_inventory_piece_dye_lot ON inventory_piece(dye_lot_id);
-CREATE INDEX idx_inventory_piece_supplier_piece ON inventory_piece(supplier_piece_no);
-CREATE INDEX idx_inventory_piece_quality_status ON inventory_piece(quality_status);
-CREATE INDEX idx_inventory_piece_inventory_status ON inventory_piece(inventory_status);
-CREATE INDEX idx_inventory_piece_warehouse ON inventory_piece(warehouse_id);
-CREATE INDEX idx_inventory_piece_created_at ON inventory_piece(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_piece_no ON inventory_piece(piece_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_dye_lot ON inventory_piece(dye_lot_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_supplier_piece ON inventory_piece(supplier_piece_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_quality_status ON inventory_piece(quality_status);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_inventory_status ON inventory_piece(inventory_status);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_warehouse ON inventory_piece(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_piece_created_at ON inventory_piece(created_at DESC);
 
 -- ========================================
 -- 3. 编码映射表
@@ -155,10 +155,10 @@ ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_internal UNIQUE (internal
 ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_supplier UNIQUE (supplier_product_code, supplier_id);
 
 -- 索引
-CREATE INDEX idx_pcm_internal_code ON product_code_mapping(internal_product_code);
-CREATE INDEX idx_pcm_supplier_code ON product_code_mapping(supplier_product_code);
-CREATE INDEX idx_pcm_supplier ON product_code_mapping(supplier_id);
-CREATE INDEX idx_pcm_validation_status ON product_code_mapping(validation_status);
+CREATE INDEX IF NOT EXISTS idx_pcm_internal_code ON product_code_mapping(internal_product_code);
+CREATE INDEX IF NOT EXISTS idx_pcm_supplier_code ON product_code_mapping(supplier_product_code);
+CREATE INDEX IF NOT EXISTS idx_pcm_supplier ON product_code_mapping(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_pcm_validation_status ON product_code_mapping(validation_status);
 
 -- ==================== 色号编码映射表 ====================
 CREATE TABLE color_code_mapping (
@@ -195,10 +195,10 @@ ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_internal UNIQUE (internal_c
 ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_supplier UNIQUE (supplier_color_code, supplier_id);
 
 -- 索引
-CREATE INDEX idx_ccm_internal_color ON color_code_mapping(internal_color_no);
-CREATE INDEX idx_ccm_supplier_color ON color_code_mapping(supplier_color_code);
-CREATE INDEX idx_ccm_supplier ON color_code_mapping(supplier_id);
-CREATE INDEX idx_ccm_product_code ON color_code_mapping(product_code);
+CREATE INDEX IF NOT EXISTS idx_ccm_internal_color ON color_code_mapping(internal_color_no);
+CREATE INDEX IF NOT EXISTS idx_ccm_supplier_color ON color_code_mapping(supplier_color_code);
+CREATE INDEX IF NOT EXISTS idx_ccm_supplier ON color_code_mapping(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ccm_product_code ON color_code_mapping(product_code);
 
 -- ==================== 缸号映射表 ====================
 CREATE TABLE dye_lot_mapping (
@@ -234,10 +234,10 @@ ALTER TABLE dye_lot_mapping ADD CONSTRAINT fk_dlm_batch_dye_lot
 ALTER TABLE dye_lot_mapping ADD CONSTRAINT uk_dlm_internal_supplier UNIQUE (internal_dye_lot_no, supplier_dye_lot_no, supplier_id);
 
 -- 索引
-CREATE INDEX idx_dlm_internal_dye_lot ON dye_lot_mapping(internal_dye_lot_no);
-CREATE INDEX idx_dlm_supplier_dye_lot ON dye_lot_mapping(supplier_dye_lot_no);
-CREATE INDEX idx_dlm_supplier ON dye_lot_mapping(supplier_id);
-CREATE INDEX idx_dlm_batch_dye_lot ON dye_lot_mapping(batch_dye_lot_id);
+CREATE INDEX IF NOT EXISTS idx_dlm_internal_dye_lot ON dye_lot_mapping(internal_dye_lot_no);
+CREATE INDEX IF NOT EXISTS idx_dlm_supplier_dye_lot ON dye_lot_mapping(supplier_dye_lot_no);
+CREATE INDEX IF NOT EXISTS idx_dlm_supplier ON dye_lot_mapping(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_dlm_batch_dye_lot ON dye_lot_mapping(batch_dye_lot_id);
 
 -- ==================== 匹号映射表 ====================
 CREATE TABLE piece_mapping (
@@ -272,10 +272,10 @@ ALTER TABLE piece_mapping ADD CONSTRAINT fk_pm_inventory_piece
 ALTER TABLE piece_mapping ADD CONSTRAINT uk_pm_internal_supplier UNIQUE (internal_piece_no, supplier_piece_no, supplier_id);
 
 -- 索引
-CREATE INDEX idx_pm_internal_piece ON piece_mapping(internal_piece_no);
-CREATE INDEX idx_pm_supplier_piece ON piece_mapping(supplier_piece_no);
-CREATE INDEX idx_pm_supplier ON piece_mapping(supplier_id);
-CREATE INDEX idx_pm_inventory_piece ON piece_mapping(inventory_piece_id);
+CREATE INDEX IF NOT EXISTS idx_pm_internal_piece ON piece_mapping(internal_piece_no);
+CREATE INDEX IF NOT EXISTS idx_pm_supplier_piece ON piece_mapping(supplier_piece_no);
+CREATE INDEX IF NOT EXISTS idx_pm_supplier ON piece_mapping(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_pm_inventory_piece ON piece_mapping(inventory_piece_id);
 
 -- ========================================
 -- 4. 批次追溯日志表
@@ -332,15 +332,15 @@ ALTER TABLE batch_trace_log ADD CONSTRAINT fk_btl_operator
     FOREIGN KEY (operator_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_btl_trace_no ON batch_trace_log(trace_no);
-CREATE INDEX idx_btl_business ON batch_trace_log(business_type, business_id);
-CREATE INDEX idx_btl_internal_product ON batch_trace_log(internal_product_code);
-CREATE INDEX idx_btl_supplier_product ON batch_trace_log(supplier_product_code);
-CREATE INDEX idx_btl_internal_dye_lot ON batch_trace_log(internal_dye_lot_no);
-CREATE INDEX idx_btl_supplier_dye_lot ON batch_trace_log(supplier_dye_lot_no);
-CREATE INDEX idx_btl_operation_time ON batch_trace_log(operation_time DESC);
-CREATE INDEX idx_btl_operator ON batch_trace_log(operator_id);
-CREATE INDEX idx_btl_validation_result ON batch_trace_log(validation_result);
+CREATE INDEX IF NOT EXISTS idx_btl_trace_no ON batch_trace_log(trace_no);
+CREATE INDEX IF NOT EXISTS idx_btl_business ON batch_trace_log(business_type, business_id);
+CREATE INDEX IF NOT EXISTS idx_btl_internal_product ON batch_trace_log(internal_product_code);
+CREATE INDEX IF NOT EXISTS idx_btl_supplier_product ON batch_trace_log(supplier_product_code);
+CREATE INDEX IF NOT EXISTS idx_btl_internal_dye_lot ON batch_trace_log(internal_dye_lot_no);
+CREATE INDEX IF NOT EXISTS idx_btl_supplier_dye_lot ON batch_trace_log(supplier_dye_lot_no);
+CREATE INDEX IF NOT EXISTS idx_btl_operation_time ON batch_trace_log(operation_time DESC);
+CREATE INDEX IF NOT EXISTS idx_btl_operator ON batch_trace_log(operator_id);
+CREATE INDEX IF NOT EXISTS idx_btl_validation_result ON batch_trace_log(validation_result);
 
 -- ========================================
 -- 5. 触发器函数

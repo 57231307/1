@@ -62,11 +62,11 @@ CREATE TABLE supplier_levels (
 );
 
 -- 创建索引
-CREATE INDEX idx_supplier_eval_indicators_category ON supplier_evaluation_indicators(category);
-CREATE INDEX idx_supplier_eval_records_supplier ON supplier_evaluation_records(supplier_id);
-CREATE INDEX idx_supplier_eval_records_period ON supplier_evaluation_records(evaluation_period);
-CREATE INDEX idx_supplier_overall_scores_supplier ON supplier_overall_scores(supplier_id);
-CREATE INDEX idx_supplier_overall_scores_period ON supplier_overall_scores(evaluation_period);
+CREATE INDEX IF NOT EXISTS idx_supplier_eval_indicators_category ON supplier_evaluation_indicators(category);
+CREATE INDEX IF NOT EXISTS idx_supplier_eval_records_supplier ON supplier_evaluation_records(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_eval_records_period ON supplier_evaluation_records(evaluation_period);
+CREATE INDEX IF NOT EXISTS idx_supplier_overall_scores_supplier ON supplier_overall_scores(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_overall_scores_period ON supplier_overall_scores(evaluation_period);
 
 -- 添加中文注释
 COMMENT ON TABLE supplier_evaluation_indicators IS '供应商评估指标表';

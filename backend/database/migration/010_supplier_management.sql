@@ -73,12 +73,12 @@ ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_name UNIQUE (supplier_name);
 ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_credit_code UNIQUE (credit_code);
 
 -- 索引
-CREATE INDEX idx_suppliers_type ON suppliers(supplier_type);
-CREATE INDEX idx_suppliers_grade ON suppliers(grade);
-CREATE INDEX idx_suppliers_status ON suppliers(status);
-CREATE INDEX idx_suppliers_credit_code ON suppliers(credit_code);
-CREATE INDEX idx_suppliers_enabled ON suppliers(is_enabled);
-CREATE INDEX idx_suppliers_created_at ON suppliers(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_suppliers_type ON suppliers(supplier_type);
+CREATE INDEX IF NOT EXISTS idx_suppliers_grade ON suppliers(grade);
+CREATE INDEX IF NOT EXISTS idx_suppliers_status ON suppliers(status);
+CREATE INDEX IF NOT EXISTS idx_suppliers_credit_code ON suppliers(credit_code);
+CREATE INDEX IF NOT EXISTS idx_suppliers_enabled ON suppliers(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_suppliers_created_at ON suppliers(created_at DESC);
 
 -- ========================================
 -- 2. 供应商联系人表
@@ -106,8 +106,8 @@ COMMENT ON TABLE supplier_contacts IS '供应商联系人表';
 COMMENT ON COLUMN supplier_contacts.is_primary IS '是否主要联系人';
 
 -- 索引
-CREATE INDEX idx_supplier_contacts_supplier_id ON supplier_contacts(supplier_id);
-CREATE INDEX idx_supplier_contacts_mobile ON supplier_contacts(mobile_phone);
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_supplier_id ON supplier_contacts(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_mobile ON supplier_contacts(mobile_phone);
 
 -- ========================================
 -- 3. 供应商分类表
@@ -133,8 +133,8 @@ COMMENT ON COLUMN supplier_categories.level IS '分类层级（1-3）';
 ALTER TABLE supplier_categories ADD CONSTRAINT uk_categories_code UNIQUE (category_code);
 
 -- 索引
-CREATE INDEX idx_supplier_categories_parent ON supplier_categories(parent_id);
-CREATE INDEX idx_supplier_categories_level ON supplier_categories(level);
+CREATE INDEX IF NOT EXISTS idx_supplier_categories_parent ON supplier_categories(parent_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_categories_level ON supplier_categories(level);
 
 -- ========================================
 -- 4. 供应商等级表
@@ -234,9 +234,9 @@ COMMENT ON COLUMN supplier_evaluations.order_completion_rate IS '订单完成率
 ALTER TABLE supplier_evaluations ADD CONSTRAINT uk_supplier_quarter UNIQUE (supplier_id, evaluation_year, evaluation_quarter);
 
 -- 索引
-CREATE INDEX idx_supplier_evaluations_supplier ON supplier_evaluations(supplier_id);
-CREATE INDEX idx_supplier_evaluations_year_quarter ON supplier_evaluations(evaluation_year, evaluation_quarter);
-CREATE INDEX idx_supplier_evaluations_total_score ON supplier_evaluations(total_score);
+CREATE INDEX IF NOT EXISTS idx_supplier_evaluations_supplier ON supplier_evaluations(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_evaluations_year_quarter ON supplier_evaluations(evaluation_year, evaluation_quarter);
+CREATE INDEX IF NOT EXISTS idx_supplier_evaluations_total_score ON supplier_evaluations(total_score);
 
 -- ========================================
 -- 6. 供应商资质表
@@ -265,9 +265,9 @@ COMMENT ON TABLE supplier_qualifications IS '供应商资质表';
 COMMENT ON COLUMN supplier_qualifications.qualification_type IS '资质类型（营业执照/税务登记证/组织机构代码证/ISO9001 等）';
 
 -- 索引
-CREATE INDEX idx_supplier_qualifications_supplier ON supplier_qualifications(supplier_id);
-CREATE INDEX idx_supplier_qualifications_type ON supplier_qualifications(qualification_type);
-CREATE INDEX idx_supplier_qualifications_valid_until ON supplier_qualifications(valid_until);
+CREATE INDEX IF NOT EXISTS idx_supplier_qualifications_supplier ON supplier_qualifications(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_qualifications_type ON supplier_qualifications(qualification_type);
+CREATE INDEX IF NOT EXISTS idx_supplier_qualifications_valid_until ON supplier_qualifications(valid_until);
 
 -- ========================================
 -- 7. 供应商黑名单表
@@ -300,9 +300,9 @@ COMMENT ON COLUMN supplier_blacklists.blacklist_reason IS '列入原因（质量
 COMMENT ON COLUMN supplier_blacklists.release_status IS '解禁状态（blacklisted/released）';
 
 -- 索引
-CREATE INDEX idx_supplier_blacklists_supplier ON supplier_blacklists(supplier_id);
-CREATE INDEX idx_supplier_blacklists_date ON supplier_blacklists(blacklist_date);
-CREATE INDEX idx_supplier_blacklists_status ON supplier_blacklists(release_status);
+CREATE INDEX IF NOT EXISTS idx_supplier_blacklists_supplier ON supplier_blacklists(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_blacklists_date ON supplier_blacklists(blacklist_date);
+CREATE INDEX IF NOT EXISTS idx_supplier_blacklists_status ON supplier_blacklists(release_status);
 
 -- ========================================
 -- 8. 触发器函数

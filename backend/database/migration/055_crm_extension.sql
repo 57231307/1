@@ -68,12 +68,12 @@ ALTER TABLE crm_lead ADD CONSTRAINT fk_crm_lead_converted_customer
     FOREIGN KEY (converted_customer_id) REFERENCES customers(id);
 
 -- 索引
-CREATE INDEX idx_crm_lead_lead_no ON crm_lead(lead_no);
-CREATE INDEX idx_crm_lead_source ON crm_lead(lead_source);
-CREATE INDEX idx_crm_lead_status ON crm_lead(lead_status);
-CREATE INDEX idx_crm_lead_owner ON crm_lead(owner_id);
-CREATE INDEX idx_crm_lead_created_at ON crm_lead(created_at DESC);
-CREATE INDEX idx_crm_lead_priority ON crm_lead(priority);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_lead_no ON crm_lead(lead_no);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_source ON crm_lead(lead_source);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_status ON crm_lead(lead_status);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_owner ON crm_lead(owner_id);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_created_at ON crm_lead(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_priority ON crm_lead(priority);
 
 -- ========================================
 -- 2. 商机表
@@ -146,13 +146,13 @@ ALTER TABLE crm_opportunity ADD CONSTRAINT fk_crm_opp_owner
     FOREIGN KEY (owner_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_crm_opp_opportunity_no ON crm_opportunity(opportunity_no);
-CREATE INDEX idx_crm_opp_customer ON crm_opportunity(customer_id);
-CREATE INDEX idx_crm_opp_lead ON crm_opportunity(lead_id);
-CREATE INDEX idx_crm_opp_stage ON crm_opportunity(opportunity_stage);
-CREATE INDEX idx_crm_opp_status ON crm_opportunity(opportunity_status);
-CREATE INDEX idx_crm_opp_owner ON crm_opportunity(owner_id);
-CREATE INDEX idx_crm_opp_expected_close ON crm_opportunity(expected_close_date);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_opportunity_no ON crm_opportunity(opportunity_no);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_customer ON crm_opportunity(customer_id);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_lead ON crm_opportunity(lead_id);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_stage ON crm_opportunity(opportunity_stage);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_status ON crm_opportunity(opportunity_status);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_owner ON crm_opportunity(owner_id);
+CREATE INDEX IF NOT EXISTS idx_crm_opp_expected_close ON crm_opportunity(expected_close_date);
 
 -- ========================================
 -- 3. 客户跟进记录表
@@ -210,12 +210,12 @@ ALTER TABLE crm_follow_up ADD CONSTRAINT fk_crm_fu_owner
     FOREIGN KEY (owner_id) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_crm_fu_lead ON crm_follow_up(lead_id);
-CREATE INDEX idx_crm_fu_opportunity ON crm_follow_up(opportunity_id);
-CREATE INDEX idx_crm_fu_customer ON crm_follow_up(customer_id);
-CREATE INDEX idx_crm_fu_owner ON crm_follow_up(owner_id);
-CREATE INDEX idx_crm_fu_date ON crm_follow_up(follow_up_date DESC);
-CREATE INDEX idx_crm_fu_type ON crm_follow_up(follow_up_type);
+CREATE INDEX IF NOT EXISTS idx_crm_fu_lead ON crm_follow_up(lead_id);
+CREATE INDEX IF NOT EXISTS idx_crm_fu_opportunity ON crm_follow_up(opportunity_id);
+CREATE INDEX IF NOT EXISTS idx_crm_fu_customer ON crm_follow_up(customer_id);
+CREATE INDEX IF NOT EXISTS idx_crm_fu_owner ON crm_follow_up(owner_id);
+CREATE INDEX IF NOT EXISTS idx_crm_fu_date ON crm_follow_up(follow_up_date DESC);
+CREATE INDEX IF NOT EXISTS idx_crm_fu_type ON crm_follow_up(follow_up_type);
 
 -- ========================================
 -- 4. 客户联系人表（扩展）
@@ -252,9 +252,9 @@ ALTER TABLE crm_contact ADD CONSTRAINT fk_crm_contact_customer
     FOREIGN KEY (customer_id) REFERENCES customers(id);
 
 -- 索引
-CREATE INDEX idx_crm_contact_customer ON crm_contact(customer_id);
-CREATE INDEX idx_crm_contact_mobile ON crm_contact(mobile_phone);
-CREATE INDEX idx_crm_contact_email ON crm_contact(email);
+CREATE INDEX IF NOT EXISTS idx_crm_contact_customer ON crm_contact(customer_id);
+CREATE INDEX IF NOT EXISTS idx_crm_contact_mobile ON crm_contact(mobile_phone);
+CREATE INDEX IF NOT EXISTS idx_crm_contact_email ON crm_contact(email);
 
 -- ========================================
 -- 5. 客户公海表
@@ -296,9 +296,9 @@ ALTER TABLE crm_customer_sea ADD CONSTRAINT fk_crm_cs_claimed_by
     FOREIGN KEY (claimed_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_crm_cs_customer ON crm_customer_sea(customer_id);
-CREATE INDEX idx_crm_cs_released_at ON crm_customer_sea(released_at DESC);
-CREATE INDEX idx_crm_cs_active ON crm_customer_sea(is_active);
+CREATE INDEX IF NOT EXISTS idx_crm_cs_customer ON crm_customer_sea(customer_id);
+CREATE INDEX IF NOT EXISTS idx_crm_cs_released_at ON crm_customer_sea(released_at DESC);
+CREATE INDEX IF NOT EXISTS idx_crm_cs_active ON crm_customer_sea(is_active);
 
 -- ========================================
 -- 6. 销售漏斗配置表
@@ -326,8 +326,8 @@ COMMENT ON TABLE crm_sales_funnel_config IS '销售漏斗配置表';
 COMMENT ON COLUMN crm_sales_funnel_config.stages IS '阶段配置（JSON 数组）';
 
 -- 索引
-CREATE INDEX idx_crm_sfc_type ON crm_sales_funnel_config(funnel_type);
-CREATE INDEX idx_crm_sfc_active ON crm_sales_funnel_config(is_active);
+CREATE INDEX IF NOT EXISTS idx_crm_sfc_type ON crm_sales_funnel_config(funnel_type);
+CREATE INDEX IF NOT EXISTS idx_crm_sfc_active ON crm_sales_funnel_config(is_active);
 
 -- ========================================
 -- 7. 触发器函数

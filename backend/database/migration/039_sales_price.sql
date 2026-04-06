@@ -74,12 +74,12 @@ CREATE TABLE price_strategies (
 );
 
 -- 创建索引
-CREATE INDEX idx_sales_prices_product ON sales_prices(product_id);
-CREATE INDEX idx_sales_prices_customer ON sales_prices(customer_id);
-CREATE INDEX idx_sales_prices_effective ON sales_prices(effective_date);
-CREATE INDEX idx_sales_price_history_product ON sales_price_history(product_id);
-CREATE INDEX idx_sales_price_history_date ON sales_price_history(price_date);
-CREATE INDEX idx_price_strategies_type ON price_strategies(strategy_type);
+CREATE INDEX IF NOT EXISTS idx_sales_prices_product ON sales_prices(product_id);
+CREATE INDEX IF NOT EXISTS idx_sales_prices_customer ON sales_prices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_sales_prices_effective ON sales_prices(effective_date);
+CREATE INDEX IF NOT EXISTS idx_sales_price_history_product ON sales_price_history(product_id);
+CREATE INDEX IF NOT EXISTS idx_sales_price_history_date ON sales_price_history(price_date);
+CREATE INDEX IF NOT EXISTS idx_price_strategies_type ON price_strategies(strategy_type);
 
 -- 添加中文注释
 COMMENT ON TABLE sales_prices IS '销售价格表';

@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS inventory_count_items (
 );
 
 -- 创建索引
-CREATE INDEX idx_inventory_count_items_count_id ON inventory_count_items(count_id);
-CREATE INDEX idx_inventory_count_items_stock_id ON inventory_count_items(stock_id);
-CREATE INDEX idx_inventory_count_items_product_id ON inventory_count_items(product_id);
-CREATE INDEX idx_inventory_count_items_warehouse_id ON inventory_count_items(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_count_id ON inventory_count_items(count_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_stock_id ON inventory_count_items(stock_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_product_id ON inventory_count_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_warehouse_id ON inventory_count_items(warehouse_id);
 
 -- 添加注释
 COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';

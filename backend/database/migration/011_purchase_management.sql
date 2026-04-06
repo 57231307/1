@@ -52,12 +52,12 @@ ALTER TABLE purchase_order ADD CONSTRAINT fk_po_approved_by
     FOREIGN KEY (approved_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_po_order_no ON purchase_order(order_no);
-CREATE INDEX idx_po_supplier_id ON purchase_order(supplier_id);
-CREATE INDEX idx_po_order_date ON purchase_order(order_date);
-CREATE INDEX idx_po_order_status ON purchase_order(order_status);
-CREATE INDEX idx_po_expected_delivery ON purchase_order(expected_delivery_date);
-CREATE INDEX idx_po_created_by ON purchase_order(created_by);
+CREATE INDEX IF NOT EXISTS idx_po_order_no ON purchase_order(order_no);
+CREATE INDEX IF NOT EXISTS idx_po_supplier_id ON purchase_order(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_po_order_date ON purchase_order(order_date);
+CREATE INDEX IF NOT EXISTS idx_po_order_status ON purchase_order(order_status);
+CREATE INDEX IF NOT EXISTS idx_po_expected_delivery ON purchase_order(expected_delivery_date);
+CREATE INDEX IF NOT EXISTS idx_po_created_by ON purchase_order(created_by);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_purchase_order_updated_at
@@ -115,11 +115,11 @@ ALTER TABLE purchase_order_item ADD CONSTRAINT uk_poi_order_line
     UNIQUE (order_id, line_no);
 
 -- 索引
-CREATE INDEX idx_poi_order_id ON purchase_order_item(order_id);
-CREATE INDEX idx_poi_material_id ON purchase_order_item(material_id);
-CREATE INDEX idx_poi_batch_no ON purchase_order_item(batch_no);
-CREATE INDEX idx_poi_color_code ON purchase_order_item(color_code);
-CREATE INDEX idx_poi_lot_no ON purchase_order_item(lot_no);
+CREATE INDEX IF NOT EXISTS idx_poi_order_id ON purchase_order_item(order_id);
+CREATE INDEX IF NOT EXISTS idx_poi_material_id ON purchase_order_item(material_id);
+CREATE INDEX IF NOT EXISTS idx_poi_batch_no ON purchase_order_item(batch_no);
+CREATE INDEX IF NOT EXISTS idx_poi_color_code ON purchase_order_item(color_code);
+CREATE INDEX IF NOT EXISTS idx_poi_lot_no ON purchase_order_item(lot_no);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_purchase_order_item_updated_at
@@ -203,12 +203,12 @@ ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_confirmed_by
     FOREIGN KEY (confirmed_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_pr_receipt_no ON purchase_receipt(receipt_no);
-CREATE INDEX idx_pr_order_id ON purchase_receipt(order_id);
-CREATE INDEX idx_pr_supplier_id ON purchase_receipt(supplier_id);
-CREATE INDEX idx_pr_receipt_date ON purchase_receipt(receipt_date);
-CREATE INDEX idx_pr_warehouse_id ON purchase_receipt(warehouse_id);
-CREATE INDEX idx_pr_receipt_status ON purchase_receipt(receipt_status);
+CREATE INDEX IF NOT EXISTS idx_pr_receipt_no ON purchase_receipt(receipt_no);
+CREATE INDEX IF NOT EXISTS idx_pr_order_id ON purchase_receipt(order_id);
+CREATE INDEX IF NOT EXISTS idx_pr_supplier_id ON purchase_receipt(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_pr_receipt_date ON purchase_receipt(receipt_date);
+CREATE INDEX IF NOT EXISTS idx_pr_warehouse_id ON purchase_receipt(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_pr_receipt_status ON purchase_receipt(receipt_status);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_purchase_receipt_updated_at
@@ -260,12 +260,12 @@ ALTER TABLE purchase_receipt_item ADD CONSTRAINT uk_pri_receipt_line
     UNIQUE (receipt_id, line_no);
 
 -- 索引
-CREATE INDEX idx_pri_receipt_id ON purchase_receipt_item(receipt_id);
-CREATE INDEX idx_pri_order_item_id ON purchase_receipt_item(order_item_id);
-CREATE INDEX idx_pri_material_id ON purchase_receipt_item(material_id);
-CREATE INDEX idx_pri_batch_no ON purchase_receipt_item(batch_no);
-CREATE INDEX idx_pri_color_code ON purchase_receipt_item(color_code);
-CREATE INDEX idx_pri_lot_no ON purchase_receipt_item(lot_no);
+CREATE INDEX IF NOT EXISTS idx_pri_receipt_id ON purchase_receipt_item(receipt_id);
+CREATE INDEX IF NOT EXISTS idx_pri_order_item_id ON purchase_receipt_item(order_item_id);
+CREATE INDEX IF NOT EXISTS idx_pri_material_id ON purchase_receipt_item(material_id);
+CREATE INDEX IF NOT EXISTS idx_pri_batch_no ON purchase_receipt_item(batch_no);
+CREATE INDEX IF NOT EXISTS idx_pri_color_code ON purchase_receipt_item(color_code);
+CREATE INDEX IF NOT EXISTS idx_pri_lot_no ON purchase_receipt_item(lot_no);
 
 -- 触发器：计算金额
 CREATE OR REPLACE FUNCTION calc_purchase_receipt_item_amount()
@@ -336,12 +336,12 @@ ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_approved_by
     FOREIGN KEY (approved_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_pret_return_no ON purchase_return(return_no);
-CREATE INDEX idx_pret_receipt_id ON purchase_return(receipt_id);
-CREATE INDEX idx_pret_order_id ON purchase_return(order_id);
-CREATE INDEX idx_pret_supplier_id ON purchase_return(supplier_id);
-CREATE INDEX idx_pret_return_date ON purchase_return(return_date);
-CREATE INDEX idx_pret_return_status ON purchase_return(return_status);
+CREATE INDEX IF NOT EXISTS idx_pret_return_no ON purchase_return(return_no);
+CREATE INDEX IF NOT EXISTS idx_pret_receipt_id ON purchase_return(receipt_id);
+CREATE INDEX IF NOT EXISTS idx_pret_order_id ON purchase_return(order_id);
+CREATE INDEX IF NOT EXISTS idx_pret_supplier_id ON purchase_return(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_pret_return_date ON purchase_return(return_date);
+CREATE INDEX IF NOT EXISTS idx_pret_return_status ON purchase_return(return_status);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_purchase_return_updated_at
@@ -390,12 +390,12 @@ ALTER TABLE purchase_inspection ADD CONSTRAINT fk_pi_completed_by
     FOREIGN KEY (completed_by) REFERENCES users(id);
 
 -- 索引
-CREATE INDEX idx_pi_inspection_no ON purchase_inspection(inspection_no);
-CREATE INDEX idx_pi_receipt_id ON purchase_inspection(receipt_id);
-CREATE INDEX idx_pi_order_id ON purchase_inspection(order_id);
-CREATE INDEX idx_pi_inspection_date ON purchase_inspection(inspection_date);
-CREATE INDEX idx_pi_inspector_id ON purchase_inspection(inspector_id);
-CREATE INDEX idx_pi_inspection_status ON purchase_inspection(inspection_status);
+CREATE INDEX IF NOT EXISTS idx_pi_inspection_no ON purchase_inspection(inspection_no);
+CREATE INDEX IF NOT EXISTS idx_pi_receipt_id ON purchase_inspection(receipt_id);
+CREATE INDEX IF NOT EXISTS idx_pi_order_id ON purchase_inspection(order_id);
+CREATE INDEX IF NOT EXISTS idx_pi_inspection_date ON purchase_inspection(inspection_date);
+CREATE INDEX IF NOT EXISTS idx_pi_inspector_id ON purchase_inspection(inspector_id);
+CREATE INDEX IF NOT EXISTS idx_pi_inspection_status ON purchase_inspection(inspection_status);
 
 -- 触发器：更新时间
 CREATE TRIGGER update_purchase_inspection_updated_at
@@ -486,7 +486,7 @@ WHERE order_status IN ('COMPLETED', 'CLOSED', 'PARTIAL_RECEIVED')
 GROUP BY supplier_id;
 
 -- 创建索引
-CREATE INDEX idx_mv_po_stats_supplier ON mv_purchase_order_stats(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_mv_po_stats_supplier ON mv_purchase_order_stats(supplier_id);
 
 
 -- =====================================================

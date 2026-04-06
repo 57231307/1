@@ -84,12 +84,12 @@ CREATE TABLE budget_adjustments (
 );
 
 -- 创建索引
-CREATE INDEX idx_budget_items_type ON budget_items(item_type);
-CREATE INDEX idx_budget_items_parent ON budget_items(parent_id);
-CREATE INDEX idx_budget_plans_year ON budget_plans(budget_year);
-CREATE INDEX idx_budget_plan_details_period ON budget_plan_details(period);
-CREATE INDEX idx_budget_controls_plan ON budget_controls(plan_id);
-CREATE INDEX idx_budget_adjustments_plan ON budget_adjustments(plan_id);
+CREATE INDEX IF NOT EXISTS idx_budget_items_type ON budget_items(item_type);
+CREATE INDEX IF NOT EXISTS idx_budget_items_parent ON budget_items(parent_id);
+CREATE INDEX IF NOT EXISTS idx_budget_plans_year ON budget_plans(budget_year);
+CREATE INDEX IF NOT EXISTS idx_budget_plan_details_period ON budget_plan_details(period);
+CREATE INDEX IF NOT EXISTS idx_budget_controls_plan ON budget_controls(plan_id);
+CREATE INDEX IF NOT EXISTS idx_budget_adjustments_plan ON budget_adjustments(plan_id);
 
 -- 添加中文注释
 COMMENT ON TABLE budget_items IS '预算科目表';

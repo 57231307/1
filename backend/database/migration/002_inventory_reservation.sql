@@ -18,11 +18,11 @@ CREATE TABLE IF NOT EXISTS inventory_reservations (
 );
 
 -- 创建索引
-CREATE INDEX idx_inventory_reservations_order_id ON inventory_reservations(order_id);
-CREATE INDEX idx_inventory_reservations_product_id ON inventory_reservations(product_id);
-CREATE INDEX idx_inventory_reservations_warehouse_id ON inventory_reservations(warehouse_id);
-CREATE INDEX idx_inventory_reservations_status ON inventory_reservations(status);
-CREATE INDEX idx_inventory_reservations_reserved_at ON inventory_reservations(reserved_at);
+CREATE INDEX IF NOT EXISTS idx_inventory_reservations_order_id ON inventory_reservations(order_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_reservations_product_id ON inventory_reservations(product_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_reservations_warehouse_id ON inventory_reservations(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_reservations_status ON inventory_reservations(status);
+CREATE INDEX IF NOT EXISTS idx_inventory_reservations_reserved_at ON inventory_reservations(reserved_at);
 
 -- 添加注释
 COMMENT ON TABLE inventory_reservations IS '库存预留表 - 用于销售订单锁定库存';
