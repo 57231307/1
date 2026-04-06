@@ -210,9 +210,16 @@ impl InitService {
                     continue;
                 }
 
-                self.db.execute(Statement::from_string(DatabaseBackend::Postgres, sql))
-                    .await
-                    .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
+                // 将多条 SQL 语句根据 ";" 分割，然后逐条执行，避免 prepared statement 错误
+                let statements = sql.split(';')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty());
+
+                for stmt in statements {
+                    self.db.execute(Statement::from_string(DatabaseBackend::Postgres, stmt.to_string()))
+                        .await
+                        .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}\n语句: {}", path.file_name().unwrap(), e, stmt)))?;
+                }
                 
                 info!("成功执行脚本: {:?}", path.file_name().unwrap());
             }
