@@ -7,6 +7,8 @@ use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
 use crate::services::purchase_order_service::PurchaseOrderService;
 
 pub struct PurchaseOrderPage {
+    printing_order: Option<crate::models::purchase_order::PurchaseOrder>,
+    print_trigger: bool,
     orders: Vec<PurchaseOrder>,
     loading: bool,
     error: Option<String>,
@@ -30,6 +32,8 @@ pub enum Msg {
     ViewOrder(i32),
     DeleteOrder(i32),
     SubmitOrder(i32),
+    PrintOrder(crate::models::purchase_order::PurchaseOrder),
+    ClearPrint,
     ApproveOrder(i32),
     RejectOrder(i32),
     CloseOrder(i32),
@@ -44,6 +48,8 @@ impl Component for PurchaseOrderPage {
         Self {
             orders: Vec::new(),
             loading: true,
+            printing_order: None,
+            print_trigger: false,
             error: None,
             filter_status: String::from("全部"),
             page: 1,
@@ -104,6 +110,17 @@ impl Component for PurchaseOrderPage {
                     }
                 });
                 false
+            }
+
+            Msg::PrintOrder(order) => {
+                self.printing_order = Some(order);
+                self.print_trigger = true;
+                true
+            }
+            Msg::ClearPrint => {
+                self.printing_order = None;
+                self.print_trigger = false;
+                true
             }
             Msg::SubmitOrder(id) => {
                 let link = ctx.link().clone();
@@ -180,12 +197,61 @@ impl Component for PurchaseOrderPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_print_view()}
             </div>
         }
     }
 }
 
 impl PurchaseOrderPage {
+    
+    fn render_print_view(&self) -> Html {
+        if let Some(order) = &self.printing_order {
+            html! {
+                <div class="print-view" style="display: none;">
+                    <div class="print-header">
+                        <h2>{"秉羲管理系统 - 采购订单"}</h2>
+                    </div>
+                    <div class="print-info-grid">
+                        <div><strong>{"订单编号："}</strong> {&order.order_no}</div>
+                        <div><strong>{"订单日期："}</strong> {&order.order_date}</div>
+                        <div><strong>{"供应商："}</strong> {order.supplier_name.as_deref().unwrap_or("-")}</div>
+                        <div><strong>{"要求交货期："}</strong> {order.expected_delivery_date.as_deref().unwrap_or("-")}</div>
+                        <div><strong>{"采购总金额："}</strong> {&order.total_amount} {order.currency.as_deref().unwrap_or("")}</div>
+                        <div><strong>{"采购员："}</strong> {order.purchaser_id.unwrap_or(0)}</div>
+                    </div>
+                    <table class="print-table">
+                        <thead>
+                            <tr>
+                                <th>{"序号"}</th>
+                                <th>{"产品名称"}</th>
+                                <th>{"规格"}</th>
+                                <th>{"数量"}</th>
+                                <th>{"单价"}</th>
+                                <th>{"小计"}</th>
+                                <th>{"备注"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            // 实际项目中这里应该渲染 items，但目前 purchase_order.rs 的列表中没有展开 items
+                            // 所以留出空行或仅打印主表信息
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 20px;">{"【订单明细请在详情页查看并打印】"}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="print-footer">
+                        <div class="print-signature">{"制单人签字"}</div>
+                        <div class="print-signature">{"审批人签字"}</div>
+                        <div class="print-signature">{"供应商确认盖章"}</div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {
@@ -249,11 +315,12 @@ impl PurchaseOrderPage {
                                     <td>
                                         {if status_check == "REJECTED" || status_check == "DRAFT" {
                                             html! {
-                                                <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
+<button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
                                             }
                                         } else {
                                             html! {}
                                         }}
+                                        <button class="px-3 py-1 bg-gray-500 text-white rounded text-xs ml-2" onclick={let order_print = order.clone(); ctx.link().callback(move |_| Msg::PrintOrder(order_print.clone()))}>{"打印"}</button>
                                     </td>
                                 </tr>
                             }

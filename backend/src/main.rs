@@ -118,6 +118,34 @@ fn create_init_router() -> Router {
 }
 
 #[tokio::main]
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    
+    tracing::info!("系统收到关闭信号，开始优雅停机 (Graceful Shutdown)...");
+}
+
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = AppSettings::new()?;
 
@@ -314,7 +342,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("系统启动完成，等待请求...");
     info!("===========================================");
 
-    axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app).await?;
+    axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app)
+        .with_graceful_shutdown(async { shutdown_signal(); })
+        .await?;
 
     Ok(())
 }
