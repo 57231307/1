@@ -34,11 +34,21 @@ impl InitService {
         let base_url = Self::get_base_url();
         let url = format!("{}/init/status", base_url);
 
-        Request::get(&url)
+        let response = Request::get(&url)
             .send()
             .await
-            .map_err(|e| InitError::NetworkError(e.to_string()))?
-            .json::<InitStatus>()
+            .map_err(|e| InitError::NetworkError(e.to_string()))?;
+
+        if !response.ok() {
+            if let Ok(err_json) = response.json::<serde_json::Value>().await {
+                if let Some(msg) = err_json.get("message").and_then(|m| m.as_str()) {
+                    return Err(InitError::ServerError(msg.to_string()));
+                }
+            }
+            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+        }
+
+        response.json::<InitStatus>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }
@@ -55,14 +65,24 @@ impl InitService {
             password: config.password.clone(),
         };
 
-        Request::post(&url)
+        let response = Request::post(&url)
             .header("Content-Type", "application/json")
             .json(&request_body)
             .map_err(|e| InitError::NetworkError(e.to_string()))?
             .send()
             .await
-            .map_err(|e| InitError::NetworkError(e.to_string()))?
-            .json::<DbTestResult>()
+            .map_err(|e| InitError::NetworkError(e.to_string()))?;
+
+        if !response.ok() {
+            if let Ok(err_json) = response.json::<serde_json::Value>().await {
+                if let Some(msg) = err_json.get("message").and_then(|m| m.as_str()) {
+                    return Err(InitError::ServerError(msg.to_string()));
+                }
+            }
+            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+        }
+
+        response.json::<DbTestResult>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }
@@ -143,14 +163,24 @@ impl InitService {
             new_password: new_password.to_string(),
         };
 
-        Request::post(&url)
+        let response = Request::post(&url)
             .header("Content-Type", "application/json")
             .json(&request_body)
             .map_err(|e| InitError::NetworkError(e.to_string()))?
             .send()
             .await
-            .map_err(|e| InitError::NetworkError(e.to_string()))?
-            .json::<ResetPasswordResponse>()
+            .map_err(|e| InitError::NetworkError(e.to_string()))?;
+
+        if !response.ok() {
+            if let Ok(err_json) = response.json::<serde_json::Value>().await {
+                if let Some(msg) = err_json.get("message").and_then(|m| m.as_str()) {
+                    return Err(InitError::ServerError(msg.to_string()));
+                }
+            }
+            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+        }
+
+        response.json::<ResetPasswordResponse>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }

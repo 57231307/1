@@ -9,3 +9,6 @@ port = 80
 
 [watch]
 watch = ["src", "index.html"]
+
+[[proxy]]
+backend = "http://127.0.0.1:8080/api"
