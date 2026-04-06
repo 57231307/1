@@ -10,6 +10,8 @@ use crate::services::purchase_return_service::PurchaseReturnService;
 
 /// 采购退货页面状态管理
 pub struct PurchaseReturnPage {
+    printing_return: Option<crate::models::purchase_return::PurchaseReturn>,
+    print_trigger: bool,
     show_modal: bool,
     new_return_no: String,
     new_supplier_id: String,
@@ -50,6 +52,8 @@ impl Component for PurchaseReturnPage {
         Self {
             returns: Vec::new(),
             loading: true,
+            printing_return: None,
+            print_trigger: false,
             show_modal: false,
             new_return_no: String::new(),
             new_supplier_id: String::new(),
@@ -219,6 +223,7 @@ impl Component for PurchaseReturnPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_print_view()}
                 {self.render_modal(ctx)}
             </div>
         }
@@ -255,6 +260,50 @@ impl PurchaseReturnPage {
                     </div>
                 </div>
             </div>
+        }
+    }
+
+    
+    fn render_print_view(&self) -> Html {
+        if let Some(ret) = &self.printing_return {
+            html! {
+                <div class="print-view" style="display: none;">
+                    <div class="print-header">
+                        <h2>{"秉羲管理系统 - 采购退货单"}</h2>
+                    </div>
+                    <div class="print-info-grid">
+                        <div><strong>{"退货单号："}</strong> {&ret.return_no}</div>
+                        <div><strong>{"供应商 ID："}</strong> {&ret.supplier_id}</div>
+                        <div><strong>{"原订单 ID："}</strong> {ret.order_id}</div>
+                        <div><strong>{"退货总额："}</strong> {&ret.total_amount}</div>
+                        <div><strong>{"退货原因："}</strong> {ret.reason.as_deref().unwrap_or("-")}</div>
+                        <div><strong>{"备注："}</strong> {ret.notes.as_deref().unwrap_or("-")}</div>
+                        <div><strong>{"状态："}</strong> {&ret.status}</div>
+                    </div>
+                    <table class="print-table">
+                        <thead>
+                            <tr>
+                                <th>{"产品 ID"}</th>
+                                <th>{"退货数量"}</th>
+                                <th>{"单价"}</th>
+                                <th>{"金额"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 20px;">{"【明细项请在详情页查看并打印】"}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="print-footer">
+                        <div class="print-signature">{"仓库退货员"}</div>
+                        <div class="print-signature">{"审批人"}</div>
+                        <div class="print-signature">{"供应商确认"}</div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 

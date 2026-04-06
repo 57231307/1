@@ -12,6 +12,8 @@ use crate::services::finance_invoice_service::FinanceInvoiceService;
 
 /// 财务发票管理页面状态
 pub struct FinanceInvoicePage {
+    printing_invoice: Option<crate::models::finance_invoice::FinanceInvoice>,
+    print_trigger: bool,
     invoices: Vec<FinanceInvoice>,
     loading: bool,
     error: Option<String>,
@@ -45,6 +47,8 @@ impl Component for FinanceInvoicePage {
         Self {
             invoices: Vec::new(),
             loading: true,
+            printing_invoice: None,
+            print_trigger: false,
             error: None,
             filter_status: String::from("全部"),
             filter_type: String::from("全部"),
@@ -197,12 +201,55 @@ impl Component for FinanceInvoicePage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_print_view()}
             </div>
         }
     }
 }
 
 impl FinanceInvoicePage {
+    
+    fn render_print_view(&self) -> Html {
+        if let Some(invoice) = &self.printing_invoice {
+            html! {
+                <div class="print-view" style="display: none;">
+                    <div class="print-header">
+                        <h2>{if invoice.invoice_type == "AP" { "秉羲管理系统 - 应付账款单" } else { "秉羲管理系统 - 应收账款单" }}</h2>
+                    </div>
+                    <div class="print-info-grid">
+                        <div><strong>{"发票号："}</strong> {&invoice.invoice_no}</div>
+                        <div><strong>{"单据类型："}</strong> {&invoice.invoice_type}</div>
+                        <div><strong>{"订单 ID："}</strong> {invoice.order_id.unwrap_or(0)}</div>
+                        <div><strong>{"客户/供应商 ID："}</strong> {invoice.customer_id.unwrap_or(0)}</div>
+                        <div><strong>{"总金额："}</strong> {&invoice.total_amount}</div>
+                        
+                        <div><strong>{"状态："}</strong> {&invoice.status}</div>
+                    </div>
+                    <table class="print-table">
+                        <thead>
+                            <tr>
+                                <th>{"款项说明"}</th>
+                                <th>{"金额"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{"【款项明细请在详情页查看并打印】"}</td>
+                                <td>{&invoice.total_amount}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="print-footer">
+                        <div class="print-signature">{"制单人签字"}</div>
+                        <div class="print-signature">{"财务审批人"}</div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {

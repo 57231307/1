@@ -48,6 +48,8 @@ impl ContractStatus {
 
 #[derive(Debug, Clone)]
 pub struct SalesContractState {
+    pub printing_contract: Option<crate::models::sales_contract::SalesContract>,
+    pub print_trigger: bool,
     /// 合同列表
     pub contracts: Vec<SalesContract>,
     /// 加载状态
@@ -86,6 +88,8 @@ impl Default for SalesContractState {
             keyword: String::new(),
             status_filter: None,
             show_create_modal: false,
+            printing_contract: None,
+            print_trigger: false,
             show_execute_modal: false,
             show_cancel_modal: false,
             current_contract_id: None,

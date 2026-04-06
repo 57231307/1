@@ -7,6 +7,8 @@ use crate::services::sales_return_service::SalesReturnService;
 
 /// 销售退货页面状态管理
 pub struct SalesReturnPage {
+    printing_return: Option<crate::models::sales_return::SalesReturn>,
+    print_trigger: bool,
     show_modal: bool,
     new_return_no: String,
     new_customer_id: String,
@@ -41,6 +43,8 @@ impl Component for SalesReturnPage {
         Self {
             returns: Vec::new(),
             loading: true,
+            printing_return: None,
+            print_trigger: false,
             show_modal: false,
             new_return_no: String::new(),
             new_customer_id: String::new(),

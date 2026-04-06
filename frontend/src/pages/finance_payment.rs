@@ -12,6 +12,8 @@ use crate::services::finance_payment_service::FinancePaymentService;
 
 /// 财务付款管理页面状态
 pub struct FinancePaymentPage {
+    printing_payment: Option<crate::models::finance_payment::FinancePayment>,
+    print_trigger: bool,
     payments: Vec<FinancePayment>,
     loading: bool,
     error: Option<String>,
@@ -43,6 +45,8 @@ impl Component for FinancePaymentPage {
         Self {
             payments: Vec::new(),
             loading: true,
+            printing_payment: None,
+            print_trigger: false,
             error: None,
             filter_status: String::from("全部"),
             filter_type: String::from("全部"),
@@ -172,12 +176,57 @@ impl Component for FinancePaymentPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_print_view()}
             </div>
         }
     }
 }
 
 impl FinancePaymentPage {
+    
+    fn render_print_view(&self) -> Html {
+        if let Some(payment) = &self.printing_payment {
+            html! {
+                <div class="print-view" style="display: none;">
+                    <div class="print-header">
+                        <h2>{"秉羲管理系统 - 财务付款单"}</h2>
+                    </div>
+                    <div class="print-info-grid">
+                        <div><strong>{"付款单号："}</strong> {&payment.payment_no}</div>
+                        <div><strong>{"订单类型："}</strong> {payment.order_type.as_deref().unwrap_or("-")}</div>
+                        <div><strong>{"订单 ID："}</strong> {payment.order_id.unwrap_or(0)}</div>
+                        <div><strong>{"供应商 ID："}</strong> {payment.supplier_id.unwrap_or(0)}</div>
+                        <div><strong>{"付款金额："}</strong> {payment.amount.to_string()}</div>
+                        <div><strong>{"付款日期："}</strong> {&payment.payment_date}</div>
+                        <div><strong>{"状态："}</strong> {&payment.status}</div>
+                    </div>
+                    <table class="print-table">
+                        <thead>
+                            <tr>
+                                <th>{"付款方式"}</th>
+                                <th>{"开户行"}</th>
+                                <th>{"银行账号"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{payment.payment_method.as_deref().unwrap_or("-")}</td>
+                                <td>{"-"}</td>
+                                <td>{"-"}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="print-footer">
+                        <div class="print-signature">{"出纳"}</div>
+                        <div class="print-signature">{"财务主管审批"}</div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {
