@@ -1,6 +1,6 @@
 #!/bin/bash
 # 秉羲ERP系统 - 一键安装与管理脚本
-# 使用方法: curl -fsSL --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s {install|update|start|stop|status}
+# 使用方法: curl -fsSL --retry 3 https://mirror.ghproxy.com/https://raw.githubusercontent.com/57231307/1/main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s {install|update|start|stop|status}
 
 set -e
 
@@ -52,29 +52,25 @@ download_latest() {
     
     # 尝试使用多个镜像源来下载，防止被墙或者连接重置
     MIRRORS=(
-        "https://ghfast.top/"
+        "https://mirror.ghproxy.com/"
         "https://ghproxy.net/"
-        "https://kkgithub.com/"
+        "https://ghfast.top/"
+        "https://github.moeyy.xyz/"
         "" # 直连作为最后退路
     )
 
     SUCCESS=false
     for MIRROR in "${MIRRORS[@]}"; do
         if [ -n "$MIRROR" ]; then
-            # 替换 github.com 为对应的镜像域名，或者直接拼接代理前缀
-            if [[ "$MIRROR" == *"kkgithub"* ]]; then
-                REAL_URL="${DOWNLOAD_URL/github.com/kkgithub.com}"
-            else
-                REAL_URL="${MIRROR}${DOWNLOAD_URL}"
-            fi
+            REAL_URL="${MIRROR}${DOWNLOAD_URL}"
             log "尝试通过镜像下载: $REAL_URL"
         else
             REAL_URL="$DOWNLOAD_URL"
             log "尝试直连下载: $REAL_URL"
         fi
 
-        # 使用 --retry 3 和 -C - (断点续传) 提高稳定性
-        if curl -L -C - --retry 3 --retry-delay 2 -o /tmp/bingxi-erp-latest.zip "$REAL_URL"; then
+        # 加入超时控制（--connect-timeout 10 --max-time 600），防止某个节点一直卡死
+        if curl -L -C - --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/bingxi-erp-latest.zip "$REAL_URL"; then
             SUCCESS=true
             break
         else
@@ -114,7 +110,7 @@ case "$1" in
         sudo systemctl status bingxi-backend --no-pager
         ;;
     update)
-        curl -fsSL --retry 3 https://raw.kkgithub.com/57231307/1/main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
+        curl -fsSL --retry 3 https://mirror.ghproxy.com/https://raw.githubusercontent.com/57231307/1/main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
         ;;
     *)
         echo "秉羲管理系统 CLI 工具"
