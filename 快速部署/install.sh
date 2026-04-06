@@ -42,14 +42,50 @@ install_deps() {
 download_latest() {
     log "获取最新版本信息..."
     # 查找最新 release 中的 zip 资产
-    DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
     
+    DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
+
     if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
-        error "无法找到最新的 .zip 发布包"
+        log "无法获取最新发布版本，请检查网络或 GitHub 限制。"
+        exit 1
     fi
     
-    log "下载最新发布包: $DOWNLOAD_URL"
-    curl -L -o /tmp/bingxi-erp-latest.zip "$DOWNLOAD_URL"
+    # 尝试使用多个镜像源来下载，防止被墙或者连接重置
+    MIRRORS=(
+        "https://ghfast.top/"
+        "https://ghproxy.net/"
+        "https://kkgithub.com/"
+        "" # 直连作为最后退路
+    )
+
+    SUCCESS=false
+    for MIRROR in "${MIRRORS[@]}"; do
+        if [ -n "$MIRROR" ]; then
+            # 替换 github.com 为对应的镜像域名，或者直接拼接代理前缀
+            if [[ "$MIRROR" == *"kkgithub"* ]]; then
+                REAL_URL="${DOWNLOAD_URL/github.com/kkgithub.com}"
+            else
+                REAL_URL="${MIRROR}${DOWNLOAD_URL}"
+            fi
+            log "尝试通过镜像下载: $REAL_URL"
+        else
+            REAL_URL="$DOWNLOAD_URL"
+            log "尝试直连下载: $REAL_URL"
+        fi
+
+        # 使用 --retry 3 和 -C - (断点续传) 提高稳定性
+        if curl -L -C - --retry 3 --retry-delay 2 -o /tmp/bingxi-erp-latest.zip "$REAL_URL"; then
+            SUCCESS=true
+            break
+        else
+            log "该节点下载失败，尝试下一个..."
+        fi
+    done
+
+    if [ "$SUCCESS" = false ]; then
+        log "所有下载节点均失败，请检查您的服务器网络是否能访问 Github。"
+        exit 1
+    fi
 }
 
 setup_cli() {
@@ -78,7 +114,7 @@ case "$1" in
         sudo systemctl status bingxi-backend --no-pager
         ;;
     update)
-        curl -fsSL --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
+        curl -fsSL --retry 3 https://raw.kkgithub.com/57231307/1/main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
         ;;
     *)
         echo "秉羲管理系统 CLI 工具"
