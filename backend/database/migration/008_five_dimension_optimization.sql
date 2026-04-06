@@ -5,14 +5,14 @@
 -- 说明：优化五维查询性能，添加组合索引和计算列
 -- ============================================================
 
--- 1. 为 inventory_stock 表添加五维组合索引
+-- 1. 为 inventory_stocks 表添加五维组合索引
 -- 优化按批次 + 色号 + 等级查询
 CREATE INDEX IF NOT EXISTS idx_inventory_five_dimension
-ON inventory_stock(product_id, batch_no, color_no, grade);
+ON inventory_stocks(product_id, batch_no, color_no, grade);
 
--- 2. 为 inventory_stock 表添加五维 ID 计算列（虚拟列）
+-- 2. 为 inventory_stocks 表添加五维 ID 计算列（虚拟列）
 -- 格式：P{id}|B{batch}|C{color}|D{dye_lot}|G{grade}
-ALTER TABLE inventory_stock 
+ALTER TABLE inventory_stocks 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
     CONCAT(
@@ -26,7 +26,7 @@ GENERATED ALWAYS AS (
 
 -- 3. 为五维 ID 添加索引，加速精确查询
 CREATE INDEX IF NOT EXISTS idx_inventory_five_dimension_id
-ON inventory_stock(five_dimension_id);
+ON inventory_stocks(five_dimension_id);
 
 -- 4. 为 purchase_receipt_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
@@ -104,7 +104,7 @@ SELECT
     SUM(quantity_meters) as total_meters,
     SUM(quantity_kg) as total_kg,
     MAX(updated_at) as last_updated
-FROM inventory_stock
+FROM inventory_stocks
 GROUP BY 
     product_id,
     batch_no,
@@ -138,7 +138,7 @@ BEGIN
         i.quantity_meters,
         i.quantity_kg,
         i.stock_status
-    FROM inventory_stock i
+    FROM inventory_stocks i
     WHERE 
         (p_product_id IS NULL OR i.product_id = p_product_id)
         AND (p_batch_no IS NULL OR i.batch_no LIKE CONCAT('%', p_batch_no, '%'))

@@ -3,12 +3,12 @@
 -- 说明：添加双计量单位计算字段、触发器和索引
 
 -- 1. 库存表添加计算字段
-ALTER TABLE inventory_stock 
+ALTER TABLE inventory_stocks 
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
-COMMENT ON COLUMN inventory_stock.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-COMMENT ON COLUMN inventory_stock.unit_conversion_rate IS '单位换算率（公斤/米）';
+COMMENT ON COLUMN inventory_stocks.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
+COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（公斤/米）';
 
 -- 2. 采购入库明细表添加计算字段
 ALTER TABLE purchase_receipt_item 
@@ -69,10 +69,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 6. 为 inventory_stock 表创建触发器
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stock;
+-- 6. 为 inventory_stocks 表创建触发器
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
 CREATE TRIGGER trg_calculate_dual_unit_inventory
-    BEFORE INSERT OR UPDATE ON inventory_stock
+    BEFORE INSERT OR UPDATE ON inventory_stocks
     FOR EACH ROW
     EXECUTE FUNCTION calculate_dual_unit_quantity();
 
@@ -109,7 +109,7 @@ BEGIN
 END $$;
 
 -- 10. 更新现有数据（一次性操作）
-UPDATE inventory_stock
+UPDATE inventory_stocks
 SET 
     quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
     calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
@@ -156,7 +156,7 @@ WHERE quantity_ordered IS NOT NULL
 
 -- 11. 创建索引优化查询性能
 CREATE INDEX IF NOT EXISTS idx_inventory_dual_unit 
-ON inventory_stock(quantity_meters, quantity_kg, gram_weight, width_cm);
+ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width_cm);
 
 CREATE INDEX IF NOT EXISTS idx_receipt_dual_unit 
 ON purchase_receipt_item(quantity_received, quantity_kg, gram_weight, width_cm);
@@ -184,7 +184,7 @@ SELECT
     quality_status,
     created_at,
     updated_at
-FROM inventory_stock
+FROM inventory_stocks
 WHERE quantity_meters IS NOT NULL;
 
 COMMENT ON VIEW v_inventory_dual_unit IS '库存双计量单位视图（包含换算信息）';

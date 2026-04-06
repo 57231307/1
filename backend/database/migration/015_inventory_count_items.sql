@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS inventory_count_items (
     id SERIAL PRIMARY KEY,
     count_id INTEGER NOT NULL REFERENCES inventory_counts(id) ON DELETE CASCADE,
-    stock_id INTEGER NOT NULL REFERENCES inventory_stock(id) ON DELETE CASCADE,
+    stock_id INTEGER NOT NULL REFERENCES inventory_stocks(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
     quantity_before DECIMAL(10,2) NOT NULL DEFAULT 0,  -- 盘点前数量

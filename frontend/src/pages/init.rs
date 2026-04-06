@@ -228,6 +228,12 @@ impl Component for InitPage {
                 if initialized {
                     self.current_step = InitStep::Completed;
                     self.success_message = Some("系统已经初始化，请直接登录".to_string());
+                    if let Some(navigator) = _ctx.link().navigator() {
+                        let navigator = navigator.clone();
+                        gloo_timers::callback::Timeout::new(2000, move || {
+                            navigator.push(&Route::Login);
+                        }).forget();
+                    }
                 }
                 true
             }
@@ -279,6 +285,12 @@ impl Component for InitPage {
                 self.success_message = Some(message);
                 self.is_initialized = true;
                 self.current_step = InitStep::Completed;
+                if let Some(navigator) = _ctx.link().navigator() {
+                    let navigator = navigator.clone();
+                    gloo_timers::callback::Timeout::new(2000, move || {
+                        navigator.push(&Route::Login);
+                    }).forget();
+                }
                 true
             }
             Msg::InitializeFailure(error) => {

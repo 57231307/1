@@ -33,6 +33,7 @@ impl Component for LoginPage {
     type Properties = ();
 
     fn create(_ctx: &Context<Self>) -> Self {
+        _ctx.link().send_message(Msg::CheckInitStatus);
         Self {
             username: String::new(),
             password: String::new(),
