@@ -201,6 +201,22 @@ impl QualityInspectionService {
 
         let result = active_model.insert(&*self.db).await?;
         info!("质量检验记录创建成功：{}", result.inspection_no);
+
+        // 如果是采购入库的质检，同步更新入库单状态
+        if result.related_type.as_deref() == Some("PURCHASE_RECEIPT") {
+            if let Some(receipt_id) = result.related_id {
+                let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
+                    .one(&*self.db)
+                    .await?;
+                    
+                if let Some(r) = receipt {
+                    let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
+                    receipt_active.inspection_status = Set(result.inspection_result.clone());
+                    receipt_active.update(&*self.db).await?;
+                }
+            }
+        }
+
         Ok(result)
     }
 
