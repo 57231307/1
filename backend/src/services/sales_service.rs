@@ -876,6 +876,38 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
+        // 自动生成应收账款（AR）发票
+        let finance_service = crate::services::finance_invoice_service::FinanceInvoiceService::new(self.db.clone());
+        
+        // 查询客户名称
+        let customer = crate::models::customer::Entity::find_by_id(order.customer_id)
+            .one(&*self.db)
+            .await?;
+            
+        let customer_name = customer.map(|c| c.customer_name).unwrap_or_else(|| "未知客户".to_string());
+        
+        let invoice_req = crate::services::finance_invoice_service::CreateInvoiceRequest {
+            invoice_no: format!("INV-{}", order.order_no),
+            order_id: Some(order.id),
+            customer_id: Some(order.customer_id),
+            customer_name,
+            invoice_type: "AR".to_string(),
+            amount: order.total_amount,
+            tax_amount: rust_decimal::Decimal::new(0, 0),
+            total_amount: order.total_amount,
+            status: Some("pending".to_string()),
+            invoice_date: Some(chrono::Utc::now()),
+            due_date: Some(chrono::Utc::now() + chrono::Duration::days(30)),
+            payment_method: None,
+            notes: Some(format!("系统自动生成应收账款：{}", order.order_no)),
+        };
+        
+        if let Err(e) = finance_service.create_invoice(invoice_req).await {
+            tracing::error!("自动生成应收账款失败 (订单 {}): {}", order.order_no, e);
+        } else {
+            tracing::info!("成功自动生成应收账款 (订单 {})", order.order_no);
+        }
+
         // 返回订单详情
         self.get_order_detail(completed_order.id).await
     }
