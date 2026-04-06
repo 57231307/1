@@ -47,9 +47,43 @@ pub struct SalesReturnService {
 
 impl SalesReturnService {
     /// 创建服务实例
+/// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    pub async fn update_return_totals(
+        &self,
+        return_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        use sea_orm::{QuerySelect, ColumnTrait};
+        let items = crate::models::sales_return_item::Entity::find()
+            .filter(crate::models::sales_return_item::Column::ReturnId.eq(return_id))
+            .all(txn)
+            .await?;
+
+        let mut total = rust_decimal::Decimal::new(0, 0);
+        for item in items {
+            // Because sales_return_item might not have `amount`, we multiply quantity by a unit price or assume it's pre-calculated if the field exists.
+            // Let's check what fields are actually in sales_return_item
+            // Wait, sales_return_item doesn't have an `amount` field. We must use unit_price * quantity.
+            let qty = item.quantity;
+            let price = item.unit_price;
+            total += qty * price;
+        }
+
+        let return_order = crate::models::sales_return::Entity::find_by_id(return_id)
+            .one(txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
+
+        let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
+        return_active.total_amount = sea_orm::ActiveValue::Set(total);
+        return_active.update(txn).await?;
+        Ok(())
+    }
+
 
     /// 生成退货单号
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
