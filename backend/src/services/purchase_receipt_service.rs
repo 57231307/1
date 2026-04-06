@@ -589,7 +589,7 @@ impl PurchaseReceiptService {
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
             
-                        let stock_model = stock_service.create_stock_fabric(
+                        let _stock_model = stock_service.create_stock_fabric(
                 receipt.warehouse_id,
                 item.product_id,
                 batch_no.clone(),

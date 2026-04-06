@@ -162,7 +162,7 @@ impl InitService {
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
-        use sea_orm::{ConnectionTrait, Statement, DatabaseBackend};
+        use sea_orm::ConnectionTrait;
         use std::path::PathBuf;
         use tracing::{info, warn};
         

@@ -8,7 +8,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
+    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, RelationTrait
 };
 use serde::Deserialize;
 use std::sync::Arc;

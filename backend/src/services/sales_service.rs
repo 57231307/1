@@ -256,7 +256,7 @@ impl SalesService {
         let credit_limit = customer.credit_limit;
         
         // 计算当前未付应收账款总额 (AR invoices that are not 'paid')
-        use sea_orm::{QuerySelect, QueryFilter, ColumnTrait};
+        use sea_orm::{QueryFilter, ColumnTrait};
         let unpaid_invoices = crate::models::finance_invoice::Entity::find()
             .filter(crate::models::finance_invoice::Column::CustomerId.eq(request.customer_id))
             .filter(crate::models::finance_invoice::Column::InvoiceType.eq("AR"))

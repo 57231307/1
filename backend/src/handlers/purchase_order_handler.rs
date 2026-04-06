@@ -46,7 +46,7 @@ pub async fn list_orders(
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let order = service.get_order(id).await?;
@@ -175,7 +175,7 @@ pub async fn close_order(auth: AuthContext,
 }
 
 /// 获取订单明细列表
-pub async fn list_order_items(auth: AuthContext, 
+pub async fn list_order_items(_auth: AuthContext, 
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

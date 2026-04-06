@@ -1,0 +1,1733 @@
+[1m[92m   Compiling[0m bingxi-backend v1.0.0 (/workspace/backend)
+[1m[33mwarning[0m[1m: unused import: `Serialize`[0m
+  [1m[94m--> [0msrc/handlers/sales_return_handler.rs:10:26
+   [1m[94m|[0m
+[1m[94m10[0m [1m[94m|[0m use serde::{Deserialize, Serialize};
+   [1m[94m|[0m                          [1m[33m^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: unused imports: `DatabaseBackend` and `Statement`[0m
+   [1m[94m--> [0msrc/services/init_service.rs:165:40
+    [1m[94m|[0m
+[1m[94m165[0m [1m[94m|[0m         use sea_orm::{ConnectionTrait, Statement, DatabaseBackend};
+    [1m[94m|[0m                                        [1m[33m^^^^^^^^^[0m  [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `QuerySelect`[0m
+   [1m[94m--> [0msrc/services/sales_service.rs:259:23
+    [1m[94m|[0m
+[1m[94m259[0m [1m[94m|[0m         use sea_orm::{QuerySelect, QueryFilter, ColumnTrait};
+    [1m[94m|[0m                       [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `inventory_stock`[0m
+ [1m[94m--> [0msrc/services/purchase_order_service.rs:7:17
+  [1m[94m|[0m
+[1m[94m7[0m [1m[94m|[0m     department, inventory_stock, product, purchase_order, purchase_order_item, supplier, warehouse,
+  [1m[94m|[0m                 [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `Order`[0m
+  [1m[94m--> [0msrc/services/purchase_order_service.rs:13:86
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, PaginatorTrait,
+   [1m[94m|[0m                                                                                      [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `JoinType`[0m
+  [1m[94m--> [0msrc/services/purchase_return_service.rs:11:83
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m     QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
+   [1m[94m|[0m                                                                                   [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `QuerySelect`[0m
+  [1m[94m--> [0msrc/services/sales_return_service.rs:60:23
+   [1m[94m|[0m
+[1m[94m60[0m [1m[94m|[0m         use sea_orm::{QuerySelect, ColumnTrait};
+   [1m[94m|[0m                       [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `QuerySelect`[0m
+  [1m[94m--> [0msrc/services/purchase_return_service.rs:11:53
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m     QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
+   [1m[94m|[0m                                                     [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `RelationTrait`[0m
+  [1m[94m--> [0msrc/services/purchase_return_service.rs:11:93
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m     QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
+   [1m[94m|[0m                                                                                             [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused variable: `auth`[0m
+  [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:49:5
+   [1m[94m|[0m
+[1m[94m49[0m [1m[94m|[0m     auth: AuthContext,
+   [1m[94m|[0m     [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_auth`[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: unused variable: `auth`[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:178:31
+    [1m[94m|[0m
+[1m[94m178[0m [1m[94m|[0m pub async fn list_order_items(auth: AuthContext, 
+    [1m[94m|[0m                               [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_auth`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `auth`[0m
+  [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:48:26
+   [1m[94m|[0m
+[1m[94m48[0m [1m[94m|[0m pub async fn get_receipt(auth: AuthContext, 
+   [1m[94m|[0m                          [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_auth`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `stock_model`[0m
+   [1m[94m--> [0msrc/services/purchase_receipt_service.rs:592:29
+    [1m[94m|[0m
+[1m[94m592[0m [1m[94m|[0m                         let stock_model = stock_service.create_stock_fabric(
+    [1m[94m|[0m                             [1m[33m^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_stock_model`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `auth`[0m
+   [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:114:33
+    [1m[94m|[0m
+[1m[94m114[0m [1m[94m|[0m pub async fn list_receipt_items(auth: AuthContext, 
+    [1m[94m|[0m                                 [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_auth`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `product_info`[0m
+   [1m[94m--> [0msrc/services/sales_return_service.rs:267:17
+    [1m[94m|[0m
+[1m[94m267[0m [1m[94m|[0m             let product_info = product::Entity::find_by_id(item.product_id)
+    [1m[94m|[0m                 [1m[33m^^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_product_info`[0m
+
+[1m[33mwarning[0m: `bingxi-backend` (lib) generated 15 warnings (run `cargo fix --lib -p bingxi-backend` to apply 13 suggestions)
+[1m[33mwarning[0m[1m: struct `GrpcManagementServices` is never constructed[0m
+  [1m[94m--> [0msrc/grpc/management_services.rs:54:12
+   [1m[94m|[0m
+[1m[94m54[0m [1m[94m|[0m pub struct GrpcManagementServices {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: associated functions `new`, `to_grpc_purchase_contract`, `to_grpc_sales_contract`, `to_grpc_fixed_asset`, and `to_grpc_budget_item` are never used[0m
+   [1m[94m--> [0msrc/grpc/management_services.rs:62:12
+    [1m[94m|[0m
+ [1m[94m61[0m [1m[94m|[0m impl GrpcManagementServices {
+    [1m[94m|[0m [1m[94m---------------------------[0m [1m[94massociated functions in this implementation[0m
+ [1m[94m62[0m [1m[94m|[0m     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    [1m[94m|[0m            [1m[33m^^^[0m
+[1m[94m...[0m
+ [1m[94m72[0m [1m[94m|[0m     fn to_grpc_purchase_contract(contract: crate::models::purchase_contract::Model) -> PurchaseContract {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+ [1m[94m96[0m [1m[94m|[0m     fn to_grpc_sales_contract(contract: crate::models::sales_contract::Model) -> SalesContract {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m120[0m [1m[94m|[0m     fn to_grpc_fixed_asset(asset: crate::models::fixed_asset::Model) -> FixedAsset {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m153[0m [1m[94m|[0m     fn to_grpc_budget_item(item: crate::models::budget_management::Model) -> BudgetItem {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `GrpcNewServices` is never constructed[0m
+  [1m[94m--> [0msrc/grpc/new_services.rs:70:12
+   [1m[94m|[0m
+[1m[94m70[0m [1m[94m|[0m pub struct GrpcNewServices {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: multiple associated functions are never used[0m
+   [1m[94m--> [0msrc/grpc/new_services.rs:80:12
+    [1m[94m|[0m
+ [1m[94m79[0m [1m[94m|[0m impl GrpcNewServices {
+    [1m[94m|[0m [1m[94m--------------------[0m [1m[94massociated functions in this implementation[0m
+ [1m[94m80[0m [1m[94m|[0m     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    [1m[94m|[0m            [1m[33m^^^[0m
+[1m[94m...[0m
+ [1m[94m91[0m [1m[94m|[0m     fn to_grpc_assist_record(record: crate::models::assist_accounting_record::Model) -> AssistAccountingRecord {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m119[0m [1m[94m|[0m     fn to_grpc_dimension(dimension: crate::models::assist_accounting_dimension::Model) -> AssistAccountingDimension {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m133[0m [1m[94m|[0m     fn to_grpc_evaluation_indicator(indicator: crate::models::supplier_evaluation::Model) -> EvaluationIndicator {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m149[0m [1m[94m|[0m     fn to_grpc_evaluation_record(record: crate::models::supplier_evaluation_record::Model) -> SupplierEvaluationRecord {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m166[0m [1m[94m|[0m     fn to_grpc_reservation(reservation: crate::models::inventory_reservation::Model) -> InventoryReservation {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m184[0m [1m[94m|[0m     fn to_grpc_financial_indicator(indicator: crate::models::financial_analysis::Model) -> FinancialIndicator {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m200[0m [1m[94m|[0m     fn to_grpc_analysis_result(result: crate::models::financial_analysis_result::Model) -> FinancialAnalysisResult {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `GrpcUserService` is never constructed[0m
+  [1m[94m--> [0msrc/grpc/service.rs:25:12
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m|[0m pub struct GrpcUserService {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: associated functions `new` and `to_grpc_user` are never used[0m
+  [1m[94m--> [0msrc/grpc/service.rs:31:12
+   [1m[94m|[0m
+[1m[94m30[0m [1m[94m|[0m impl GrpcUserService {
+   [1m[94m|[0m [1m[94m--------------------[0m [1m[94massociated functions in this implementation[0m
+[1m[94m31[0m [1m[94m|[0m     pub fn new(db: Arc<DatabaseConnection>, jwt_secret: String) -> Self {
+   [1m[94m|[0m            [1m[33m^^^[0m
+[1m[94m...[0m
+[1m[94m39[0m [1m[94m|[0m     fn to_grpc_user(user: UserModel) -> User {
+   [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `CustomerResponse` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/customer_handler.rs:57:12
+   [1m[94m|[0m
+[1m[94m57[0m [1m[94m|[0m pub struct CustomerResponse {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_init_status` is never used[0m
+  [1m[94m--> [0msrc/handlers/init_handler.rs:35:14
+   [1m[94m|[0m
+[1m[94m35[0m [1m[94m|[0m pub async fn get_init_status(State(state): State<AppState>) -> Json<InitStatus> {
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `initialize_system` is never used[0m
+  [1m[94m--> [0msrc/handlers/init_handler.rs:70:14
+   [1m[94m|[0m
+[1m[94m70[0m [1m[94m|[0m pub async fn initialize_system(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `ResetPasswordRequest` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/init_handler.rs:161:12
+    [1m[94m|[0m
+[1m[94m161[0m [1m[94m|[0m pub struct ResetPasswordRequest {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `ResetPasswordResponse` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/init_handler.rs:167:12
+    [1m[94m|[0m
+[1m[94m167[0m [1m[94m|[0m pub struct ResetPasswordResponse {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `reset_admin_password` is never used[0m
+   [1m[94m--> [0msrc/handlers/init_handler.rs:172:14
+    [1m[94m|[0m
+[1m[94m172[0m [1m[94m|[0m pub async fn reset_admin_password(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `LowStockResponse` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/inventory_stock_handler.rs:75:12
+   [1m[94m|[0m
+[1m[94m75[0m [1m[94m|[0m pub struct LowStockResponse {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `check_low_stock` is never used[0m
+   [1m[94m--> [0msrc/handlers/inventory_stock_handler.rs:258:14
+    [1m[94m|[0m
+[1m[94m258[0m [1m[94m|[0m pub async fn check_low_stock(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `LowStockParams` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/inventory_stock_handler.rs:302:12
+    [1m[94m|[0m
+[1m[94m302[0m [1m[94m|[0m pub struct LowStockParams {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `toggle_supplier_status` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:102:14
+    [1m[94m|[0m
+[1m[94m102[0m [1m[94m|[0m pub async fn toggle_supplier_status(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_supplier_contacts` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:133:14
+    [1m[94m|[0m
+[1m[94m133[0m [1m[94m|[0m pub async fn list_supplier_contacts(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_supplier_contact` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:149:14
+    [1m[94m|[0m
+[1m[94m149[0m [1m[94m|[0m pub async fn create_supplier_contact(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `update_supplier_contact` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:172:14
+    [1m[94m|[0m
+[1m[94m172[0m [1m[94m|[0m pub async fn update_supplier_contact(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `delete_supplier_contact` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:191:14
+    [1m[94m|[0m
+[1m[94m191[0m [1m[94m|[0m pub async fn delete_supplier_contact(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_supplier_qualifications` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:209:14
+    [1m[94m|[0m
+[1m[94m209[0m [1m[94m|[0m pub async fn list_supplier_qualifications(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_supplier_qualification` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_handler.rs:218:14
+    [1m[94m|[0m
+[1m[94m218[0m [1m[94m|[0m pub async fn create_supplier_qualification(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `update_inspection` is never used[0m
+  [1m[94m--> [0msrc/handlers/purchase_inspection_handler.rs:79:14
+   [1m[94m|[0m
+[1m[94m79[0m [1m[94m|[0m pub async fn update_inspection(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `complete_inspection` is never used[0m
+  [1m[94m--> [0msrc/handlers/purchase_inspection_handler.rs:97:14
+   [1m[94m|[0m
+[1m[94m97[0m [1m[94m|[0m pub async fn complete_inspection(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `submit_order` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:111:14
+    [1m[94m|[0m
+[1m[94m111[0m [1m[94m|[0m pub async fn submit_order(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `reject_order` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:145:14
+    [1m[94m|[0m
+[1m[94m145[0m [1m[94m|[0m pub async fn reject_order(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `close_order` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:162:14
+    [1m[94m|[0m
+[1m[94m162[0m [1m[94m|[0m pub async fn close_order(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_order_items` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:178:14
+    [1m[94m|[0m
+[1m[94m178[0m [1m[94m|[0m pub async fn list_order_items(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_order_item` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:190:14
+    [1m[94m|[0m
+[1m[94m190[0m [1m[94m|[0m pub async fn create_order_item(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `update_order_item` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:212:14
+    [1m[94m|[0m
+[1m[94m212[0m [1m[94m|[0m pub async fn update_order_item(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `delete_order_item` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_order_handler.rs:229:14
+    [1m[94m|[0m
+[1m[94m229[0m [1m[94m|[0m pub async fn delete_order_item(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `update_receipt` is never used[0m
+  [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:81:14
+   [1m[94m|[0m
+[1m[94m81[0m [1m[94m|[0m pub async fn update_receipt(auth: AuthContext, 
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `confirm_receipt` is never used[0m
+  [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:98:14
+   [1m[94m|[0m
+[1m[94m98[0m [1m[94m|[0m pub async fn confirm_receipt(auth: AuthContext, 
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_receipt_items` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:114:14
+    [1m[94m|[0m
+[1m[94m114[0m [1m[94m|[0m pub async fn list_receipt_items(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_receipt_item` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:126:14
+    [1m[94m|[0m
+[1m[94m126[0m [1m[94m|[0m pub async fn create_receipt_item(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `update_receipt_item` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:148:14
+    [1m[94m|[0m
+[1m[94m148[0m [1m[94m|[0m pub async fn update_receipt_item(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `delete_receipt_item` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_receipt_handler.rs:165:14
+    [1m[94m|[0m
+[1m[94m165[0m [1m[94m|[0m pub async fn delete_receipt_item(auth: AuthContext, 
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `approve_invoice` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:161:14
+    [1m[94m|[0m
+[1m[94m161[0m [1m[94m|[0m pub async fn approve_invoice(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `CancelInvoiceRequest` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:184:12
+    [1m[94m|[0m
+[1m[94m184[0m [1m[94m|[0m pub struct CancelInvoiceRequest {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `cancel_invoice` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:188:14
+    [1m[94m|[0m
+[1m[94m188[0m [1m[94m|[0m pub async fn cancel_invoice(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `AutoGenerateRequest` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:215:12
+    [1m[94m|[0m
+[1m[94m215[0m [1m[94m|[0m pub struct AutoGenerateRequest {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `auto_generate` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:219:14
+    [1m[94m|[0m
+[1m[94m219[0m [1m[94m|[0m pub async fn auto_generate(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_aging_analysis` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:246:14
+    [1m[94m|[0m
+[1m[94m246[0m [1m[94m|[0m pub async fn get_aging_analysis(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_balance_summary` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:267:14
+    [1m[94m|[0m
+[1m[94m267[0m [1m[94m|[0m pub async fn get_balance_summary(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_statistics` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_invoice_handler.rs:286:14
+    [1m[94m|[0m
+[1m[94m286[0m [1m[94m|[0m pub async fn get_statistics(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `PaymentScheduleParams` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/ap_payment_handler.rs:173:12
+    [1m[94m|[0m
+[1m[94m173[0m [1m[94m|[0m pub struct PaymentScheduleParams {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_payment_schedule` is never used[0m
+   [1m[94m--> [0msrc/handlers/ap_payment_handler.rs:179:14
+    [1m[94m|[0m
+[1m[94m179[0m [1m[94m|[0m pub async fn get_payment_schedule(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `dispose_asset` is never used[0m
+   [1m[94m--> [0msrc/handlers/fixed_asset_handler.rs:152:14
+    [1m[94m|[0m
+[1m[94m152[0m [1m[94m|[0m pub async fn dispose_asset(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `IndicatorQuery` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/financial_analysis_handler.rs:18:12
+   [1m[94m|[0m
+[1m[94m18[0m [1m[94m|[0m pub struct IndicatorQuery {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `TrendQuery` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/financial_analysis_handler.rs:26:12
+   [1m[94m|[0m
+[1m[94m26[0m [1m[94m|[0m pub struct TrendQuery {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_indicators` is never used[0m
+  [1m[94m--> [0msrc/handlers/financial_analysis_handler.rs:31:14
+   [1m[94m|[0m
+[1m[94m31[0m [1m[94m|[0m pub async fn list_indicators(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_indicator` is never used[0m
+  [1m[94m--> [0msrc/handlers/financial_analysis_handler.rs:52:14
+   [1m[94m|[0m
+[1m[94m52[0m [1m[94m|[0m pub async fn create_indicator(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_analysis_result` is never used[0m
+  [1m[94m--> [0msrc/handlers/financial_analysis_handler.rs:69:14
+   [1m[94m|[0m
+[1m[94m69[0m [1m[94m|[0m pub async fn create_analysis_result(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_trends` is never used[0m
+  [1m[94m--> [0msrc/handlers/financial_analysis_handler.rs:83:14
+   [1m[94m|[0m
+[1m[94m83[0m [1m[94m|[0m pub async fn get_trends(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `ApprovePriceRequest` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/purchase_price_handler.rs:24:12
+   [1m[94m|[0m
+[1m[94m24[0m [1m[94m|[0m pub struct ApprovePriceRequest {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `approve_price` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_price_handler.rs:127:14
+    [1m[94m|[0m
+[1m[94m127[0m [1m[94m|[0m pub async fn approve_price(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_price_history` is never used[0m
+   [1m[94m--> [0msrc/handlers/purchase_price_handler.rs:142:14
+    [1m[94m|[0m
+[1m[94m142[0m [1m[94m|[0m pub async fn get_price_history(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: fields `product_id` and `batch_number` are never read[0m
+  [1m[94m--> [0msrc/handlers/quality_inspection_handler.rs:30:9
+   [1m[94m|[0m
+[1m[94m29[0m [1m[94m|[0m pub struct RecordQuery {
+   [1m[94m|[0m            [1m[94m-----------[0m [1m[94mfields in this struct[0m
+[1m[94m30[0m [1m[94m|[0m     pub product_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^[0m
+[1m[94m31[0m [1m[94m|[0m     pub batch_number: Option<String>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `RecordQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: field `record_id` is never read[0m
+  [1m[94m--> [0msrc/handlers/quality_inspection_handler.rs:39:9
+   [1m[94m|[0m
+[1m[94m38[0m [1m[94m|[0m pub struct DefectQuery {
+   [1m[94m|[0m            [1m[94m-----------[0m [1m[94mfield in this struct[0m
+[1m[94m39[0m [1m[94m|[0m     pub record_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `DefectQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: struct `InspectionRecordResponse` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/quality_inspection_handler.rs:46:12
+   [1m[94m|[0m
+[1m[94m46[0m [1m[94m|[0m pub struct InspectionRecordResponse {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `DefectResponse` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/quality_inspection_handler.rs:64:12
+   [1m[94m|[0m
+[1m[94m64[0m [1m[94m|[0m pub struct DefectResponse {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: fields `approved` and `remark` are never read[0m
+  [1m[94m--> [0msrc/handlers/sales_price_handler.rs:25:9
+   [1m[94m|[0m
+[1m[94m24[0m [1m[94m|[0m pub struct ApprovePriceRequest {
+   [1m[94m|[0m            [1m[94m-------------------[0m [1m[94mfields in this struct[0m
+[1m[94m25[0m [1m[94m|[0m     pub approved: bool,
+   [1m[94m|[0m         [1m[33m^^^^^^^^[0m
+[1m[94m26[0m [1m[94m|[0m     pub remark: Option<String>,
+   [1m[94m|[0m         [1m[33m^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `ApprovePriceRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: struct `EvaluationIndicatorQuery` is never constructed[0m
+  [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:18:12
+   [1m[94m|[0m
+[1m[94m18[0m [1m[94m|[0m pub struct EvaluationIndicatorQuery {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_indicators` is never used[0m
+  [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:25:14
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m|[0m pub async fn list_indicators(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_indicator` is never used[0m
+  [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:47:14
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m pub async fn create_indicator(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_evaluation_record` is never used[0m
+  [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:64:14
+   [1m[94m|[0m
+[1m[94m64[0m [1m[94m|[0m pub async fn create_evaluation_record(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_supplier_score` is never used[0m
+  [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:81:14
+   [1m[94m|[0m
+[1m[94m81[0m [1m[94m|[0m pub async fn get_supplier_score(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_ratings` is never used[0m
+  [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:98:14
+   [1m[94m|[0m
+[1m[94m98[0m [1m[94m|[0m pub async fn list_ratings(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `RankingQuery` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:112:12
+    [1m[94m|[0m
+[1m[94m112[0m [1m[94m|[0m pub struct RankingQuery {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_rankings` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:116:14
+    [1m[94m|[0m
+[1m[94m116[0m [1m[94m|[0m pub async fn get_rankings(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_evaluation_records` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:143:14
+    [1m[94m|[0m
+[1m[94m143[0m [1m[94m|[0m pub async fn list_evaluation_records(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_evaluation_record` is never used[0m
+   [1m[94m--> [0msrc/handlers/supplier_evaluation_handler.rs:164:14
+    [1m[94m|[0m
+[1m[94m164[0m [1m[94m|[0m pub async fn get_evaluation_record(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: field `remarks` is never read[0m
+  [1m[94m--> [0msrc/handlers/greige_fabric_handler.rs:85:9
+   [1m[94m|[0m
+[1m[94m82[0m [1m[94m|[0m pub struct StockOutRequest {
+   [1m[94m|[0m            [1m[94m---------------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m85[0m [1m[94m|[0m     pub remarks: Option<String>,
+   [1m[94m|[0m         [1m[33m^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `StockOutRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: function `upload_and_update` is never used[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:151:14
+    [1m[94m|[0m
+[1m[94m151[0m [1m[94m|[0m pub async fn upload_and_update(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `RollbackRequest` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:229:12
+    [1m[94m|[0m
+[1m[94m229[0m [1m[94m|[0m pub struct RollbackRequest {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `rollback_version` is never used[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:233:14
+    [1m[94m|[0m
+[1m[94m233[0m [1m[94m|[0m pub async fn rollback_version(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `LocalReleasesResponse` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:258:12
+    [1m[94m|[0m
+[1m[94m258[0m [1m[94m|[0m pub struct LocalReleasesResponse {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `CheckLocalUpdateResponse` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:264:12
+    [1m[94m|[0m
+[1m[94m264[0m [1m[94m|[0m pub struct CheckLocalUpdateResponse {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `check_for_local_updates` is never used[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:272:14
+    [1m[94m|[0m
+[1m[94m272[0m [1m[94m|[0m pub async fn check_for_local_updates() -> Result<Json<CheckLocalUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `list_local_releases` is never used[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:286:14
+    [1m[94m|[0m
+[1m[94m286[0m [1m[94m|[0m pub async fn list_local_releases() -> Result<Json<LocalReleasesResponse>, (StatusCode, Json<ErrorResponse>)> {
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `ApplyLocalUpdateRequest` is never constructed[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:309:12
+    [1m[94m|[0m
+[1m[94m309[0m [1m[94m|[0m pub struct ApplyLocalUpdateRequest {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `apply_local_update` is never used[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:313:14
+    [1m[94m|[0m
+[1m[94m313[0m [1m[94m|[0m pub async fn apply_local_update(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `get_backup_versions` is never used[0m
+   [1m[94m--> [0msrc/handlers/system_update_handler.rs:371:14
+    [1m[94m|[0m
+[1m[94m371[0m [1m[94m|[0m pub async fn get_backup_versions() -> Json<Vec<String>> {
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `metrics_middleware` is never used[0m
+  [1m[94m--> [0msrc/middleware/metrics.rs:16:14
+   [1m[94m|[0m
+[1m[94m16[0m [1m[94m|[0m pub async fn metrics_middleware(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `DbQueryMonitor` is never constructed[0m
+  [1m[94m--> [0msrc/middleware/metrics.rs:45:12
+   [1m[94m|[0m
+[1m[94m45[0m [1m[94m|[0m pub struct DbQueryMonitor<'a> {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: associated function `new` is never used[0m
+  [1m[94m--> [0msrc/middleware/metrics.rs:51:12
+   [1m[94m|[0m
+[1m[94m50[0m [1m[94m|[0m impl<'a> DbQueryMonitor<'a> {
+   [1m[94m|[0m [1m[94m---------------------------[0m [1m[94massociated function in this implementation[0m
+[1m[94m51[0m [1m[94m|[0m     pub fn new(metrics: &'a Metrics) -> Self {
+   [1m[94m|[0m            [1m[33m^^^[0m
+
+[1m[33mwarning[0m[1m: function `operation_log_middleware` is never used[0m
+  [1m[94m--> [0msrc/middleware/operation_log.rs:23:14
+   [1m[94m|[0m
+[1m[94m23[0m [1m[94m|[0m pub async fn operation_log_middleware(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `extract_user_info` is never used[0m
+  [1m[94m--> [0msrc/middleware/operation_log.rs:96:4
+   [1m[94m|[0m
+[1m[94m96[0m [1m[94m|[0m fn extract_user_info(headers: &axum::http::HeaderMap) -> (Option<i32>, Option<String>) {
+   [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `extract_module_from_uri` is never used[0m
+   [1m[94m--> [0msrc/middleware/operation_log.rs:115:4
+    [1m[94m|[0m
+[1m[94m115[0m [1m[94m|[0m fn extract_module_from_uri(uri: &axum::http::Uri) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `extract_action_from_method` is never used[0m
+   [1m[94m--> [0msrc/middleware/operation_log.rs:155:4
+    [1m[94m|[0m
+[1m[94m155[0m [1m[94m|[0m fn extract_action_from_method(method: &axum::http::Method) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `cleanup` is never used[0m
+  [1m[94m--> [0msrc/middleware/rate_limit.rs:62:12
+   [1m[94m|[0m
+[1m[94m24[0m [1m[94m|[0m impl RateLimiter {
+   [1m[94m|[0m [1m[94m----------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m62[0m [1m[94m|[0m     pub fn cleanup(&self) {
+   [1m[94m|[0m            [1m[33m^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: static `USER_RATE_LIMITER` is never used[0m
+  [1m[94m--> [0msrc/middleware/rate_limit.rs:69:8
+   [1m[94m|[0m
+[1m[94m69[0m [1m[94m|[0m static USER_RATE_LIMITER: Lazy<RateLimiter> = Lazy::new(|| RateLimiter::new(50, Duration::from_secs(60)));
+   [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `rate_limit_by_user` is never used[0m
+  [1m[94m--> [0msrc/middleware/rate_limit.rs:97:14
+   [1m[94m|[0m
+[1m[94m97[0m [1m[94m|[0m pub async fn rate_limit_by_user(
+   [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `RateLimitConfig` is never constructed[0m
+  [1m[94m--> [0msrc/middleware/rate_limiter.rs:19:12
+   [1m[94m|[0m
+[1m[94m19[0m [1m[94m|[0m pub struct RateLimitConfig {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `RateLimiterState` is never constructed[0m
+  [1m[94m--> [0msrc/middleware/rate_limiter.rs:37:12
+   [1m[94m|[0m
+[1m[94m37[0m [1m[94m|[0m pub struct RateLimiterState {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: associated items `new`, `check_rate_limit`, and `cleanup_expired` are never used[0m
+  [1m[94m--> [0msrc/middleware/rate_limiter.rs:45:12
+   [1m[94m|[0m
+[1m[94m44[0m [1m[94m|[0m impl RateLimiterState {
+   [1m[94m|[0m [1m[94m---------------------[0m [1m[94massociated items in this implementation[0m
+[1m[94m45[0m [1m[94m|[0m     pub fn new(config: RateLimitConfig) -> Self {
+   [1m[94m|[0m            [1m[33m^^^[0m
+[1m[94m...[0m
+[1m[94m53[0m [1m[94m|[0m     pub fn check_rate_limit(&self, client_ip: &str) -> Result<(), RateLimitError> {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m80[0m [1m[94m|[0m     pub fn cleanup_expired(&self) {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `RateLimitError` is never used[0m
+  [1m[94m--> [0msrc/middleware/rate_limiter.rs:93:10
+   [1m[94m|[0m
+[1m[94m93[0m [1m[94m|[0m pub enum RateLimitError {
+   [1m[94m|[0m          [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `rate_limiter_middleware` is never used[0m
+   [1m[94m--> [0msrc/middleware/rate_limiter.rs:108:14
+    [1m[94m|[0m
+[1m[94m108[0m [1m[94m|[0m pub async fn rate_limiter_middleware(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `extract_client_ip` is never used[0m
+   [1m[94m--> [0msrc/middleware/rate_limiter.rs:144:4
+    [1m[94m|[0m
+[1m[94m144[0m [1m[94m|[0m fn extract_client_ip(request: &Request<Body>) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_rate_limiter` is never used[0m
+   [1m[94m--> [0msrc/middleware/rate_limiter.rs:172:8
+    [1m[94m|[0m
+[1m[94m172[0m [1m[94m|[0m pub fn create_rate_limiter() -> Arc<RateLimiterState> {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_rate_limiter_with_config` is never used[0m
+   [1m[94m--> [0msrc/middleware/rate_limiter.rs:177:8
+    [1m[94m|[0m
+[1m[94m177[0m [1m[94m|[0m pub fn create_rate_limiter_with_config(config: RateLimitConfig) -> Arc<RateLimiterState> {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `start_cleanup_task` is never used[0m
+   [1m[94m--> [0msrc/middleware/rate_limiter.rs:182:14
+    [1m[94m|[0m
+[1m[94m182[0m [1m[94m|[0m pub async fn start_cleanup_task(state: Arc<RateLimiterState>, cleanup_interval_secs: u64) {
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/operation_log.rs:11:12
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/operation_log.rs:60:10
+   [1m[94m|[0m
+[1m[94m60[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/accounting_period.rs:8:12
+  [1m[94m|[0m
+[1m[94m8[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/accounting_period.rs:33:10
+   [1m[94m|[0m
+[1m[94m33[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/business_trace_view.rs:10:12
+   [1m[94m|[0m
+[1m[94m10[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/business_trace_view.rs:67:10
+   [1m[94m|[0m
+[1m[94m67[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/supplier_category.rs:5:12
+  [1m[94m|[0m
+[1m[94m5[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/supplier_category.rs:28:10
+   [1m[94m|[0m
+[1m[94m28[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/supplier_grade.rs:6:12
+  [1m[94m|[0m
+[1m[94m6[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/supplier_grade.rs:31:10
+   [1m[94m|[0m
+[1m[94m31[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/supplier_product.rs:7:12
+  [1m[94m|[0m
+[1m[94m7[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/supplier_product.rs:24:10
+   [1m[94m|[0m
+[1m[94m24[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/supplier_product_color.rs:8:12
+  [1m[94m|[0m
+[1m[94m8[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/supplier_product_color.rs:24:10
+   [1m[94m|[0m
+[1m[94m24[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/product_supplier_mapping.rs:8:12
+  [1m[94m|[0m
+[1m[94m8[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/product_supplier_mapping.rs:32:10
+   [1m[94m|[0m
+[1m[94m32[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/ar_collection.rs:11:12
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/ar_collection.rs:44:10
+   [1m[94m|[0m
+[1m[94m44[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/cost_analysis.rs:11:12
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/cost_analysis.rs:53:10
+   [1m[94m|[0m
+[1m[94m53[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/fund_account.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/fund_account.rs:58:10
+   [1m[94m|[0m
+[1m[94m58[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/fund_transfer_record.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/fund_transfer_record.rs:52:10
+   [1m[94m|[0m
+[1m[94m52[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/batch_dye_lot.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/batch_dye_lot.rs:55:10
+   [1m[94m|[0m
+[1m[94m55[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/batch_trace_log.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/batch_trace_log.rs:53:10
+   [1m[94m|[0m
+[1m[94m53[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+ [1m[94m--> [0msrc/models/dye_lot_mapping.rs:8:12
+  [1m[94m|[0m
+[1m[94m8[0m [1m[94m|[0m pub struct Model {
+  [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/dye_lot_mapping.rs:17:10
+   [1m[94m|[0m
+[1m[94m17[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/product_code_mapping.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/product_code_mapping.rs:47:10
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/color_code_mapping.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/color_code_mapping.rs:47:10
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/piece_mapping.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/piece_mapping.rs:48:10
+   [1m[94m|[0m
+[1m[94m48[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/inventory_piece.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/inventory_piece.rs:54:10
+   [1m[94m|[0m
+[1m[94m54[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/bpm_process_definition.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/bpm_process_definition.rs:47:10
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/bpm_process_instance.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/bpm_process_instance.rs:59:10
+   [1m[94m|[0m
+[1m[94m59[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/bpm_task.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/bpm_task.rs:68:10
+   [1m[94m|[0m
+[1m[94m68[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/budget_adjustment.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/budget_adjustment.rs:61:10
+   [1m[94m|[0m
+[1m[94m61[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/business_trace.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/business_trace.rs:47:10
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/business_trace_assist_link.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/business_trace_assist_link.rs:41:10
+   [1m[94m|[0m
+[1m[94m41[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/crm_lead.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/crm_lead.rs:60:10
+   [1m[94m|[0m
+[1m[94m60[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/crm_opportunity.rs:13:12
+   [1m[94m|[0m
+[1m[94m13[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/crm_opportunity.rs:58:10
+   [1m[94m|[0m
+[1m[94m58[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/oa_announcement.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/oa_announcement.rs:59:10
+   [1m[94m|[0m
+[1m[94m59[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/log_api_access.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/log_api_access.rs:59:10
+   [1m[94m|[0m
+[1m[94m59[0m [1m[94m|[0m pub enum Relation {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/log_login.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/log_login.rs:44:10
+   [1m[94m|[0m
+[1m[94m44[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/log_system.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/log_system.rs:59:10
+   [1m[94m|[0m
+[1m[94m59[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `Model` is never constructed[0m
+  [1m[94m--> [0msrc/models/report_definition.rs:12:12
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub struct Model {
+   [1m[94m|[0m            [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `Relation` is never used[0m
+  [1m[94m--> [0msrc/models/report_definition.rs:53:10
+   [1m[94m|[0m
+[1m[94m53[0m [1m[94m|[0m pub enum Relation {}
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `generate_monthly_summary` is never used[0m
+   [1m[94m--> [0msrc/services/assist_accounting_service.rs:158:18
+    [1m[94m|[0m
+ [1m[94m20[0m [1m[94m|[0m impl AssistAccountingService {
+    [1m[94m|[0m [1m[94m----------------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m158[0m [1m[94m|[0m     pub async fn generate_monthly_summary(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: field `decoding_key` is never read[0m
+  [1m[94m--> [0msrc/services/auth_service.rs:28:5
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m|[0m pub struct AuthService {
+   [1m[94m|[0m            [1m[94m-----------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m28[0m [1m[94m|[0m     decoding_key: DecodingKey,
+   [1m[94m|[0m     [1m[33m^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `AuthService` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: method `validate_token` is never used[0m
+  [1m[94m--> [0msrc/services/auth_service.rs:96:12
+   [1m[94m|[0m
+[1m[94m31[0m [1m[94m|[0m impl AuthService {
+   [1m[94m|[0m [1m[94m----------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m96[0m [1m[94m|[0m     pub fn validate_token(&self, token: &str) -> Result<AppClaims, AuthError> {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `reset_password` is never used[0m
+   [1m[94m--> [0msrc/services/init_service.rs:391:18
+    [1m[94m|[0m
+ [1m[94m40[0m [1m[94m|[0m impl InitService {
+    [1m[94m|[0m [1m[94m----------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m391[0m [1m[94m|[0m     pub async fn reset_password(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: variants `UserNotFound` and `ConfigError` are never constructed[0m
+   [1m[94m--> [0msrc/services/init_service.rs:427:5
+    [1m[94m|[0m
+[1m[94m419[0m [1m[94m|[0m pub enum InitError {
+    [1m[94m|[0m          [1m[94m---------[0m [1m[94mvariants in this enum[0m
+[1m[94m...[0m
+[1m[94m427[0m [1m[94m|[0m     UserNotFound,
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^^[0m
+[1m[94m428[0m [1m[94m|[0m     #[error("配置错误：{0}")]
+[1m[94m429[0m [1m[94m|[0m     ConfigError(String),
+    [1m[94m|[0m     [1m[33m^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `InitError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: struct `InitRequest` is never constructed[0m
+   [1m[94m--> [0msrc/services/init_service.rs:440:12
+    [1m[94m|[0m
+[1m[94m440[0m [1m[94m|[0m pub struct InitRequest {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `InitStatus` is never constructed[0m
+   [1m[94m--> [0msrc/services/init_service.rs:446:12
+    [1m[94m|[0m
+[1m[94m446[0m [1m[94m|[0m pub struct InitStatus {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `check_low_stock` is never used[0m
+   [1m[94m--> [0msrc/services/inventory_stock_service.rs:159:18
+    [1m[94m|[0m
+ [1m[94m37[0m [1m[94m|[0m impl InventoryStockService {
+    [1m[94m|[0m [1m[94m--------------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m159[0m [1m[94m|[0m     pub async fn check_low_stock(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `EvaluationIndicatorQueryParams` is never constructed[0m
+  [1m[94m--> [0msrc/services/supplier_evaluation_service.rs:15:12
+   [1m[94m|[0m
+[1m[94m15[0m [1m[94m|[0m pub struct EvaluationIndicatorQueryParams {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `get_indicators_list` is never used[0m
+  [1m[94m--> [0msrc/services/supplier_evaluation_service.rs:67:18
+   [1m[94m|[0m
+[1m[94m62[0m [1m[94m|[0m impl SupplierEvaluationService {
+   [1m[94m|[0m [1m[94m------------------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m67[0m [1m[94m|[0m     pub async fn get_indicators_list(
+   [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: methods `list_supplier_contacts` and `delete_supplier_contact` are never used[0m
+   [1m[94m--> [0msrc/services/supplier_service.rs:360:18
+    [1m[94m|[0m
+ [1m[94m18[0m [1m[94m|[0m impl SupplierService {
+    [1m[94m|[0m [1m[94m--------------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m360[0m [1m[94m|[0m     pub async fn list_supplier_contacts(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m457[0m [1m[94m|[0m     pub async fn delete_supplier_contact(&self, contact_id: i32) -> Result<(), AppError> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `PurchaseOrderItemDto` is never constructed[0m
+  [1m[94m--> [0msrc/services/purchase_order_service.rs:50:12
+   [1m[94m|[0m
+[1m[94m50[0m [1m[94m|[0m pub struct PurchaseOrderItemDto {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: methods `submit_order`, `close_order`, `delete_order_item`, and `list_order_items` are never used[0m
+   [1m[94m--> [0msrc/services/purchase_order_service.rs:312:18
+    [1m[94m|[0m
+ [1m[94m78[0m [1m[94m|[0m impl PurchaseOrderService {
+    [1m[94m|[0m [1m[94m-------------------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m312[0m [1m[94m|[0m     pub async fn submit_order(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m427[0m [1m[94m|[0m     pub async fn close_order(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m588[0m [1m[94m|[0m     pub async fn delete_order_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m721[0m [1m[94m|[0m     pub async fn list_order_items(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: methods `confirm_receipt`, `delete_receipt_item`, `list_receipt_items`, and `update_inventory` are never used[0m
+   [1m[94m--> [0msrc/services/purchase_receipt_service.rs:178:18
+    [1m[94m|[0m
+ [1m[94m23[0m [1m[94m|[0m impl PurchaseReceiptService {
+    [1m[94m|[0m [1m[94m---------------------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m178[0m [1m[94m|[0m     pub async fn confirm_receipt(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m363[0m [1m[94m|[0m     pub async fn delete_receipt_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m492[0m [1m[94m|[0m     pub async fn list_receipt_items(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m575[0m [1m[94m|[0m     async fn update_inventory(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: methods `auto_generate_from_receipt`, `approve`, `cancel`, `get_aging_analysis`, and `get_balance_summary` are never used[0m
+   [1m[94m--> [0msrc/services/ap_invoice_service.rs:45:18
+    [1m[94m|[0m
+ [1m[94m23[0m [1m[94m|[0m impl ApInvoiceService {
+    [1m[94m|[0m [1m[94m---------------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+ [1m[94m45[0m [1m[94m|[0m     pub async fn auto_generate_from_receipt(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m311[0m [1m[94m|[0m     pub async fn approve(&self, id: i32, user_id: i32) -> Result<ap_invoice::Model, AppError> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m344[0m [1m[94m|[0m     pub async fn cancel(
+    [1m[94m|[0m                  [1m[33m^^^^^^[0m
+[1m[94m...[0m
+[1m[94m441[0m [1m[94m|[0m     pub async fn get_aging_analysis(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m502[0m [1m[94m|[0m     pub async fn get_balance_summary(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `AgingAnalysisItem` is never constructed[0m
+   [1m[94m--> [0msrc/services/ap_invoice_service.rs:606:12
+    [1m[94m|[0m
+[1m[94m606[0m [1m[94m|[0m pub struct AgingAnalysisItem {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `BalanceSummary` is never constructed[0m
+   [1m[94m--> [0msrc/services/ap_invoice_service.rs:619:12
+    [1m[94m|[0m
+[1m[94m619[0m [1m[94m|[0m pub struct BalanceSummary {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `get_payment_schedule` is never used[0m
+   [1m[94m--> [0msrc/services/ap_payment_service.rs:299:18
+    [1m[94m|[0m
+ [1m[94m23[0m [1m[94m|[0m impl ApPaymentService {
+    [1m[94m|[0m [1m[94m---------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m299[0m [1m[94m|[0m     pub async fn get_payment_schedule(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `PaymentScheduleItem` is never constructed[0m
+   [1m[94m--> [0msrc/services/ap_payment_service.rs:390:12
+    [1m[94m|[0m
+[1m[94m390[0m [1m[94m|[0m pub struct PaymentScheduleItem {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `get_balance` is never used[0m
+   [1m[94m--> [0msrc/services/account_subject_service.rs:300:18
+    [1m[94m|[0m
+ [1m[94m57[0m [1m[94m|[0m impl AccountSubjectService {
+    [1m[94m|[0m [1m[94m--------------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m300[0m [1m[94m|[0m     pub async fn get_balance(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: multiple fields are never read[0m
+  [1m[94m--> [0msrc/services/voucher_service.rs:41:9
+   [1m[94m|[0m
+[1m[94m34[0m [1m[94m|[0m pub struct VoucherItemRequest {
+   [1m[94m|[0m            [1m[94m------------------[0m [1m[94mfields in this struct[0m
+[1m[94m...[0m
+[1m[94m41[0m [1m[94m|[0m     pub assist_customer_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m42[0m [1m[94m|[0m     pub assist_supplier_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m43[0m [1m[94m|[0m     pub assist_department_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m44[0m [1m[94m|[0m     pub assist_employee_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m45[0m [1m[94m|[0m     pub assist_project_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m48[0m [1m[94m|[0m     pub assist_dye_lot_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^[0m
+[1m[94m49[0m [1m[94m|[0m     pub assist_grade: Option<String>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^[0m
+[1m[94m50[0m [1m[94m|[0m     pub assist_workshop_id: Option<i32>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m53[0m [1m[94m|[0m     pub unit_price: Option<Decimal>,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `VoucherItemRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: struct `UpdateVoucherRequest` is never constructed[0m
+  [1m[94m--> [0msrc/services/voucher_service.rs:58:12
+   [1m[94m|[0m
+[1m[94m58[0m [1m[94m|[0m pub struct UpdateVoucherRequest {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `update` is never used[0m
+   [1m[94m--> [0msrc/services/voucher_service.rs:214:18
+    [1m[94m|[0m
+ [1m[94m83[0m [1m[94m|[0m impl VoucherService {
+    [1m[94m|[0m [1m[94m-------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m214[0m [1m[94m|[0m     pub async fn update(
+    [1m[94m|[0m                  [1m[33m^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `IndicatorQueryParams` is never constructed[0m
+  [1m[94m--> [0msrc/services/financial_analysis_service.rs:15:12
+   [1m[94m|[0m
+[1m[94m15[0m [1m[94m|[0m pub struct IndicatorQueryParams {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: associated items `new` and `get_indicators_list` are never used[0m
+  [1m[94m--> [0msrc/services/financial_analysis_service.rs:48:12
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m impl FinancialAnalysisService {
+   [1m[94m|[0m [1m[94m-----------------------------[0m [1m[94massociated items in this implementation[0m
+[1m[94m48[0m [1m[94m|[0m     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+   [1m[94m|[0m            [1m[33m^^^[0m
+[1m[94m...[0m
+[1m[94m52[0m [1m[94m|[0m     pub async fn get_indicators_list(
+   [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: methods `get_standard_by_id` and `update_unqualified_status` are never used[0m
+   [1m[94m--> [0msrc/services/quality_inspection_service.rs:129:18
+    [1m[94m|[0m
+ [1m[94m69[0m [1m[94m|[0m impl QualityInspectionService {
+    [1m[94m|[0m [1m[94m-----------------------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m129[0m [1m[94m|[0m     pub async fn get_standard_by_id(&self, id: i32) -> Result<quality_inspection::Model, AppError> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m277[0m [1m[94m|[0m     pub async fn update_unqualified_status(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `LocalRelease` is never constructed[0m
+  [1m[94m--> [0msrc/services/system_update_service.rs:15:12
+   [1m[94m|[0m
+[1m[94m15[0m [1m[94m|[0m pub struct LocalRelease {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `LocalUpdateCheckResult` is never constructed[0m
+  [1m[94m--> [0msrc/services/system_update_service.rs:24:12
+   [1m[94m|[0m
+[1m[94m24[0m [1m[94m|[0m pub struct LocalUpdateCheckResult {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `VersionInfo` is never constructed[0m
+  [1m[94m--> [0msrc/services/system_update_service.rs:33:12
+   [1m[94m|[0m
+[1m[94m33[0m [1m[94m|[0m pub struct VersionInfo {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `UpdateProgress` is never constructed[0m
+  [1m[94m--> [0msrc/services/system_update_service.rs:76:12
+   [1m[94m|[0m
+[1m[94m76[0m [1m[94m|[0m pub struct UpdateProgress {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: variant `BackupError` is never constructed[0m
+  [1m[94m--> [0msrc/services/system_update_service.rs:89:5
+   [1m[94m|[0m
+[1m[94m83[0m [1m[94m|[0m pub enum UpdateError {
+   [1m[94m|[0m          [1m[94m-----------[0m [1m[94mvariant in this enum[0m
+[1m[94m...[0m
+[1m[94m89[0m [1m[94m|[0m     BackupError(String),
+   [1m[94m|[0m     [1m[33m^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `UpdateError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: multiple methods are never used[0m
+   [1m[94m--> [0msrc/services/system_update_service.rs:121:8
+    [1m[94m|[0m
+[1m[94m106[0m [1m[94m|[0m impl SystemUpdateService {
+    [1m[94m|[0m [1m[94m------------------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m121[0m [1m[94m|[0m     fn get_releases_dir(&self) -> PathBuf {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m134[0m [1m[94m|[0m     pub fn list_local_releases(&self) -> Result<Vec<LocalRelease>, UpdateError> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m171[0m [1m[94m|[0m     fn extract_version_from_filename(&self, filename: &str) -> Option<String> {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m183[0m [1m[94m|[0m     pub fn check_local_updates(&self) -> LocalUpdateCheckResult {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m220[0m [1m[94m|[0m     pub async fn apply_local_update(&self, release: &LocalRelease) -> Result<String, UpdateError> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m525[0m [1m[94m|[0m     pub fn rollback_to_version(&self, version: &str) -> Result<String, UpdateError> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m644[0m [1m[94m|[0m     fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: multiple fields are never read[0m
+  [1m[94m--> [0msrc/services/metrics_service.rs:21:9
+   [1m[94m|[0m
+[1m[94m19[0m [1m[94m|[0m pub struct Metrics {
+   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfields in this struct[0m
+[1m[94m20[0m [1m[94m|[0m     /// HTTP 请求总数
+[1m[94m21[0m [1m[94m|[0m     pub http_requests_total: IntCounter,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m24[0m [1m[94m|[0m     pub http_requests_in_flight: IntGauge,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m27[0m [1m[94m|[0m     pub http_request_duration_seconds: Histogram,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m30[0m [1m[94m|[0m     pub db_connections: IntGauge,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m33[0m [1m[94m|[0m     pub db_query_duration_seconds: Histogram,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m36[0m [1m[94m|[0m     pub business_operations_total: IntCounter,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m39[0m [1m[94m|[0m     pub errors_total: IntCounter,
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `Metrics` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: multiple methods are never used[0m
+   [1m[94m--> [0msrc/services/metrics_service.rs:110:12
+    [1m[94m|[0m
+ [1m[94m42[0m [1m[94m|[0m impl Metrics {
+    [1m[94m|[0m [1m[94m------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m110[0m [1m[94m|[0m     pub fn record_http_request(&self, duration_secs: f64) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m116[0m [1m[94m|[0m     pub fn start_request(&self) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m121[0m [1m[94m|[0m     pub fn end_request(&self) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m126[0m [1m[94m|[0m     pub fn record_db_query(&self, duration_secs: f64) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m131[0m [1m[94m|[0m     pub fn record_business_operation(&self) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m136[0m [1m[94m|[0m     pub fn record_error(&self) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m141[0m [1m[94m|[0m     pub fn set_db_connections(&self, count: i64) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: fields `registry` and `metrics` are never read[0m
+   [1m[94m--> [0msrc/services/metrics_service.rs:149:9
+    [1m[94m|[0m
+[1m[94m148[0m [1m[94m|[0m pub struct MetricsService {
+    [1m[94m|[0m            [1m[94m--------------[0m [1m[94mfields in this struct[0m
+[1m[94m149[0m [1m[94m|[0m     pub registry: Arc<MetricsRegistry>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^[0m
+[1m[94m150[0m [1m[94m|[0m     pub metrics: Arc<Metrics>,
+    [1m[94m|[0m         [1m[33m^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `MetricsService` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: method `gather` is never used[0m
+   [1m[94m--> [0msrc/services/metrics_service.rs:166:12
+    [1m[94m|[0m
+[1m[94m153[0m [1m[94m|[0m impl MetricsService {
+    [1m[94m|[0m [1m[94m-------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m166[0m [1m[94m|[0m     pub fn gather(&self) -> Vec<prometheus::proto::MetricFamily> {
+    [1m[94m|[0m            [1m[33m^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `metrics_handler` is never used[0m
+   [1m[94m--> [0msrc/services/metrics_service.rs:172:14
+    [1m[94m|[0m
+[1m[94m172[0m [1m[94m|[0m pub async fn metrics_handler(
+    [1m[94m|[0m              [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `create_metrics_router` is never used[0m
+   [1m[94m--> [0msrc/services/metrics_service.rs:193:8
+    [1m[94m|[0m
+[1m[94m193[0m [1m[94m|[0m pub fn create_metrics_router(metrics_service: Arc<MetricsService>) -> Router<Arc<MetricsService>> {
+    [1m[94m|[0m        [1m[33m^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `OperationLogService` is never constructed[0m
+  [1m[94m--> [0msrc/services/operation_log_service.rs:10:12
+   [1m[94m|[0m
+[1m[94m10[0m [1m[94m|[0m pub struct OperationLogService {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `CreateOperationLogRequest` is never constructed[0m
+  [1m[94m--> [0msrc/services/operation_log_service.rs:16:12
+   [1m[94m|[0m
+[1m[94m16[0m [1m[94m|[0m pub struct CreateOperationLogRequest {
+   [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: multiple associated items are never used[0m
+   [1m[94m--> [0msrc/services/operation_log_service.rs:33:12
+    [1m[94m|[0m
+ [1m[94m32[0m [1m[94m|[0m impl OperationLogService {
+    [1m[94m|[0m [1m[94m------------------------[0m [1m[94massociated items in this implementation[0m
+ [1m[94m33[0m [1m[94m|[0m     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    [1m[94m|[0m            [1m[33m^^^[0m
+[1m[94m...[0m
+ [1m[94m38[0m [1m[94m|[0m     pub async fn create_log(&self, request: CreateOperationLogRequest) -> Result<operation_log::Model, DbErr> {
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^[0m
+[1m[94m...[0m
+ [1m[94m61[0m [1m[94m|[0m     pub async fn log_success(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^[0m
+[1m[94m...[0m
+ [1m[94m96[0m [1m[94m|[0m     pub async fn log_failure(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m130[0m [1m[94m|[0m     pub async fn list_logs(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m148[0m [1m[94m|[0m     pub async fn list_logs_by_module(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m168[0m [1m[94m|[0m     pub async fn list_logs_by_user(
+    [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `update_return_totals` is never used[0m
+  [1m[94m--> [0msrc/services/sales_return_service.rs:55:18
+   [1m[94m|[0m
+[1m[94m48[0m [1m[94m|[0m impl SalesReturnService {
+   [1m[94m|[0m [1m[94m-----------------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m...[0m
+[1m[94m55[0m [1m[94m|[0m     pub async fn update_return_totals(
+   [1m[94m|[0m                  [1m[33m^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: field `metrics` is never read[0m
+  [1m[94m--> [0msrc/utils/app_state.rs:13:9
+   [1m[94m|[0m
+ [1m[94m9[0m [1m[94m|[0m pub struct AppState {
+   [1m[94m|[0m            [1m[94m--------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m13[0m [1m[94m|[0m     pub metrics: Arc<MetricsService>,
+   [1m[94m|[0m         [1m[33m^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `AppState` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+[1m[33mwarning[0m[1m: methods `remove`, `clear`, and `contains_key` are never used[0m
+  [1m[94m--> [0msrc/utils/cache.rs:15:8
+   [1m[94m|[0m
+[1m[94m12[0m [1m[94m|[0m pub trait Cache<K, V> {
+   [1m[94m|[0m           [1m[94m-----[0m [1m[94mmethods in this trait[0m
+[1m[94m...[0m
+[1m[94m15[0m [1m[94m|[0m     fn remove(&self, key: &K);
+   [1m[94m|[0m        [1m[33m^^^^^^[0m
+[1m[94m16[0m [1m[94m|[0m     fn clear(&self);
+   [1m[94m|[0m        [1m[33m^^^^^[0m
+[1m[94m17[0m [1m[94m|[0m     fn contains_key(&self, key: &K) -> bool;
+   [1m[94m|[0m        [1m[33m^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: enum `CacheKey` is never used[0m
+  [1m[94m--> [0msrc/utils/cache.rs:95:10
+   [1m[94m|[0m
+[1m[94m95[0m [1m[94m|[0m pub enum CacheKey {
+   [1m[94m|[0m          [1m[33m^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: method `to_string` is never used[0m
+   [1m[94m--> [0msrc/utils/cache.rs:137:12
+    [1m[94m|[0m
+[1m[94m136[0m [1m[94m|[0m impl CacheKey {
+    [1m[94m|[0m [1m[94m-------------[0m [1m[94mmethod in this implementation[0m
+[1m[94m137[0m [1m[94m|[0m     pub fn to_string(&self) -> String {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: fields `product_cache`, `sales_cache`, `purchase_cache`, `customer_cache`, `supplier_cache`, and `warehouse_cache` are never read[0m
+   [1m[94m--> [0msrc/utils/cache.rs:169:9
+    [1m[94m|[0m
+[1m[94m167[0m [1m[94m|[0m pub struct AppCache {
+    [1m[94m|[0m            [1m[94m--------[0m [1m[94mfields in this struct[0m
+[1m[94m168[0m [1m[94m|[0m     pub dashboard_cache: Arc<MemoryCache<String, serde_json::Value>>,
+[1m[94m169[0m [1m[94m|[0m     pub product_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^[0m
+[1m[94m170[0m [1m[94m|[0m     pub inventory_cache: Arc<MemoryCache<String, serde_json::Value>>,
+[1m[94m171[0m [1m[94m|[0m     pub sales_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^[0m
+[1m[94m172[0m [1m[94m|[0m     pub purchase_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^[0m
+[1m[94m173[0m [1m[94m|[0m     pub customer_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^[0m
+[1m[94m174[0m [1m[94m|[0m     pub supplier_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^[0m
+[1m[94m175[0m [1m[94m|[0m     pub warehouse_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: multiple methods are never used[0m
+   [1m[94m--> [0msrc/utils/cache.rs:202:12
+    [1m[94m|[0m
+[1m[94m178[0m [1m[94m|[0m impl AppCache {
+    [1m[94m|[0m [1m[94m-------------[0m [1m[94mmethods in this implementation[0m
+[1m[94m...[0m
+[1m[94m202[0m [1m[94m|[0m     pub fn get_product_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m212[0m [1m[94m|[0m     pub fn get_sales_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m217[0m [1m[94m|[0m     pub fn get_purchase_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m222[0m [1m[94m|[0m     pub fn get_customer_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m227[0m [1m[94m|[0m     pub fn get_supplier_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m232[0m [1m[94m|[0m     pub fn get_warehouse_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^[0m
+[1m[94m...[0m
+[1m[94m237[0m [1m[94m|[0m     pub fn clear_all(&self) {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: struct `FiveDimensionStatistics` is never constructed[0m
+   [1m[94m--> [0msrc/utils/fabric_five_dimension.rs:286:12
+    [1m[94m|[0m
+[1m[94m286[0m [1m[94m|[0m pub struct FiveDimensionStatistics {
+    [1m[94m|[0m            [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m: `bingxi-backend` (bin "server") generated 230 warnings (15 duplicates)
+[1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 28.71s

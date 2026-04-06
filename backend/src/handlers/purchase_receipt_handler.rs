@@ -45,7 +45,7 @@ pub async fn list_receipts(
 }
 
 /// 获取采购入库单详情
-pub async fn get_receipt(auth: AuthContext, 
+pub async fn get_receipt(_auth: AuthContext, 
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -111,7 +111,7 @@ pub async fn confirm_receipt(auth: AuthContext,
 }
 
 /// 获取入库明细列表
-pub async fn list_receipt_items(auth: AuthContext, 
+pub async fn list_receipt_items(_auth: AuthContext, 
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
