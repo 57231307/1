@@ -1,79 +1,53 @@
 //! 采购入库明细 Model
-//! 用于记录采购入库单的明细项
-
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
-use sea_orm::prelude::StringLen::N;
 use serde::{Deserialize, Serialize};
 
-/// 采购入库明细 Model
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "purchase_receipt_item")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-
-    /// 采购入库单 ID
     pub receipt_id: i32,
-
-    /// 采购订单明细 ID
     pub order_item_id: Option<i32>,
-
-    /// 产品 ID
+    pub line_no: i32,
     pub product_id: i32,
-
-    /// 入库数量（主单位）
+    pub material_code: String,
+    pub material_name: String,
+    pub batch_no: Option<String>,
+    pub color_code: Option<String>,
+    pub lot_no: Option<String>,
+    pub grade: Option<String>,
+    #[sea_orm(column_type = "Decimal(Some((8, 2)))")]
+    pub gram_weight: Option<Decimal>,
+    #[sea_orm(column_type = "Decimal(Some((8, 2)))")]
+    pub width: Option<Decimal>,
     #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
     pub quantity: Decimal,
-
-    /// 入库数量（辅助单位）
     #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
-    pub quantity_alt: Decimal,
-
-    /// 单价（本位币）
+    pub quantity_alt: Option<Decimal>,
+    pub unit_master: String,
+    pub unit_alt: Option<String>,
     #[sea_orm(column_type = "Decimal(Some((18, 6)))")]
-    pub unit_price: Decimal,
-
-    /// 单价（外币）
-    #[sea_orm(column_type = "Decimal(Some((18, 6)))")]
-    pub unit_price_foreign: Decimal,
-
-    /// 小计（本位币）
+    pub unit_price: Option<Decimal>,
     #[sea_orm(column_type = "Decimal(Some((18, 2)))")]
-    pub subtotal: Decimal,
-
-    /// 税额（本位币）
-    #[sea_orm(column_type = "Decimal(Some((18, 2)))")]
-    pub tax_amount: Decimal,
-
-    /// 总金额（本位币）
-    #[sea_orm(column_type = "Decimal(Some((18, 2)))")]
-    pub total_amount: Decimal,
-
-    /// 质检状态：PENDING=待质检，INSPECTING=质检中，PASSED=合格，FAILED=不合格
-    #[sea_orm(column_type = "String(N(20))")]
-    pub inspection_status: String,
-
-    /// 合格数量
-    #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
-    pub passed_quantity: Decimal,
-
-    /// 不合格数量
-    #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
-    pub rejected_quantity: Decimal,
-
-    /// 备注
+    pub amount: Option<Decimal>,
+    pub location_code: Option<String>,
+    pub package_no: Option<String>,
+    pub production_date: Option<NaiveDate>,
+    pub shelf_life: Option<i32>,
     pub notes: Option<String>,
-
-    /// 创建时间
-    pub created_at: DateTime<Utc>,
-
-    /// 更新时间
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub internal_dye_lot_id: Option<i32>,
+    pub internal_dye_lot_no: Option<String>,
+    pub internal_piece_ids: Option<Vec<i32>>,
+    pub internal_piece_nos: Option<Vec<String>>,
+    pub supplier_dye_lot_no: Option<String>,
+    pub supplier_piece_nos: Option<Vec<String>>,
+    pub batch_conversion_log_id: Option<i32>,
 }
 
-/// 采购入库明细 Relation
 #[derive(Copy, Clone, Debug, DeriveRelation, EnumIter)]
 pub enum Relation {
     #[sea_orm(

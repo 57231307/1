@@ -310,79 +310,79 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_ENV
           echo "DELIMITER" >> $GITHUB_ENV
 
-          echo "# 秉羲管理系统 - ${{ needs.package-release.outputs.version }}" > release_notes.md
+          echo "# Bingxi ERP - ${{ needs.package-release.outputs.version }}" > release_notes.md
           echo "" >> release_notes.md
-          echo "## 📦 发布内容" >> release_notes.md
+          echo "## 📦 Release Content" >> release_notes.md
           echo "" >> release_notes.md
-          echo "本次发布包含完整的秉羲管理系统，包括：" >> release_notes.md
+          echo "This release contains the complete Bingxi ERP system, including:" >> release_notes.md
           echo "" >> release_notes.md
-          echo "- ✅ 后端服务（Rust Axum）" >> release_notes.md
-          echo "- ✅ 前端应用（Yew WebAssembly）" >> release_notes.md
-          echo "- ✅ 部署脚本和配置文件" >> release_notes.md
-          echo "- ✅ 完整的项目文档" >> release_notes.md
+          echo "- ✅ Backend Service (Rust Axum)" >> release_notes.md
+          echo "- ✅ Frontend Application (Yew WebAssembly)" >> release_notes.md
+          echo "- ✅ Deployment Scripts & Configurations" >> release_notes.md
+          echo "- ✅ Complete Project Documentation" >> release_notes.md
           echo "" >> release_notes.md
-          echo "## ✨ 详细改动变化" >> release_notes.md
+          echo "## ✨ Changelog" >> release_notes.md
           echo "" >> release_notes.md
           echo "$CHANGELOG" >> release_notes.md
           echo "" >> release_notes.md
-          echo "## 🚀 快速开始" >> release_notes.md
+          echo "## 🚀 Quick Start" >> release_notes.md
           echo "" >> release_notes.md
-          echo "### 1. 一键部署" >> release_notes.md
+          echo "### 1. One-click Deployment" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
-          echo "curl -fsSL https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install" >> release_notes.md
+          echo "curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/57231307/1/main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install" >> release_notes.md
           echo "\`\`\`" >> release_notes.md
           echo "" >> release_notes.md
-          echo "### 2. 平滑更新" >> release_notes.md
+          echo "### 2. Smooth Update" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
-          echo "sudo bingxi update   # 在线拉取最新版并平滑重启" >> release_notes.md
+          echo "sudo bingxi update   # Pull the latest version and smoothly restart" >> release_notes.md
           echo "\`\`\`" >> release_notes.md
           echo "" >> release_notes.md
-          echo "### 3. 常用命令" >> release_notes.md
-          echo "安装成功后，你可以使用以下命令管理系统：" >> release_notes.md
+          echo "### 3. Common Commands" >> release_notes.md
+          echo "After successful installation, you can use the following commands to manage the system:" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
-          echo "sudo bingxi start    # 启动系统" >> release_notes.md
-          echo "sudo bingxi stop     # 停止系统" >> release_notes.md
-          echo "sudo bingxi status   # 查看状态" >> release_notes.md
+          echo "sudo bingxi start    # Start the system" >> release_notes.md
+          echo "sudo bingxi stop     # Stop the system" >> release_notes.md
+          echo "sudo bingxi status   # Check status" >> release_notes.md
           echo "\`\`\`" >> release_notes.md
           echo "" >> release_notes.md
-          echo "### 4. 手动配置环境 (可选)" >> release_notes.md
-          echo "如果需要修改数据库连接或其它高级配置，请编辑 \`/etc/bingxi/.env\` 文件并重启服务：" >> release_notes.md
+          echo "### 4. Manual Configuration (Optional)" >> release_notes.md
+          echo "If you need to modify database connections or other advanced configurations, edit the \`/etc/bingxi/.env\` file and restart the service:" >> release_notes.md
           echo "\`\`\`bash" >> release_notes.md
           echo "nano /etc/bingxi/.env" >> release_notes.md
           echo "sudo bingxi restart" >> release_notes.md
           echo "\`\`\`" >> release_notes.md
           echo "" >> release_notes.md
-          echo "## 📋 系统要求" >> release_notes.md
+          echo "## 📋 System Requirements" >> release_notes.md
           echo "" >> release_notes.md
-          echo "- **操作系统**: Linux (推荐 Ubuntu 20.04+)" >> release_notes.md
-          echo "- **CPU**: 至少 2 核" >> release_notes.md
-          echo "- **内存**: 至少 4GB" >> release_notes.md
-          echo "- **磁盘**: 至少 20GB" >> release_notes.md
-          echo "- **数据库**: PostgreSQL 14+" >> release_notes.md
+          echo "- **OS**: Linux (Ubuntu 20.04+ recommended)" >> release_notes.md
+          echo "- **CPU**: At least 2 cores" >> release_notes.md
+          echo "- **Memory**: At least 4GB" >> release_notes.md
+          echo "- **Disk**: At least 20GB" >> release_notes.md
+          echo "- **Database**: PostgreSQL 14+" >> release_notes.md
           echo "" >> release_notes.md
-          echo "## 🔧 技术栈" >> release_notes.md
+          echo "## 🔧 Tech Stack" >> release_notes.md
           echo "" >> release_notes.md
-          echo "- **后端**: Rust 2021 + Axum 0.7 + SeaORM 1.0" >> release_notes.md
-          echo "- **前端**: Yew 0.21 (Rust WebAssembly)" >> release_notes.md
-          echo "- **数据库**: PostgreSQL 14+" >> release_notes.md
-          echo "- **部署**: Systemd + Nginx" >> release_notes.md
+          echo "- **Backend**: Rust 2021 + Axum 0.7 + SeaORM 1.0" >> release_notes.md
+          echo "- **Frontend**: Yew 0.21 (Rust WebAssembly)" >> release_notes.md
+          echo "- **Database**: PostgreSQL 14+" >> release_notes.md
+          echo "- **Deployment**: Systemd + Nginx" >> release_notes.md
           echo "" >> release_notes.md
-          echo "## 📚 文档" >> release_notes.md
+          echo "## 📚 Documentation" >> release_notes.md
           echo "" >> release_notes.md
-          echo "完整文档请查看 docs/ 目录或访问项目仓库。" >> release_notes.md
+          echo "Please refer to the docs/ directory or visit the project repository for full documentation." >> release_notes.md
           echo "" >> release_notes.md
-          echo "## 🐛 问题反馈" >> release_notes.md
+          echo "## 🐛 Feedback" >> release_notes.md
           echo "" >> release_notes.md
-          echo "如有问题，请提交 Issue 或联系开发团队。" >> release_notes.md
+          echo "If you have any issues, please submit an Issue or contact the development team." >> release_notes.md
           echo "" >> release_notes.md
           echo "---" >> release_notes.md
-          echo "*发布时间: $(date +'%Y-%m-%d %H:%M:%S')*" >> release_notes.md
+          echo "*Release Time: $(date +'%Y-%m-%d %H:%M:%S')*" >> release_notes.md
 
-      - name: 创建或更新 GitHub Release
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.package-release.outputs.version }}
-          name: 秉羲管理系统 v${{ needs.package-release.outputs.version }}
+          name: Bingxi ERP v${{ needs.package-release.outputs.version }}
           body_path: release_notes.md
           files: bingxi-erp-${{ needs.package-release.outputs.version }}.zip
           draft: false

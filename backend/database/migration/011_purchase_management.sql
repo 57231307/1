@@ -72,7 +72,7 @@ CREATE TABLE purchase_order_item (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     order_id INTEGER NOT NULL,                          -- 订单 ID（外键）
     line_no INTEGER NOT NULL,                           -- 行号（10, 20, 30...）
-    material_id INTEGER NOT NULL,                       -- 物料 ID
+    product_id INTEGER NOT NULL,                        -- 产品 ID
     material_code VARCHAR(50) NOT NULL,                 -- 物料编码
     material_name VARCHAR(200) NOT NULL,                -- 物料名称
     specification VARCHAR(200),                         -- 规格型号
@@ -106,7 +106,7 @@ CREATE TABLE purchase_order_item (
 ALTER TABLE purchase_order_item ADD CONSTRAINT fk_poi_order
     FOREIGN KEY (order_id) REFERENCES purchase_order(id) ON DELETE CASCADE;
 ALTER TABLE purchase_order_item ADD CONSTRAINT fk_poi_material
-    FOREIGN KEY (material_id) REFERENCES materials(id);
+    FOREIGN KEY (product_id) REFERENCES products(id);
 ALTER TABLE purchase_order_item ADD CONSTRAINT fk_poi_warehouse
     FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
 
@@ -224,7 +224,7 @@ CREATE TABLE purchase_receipt_item (
     receipt_id INTEGER NOT NULL,                        -- 入库单 ID（外键）
     order_item_id INTEGER,                              -- 订单明细 ID（外键）
     line_no INTEGER NOT NULL,                           -- 行号
-    material_id INTEGER NOT NULL,                       -- 物料 ID
+    product_id INTEGER NOT NULL,                       -- 物料 ID
     material_code VARCHAR(50) NOT NULL,                 -- 物料编码
     material_name VARCHAR(200) NOT NULL,                -- 物料名称
     batch_no VARCHAR(50),                               -- 批次号
@@ -253,7 +253,7 @@ ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_receipt
 ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_order_item
     FOREIGN KEY (order_item_id) REFERENCES purchase_order_item(id);
 ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_material
-    FOREIGN KEY (material_id) REFERENCES materials(id);
+    FOREIGN KEY (product_id) REFERENCES products(id);
 
 -- 唯一约束
 ALTER TABLE purchase_receipt_item ADD CONSTRAINT uk_pri_receipt_line

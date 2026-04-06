@@ -91,15 +91,9 @@ impl PurchaseReceiptService {
                 order_item_id: Set(item_req.order_item_id),
                 product_id: Set(item_req.material_id),
                 quantity: Set(item_req.quantity),
-                quantity_alt: Set(item_req.quantity_alt),
-                unit_price: Set(item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0))),
-                unit_price_foreign: Set(item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0))),
-                subtotal: Set(amount),
-                tax_amount: Set(Decimal::new(0, 0)),
-                total_amount: Set(amount),
-                inspection_status: Set("PENDING".to_string()),
-                passed_quantity: Set(Decimal::new(0, 0)),
-                rejected_quantity: Set(Decimal::new(0, 0)),
+                quantity_alt: Set(Some(item_req.quantity_alt)),
+                unit_price: Set(Some(item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
+                amount: Set(Some(amount)),
                 notes: Set(item_req.notes),
                 ..Default::default()
             }
@@ -218,9 +212,9 @@ impl PurchaseReceiptService {
         }
 
         // 4. 检查是否有关联的采购订单
-        if let Some(_order_id) = receipt.order_id {
+        if let Some(order_id) = receipt.order_id {
             // TODO: 更新采购订单的已入库数量
-            // self.update_order_received_quantity(order_id, receipt_id, &txn).await?;
+            self.update_order_received_quantity(order_id, receipt_id, &txn).await?;
         }
 
         // 5. 更新状态
@@ -235,7 +229,7 @@ impl PurchaseReceiptService {
         let receipt = receipt_active.update(&txn).await?;
 
         // 6. TODO: 更新库存
-        // self.update_inventory(receipt_id, &txn).await?;
+        self.update_inventory(&receipt, &txn).await?;
 
         // 7. 提交事务
         txn.commit().await?;
@@ -281,15 +275,9 @@ impl PurchaseReceiptService {
             order_item_id: Set(req.order_item_id),
             product_id: Set(req.material_id),
             quantity: Set(req.quantity),
-            quantity_alt: Set(req.quantity_alt),
-            unit_price: Set(req.unit_price.unwrap_or_else(|| Decimal::new(0, 0))),
-            unit_price_foreign: Set(req.unit_price.unwrap_or_else(|| Decimal::new(0, 0))),
-            subtotal: Set(amount),
-            tax_amount: Set(Decimal::new(0, 0)),
-            total_amount: Set(amount),
-            inspection_status: Set("PENDING".to_string()),
-            passed_quantity: Set(Decimal::new(0, 0)),
-            rejected_quantity: Set(Decimal::new(0, 0)),
+            quantity_alt: Set(Some(req.quantity_alt)),
+            unit_price: Set(Some(req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
+            amount: Set(Some(amount)),
             notes: Set(req.notes),
             ..Default::default()
         }
@@ -346,11 +334,10 @@ impl PurchaseReceiptService {
             item_active.quantity = Set(quantity);
         }
         if let Some(quantity_alt) = req.quantity_alt {
-            item_active.quantity_alt = Set(quantity_alt);
+            item_active.quantity_alt = Set(Some(quantity_alt));
         }
         if let Some(unit_price) = req.unit_price {
-            item_active.unit_price = Set(unit_price);
-            item_active.unit_price_foreign = Set(unit_price);
+            item_active.unit_price = Set(Some(unit_price));
         }
         if let Some(notes) = req.notes {
             item_active.notes = Set(Some(notes));
@@ -422,8 +409,8 @@ impl PurchaseReceiptService {
 
         for item in items {
             total_quantity += item.quantity;
-            total_quantity_alt += item.quantity_alt;
-            total_amount += item.total_amount;
+            total_quantity_alt += item.quantity_alt.unwrap_or_default();
+            total_amount += item.amount.unwrap_or_default();
         }
 
         // 3. 更新入库单
@@ -509,16 +496,123 @@ impl PurchaseReceiptService {
 
     /// 更新库存（待实现）
     #[allow(dead_code)]
+    async fn update_order_received_quantity(
+        &self,
+        order_id: i32,
+        receipt_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        let items = purchase_receipt_item::Entity::find()
+            .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
+            .all(txn)
+            .await?;
+
+        for item in items {
+            if let Some(order_item_id) = item.order_item_id {
+                let order_item = crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
+                    .one(txn)
+                    .await?
+                    .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", order_item_id)))?;
+
+                let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
+                let current_received = active_order_item.received_quantity.clone().unwrap();
+                let current_received_alt = active_order_item.received_quantity_alt.clone().unwrap();
+                
+                active_order_item.received_quantity = Set(current_received + item.quantity);
+                active_order_item.received_quantity_alt = Set(current_received_alt + item.quantity_alt.unwrap_or_default());
+                active_order_item.update(txn).await?;
+            }
+        }
+        
+        // Update order status if fully received
+        let all_order_items = crate::models::purchase_order_item::Entity::find()
+            .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?;
+            
+        let mut fully_received = true;
+        let mut partially_received = false;
+        
+        for oi in all_order_items {
+            if oi.received_quantity >= oi.quantity {
+                partially_received = true;
+            } else if oi.received_quantity > Decimal::new(0, 0) {
+                partially_received = true;
+                fully_received = false;
+            } else {
+                fully_received = false;
+            }
+        }
+        
+        let new_status = if fully_received {
+            "COMPLETED"
+        } else if partially_received {
+            "PARTIAL_RECEIVED"
+        } else {
+            "APPROVED"
+        };
+        
+        let order = crate::models::purchase_order::Entity::find_by_id(order_id)
+            .one(txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            
+        let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
+        active_order.order_status = Set(new_status.to_string());
+        active_order.update(txn).await?;
+
+        Ok(())
+    }
+
     async fn update_inventory(
         &self,
-        _receipt_id: i32,
-        _txn: &sea_orm::DatabaseTransaction,
+        receipt: &purchase_receipt::Model,
+        txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        // TODO: 实现库存更新逻辑
-        // 1. 查询入库明细
-        // 2. 遍历明细，更新对应物料的库存
-        // 3. 记录库存流水
+        let items = purchase_receipt_item::Entity::find()
+            .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
+            .all(txn)
+            .await?;
 
+        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+
+        for item in items {
+            let batch_no = item.batch_no.unwrap_or_else(|| "DEFAULT".to_string());
+            let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
+            let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
+            
+                        let stock_model = stock_service.create_stock_fabric(
+                receipt.warehouse_id,
+                item.product_id,
+                batch_no.clone(),
+                color_no.clone(),
+                item.lot_no.clone(),
+                grade.clone(),
+                item.quantity,
+                item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                item.gram_weight,
+                item.width,
+                None, None, None,
+            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+                        stock_service.record_transaction(
+                "PURCHASE_RECEIPT".to_string(),
+                item.product_id,
+                receipt.warehouse_id,
+                batch_no.clone(),
+                color_no.clone(),
+                item.lot_no.clone(),
+                grade.clone(),
+                item.quantity,
+                item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                Some("PURCHASE_RECEIPT".to_string()),
+                Some(receipt.receipt_no.clone()),
+                Some(receipt.id),
+                None, None, None, None,
+                Some("入库自动增加库存".to_string()),
+                Some(receipt.created_by),
+            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        }
         Ok(())
     }
 }
