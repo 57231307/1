@@ -5135,7 +5135,7 @@ CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_created_at ON batch_dye_lot(created
 -- ==================== 库存匹号表 ====================
 CREATE TABLE IF NOT EXISTS inventory_piece (
     id SERIAL PRIMARY KEY,
-    piece_no VARCHAR(100) NOT NULL UNIQUE,               -- 匹号（内部编码）
+    piece_no VARCHAR(100) NOT NULL,                      -- 匹号（内部编码）
     dye_lot_id INTEGER NOT NULL,                         -- 缸号 ID
     supplier_piece_no VARCHAR(100),                      -- 供应商匹号
     length DECIMAL(10,2) NOT NULL,                       -- 长度（米）
@@ -5153,11 +5153,12 @@ CREATE TABLE IF NOT EXISTS inventory_piece (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
-    updated_by INTEGER                                   -- 更新人 ID
+    updated_by INTEGER,                                  -- 更新人 ID
+    UNIQUE(dye_lot_id, piece_no)                         -- 同一缸号下的匹号必须唯一
 );
 
 COMMENT ON TABLE inventory_piece IS '库存匹号管理表';
-COMMENT ON COLUMN inventory_piece.piece_no IS '匹号（内部编码，唯一）';
+COMMENT ON COLUMN inventory_piece.piece_no IS '匹号（在同一缸号下唯一）';
 COMMENT ON COLUMN inventory_piece.dye_lot_id IS '缸号 ID（关联 batch_dye_lot）';
 COMMENT ON COLUMN inventory_piece.supplier_piece_no IS '供应商匹号（外部编码）';
 COMMENT ON COLUMN inventory_piece.length IS '长度（米）';
