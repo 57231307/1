@@ -125,11 +125,20 @@ async fn initialize_with_db(
     }
 }
 
+async fn get_init_progress() -> Json<crate::services::init_service::InitProgress> {
+    let progress = crate::services::init_service::INIT_PROGRESS
+        .read()
+        .unwrap()
+        .clone();
+    Json(progress)
+}
+
 fn create_init_router() -> Router {
     Router::new().nest(
         "/api/v1/erp",
         Router::new()
             .route("/init/status", get(get_init_status))
+            .route("/init/progress", get(get_init_progress))
             .route("/init/test-database", post(test_database_connection))
             .route("/init/initialize-with-db", post(initialize_with_db)),
     )

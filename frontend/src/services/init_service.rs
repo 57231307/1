@@ -6,6 +6,15 @@ use crate::models::init::{
 };
 use gloo_net::http::Request;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitProgress {
+    pub status: String,
+    pub progress: u8,
+    pub message: String,
+}
+
 #[derive(Debug, Clone)]
 pub enum InitError {
     NetworkError(String),
@@ -28,6 +37,33 @@ pub struct InitService;
 impl InitService {
     fn get_base_url() -> String {
         String::from(crate::services::api::API_BASE)
+    }
+
+    pub async fn get_init_progress() -> Result<InitProgress, InitError> {
+        let base_url = Self::get_base_url();
+        let url = format!("{}/init/progress", base_url);
+
+        let response = Request::get(&url)
+            .send()
+            .await
+            .map_err(|e| InitError::NetworkError(e.to_string()))?;
+
+        if !response.ok() {
+            if let Ok(err_json) = response.json::<serde_json::Value>().await {
+                if let Some(msg) = err_json.get("message").and_then(|m| m.as_str()) {
+                    return Err(InitError::ServerError(msg.to_string()));
+                }
+            }
+            return Err(InitError::ServerError(format!(
+                "请求失败，状态码: {}",
+                response.status()
+            )));
+        }
+
+        response
+            .json::<InitProgress>()
+            .await
+            .map_err(|e| InitError::ParseError(e.to_string()))
     }
 
     pub async fn check_status() -> Result<InitStatus, InitError> {

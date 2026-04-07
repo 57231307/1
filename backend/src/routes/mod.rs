@@ -994,6 +994,10 @@ pub fn create_router(state: AppState) -> Router {
             }),
         )
         .route(
+            "/progress",
+            get(init_handler::get_init_progress),
+        )
+        .route(
             "/test-database",
             post(init_handler::test_database_connection),
         )

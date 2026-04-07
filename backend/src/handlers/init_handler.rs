@@ -41,6 +41,14 @@ pub async fn get_init_status(State(state): State<AppState>) -> Json<InitStatus> 
     })
 }
 
+pub async fn get_init_progress() -> Json<crate::services::init_service::InitProgress> {
+    let progress = crate::services::init_service::INIT_PROGRESS
+        .read()
+        .unwrap()
+        .clone();
+    Json(progress)
+}
+
 pub async fn test_database_connection(
     Json(payload): Json<TestDatabaseRequest>,
 ) -> Result<Json<TestDatabaseResponse>, (StatusCode, Json<ErrorResponse>)> {

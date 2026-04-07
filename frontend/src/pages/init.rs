@@ -34,6 +34,8 @@ pub struct InitPage {
     is_initialized: bool,
     db_test_passed: bool,
     init_progress: u8,
+    loading_message: String,
+    poll_interval: Option<gloo_timers::callback::Interval>,
 }
 
 pub enum Msg {
@@ -51,13 +53,15 @@ pub enum Msg {
     NextStep,
     PrevStep,
     InitializeStarted,
-    InitializeProgress(u8),
+    PollProgress,
+    ProgressResult(Result<crate::services::init_service::InitProgress, String>),
     InitializeSuccess(String),
     InitializeFailure(String),
     CheckStatus,
     StatusChecked(bool),
     GoToLogin,
     StartInit,
+    StartPolling,
 }
 
 impl Component for InitPage {
@@ -82,6 +86,8 @@ impl Component for InitPage {
             is_initialized: false,
             db_test_passed: false,
             init_progress: 0,
+            loading_message: String::from("准备初始化..."),
+            poll_interval: None,
         }
     }
 
@@ -240,7 +246,8 @@ impl Component for InitPage {
                 self.is_loading = true;
                 self.error_message = None;
                 self.success_message = None;
-                self.init_progress = 10;
+                self.init_progress = 0;
+                self.loading_message = String::from("正在启动初始化...");
 
                 let db_config = crate::models::init::DatabaseConfig {
                     host: self.db_host.clone(),
@@ -253,11 +260,6 @@ impl Component for InitPage {
                 let admin_password = self.admin_password.clone();
                 let link = _ctx.link().clone();
 
-                let link_clone = link.clone();
-                spawn_local(async move {
-                    link_clone.send_message(Msg::InitializeProgress(30));
-                });
-
                 spawn_local(async move {
                     match InitService::initialize_with_db(
                         &db_config,
@@ -266,9 +268,8 @@ impl Component for InitPage {
                     )
                     .await
                     {
-                        Ok(result) => {
-                            link.send_message(Msg::InitializeProgress(100));
-                            link.send_message(Msg::InitializeSuccess(result.message));
+                        Ok(_) => {
+                            link.send_message(Msg::StartPolling);
                         }
                         Err(error) => {
                             link.send_message(Msg::InitializeFailure(error.to_string()));
@@ -277,12 +278,57 @@ impl Component for InitPage {
                 });
                 true
             }
-            Msg::InitializeProgress(progress) => {
-                self.init_progress = progress;
+            Msg::StartPolling => {
+                let link = _ctx.link().clone();
+                let interval = gloo_timers::callback::Interval::new(1000, move || {
+                    link.send_message(Msg::PollProgress);
+                });
+                self.poll_interval = Some(interval);
+                true
+            }
+            Msg::PollProgress => {
+                let link = _ctx.link().clone();
+                spawn_local(async move {
+                    match InitService::get_init_progress().await {
+                        Ok(progress) => {
+                            link.send_message(Msg::ProgressResult(Ok(progress)));
+                        }
+                        Err(error) => {
+                            link.send_message(Msg::ProgressResult(Err(error.to_string())));
+                        }
+                    }
+                });
+                false
+            }
+            Msg::ProgressResult(result) => {
+                match result {
+                    Ok(progress) => {
+                        self.init_progress = progress.progress;
+                        self.loading_message = progress.message.clone();
+
+                        match progress.status.as_str() {
+                            "completed" => {
+                                self.poll_interval = None;
+                                _ctx.link().send_message(Msg::InitializeSuccess(progress.message));
+                            }
+                            "failed" => {
+                                self.poll_interval = None;
+                                _ctx.link().send_message(Msg::InitializeFailure(progress.message));
+                            }
+                            _ => {
+                                // "running" 状态，继续等待
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // 忽略错误，继续轮询
+                    }
+                }
                 true
             }
             Msg::InitializeSuccess(message) => {
                 self.is_loading = false;
+                self.poll_interval = None;
                 self.success_message = Some(message);
                 self.is_initialized = true;
                 self.current_step = InitStep::Completed;
@@ -297,6 +343,7 @@ impl Component for InitPage {
             }
             Msg::InitializeFailure(error) => {
                 self.is_loading = false;
+                self.poll_interval = None;
                 
                 // 专门处理“系统已经初始化”的特殊情况
                 if error.contains("系统已经初始化") || error.contains("400") {
@@ -760,72 +807,13 @@ impl Component for InitPage {
                                         <div class="spinner-large"></div>
                                     </div>
                                     <h2 class="step-title">{"正在初始化系统..."}</h2>
-                                    <p class="step-description">{"请稍候，系统正在配置数据库和创建管理员账号。"}</p>
+                                    <p class="step-description">{self.loading_message.clone()}</p>
 
                                     <div class="progress-container">
                                         <div class="progress-bar">
                                             <div class="progress-fill" style={format!("width: {}%", self.init_progress)}></div>
                                         </div>
                                         <span class="progress-text">{format!("{}%", self.init_progress)}</span>
-                                    </div>
-
-                                    <div class="init-steps">
-                                        <div class={format!("init-step-item {}", if self.init_progress >= 10 { "active" } else { "" })}>
-                                            <div class="init-step-icon">
-                                                if self.init_progress >= 30 {
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                        <polyline points="20 6 9 17 4 12"/>
-                                                    </svg>
-                                                } else if self.init_progress >= 10 {
-                                                    <div class="spinner-small"></div>
-                                                } else {
-                                                    <span>{"1"}</span>
-                                                }
-                                            </div>
-                                            <span>{"连接数据库"}</span>
-                                        </div>
-                                        <div class={format!("init-step-item {}", if self.init_progress >= 30 { "active" } else { "" })}>
-                                            <div class="init-step-icon">
-                                                if self.init_progress >= 60 {
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                        <polyline points="20 6 9 17 4 12"/>
-                                                    </svg>
-                                                } else if self.init_progress >= 30 {
-                                                    <div class="spinner-small"></div>
-                                                } else {
-                                                    <span>{"2"}</span>
-                                                }
-                                            </div>
-                                            <span>{"初始化表结构"}</span>
-                                        </div>
-                                        <div class={format!("init-step-item {}", if self.init_progress >= 60 { "active" } else { "" })}>
-                                            <div class="init-step-icon">
-                                                if self.init_progress >= 90 {
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                        <polyline points="20 6 9 17 4 12"/>
-                                                    </svg>
-                                                } else if self.init_progress >= 60 {
-                                                    <div class="spinner-small"></div>
-                                                } else {
-                                                    <span>{"3"}</span>
-                                                }
-                                            </div>
-                                            <span>{"创建管理员账号"}</span>
-                                        </div>
-                                        <div class={format!("init-step-item {}", if self.init_progress >= 90 { "active" } else { "" })}>
-                                            <div class="init-step-icon">
-                                                if self.init_progress >= 100 {
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                        <polyline points="20 6 9 17 4 12"/>
-                                                    </svg>
-                                                } else if self.init_progress >= 90 {
-                                                    <div class="spinner-small"></div>
-                                                } else {
-                                                    <span>{"4"}</span>
-                                                }
-                                            </div>
-                                            <span>{"完成设置"}</span>
-                                        </div>
                                     </div>
                                 </div>
                             </div>

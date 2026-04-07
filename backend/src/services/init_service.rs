@@ -8,8 +8,40 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection,
     EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
+use tracing::warn;
+use once_cell::sync::Lazy;
 
-/// 拆分 SQL 语句，忽略字符串和 $$ 块内的分号
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct InitProgress {
+    pub status: String, // "idle", "running", "completed", "failed"
+    pub progress: u32,
+    pub message: String,
+    pub error: Option<String>,
+}
+
+pub static INIT_PROGRESS: Lazy<RwLock<InitProgress>> = Lazy::new(|| {
+    RwLock::new(InitProgress {
+        status: "idle".to_string(),
+        progress: 0,
+        message: "".to_string(),
+        error: None,
+    })
+});
+
+pub fn update_init_progress(status: &str, progress: u32, message: &str, error: Option<String>) {
+    if let Ok(mut state) = INIT_PROGRESS.write() {
+        state.status = status.to_string();
+        if progress > 0 || status == "completed" {
+            state.progress = progress;
+        }
+        state.message = message.to_string();
+        if error.is_some() {
+            state.error = error;
+        }
+    }
+}
 fn split_sql_statements(sql: &str) -> Vec<String> {
     let mut statements = Vec::new();
     let mut current_stmt = String::new();
@@ -144,9 +176,6 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
 
     statements
 }
-use std::sync::Arc;
-use std::time::Duration;
-use tracing::warn;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct DatabaseConfig {
@@ -241,8 +270,36 @@ impl InitService {
             return Err(InitError::AlreadyInitialized);
         }
 
+        let service = self.clone();
+        let username = admin_username.to_string();
+        let password = admin_password.to_string();
+
+        update_init_progress("running", 0, "开始初始化...", None);
+
+        tokio::spawn(async move {
+            if let Err(e) = service.do_initialize(&username, &password).await {
+                update_init_progress("failed", 0, "初始化失败", Some(e.to_string()));
+            } else {
+                update_init_progress("completed", 100, "初始化完成", None);
+            }
+        });
+
+        Ok(InitializationResult {
+            success: true,
+            message: "Started".to_string(),
+            admin_username: admin_username.to_string(),
+        })
+    }
+
+    async fn do_initialize(
+        &self,
+        admin_username: &str,
+        admin_password: &str,
+    ) -> Result<(), InitError> {
         // Run migrations before creating roles
         self.run_migrations().await?;
+
+        update_init_progress("running", 95, "创建默认角色和用户...", None);
 
         let password_hash = AuthService::hash_password(admin_password)
             .map_err(|e| InitError::HashError(e.to_string()))?;
@@ -253,11 +310,7 @@ impl InitService {
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
 
-        Ok(InitializationResult {
-            success: true,
-            message: "系统初始化成功".to_string(),
-            admin_username: admin_username.to_string(),
-        })
+        Ok(())
     }
 
     pub async fn initialize_with_db(
@@ -352,16 +405,30 @@ impl InitService {
             .filter_map(Result::ok)
             .collect();
 
+        let mut sql_entries: Vec<_> = entries
+            .into_iter()
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("sql"))
+            .collect();
+
         // 确保按文件名排序执行
-        entries.sort_by_key(|e| e.path());
+        sql_entries.sort_by_key(|e| e.path());
+        
+        let total_scripts = sql_entries.len();
 
-        for entry in entries {
+        for (i, entry) in sql_entries.into_iter().enumerate() {
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("sql") {
-                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
 
-                // 2. 检查是否已经执行过该脚本
-                let check_sql = format!(
+            // 更新进度 (10% ~ 90%)
+            let progress = if total_scripts > 0 {
+                10 + ((i as f32 / total_scripts as f32) * 80.0) as u32
+            } else {
+                90
+            };
+            update_init_progress("running", progress, &format!("Executing {}", file_name), None);
+
+            // 2. 检查是否已经执行过该脚本
+            let check_sql = format!(
                     "SELECT COUNT(*) as count FROM __schema_migrations WHERE version = '{}'",
                     file_name
                 );
@@ -433,7 +500,6 @@ impl InitService {
                     })?;
                 
                 info!("成功执行脚本: {}", file_name);
-            }
         }
 
         info!("所有数据库迁移脚本执行完成");
