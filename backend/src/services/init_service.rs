@@ -307,6 +307,22 @@ impl InitService {
         use std::path::PathBuf;
         use tracing::{info, warn};
 
+        // 1. 创建迁移记录表
+        let create_migration_table_sql = r#"
+            CREATE TABLE IF NOT EXISTS __schema_migrations (
+                id SERIAL PRIMARY KEY,
+                version VARCHAR(255) NOT NULL UNIQUE,
+                applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        "#;
+        self.db
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                create_migration_table_sql.to_string(),
+            ))
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("创建迁移记录表失败: {}", e)))?;
+
         let possible_paths = [
             PathBuf::from("database/migration"),
             PathBuf::from("../database/migration"),
@@ -342,7 +358,30 @@ impl InitService {
         for entry in entries {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("sql") {
-                info!("准备执行数据库迁移脚本: {:?}", path.file_name().unwrap());
+                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+
+                // 2. 检查是否已经执行过该脚本
+                let check_sql = format!(
+                    "SELECT COUNT(*) as count FROM __schema_migrations WHERE version = '{}'",
+                    file_name
+                );
+                let query_res = self.db
+                    .query_one(Statement::from_string(
+                        DatabaseBackend::Postgres,
+                        check_sql,
+                    ))
+                    .await
+                    .map_err(|e| InitError::DatabaseError(format!("检查迁移记录失败: {}", e)))?;
+
+                if let Some(row) = query_res {
+                    let count: i64 = row.try_get("", "count").unwrap_or(0);
+                    if count > 0 {
+                        info!("跳过已执行的迁移脚本: {}", file_name);
+                        continue;
+                    }
+                }
+
+                info!("准备执行数据库迁移脚本: {}", file_name);
                 let sql = std::fs::read_to_string(&path).map_err(|e| {
                     InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e))
                 })?;
@@ -367,15 +406,33 @@ impl InitService {
                         .await
                         .map_err(|e| {
                             InitError::DatabaseError(format!(
-                                "执行SQL片段失败 {:?}: {}\n语句: {}",
-                                path.file_name().unwrap(),
+                                "执行SQL片段失败 {}: {}\n语句: {}",
+                                file_name,
                                 e,
                                 stmt
                             ))
                         })?;
                 }
 
-                info!("成功执行脚本: {:?}", path.file_name().unwrap());
+                // 3. 记录已成功执行的迁移脚本
+                let insert_record_sql = format!(
+                    "INSERT INTO __schema_migrations (version) VALUES ('{}')",
+                    file_name
+                );
+                self.db
+                    .execute(Statement::from_string(
+                        DatabaseBackend::Postgres,
+                        insert_record_sql,
+                    ))
+                    .await
+                    .map_err(|e| {
+                        InitError::DatabaseError(format!(
+                            "记录迁移状态失败 {}: {}",
+                            file_name, e
+                        ))
+                    })?;
+                
+                info!("成功执行脚本: {}", file_name);
             }
         }
 
