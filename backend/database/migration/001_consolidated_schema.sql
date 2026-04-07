@@ -3099,7 +3099,7 @@ INSERT INTO account_subjects (code, name, level, parent_id, full_code, balance_d
 ('6602', '管理费用', 1, NULL, '6602', '借', 'active'),
 ('6603', '财务费用', 1, NULL, '6603', '借', 'active') ON CONFLICT DO NOTHING;
 
-COMMENT ON INSERT: '插入基础会计科目（面料行业预设科目）';
+-- 插入基础会计科目（面料行业预设科目）
 
 -- 6. 触发器：自动更新科目余额
 -- ============================================
@@ -8121,7 +8121,7 @@ INSERT INTO assist_accounting_dimension (dimension_code, dimension_name, descrip
 ('CUSTOMER', '客户核算', '按客户进行辅助核算', TRUE, 7),
 ('SUPPLIER', '供应商核算', '按供应商进行辅助核算', TRUE, 8) ON CONFLICT DO NOTHING;
 
-COMMENT ON INSERT: '插入 8 个辅助核算维度';
+-- 插入 8 个辅助核算维度
 
 -- 4. 创建辅助核算专用的 updated_at 更新函数
 -- ============================================
