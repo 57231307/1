@@ -72,8 +72,11 @@ impl WarehouseService {
         address: Option<String>,
         manager: Option<String>,
         phone: Option<String>,
-        capacity: Option<i32>,
         status: String,
+        warehouse_type: Option<String>,
+        temperature_control: Option<bool>,
+        humidity_control: Option<bool>,
+        fire_protection_level: Option<String>,
     ) -> Result<warehouse::Model, sea_orm::DbErr> {
         let active_model = warehouse::ActiveModel {
             id: NotSet,
@@ -83,10 +86,10 @@ impl WarehouseService {
             manager: Set(manager),
             phone: Set(phone),
             status: Set(status),
-            warehouse_type: Set(Some("成品库".to_string())),
-            temperature_control: Set(Some(false)),
-            humidity_control: Set(Some(false)),
-            fire_protection_level: Set(Some("丙".to_string())),
+            warehouse_type: Set(warehouse_type),
+            temperature_control: Set(temperature_control),
+            humidity_control: Set(humidity_control),
+            fire_protection_level: Set(fire_protection_level),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
@@ -105,8 +108,11 @@ impl WarehouseService {
         address: Option<String>,
         manager: Option<String>,
         phone: Option<String>,
-        capacity: Option<i32>,
         status: Option<String>,
+        warehouse_type: Option<String>,
+        temperature_control: Option<bool>,
+        humidity_control: Option<bool>,
+        fire_protection_level: Option<String>,
     ) -> Result<warehouse::Model, sea_orm::DbErr> {
         let mut wh: warehouse::ActiveModel = WarehouseEntity::find_by_id(id)
             .one(&*self.db)
@@ -128,6 +134,18 @@ impl WarehouseService {
         }
         if let Some(s) = status {
             wh.status = Set(s);
+        }
+        if let Some(w_type) = warehouse_type {
+            wh.warehouse_type = Set(Some(w_type));
+        }
+        if let Some(tc) = temperature_control {
+            wh.temperature_control = Set(Some(tc));
+        }
+        if let Some(hc) = humidity_control {
+            wh.humidity_control = Set(Some(hc));
+        }
+        if let Some(fpl) = fire_protection_level {
+            wh.fire_protection_level = Set(Some(fpl));
         }
 
         wh.updated_at = Set(Utc::now());

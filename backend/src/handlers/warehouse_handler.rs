@@ -31,7 +31,10 @@ pub struct CreateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
-    pub capacity: Option<i32>,
+    pub warehouse_type: Option<String>,
+    pub temperature_control: Option<bool>,
+    pub humidity_control: Option<bool>,
+    pub fire_protection_level: Option<String>,
     #[allow(dead_code)]
     pub description: Option<String>,
 }
@@ -43,8 +46,11 @@ pub struct UpdateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
-    pub capacity: Option<i32>,
     pub status: Option<String>,
+    pub warehouse_type: Option<String>,
+    pub temperature_control: Option<bool>,
+    pub humidity_control: Option<bool>,
+    pub fire_protection_level: Option<String>,
 }
 
 /// 查询参数 - 库位列表
@@ -128,8 +134,11 @@ pub async fn create_warehouse(
             req.address,
             req.manager,
             req.phone,
-            req.capacity,
             "active".to_string(),
+            req.warehouse_type,
+            req.temperature_control,
+            req.humidity_control,
+            req.fire_protection_level,
         )
         .await?;
     let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();
@@ -153,8 +162,11 @@ pub async fn update_warehouse(
             req.address,
             req.manager,
             req.phone,
-            req.capacity,
             req.status,
+            req.warehouse_type,
+            req.temperature_control,
+            req.humidity_control,
+            req.fire_protection_level,
         )
         .await?;
     let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();

@@ -67,6 +67,22 @@ pub struct Model {
     /// 备注
     pub notes: Option<String>,
 
+    /// 客户行业：服装/家纺/产业用
+    pub customer_industry: Option<String>,
+
+    /// 主营产品
+    pub main_products: Option<String>,
+
+    /// 年采购量（万米）
+    #[sea_orm(column_type = "Decimal(Some((14, 2)))")]
+    pub annual_purchase: Option<Decimal>,
+
+    /// 质量要求：一般/较高/严格
+    pub quality_requirement: Option<String>,
+
+    /// 检验标准偏好
+    pub inspection_standard: Option<String>,
+
     /// 创建人
     pub created_by: Option<i32>,
 
