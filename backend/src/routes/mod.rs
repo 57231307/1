@@ -682,6 +682,7 @@ pub fn create_router(state: AppState) -> Router {
     let ap_routes = Router::new()
         .route("/invoices", get(ap_invoice_handler::list_invoices))
         .route("/invoices", post(ap_invoice_handler::create_invoice))
+        .route("/invoices/balance", get(crate::handlers::ap_invoice_handler::get_balance_summary))
         .route("/invoices/:id", get(ap_invoice_handler::get_invoice))
         .route("/invoices/:id", put(ap_invoice_handler::update_invoice))
         .route("/invoices/:id", delete(ap_invoice_handler::delete_invoice))

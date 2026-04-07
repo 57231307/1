@@ -284,15 +284,21 @@ pub async fn get_balance_summary(
 
 /// 获取应付统计报表
 pub async fn get_statistics(
-    Query(_params): Query<ApInvoiceQueryParams>,
-    State(_state): State<AppState>,
+    Query(params): Query<ApInvoiceQueryParams>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询应付统计报表", auth.username);
 
-    // TODO: 实现统计报表
+    // TODO: 实现更复杂的统计报表
+    // 暂时返回账龄分析和余额表的组合数据
+    let service = ApInvoiceService::new(state.db.clone());
+    let aging_data = service.get_aging_analysis(params.supplier_id).await?;
+    let balance_summary = service.get_balance_summary(params.supplier_id).await?;
+
     let result = serde_json::json!({
-        "message": "统计报表功能开发中"
+        "aging_analysis": aging_data,
+        "balance_summary": balance_summary
     });
 
     Ok(Json(ApiResponse::success(result)))
