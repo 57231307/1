@@ -8,6 +8,7 @@
 
 -- 1. 会计科目表（基础版）
 -- ============================================
+DROP TABLE IF EXISTS account_subjects CASCADE;
 CREATE TABLE IF NOT EXISTS account_subjects (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) NOT NULL UNIQUE,
@@ -81,6 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_account_subjects_status ON account_subjects(statu
 
 -- 2. 凭证表（基础版）
 -- ============================================
+DROP TABLE IF EXISTS vouchers CASCADE;
 CREATE TABLE IF NOT EXISTS vouchers (
     id SERIAL PRIMARY KEY,
     voucher_no VARCHAR(50) NOT NULL UNIQUE,
@@ -142,6 +144,7 @@ CREATE INDEX IF NOT EXISTS idx_vouchers_created_by ON vouchers(created_by);
 
 -- 3. 凭证分录表
 -- ============================================
+DROP TABLE IF EXISTS voucher_items CASCADE;
 CREATE TABLE IF NOT EXISTS voucher_items (
     id SERIAL PRIMARY KEY,
     voucher_id INTEGER NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,

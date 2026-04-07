@@ -5,6 +5,7 @@
 
 -- ==================== 库存调拨表 ====================
 -- 存储仓库之间的库存调拨记录
+DROP TABLE IF EXISTS inventory_transfers CASCADE;
 CREATE TABLE IF NOT EXISTS inventory_transfers (
     id SERIAL PRIMARY KEY,                              -- 调拨 ID（主键）
     transfer_no VARCHAR(50) NOT NULL UNIQUE,            -- 调拨单号（唯一）
@@ -54,6 +55,7 @@ COMMENT ON COLUMN inventory_transfers.updated_at IS '更新时间';
 
 -- ==================== 库存调拨明细表 ====================
 -- 存储库存调拨单的明细项
+DROP TABLE IF EXISTS inventory_transfer_items CASCADE;
 CREATE TABLE IF NOT EXISTS inventory_transfer_items (
     id SERIAL PRIMARY KEY,                              -- 明细 ID（主键）
     transfer_id INTEGER NOT NULL REFERENCES inventory_transfers(id) ON DELETE CASCADE,  -- 调拨单 ID

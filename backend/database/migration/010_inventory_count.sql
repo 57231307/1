@@ -5,6 +5,7 @@
 
 -- ==================== 库存盘点表 ====================
 -- 存储仓库库存盘点记录
+DROP TABLE IF EXISTS inventory_counts CASCADE;
 CREATE TABLE IF NOT EXISTS inventory_counts (
     id SERIAL PRIMARY KEY,                              -- 盘点 ID（主键）
     count_no VARCHAR(50) NOT NULL UNIQUE,               -- 盘点单号（唯一）
@@ -52,6 +53,7 @@ COMMENT ON COLUMN inventory_counts.updated_at IS '更新时间';
 
 -- ==================== 库存盘点明细表 ====================
 -- 存储库存盘点单的明细项
+DROP TABLE IF EXISTS inventory_count_items CASCADE;
 CREATE TABLE IF NOT EXISTS inventory_count_items (
     id SERIAL PRIMARY KEY,                              -- 明细 ID（主键）
     count_id INTEGER NOT NULL REFERENCES inventory_counts(id) ON DELETE CASCADE,  -- 盘点单 ID
