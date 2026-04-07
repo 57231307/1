@@ -20,6 +20,11 @@ pub struct Customer {
     pub customer_type: Option<String>,
     pub status: String,
     pub notes: Option<String>,
+    pub customer_industry: Option<String>,
+    pub main_products: Option<String>,
+    pub annual_purchase: Option<String>,
+    pub quality_requirement: Option<String>,
+    pub inspection_standard: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -60,6 +65,11 @@ pub struct CreateCustomerRequest {
     pub bank_account: Option<String>,
     pub customer_type: Option<String>,
     pub notes: Option<String>,
+    pub customer_industry: Option<String>,
+    pub main_products: Option<String>,
+    pub annual_purchase: Option<String>,
+    pub quality_requirement: Option<String>,
+    pub inspection_standard: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -80,4 +90,9 @@ pub struct UpdateCustomerRequest {
     pub customer_type: Option<String>,
     pub status: Option<String>,
     pub notes: Option<String>,
+    pub customer_industry: Option<String>,
+    pub main_products: Option<String>,
+    pub annual_purchase: Option<String>,
+    pub quality_requirement: Option<String>,
+    pub inspection_standard: Option<String>,
 }

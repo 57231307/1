@@ -278,6 +278,11 @@ impl CustomerPage {
                 bank_account: None,
                 customer_type: Some("普通".to_string()),
                 notes: None,
+                customer_industry: None,
+                main_products: None,
+                annual_purchase: None,
+                quality_requirement: None,
+                inspection_standard: None,
             };
             Msg::CreateCustomer(req)
         });

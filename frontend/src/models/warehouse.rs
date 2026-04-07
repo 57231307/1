@@ -9,6 +9,11 @@ pub struct Warehouse {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    pub status: String,
+    pub warehouse_type: Option<String>,
+    pub temperature_control: Option<bool>,
+    pub humidity_control: Option<bool>,
+    pub fire_protection_level: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -26,6 +31,10 @@ pub struct CreateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    pub warehouse_type: Option<String>,
+    pub temperature_control: Option<bool>,
+    pub humidity_control: Option<bool>,
+    pub fire_protection_level: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -35,4 +44,9 @@ pub struct UpdateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    pub status: Option<String>,
+    pub warehouse_type: Option<String>,
+    pub temperature_control: Option<bool>,
+    pub humidity_control: Option<bool>,
+    pub fire_protection_level: Option<String>,
 }
