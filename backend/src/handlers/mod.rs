@@ -1,4 +1,5 @@
 pub mod account_subject_handler;
+pub mod crm_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;
 pub mod batch_handler;

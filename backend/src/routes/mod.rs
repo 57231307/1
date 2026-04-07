@@ -23,6 +23,7 @@ use crate::handlers::{
     budget_management_handler,
     business_trace_handler,
     cost_collection_handler,
+    crm_handler,
     customer_credit_handler,
     customer_handler,
     dashboard_handler,
@@ -791,6 +792,11 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
+        .nest("/api/v1/erp/crm", Router::new()
+            .route("/leads", post(crate::handlers::crm_handler::create_lead).get(crate::handlers::crm_handler::list_leads))
+            .route("/leads/:id/status", put(crate::handlers::crm_handler::update_lead_status))
+            .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
+        )
         .nest("/api/v1/erp/init", init_routes)
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .with_state(state)
