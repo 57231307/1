@@ -53,8 +53,11 @@ impl Component for LoginPage {
                         Ok(status) => {
                             link.send_message(Msg::InitStatusChecked(!status.initialized));
                         }
-                        Err(_) => {
-                            link.send_message(Msg::InitStatusChecked(true));
+                        Err(err) => {
+                            // 发生网络错误时，不应盲目跳转到初始化页面，而应保持在登录页
+                            // 让用户可以看到可能的后端连接错误，而不是陷入无限循环
+                            web_sys::console::error_1(&format!("检查初始化状态失败: {}", err).into());
+                            link.send_message(Msg::InitStatusChecked(false));
                         }
                     }
                 });
