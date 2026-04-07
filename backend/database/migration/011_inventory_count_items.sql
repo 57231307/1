@@ -2,6 +2,7 @@
 -- 库存盘点明细表 - 补充表
 -- ============================================
 
+DROP TABLE IF NOT EXISTS inventory_count_items CASCADE;
 CREATE TABLE IF NOT EXISTS inventory_count_items (
     id SERIAL PRIMARY KEY,
     count_id INTEGER NOT NULL REFERENCES inventory_counts(id) ON DELETE CASCADE,
