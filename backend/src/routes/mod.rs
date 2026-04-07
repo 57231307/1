@@ -504,6 +504,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id", put(purchase_order_handler::update_order))
         .route("/orders/:id", delete(purchase_order_handler::delete_order))
         .route("/orders/:id/approve", post(purchase_order_handler::approve_order))
+        .route("/orders/:id/submit", post(purchase_order_handler::submit_order))
+        .route("/orders/:id/reject", post(purchase_order_handler::reject_order))
+        .route("/orders/:id/close", post(purchase_order_handler::close_order))
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
@@ -594,7 +597,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/reports", get(financial_analysis_handler::list_reports))
         .route("/reports", post(financial_analysis_handler::create_report))
         .route("/reports/:id", get(financial_analysis_handler::get_report))
-        .route("/reports/:id/execute", post(financial_analysis_handler::execute_report));
+        .route("/reports/:id/execute", post(financial_analysis_handler::execute_report))
+        .route("/indicators", post(financial_analysis_handler::create_indicator))
+        .route("/trends", get(financial_analysis_handler::get_trends));
 
     // 资金管理路由
     let fund_management_routes = Router::new()
@@ -669,6 +674,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/invoices/:id", get(ap_invoice_handler::get_invoice))
         .route("/invoices/:id", put(ap_invoice_handler::update_invoice))
         .route("/invoices/:id", delete(ap_invoice_handler::delete_invoice))
+        .route("/invoices/:id/approve", post(ap_invoice_handler::approve_invoice))
+        .route("/invoices/:id/cancel", post(ap_invoice_handler::cancel_invoice))
+        .route("/invoices/auto-generate", post(ap_invoice_handler::auto_generate))
+        .route("/invoices/aging", get(ap_invoice_handler::get_aging_analysis))
         .route("/payments", get(ap_payment_handler::list_payments))
         .route("/payments", post(ap_payment_handler::create_payment))
         .route("/payments/:id", get(ap_payment_handler::get_payment))
