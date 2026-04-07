@@ -19,7 +19,7 @@
 - Create: `backend/src/models/dto/bpm_dto.rs`
 - Modify: `backend/src/models/dto/mod.rs`
 
-- [ ] **Step 1: 创建 BPM DTO 文件**
+- [x] **Step 1: 创建 BPM DTO 文件**
 创建 `backend/src/models/dto/bpm_dto.rs`，基于测试文件中推导出的结构定义 DTO：
 
 ```rust
@@ -65,16 +65,16 @@ pub struct TaskQuery {
 }
 ```
 
-- [ ] **Step 2: 在 DTO 模块中导出**
+- [x] **Step 2: 在 DTO 模块中导出**
 打开 `backend/src/models/dto/mod.rs`，添加 `pub mod bpm_dto;`
 
-- [ ] **Step 3: 运行检查**
+- [x] **Step 3: 运行检查**
 ```bash
 cd backend && cargo check --lib
 ```
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add backend/src/models/dto/
 git commit -m "feat: add DTOs for BPM engine requests and responses"
@@ -88,7 +88,7 @@ git commit -m "feat: add DTOs for BPM engine requests and responses"
 - Create: `backend/src/services/bpm_service.rs`
 - Modify: `backend/src/services/mod.rs`
 
-- [ ] **Step 1: 创建 BpmService 并实现 `start_process`**
+- [x] **Step 1: 创建 BpmService 并实现 `start_process`**
 创建 `backend/src/services/bpm_service.rs`。实现解析定义并创建实例的逻辑：
 
 ```rust
@@ -169,16 +169,16 @@ impl BpmService {
 }
 ```
 
-- [ ] **Step 2: 导出服务**
+- [x] **Step 2: 导出服务**
 打开 `backend/src/services/mod.rs`，添加 `pub mod bpm_service;`
 
-- [ ] **Step 3: 运行检查**
+- [x] **Step 3: 运行检查**
 ```bash
 cd backend && cargo check --lib
 ```
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add backend/src/services/bpm_service.rs backend/src/services/mod.rs
 git commit -m "feat: implement basic BpmService and start_process logic"
@@ -191,7 +191,7 @@ git commit -m "feat: implement basic BpmService and start_process logic"
 **Files:**
 - Modify: `backend/src/services/bpm_service.rs`
 
-- [ ] **Step 1: 实现 `approve_task` 和 `query_user_tasks`**
+- [x] **Step 1: 实现 `approve_task` 和 `query_user_tasks`**
 在 `impl BpmService` 中继续添加以下方法：
 
 ```rust
@@ -262,13 +262,13 @@ use crate::models::api_response::PaginatedResponse;
     }
 ```
 
-- [ ] **Step 2: 运行检查**
+- [x] **Step 2: 运行检查**
 ```bash
 cd backend && cargo check --lib
 ```
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add backend/src/services/bpm_service.rs
 git commit -m "feat: implement task approval and querying in BpmService"
@@ -283,7 +283,7 @@ git commit -m "feat: implement task approval and querying in BpmService"
 - Modify: `backend/src/handlers/mod.rs`
 - Modify: `backend/src/routes/mod.rs`
 
-- [ ] **Step 1: 创建 bpm_handler**
+- [x] **Step 1: 创建 bpm_handler**
 创建 `backend/src/handlers/bpm_handler.rs`：
 
 ```rust
@@ -323,10 +323,10 @@ pub async fn query_tasks(
 }
 ```
 
-- [ ] **Step 2: 导出 Handler**
+- [x] **Step 2: 导出 Handler**
 打开 `backend/src/handlers/mod.rs`，添加 `pub mod bpm_handler;`
 
-- [ ] **Step 3: 注册路由**
+- [x] **Step 3: 注册路由**
 打开 `backend/src/routes/mod.rs`，在 `Router::new()` 中添加 bpm 路由组：
 
 ```rust
@@ -338,13 +338,13 @@ pub async fn query_tasks(
         )
 ```
 
-- [ ] **Step 4: 运行检查**
+- [x] **Step 4: 运行检查**
 ```bash
 cd backend && cargo check --bin server
 ```
 Expected: PASS 无编译错误。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add backend/src/handlers/bpm_handler.rs backend/src/handlers/mod.rs backend/src/routes/mod.rs
 git commit -m "feat: expose BPM engine RESTful APIs via axum router"
