@@ -6433,7 +6433,7 @@ COMMENT ON COLUMN bpm_timeout_config.timeout_type IS '超时类型（working_hou
 COMMENT ON COLUMN bpm_timeout_config.action_type IS '动作类型（notify/auto_approve/auto_reject/escalate）';
 
 -- 外键约束
-ALTER TABLE bpm_timeout_config ADD CONSTRAINT fk_bpm_tc_process_definition
+ALTER TABLE bpm_timeout_config ADD CONSTRAINT fk_bpm_toc_process_definition
     FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
 
 -- 索引
