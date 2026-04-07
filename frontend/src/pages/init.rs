@@ -303,7 +303,7 @@ impl Component for InitPage {
             Msg::ProgressResult(result) => {
                 match result {
                     Ok(progress) => {
-                        self.init_progress = progress.progress;
+                        self.init_progress = progress.progress as u8;
                         self.loading_message = progress.message.clone();
 
                         match progress.status.as_str() {
