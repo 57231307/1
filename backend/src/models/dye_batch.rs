@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 缸号管理模型（染色批次管理）
 
 use sea_orm::entity::prelude::*;

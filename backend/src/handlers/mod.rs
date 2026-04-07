@@ -1,4 +1,5 @@
 pub mod account_subject_handler;
+pub mod crm_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;
 pub mod batch_handler;
@@ -22,8 +23,10 @@ pub mod product_handler;
 pub mod role_handler;
 pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
+pub mod sales_delivery_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
+pub mod operation_log_handler;
 // 供应商管理模块
 pub mod supplier_handler;
 // 采购管理模块
@@ -65,3 +68,4 @@ pub mod dye_recipe_handler;
 pub mod greige_fabric_handler;
 pub mod system_update_handler;
 pub mod sales_return_handler;
+pub mod bpm_handler;

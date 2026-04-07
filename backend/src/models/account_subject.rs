@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 会计科目 Entity
 //!
 //! 对应数据库表：account_subjects

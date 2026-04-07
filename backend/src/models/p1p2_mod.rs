@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 // P1/P2 模块统一导出
 // 创建时间：2026-03-15
 

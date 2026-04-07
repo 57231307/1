@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 核销明细 Model
 //!
 //! 应付管理模块的核销明细实体

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 颜色代码映射 Model
 //!
 //! 颜色代码映射模块

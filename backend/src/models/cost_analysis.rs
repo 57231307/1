@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 成本分析 Entity
 //!
 //! 对应数据库表：cost_analyses

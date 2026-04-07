@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 缸号映射模型
 
 use sea_orm::entity::prelude::*;

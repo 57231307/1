@@ -102,4 +102,19 @@ impl FundManagementService {
             .await
             .map(|_| "删除成功".to_string())
     }
+
+    /// 资金调拨
+    pub async fn transfer_fund(from_account_id: i32, to_account_id: i32, amount: String, fee: Option<String>, reason: Option<String>) -> Result<serde_json::Value, String> {
+        #[derive(Debug, Clone, serde::Serialize)]
+        struct TransferRequest {
+            from_account_id: i32,
+            to_account_id: i32,
+            amount: String,
+            fee: Option<String>,
+            reason: Option<String>,
+        }
+        let req = TransferRequest { from_account_id, to_account_id, amount, fee, reason };
+        let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
+        ApiService::post("/fund-management/transfer", &payload).await
+    }
 }

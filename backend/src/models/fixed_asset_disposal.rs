@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 固定资产处置 Model
 //!
 //! 固定资产处置模块

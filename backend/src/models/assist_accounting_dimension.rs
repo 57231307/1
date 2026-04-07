@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 辅助核算维度 Model
 //!
 //! 8 个辅助核算维度：批次、色号、缸号、等级、车间、仓库、客户、供应商

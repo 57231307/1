@@ -610,7 +610,7 @@ impl Component for ExecuteContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <p>{"执行合同功能开发中..."}</p>
+                        <table class="table"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
@@ -650,7 +650,7 @@ impl Component for CancelContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <p>{"取消合同功能开发中..."}</p>
+                        <table class="table"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>

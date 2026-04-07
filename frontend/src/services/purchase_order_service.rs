@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 采购订单服务 API 客户端
 //! 提供采购订单相关的 API 调用方法
 

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购入库明细 Model
 use chrono::{DateTime, Utc, NaiveDate};
 use rust_decimal::Decimal;

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 付款申请 Model
 //!
 //! 应付管理模块的付款申请实体

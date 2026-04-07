@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 采购订单 Handler
 //!
 //! 采购订单 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
@@ -46,7 +47,7 @@ pub async fn list_orders(
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let order = service.get_order(id).await?;
@@ -175,7 +176,7 @@ pub async fn close_order(auth: AuthContext,
 }
 
 /// 获取订单明细列表
-pub async fn list_order_items(_auth: AuthContext, 
+pub async fn list_order_items(auth: AuthContext, 
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

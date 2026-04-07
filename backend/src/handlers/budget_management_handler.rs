@@ -462,3 +462,14 @@ pub async fn approve_budget(
     info!("用户 {} 正在预算审批功能尚未实现", auth.user_id);
     Err(AppError::ValidationError("预算审批功能尚未实现".to_string()))
 }
+
+pub async fn adjust_budget(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::models::dto::budget_dto::AdjustBudgetRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 正在发起预算调整", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let res = service.adjust_budget(req, auth.user_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap_or_default())))
+}

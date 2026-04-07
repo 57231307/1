@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购订单明细 Model
 //! 用于记录采购订单的明细项
 

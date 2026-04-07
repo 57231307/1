@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购入库 Model
 //!
 //! 采购入库模块包含以下实体：

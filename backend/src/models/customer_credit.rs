@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 客户信用 Entity
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;

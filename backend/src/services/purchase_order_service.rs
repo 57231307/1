@@ -4,13 +4,13 @@
 //! 包含订单创建、审批、执行、退货等全流程管理
 
 use crate::models::{
-    department, product, purchase_order, purchase_order_item, supplier, warehouse,
+    department, inventory_stock, product, purchase_order, purchase_order_item, supplier, warehouse,
 };
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, PaginatorTrait,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};

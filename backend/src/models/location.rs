@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 库位 Model
 //!
 //! 仓库库位管理模块

@@ -9,6 +9,7 @@ use axum::{
 };
 use sea_orm::Database;
 use serde_json::json;
+use std::sync::Arc;
 use bingxi_backend::utils::app_state::AppState;
 use tower::ServiceExt;
 

@@ -45,52 +45,52 @@ impl ApInvoiceService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-invoices{}", query_string);
+        let url = format!("/ap/invoices{}", query_string);
         ApiService::get::<ApInvoiceListResponse>(&url).await
     }
 
     /// 获取应付发票详情
     #[allow(dead_code)]
     pub async fn get_invoice(id: i32) -> Result<ApInvoice, String> {
-        ApiService::get::<ApInvoice>(&format!("/ap-invoices/{}", id)).await
+        ApiService::get::<ApInvoice>(&format!("/ap/invoices/{}", id)).await
     }
 
     /// 创建应付发票
     #[allow(dead_code)]
     pub async fn create_invoice(req: CreateApInvoiceRequest) -> Result<ApInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ap-invoices", &payload).await
+        ApiService::post("/ap/invoices", &payload).await
     }
 
     /// 更新应付发票
     #[allow(dead_code)]
     pub async fn update_invoice(id: i32, req: UpdateApInvoiceRequest) -> Result<ApInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/ap-invoices/{}", id), &payload).await
+        ApiService::put(&format!("/ap/invoices/{}", id), &payload).await
     }
 
     /// 删除应付发票
     pub async fn delete_invoice(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/ap-invoices/{}", id)).await
+        ApiService::delete(&format!("/ap/invoices/{}", id)).await
     }
 
     /// 审核应付发票
     pub async fn approve_invoice(id: i32) -> Result<serde_json::Value, String> {
-        ApiService::post(&format!("/ap-invoices/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post(&format!("/ap/invoices/{}/approve", id), &serde_json::json!({})).await
     }
 
     /// 取消应付发票
     pub async fn cancel_invoice(id: i32, reason: String) -> Result<serde_json::Value, String> {
         let req = CancelInvoiceRequest { reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/ap-invoices/{}/cancel", id), &payload).await
+        ApiService::post(&format!("/ap/invoices/{}/cancel", id), &payload).await
     }
 
     /// 自动生成应付发票
     #[allow(dead_code)]
     pub async fn auto_generate(req: AutoGenerateRequest) -> Result<ApInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ap-invoices/auto-generate", &payload).await
+        ApiService::post("/ap/invoices/auto-generate", &payload).await
     }
 
     /// 获取账龄分析
@@ -101,7 +101,7 @@ impl ApInvoiceService {
         } else {
             String::new()
         };
-        let url = format!("/ap-invoices/aging-analysis{}", query_string);
+        let url = format!("/ap/invoices/aging{}", query_string);
         ApiService::get::<Vec<AgingAnalysisItem>>(&url).await
     }
 
@@ -113,13 +113,13 @@ impl ApInvoiceService {
         } else {
             String::new()
         };
-        let url = format!("/ap-invoices/balance-summary{}", query_string);
+        let url = format!("/ap/invoices/balance-summary{}", query_string);
         ApiService::get::<Vec<BalanceSummaryItem>>(&url).await
     }
 
     /// 获取应付统计报表
     #[allow(dead_code)]
     pub async fn get_statistics() -> Result<serde_json::Value, String> {
-        ApiService::get::<serde_json::Value>("/ap-invoices/statistics").await
+        ApiService::get::<serde_json::Value>("/ap/invoices/statistics").await
     }
 }

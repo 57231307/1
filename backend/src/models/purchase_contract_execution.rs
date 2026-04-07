@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购合同执行 Model
 //!
 //! 采购合同执行模块

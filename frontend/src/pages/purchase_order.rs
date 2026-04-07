@@ -315,7 +315,18 @@ impl PurchaseOrderPage {
                                     <td>
                                         {if status_check == "REJECTED" || status_check == "DRAFT" {
                                             html! {
-<button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
+                                                <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
+                                            }
+                                        } else if status_check == "PENDING" {
+                                            html! {
+                                                <>
+                                                    <button class="px-3 py-1 bg-green-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::ApproveOrder(order_id))}>{"审批通过"}</button>
+                                                    <button class="px-3 py-1 bg-red-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::RejectOrder(order_id))}>{"驳回"}</button>
+                                                </>
+                                            }
+                                        } else if status_check == "APPROVED" {
+                                            html! {
+                                                <button class="px-3 py-1 bg-yellow-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::CloseOrder(order_id))}>{"关闭订单"}</button>
                                             }
                                         } else {
                                             html! {}

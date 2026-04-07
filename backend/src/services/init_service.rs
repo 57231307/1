@@ -162,7 +162,7 @@ impl InitService {
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
-        use sea_orm::ConnectionTrait;
+        use sea_orm::{ConnectionTrait, Statement, DatabaseBackend};
         use std::path::PathBuf;
         use tracing::{info, warn};
         
@@ -210,9 +210,7 @@ impl InitService {
                     continue;
                 }
 
-                // 使用 execute_unprepared 替代 Statement::from_string 
-                // 这样可以一次性执行包含多条语句（用分号隔开）的整个 SQL 脚本
-                self.db.execute_unprepared(&sql)
+                self.db.execute(Statement::from_string(DatabaseBackend::Postgres, sql))
                     .await
                     .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
                 

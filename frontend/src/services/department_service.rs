@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use crate::models::department::{
     CreateDepartmentRequest, Department, DepartmentListResponse, UpdateDepartmentRequest,
 };

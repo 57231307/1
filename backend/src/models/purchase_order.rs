@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购订单 Model
 //!
 //! 采购订单模块包含以下实体：

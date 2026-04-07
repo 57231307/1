@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 采购入库 Handler
 //!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
@@ -45,7 +46,7 @@ pub async fn list_receipts(
 }
 
 /// 获取采购入库单详情
-pub async fn get_receipt(_auth: AuthContext, 
+pub async fn get_receipt(auth: AuthContext, 
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -111,7 +112,7 @@ pub async fn confirm_receipt(auth: AuthContext,
 }
 
 /// 获取入库明细列表
-pub async fn list_receipt_items(_auth: AuthContext, 
+pub async fn list_receipt_items(auth: AuthContext, 
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

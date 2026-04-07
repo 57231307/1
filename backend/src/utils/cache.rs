@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 账户余额 Model
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;

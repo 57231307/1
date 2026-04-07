@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 资金账户 Model
 //!
 //! 资金账户模块

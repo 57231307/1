@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! OA 公告 Model
 //!
 //! OA 公告模块

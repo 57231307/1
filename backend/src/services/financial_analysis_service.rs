@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use crate::models::financial_analysis;
 use crate::models::financial_analysis_result;
 use crate::utils::error::AppError;

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 批次染色批次 Model
 //!
 //! 批次染色批次模块

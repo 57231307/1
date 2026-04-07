@@ -19,9 +19,11 @@ use crate::handlers::{
     auth_handler,
     batch_handler,
     batch_new_handler,
+    bpm_handler,
     budget_management_handler,
     business_trace_handler,
     cost_collection_handler,
+    crm_handler,
     customer_credit_handler,
     customer_handler,
     dashboard_handler,
@@ -209,6 +211,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // 销售管理路由
     let sales_routes = Router::new()
+        .route("/deliveries", post(crate::handlers::sales_delivery_handler::create_delivery).get(crate::handlers::sales_delivery_handler::list_deliveries))
         .route("/orders", get(sales_order_handler::list_orders))
         .route("/orders", post(sales_order_handler::create_order))
         .route("/orders/:id", get(sales_order_handler::get_order))
@@ -486,7 +489,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(supplier_handler::create_supplier))
         .route("/:id", get(supplier_handler::get_supplier))
         .route("/:id", put(supplier_handler::update_supplier))
-        .route("/:id", delete(supplier_handler::delete_supplier));
+        .route("/:id", delete(supplier_handler::delete_supplier))
+        .route("/:id/contacts", get(crate::handlers::supplier_handler::list_supplier_contacts).post(crate::handlers::supplier_handler::create_supplier_contact))
+        .route("/contacts/:contact_id", put(crate::handlers::supplier_handler::update_supplier_contact).delete(crate::handlers::supplier_handler::delete_supplier_contact))
+        .route("/:id/qualifications", get(crate::handlers::supplier_handler::list_supplier_qualifications).post(crate::handlers::supplier_handler::create_supplier_qualification))
+        .route("/qualifications/:qual_id", put(crate::handlers::supplier_handler::update_supplier_qualification).delete(crate::handlers::supplier_handler::delete_supplier_qualification));
 
     // 供应商评估路由
     let supplier_evaluation_routes = Router::new()
@@ -494,7 +501,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(supplier_evaluation_handler::create_evaluation))
         .route("/:id", get(supplier_evaluation_handler::get_evaluation))
         .route("/:id", put(supplier_evaluation_handler::update_evaluation))
-        .route("/:id", delete(supplier_evaluation_handler::delete_evaluation));
+        .route("/:id", delete(supplier_evaluation_handler::delete_evaluation))
+        .route("/indicators", get(supplier_evaluation_handler::list_indicators))
+        .route("/rankings", get(supplier_evaluation_handler::get_rankings))
+        .route("/records", get(supplier_evaluation_handler::list_evaluation_records));
 
     // 采购管理路由
     let purchase_routes = Router::new()
@@ -504,6 +514,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id", put(purchase_order_handler::update_order))
         .route("/orders/:id", delete(purchase_order_handler::delete_order))
         .route("/orders/:id/approve", post(purchase_order_handler::approve_order))
+        .route("/orders/:id/submit", post(purchase_order_handler::submit_order))
+        .route("/orders/:id/reject", post(purchase_order_handler::reject_order))
+        .route("/orders/:id/close", post(purchase_order_handler::close_order))
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
@@ -561,6 +574,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", put(budget_management_handler::update_budget))
         .route("/:id", delete(budget_management_handler::delete_budget))
         .route("/:id/approve", post(budget_management_handler::approve_budget))
+        .route("/adjust", post(budget_management_handler::adjust_budget))
         .route("/items", get(budget_management_handler::list_items))
         .route("/items", post(budget_management_handler::create_item))
         .route("/items/:id", get(budget_management_handler::get_item))
@@ -594,7 +608,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/reports", get(financial_analysis_handler::list_reports))
         .route("/reports", post(financial_analysis_handler::create_report))
         .route("/reports/:id", get(financial_analysis_handler::get_report))
-        .route("/reports/:id/execute", post(financial_analysis_handler::execute_report));
+        .route("/reports/:id/execute", post(financial_analysis_handler::execute_report))
+        .route("/indicators", post(financial_analysis_handler::create_indicator))
+        .route("/trends", get(financial_analysis_handler::get_trends));
 
     // 资金管理路由
     let fund_management_routes = Router::new()
@@ -605,7 +621,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/accounts/:id/withdraw", post(fund_management_handler::withdraw))
         .route("/accounts/:id/freeze", post(fund_management_handler::freeze_funds))
         .route("/accounts/:id/unfreeze", post(fund_management_handler::unfreeze_funds))
-        .route("/accounts/:id", delete(fund_management_handler::delete_account));
+        .route("/accounts/:id", delete(fund_management_handler::delete_account))
+        .route("/transfer", post(fund_management_handler::transfer));
 
     // 质量检验路由
     let quality_inspection_routes = Router::new()
@@ -666,9 +683,14 @@ pub fn create_router(state: AppState) -> Router {
     let ap_routes = Router::new()
         .route("/invoices", get(ap_invoice_handler::list_invoices))
         .route("/invoices", post(ap_invoice_handler::create_invoice))
+        .route("/invoices/balance", get(crate::handlers::ap_invoice_handler::get_balance_summary))
         .route("/invoices/:id", get(ap_invoice_handler::get_invoice))
         .route("/invoices/:id", put(ap_invoice_handler::update_invoice))
         .route("/invoices/:id", delete(ap_invoice_handler::delete_invoice))
+        .route("/invoices/:id/approve", post(ap_invoice_handler::approve_invoice))
+        .route("/invoices/:id/cancel", post(ap_invoice_handler::cancel_invoice))
+        .route("/invoices/auto-generate", post(ap_invoice_handler::auto_generate))
+        .route("/invoices/aging", get(ap_invoice_handler::get_aging_analysis))
         .route("/payments", get(ap_payment_handler::list_payments))
         .route("/payments", post(ap_payment_handler::create_payment))
         .route("/payments/:id", get(ap_payment_handler::get_payment))
@@ -713,11 +735,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/status", get(system_update_handler::get_update_status));
 
 
+    // BPM 路由
+    let bpm_routes = Router::new()
+        .route("/instances/start", post(bpm_handler::start_process))
+        .route("/tasks/approve", post(bpm_handler::approve_task))
+        .route("/tasks", get(bpm_handler::query_tasks));
+
     // 健康检查路由
     let health_routes = Router::new()
         .route("/", get(health_handler::health_check))
         .route("/readiness", get(health_handler::readiness_check))
         .route("/liveness", get(health_handler::liveness_check));
+
+    // 操作日志路由
+    let operation_log_routes = Router::new()
+        .route("/", get(crate::handlers::operation_log_handler::list_logs));
 
     // 添加 /init/status 路由，用于前端检测系统是否已初始化
     let init_routes = Router::new()
@@ -772,8 +804,15 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/purchase-prices", purchase_price_routes)
         .nest("/api/v1/erp/ap", ap_routes)
         .nest("/api/v1/erp/ar", ar_routes)
+        .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
+        .nest("/api/v1/erp/operation-logs", operation_log_routes)
+        .nest("/api/v1/erp/crm", Router::new()
+            .route("/leads", post(crate::handlers::crm_handler::create_lead).get(crate::handlers::crm_handler::list_leads))
+            .route("/leads/:id/status", put(crate::handlers::crm_handler::update_lead_status))
+            .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
+        )
         .nest("/api/v1/erp/init", init_routes)
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .with_state(state)
