@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 通知公告表 ====================
-CREATE TABLE oa_announcement (
+CREATE TABLE IF NOT EXISTS oa_announcement (
     id SERIAL PRIMARY KEY,
     announcement_no VARCHAR(100) NOT NULL UNIQUE,        -- 公告编号
     title VARCHAR(500) NOT NULL,                         -- 公告标题
@@ -75,7 +75,7 @@ CREATE INDEX IF NOT EXISTS idx_oa_ann_effective ON oa_announcement(effective_dat
 -- ========================================
 
 -- ==================== 公告阅读记录表 ====================
-CREATE TABLE oa_announcement_read (
+CREATE TABLE IF NOT EXISTS oa_announcement_read (
     id SERIAL PRIMARY KEY,
     announcement_id INTEGER NOT NULL,                    -- 公告 ID
     user_id INTEGER NOT NULL,                            -- 用户 ID
@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_oa_ar_is_read ON oa_announcement_read(is_read);
 -- ========================================
 
 -- ==================== 站内消息表 ====================
-CREATE TABLE oa_message (
+CREATE TABLE IF NOT EXISTS oa_message (
     id SERIAL PRIMARY KEY,
     message_no VARCHAR(100) NOT NULL UNIQUE,             -- 消息编号
     
@@ -165,7 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_oa_msg_business ON oa_message(business_type, busi
 -- ========================================
 
 -- ==================== 用户消息状态表 ====================
-CREATE TABLE oa_user_message_status (
+CREATE TABLE IF NOT EXISTS oa_user_message_status (
     id SERIAL PRIMARY KEY,
     message_id INTEGER NOT NULL,                         -- 消息 ID
     user_id INTEGER NOT NULL,                            -- 用户 ID

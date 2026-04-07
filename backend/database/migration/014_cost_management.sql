@@ -8,7 +8,7 @@
 
 -- 1. 成本归集表
 -- ============================================
-CREATE TABLE cost_collections (
+CREATE TABLE IF NOT EXISTS cost_collections (
     id SERIAL PRIMARY KEY,
     collection_no VARCHAR(50) NOT NULL UNIQUE,
     collection_date DATE NOT NULL,
@@ -69,7 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_cost_collections_date ON cost_collections(collect
 
 -- 2. 直接材料明细表
 -- ============================================
-CREATE TABLE cost_direct_materials (
+CREATE TABLE IF NOT EXISTS cost_direct_materials (
     id SERIAL PRIMARY KEY,
     collection_id INTEGER NOT NULL REFERENCES cost_collections(id),
     
@@ -106,7 +106,7 @@ CREATE INDEX IF NOT EXISTS idx_cost_direct_materials_material ON cost_direct_mat
 
 -- 3. 直接人工明细表
 -- ============================================
-CREATE TABLE cost_direct_labors (
+CREATE TABLE IF NOT EXISTS cost_direct_labors (
     id SERIAL PRIMARY KEY,
     collection_id INTEGER NOT NULL REFERENCES cost_collections(id),
     
@@ -136,7 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_cost_direct_labors_collection ON cost_direct_labo
 
 -- 4. 制造费用明细表
 -- ============================================
-CREATE TABLE cost_manufacturing_overheads (
+CREATE TABLE IF NOT EXISTS cost_manufacturing_overheads (
     id SERIAL PRIMARY KEY,
     collection_id INTEGER NOT NULL REFERENCES cost_collections(id),
     
@@ -167,7 +167,7 @@ CREATE INDEX IF NOT EXISTS idx_cost_manufacturing_overheads_collection ON cost_m
 
 -- 5. 染费明细表
 -- ============================================
-CREATE TABLE cost_dyeing_fees (
+CREATE TABLE IF NOT EXISTS cost_dyeing_fees (
     id SERIAL PRIMARY KEY,
     collection_id INTEGER NOT NULL REFERENCES cost_collections(id),
     
@@ -207,7 +207,7 @@ CREATE INDEX IF NOT EXISTS idx_cost_dyeing_fees_factory ON cost_dyeing_fees(dyei
 
 -- 6. 成本分析表
 -- ============================================
-CREATE TABLE cost_analyses (
+CREATE TABLE IF NOT EXISTS cost_analyses (
     id SERIAL PRIMARY KEY,
     analysis_no VARCHAR(50) NOT NULL UNIQUE,
     analysis_date DATE NOT NULL,

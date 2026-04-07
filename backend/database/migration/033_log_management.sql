@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 操作日志表 ====================
-CREATE TABLE log_operation (
+CREATE TABLE IF NOT EXISTS log_operation (
     id BIGSERIAL PRIMARY KEY,
     log_no VARCHAR(100) NOT NULL UNIQUE,                 -- 日志编号
     module VARCHAR(50) NOT NULL,                         -- 模块（procurement/sales/inventory/finance 等）
@@ -75,7 +75,7 @@ CREATE INDEX IF NOT EXISTS idx_log_op_module_time ON log_operation(module, opera
 -- ========================================
 
 -- ==================== 系统日志表 ====================
-CREATE TABLE log_system (
+CREATE TABLE IF NOT EXISTS log_system (
     id BIGSERIAL PRIMARY KEY,
     log_no VARCHAR(100) NOT NULL UNIQUE,                 -- 日志编号
     
@@ -123,7 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_log_sys_level_time ON log_system(log_level, log_t
 -- ========================================
 
 -- ==================== 登录日志表 ====================
-CREATE TABLE log_login (
+CREATE TABLE IF NOT EXISTS log_login (
     id BIGSERIAL PRIMARY KEY,
     log_no VARCHAR(100) NOT NULL UNIQUE,                 -- 日志编号
     
@@ -171,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_log_login_ip ON log_login(ip_address);
 -- ========================================
 
 -- ==================== API 访问日志表 ====================
-CREATE TABLE log_api_access (
+CREATE TABLE IF NOT EXISTS log_api_access (
     id BIGSERIAL PRIMARY KEY,
     log_no VARCHAR(100) NOT NULL UNIQUE,                 -- 日志编号
     
@@ -288,7 +288,7 @@ CREATE TRIGGER trg_log_api_access_generate_no
 -- 由于分区表需要主表先存在，所以先创建主表，再创建分区
 
 -- 创建分区主表（按月分区）
-CREATE TABLE log_operation_partitioned (
+CREATE TABLE IF NOT EXISTS log_operation_partitioned (
     id BIGSERIAL,
     log_no VARCHAR(100) NOT NULL,
     module VARCHAR(50) NOT NULL,
@@ -324,29 +324,29 @@ CREATE TABLE log_operation_partitioned (
 COMMENT ON TABLE log_operation_partitioned IS '操作日志分区表（按月度分区）';
 
 -- 为 2026 年创建月度分区
-CREATE TABLE log_operation_202601 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202601 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
-CREATE TABLE log_operation_202602 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202602 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
-CREATE TABLE log_operation_202603 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202603 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-03-01') TO ('2026-04-01');
-CREATE TABLE log_operation_202604 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202604 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-04-01') TO ('2026-05-01');
-CREATE TABLE log_operation_202605 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202605 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
-CREATE TABLE log_operation_202606 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202606 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
-CREATE TABLE log_operation_202607 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202607 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-07-01') TO ('2026-08-01');
-CREATE TABLE log_operation_202608 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202608 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
-CREATE TABLE log_operation_202609 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202609 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
-CREATE TABLE log_operation_202610 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202610 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-10-01') TO ('2026-11-01');
-CREATE TABLE log_operation_202611 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202611 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-11-01') TO ('2026-12-01');
-CREATE TABLE log_operation_202612 PARTITION OF log_operation_partitioned
+CREATE TABLE IF NOT EXISTS log_operation_202612 PARTITION OF log_operation_partitioned
     FOR VALUES FROM ('2026-12-01') TO ('2027-01-01');
 
 -- 分区表索引

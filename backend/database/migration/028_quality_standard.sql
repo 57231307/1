@@ -3,7 +3,7 @@
 -- 功能：质量标准管理、质量标准版本控制
 
 -- 质量标准表
-CREATE TABLE quality_standards (
+CREATE TABLE IF NOT EXISTS quality_standards (
     id SERIAL PRIMARY KEY,
     standard_name VARCHAR(100) NOT NULL,
     standard_code VARCHAR(50) NOT NULL UNIQUE,
@@ -27,7 +27,7 @@ CREATE TABLE quality_standards (
 );
 
 -- 质量标准版本历史表
-CREATE TABLE quality_standard_versions (
+CREATE TABLE IF NOT EXISTS quality_standard_versions (
     id SERIAL PRIMARY KEY,
     standard_id INTEGER NOT NULL REFERENCES quality_standards(id),
     version VARCHAR(20) NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE quality_standard_versions (
 );
 
 -- 质量标准引用表
-CREATE TABLE quality_standard_references (
+CREATE TABLE IF NOT EXISTS quality_standard_references (
     id SERIAL PRIMARY KEY,
     standard_id INTEGER NOT NULL REFERENCES quality_standards(id),
     reference_type VARCHAR(20) NOT NULL,

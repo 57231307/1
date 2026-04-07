@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 流程通知表 ====================
-CREATE TABLE bpm_task_notification (
+CREATE TABLE IF NOT EXISTS bpm_task_notification (
     id SERIAL PRIMARY KEY,
     task_id INTEGER NOT NULL,                            -- 任务 ID
     instance_id INTEGER NOT NULL,                        -- 实例 ID
@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_tn_sent_at ON bpm_task_notification(sent_at D
 -- ========================================
 
 -- ==================== 流程统计表（按天） ====================
-CREATE TABLE bpm_statistics_daily (
+CREATE TABLE IF NOT EXISTS bpm_statistics_daily (
     id SERIAL PRIMARY KEY,
     statistics_date DATE NOT NULL,                       -- 统计日期
     process_definition_id INTEGER NOT NULL,              -- 流程定义 ID
@@ -101,7 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_sd_process_definition ON bpm_statistics_daily
 -- ========================================
 
 -- ==================== 流程超时配置表 ====================
-CREATE TABLE bpm_timeout_config (
+CREATE TABLE IF NOT EXISTS bpm_timeout_config (
     id SERIAL PRIMARY KEY,
     process_definition_id INTEGER,                       -- 流程定义 ID（NULL 表示全局配置）
     node_id VARCHAR(100),                                -- 节点 ID（NULL 表示全局配置）

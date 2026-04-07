@@ -8,7 +8,7 @@
 
 -- 1. 应收单表
 -- ============================================
-CREATE TABLE ar_invoices (
+CREATE TABLE IF NOT EXISTS ar_invoices (
     id SERIAL PRIMARY KEY,
     invoice_no VARCHAR(50) NOT NULL UNIQUE,
     invoice_date DATE NOT NULL,
@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_ar_invoices_color_no ON ar_invoices(color_no);
 
 -- 2. 收款申请单表
 -- ============================================
-CREATE TABLE ar_collection_requests (
+CREATE TABLE IF NOT EXISTS ar_collection_requests (
     id SERIAL PRIMARY KEY,
     request_no VARCHAR(50) NOT NULL UNIQUE,
     request_date DATE NOT NULL,
@@ -122,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_ar_collection_requests_status ON ar_collection_re
 
 -- 3. 收款单表
 -- ============================================
-CREATE TABLE ar_collections (
+CREATE TABLE IF NOT EXISTS ar_collections (
     id SERIAL PRIMARY KEY,
     collection_no VARCHAR(50) NOT NULL UNIQUE,
     collection_date DATE NOT NULL,
@@ -166,7 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_ar_collections_status ON ar_collections(status);
 
 -- 4. 核销记录表
 -- ============================================
-CREATE TABLE ar_verifications (
+CREATE TABLE IF NOT EXISTS ar_verifications (
     id SERIAL PRIMARY KEY,
     verification_no VARCHAR(50) NOT NULL UNIQUE,
     verification_date DATE NOT NULL,
@@ -212,7 +212,7 @@ CREATE INDEX IF NOT EXISTS idx_ar_verifications_date ON ar_verifications(verific
 
 -- 5. 对账单表
 -- ============================================
-CREATE TABLE ar_reconciliations (
+CREATE TABLE IF NOT EXISTS ar_reconciliations (
     id SERIAL PRIMARY KEY,
     reconciliation_no VARCHAR(50) NOT NULL UNIQUE,
     reconciliation_date DATE NOT NULL,
@@ -257,7 +257,7 @@ CREATE INDEX IF NOT EXISTS idx_ar_reconciliations_period ON ar_reconciliations(p
 
 -- 6. 收款计划表
 -- ============================================
-CREATE TABLE ar_collection_plans (
+CREATE TABLE IF NOT EXISTS ar_collection_plans (
     id SERIAL PRIMARY KEY,
     plan_no VARCHAR(50) NOT NULL UNIQUE,
     

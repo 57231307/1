@@ -3,7 +3,7 @@
 -- 功能：资金计划、资金调拨、资金监控
 
 -- 资金账户表
-CREATE TABLE fund_accounts (
+CREATE TABLE IF NOT EXISTS fund_accounts (
     id SERIAL PRIMARY KEY,
     account_name VARCHAR(100) NOT NULL,
     account_no VARCHAR(50) NOT NULL UNIQUE,
@@ -21,7 +21,7 @@ CREATE TABLE fund_accounts (
 );
 
 -- 资金计划表
-CREATE TABLE fund_plans (
+CREATE TABLE IF NOT EXISTS fund_plans (
     id SERIAL PRIMARY KEY,
     plan_no VARCHAR(50) NOT NULL UNIQUE,
     plan_name VARCHAR(200) NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE fund_plans (
 );
 
 -- 资金调拨表
-CREATE TABLE fund_transfers (
+CREATE TABLE IF NOT EXISTS fund_transfers (
     id SERIAL PRIMARY KEY,
     transfer_no VARCHAR(50) NOT NULL UNIQUE,
     from_account_id INTEGER REFERENCES fund_accounts(id),
@@ -60,7 +60,7 @@ CREATE TABLE fund_transfers (
 );
 
 -- 资金流水表
-CREATE TABLE fund_transactions (
+CREATE TABLE IF NOT EXISTS fund_transactions (
     id SERIAL PRIMARY KEY,
     transaction_no VARCHAR(50) NOT NULL UNIQUE,
     account_id INTEGER REFERENCES fund_accounts(id),
@@ -80,7 +80,7 @@ CREATE TABLE fund_transactions (
 );
 
 -- 资金监控表
-CREATE TABLE fund_monitoring (
+CREATE TABLE IF NOT EXISTS fund_monitoring (
     id SERIAL PRIMARY KEY,
     account_id INTEGER REFERENCES fund_accounts(id),
     monitoring_date DATE NOT NULL,

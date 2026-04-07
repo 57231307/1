@@ -3,7 +3,7 @@
 -- 功能：供应商绩效评估、评分管理、等级评定
 
 -- 供应商评估指标表
-CREATE TABLE supplier_evaluation_indicators (
+CREATE TABLE IF NOT EXISTS supplier_evaluation_indicators (
     id SERIAL PRIMARY KEY,
     indicator_name VARCHAR(100) NOT NULL,
     indicator_code VARCHAR(50) NOT NULL UNIQUE,
@@ -17,7 +17,7 @@ CREATE TABLE supplier_evaluation_indicators (
 );
 
 -- 供应商评估记录表
-CREATE TABLE supplier_evaluation_records (
+CREATE TABLE IF NOT EXISTS supplier_evaluation_records (
     id SERIAL PRIMARY KEY,
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
     evaluation_period VARCHAR(7) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE supplier_evaluation_records (
 );
 
 -- 供应商综合评分表
-CREATE TABLE supplier_overall_scores (
+CREATE TABLE IF NOT EXISTS supplier_overall_scores (
     id SERIAL PRIMARY KEY,
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
     evaluation_period VARCHAR(7) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE supplier_overall_scores (
 );
 
 -- 供应商等级表
-CREATE TABLE supplier_levels (
+CREATE TABLE IF NOT EXISTS supplier_levels (
     id SERIAL PRIMARY KEY,
     level_code VARCHAR(10) NOT NULL UNIQUE,
     level_name VARCHAR(50) NOT NULL,

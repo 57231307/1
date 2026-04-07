@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 报表定义表 ====================
-CREATE TABLE report_definition (
+CREATE TABLE IF NOT EXISTS report_definition (
     id SERIAL PRIMARY KEY,
     report_key VARCHAR(100) NOT NULL,                    -- 报表标识
     report_name VARCHAR(200) NOT NULL,                   -- 报表名称
@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_report_def_system ON report_definition(is_system)
 -- ========================================
 
 -- ==================== 仪表板表 ====================
-CREATE TABLE report_dashboard (
+CREATE TABLE IF NOT EXISTS report_dashboard (
     id SERIAL PRIMARY KEY,
     dashboard_name VARCHAR(200) NOT NULL,                -- 仪表板名称
     dashboard_code VARCHAR(100) NOT NULL UNIQUE,         -- 仪表板编码
@@ -110,7 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_report_dash_default ON report_dashboard(is_defaul
 -- ========================================
 
 -- ==================== 报表组件表 ====================
-CREATE TABLE report_widget (
+CREATE TABLE IF NOT EXISTS report_widget (
     id SERIAL PRIMARY KEY,
     widget_name VARCHAR(200) NOT NULL,                   -- 组件名称
     widget_type VARCHAR(50) NOT NULL,                    -- 组件类型（chart/table/card/map/pivot）
@@ -148,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_report_widget_active ON report_widget(is_active);
 -- ========================================
 
 -- ==================== 报表订阅表 ====================
-CREATE TABLE report_subscription (
+CREATE TABLE IF NOT EXISTS report_subscription (
     id SERIAL PRIMARY KEY,
     report_id INTEGER NOT NULL,                          -- 报表 ID
     user_id INTEGER NOT NULL,                            -- 用户 ID
@@ -199,7 +199,7 @@ CREATE INDEX IF NOT EXISTS idx_report_sub_frequency ON report_subscription(frequ
 -- ========================================
 
 -- ==================== 报表导出历史表 ====================
-CREATE TABLE report_export_history (
+CREATE TABLE IF NOT EXISTS report_export_history (
     id SERIAL PRIMARY KEY,
     export_no VARCHAR(100) NOT NULL UNIQUE,              -- 导出编号
     report_id INTEGER NOT NULL,                          -- 报表 ID
@@ -248,7 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_report_exp_requested ON report_export_history(req
 -- ========================================
 
 -- ==================== 物化视图刷新日志表 ====================
-CREATE TABLE report_mv_refresh_log (
+CREATE TABLE IF NOT EXISTS report_mv_refresh_log (
     id SERIAL PRIMARY KEY,
     mv_name VARCHAR(200) NOT NULL,                       -- 物化视图名称
     refresh_type VARCHAR(50) DEFAULT 'full',             -- 刷新类型（full/concurrent）
@@ -333,13 +333,13 @@ INSERT INTO report_definition (report_key, report_name, report_category, report_
 ('procurement_supplier_stats', '供应商采购统计', 'procurement', 'summary',
  'SELECT supplier_id, supplier_name, COUNT(*) as order_count, SUM(total_amount) as total_amount FROM purchase_order GROUP BY supplier_id, supplier_name',
  '[{"key": "supplier_name", "label": "供应商", "type": "text"}, {"key": "order_count", "label": "订单数", "type": "number"}, {"key": "total_amount", "label": "采购金额", "type": "money"}]',
- TRUE);
+ TRUE) ON CONFLICT DO NOTHING;
 
 -- 初始化默认仪表板
 INSERT INTO report_dashboard (dashboard_name, dashboard_code, description, is_default, is_public) VALUES
 ('经营驾驶舱', 'executive_dashboard', '企业经营管理驾驶舱，包含关键经营指标', TRUE, TRUE),
 ('销售看板', 'sales_dashboard', '销售业务数据看板', FALSE, TRUE),
-('采购看板', 'procurement_dashboard', '采购业务数据看板', FALSE, TRUE);
+('采购看板', 'procurement_dashboard', '采购业务数据看板', FALSE, TRUE) ON CONFLICT DO NOTHING;
 
 -- ========================================
 -- 迁移完成

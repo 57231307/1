@@ -5,7 +5,7 @@
 -- =====================================================
 -- 1. 应付单表 (ap_invoice)
 -- =====================================================
-CREATE TABLE ap_invoice (
+CREATE TABLE IF NOT EXISTS ap_invoice (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     invoice_no VARCHAR(50) NOT NULL UNIQUE,             -- 应付单号（AP20260315001）
     supplier_id INTEGER NOT NULL,                       -- 供应商 ID（外键）
@@ -95,7 +95,7 @@ FOR EACH ROW EXECUTE FUNCTION update_ap_invoice_status();
 -- =====================================================
 -- 2. 付款申请表 (ap_payment_request)
 -- =====================================================
-CREATE TABLE ap_payment_request (
+CREATE TABLE IF NOT EXISTS ap_payment_request (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     request_no VARCHAR(50) NOT NULL UNIQUE,             -- 付款申请单号（PR20260315001）
     request_date DATE NOT NULL,                         -- 申请日期
@@ -157,7 +157,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 3. 付款申请明细表 (ap_payment_request_item)
 -- =====================================================
-CREATE TABLE ap_payment_request_item (
+CREATE TABLE IF NOT EXISTS ap_payment_request_item (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     request_id INTEGER NOT NULL,                        -- 付款申请 ID（外键）
     invoice_id INTEGER NOT NULL,                        -- 应付单 ID（外键）
@@ -178,7 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_request_item_invoice_id ON ap_payment_request_
 -- =====================================================
 -- 4. 付款单表 (ap_payment)
 -- =====================================================
-CREATE TABLE ap_payment (
+CREATE TABLE IF NOT EXISTS ap_payment (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     payment_no VARCHAR(50) NOT NULL UNIQUE,             -- 付款单号（PAY20260315001）
     payment_date DATE NOT NULL,                         -- 付款日期
@@ -233,7 +233,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 5. 应付核销表 (ap_verification)
 -- =====================================================
-CREATE TABLE ap_verification (
+CREATE TABLE IF NOT EXISTS ap_verification (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     verification_no VARCHAR(50) NOT NULL UNIQUE,        -- 核销单号（VER20260315001）
     verification_date DATE NOT NULL,                    -- 核销日期
@@ -274,7 +274,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 6. 核销明细表 (ap_verification_item)
 -- =====================================================
-CREATE TABLE ap_verification_item (
+CREATE TABLE IF NOT EXISTS ap_verification_item (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     verification_id INTEGER NOT NULL,                   -- 核销单 ID（外键）
     invoice_id INTEGER NOT NULL,                        -- 应付单 ID（外键）
@@ -299,7 +299,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_verification_item_payment_id ON ap_verificatio
 -- =====================================================
 -- 7. 供应商对账单 (ap_reconciliation)
 -- =====================================================
-CREATE TABLE ap_reconciliation (
+CREATE TABLE IF NOT EXISTS ap_reconciliation (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     reconciliation_no VARCHAR(50) NOT NULL UNIQUE,      -- 对账单号（REC20260315001）
     supplier_id INTEGER NOT NULL,                       -- 供应商 ID（外键）

@@ -3,7 +3,7 @@
 -- 功能：销售统计分析、销售趋势、业绩排行
 
 -- 销售统计表
-CREATE TABLE sales_statistics (
+CREATE TABLE IF NOT EXISTS sales_statistics (
     id SERIAL PRIMARY KEY,
     statistic_type VARCHAR(20) NOT NULL,
     period VARCHAR(7) NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE sales_statistics (
 );
 
 -- 销售趋势表
-CREATE TABLE sales_trends (
+CREATE TABLE IF NOT EXISTS sales_trends (
     id SERIAL PRIMARY KEY,
     period VARCHAR(7) NOT NULL,
     product_id INTEGER REFERENCES products(id),
@@ -36,7 +36,7 @@ CREATE TABLE sales_trends (
 );
 
 -- 销售业绩排行表
-CREATE TABLE sales_performance_rankings (
+CREATE TABLE IF NOT EXISTS sales_performance_rankings (
     id SERIAL PRIMARY KEY,
     ranking_type VARCHAR(20) NOT NULL,
     period VARCHAR(7) NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE sales_performance_rankings (
 );
 
 -- 销售目标表
-CREATE TABLE sales_targets (
+CREATE TABLE IF NOT EXISTS sales_targets (
     id SERIAL PRIMARY KEY,
     target_type VARCHAR(20) NOT NULL,
     target_period VARCHAR(7) NOT NULL,

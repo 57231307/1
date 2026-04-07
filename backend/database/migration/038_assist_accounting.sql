@@ -8,7 +8,7 @@
 
 -- 1. 辅助核算维度表
 -- ============================================
-CREATE TABLE assist_accounting_dimension (
+CREATE TABLE IF NOT EXISTS assist_accounting_dimension (
     id SERIAL PRIMARY KEY,
     dimension_code VARCHAR(50) NOT NULL UNIQUE,
     dimension_name VARCHAR(200) NOT NULL,
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_dimension_active ON assist_accounting_dimension(i
 
 -- 2. 辅助核算记录表
 -- ============================================
-CREATE TABLE assist_accounting_record (
+CREATE TABLE IF NOT EXISTS assist_accounting_record (
     id SERIAL PRIMARY KEY,
     business_type VARCHAR(50) NOT NULL,
     business_no VARCHAR(100) NOT NULL,
@@ -92,7 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_record_period ON assist_accounting_record(created
 
 -- 3. 辅助核算汇总表
 -- ============================================
-CREATE TABLE assist_accounting_summary (
+CREATE TABLE IF NOT EXISTS assist_accounting_summary (
     id SERIAL PRIMARY KEY,
     accounting_period VARCHAR(7) NOT NULL,
     dimension_code VARCHAR(50) NOT NULL,
@@ -139,7 +139,7 @@ INSERT INTO assist_accounting_dimension (dimension_code, dimension_name, descrip
 ('WORKSHOP', '车间核算', '按生产车间进行辅助核算', TRUE, 5),
 ('WAREHOUSE', '仓库核算', '按仓库进行辅助核算', TRUE, 6),
 ('CUSTOMER', '客户核算', '按客户进行辅助核算', TRUE, 7),
-('SUPPLIER', '供应商核算', '按供应商进行辅助核算', TRUE, 8);
+('SUPPLIER', '供应商核算', '按供应商进行辅助核算', TRUE, 8) ON CONFLICT DO NOTHING;
 
 COMMENT ON INSERT: '插入 8 个辅助核算维度';
 

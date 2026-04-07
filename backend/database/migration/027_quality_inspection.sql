@@ -3,7 +3,7 @@
 -- 功能：质量检验管理、检验标准、不合格品处理
 
 -- 质量检验标准表
-CREATE TABLE quality_inspection_standards (
+CREATE TABLE IF NOT EXISTS quality_inspection_standards (
     id SERIAL PRIMARY KEY,
     standard_name VARCHAR(100) NOT NULL,
     standard_code VARCHAR(50) NOT NULL UNIQUE,
@@ -20,7 +20,7 @@ CREATE TABLE quality_inspection_standards (
 );
 
 -- 质量检验记录表
-CREATE TABLE quality_inspection_records (
+CREATE TABLE IF NOT EXISTS quality_inspection_records (
     id SERIAL PRIMARY KEY,
     inspection_no VARCHAR(50) NOT NULL UNIQUE,
     inspection_type VARCHAR(20) NOT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE quality_inspection_records (
 );
 
 -- 质量检验明细表
-CREATE TABLE quality_inspection_details (
+CREATE TABLE IF NOT EXISTS quality_inspection_details (
     id SERIAL PRIMARY KEY,
     inspection_id INTEGER NOT NULL REFERENCES quality_inspection_records(id),
     inspection_item VARCHAR(100) NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE quality_inspection_details (
 );
 
 -- 不合格品处理表
-CREATE TABLE unqualified_products (
+CREATE TABLE IF NOT EXISTS unqualified_products (
     id SERIAL PRIMARY KEY,
     unqualified_no VARCHAR(50) NOT NULL UNIQUE,
     inspection_id INTEGER REFERENCES quality_inspection_records(id),
@@ -74,7 +74,7 @@ CREATE TABLE unqualified_products (
 );
 
 -- 质量统计表
-CREATE TABLE quality_statistics (
+CREATE TABLE IF NOT EXISTS quality_statistics (
     id SERIAL PRIMARY KEY,
     period VARCHAR(7) NOT NULL,
     product_id INTEGER REFERENCES products(id),

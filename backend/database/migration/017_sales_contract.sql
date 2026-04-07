@@ -8,7 +8,7 @@
 
 -- 1. 销售合同表
 -- ============================================
-CREATE TABLE sales_contracts (
+CREATE TABLE IF NOT EXISTS sales_contracts (
     id SERIAL PRIMARY KEY,
     contract_no VARCHAR(50) NOT NULL UNIQUE,
     contract_name VARCHAR(200) NOT NULL,

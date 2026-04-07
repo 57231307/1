@@ -8,7 +8,7 @@
 
 -- 1. 采购合同表
 -- ============================================
-CREATE TABLE purchase_contracts (
+CREATE TABLE IF NOT EXISTS purchase_contracts (
     id SERIAL PRIMARY KEY,
     contract_no VARCHAR(50) NOT NULL UNIQUE,
     contract_name VARCHAR(200) NOT NULL,
@@ -56,7 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_purchase_contracts_status ON purchase_contracts(s
 
 -- 2. 合同执行表
 -- ============================================
-CREATE TABLE contract_executions (
+CREATE TABLE IF NOT EXISTS contract_executions (
     id SERIAL PRIMARY KEY,
     contract_id INTEGER NOT NULL REFERENCES purchase_contracts(id),
     

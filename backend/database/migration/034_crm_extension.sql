@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 销售线索表 ====================
-CREATE TABLE crm_lead (
+CREATE TABLE IF NOT EXISTS crm_lead (
     id SERIAL PRIMARY KEY,
     lead_no VARCHAR(100) NOT NULL UNIQUE,                -- 线索编号
     lead_source VARCHAR(50) NOT NULL,                    -- 线索来源（website/referral/exhibition/cold_call/other）
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_lead_priority ON crm_lead(priority);
 -- ========================================
 
 -- ==================== 商机表 ====================
-CREATE TABLE crm_opportunity (
+CREATE TABLE IF NOT EXISTS crm_opportunity (
     id SERIAL PRIMARY KEY,
     opportunity_no VARCHAR(100) NOT NULL UNIQUE,         -- 商机编号
     opportunity_name VARCHAR(500) NOT NULL,              -- 商机名称
@@ -159,7 +159,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_opp_expected_close ON crm_opportunity(expecte
 -- ========================================
 
 -- ==================== 客户跟进记录表 ====================
-CREATE TABLE crm_follow_up (
+CREATE TABLE IF NOT EXISTS crm_follow_up (
     id SERIAL PRIMARY KEY,
     follow_up_no VARCHAR(100) NOT NULL UNIQUE,           -- 跟进记录编号
     
@@ -261,7 +261,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_contact_email ON crm_contact(email);
 -- ========================================
 
 -- ==================== 客户公海表 ====================
-CREATE TABLE crm_customer_sea (
+CREATE TABLE IF NOT EXISTS crm_customer_sea (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL,                        -- 客户 ID
     reason_type VARCHAR(50) NOT NULL,                    -- 进入公海原因（no_follow_up/active_release/passive_release）
@@ -305,7 +305,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_cs_active ON crm_customer_sea(is_active);
 -- ========================================
 
 -- ==================== 销售漏斗配置表 ====================
-CREATE TABLE crm_sales_funnel_config (
+CREATE TABLE IF NOT EXISTS crm_sales_funnel_config (
     id SERIAL PRIMARY KEY,
     funnel_name VARCHAR(200) NOT NULL,                   -- 漏斗名称
     funnel_type VARCHAR(50) NOT NULL,                    -- 漏斗类型（standard/custom）
@@ -391,7 +391,7 @@ INSERT INTO crm_sales_funnel_config (funnel_name, funnel_type, stages, is_defaul
     {"stage": "negotiation", "name": "商务谈判", "probability": 70},
     {"stage": "closing", "name": "成交", "probability": 90}
   ]'::JSONB,
- TRUE);
+ TRUE) ON CONFLICT DO NOTHING;
 
 -- ========================================
 -- 迁移完成

@@ -3,7 +3,7 @@
 -- 功能：销售价格管理、价格审批、价格策略
 
 -- 销售价格表
-CREATE TABLE sales_prices (
+CREATE TABLE IF NOT EXISTS sales_prices (
     id SERIAL PRIMARY KEY,
     product_id INTEGER NOT NULL REFERENCES products(id),
     customer_id INTEGER REFERENCES customers(id),
@@ -25,7 +25,7 @@ CREATE TABLE sales_prices (
 );
 
 -- 销售价格审批表
-CREATE TABLE sales_price_approvals (
+CREATE TABLE IF NOT EXISTS sales_price_approvals (
     id SERIAL PRIMARY KEY,
     price_id INTEGER NOT NULL REFERENCES sales_prices(id),
     approval_type VARCHAR(20) NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE sales_price_approvals (
 );
 
 -- 销售价格历史表
-CREATE TABLE sales_price_history (
+CREATE TABLE IF NOT EXISTS sales_price_history (
     id SERIAL PRIMARY KEY,
     product_id INTEGER NOT NULL REFERENCES products(id),
     customer_type VARCHAR(20),
@@ -56,7 +56,7 @@ CREATE TABLE sales_price_history (
 );
 
 -- 价格策略表
-CREATE TABLE price_strategies (
+CREATE TABLE IF NOT EXISTS price_strategies (
     id SERIAL PRIMARY KEY,
     strategy_name VARCHAR(100) NOT NULL,
     strategy_type VARCHAR(20) NOT NULL,

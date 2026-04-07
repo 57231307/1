@@ -3,7 +3,7 @@
 -- 功能：财务指标分析、趋势分析、财务报表
 
 -- 财务指标表
-CREATE TABLE financial_indicators (
+CREATE TABLE IF NOT EXISTS financial_indicators (
     id SERIAL PRIMARY KEY,
     indicator_name VARCHAR(100) NOT NULL,
     indicator_code VARCHAR(50) NOT NULL UNIQUE,
@@ -17,7 +17,7 @@ CREATE TABLE financial_indicators (
 );
 
 -- 财务分析结果表
-CREATE TABLE financial_analysis_results (
+CREATE TABLE IF NOT EXISTS financial_analysis_results (
     id SERIAL PRIMARY KEY,
     analysis_type VARCHAR(20) NOT NULL,
     period VARCHAR(7) NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE financial_analysis_results (
 );
 
 -- 财务趋势分析表
-CREATE TABLE financial_trends (
+CREATE TABLE IF NOT EXISTS financial_trends (
     id SERIAL PRIMARY KEY,
     indicator_id INTEGER REFERENCES financial_indicators(id),
     period VARCHAR(7) NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE financial_trends (
 );
 
 -- 财务报表配置表
-CREATE TABLE financial_report_configs (
+CREATE TABLE IF NOT EXISTS financial_report_configs (
     id SERIAL PRIMARY KEY,
     report_name VARCHAR(100) NOT NULL,
     report_type VARCHAR(20) NOT NULL,

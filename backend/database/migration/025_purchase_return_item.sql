@@ -1,4 +1,4 @@
-CREATE TABLE purchase_return_item (
+CREATE TABLE IF NOT EXISTS purchase_return_item (
     id SERIAL PRIMARY KEY,
     return_id INTEGER NOT NULL,
     line_no INTEGER NOT NULL,

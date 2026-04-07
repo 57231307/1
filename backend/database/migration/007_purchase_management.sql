@@ -5,7 +5,7 @@
 -- =====================================================
 -- 1. 采购订单表 (purchase_order)
 -- =====================================================
-CREATE TABLE purchase_order (
+CREATE TABLE IF NOT EXISTS purchase_order (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     order_no VARCHAR(50) NOT NULL UNIQUE,               -- 订单编号（PO20260315001）
     supplier_id INTEGER NOT NULL,                       -- 供应商 ID（外键）
@@ -69,7 +69,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 2. 采购订单明细表 (purchase_order_item)
 -- =====================================================
-CREATE TABLE purchase_order_item (
+CREATE TABLE IF NOT EXISTS purchase_order_item (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     order_id INTEGER NOT NULL,                          -- 订单 ID（外键）
     line_no INTEGER NOT NULL,                           -- 行号（10, 20, 30...）
@@ -161,7 +161,7 @@ FOR EACH ROW EXECUTE FUNCTION calc_purchase_order_item_amount();
 -- =====================================================
 -- 3. 采购入库表 (purchase_receipt)
 -- =====================================================
-CREATE TABLE purchase_receipt (
+CREATE TABLE IF NOT EXISTS purchase_receipt (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     receipt_no VARCHAR(50) NOT NULL UNIQUE,             -- 入库单号（GR20260315001）
     order_id INTEGER,                                   -- 采购订单 ID（外键）
@@ -224,7 +224,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 4. 采购入库明细表 (purchase_receipt_item)
 -- =====================================================
-CREATE TABLE purchase_receipt_item (
+CREATE TABLE IF NOT EXISTS purchase_receipt_item (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     receipt_id INTEGER NOT NULL,                        -- 入库单 ID（外键）
     order_item_id INTEGER,                              -- 订单明细 ID（外键）
@@ -299,7 +299,7 @@ FOR EACH ROW EXECUTE FUNCTION calc_purchase_receipt_item_amount();
 -- =====================================================
 -- 5. 采购退货表 (purchase_return)
 -- =====================================================
-CREATE TABLE purchase_return (
+CREATE TABLE IF NOT EXISTS purchase_return (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     return_no VARCHAR(50) NOT NULL UNIQUE,              -- 退货单号（RT20260315001）
     receipt_id INTEGER NOT NULL,                        -- 入库单 ID（外键）
@@ -360,7 +360,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 6. 采购质检表 (purchase_inspection)
 -- =====================================================
-CREATE TABLE purchase_inspection (
+CREATE TABLE IF NOT EXISTS purchase_inspection (
     id SERIAL PRIMARY KEY,                              -- 主键 ID
     inspection_no VARCHAR(50) NOT NULL UNIQUE,          -- 质检单号（IQ20260315001）
     receipt_id INTEGER NOT NULL,                        -- 入库单 ID（外键）
@@ -415,7 +415,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 -- 7. 数据字典表 - 采购订单状态
 -- =====================================================
-CREATE TABLE purchase_order_status (
+CREATE TABLE IF NOT EXISTS purchase_order_status (
     id SERIAL PRIMARY KEY,
     status_code VARCHAR(20) NOT NULL UNIQUE,            -- 状态编码
     status_name VARCHAR(50) NOT NULL,                   -- 状态名称
@@ -433,13 +433,13 @@ INSERT INTO purchase_order_status (status_code, status_name, description, sort_o
 ('REJECTED', '已拒绝', '订单审批被拒绝', 25),
 ('PARTIAL_RECEIVED', '部分入库', '订单部分物料已入库', 40),
 ('COMPLETED', '已完成', '订单全部物料已入库', 50),
-('CLOSED', '已关闭', '订单已关闭，不可再操作', 60);
+('CLOSED', '已关闭', '订单已关闭，不可再操作', 60) ON CONFLICT DO NOTHING;
 
 
 -- =====================================================
 -- 8. 数据字典表 - 入库单状态
 -- =====================================================
-CREATE TABLE purchase_receipt_status (
+CREATE TABLE IF NOT EXISTS purchase_receipt_status (
     id SERIAL PRIMARY KEY,
     status_code VARCHAR(20) NOT NULL UNIQUE,            -- 状态编码
     status_name VARCHAR(50) NOT NULL,                   -- 状态名称
@@ -453,13 +453,13 @@ CREATE TABLE purchase_receipt_status (
 INSERT INTO purchase_receipt_status (status_code, status_name, description, sort_order) VALUES
 ('DRAFT', '草稿', '入库单尚未确认', 10),
 ('CONFIRMED', '已确认', '入库单已确认，库存已更新', 20),
-('CANCELLED', '已取消', '入库单已取消', 30);
+('CANCELLED', '已取消', '入库单已取消', 30) ON CONFLICT DO NOTHING;
 
 
 -- =====================================================
 -- 9. 数据字典表 - 退货原因类型
 -- =====================================================
-CREATE TABLE purchase_return_reason (
+CREATE TABLE IF NOT EXISTS purchase_return_reason (
     id SERIAL PRIMARY KEY,
     reason_code VARCHAR(20) NOT NULL UNIQUE,            -- 原因编码
     reason_name VARCHAR(100) NOT NULL,                  -- 原因名称
@@ -475,7 +475,7 @@ INSERT INTO purchase_return_reason (reason_code, reason_name, description, sort_
 ('WRONG_ITEM', '发错货', '供应商发错物料', 20),
 ('DAMAGED', '破损', '物料在运输过程中破损', 30),
 ('EXCESS_DELIVERY', '超额送货', '供应商送货数量超过订单数量', 40),
-('OTHER', '其他', '其他退货原因', 90);
+('OTHER', '其他', '其他退货原因', 90) ON CONFLICT DO NOTHING;
 
 
 -- =====================================================

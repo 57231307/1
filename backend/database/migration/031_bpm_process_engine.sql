@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 流程定义表 ====================
-CREATE TABLE bpm_process_definition (
+CREATE TABLE IF NOT EXISTS bpm_process_definition (
     id SERIAL PRIMARY KEY,
     process_key VARCHAR(100) NOT NULL,                   -- 流程标识（英文唯一标识）
     process_name VARCHAR(200) NOT NULL,                  -- 流程名称
@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_pd_created_at ON bpm_process_definition(creat
 -- ========================================
 
 -- ==================== 流程实例表 ====================
-CREATE TABLE bpm_process_instance (
+CREATE TABLE IF NOT EXISTS bpm_process_instance (
     id SERIAL PRIMARY KEY,
     instance_no VARCHAR(100) NOT NULL UNIQUE,            -- 实例编号（自动生成）
     process_definition_id INTEGER NOT NULL,              -- 流程定义 ID
@@ -130,7 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_pi_completed_at ON bpm_process_instance(compl
 -- ========================================
 
 -- ==================== 流程任务表 ====================
-CREATE TABLE bpm_task (
+CREATE TABLE IF NOT EXISTS bpm_task (
     id SERIAL PRIMARY KEY,
     task_no VARCHAR(100) NOT NULL UNIQUE,                -- 任务编号
     instance_id INTEGER NOT NULL,                        -- 实例 ID
@@ -208,7 +208,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_task_overdue ON bpm_task(is_overdue);
 -- ========================================
 
 -- ==================== 流程操作日志表 ====================
-CREATE TABLE bpm_operation_log (
+CREATE TABLE IF NOT EXISTS bpm_operation_log (
     id SERIAL PRIMARY KEY,
     log_no VARCHAR(100) NOT NULL UNIQUE,                 -- 日志编号
     instance_id INTEGER NOT NULL,                        -- 实例 ID
@@ -262,7 +262,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_log_operation_type ON bpm_operation_log(opera
 -- ========================================
 
 -- ==================== 流程节点配置表 ====================
-CREATE TABLE bpm_node_config (
+CREATE TABLE IF NOT EXISTS bpm_node_config (
     id SERIAL PRIMARY KEY,
     process_definition_id INTEGER NOT NULL,              -- 流程定义 ID
     node_id VARCHAR(100) NOT NULL,                       -- 节点 ID
@@ -317,7 +317,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_nc_active ON bpm_node_config(is_active);
 -- ========================================
 
 -- ==================== 流程流转条件表 ====================
-CREATE TABLE bpm_transition_condition (
+CREATE TABLE IF NOT EXISTS bpm_transition_condition (
     id SERIAL PRIMARY KEY,
     process_definition_id INTEGER NOT NULL,              -- 流程定义 ID
     from_node_id VARCHAR(100) NOT NULL,                  -- 源节点 ID
@@ -355,7 +355,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_tc_active ON bpm_transition_condition(is_acti
 -- ========================================
 
 -- ==================== 流程委托表 ====================
-CREATE TABLE bpm_task_delegation (
+CREATE TABLE IF NOT EXISTS bpm_task_delegation (
     id SERIAL PRIMARY KEY,
     task_id INTEGER NOT NULL,                            -- 任务 ID
     delegator_id INTEGER NOT NULL,                       -- 委托人 ID
@@ -400,7 +400,7 @@ CREATE INDEX IF NOT EXISTS idx_bpm_td_date_range ON bpm_task_delegation(start_da
 -- ========================================
 
 -- ==================== 流程催办表 ====================
-CREATE TABLE bpm_task_urge (
+CREATE TABLE IF NOT EXISTS bpm_task_urge (
     id SERIAL PRIMARY KEY,
     task_id INTEGER NOT NULL,                            -- 任务 ID
     instance_id INTEGER NOT NULL,                        -- 实例 ID

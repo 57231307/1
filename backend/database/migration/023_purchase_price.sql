@@ -3,7 +3,7 @@
 -- 功能：采购价格管理、价格审批、价格趋势分析
 
 -- 采购价格表
-CREATE TABLE purchase_prices (
+CREATE TABLE IF NOT EXISTS purchase_prices (
     id SERIAL PRIMARY KEY,
     product_id INTEGER NOT NULL REFERENCES products(id),
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
@@ -23,7 +23,7 @@ CREATE TABLE purchase_prices (
 );
 
 -- 采购价格审批表
-CREATE TABLE purchase_price_approvals (
+CREATE TABLE IF NOT EXISTS purchase_price_approvals (
     id SERIAL PRIMARY KEY,
     price_id INTEGER NOT NULL REFERENCES purchase_prices(id),
     approval_type VARCHAR(20) NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE purchase_price_approvals (
 );
 
 -- 采购价格历史表
-CREATE TABLE purchase_price_history (
+CREATE TABLE IF NOT EXISTS purchase_price_history (
     id SERIAL PRIMARY KEY,
     product_id INTEGER NOT NULL REFERENCES products(id),
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id),

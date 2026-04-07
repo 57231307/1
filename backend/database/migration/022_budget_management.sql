@@ -3,7 +3,7 @@
 -- 功能：预算编制、预算执行、预算控制
 
 -- 预算科目表
-CREATE TABLE budget_items (
+CREATE TABLE IF NOT EXISTS budget_items (
     id SERIAL PRIMARY KEY,
     item_code VARCHAR(50) NOT NULL UNIQUE,
     item_name VARCHAR(100) NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE budget_items (
 );
 
 -- 预算方案表
-CREATE TABLE budget_plans (
+CREATE TABLE IF NOT EXISTS budget_plans (
     id SERIAL PRIMARY KEY,
     plan_no VARCHAR(50) NOT NULL UNIQUE,
     plan_name VARCHAR(200) NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE budget_plans (
 );
 
 -- 预算明细表
-CREATE TABLE budget_plan_details (
+CREATE TABLE IF NOT EXISTS budget_plan_details (
     id SERIAL PRIMARY KEY,
     plan_id INTEGER NOT NULL REFERENCES budget_plans(id),
     budget_item_id INTEGER REFERENCES budget_items(id),
@@ -48,7 +48,7 @@ CREATE TABLE budget_plan_details (
 );
 
 -- 预算控制表
-CREATE TABLE budget_controls (
+CREATE TABLE IF NOT EXISTS budget_controls (
     id SERIAL PRIMARY KEY,
     plan_id INTEGER NOT NULL REFERENCES budget_plans(id),
     budget_item_id INTEGER REFERENCES budget_items(id),
@@ -65,7 +65,7 @@ CREATE TABLE budget_controls (
 );
 
 -- 预算调整表
-CREATE TABLE budget_adjustments (
+CREATE TABLE IF NOT EXISTS budget_adjustments (
     id SERIAL PRIMARY KEY,
     adjustment_no VARCHAR(50) NOT NULL UNIQUE,
     plan_id INTEGER NOT NULL REFERENCES budget_plans(id),

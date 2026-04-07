@@ -8,7 +8,7 @@
 
 -- 1. 会计科目表（基础版）
 -- ============================================
-CREATE TABLE account_subjects (
+CREATE TABLE IF NOT EXISTS account_subjects (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(200) NOT NULL,
@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_account_subjects_status ON account_subjects(statu
 
 -- 2. 凭证表（基础版）
 -- ============================================
-CREATE TABLE vouchers (
+CREATE TABLE IF NOT EXISTS vouchers (
     id SERIAL PRIMARY KEY,
     voucher_no VARCHAR(50) NOT NULL UNIQUE,
     voucher_type VARCHAR(20) NOT NULL,
@@ -142,7 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_vouchers_created_by ON vouchers(created_by);
 
 -- 3. 凭证分录表
 -- ============================================
-CREATE TABLE voucher_items (
+CREATE TABLE IF NOT EXISTS voucher_items (
     id SERIAL PRIMARY KEY,
     voucher_id INTEGER NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
     line_no INTEGER NOT NULL,
@@ -196,7 +196,7 @@ CREATE INDEX IF NOT EXISTS idx_voucher_items_line_no ON voucher_items(voucher_id
 
 -- 4. 科目余额表（基础版）
 -- ============================================
-CREATE TABLE account_balances (
+CREATE TABLE IF NOT EXISTS account_balances (
     id SERIAL PRIMARY KEY,
     subject_id INTEGER NOT NULL REFERENCES account_subjects(id),
     period VARCHAR(7) NOT NULL,
@@ -299,7 +299,7 @@ INSERT INTO account_subjects (code, name, level, parent_id, full_code, balance_d
 ('6401.02', '主营业务成本 - 成品布销售成本', 2, (SELECT id FROM account_subjects WHERE code = '6401'), '6401.02', '借', 'active'),
 ('6601', '销售费用', 1, NULL, '6601', '借', 'active'),
 ('6602', '管理费用', 1, NULL, '6602', '借', 'active'),
-('6603', '财务费用', 1, NULL, '6603', '借', 'active');
+('6603', '财务费用', 1, NULL, '6603', '借', 'active') ON CONFLICT DO NOTHING;
 
 COMMENT ON INSERT: '插入基础会计科目（面料行业预设科目）';
 

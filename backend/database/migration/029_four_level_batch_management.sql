@@ -10,7 +10,7 @@
 -- ========================================
 
 -- ==================== 缸号表 ====================
-CREATE TABLE batch_dye_lot (
+CREATE TABLE IF NOT EXISTS batch_dye_lot (
     id SERIAL PRIMARY KEY,
     dye_lot_no VARCHAR(100) NOT NULL,                    -- 缸号（内部编码）
     product_id INTEGER NOT NULL,                         -- 成品 ID
@@ -70,7 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_created_at ON batch_dye_lot(created
 -- ========================================
 
 -- ==================== 库存匹号表 ====================
-CREATE TABLE inventory_piece (
+CREATE TABLE IF NOT EXISTS inventory_piece (
     id SERIAL PRIMARY KEY,
     piece_no VARCHAR(100) NOT NULL UNIQUE,               -- 匹号（内部编码）
     dye_lot_id INTEGER NOT NULL,                         -- 缸号 ID
@@ -122,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_piece_created_at ON inventory_piece(cre
 -- ========================================
 
 -- ==================== 成品编码映射表 ====================
-CREATE TABLE product_code_mapping (
+CREATE TABLE IF NOT EXISTS product_code_mapping (
     id SERIAL PRIMARY KEY,
     internal_product_code VARCHAR(100) NOT NULL,         -- 内部成品编码
     supplier_product_code VARCHAR(100) NOT NULL,         -- 供应商成品编码
@@ -161,7 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_pcm_supplier ON product_code_mapping(supplier_id)
 CREATE INDEX IF NOT EXISTS idx_pcm_validation_status ON product_code_mapping(validation_status);
 
 -- ==================== 色号编码映射表 ====================
-CREATE TABLE color_code_mapping (
+CREATE TABLE IF NOT EXISTS color_code_mapping (
     id SERIAL PRIMARY KEY,
     internal_color_no VARCHAR(100) NOT NULL,             -- 内部色号
     supplier_color_code VARCHAR(100) NOT NULL,           -- 供应商色号
@@ -201,7 +201,7 @@ CREATE INDEX IF NOT EXISTS idx_ccm_supplier ON color_code_mapping(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_ccm_product_code ON color_code_mapping(product_code);
 
 -- ==================== 缸号映射表 ====================
-CREATE TABLE dye_lot_mapping (
+CREATE TABLE IF NOT EXISTS dye_lot_mapping (
     id SERIAL PRIMARY KEY,
     internal_dye_lot_no VARCHAR(100) NOT NULL,           -- 内部缸号
     supplier_dye_lot_no VARCHAR(100) NOT NULL,           -- 供应商缸号
@@ -240,7 +240,7 @@ CREATE INDEX IF NOT EXISTS idx_dlm_supplier ON dye_lot_mapping(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_dlm_batch_dye_lot ON dye_lot_mapping(batch_dye_lot_id);
 
 -- ==================== 匹号映射表 ====================
-CREATE TABLE piece_mapping (
+CREATE TABLE IF NOT EXISTS piece_mapping (
     id SERIAL PRIMARY KEY,
     internal_piece_no VARCHAR(100) NOT NULL,             -- 内部匹号
     supplier_piece_no VARCHAR(100) NOT NULL,             -- 供应商匹号
@@ -282,7 +282,7 @@ CREATE INDEX IF NOT EXISTS idx_pm_inventory_piece ON piece_mapping(inventory_pie
 -- ========================================
 
 -- ==================== 批次追溯日志表 ====================
-CREATE TABLE batch_trace_log (
+CREATE TABLE IF NOT EXISTS batch_trace_log (
     id SERIAL PRIMARY KEY,
     trace_no VARCHAR(100) NOT NULL UNIQUE,               -- 追溯编号（自动生成）
     business_type VARCHAR(50) NOT NULL,                  -- 业务类型（sales_order/delivery/purchase_order/receipt）

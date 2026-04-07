@@ -8,7 +8,7 @@
 
 -- 1. 固定资产卡片表
 -- ============================================
-CREATE TABLE fixed_assets (
+CREATE TABLE IF NOT EXISTS fixed_assets (
     id SERIAL PRIMARY KEY,
     asset_no VARCHAR(50) NOT NULL UNIQUE,
     asset_name VARCHAR(200) NOT NULL,
@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_fixed_assets_status ON fixed_assets(status);
 
 -- 2. 折旧记录表
 -- ============================================
-CREATE TABLE depreciation_records (
+CREATE TABLE IF NOT EXISTS depreciation_records (
     id SERIAL PRIMARY KEY,
     asset_id INTEGER NOT NULL REFERENCES fixed_assets(id),
     
@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_depreciation_records_period ON depreciation_recor
 
 -- 3. 资产处置表
 -- ============================================
-CREATE TABLE asset_disposals (
+CREATE TABLE IF NOT EXISTS asset_disposals (
     id SERIAL PRIMARY KEY,
     disposal_no VARCHAR(50) NOT NULL UNIQUE,
     asset_id INTEGER NOT NULL REFERENCES fixed_assets(id),

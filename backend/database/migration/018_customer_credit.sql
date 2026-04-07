@@ -8,7 +8,7 @@
 
 -- 1. 客户信用评级表
 -- ============================================
-CREATE TABLE customer_credit_ratings (
+CREATE TABLE IF NOT EXISTS customer_credit_ratings (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL UNIQUE,
     customer_name VARCHAR(200),
@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_credit_ratings_level ON customer_credit_
 
 -- 2. 信用变更记录表
 -- ============================================
-CREATE TABLE customer_credit_changes (
+CREATE TABLE IF NOT EXISTS customer_credit_changes (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     

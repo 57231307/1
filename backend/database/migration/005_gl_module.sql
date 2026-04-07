@@ -202,23 +202,23 @@ INSERT INTO account_subjects (code, name, level, balance_direction, status) VALU
 ('2221', '应交税费', 1, '贷', 'active'),
 ('5001', '生产成本', 1, '借', 'active'),
 ('6001', '主营业务收入', 1, '贷', 'active'),
-('6401', '主营业务成本', 1, '借', 'active');
+('6401', '主营业务成本', 1, '借', 'active') ON CONFLICT DO NOTHING;
 
 -- 插入二级科目（示例）
 INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
 SELECT 
     '1002.01', '工商银行', 2, id, '借', 'active'
-FROM account_subjects WHERE code = '1002';
+FROM account_subjects WHERE code = '1002' ON CONFLICT DO NOTHING;
 
 INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
 SELECT 
     '1405.01', '坯布', 2, id, '借', 'active'
-FROM account_subjects WHERE code = '1405';
+FROM account_subjects WHERE code = '1405' ON CONFLICT DO NOTHING;
 
 INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status, assist_batch, assist_color_no, enable_dual_unit)
 SELECT 
     '1405.02', '成品布', 2, id, '借', 'active', true, true, true
-FROM account_subjects WHERE code = '1405';
+FROM account_subjects WHERE code = '1405' ON CONFLICT DO NOTHING;
 
 -- ========================================
 -- 6. 创建视图
