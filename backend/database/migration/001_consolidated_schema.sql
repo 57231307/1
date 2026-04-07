@@ -7831,9 +7831,9 @@ INSERT INTO users (id, username, password_hash, email, is_active) VALUES
 (3, 'user2', 'mock_hash', 'user2@example.com', true) ON CONFLICT DO NOTHING;
 
 -- 插入默认供应商
-INSERT INTO suppliers (id, supplier_code, supplier_name, supplier_short_name, supplier_type, credit_code, registered_address, legal_representative, registered_capital) VALUES
-(1, 'SUP001', '江苏纺织有限公司', '江苏纺织', 'manufacturer', '913200000000000001', '江苏省南京市', '张三', 1000.00),
-(2, 'SUP002', '浙江印染厂', '浙江印染', 'processor', '913300000000000002', '浙江省杭州市', '李四', 500.00) ON CONFLICT DO NOTHING;
+INSERT INTO suppliers (id, supplier_code, supplier_name, supplier_short_name, supplier_type, credit_code, registered_address, legal_representative, registered_capital, bank_name, bank_account, taxpayer_type, contact_phone, establishment_date) VALUES
+(1, 'SUP001', '江苏纺织有限公司', '江苏纺织', 'manufacturer', '913200000000000001', '江苏省南京市', '张三', 1000.00, '中国银行', '123456789', 'general', '13800000000', CURRENT_DATE),
+(2, 'SUP002', '浙江印染厂', '浙江印染', 'processor', '913300000000000002', '浙江省杭州市', '李四', 500.00, '建设银行', '987654321', 'general', '13900000000', CURRENT_DATE) ON CONFLICT DO NOTHING;
 
 -- 插入默认客户
 INSERT INTO customers (id, customer_code, customer_name, contact_person, customer_type, status) VALUES
@@ -7977,16 +7977,16 @@ INSERT INTO report_widget (widget_name, widget_type, chart_type, is_system, is_a
 -- ========================================
 
 -- 操作日志示例
-INSERT INTO log_operation (module, operation_type, business_type, business_id, user_id, username, operation_desc, ip_address) VALUES
-('procurement', 'create', 'purchase_order', 1, 1, 'admin', '创建采购订单 PO20260316001', '192.168.1.100'),
-('sales', 'update', 'sales_order', 1, 2, 'user1', '更新销售订单 SO20260316001', '192.168.1.101'),
-('inventory', 'approve', 'inventory_transfer', 1, 3, 'user2', '审批库存调拨单', '192.168.1.102') ON CONFLICT DO NOTHING;
+INSERT INTO log_operation (log_no, module, operation_type, business_type, business_id, user_id, username, operation_desc, ip_address) VALUES
+('OPL20260316001', 'procurement', 'create', 'purchase_order', 1, 1, 'admin', '创建采购订单 PO20260316001', '192.168.1.100'),
+('OPL20260316002', 'sales', 'update', 'sales_order', 1, 2, 'user1', '更新销售订单 SO20260316001', '192.168.1.101'),
+('OPL20260316003', 'inventory', 'approve', 'inventory_transfer', 1, 3, 'user2', '审批库存调拨单', '192.168.1.102') ON CONFLICT DO NOTHING;
 
 -- 登录日志示例
-INSERT INTO log_login (username, login_status, login_type, ip_address, browser, os) VALUES
-('admin', 'success', 'password', '192.168.1.100', 'Chrome 120', 'Windows 10'),
-('user1', 'success', 'password', '192.168.1.101', 'Firefox 121', 'Windows 11'),
-('user2', 'failed', 'password', '192.168.1.102', 'Chrome 120', 'macOS', '密码错误') ON CONFLICT DO NOTHING;
+INSERT INTO log_login (log_no, username, login_status, login_type, ip_address, browser, os) VALUES
+('LGL20260316001', 'admin', 'success', 'password', '192.168.1.100', 'Chrome 120', 'Windows 10'),
+('LGL20260316002', 'user1', 'success', 'password', '192.168.1.101', 'Firefox 121', 'Windows 11'),
+('LGL20260316003', 'user2', 'failed', 'password', '192.168.1.102', 'Chrome 120', 'macOS') ON CONFLICT DO NOTHING;
 
 -- ========================================
 -- 7. 批次追溯日志测试
