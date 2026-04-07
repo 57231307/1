@@ -28,6 +28,9 @@ pub mod purchase_return;
 pub mod supplier;
 pub mod inventory_adjustment;
 pub mod account_subject;
+pub mod crm_lead;
+pub mod crm_opportunity;
+
 pub mod voucher;
 pub mod fund_management;
 pub mod budget_management;
