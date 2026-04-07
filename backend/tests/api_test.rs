@@ -148,7 +148,7 @@ async fn test_get_payments_unauthorized() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// 测试 404 路由
+/// 测试 404 路由（未授权）
 #[tokio::test]
 async fn test_404_route() {
     let app = setup_app().await;
@@ -164,5 +164,6 @@ async fn test_404_route() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    // 因为所有的非白名单路由都会首先被 auth_middleware 拦截，所以期望是 401 UNAUTHORIZED
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
