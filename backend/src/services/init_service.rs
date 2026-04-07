@@ -5,6 +5,142 @@ use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
+
+/// 拆分 SQL 语句，忽略字符串和 $$ 块内的分号
+fn split_sql_statements(sql: &str) -> Vec<String> {
+    let mut statements = Vec::new();
+    let mut current_stmt = String::new();
+    
+    let mut in_string = false;
+    let mut in_dollar_quote = false;
+    let mut dollar_tag = String::new();
+    
+    let chars: Vec<char> = sql.chars().collect();
+    let mut i = 0;
+    
+    while i < chars.len() {
+        let c = chars[i];
+        
+        // 处理注释
+        if !in_string && !in_dollar_quote {
+            // 单行注释 --
+            if c == '-' && i + 1 < chars.len() && chars[i+1] == '-' {
+                while i < chars.len() && chars[i] != '\n' {
+                    current_stmt.push(chars[i]);
+                    i += 1;
+                }
+                if i < chars.len() {
+                    current_stmt.push(chars[i]);
+                    i += 1;
+                }
+                continue;
+            }
+            // 多行注释 /* */
+            if c == '/' && i + 1 < chars.len() && chars[i+1] == '*' {
+                current_stmt.push('/');
+                current_stmt.push('*');
+                i += 2;
+                let mut depth = 1;
+                while i < chars.len() && depth > 0 {
+                    if chars[i] == '/' && i + 1 < chars.len() && chars[i+1] == '*' {
+                        depth += 1;
+                        current_stmt.push('/');
+                        current_stmt.push('*');
+                        i += 2;
+                        continue;
+                    }
+                    if chars[i] == '*' && i + 1 < chars.len() && chars[i+1] == '/' {
+                        depth -= 1;
+                        current_stmt.push('*');
+                        current_stmt.push('/');
+                        i += 2;
+                        continue;
+                    }
+                    current_stmt.push(chars[i]);
+                    i += 1;
+                }
+                continue;
+            }
+        }
+
+        current_stmt.push(c);
+
+        if in_string {
+            if c == '\'' {
+                // 检查是否为连续的单引号（转义）
+                if i + 1 < chars.len() && chars[i+1] == '\'' {
+                    current_stmt.push('\'');
+                    i += 1;
+                } else {
+                    in_string = false;
+                }
+            }
+        } else if in_dollar_quote {
+            if c == '$' {
+                // 检查是否匹配当前 dollar tag
+                let mut match_tag = true;
+                let tag_len = dollar_tag.len();
+                if i + tag_len <= chars.len() {
+                    for j in 0..tag_len {
+                        if chars[i+j] != dollar_tag.chars().nth(j).unwrap() {
+                            match_tag = false;
+                            break;
+                        }
+                    }
+                    if match_tag {
+                        for _ in 1..tag_len {
+                            i += 1;
+                            current_stmt.push(chars[i]);
+                        }
+                        in_dollar_quote = false;
+                    }
+                }
+            }
+        } else {
+            if c == '\'' {
+                in_string = true;
+            } else if c == '$' {
+                // 尝试提取 dollar tag，例如 $$ 或者 $tag$
+                let mut j = i + 1;
+                let mut tag = String::from("$");
+                let mut is_valid = false;
+                while j < chars.len() {
+                    let next_c = chars[j];
+                    if next_c == '$' {
+                        tag.push('$');
+                        is_valid = true;
+                        break;
+                    } else if next_c.is_alphanumeric() || next_c == '_' {
+                        tag.push(next_c);
+                    } else {
+                        break;
+                    }
+                    j += 1;
+                }
+                if is_valid {
+                    in_dollar_quote = true;
+                    dollar_tag = tag.clone();
+                    for _ in 1..tag.len() {
+                        i += 1;
+                        current_stmt.push(chars[i]);
+                    }
+                }
+            } else if c == ';' {
+                statements.push(current_stmt.clone());
+                current_stmt.clear();
+            }
+        }
+        
+        i += 1;
+    }
+    
+    let final_stmt = current_stmt.trim();
+    if !final_stmt.is_empty() {
+        statements.push(final_stmt.to_string());
+    }
+    
+    statements
+}
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::warn;
@@ -210,10 +346,17 @@ impl InitService {
                     continue;
                 }
 
-                // 执行整个 SQL 文件，使用 execute_unprepared 以支持单个脚本中包含多个语句 (如用分号分隔的 CREATE TABLE)
-                self.db.execute_unprepared(&sql)
-                    .await
-                    .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
+                let statements = split_sql_statements(&sql);
+                
+                for stmt in statements {
+                    let stmt = stmt.trim();
+                    if stmt.is_empty() {
+                        continue;
+                    }
+                    self.db.execute(Statement::from_string(DatabaseBackend::Postgres, stmt.to_string()))
+                        .await
+                        .map_err(|e| InitError::DatabaseError(format!("执行SQL片段失败 {:?}: {}\n语句: {}", path.file_name().unwrap(), e, stmt)))?;
+                }
                 
                 info!("成功执行脚本: {:?}", path.file_name().unwrap());
             }
