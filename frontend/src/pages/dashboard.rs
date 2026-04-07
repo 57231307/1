@@ -1,6 +1,7 @@
-use crate::services::dashboard_service::{
-    DashboardOverview, DashboardService, InventoryStatistics, LowStockAlert, SalesStatistics,
+use crate::models::dashboard::{
+    DashboardOverview, InventoryStatistics, LowStockAlert, SalesStatistics,
 };
+use crate::services::dashboard_service::DashboardService;
 use chrono::{Datelike, Timelike};
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
@@ -185,10 +186,10 @@ impl DashboardPage {
                 <div class="metrics-grid">
                     {self.render_metric_card("📦", "产品总数", &overview.total_products.to_string(), "所有产品")}
                     {self.render_metric_card("🏭", "仓库数量", &overview.total_warehouses.to_string(), "活跃仓库")}
+                    {self.render_metric_card("💰", "库存总价值", &overview.total_inventory_value, "当前库存估值")}
                     {self.render_metric_card("📝", "订单总数", &overview.total_orders.to_string(), "所有订单")}
-                    {self.render_metric_card("💰", "本月销售", &overview.monthly_sales, "本月销售额")}
-                    {self.render_metric_card("⚠️", "低库存预警", &overview.low_stock_count.to_string(), "需要补货")}
                     {self.render_metric_card("⏳", "待处理订单", &overview.pending_orders.to_string(), "等待处理")}
+                    {self.render_metric_card("👥", "活跃用户", &overview.active_users.to_string(), "最近7天登录")}
                 </div>
 
                 // 图表区域
@@ -243,51 +244,34 @@ impl DashboardPage {
 
     fn render_sales_chart(&self) -> Html {
         if let Some(sales_data) = &self.sales_trend {
-            if sales_data.daily_sales.is_empty() {
-                return html! {
-                    <div class="empty-state">
-                        <div class="empty-icon">{"📈"}</div>
-                        <p>{"暂无销售数据"}</p>
-                    </div>
-                };
-            }
-
-            // 生成销售趋势图表（这里使用简单的HTML表示，实际项目中可以使用Chart.js等库）
             html! {
                 <div class="chart-container">
-                    <div class="chart-content">
-                        <div class="sales-trend-chart">
-                            {for sales_data.daily_sales.iter().map(|trend| {
-                                html! {
-                                    <div class="chart-bar">
-                                        <div class="bar-label">{&trend.date}</div>
-                                        <div class="bar-container">
-                                            <div
-                                                class="bar-fill"
-                                                style={format!("width: {}%", trend.amount.parse::<f64>().unwrap_or(0.0) / 10000.0 * 100.0)}
-                                            ></div>
-                                        </div>
-                                        <div class="bar-value">{&trend.amount}</div>
-                                    </div>
-                                }
-                            })}
+                    <div class="sales-trend-chart">
+                        <div class="metric-card">
+                            <div class="metric-title">{"总销售额"}</div>
+                            <div class="metric-value">{&sales_data.total_sales_amount}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">{"订单数量"}</div>
+                            <div class="metric-value">{sales_data.order_count}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">{"平均客单价"}</div>
+                            <div class="metric-value">{&sales_data.avg_order_amount}</div>
                         </div>
                     </div>
                 </div>
             }
         } else {
             html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"📈"}</div>
-                    <p>{"暂无销售数据"}</p>
-                </div>
+                <div class="skeleton-chart"></div>
             }
         }
     }
 
     fn render_inventory_chart(&self) -> Html {
         if let Some(inventory_data) = &self.inventory_status {
-            if inventory_data.by_warehouse.is_empty() {
+            if inventory_data.warehouse_distribution.is_empty() {
                 return html! {
                     <div class="empty-state">
                         <div class="empty-icon">{"📊"}</div>
@@ -300,7 +284,7 @@ impl DashboardPage {
             html! {
                 <div class="chart-container">
                     <div class="inventory-status-chart">
-                        {for inventory_data.by_warehouse.iter().map(|warehouse| {
+                        {for inventory_data.warehouse_distribution.iter().map(|warehouse| {
                             html! {
                                 <div class="inventory-item">
                                     <div class="inventory-label">{&warehouse.warehouse_name}</div>
@@ -310,7 +294,7 @@ impl DashboardPage {
                                             style={format!("width: 50%")}
                                         ></div>
                                     </div>
-                                    <div class="inventory-value">{&warehouse.quantity}</div>
+                                    <div class="inventory-value">{&warehouse.total_quantity}</div>
                                 </div>
                             }
                         })}
