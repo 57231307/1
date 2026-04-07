@@ -277,7 +277,14 @@ impl InitService {
         update_init_progress("running", 0, "开始初始化...", None);
 
         tokio::spawn(async move {
-            if let Err(e) = service.do_initialize(&username, &password).await {
+            let init_result = service.do_initialize(&username, &password).await;
+            
+            // 显式关闭数据库连接，避免因为异步上下文中的隐式 Drop 引发 block_on panic
+            if let Ok(db_conn) = Arc::try_unwrap(service.db) {
+                let _ = db_conn.close().await;
+            }
+
+            if let Err(e) = init_result {
                 update_init_progress("failed", 0, "初始化失败", Some(e.to_string()));
             } else {
                 update_init_progress("completed", 100, "初始化完成", None);
@@ -301,8 +308,14 @@ impl InitService {
 
         update_init_progress("running", 95, "创建默认角色和用户...", None);
 
-        let password_hash = AuthService::hash_password(admin_password)
-            .map_err(|e| InitError::HashError(e.to_string()))?;
+        // 使用 spawn_blocking 执行 CPU 密集型的 Hash 操作，防止阻塞 Tokio 调度器引发 panic
+        let password = admin_password.to_string();
+        let password_hash = tokio::task::spawn_blocking(move || {
+            AuthService::hash_password(&password)
+        })
+        .await
+        .map_err(|e| InitError::HashError(e.to_string()))?
+        .map_err(|e| InitError::HashError(e.to_string()))?;
 
         let admin_role = self.create_default_roles().await?;
         let department_id = self.create_default_departments().await?;
@@ -449,9 +462,13 @@ impl InitService {
                 }
 
                 info!("准备执行数据库迁移脚本: {}", file_name);
-                let sql = std::fs::read_to_string(&path).map_err(|e| {
-                    InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e))
-                })?;
+                
+                // 使用 spawn_blocking 读取文件，避免阻塞异步执行器
+                let path_clone = path.clone();
+                let sql = tokio::task::spawn_blocking(move || std::fs::read_to_string(&path_clone))
+                    .await
+                    .map_err(|e| InitError::DatabaseError(format!("等待文件读取任务失败: {}", e)))?
+                    .map_err(|e| InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e)))?;
 
                 // 跳过空的SQL文件
                 if sql.trim().is_empty() {
