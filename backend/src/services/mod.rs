@@ -1,5 +1,6 @@
 pub mod assist_accounting_service;
 pub mod auth_service;
+pub mod crm_service;
 pub mod batch_service;
 pub mod business_trace_service;
 pub mod customer_service;
