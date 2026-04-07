@@ -181,8 +181,7 @@ CREATE TABLE IF NOT EXISTS inventory_stocks (
     remark TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(product_id, warehouse_id, batch_no, color_code)
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE inventory_stocks IS '库存信息表（面料批次管理）';
