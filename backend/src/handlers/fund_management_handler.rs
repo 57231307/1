@@ -221,3 +221,14 @@ pub async fn delete_account(
     info!("资金账户 {} 删除成功", id);
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }
+
+pub async fn transfer(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::models::dto::fund_dto::TransferFundRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 正在发起资金调拨", auth.username);
+    let service = FundManagementService::new(state.db.clone());
+    let res = service.transfer_fund(req, auth.user_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap_or_default())))
+}

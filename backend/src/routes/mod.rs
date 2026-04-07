@@ -566,6 +566,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", put(budget_management_handler::update_budget))
         .route("/:id", delete(budget_management_handler::delete_budget))
         .route("/:id/approve", post(budget_management_handler::approve_budget))
+        .route("/adjust", post(budget_management_handler::adjust_budget))
         .route("/items", get(budget_management_handler::list_items))
         .route("/items", post(budget_management_handler::create_item))
         .route("/items/:id", get(budget_management_handler::get_item))
@@ -612,7 +613,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/accounts/:id/withdraw", post(fund_management_handler::withdraw))
         .route("/accounts/:id/freeze", post(fund_management_handler::freeze_funds))
         .route("/accounts/:id/unfreeze", post(fund_management_handler::unfreeze_funds))
-        .route("/accounts/:id", delete(fund_management_handler::delete_account));
+        .route("/accounts/:id", delete(fund_management_handler::delete_account))
+        .route("/transfer", post(fund_management_handler::transfer));
 
     // 质量检验路由
     let quality_inspection_routes = Router::new()

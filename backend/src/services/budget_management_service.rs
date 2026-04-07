@@ -462,4 +462,36 @@ impl BudgetManagementService {
 
         Ok(response)
     }
+
+    pub async fn adjust_budget(&self, req: crate::models::dto::budget_dto::AdjustBudgetRequest, user_id: i32) -> Result<crate::models::budget_adjustment::Model, AppError> {
+        use sea_orm::TransactionTrait;
+        let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        let plan = crate::models::budget_plan::Entity::find_by_id(req.item_id)
+            .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("Budget plan not found".into()))?;
+
+        // 记录调整单
+        let adjust_no = format!("BA{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        let adjustment = crate::models::budget_adjustment::ActiveModel {
+            adjustment_no: sea_orm::Set(adjust_no),
+            budget_id: sea_orm::Set(plan.id),
+            adjustment_date: sea_orm::Set(chrono::Local::now().naive_local().date()),
+            adjustment_type: sea_orm::Set(if req.adjust_amount.is_sign_negative() { "DECREASE".to_string() } else { "INCREASE".to_string() }),
+            amount: sea_orm::Set(req.adjust_amount.abs()),
+            budget_before: sea_orm::Set(plan.total_amount),
+            budget_after: sea_orm::Set(plan.total_amount + req.adjust_amount),
+            reason: sea_orm::Set(req.reason.unwrap_or_default()),
+            approval_status: sea_orm::Set("APPROVED".to_string()),
+            created_by: sea_orm::Set(user_id),
+            ..Default::default()
+        }.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 简化：直接批准，更新 plan 金额
+        let mut plan_active: crate::models::budget_plan::ActiveModel = plan.into();
+        plan_active.total_amount = sea_orm::Set(plan_active.total_amount.unwrap() + req.adjust_amount);
+        let _ = plan_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        Ok(adjustment)
+    }
 }

@@ -5,6 +5,8 @@
 
 pub mod bpm_dto;
 pub mod crm_dto;
+pub mod fund_dto;
+pub mod budget_dto;
 
 use axum::{
     http::StatusCode,
