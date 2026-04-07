@@ -7819,6 +7819,39 @@ INSERT INTO report_dashboard (dashboard_name, dashboard_code, description, is_de
 -- 来源: 037_test_data.sql
 -- ============================================
 -- ========================================
+
+-- ========================================
+-- 0. 基础主数据填充（解决外键约束依赖）
+-- ========================================
+
+-- 插入默认用户
+INSERT INTO users (id, username, password_hash, real_name, email, role, status) VALUES
+(1, 'admin', 'mock_hash', '系统管理员', 'admin@example.com', 'admin', 'active'),
+(2, 'user1', 'mock_hash', '张三', 'user1@example.com', 'user', 'active'),
+(3, 'user2', 'mock_hash', '李四', 'user2@example.com', 'user', 'active') ON CONFLICT DO NOTHING;
+
+-- 插入默认供应商
+INSERT INTO suppliers (id, supplier_code, supplier_name, supplier_short_name, supplier_type, credit_code, registered_address, legal_representative, registered_capital) VALUES
+(1, 'SUP001', '江苏纺织有限公司', '江苏纺织', 'manufacturer', '913200000000000001', '江苏省南京市', '张三', 1000.00),
+(2, 'SUP002', '浙江印染厂', '浙江印染', 'processor', '913300000000000002', '浙江省杭州市', '李四', 500.00) ON CONFLICT DO NOTHING;
+
+-- 插入默认客户
+INSERT INTO customers (id, customer_code, customer_name, contact_person, customer_type, status) VALUES
+(1, 'CUS001', '江苏纺织有限公司', '张三', 'wholesale', 'active'),
+(2, 'CUS002', '浙江印染厂', '李四', 'wholesale', 'active'),
+(3, 'CUS003', '广东服装厂', '王五', 'wholesale', 'active') ON CONFLICT DO NOTHING;
+
+-- 插入默认产品
+INSERT INTO products (id, code, name, category_id, unit, specification) VALUES
+(1, 'PROD001', '纯棉帆布', NULL, '米', '100%棉 10安'),
+(2, 'PROD002', '涤纶牛津布', NULL, '米', '100%涤 600D') ON CONFLICT DO NOTHING;
+
+-- 插入默认产品颜色
+INSERT INTO product_colors (id, product_id, color_code, color_name) VALUES
+(1, 1, 'COLOR001', '黑色'),
+(2, 1, 'COLOR002', '白色') ON CONFLICT DO NOTHING;
+
+
 -- 1. 四级批次管理测试数据
 -- ========================================
 
