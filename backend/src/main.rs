@@ -284,10 +284,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     axum::http::header::CONTENT_SECURITY_POLICY,
                     HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
                 ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::STRICT_TRANSPORT_SECURITY,
-                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
-                ))
+                // .layer(SetResponseHeaderLayer::overriding(
+                //     axum::http::header::STRICT_TRANSPORT_SECURITY,
+                //     HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+                // ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::REFERRER_POLICY,
                     HeaderValue::from_static("strict-origin-when-cross-origin"),

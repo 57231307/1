@@ -17,22 +17,20 @@ pub async fn auth_middleware(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
 
+    // 精简后的绝对白名单，只保留基础设施探针和必需的登录逻辑
     let public_paths = [
         "/health",
         "/ready",
         "/live",
-        "/init",
         "/api/v1/erp/health",
         "/api/v1/erp/ready",
         "/api/v1/erp/live",
-        "/api/v1/erp/init",
         "/api/v1/erp/auth/login",
-        "/api/v1/erp/auth/refresh",
-        "/api/v1/erp/auth/logout",
-        "/api/v1/erp/dashboard",
+        "/api/v1/erp/init", // 初始化接口由内部数据库状态锁死保护
     ];
 
-    if public_paths.iter().any(|p| path.starts_with(p)) {
+    // 精确匹配，防止如 /health/hack 这种前缀绕过
+    if public_paths.iter().any(|&p| path == p) {
         return Ok(next.run(request).await);
     }
 
