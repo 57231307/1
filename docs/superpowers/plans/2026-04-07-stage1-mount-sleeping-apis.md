@@ -68,7 +68,7 @@ git commit -m "feat: mount sleeping APIs for purchase orders, AP invoices, and f
 - Modify: `frontend/src/services/purchase_order_service.rs`
 - Modify: `frontend/src/pages/purchase/purchase_order_detail.rs`
 
-- [ ] **Step 1: 在 Service 中封装高级 API 请求**
+- [x] **Step 1: 在 Service 中封装高级 API 请求**
 
 ```rust
 // 在 purchase_order_service.rs 中添加
@@ -82,17 +82,17 @@ pub async fn reject_order(id: i32, reason: &str) -> Result<ApiResponse<()>, AppE
 }
 ```
 
-- [ ] **Step 2: 在详情页移除“开发中”限制并对接真实事件**
+- [x] **Step 2: 在详情页移除“开发中”限制并对接真实事件**
 打开 `purchase_order_detail.rs`，找到对应的按钮（如“提交审核”、“驳回”），将它们绑定到组件的 `update` 函数中调用上面封装的 API。
 
-- [ ] **Step 3: 运行检查**
+- [x] **Step 3: 运行检查**
 
 ```bash
 cd frontend && cargo check
 ```
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/services/purchase_order_service.rs frontend/src/pages/purchase/purchase_order_detail.rs
