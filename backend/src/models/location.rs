@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// 库位 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "locations")]
+#[sea_orm(table_name = "warehouse_locations")]
 pub struct Model {
     /// 库位 ID（主键）
     #[sea_orm(primary_key)]
@@ -22,26 +22,20 @@ pub struct Model {
     /// 库位编码
     pub location_code: String,
 
-    /// 货架编号
-    pub shelf_no: String,
+    /// 库位类型：平面库/货架库/卷装库
+    pub location_type: Option<String>,
 
-    /// 层编号
-    pub layer_no: String,
+    /// 最大重量
+    pub max_weight: Option<Decimal>,
 
-    /// 位置编号
-    pub position_no: String,
+    /// 最大高度
+    pub max_height: Option<Decimal>,
 
-    /// 最大容量
-    pub max_capacity: Decimal,
+    /// 是否批次管理
+    pub is_batch_managed: Option<bool>,
 
-    /// 当前使用量
-    pub current_usage: Decimal,
-
-    /// 备注
-    pub remarks: Option<String>,
-
-    /// 是否启用
-    pub is_active: bool,
+    /// 是否色号管理
+    pub is_color_managed: Option<bool>,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,

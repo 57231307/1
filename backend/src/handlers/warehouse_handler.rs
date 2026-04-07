@@ -62,23 +62,22 @@ pub struct LocationListQuery {
 pub struct CreateLocationRequest {
     pub warehouse_id: i32,
     pub location_code: String,
-    pub shelf_no: String,
-    pub layer_no: String,
-    pub position_no: String,
-    pub max_capacity: f64,
-    pub remarks: Option<String>,
+    pub location_type: Option<String>,
+    pub max_weight: Option<f64>,
+    pub max_height: Option<f64>,
+    pub is_batch_managed: Option<bool>,
+    pub is_color_managed: Option<bool>,
 }
 
 /// 更新库位请求
 #[derive(Debug, Deserialize)]
 pub struct UpdateLocationRequest {
     pub location_code: Option<String>,
-    pub shelf_no: Option<String>,
-    pub layer_no: Option<String>,
-    pub position_no: Option<String>,
-    pub max_capacity: Option<f64>,
-    pub remarks: Option<String>,
-    pub is_active: Option<bool>,
+    pub location_type: Option<String>,
+    pub max_weight: Option<f64>,
+    pub max_height: Option<f64>,
+    pub is_batch_managed: Option<bool>,
+    pub is_color_managed: Option<bool>,
 }
 
 /// 获取仓库列表
@@ -218,15 +217,11 @@ pub async fn create_location(
         id: Default::default(),
         warehouse_id: sea_orm::ActiveValue::Set(req.warehouse_id),
         location_code: sea_orm::ActiveValue::Set(req.location_code),
-        shelf_no: sea_orm::ActiveValue::Set(req.shelf_no),
-        layer_no: sea_orm::ActiveValue::Set(req.layer_no),
-        position_no: sea_orm::ActiveValue::Set(req.position_no),
-        max_capacity: sea_orm::ActiveValue::Set(
-            rust_decimal::Decimal::from_f64_retain(req.max_capacity).unwrap_or_default(),
-        ),
-        current_usage: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-        remarks: sea_orm::ActiveValue::Set(req.remarks),
-        is_active: sea_orm::ActiveValue::Set(true),
+        location_type: sea_orm::ActiveValue::Set(req.location_type),
+        max_weight: sea_orm::ActiveValue::Set(req.max_weight.map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default())),
+        max_height: sea_orm::ActiveValue::Set(req.max_height.map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default())),
+        is_batch_managed: sea_orm::ActiveValue::Set(req.is_batch_managed),
+        is_color_managed: sea_orm::ActiveValue::Set(req.is_color_managed),
         created_at: Default::default(),
         updated_at: Default::default(),
     };
@@ -268,23 +263,20 @@ pub async fn update_location(
     if let Some(location_code) = req.location_code {
         active_location.location_code = sea_orm::Set(location_code);
     }
-    if let Some(shelf_no) = req.shelf_no {
-        active_location.shelf_no = sea_orm::Set(shelf_no);
+    if let Some(location_type) = req.location_type {
+        active_location.location_type = sea_orm::Set(Some(location_type));
     }
-    if let Some(layer_no) = req.layer_no {
-        active_location.layer_no = sea_orm::Set(layer_no);
+    if let Some(max_weight) = req.max_weight {
+        active_location.max_weight = sea_orm::Set(Some(rust_decimal::Decimal::from_f64_retain(max_weight).unwrap_or_default()));
     }
-    if let Some(position_no) = req.position_no {
-        active_location.position_no = sea_orm::Set(position_no);
+    if let Some(max_height) = req.max_height {
+        active_location.max_height = sea_orm::Set(Some(rust_decimal::Decimal::from_f64_retain(max_height).unwrap_or_default()));
     }
-    if let Some(max_capacity) = req.max_capacity {
-        active_location.max_capacity = sea_orm::Set(rust_decimal::Decimal::from_f64_retain(max_capacity).unwrap_or_default());
+    if let Some(is_batch_managed) = req.is_batch_managed {
+        active_location.is_batch_managed = sea_orm::Set(Some(is_batch_managed));
     }
-    if let Some(remarks) = req.remarks {
-        active_location.remarks = sea_orm::Set(Some(remarks));
-    }
-    if let Some(is_active) = req.is_active {
-        active_location.is_active = sea_orm::Set(is_active);
+    if let Some(is_color_managed) = req.is_color_managed {
+        active_location.is_color_managed = sea_orm::Set(Some(is_color_managed));
     }
     
     active_location.updated_at = sea_orm::Set(chrono::Utc::now());

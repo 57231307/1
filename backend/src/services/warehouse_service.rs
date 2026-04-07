@@ -31,14 +31,14 @@ impl WarehouseService {
 
         // 应用过滤条件
         if let Some(s) = status {
-            query = query.filter(warehouse::Column::IsActive.eq(s == "active"));
+            query = query.filter(warehouse::Column::Status.eq(s));
         }
 
         if let Some(keyword) = search {
             query = query.filter(
                 warehouse::Column::Name
                     .like(format!("%{}%", keyword))
-                    .or(warehouse::Column::WarehouseCode.like(format!("%{}%", keyword))),
+                    .or(warehouse::Column::Code.like(format!("%{}%", keyword))),
             );
         }
 
@@ -47,7 +47,7 @@ impl WarehouseService {
 
         // 应用分页和排序
         let warehouses = query
-            .order_by(warehouse::Column::WarehouseCode, Order::Asc)
+            .order_by(warehouse::Column::Code, Order::Asc)
             .into_model::<warehouse::Model>()
             .all(&*self.db)
             .await?;
@@ -77,18 +77,16 @@ impl WarehouseService {
     ) -> Result<warehouse::Model, sea_orm::DbErr> {
         let active_model = warehouse::ActiveModel {
             id: NotSet,
-            warehouse_code: Set(code),
+            code: Set(code),
             name: Set(name),
             address: Set(address),
-            city: Set(None),
-            province: Set(None),
-            country: Set(None),
-            postal_code: Set(None),
+            manager: Set(manager),
             phone: Set(phone),
-            email: Set(None),
-            manager_id: Set(None),
-            is_active: Set(true),
-            notes: Set(None),
+            status: Set(status),
+            warehouse_type: Set(Some("成品库".to_string())),
+            temperature_control: Set(Some(false)),
+            humidity_control: Set(Some(false)),
+            fire_protection_level: Set(Some("丙".to_string())),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
@@ -123,13 +121,13 @@ impl WarehouseService {
             wh.address = Set(Some(a));
         }
         if let Some(m) = manager {
-            wh.manager_id = Set(Some(m.parse::<i32>().unwrap_or(0)));
+            wh.manager = Set(Some(m));
         }
         if let Some(p) = phone {
             wh.phone = Set(Some(p));
         }
         if let Some(s) = status {
-            wh.is_active = Set(s == "active");
+            wh.status = Set(s);
         }
 
         wh.updated_at = Set(Utc::now());
@@ -154,7 +152,7 @@ impl WarehouseService {
     #[allow(dead_code)]
     pub async fn find_by_code(&self, code: &str) -> Result<warehouse::Model, sea_orm::DbErr> {
         warehouse::Entity::find()
-            .filter(warehouse::Column::WarehouseCode.eq(code))
+            .filter(warehouse::Column::Code.eq(code))
             .one(&*self.db)
             .await?
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("仓库编码 {} 不存在", code)))
