@@ -210,7 +210,8 @@ impl InitService {
                     continue;
                 }
 
-                self.db.execute(Statement::from_string(DatabaseBackend::Postgres, sql))
+                // 执行整个 SQL 文件，使用 execute_unprepared 以支持单个脚本中包含多个语句 (如用分号分隔的 CREATE TABLE)
+                self.db.execute_unprepared(&sql)
                     .await
                     .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
                 
