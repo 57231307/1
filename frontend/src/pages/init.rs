@@ -297,8 +297,24 @@ impl Component for InitPage {
             }
             Msg::InitializeFailure(error) => {
                 self.is_loading = false;
-                self.error_message = Some(error);
-                self.current_step = InitStep::AdminConfig;
+                
+                // 专门处理“系统已经初始化”的特殊情况
+                if error.contains("系统已经初始化") || error.contains("400") {
+                    self.is_initialized = true;
+                    self.current_step = InitStep::Completed;
+                    self.success_message = Some("系统已经初始化过了，正在跳转登录页...".to_string());
+                    
+                    if let Some(navigator) = _ctx.link().navigator() {
+                        let navigator = navigator.clone();
+                        gloo_timers::callback::Timeout::new(1500, move || {
+                            navigator.push(&Route::Login);
+                        })
+                        .forget();
+                    }
+                } else {
+                    self.error_message = Some(error);
+                    self.current_step = InitStep::AdminConfig;
+                }
                 true
             }
             Msg::GoToLogin => {
