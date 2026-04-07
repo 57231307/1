@@ -15,7 +15,7 @@ pub async fn create_delivery(
     auth: AuthContext,
     Json(req): Json<CreateSalesDeliveryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate().map_err(|e: validator::ValidationErrors| AppError::ValidationError(e.to_string()))?;
 
     let service = SalesDeliveryService::new(state.db.clone());
     let delivery = service.create_delivery(req, auth.user_id).await?;

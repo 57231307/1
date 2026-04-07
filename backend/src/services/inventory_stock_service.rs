@@ -280,6 +280,157 @@ impl InventoryStockService {
         Decimal::ZERO
     }
 
+    /// 更新或创建库存事务支持
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_or_create_stock_with_txn<C: sea_orm::ConnectionTrait>(
+        &self,
+        txn: &C,
+        warehouse_id: i32,
+        product_id: i32,
+        batch_no: String,
+        color_no: String,
+        dye_lot_no: Option<String>,
+        grade: String,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        gram_weight: Option<Decimal>,
+        width: Option<Decimal>,
+        location_id: Option<i32>,
+        shelf_no: Option<String>,
+        layer_no: Option<String>,
+    ) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+        let calculated_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width);
+        let final_quantity_kg = if calculated_kg != Decimal::ZERO {
+            calculated_kg
+        } else {
+            quantity_kg
+        };
+
+        // 尝试查找现有库存（相同仓库、产品、批次、颜色、缸号、等级）
+        let mut query = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .filter(inventory_stock::Column::BatchNo.eq(batch_no.clone()))
+            .filter(inventory_stock::Column::ColorNo.eq(color_no.clone()))
+            .filter(inventory_stock::Column::Grade.eq(grade.clone()));
+            
+        if let Some(dl) = &dye_lot_no {
+            query = query.filter(inventory_stock::Column::DyeLotNo.eq(dl.clone()));
+        } else {
+            query = query.filter(inventory_stock::Column::DyeLotNo.is_null());
+        }
+
+        if let Some(existing_stock) = query.one(txn).await? {
+            let mut active_stock: inventory_stock::ActiveModel = existing_stock.into();
+            let old_qty_meters = active_stock.quantity_meters.as_ref().clone();
+            let old_qty_kg = active_stock.quantity_kg.as_ref().clone();
+            let old_on_hand = active_stock.quantity_on_hand.as_ref().clone();
+            let old_available = active_stock.quantity_available.as_ref().clone();
+
+            active_stock.quantity_meters = Set(old_qty_meters + quantity_meters);
+            active_stock.quantity_kg = Set(old_qty_kg + final_quantity_kg);
+            active_stock.quantity_on_hand = Set(old_on_hand + quantity_meters);
+            active_stock.quantity_available = Set(old_available + quantity_meters);
+            active_stock.updated_at = Set(Utc::now());
+
+            active_stock.update(txn).await
+        } else {
+            let active_stock = inventory_stock::ActiveModel {
+                id: Set(0),
+                warehouse_id: Set(warehouse_id),
+                product_id: Set(product_id),
+                quantity_on_hand: Set(quantity_meters),
+                quantity_available: Set(quantity_meters),
+                quantity_reserved: Set(Decimal::ZERO),
+                quantity_incoming: Set(Decimal::ZERO),
+                reorder_point: Set(Decimal::ZERO),
+                reorder_quantity: Set(Decimal::ZERO),
+                last_count_date: Set(None),
+                last_movement_date: Set(None),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+                batch_no: Set(batch_no),
+                color_no: Set(color_no),
+                dye_lot_no: Set(dye_lot_no),
+                grade: Set(grade),
+                production_date: Set(None),
+                expiry_date: Set(None),
+                quantity_meters: Set(quantity_meters),
+                quantity_kg: Set(final_quantity_kg),
+                gram_weight: Set(gram_weight),
+                width: Set(width),
+                location_id: Set(location_id),
+                shelf_no: Set(shelf_no),
+                layer_no: Set(layer_no),
+                bin_location: Set(None),
+                stock_status: Set("正常".to_string()),
+                quality_status: Set("合格".to_string()),
+            };
+            active_stock.insert(txn).await
+        }
+    }
+
+    /// 创建库存（面料行业版）事务支持
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_stock_fabric_with_txn<C: sea_orm::ConnectionTrait>(
+        &self,
+        txn: &C,
+        warehouse_id: i32,
+        product_id: i32,
+        batch_no: String,
+        color_no: String,
+        dye_lot_no: Option<String>,
+        grade: String,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        gram_weight: Option<Decimal>,
+        width: Option<Decimal>,
+        location_id: Option<i32>,
+        shelf_no: Option<String>,
+        layer_no: Option<String>,
+    ) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+        let calculated_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width);
+        let final_quantity_kg = if calculated_kg != Decimal::ZERO {
+            calculated_kg
+        } else {
+            quantity_kg
+        };
+
+        let active_stock = inventory_stock::ActiveModel {
+            id: Set(0),
+            warehouse_id: Set(warehouse_id),
+            product_id: Set(product_id),
+            quantity_on_hand: Set(quantity_meters),
+            quantity_available: Set(quantity_meters),
+            quantity_reserved: Set(Decimal::ZERO),
+            quantity_incoming: Set(Decimal::ZERO),
+            reorder_point: Set(Decimal::ZERO),
+            reorder_quantity: Set(Decimal::ZERO),
+            last_count_date: Set(None),
+            last_movement_date: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            batch_no: Set(batch_no),
+            color_no: Set(color_no),
+            dye_lot_no: Set(dye_lot_no),
+            grade: Set(grade),
+            production_date: Set(None),
+            expiry_date: Set(None),
+            quantity_meters: Set(quantity_meters),
+            quantity_kg: Set(final_quantity_kg),
+            gram_weight: Set(gram_weight),
+            width: Set(width),
+            location_id: Set(location_id),
+            shelf_no: Set(shelf_no),
+            layer_no: Set(layer_no),
+            bin_location: Set(None),
+            stock_status: Set("正常".to_string()),
+            quality_status: Set("合格".to_string()),
+        };
+
+        active_stock.insert(txn).await
+    }
+
     /// 创建库存（面料行业版）
     #[allow(clippy::too_many_arguments)]
     pub async fn create_stock_fabric(
@@ -340,6 +491,56 @@ impl InventoryStockService {
         };
 
         active_stock.insert(&*self.db).await
+    }
+
+    /// 记录库存流水（面料行业）事务支持
+    #[allow(clippy::too_many_arguments)]
+    pub async fn record_transaction_with_txn<C: sea_orm::ConnectionTrait>(
+        &self,
+        txn: &C,
+        transaction_type: String,
+        product_id: i32,
+        warehouse_id: i32,
+        batch_no: String,
+        color_no: String,
+        dye_lot_no: Option<String>,
+        grade: String,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        source_bill_type: Option<String>,
+        source_bill_no: Option<String>,
+        source_bill_id: Option<i32>,
+        quantity_before_meters: Option<Decimal>,
+        quantity_before_kg: Option<Decimal>,
+        quantity_after_meters: Option<Decimal>,
+        quantity_after_kg: Option<Decimal>,
+        notes: Option<String>,
+        created_by: Option<i32>,
+    ) -> Result<inventory_transaction::Model, sea_orm::DbErr> {
+        let active_transaction = inventory_transaction::ActiveModel {
+            id: Set(0),
+            transaction_type: Set(transaction_type),
+            product_id: Set(product_id),
+            warehouse_id: Set(warehouse_id),
+            batch_no: Set(batch_no),
+            color_no: Set(color_no),
+            dye_lot_no: Set(dye_lot_no),
+            grade: Set(grade),
+            quantity_meters: Set(quantity_meters),
+            quantity_kg: Set(quantity_kg),
+            source_bill_type: Set(source_bill_type),
+            source_bill_no: Set(source_bill_no),
+            source_bill_id: Set(source_bill_id),
+            quantity_before_meters: Set(quantity_before_meters),
+            quantity_before_kg: Set(quantity_before_kg),
+            quantity_after_meters: Set(quantity_after_meters),
+            quantity_after_kg: Set(quantity_after_kg),
+            notes: Set(notes),
+            created_by: Set(created_by),
+            created_at: Set(Utc::now()),
+        };
+
+        active_transaction.insert(txn).await
     }
 
     /// 记录库存流水（面料行业）

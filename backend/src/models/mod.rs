@@ -74,11 +74,13 @@ pub mod cost_mod;
 pub mod budget_management;
 pub mod budget_plan;
 pub mod customer_credit;
+pub mod customer_credit_change;
 pub mod fixed_asset;
 pub mod fund_management;
 pub mod purchase_contract;
 pub mod quality_standard;
 pub mod sales_contract;
+pub mod sales_contract_execution;
 // P2 模块
 pub mod financial_analysis;
 pub mod financial_analysis_result;

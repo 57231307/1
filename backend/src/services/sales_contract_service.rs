@@ -163,18 +163,17 @@ impl SalesContractService {
         let txn = (*self.db).begin().await?;
 
         // 创建执行记录
-        // TODO: 需要创建 sales_contract_execution 模型
-        // let execution = sales_contract::contract_execution::ActiveModel {
-        //     contract_id: Set(contract_id),
-        //     execution_type: Set(req.execution_type),
-        //     execution_amount: Set(req.execution_amount),
-        //     related_bill_type: Set(req.related_bill_type),
-        //     related_bill_id: Set(req.related_bill_id),
-        //     remark: Set(req.remark),
-        //     created_by: Set(Some(user_id)),
-        //     ..Default::default()
-        // };
-        // execution.insert(&txn).await?;
+        let execution = crate::models::sales_contract_execution::ActiveModel {
+            contract_id: Set(contract_id),
+            execution_type: Set(req.execution_type),
+            execution_amount: Set(req.execution_amount),
+            related_bill_type: Set(req.related_bill_type),
+            related_bill_id: Set(req.related_bill_id),
+            remark: Set(req.remark),
+            created_by: Set(Some(user_id)),
+            ..Default::default()
+        };
+        execution.insert(&txn).await?;
 
         // 更新合同已执行金额
         let contract_active: sales_contract::ActiveModel = contract.into();

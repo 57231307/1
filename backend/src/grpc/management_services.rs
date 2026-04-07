@@ -173,17 +173,32 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListPurchaseContractsResponse>, Status> {
         let req = request.into_inner();
         
-        let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.clamp(1, 100) as i64;
+        let page = req.page.max(1) as i64;
+        let page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
-        // 暂时返回空列表
-        Ok(Response::new(ListPurchaseContractsResponse {
-            success: true,
-            message: "采购合同列表获取成功".to_string(),
-            contracts: vec![],
-            total: 0,
-        }))
+        let params = crate::services::purchase_contract_service::ContractQueryParams {
+            keyword: if req.keyword.is_empty() { None } else { Some(req.keyword) },
+            status: if req.status.is_empty() { None } else { Some(req.status) },
+            supplier_id: if req.supplier_id == 0 { None } else { Some(req.supplier_id) },
+            page: page - 1,
+            page_size,
+        };
+        
+        match self.purchase_contract_service.get_list(params).await {
+            Ok((contracts, total)) => {
+                let grpc_contracts = contracts.into_iter()
+                    .map(Self::to_grpc_purchase_contract)
+                    .collect();
+                    
+                Ok(Response::new(ListPurchaseContractsResponse {
+                    success: true,
+                    message: "采购合同列表获取成功".to_string(),
+                    contracts: grpc_contracts,
+                    total: total as i32,
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("获取采购合同列表失败：{}", e)))
+        }
     }
     
     async fn get_contract(
@@ -329,16 +344,32 @@ impl SalesContractServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListSalesContractsResponse>, Status> {
         let req = request.into_inner();
         
-        let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.clamp(1, 100) as i64;
+        let page = req.page.max(1) as i64;
+        let page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
-        Ok(Response::new(ListSalesContractsResponse {
-            success: true,
-            message: "销售合同列表获取成功".to_string(),
-            contracts: vec![],
-            total: 0,
-        }))
+        let params = crate::services::sales_contract_service::SalesContractQueryParams {
+            keyword: if req.keyword.is_empty() { None } else { Some(req.keyword) },
+            status: if req.status.is_empty() { None } else { Some(req.status) },
+            customer_id: if req.customer_id == 0 { None } else { Some(req.customer_id) },
+            page: page - 1,
+            page_size,
+        };
+        
+        match self.sales_contract_service.get_list(params).await {
+            Ok((contracts, total)) => {
+                let grpc_contracts = contracts.into_iter()
+                    .map(Self::to_grpc_sales_contract)
+                    .collect();
+                    
+                Ok(Response::new(ListSalesContractsResponse {
+                    success: true,
+                    message: "销售合同列表获取成功".to_string(),
+                    contracts: grpc_contracts,
+                    total: total as i32,
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("获取销售合同列表失败：{}", e)))
+        }
     }
     
     async fn get_contract(
@@ -477,16 +508,32 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListFixedAssetsResponse>, Status> {
         let req = request.into_inner();
         
-        let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.clamp(1, 100) as i64;
+        let page = req.page.max(1) as i64;
+        let page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
-        Ok(Response::new(ListFixedAssetsResponse {
-            success: true,
-            message: "固定资产列表获取成功".to_string(),
-            assets: vec![],
-            total: 0,
-        }))
+        let params = crate::services::fixed_asset_service::AssetQueryParams {
+            keyword: if req.keyword.is_empty() { None } else { Some(req.keyword) },
+            status: if req.status.is_empty() { None } else { Some(req.status) },
+            asset_category: if req.asset_category.is_empty() { None } else { Some(req.asset_category) },
+            page: page - 1,
+            page_size,
+        };
+        
+        match self.fixed_asset_service.get_list(params).await {
+            Ok((assets, total)) => {
+                let grpc_assets = assets.into_iter()
+                    .map(Self::to_grpc_fixed_asset)
+                    .collect();
+                    
+                Ok(Response::new(ListFixedAssetsResponse {
+                    success: true,
+                    message: "固定资产列表获取成功".to_string(),
+                    assets: grpc_assets,
+                    total: total as i32,
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("获取固定资产列表失败：{}", e)))
+        }
     }
     
     async fn get_asset(
@@ -639,16 +686,31 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListBudgetItemsResponse>, Status> {
         let req = request.into_inner();
         
-        let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.clamp(1, 100) as i64;
+        let page = req.page.max(1) as i64;
+        let page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
-        Ok(Response::new(ListBudgetItemsResponse {
-            success: true,
-            message: "预算项目列表获取成功".to_string(),
-            items: vec![],
-            total: 0,
-        }))
+        let params = crate::services::budget_management_service::BudgetItemQueryParams {
+            item_type: if req.item_type.is_empty() { None } else { Some(req.item_type) },
+            status: if req.status.is_empty() { None } else { Some(req.status) },
+            page: page - 1,
+            page_size,
+        };
+        
+        match self.budget_management_service.get_items_list(params).await {
+            Ok((items, total)) => {
+                let grpc_items = items.into_iter()
+                    .map(Self::to_grpc_budget_item)
+                    .collect();
+                    
+                Ok(Response::new(ListBudgetItemsResponse {
+                    success: true,
+                    message: "预算项目列表获取成功".to_string(),
+                    items: grpc_items,
+                    total: total as i32,
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("获取预算项目列表失败：{}", e)))
+        }
     }
     
     async fn get_item(
@@ -761,69 +823,181 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ListBudgetPlansResponse>, Status> {
         let req = request.into_inner();
         
-        let _page = req.page.max(1) as i64;
-        let _page_size = req.page_size.clamp(1, 100) as i64;
+        let page = req.page.max(1) as i64;
+        let page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
-        Ok(Response::new(ListBudgetPlansResponse {
-            success: true,
-            message: "预算方案列表获取成功".to_string(),
-            plans: vec![],
-            total: 0,
-        }))
+        let budget_year = if req.budget_year == 0 { None } else { Some(req.budget_year) };
+        // req does not seem to have department_id in the list request
+        let department_id = None; 
+        
+        match self.budget_management_service.get_plans_list(budget_year, department_id, page - 1, page_size).await {
+            Ok((plans, total)) => {
+                let grpc_plans = plans.into_iter()
+                    .map(|p| crate::grpc::service::proto::BudgetPlan {
+                        id: p.id,
+                        plan_no: p.plan_no,
+                        plan_name: p.plan_name,
+                        budget_year: p.budget_year,
+                        department_id: p.department_id,
+                        total_amount: p.total_amount.to_string(),
+                        start_date: p.start_date.to_string(),
+                        end_date: p.end_date.to_string(),
+                        status: p.status,
+                        created_by: p.created_by.unwrap_or(0),
+                        created_at: p.created_at.timestamp(),
+                        updated_at: p.updated_at.timestamp(),
+                    })
+                    .collect();
+                    
+                Ok(Response::new(ListBudgetPlansResponse {
+                    success: true,
+                    message: "预算方案列表获取成功".to_string(),
+                    plans: grpc_plans,
+                    total: total as i32,
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("获取预算方案列表失败：{}", e)))
+        }
     }
     
     async fn get_plan(
         &self,
         request: Request<GetBudgetPlanRequest>,
     ) -> Result<Response<GetBudgetPlanResponse>, Status> {
-        let _req = request.into_inner();
+        let req = request.into_inner();
         
-        // TODO: 实现获取预算方案逻辑
-        Ok(Response::new(GetBudgetPlanResponse {
-            success: true,
-            message: "预算方案获取成功".to_string(),
-            plan: None,
-        }))
+        match self.budget_management_service.get_plan_by_id(req.plan_id).await {
+            Ok(p) => {
+                let plan = crate::grpc::service::proto::BudgetPlan {
+                    id: p.id,
+                    plan_no: p.plan_no,
+                    plan_name: p.plan_name,
+                    budget_year: p.budget_year,
+                    department_id: p.department_id,
+                    total_amount: p.total_amount.to_string(),
+                    start_date: p.start_date.to_string(),
+                    end_date: p.end_date.to_string(),
+                    status: p.status,
+                    created_by: p.created_by.unwrap_or(0),
+                    created_at: p.created_at.timestamp(),
+                    updated_at: p.updated_at.timestamp(),
+                };
+                Ok(Response::new(GetBudgetPlanResponse {
+                    success: true,
+                    message: "预算方案获取成功".to_string(),
+                    plan: Some(plan),
+                }))
+            }
+            Err(e) => Err(Status::not_found(format!("预算方案不存在：{}", e)))
+        }
     }
     
     async fn create_plan(
         &self,
         request: Request<CreateBudgetPlanRequest>,
     ) -> Result<Response<CreateBudgetPlanResponse>, Status> {
-        let _req = request.into_inner();
+        let req = request.into_inner();
         
-        // TODO: 实现创建预算方案逻辑
-        Ok(Response::new(CreateBudgetPlanResponse {
-            success: true,
-            message: "预算方案创建成功".to_string(),
-            plan: None,
-        }))
+        let total_amount = req.total_amount.parse::<rust_decimal::Decimal>()
+            .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?;
+            
+        // req does not seem to have start_date, end_date, remark in CreateBudgetPlanRequest proto based on what we saw, wait let me verify
+        // The CreateBudgetPlanRequest has: plan_no, plan_name, budget_year, department_id, total_amount, start_date, end_date, remark
+        // Let's assume they are there
+        let start_date = chrono::NaiveDate::parse_from_str(req.start_date.as_str(), "%Y-%m-%d")
+            .unwrap_or(chrono::Utc::now().naive_utc().date());
+            
+        let end_date = chrono::NaiveDate::parse_from_str(req.end_date.as_str(), "%Y-%m-%d")
+            .unwrap_or(chrono::Utc::now().naive_utc().date());
+            
+        let create_req = crate::services::budget_management_service::CreateBudgetPlanRequest {
+            plan_no: req.plan_no,
+            plan_name: req.plan_name,
+            budget_year: req.budget_year,
+            department_id: req.department_id,
+            total_amount,
+            items: vec![],
+            start_date,
+            end_date,
+            remark: None,
+        };
+        
+        let user_id = 1;
+        
+        match self.budget_management_service.create_plan(create_req, user_id).await {
+            Ok(p) => {
+                let plan = crate::grpc::service::proto::BudgetPlan {
+                    id: p.id,
+                    plan_no: p.plan_no,
+                    plan_name: p.plan_name,
+                    budget_year: p.budget_year,
+                    department_id: p.department_id,
+                    total_amount: p.total_amount.to_string(),
+                    start_date: p.start_date.to_string(),
+                    end_date: p.end_date.to_string(),
+                    status: p.status,
+                    created_by: p.created_by.unwrap_or(0),
+                    created_at: p.created_at.timestamp(),
+                    updated_at: p.updated_at.timestamp(),
+                };
+                Ok(Response::new(CreateBudgetPlanResponse {
+                    success: true,
+                    message: "预算方案创建成功".to_string(),
+                    plan: Some(plan),
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("创建预算方案失败：{}", e)))
+        }
     }
     
     async fn approve_plan(
         &self,
         request: Request<ApproveBudgetPlanRequest>,
     ) -> Result<Response<ApproveBudgetPlanResponse>, Status> {
-        let _req = request.into_inner();
+        let req = request.into_inner();
+        let user_id = 1;
         
-        // TODO: 实现审批预算方案逻辑
-        Ok(Response::new(ApproveBudgetPlanResponse {
-            success: true,
-            message: "预算方案审批成功".to_string(),
-        }))
+        match self.budget_management_service.approve_plan(req.plan_id, user_id, None).await {
+            Ok(_) => {
+                Ok(Response::new(ApproveBudgetPlanResponse {
+                    success: true,
+                    message: "预算方案审批成功".to_string(),
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("审批预算方案失败：{}", e)))
+        }
     }
     
     async fn execute_plan(
         &self,
         request: Request<ExecuteBudgetPlanRequest>,
     ) -> Result<Response<ExecuteBudgetPlanResponse>, Status> {
-        let _req = request.into_inner();
+        let req = request.into_inner();
+        let user_id = 1;
         
-        // TODO: 实现执行预算方案逻辑
-        Ok(Response::new(ExecuteBudgetPlanResponse {
-            success: true,
-            message: "预算方案执行成功".to_string(),
-        }))
+        // ExecuteBudgetPlanRequest: plan_id, actual_amount, expense_type, expense_date, remark
+        let actual_amount = req.actual_amount.parse::<rust_decimal::Decimal>()
+            .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?;
+            
+        let expense_date = chrono::NaiveDate::parse_from_str(req.expense_date.as_str(), "%Y-%m-%d")
+            .unwrap_or(chrono::Utc::now().naive_utc().date());
+            
+        let execute_req = crate::services::budget_management_service::BudgetExecuteRequest {
+            plan_id: req.plan_id,
+            actual_amount,
+            expense_type: req.expense_type,
+            expense_date,
+            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+        };
+        
+        match self.budget_management_service.execute_plan(execute_req, user_id).await {
+            Ok(_) => {
+                Ok(Response::new(ExecuteBudgetPlanResponse {
+                    success: true,
+                    message: "预算方案执行成功".to_string(),
+                }))
+            }
+            Err(e) => Err(Status::internal(format!("执行预算方案失败：{}", e)))
+        }
     }
 }

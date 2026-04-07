@@ -213,7 +213,7 @@ impl PurchaseReceiptService {
 
         // 4. 检查是否有关联的采购订单
         if let Some(order_id) = receipt.order_id {
-            // TODO: 更新采购订单的已入库数量
+            // 更新采购订单的已入库数量
             self.update_order_received_quantity(order_id, receipt_id, &txn).await?;
         }
 
@@ -228,7 +228,7 @@ impl PurchaseReceiptService {
 
         let receipt = receipt_active.update(&txn).await?;
 
-        // 6. TODO: 更新库存
+        // 6. 更新库存
         self.update_inventory(&receipt, &txn).await?;
 
         // 7. 提交事务
@@ -502,8 +502,6 @@ impl PurchaseReceiptService {
         Ok(items)
     }
 
-    /// 更新库存（待实现）
-    #[allow(dead_code)]
     async fn update_order_received_quantity(
         &self,
         order_id: i32,
@@ -589,7 +587,8 @@ impl PurchaseReceiptService {
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
             
-                        let stock_model = stock_service.create_stock_fabric(
+            let _stock_model = stock_service.update_or_create_stock_with_txn(
+                txn,
                 receipt.warehouse_id,
                 item.product_id,
                 batch_no.clone(),
@@ -601,9 +600,10 @@ impl PurchaseReceiptService {
                 item.gram_weight,
                 item.width,
                 None, None, None,
-            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            ).await.map_err(|e: sea_orm::DbErr| AppError::DatabaseError(e.to_string()))?;
 
-                        stock_service.record_transaction(
+            stock_service.record_transaction_with_txn(
+                txn,
                 "PURCHASE_RECEIPT".to_string(),
                 item.product_id,
                 receipt.warehouse_id,
@@ -615,11 +615,11 @@ impl PurchaseReceiptService {
                 item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
                 Some("PURCHASE_RECEIPT".to_string()),
                 Some(receipt.receipt_no.clone()),
-                Some(receipt.id),
+                Some(receipt.id as i32),
                 None, None, None, None,
                 Some("入库自动增加库存".to_string()),
                 Some(receipt.created_by),
-            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            ).await.map_err(|e: sea_orm::DbErr| AppError::DatabaseError(e.to_string()))?;
         }
         Ok(())
     }

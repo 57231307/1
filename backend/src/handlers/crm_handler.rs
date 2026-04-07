@@ -4,13 +4,15 @@ use crate::models::dto::ApiResponse;
 use crate::models::dto::crm_dto::{CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery};
 use crate::services::crm_service::CrmService;
 use crate::utils::error::AppError;
+use crate::middleware::auth_context::AuthContext;
 
 pub async fn create_lead(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_lead(req, 1).await?; // TODO: Auth extraction
+    let res = service.create_lead(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap())))
 }
 
@@ -36,10 +38,11 @@ pub async fn update_lead_status(
 
 pub async fn create_opportunity(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOpportunityRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_opportunity(req, 1).await?;
+    let res = service.create_opportunity(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap())))
 }
 

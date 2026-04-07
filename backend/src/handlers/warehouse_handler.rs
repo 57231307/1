@@ -72,16 +72,13 @@ pub struct CreateLocationRequest {
 /// 更新库位请求
 #[derive(Debug, Deserialize)]
 pub struct UpdateLocationRequest {
-    #[allow(dead_code)]
-    pub location_name: Option<String>,
-    #[allow(dead_code)]
-    pub location_type: Option<String>,
-    #[allow(dead_code)]
-    pub zone: Option<String>,
-    #[allow(dead_code)]
-    pub capacity: Option<f64>,
-    #[allow(dead_code)]
-    pub status: Option<String>,
+    pub location_code: Option<String>,
+    pub shelf_no: Option<String>,
+    pub layer_no: Option<String>,
+    pub position_no: Option<String>,
+    pub max_capacity: Option<f64>,
+    pub remarks: Option<String>,
+    pub is_active: Option<bool>,
 }
 
 /// 获取仓库列表
@@ -259,14 +256,42 @@ pub async fn get_location(
 pub async fn update_location(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(_req): Json<UpdateLocationRequest>,
+    Json(req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // TODO: 实现库位更新逻辑
     let location = LocationEntity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
-    let location_json = serde_json::to_value(location).unwrap_or_default();
+
+    let mut active_location: crate::models::location::ActiveModel = location.into();
+
+    if let Some(location_code) = req.location_code {
+        active_location.location_code = sea_orm::Set(location_code);
+    }
+    if let Some(shelf_no) = req.shelf_no {
+        active_location.shelf_no = sea_orm::Set(shelf_no);
+    }
+    if let Some(layer_no) = req.layer_no {
+        active_location.layer_no = sea_orm::Set(layer_no);
+    }
+    if let Some(position_no) = req.position_no {
+        active_location.position_no = sea_orm::Set(position_no);
+    }
+    if let Some(max_capacity) = req.max_capacity {
+        active_location.max_capacity = sea_orm::Set(rust_decimal::Decimal::from_f64_retain(max_capacity).unwrap_or_default());
+    }
+    if let Some(remarks) = req.remarks {
+        active_location.remarks = sea_orm::Set(Some(remarks));
+    }
+    if let Some(is_active) = req.is_active {
+        active_location.is_active = sea_orm::Set(is_active);
+    }
+    
+    active_location.updated_at = sea_orm::Set(chrono::Utc::now());
+
+    let updated_location = active_location.update(&*state.db).await?;
+    let location_json = serde_json::to_value(updated_location).unwrap_or_default();
+
     Ok(Json(ApiResponse::success_with_msg(
         location_json,
         "库位更新成功",

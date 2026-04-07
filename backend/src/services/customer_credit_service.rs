@@ -265,7 +265,7 @@ impl CustomerCreditService {
         let txn = (*self.db).begin().await?;
 
         // 更新信用额度
-        let mut credit_active: customer_credit::ActiveModel = credit.into();
+        let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
         credit_active.credit_limit = Set(new_limit);
         credit_active.available_credit = Set(new_available);
         // 注意：customer_credit 模型没有 updated_by 字段
@@ -273,17 +273,16 @@ impl CustomerCreditService {
         credit_active.save(&txn).await?;
 
         // 记录变更历史
-        // TODO: 需要创建 customer_credit_change 模型
-        // let change_record = customer_credit::credit_change::ActiveModel {
-        //     customer_id: Set(req.customer_id),
-        //     change_type: Set(format!("credit_limit_{}", req.adjustment_type)),
-        //     old_value: Set(credit.credit_limit.to_string()),
-        //     new_value: Set(new_limit.to_string()),
-        //     reason: Set(req.reason),
-        //     created_by: Set(Some(user_id)),
-        //     ..Default::default()
-        // };
-        // change_record.insert(&txn).await?;
+        let change_record = crate::models::customer_credit_change::ActiveModel {
+            customer_id: Set(req.customer_id),
+            change_type: Set(format!("credit_limit_{}", req.adjustment_type)),
+            old_value: Set(credit.credit_limit.to_string()),
+            new_value: Set(new_limit.to_string()),
+            reason: Set(req.reason),
+            created_by: Set(Some(user_id)),
+            ..Default::default()
+        };
+        change_record.insert(&txn).await?;
 
         txn.commit().await?;
 

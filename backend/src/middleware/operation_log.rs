@@ -12,6 +12,8 @@ use axum::{
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use crate::services::operation_log_service::OperationLogService;
+use crate::services::auth_service::AuthService;
+use crate::utils::app_state::AppState;
 
 /// 操作日志中间件
 /// 
@@ -21,7 +23,7 @@ use crate::services::operation_log_service::OperationLogService;
 /// - 响应状态码
 /// - 请求耗时
 pub async fn operation_log_middleware(
-    State(db): State<Arc<DatabaseConnection>>,
+    State(state): State<AppState>,
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -46,8 +48,8 @@ pub async fn operation_log_middleware(
         .and_then(|value| value.to_str().ok())
         .map(|s| s.to_string());
     
-    // 尝试从 Authorization 头中提取用户信息（简化版，实际需要解析 JWT）
-    let (user_id, username) = extract_user_info(&headers);
+    // 尝试从 Authorization 头中提取用户信息
+    let (user_id, username) = extract_user_info(&headers, &state.jwt_secret);
     
     // 执行请求
     let response = next.run(request).await;
@@ -64,7 +66,7 @@ pub async fn operation_log_middleware(
     };
     
     // 异步记录日志（不阻塞响应）
-    let log_service = OperationLogService::new(db.clone());
+    let log_service = OperationLogService::new(state.db.clone());
     let module = extract_module_from_uri(&uri);
     let action = extract_action_from_method(&method);
     
@@ -91,11 +93,16 @@ pub async fn operation_log_middleware(
 }
 
 /// 从请求头中提取用户信息
-/// 
-/// 注意：这里简化处理，实际需要解析 JWT Token
-fn extract_user_info(headers: &axum::http::HeaderMap) -> (Option<i32>, Option<String>) {
-    // TODO: 解析 JWT Token 获取真实用户信息
-    // 这里暂时返回 None，实际使用时需要从 Token 中解析
+fn extract_user_info(headers: &axum::http::HeaderMap, secret: &str) -> (Option<i32>, Option<String>) {
+    // 解析 JWT Token 获取真实用户信息
+    if let Some(auth_header) = headers.get(axum::http::header::AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+        if auth_header.starts_with("Bearer ") {
+            let token = &auth_header[7..];
+            if let Ok(claims) = AuthService::validate_token_static(token, secret) {
+                return (Some(claims.sub), Some(claims.username));
+            }
+        }
+    }
     
     // 示例：从自定义头中获取（如果有）
     if let Some(user_id_str) = headers.get("x-user-id").and_then(|v| v.to_str().ok()) {
