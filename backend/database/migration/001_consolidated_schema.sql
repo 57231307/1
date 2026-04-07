@@ -7825,10 +7825,10 @@ INSERT INTO report_dashboard (dashboard_name, dashboard_code, description, is_de
 -- ========================================
 
 -- 插入默认用户
-INSERT INTO users (id, username, password_hash, real_name, email, role, status) VALUES
-(1, 'admin', 'mock_hash', '系统管理员', 'admin@example.com', 'admin', 'active'),
-(2, 'user1', 'mock_hash', '张三', 'user1@example.com', 'user', 'active'),
-(3, 'user2', 'mock_hash', '李四', 'user2@example.com', 'user', 'active') ON CONFLICT DO NOTHING;
+INSERT INTO users (id, username, password_hash, email, is_active) VALUES
+(1, 'admin', 'mock_hash', 'admin@example.com', true),
+(2, 'user1', 'mock_hash', 'user1@example.com', true),
+(3, 'user2', 'mock_hash', 'user2@example.com', true) ON CONFLICT DO NOTHING;
 
 -- 插入默认供应商
 INSERT INTO suppliers (id, supplier_code, supplier_name, supplier_short_name, supplier_type, credit_code, registered_address, legal_representative, registered_capital) VALUES
@@ -7847,7 +7847,7 @@ INSERT INTO products (id, code, name, category_id, unit, specification) VALUES
 (2, 'PROD002', '涤纶牛津布', NULL, '米', '100%涤 600D') ON CONFLICT DO NOTHING;
 
 -- 插入默认产品颜色
-INSERT INTO product_colors (id, product_id, color_code, color_name) VALUES
+INSERT INTO product_colors (id, product_id, color_no, color_name) VALUES
 (1, 1, 'COLOR001', '黑色'),
 (2, 1, 'COLOR002', '白色') ON CONFLICT DO NOTHING;
 
