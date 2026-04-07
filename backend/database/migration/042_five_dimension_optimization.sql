@@ -30,7 +30,7 @@ ON inventory_stocks(five_dimension_id);
 
 -- 4. 为 purchase_receipt_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
-ON purchase_receipt_item(product_id, batch_no, color_no, grade);
+ON purchase_receipt_item(product_id, batch_no, color_code, grade);
 
 -- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
 ALTER TABLE purchase_receipt_item 
@@ -51,7 +51,7 @@ ON purchase_receipt_item(five_dimension_id);
 
 -- 7. 为 sales_delivery_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
-ON sales_delivery_item(product_id, batch_no, color_no, grade);
+ON sales_delivery_item(product_id, dye_lot_no, color_no);
 
 -- 8. 为 sales_delivery_item 表添加五维 ID 计算列
 ALTER TABLE sales_delivery_item 
