@@ -49,6 +49,8 @@ pub enum Msg {
     LoadInspections,
     /// 检验单列表加载成功
     InspectionsLoaded(Vec<PurchaseInspection>),
+    /// 单个检验单加载成功
+    InspectionLoaded(PurchaseInspection),
     /// 加载错误
     LoadError(String),
     /// 设置筛选状态
@@ -118,6 +120,11 @@ impl Component for PurchaseInspectionPage {
                 self.loading = false;
                 true
             }
+            Msg::InspectionLoaded(inspection) => {
+                self.selected_inspection = Some(inspection);
+                self.loading = false;
+                true
+            }
             Msg::LoadError(e) => {
                 self.error = Some(e);
                 self.loading = false;
@@ -129,16 +136,19 @@ impl Component for PurchaseInspectionPage {
                 false
             }
             Msg::ViewInspection(id) => {
+                self.modal_mode = ModalMode::View;
+                self.show_modal = true;
+                self.loading = true;
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseInspectionService::get(id).await {
-                        Ok(_inspection) => {
-                            link.send_message(Msg::OpenCompleteModal(id));
+                        Ok(inspection) => {
+                            link.send_message(Msg::InspectionLoaded(inspection));
                         }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
-                false
+                true
             }
             Msg::OpenCreateModal => {
                 self.modal_mode = ModalMode::Create;
@@ -147,18 +157,19 @@ impl Component for PurchaseInspectionPage {
                 true
             }
             Msg::OpenCompleteModal(id) => {
+                self.modal_mode = ModalMode::Complete;
+                self.show_modal = true;
+                self.loading = true;
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseInspectionService::get(id).await {
-                        Ok(_inspection) => {
-                            link.send_message(Msg::LoadError("功能开发中".to_string()));
+                        Ok(inspection) => {
+                            link.send_message(Msg::InspectionLoaded(inspection));
                         }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
-                self.modal_mode = ModalMode::Complete;
-                self.show_modal = true;
-                false
+                true
             }
             Msg::CloseModal => {
                 self.show_modal = false;
