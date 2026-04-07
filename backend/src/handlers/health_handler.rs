@@ -44,11 +44,11 @@ pub struct HealthCheckItem {
 }
 
 /// 健康检查接口
-pub async fn health_check(State(_state): State<AppState>) -> impl IntoResponse {
+pub async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
     let _start_time = std::time::Instant::now();
 
     // 检查数据库连接
-    let db_check = check_database().await;
+    let db_check = check_database(&state).await;
 
     // 检查内存
     let memory_check = check_memory();
@@ -93,18 +93,19 @@ pub async fn health_check(State(_state): State<AppState>) -> impl IntoResponse {
 }
 
 /// 检查数据库连接
-async fn check_database() -> HealthCheckItem {
+async fn check_database(state: &AppState) -> HealthCheckItem {
     let start = std::time::Instant::now();
 
-    // TODO: 实际项目中应该在这里检查数据库连接池
-    // 这里只是示例
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    let db_status = match state.db.ping().await {
+        Ok(_) => ("healthy", "数据库连接正常"),
+        Err(_) => ("unhealthy", "数据库连接失败"),
+    };
 
     let duration = start.elapsed();
 
     HealthCheckItem {
-        status: "healthy".to_string(),
-        message: Some("数据库连接正常".to_string()),
+        status: db_status.0.to_string(),
+        message: Some(db_status.1.to_string()),
         response_time_ms: Some(duration.as_millis()),
     }
 }
@@ -138,9 +139,9 @@ fn get_uptime() -> u64 {
 }
 
 /// 就绪检查（检查所有依赖是否就绪）
-pub async fn readiness_check(State(_state): State<AppState>) -> impl IntoResponse {
+pub async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse {
     // 检查数据库是否可连接
-    let db_status = check_database().await;
+    let db_status = check_database(&state).await;
 
     if db_status.status == "healthy" {
         (

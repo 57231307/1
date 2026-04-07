@@ -1,4 +1,4 @@
-use crate::models::{supplier, supplier_contact, supplier_qualification};
+use crate::models::{purchase_order, supplier, supplier_contact, supplier_qualification};
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -325,10 +325,13 @@ impl SupplierService {
     }
 
     /// 检查供应商是否可删除
-    pub async fn can_delete_supplier(&self, _id: i32) -> Result<bool, AppError> {
-        // TODO: 检查是否有采购订单
-        // 这里需要查询采购订单表，暂时返回 true
-        Ok(true)
+    pub async fn can_delete_supplier(&self, id: i32) -> Result<bool, AppError> {
+        let count = purchase_order::Entity::find()
+            .filter(purchase_order::Column::SupplierId.eq(id))
+            .count(&*self.db)
+            .await?;
+
+        Ok(count == 0)
     }
 
     /// 切换供应商状态

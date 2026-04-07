@@ -192,12 +192,10 @@ impl BudgetManagementService {
         let _item = self.get_item_by_id(id).await?;
 
         // 检查是否有子科目
-        // TODO: ParentId 字段不存在，暂时跳过检查
-        let children_count = 0;
-        // budget_management::Entity::find()
-        //     .filter(budget_management::Column::ParentId.eq(Some(id)))
-        //     .count(&*self.db)
-        //     .await?;
+        let children_count = budget_management::Entity::find()
+            .filter(budget_management::Column::ParentId.eq(Some(id)))
+            .count(&*self.db)
+            .await?;
 
         if children_count > 0 {
             return Err(AppError::ValidationError(

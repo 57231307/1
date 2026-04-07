@@ -17,6 +17,7 @@ use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::{info, warn};
 use validator::Validate;
+use rust_decimal::Decimal;
 
 /// 查询应付单列表参数
 #[derive(Debug, Deserialize)]
@@ -290,15 +291,36 @@ pub async fn get_statistics(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询应付统计报表", auth.username);
 
-    // TODO: 实现更复杂的统计报表
-    // 暂时返回账龄分析和余额表的组合数据
     let service = ApInvoiceService::new(state.db.clone());
     let aging_data = service.get_aging_analysis(params.supplier_id).await?;
     let balance_summary = service.get_balance_summary(params.supplier_id).await?;
 
+    // 计算逾期统计
+    let mut overdue_amount = Decimal::new(0, 2);
+    let mut overdue_count = 0;
+    
+    for item in &aging_data {
+        if item.aging_bucket != "未到期" {
+            overdue_amount += item.total_amount;
+            overdue_count += item.invoice_count;
+        }
+    }
+
+    // 计算付款率 (百分比)
+    let payment_rate = if balance_summary.total_invoice_amount > Decimal::new(0, 2) {
+        (balance_summary.total_paid_amount / balance_summary.total_invoice_amount) * Decimal::new(100, 0)
+    } else {
+        Decimal::new(0, 2)
+    };
+
     let result = serde_json::json!({
         "aging_analysis": aging_data,
-        "balance_summary": balance_summary
+        "balance_summary": balance_summary,
+        "overdue_statistics": {
+            "overdue_amount": overdue_amount,
+            "overdue_count": overdue_count,
+        },
+        "payment_rate_percent": payment_rate.round_dp(2),
     });
 
     Ok(Json(ApiResponse::success(result)))

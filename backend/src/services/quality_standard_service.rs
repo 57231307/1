@@ -158,17 +158,15 @@ impl QualityStandardService {
 
         let _standard = self.get_standard_by_id(id).await?;
 
-        // 检查是否有引用
-        // TODO: ParentId 字段不存在，需要检查实际引用情况
-        let referenced_count = 0;
-        // quality_standard::Entity::find()
-        //     .filter(quality_standard::Column::ParentId.eq(Some(id)))
-        //     .count(&*self.db)
-        //     .await?;
+        // 检查是否有引用作为之前版本
+        let referenced_count = quality_standard::Entity::find()
+            .filter(quality_standard::Column::PreviousVersionId.eq(Some(id)))
+            .count(&*self.db)
+            .await?;
 
         if referenced_count > 0 {
             return Err(AppError::ValidationError(
-                "质量标准被引用，无法删除".to_string(),
+                "质量标准被其他版本引用，无法删除".to_string(),
             ));
         }
 
