@@ -1,8 +1,7 @@
-use sea_orm::{Database, ConnectionTrait, Statement, DatabaseBackend};
+use sea_orm::{Database, EntityTrait};
 #[tokio::main]
 async fn main() {
-    let db = Database::connect("postgres://test_user:test_pass@localhost:5432/test_db").await.unwrap();
-    let sql = "CREATE TABLE IF NOT EXISTS test_tbl (id SERIAL PRIMARY KEY); INSERT INTO test_tbl DEFAULT VALUES;";
-    db.execute(Statement::from_string(DatabaseBackend::Postgres, sql)).await.unwrap();
-    println!("SUCCESS");
+    let db = Database::connect("postgres://postgres:postgres@localhost:5432/bingxi").await.unwrap();
+    let w = bingxi_backend::models::warehouse::Entity::find().all(&db).await;
+    println!("{:?}", w);
 }
