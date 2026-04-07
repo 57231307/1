@@ -3,8 +3,8 @@ use axum::{
     Json,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
 };
 use serde::Deserialize;
 
@@ -175,7 +175,8 @@ pub async fn create_fabric_order(
     use rust_decimal::Decimal;
 
     // 开启事务
-    let txn = state.db
+    let txn = state
+        .db
         .begin()
         .await
         .map_err(|e| AppError::InternalError(format!("开启事务失败：{}", e)))?;

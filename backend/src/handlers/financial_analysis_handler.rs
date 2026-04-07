@@ -4,13 +4,13 @@ use crate::models::financial_analysis_result;
 use crate::services::financial_analysis_service::{
     CreateIndicatorRequest, FinancialAnalysisRequest, FinancialAnalysisService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -96,38 +96,50 @@ pub async fn get_trends(
     Ok(Json(ApiResponse::success(trends)))
 }
 
-
 /// 财务分析报告列表功能尚未实现
 pub async fn list_reports(
-    Query(_params): Query<serde_json::Value>, State(_state): State<AppState>, auth: AuthContext,
+    Query(_params): Query<serde_json::Value>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在财务分析报告列表功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("财务分析报告列表功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "财务分析报告列表功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 财务分析报告创建功能尚未实现
 pub async fn create_report(
-    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    Json(_req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在财务分析报告创建功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("财务分析报告创建功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "财务分析报告创建功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 财务分析报告获取功能尚未实现
 pub async fn get_report(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在财务分析报告获取功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("财务分析报告获取功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "财务分析报告获取功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 财务分析报告执行功能尚未实现
 pub async fn execute_report(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在财务分析报告执行功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("财务分析报告执行功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "财务分析报告执行功能尚未实现".to_string(),
+    ))
 }

@@ -1,6 +1,6 @@
+use crate::app::Route;
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::app::Route;
 
 #[derive(Properties, PartialEq)]
 pub struct NavigationProps {
@@ -10,7 +10,7 @@ pub struct NavigationProps {
 #[function_component(Navigation)]
 pub fn navigation(props: &NavigationProps) -> Html {
     let navigator = use_navigator();
-    
+
     // 折叠状态
     let dashboard_open = use_state(|| true);
     let system_open = use_state(|| true);

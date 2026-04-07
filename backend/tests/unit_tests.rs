@@ -1,7 +1,7 @@
 //! 单元测试集合
 
 use bingxi_backend::middleware::rate_limit::RateLimiter;
-use bingxi_backend::utils::cache::{AppCache, CacheKey, MemoryCache, Cache};
+use bingxi_backend::utils::cache::{AppCache, Cache, CacheKey, MemoryCache};
 use std::time::Duration;
 
 /// 测试内存缓存基本功能
@@ -83,14 +83,35 @@ async fn test_app_cache_management() {
     let inventory_cache = app_cache.get_inventory_cache();
 
     // 测试在不同缓存中存储数据
-    dashboard_cache.set("overview".to_string(), serde_json::json!("dashboard_data"), None);
-    product_cache.set("product_1".to_string(), serde_json::json!("product_data"), None);
-    inventory_cache.set("stock_1".to_string(), serde_json::json!("inventory_data"), None);
+    dashboard_cache.set(
+        "overview".to_string(),
+        serde_json::json!("dashboard_data"),
+        None,
+    );
+    product_cache.set(
+        "product_1".to_string(),
+        serde_json::json!("product_data"),
+        None,
+    );
+    inventory_cache.set(
+        "stock_1".to_string(),
+        serde_json::json!("inventory_data"),
+        None,
+    );
 
     // 验证所有缓存都能正常获取
-    assert_eq!(dashboard_cache.get(&"overview".to_string()), Some(serde_json::json!("dashboard_data")));
-    assert_eq!(product_cache.get(&"product_1".to_string()), Some(serde_json::json!("product_data")));
-    assert_eq!(inventory_cache.get(&"stock_1".to_string()), Some(serde_json::json!("inventory_data")));
+    assert_eq!(
+        dashboard_cache.get(&"overview".to_string()),
+        Some(serde_json::json!("dashboard_data"))
+    );
+    assert_eq!(
+        product_cache.get(&"product_1".to_string()),
+        Some(serde_json::json!("product_data"))
+    );
+    assert_eq!(
+        inventory_cache.get(&"stock_1".to_string()),
+        Some(serde_json::json!("inventory_data"))
+    );
 
     // 清除所有缓存
     app_cache.clear_all();
@@ -114,7 +135,10 @@ async fn test_rate_limiter_basic_operations() {
     }
 
     // 第11个请求应该被拒绝
-    assert!(!rate_limiter.check(key), "Request 10 should be rate limited");
+    assert!(
+        !rate_limiter.check(key),
+        "Request 10 should be rate limited"
+    );
 }
 
 /// 测试速率限制器过期功能
@@ -129,13 +153,19 @@ async fn test_rate_limiter_expiration() {
     assert!(rate_limiter.check(key), "Second request should pass");
 
     // 第3个请求应该被拒绝
-    assert!(!rate_limiter.check(key), "Third request should be rate limited");
+    assert!(
+        !rate_limiter.check(key),
+        "Third request should be rate limited"
+    );
 
     // 等待300毫秒让限制过期
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     // 新的请求应该通过
-    assert!(rate_limiter.check(key), "Request after expiration should pass");
+    assert!(
+        rate_limiter.check(key),
+        "Request after expiration should pass"
+    );
 }
 
 /// 测试不同IP的速率限制隔离
@@ -147,13 +177,19 @@ async fn test_rate_limiter_ip_isolation() {
     let key1 = "ip_1";
     assert!(rate_limiter.check(key1), "IP1 first request should pass");
     assert!(rate_limiter.check(key1), "IP1 second request should pass");
-    assert!(!rate_limiter.check(key1), "IP1 third request should be rate limited");
+    assert!(
+        !rate_limiter.check(key1),
+        "IP1 third request should be rate limited"
+    );
 
     // 测试IP2应该不受IP1限制影响
     let key2 = "ip_2";
     assert!(rate_limiter.check(key2), "IP2 first request should pass");
     assert!(rate_limiter.check(key2), "IP2 second request should pass");
-    assert!(!rate_limiter.check(key2), "IP2 third request should be rate limited");
+    assert!(
+        !rate_limiter.check(key2),
+        "IP2 third request should be rate limited"
+    );
 }
 
 /// 测试速率限制器清理功能

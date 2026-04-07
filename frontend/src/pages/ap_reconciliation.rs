@@ -2,13 +2,11 @@
 //!
 //! 应付对账（AP Reconciliation）管理功能
 
-use yew::prelude::*;
+use crate::models::ap_reconciliation::{ApReconciliation, ApReconciliationQueryParams};
+use crate::services::ap_reconciliation_service::ApReconciliationService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::ap_reconciliation::{
-    ApReconciliation, ApReconciliationQueryParams,
-};
-use crate::services::ap_reconciliation_service::ApReconciliationService;
+use yew::prelude::*;
 
 /// 应付对账管理页面状态
 pub struct ApReconciliationPage {
@@ -82,7 +80,11 @@ impl Component for ApReconciliationPage {
                 self.loading = true;
                 let params = ApReconciliationQueryParams {
                     supplier_id: None,
-                    reconciliation_status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    reconciliation_status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -91,7 +93,10 @@ impl Component for ApReconciliationPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match ApReconciliationService::list_reconciliations(params).await {
-                        Ok(response) => link.send_message(Msg::ReconciliationsLoaded(response.items, response.total)),
+                        Ok(response) => link.send_message(Msg::ReconciliationsLoaded(
+                            response.items,
+                            response.total,
+                        )),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -115,7 +120,11 @@ impl Component for ApReconciliationPage {
                 false
             }
             Msg::ViewReconciliation(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ap-reconciliations/{}", id)).ok();
+                web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href(&format!("/ap-reconciliations/{}", id))
+                    .ok();
                 false
             }
             Msg::GenerateReconciliation => {
@@ -181,7 +190,11 @@ impl Component for ApReconciliationPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
@@ -355,7 +368,11 @@ impl ApReconciliationPage {
 
     fn render_dispute_modal(&self, ctx: &Context<Self>) -> Html {
         let on_dispute_reason_change = ctx.link().callback(|e: InputEvent| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetDisputeReason(target.value())
         });
 

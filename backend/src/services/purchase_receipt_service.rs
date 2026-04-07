@@ -92,7 +92,9 @@ impl PurchaseReceiptService {
                 product_id: Set(item_req.material_id),
                 quantity: Set(item_req.quantity),
                 quantity_alt: Set(Some(item_req.quantity_alt)),
-                unit_price: Set(Some(item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
+                unit_price: Set(Some(
+                    item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
+                )),
                 amount: Set(Some(amount)),
                 notes: Set(item_req.notes),
                 ..Default::default()
@@ -214,7 +216,8 @@ impl PurchaseReceiptService {
         // 4. 检查是否有关联的采购订单
         if let Some(order_id) = receipt.order_id {
             // 更新采购订单的已入库数量
-            self.update_order_received_quantity(order_id, receipt_id, &txn).await?;
+            self.update_order_received_quantity(order_id, receipt_id, &txn)
+                .await?;
         }
 
         // 5. 更新状态
@@ -233,11 +236,19 @@ impl PurchaseReceiptService {
 
         // 7. 提交事务
         txn.commit().await?;
-        
+
         // 8. 自动生成应付账款
-        let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
-        if let Err(e) = ap_service.auto_generate_from_receipt(receipt.id, user_id).await {
-            tracing::error!("自动生成应付账单失败 (入库单 {}): {}", receipt.receipt_no, e);
+        let ap_service =
+            crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
+        if let Err(e) = ap_service
+            .auto_generate_from_receipt(receipt.id, user_id)
+            .await
+        {
+            tracing::error!(
+                "自动生成应付账单失败 (入库单 {}): {}",
+                receipt.receipt_no,
+                e
+            );
         } else {
             tracing::info!("成功自动生成应付账单 (入库单 {})", receipt.receipt_no);
         }
@@ -515,30 +526,36 @@ impl PurchaseReceiptService {
 
         for item in items {
             if let Some(order_item_id) = item.order_item_id {
-                let order_item = crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
-                    .one(txn)
-                    .await?
-                    .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", order_item_id)))?;
+                let order_item =
+                    crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
+                        .one(txn)
+                        .await?
+                        .ok_or(AppError::ResourceNotFound(format!(
+                            "订单明细 {}",
+                            order_item_id
+                        )))?;
 
-                let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
+                let mut active_order_item: crate::models::purchase_order_item::ActiveModel =
+                    order_item.into();
                 let current_received = active_order_item.received_quantity.clone().unwrap();
                 let current_received_alt = active_order_item.received_quantity_alt.clone().unwrap();
-                
+
                 active_order_item.received_quantity = Set(current_received + item.quantity);
-                active_order_item.received_quantity_alt = Set(current_received_alt + item.quantity_alt.unwrap_or_default());
+                active_order_item.received_quantity_alt =
+                    Set(current_received_alt + item.quantity_alt.unwrap_or_default());
                 active_order_item.update(txn).await?;
             }
         }
-        
+
         // Update order status if fully received
         let all_order_items = crate::models::purchase_order_item::Entity::find()
             .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
             .all(txn)
             .await?;
-            
+
         let mut fully_received = true;
         let mut partially_received = false;
-        
+
         for oi in all_order_items {
             if oi.received_quantity >= oi.quantity {
                 partially_received = true;
@@ -549,7 +566,7 @@ impl PurchaseReceiptService {
                 fully_received = false;
             }
         }
-        
+
         let new_status = if fully_received {
             "COMPLETED"
         } else if partially_received {
@@ -557,12 +574,12 @@ impl PurchaseReceiptService {
         } else {
             "APPROVED"
         };
-        
+
         let order = crate::models::purchase_order::Entity::find_by_id(order_id)
             .one(txn)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-            
+
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());
         active_order.update(txn).await?;
@@ -580,46 +597,58 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
-        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+        let stock_service =
+            crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
 
         for item in items {
             let batch_no = item.batch_no.unwrap_or_else(|| "DEFAULT".to_string());
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
-            
-            let _stock_model = stock_service.update_or_create_stock_with_txn(
-                txn,
-                receipt.warehouse_id,
-                item.product_id,
-                batch_no.clone(),
-                color_no.clone(),
-                item.lot_no.clone(),
-                grade.clone(),
-                item.quantity,
-                item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                item.gram_weight,
-                item.width,
-                None, None, None,
-            ).await.map_err(|e: sea_orm::DbErr| AppError::DatabaseError(e.to_string()))?;
 
-            stock_service.record_transaction_with_txn(
-                txn,
-                "PURCHASE_RECEIPT".to_string(),
-                item.product_id,
-                receipt.warehouse_id,
-                batch_no.clone(),
-                color_no.clone(),
-                item.lot_no.clone(),
-                grade.clone(),
-                item.quantity,
-                item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                Some("PURCHASE_RECEIPT".to_string()),
-                Some(receipt.receipt_no.clone()),
-                Some(receipt.id as i32),
-                None, None, None, None,
-                Some("入库自动增加库存".to_string()),
-                Some(receipt.created_by),
-            ).await.map_err(|e: sea_orm::DbErr| AppError::DatabaseError(e.to_string()))?;
+            let _stock_model = stock_service
+                .update_or_create_stock_with_txn(
+                    txn,
+                    receipt.warehouse_id,
+                    item.product_id,
+                    batch_no.clone(),
+                    color_no.clone(),
+                    item.lot_no.clone(),
+                    grade.clone(),
+                    item.quantity,
+                    item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                    item.gram_weight,
+                    item.width,
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|e: sea_orm::DbErr| AppError::DatabaseError(e.to_string()))?;
+
+            stock_service
+                .record_transaction_with_txn(
+                    txn,
+                    "PURCHASE_RECEIPT".to_string(),
+                    item.product_id,
+                    receipt.warehouse_id,
+                    batch_no.clone(),
+                    color_no.clone(),
+                    item.lot_no.clone(),
+                    grade.clone(),
+                    item.quantity,
+                    item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                    Some("PURCHASE_RECEIPT".to_string()),
+                    Some(receipt.receipt_no.clone()),
+                    Some(receipt.id as i32),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("入库自动增加库存".to_string()),
+                    Some(receipt.created_by),
+                )
+                .await
+                .map_err(|e: sea_orm::DbErr| AppError::DatabaseError(e.to_string()))?;
         }
         Ok(())
     }

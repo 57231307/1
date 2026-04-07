@@ -57,7 +57,10 @@ impl PurchaseReceiptService {
     }
 
     /// 更新收货单
-    pub async fn update(id: i32, req: UpdatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
+    pub async fn update(
+        id: i32,
+        req: UpdatePurchaseReceiptRequest,
+    ) -> Result<PurchaseReceipt, String> {
         let response: ApiResponse<PurchaseReceipt> =
             ApiService::put(&format!("/purchases/receipts/{}", id), &req).await?;
         response.into_result()
@@ -65,8 +68,11 @@ impl PurchaseReceiptService {
 
     /// 确认收货单
     pub async fn confirm(id: i32) -> Result<PurchaseReceipt, String> {
-        let response: ApiResponse<PurchaseReceipt> =
-            ApiService::post(&format!("/purchases/receipts/{}/confirm", id), &serde_json::json!({})).await?;
+        let response: ApiResponse<PurchaseReceipt> = ApiService::post(
+            &format!("/purchases/receipts/{}/confirm", id),
+            &serde_json::json!({}),
+        )
+        .await?;
         response.into_result()
     }
 
@@ -78,21 +84,35 @@ impl PurchaseReceiptService {
     }
 
     /// 添加收货明细
-    pub async fn create_item(receipt_id: i32, req: CreateReceiptItemRequest) -> Result<PurchaseReceiptItem, String> {
+    pub async fn create_item(
+        receipt_id: i32,
+        req: CreateReceiptItemRequest,
+    ) -> Result<PurchaseReceiptItem, String> {
         let response: ApiResponse<PurchaseReceiptItem> =
             ApiService::post(&format!("/purchases/receipts/{}/items", receipt_id), &req).await?;
         response.into_result()
     }
 
     /// 更新收货明细
-    pub async fn update_item(receipt_id: i32, item_id: i32, req: UpdateReceiptItemRequest) -> Result<PurchaseReceiptItem, String> {
-        let response: ApiResponse<PurchaseReceiptItem> =
-            ApiService::put(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id), &req).await?;
+    pub async fn update_item(
+        receipt_id: i32,
+        item_id: i32,
+        req: UpdateReceiptItemRequest,
+    ) -> Result<PurchaseReceiptItem, String> {
+        let response: ApiResponse<PurchaseReceiptItem> = ApiService::put(
+            &format!("/purchases/receipts/{}/items/{}", receipt_id, item_id),
+            &req,
+        )
+        .await?;
         response.into_result()
     }
 
     /// 删除收货明细
     pub async fn delete_item(receipt_id: i32, item_id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id)).await
+        ApiService::delete(&format!(
+            "/purchases/receipts/{}/items/{}",
+            receipt_id, item_id
+        ))
+        .await
     }
 }

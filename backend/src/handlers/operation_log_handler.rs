@@ -1,11 +1,11 @@
+use crate::services::operation_log_service::OperationLogService;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
-use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
-use crate::services::operation_log_service::OperationLogService;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -26,9 +26,13 @@ pub async fn list_logs(
     let page_size = query.page_size.unwrap_or(20);
 
     let (logs, total) = if let Some(module) = query.module {
-        service.list_logs_by_module(&module, page - 1, page_size).await?
+        service
+            .list_logs_by_module(&module, page - 1, page_size)
+            .await?
     } else if let Some(user_id) = query.user_id {
-        service.list_logs_by_user(user_id, page - 1, page_size).await?
+        service
+            .list_logs_by_user(user_id, page - 1, page_size)
+            .await?
     } else {
         service.list_logs(page - 1, page_size).await?
     };

@@ -7,9 +7,9 @@ use axum::{
     http::{Method, Request, StatusCode},
     Router,
 };
+use bingxi_backend::utils::app_state::AppState;
 use sea_orm::Database;
 use serde_json::json;
-use bingxi_backend::utils::app_state::AppState;
 use tower::ServiceExt;
 
 // 导入后端的路由创建函数
@@ -21,8 +21,7 @@ use bingxi_backend::middleware::auth::auth_middleware;
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
-    create_router(state.clone())
-        .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
+    create_router(state.clone()).layer(axum::middleware::from_fn_with_state(state, auth_middleware))
 }
 
 /// 测试健康检查

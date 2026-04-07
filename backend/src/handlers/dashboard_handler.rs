@@ -22,7 +22,8 @@ pub struct DashboardQuery {
 
 /// 将 NaiveDate 转换为 DateTime<Utc>（一天的开始）
 fn naive_date_to_utc(date: NaiveDate) -> Option<DateTime<Utc>> {
-    date.and_hms_opt(0, 0, 0).map(|dt| Utc.from_utc_datetime(&dt))
+    date.and_hms_opt(0, 0, 0)
+        .map(|dt| Utc.from_utc_datetime(&dt))
 }
 
 /// 获取仪表板概览数据

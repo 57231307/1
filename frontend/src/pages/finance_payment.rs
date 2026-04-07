@@ -2,13 +2,11 @@
 //!
 //! 财务付款（Finance Payment）管理功能
 
-use yew::prelude::*;
+use crate::models::finance_payment::{FinancePayment, PaymentQueryParams};
+use crate::services::finance_payment_service::FinancePaymentService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::finance_payment::{
-    FinancePayment, PaymentQueryParams,
-};
-use crate::services::finance_payment_service::FinancePaymentService;
+use yew::prelude::*;
 
 /// 财务付款管理页面状态
 pub struct FinancePaymentPage {
@@ -67,8 +65,16 @@ impl Component for FinancePaymentPage {
             Msg::LoadPayments => {
                 self.loading = true;
                 let params = PaymentQueryParams {
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    payment_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    payment_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -77,7 +83,8 @@ impl Component for FinancePaymentPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match FinancePaymentService::list_payments(params).await {
-                        Ok(response) => link.send_message(Msg::PaymentsLoaded(response.payments, response.total)),
+                        Ok(response) => link
+                            .send_message(Msg::PaymentsLoaded(response.payments, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -107,7 +114,11 @@ impl Component for FinancePaymentPage {
                 false
             }
             Msg::ViewPayment(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/finance-payments/{}", id)).ok();
+                web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href(&format!("/finance-payments/{}", id))
+                    .ok();
                 false
             }
             Msg::DeletePayment(id) => {
@@ -134,12 +145,20 @@ impl Component for FinancePaymentPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 
@@ -183,7 +202,6 @@ impl Component for FinancePaymentPage {
 }
 
 impl FinancePaymentPage {
-    
     fn render_print_view(&self) -> Html {
         if let Some(payment) = &self.printing_payment {
             html! {

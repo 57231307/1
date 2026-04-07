@@ -45,7 +45,11 @@ impl FundManagementService {
     }
 
     /// 账户存款
-    pub async fn deposit(id: i32, amount: String, remark: Option<String>) -> Result<String, String> {
+    pub async fn deposit(
+        id: i32,
+        amount: String,
+        remark: Option<String>,
+    ) -> Result<String, String> {
         #[derive(Debug, Clone, serde::Serialize)]
         struct DepositRequest {
             amount: String,
@@ -53,12 +57,17 @@ impl FundManagementService {
         }
         let req = DepositRequest { amount, remark };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/deposit", id), &payload).await?;
+        let _: serde_json::Value =
+            ApiService::post(&format!("/fund-accounts/{}/deposit", id), &payload).await?;
         Ok("存款成功".to_string())
     }
 
     /// 账户取款
-    pub async fn withdraw(id: i32, amount: String, remark: Option<String>) -> Result<String, String> {
+    pub async fn withdraw(
+        id: i32,
+        amount: String,
+        remark: Option<String>,
+    ) -> Result<String, String> {
         #[derive(Debug, Clone, serde::Serialize)]
         struct WithdrawRequest {
             amount: String,
@@ -66,7 +75,8 @@ impl FundManagementService {
         }
         let req = WithdrawRequest { amount, remark };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/withdraw", id), &payload).await?;
+        let _: serde_json::Value =
+            ApiService::post(&format!("/fund-accounts/{}/withdraw", id), &payload).await?;
         Ok("取款成功".to_string())
     }
 
@@ -79,12 +89,17 @@ impl FundManagementService {
         }
         let req = FreezeRequest { amount, reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/freeze", id), &payload).await?;
+        let _: serde_json::Value =
+            ApiService::post(&format!("/fund-accounts/{}/freeze", id), &payload).await?;
         Ok("冻结成功".to_string())
     }
 
     /// 解冻账户资金
-    pub async fn unfreeze_funds(id: i32, amount: String, remark: Option<String>) -> Result<String, String> {
+    pub async fn unfreeze_funds(
+        id: i32,
+        amount: String,
+        remark: Option<String>,
+    ) -> Result<String, String> {
         #[derive(Debug, Clone, serde::Serialize)]
         struct UnfreezeRequest {
             amount: String,
@@ -92,7 +107,8 @@ impl FundManagementService {
         }
         let req = UnfreezeRequest { amount, remark };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/unfreeze", id), &payload).await?;
+        let _: serde_json::Value =
+            ApiService::post(&format!("/fund-accounts/{}/unfreeze", id), &payload).await?;
         Ok("解冻成功".to_string())
     }
 
@@ -104,7 +120,13 @@ impl FundManagementService {
     }
 
     /// 资金调拨
-    pub async fn transfer_fund(from_account_id: i32, to_account_id: i32, amount: String, fee: Option<String>, reason: Option<String>) -> Result<serde_json::Value, String> {
+    pub async fn transfer_fund(
+        from_account_id: i32,
+        to_account_id: i32,
+        amount: String,
+        fee: Option<String>,
+        reason: Option<String>,
+    ) -> Result<serde_json::Value, String> {
         #[derive(Debug, Clone, serde::Serialize)]
         struct TransferRequest {
             from_account_id: i32,
@@ -113,7 +135,13 @@ impl FundManagementService {
             fee: Option<String>,
             reason: Option<String>,
         }
-        let req = TransferRequest { from_account_id, to_account_id, amount, fee, reason };
+        let req = TransferRequest {
+            from_account_id,
+            to_account_id,
+            amount,
+            fee,
+            reason,
+        };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/fund-management/transfer", &payload).await
     }

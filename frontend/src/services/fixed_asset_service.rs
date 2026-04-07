@@ -54,13 +54,15 @@ impl FixedAssetService {
 
     /// 计提折旧
     pub async fn depreciate_asset(id: i32, req: DepreciateRequest) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::post(&format!("/assets/{}/depreciate", id), &req).await?;
+        let response: ApiResponse<FixedAsset> =
+            ApiService::post(&format!("/assets/{}/depreciate", id), &req).await?;
         response.into_result()
     }
 
     /// 处置资产
     pub async fn dispose_asset(id: i32, req: DisposalRequest) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::post(&format!("/assets/{}/dispose", id), &req).await?;
+        let response: ApiResponse<FixedAsset> =
+            ApiService::post(&format!("/assets/{}/dispose", id), &req).await?;
         response.into_result()
     }
 

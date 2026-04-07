@@ -1,9 +1,9 @@
 #![allow(warnings)]
 mod app;
 mod components;
+mod models;
 mod pages;
 mod services;
-mod models;
 mod utils;
 
 use app::App;

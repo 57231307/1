@@ -1,12 +1,12 @@
-use yew::prelude::*;
-use yew_router::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use wasm_bindgen::JsCast;
 use crate::app::Route;
 use crate::services::auth::AuthService;
 use crate::services::init_service::InitService;
 use crate::utils::storage::Storage;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
+use yew::prelude::*;
+use yew_router::prelude::*;
 
 pub struct LoginPage {
     username: String,
@@ -103,10 +103,10 @@ impl Component for LoginPage {
             Msg::LoginSuccess(token) => {
                 self.is_loading = false;
                 Storage::set_token(&token);
-            // 登录成功，跳转到仪表板
-            if let Some(navigator) = _ctx.link().navigator() {
-                navigator.push(&Route::Dashboard);
-            }
+                // 登录成功，跳转到仪表板
+                if let Some(navigator) = _ctx.link().navigator() {
+                    navigator.push(&Route::Dashboard);
+                }
                 true
             }
             Msg::LoginFailure(error) => {
@@ -142,7 +142,7 @@ impl Component for LoginPage {
                 <div class="login-box">
                     <h1>{"秉羲管理系统"}</h1>
                     <h2>{"用户登录"}</h2>
-                    
+
                     if let Some(error) = &self.error_message {
                         <div class="error-message">{error}</div>
                     }

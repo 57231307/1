@@ -2,7 +2,7 @@
 //! 提供客户管理相关的 API 调用方法
 
 use crate::models::customer::{
-    Customer, CustomerQuery, CustomerListResponse, CreateCustomerRequest, UpdateCustomerRequest,
+    CreateCustomerRequest, Customer, CustomerListResponse, CustomerQuery, UpdateCustomerRequest,
 };
 use crate::services::api::ApiService;
 

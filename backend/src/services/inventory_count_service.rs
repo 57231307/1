@@ -114,8 +114,7 @@ impl InventoryCountService {
         // 分页
         let paginator = query.paginate(&*self.db, page_req.page_size);
         let total = paginator.num_items().await?;
-        let counts: Vec<inventory_count::Model> =
-            paginator.fetch_page(page_req.page - 1).await?;
+        let counts: Vec<inventory_count::Model> = paginator.fetch_page(page_req.page - 1).await?;
 
         // 转换为响应格式
         let count_details: Vec<InventoryCountDetail> = counts
@@ -448,9 +447,8 @@ impl InventoryCountService {
                     stock_update.quantity_on_hand = sea_orm::ActiveValue::Set(item.quantity_actual);
                     stock_update.quantity_available =
                         sea_orm::ActiveValue::Set(item.quantity_actual);
-                    stock_update.quantity_meters = sea_orm::ActiveValue::Set(
-                        stock_model.quantity_meters + quantity_variance,
-                    );
+                    stock_update.quantity_meters =
+                        sea_orm::ActiveValue::Set(stock_model.quantity_meters + quantity_variance);
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                     stock_update.update(&txn).await?;
                 }

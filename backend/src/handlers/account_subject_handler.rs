@@ -79,9 +79,7 @@ pub async fn list_subjects(
         keyword: params.keyword,
     };
 
-    let subjects = service
-        .get_list(query_params)
-        .await?;
+    let subjects = service.get_list(query_params).await?;
     info!(
         "用户 {} 查询会计科目成功，共 {} 条",
         auth.username,
@@ -176,9 +174,7 @@ pub async fn update_subject(
         enable_dual_unit: req.enable_dual_unit,
     };
 
-    let subject = service
-        .update(id, update_req, auth.user_id)
-        .await?;
+    let subject = service.update(id, update_req, auth.user_id).await?;
     info!("用户 {} 更新会计科目成功：{}", auth.username, subject.code);
 
     Ok(Json(ApiResponse::success_with_message(

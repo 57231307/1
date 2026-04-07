@@ -12,7 +12,8 @@ pub struct ErrorResponse {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize)] pub enum AppError {
+#[derive(Debug, Clone, Serialize)]
+pub enum AppError {
     DatabaseError(String),
     ValidationError(String),
     NotFound(String),
@@ -71,7 +72,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BadRequest", "请求错误"),
             AppError::PermissionDenied(_) => {
                 (StatusCode::FORBIDDEN, "PermissionDenied", "权限不足")
-            },
+            }
             AppError::TooManyRequests => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "TooManyRequests",

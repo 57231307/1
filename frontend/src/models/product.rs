@@ -1,6 +1,5 @@
 //! 产品模型
 
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Product {
     pub id: i32,

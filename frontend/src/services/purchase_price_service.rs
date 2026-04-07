@@ -81,18 +81,29 @@ impl PurchasePriceService {
     }
 
     /// 获取价格历史
-    pub async fn history(product_id: i32, supplier_id: i32, limit: i64) -> Result<Vec<PurchasePrice>, String> {
-        let response: ApiResponse<Vec<PurchasePrice>> = ApiService::get(
-            &format!("/purchases/prices/history/{}/{}?limit={}", product_id, supplier_id, limit)
-        ).await?;
+    pub async fn history(
+        product_id: i32,
+        supplier_id: i32,
+        limit: i64,
+    ) -> Result<Vec<PurchasePrice>, String> {
+        let response: ApiResponse<Vec<PurchasePrice>> = ApiService::get(&format!(
+            "/purchases/prices/history/{}/{}?limit={}",
+            product_id, supplier_id, limit
+        ))
+        .await?;
         response.into_result()
     }
 
     /// 分析价格趋势
-    pub async fn analyze_trend(product_id: i32, supplier_id: i32) -> Result<PriceTrendAnalysis, String> {
-        let response: ApiResponse<PriceTrendAnalysis> = ApiService::get(
-            &format!("/purchases/prices/trend/{}/{}", product_id, supplier_id)
-        ).await?;
+    pub async fn analyze_trend(
+        product_id: i32,
+        supplier_id: i32,
+    ) -> Result<PriceTrendAnalysis, String> {
+        let response: ApiResponse<PriceTrendAnalysis> = ApiService::get(&format!(
+            "/purchases/prices/trend/{}/{}",
+            product_id, supplier_id
+        ))
+        .await?;
         response.into_result()
     }
 }

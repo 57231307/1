@@ -1,6 +1,6 @@
 //! 缓存模块单元测试
 
-use bingxi_backend::utils::cache::{AppCache, CacheKey, MemoryCache, Cache};
+use bingxi_backend::utils::cache::{AppCache, Cache, CacheKey, MemoryCache};
 use std::time::Duration;
 
 /// 测试内存缓存基本功能
@@ -82,14 +82,35 @@ async fn test_app_cache_management() {
     let inventory_cache = app_cache.get_inventory_cache();
 
     // 测试在不同缓存中存储数据
-    dashboard_cache.set("overview".to_string(), serde_json::json!("dashboard_data"), None);
-    product_cache.set("product_1".to_string(), serde_json::json!("product_data"), None);
-    inventory_cache.set("stock_1".to_string(), serde_json::json!("inventory_data"), None);
+    dashboard_cache.set(
+        "overview".to_string(),
+        serde_json::json!("dashboard_data"),
+        None,
+    );
+    product_cache.set(
+        "product_1".to_string(),
+        serde_json::json!("product_data"),
+        None,
+    );
+    inventory_cache.set(
+        "stock_1".to_string(),
+        serde_json::json!("inventory_data"),
+        None,
+    );
 
     // 测试获取数据
-    assert_eq!(dashboard_cache.get(&"overview".to_string()), Some(serde_json::json!("dashboard_data")));
-    assert_eq!(product_cache.get(&"product_1".to_string()), Some(serde_json::json!("product_data")));
-    assert_eq!(inventory_cache.get(&"stock_1".to_string()), Some(serde_json::json!("inventory_data")));
+    assert_eq!(
+        dashboard_cache.get(&"overview".to_string()),
+        Some(serde_json::json!("dashboard_data"))
+    );
+    assert_eq!(
+        product_cache.get(&"product_1".to_string()),
+        Some(serde_json::json!("product_data"))
+    );
+    assert_eq!(
+        inventory_cache.get(&"stock_1".to_string()),
+        Some(serde_json::json!("inventory_data"))
+    );
 
     // 测试清空所有缓存
     app_cache.clear_all();

@@ -1,9 +1,11 @@
 //! 销售退货管理页面
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use crate::models::sales_return::{CreateSalesReturnRequest, CreateSalesReturnItemRequest, SalesReturn, SalesReturnQuery};
+use crate::models::sales_return::{
+    CreateSalesReturnItemRequest, CreateSalesReturnRequest, SalesReturn, SalesReturnQuery,
+};
 use crate::services::sales_return_service::SalesReturnService;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 销售退货页面状态管理
 pub struct SalesReturnPage {
@@ -71,7 +73,11 @@ impl Component for SalesReturnPage {
                 let query = SalesReturnQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     customer_id: None,
                     return_no: None,
                 };
@@ -100,7 +106,10 @@ impl Component for SalesReturnPage {
                 false
             }
             Msg::ViewReturn(id) => {
-                let _ = web_sys::window().unwrap().location().set_href(&format!("/sales-returns/{}", id));
+                let _ = web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href(&format!("/sales-returns/{}", id));
                 false
             }
             Msg::SubmitReturn(id) => {
@@ -150,7 +159,7 @@ impl Component for SalesReturnPage {
                 </div>
 
                 { self.render_filters(ctx) }
-                
+
                 if let Some(ref err) = self.error {
                     <div class="alert alert-danger">{ err }</div>
                 }
@@ -188,13 +197,20 @@ impl Component for SalesReturnPage {
 impl SalesReturnPage {
     fn render_filters(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
-        let statuses = vec!["全部", "DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "COMPLETED"];
-        
+        let statuses = vec![
+            "全部",
+            "DRAFT",
+            "SUBMITTED",
+            "APPROVED",
+            "REJECTED",
+            "COMPLETED",
+        ];
+
         html! {
             <div class="filters-section">
                 <div class="filter-group">
                     <label>{ "状态：" }</label>
-                    <select 
+                    <select
                         class="form-control"
                         value={self.filter_status.clone()}
                         onchange={link.callback(|e: Event| {
@@ -212,7 +228,7 @@ impl SalesReturnPage {
 
     fn render_return_row(&self, return_order: &SalesReturn, link: &html::Scope<Self>) -> Html {
         let id = return_order.id;
-        
+
         html! {
             <tr>
                 <td>{ &return_order.return_no }</td>

@@ -1,13 +1,14 @@
 //! 五维查询页面
 //! 提供面料五维数据的查询、搜索和管理功能
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
+use crate::components::main_layout::MainLayout;
 use crate::models::five_dimension::{
-    FiveDimensionStatsParams, FiveDimensionItem, FiveDimensionStatsResponse, FiveDimensionListResponse, FiveDimensionSearchParams,
+    FiveDimensionItem, FiveDimensionListResponse, FiveDimensionSearchParams,
+    FiveDimensionStatsParams, FiveDimensionStatsResponse,
 };
 use crate::services::five_dimension_service::FiveDimensionService;
-use crate::components::main_layout::MainLayout;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct FiveDimensionPage {
     // 列表数据
@@ -85,7 +86,10 @@ impl Component for FiveDimensionPage {
             search_type: "product".to_string(),
             parse_input: String::new(),
             parse_error: None,
-            search_types: Self::SEARCH_TYPES.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            search_types: Self::SEARCH_TYPES
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
         }
     }
 
@@ -180,10 +184,14 @@ impl Component for FiveDimensionPage {
                                 if let Some(dimension) = response.dimension {
                                     link.send_message(Msg::ParseResultLoaded(Ok(dimension)));
                                 } else {
-                                    link.send_message(Msg::ParseResultLoaded(Err("解析结果为空".to_string())));
+                                    link.send_message(Msg::ParseResultLoaded(Err(
+                                        "解析结果为空".to_string()
+                                    )));
                                 }
                             } else {
-                                link.send_message(Msg::ParseResultLoaded(Err(response.error.unwrap_or_else(|| "解析失败".to_string()))));
+                                link.send_message(Msg::ParseResultLoaded(Err(response
+                                    .error
+                                    .unwrap_or_else(|| "解析失败".to_string()))));
                             }
                         }
                         Err(e) => {

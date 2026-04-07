@@ -29,7 +29,7 @@ impl FinancialAnalysisService {
             query.push_str(&format!("status={}&", s));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/financial-analysis/indicators?{}", query)).await
     }
 
@@ -37,12 +37,17 @@ impl FinancialAnalysisService {
         ApiService::get(&format!("/financial-analysis/indicators/{}", id)).await
     }
 
-    pub async fn create_indicator(req: CreateIndicatorRequest) -> Result<FinancialIndicator, String> {
+    pub async fn create_indicator(
+        req: CreateIndicatorRequest,
+    ) -> Result<FinancialIndicator, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/financial-analysis/indicators", &payload).await
     }
 
-    pub async fn update_indicator(id: i32, req: UpdateIndicatorRequest) -> Result<FinancialIndicator, String> {
+    pub async fn update_indicator(
+        id: i32,
+        req: UpdateIndicatorRequest,
+    ) -> Result<FinancialIndicator, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/financial-analysis/indicators/{}", id), &payload).await
     }
@@ -58,7 +63,8 @@ impl FinancialAnalysisService {
         ApiService::get(&format!(
             "/financial-analysis/indicators/{}/trends?periods={}",
             indicator_code, periods
-        )).await
+        ))
+        .await
     }
 
     pub async fn list_analysis_results(
@@ -75,7 +81,7 @@ impl FinancialAnalysisService {
             query.push_str(&format!("period={}&", p));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/financial-analysis/results?{}", query)).await
     }
 
@@ -83,7 +89,9 @@ impl FinancialAnalysisService {
         ApiService::get(&format!("/financial-analysis/results/{}", id)).await
     }
 
-    pub async fn create_analysis_result(req: CreateAnalysisResultRequest) -> Result<AnalysisResult, String> {
+    pub async fn create_analysis_result(
+        req: CreateAnalysisResultRequest,
+    ) -> Result<AnalysisResult, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/financial-analysis/results", &payload).await
     }

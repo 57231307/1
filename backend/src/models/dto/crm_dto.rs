@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use rust_decimal::Decimal;
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateLeadRequest {

@@ -41,7 +41,8 @@ impl DyeBatchService {
     }
 
     pub async fn get(id: i32) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::get(&format!("/dye-batch/{}", id)).await?;
+        let response: ApiResponse<DyeBatch> =
+            ApiService::get(&format!("/dye-batch/{}", id)).await?;
         response.into_result()
     }
 
@@ -51,7 +52,8 @@ impl DyeBatchService {
     }
 
     pub async fn update(id: i32, req: UpdateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::put(&format!("/dye-batch/{}", id), &req).await?;
+        let response: ApiResponse<DyeBatch> =
+            ApiService::put(&format!("/dye-batch/{}", id), &req).await?;
         response.into_result()
     }
 
@@ -60,12 +62,14 @@ impl DyeBatchService {
     }
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::post(&format!("/dye-batch/{}/complete", id), &req).await?;
+        let response: ApiResponse<DyeBatch> =
+            ApiService::post(&format!("/dye-batch/{}/complete", id), &req).await?;
         response.into_result()
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeBatch>, String> {
-        let response: ApiResponse<Vec<DyeBatch>> = ApiService::get(&format!("/dye-batch/by-color/{}", color_code)).await?;
+        let response: ApiResponse<Vec<DyeBatch>> =
+            ApiService::get(&format!("/dye-batch/by-color/{}", color_code)).await?;
         response.into_result()
     }
 }

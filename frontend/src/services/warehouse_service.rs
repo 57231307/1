@@ -1,5 +1,5 @@
 use crate::models::warehouse::{
-    CreateWarehouseRequest, Warehouse, WarehouseListResponse, UpdateWarehouseRequest,
+    CreateWarehouseRequest, UpdateWarehouseRequest, Warehouse, WarehouseListResponse,
 };
 use crate::services::api::ApiService;
 
@@ -19,7 +19,10 @@ impl WarehouseService {
         ApiService::post("/warehouses", &payload).await
     }
 
-    pub async fn update_warehouse(id: i32, req: UpdateWarehouseRequest) -> Result<Warehouse, String> {
+    pub async fn update_warehouse(
+        id: i32,
+        req: UpdateWarehouseRequest,
+    ) -> Result<Warehouse, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/warehouses/{}", id), &payload).await
     }

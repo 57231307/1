@@ -4,7 +4,7 @@ use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
     extract::State,
-    http::{Request, StatusCode, Method},
+    http::{Method, Request, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -74,17 +74,21 @@ pub async fn permission_middleware(
 fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     // 解析API路径，提取资源类型和ID
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
-    
-    if path_parts.len() >= 4 && path_parts[0] == "api" && path_parts[1] == "v1" && path_parts[2] == "erp" {
+
+    if path_parts.len() >= 4
+        && path_parts[0] == "api"
+        && path_parts[1] == "v1"
+        && path_parts[2] == "erp"
+    {
         let resource_type = path_parts[3].to_string();
-        
+
         // 尝试提取资源ID
         if path_parts.len() >= 5 {
             if let Ok(id) = path_parts[4].parse::<i32>() {
                 return (resource_type, Some(id));
             }
         }
-        
+
         (resource_type, None)
     } else {
         ("unknown".to_string(), None)
@@ -110,16 +114,18 @@ async fn check_permission(
     action: &str,
 ) -> bool {
     let permission = role_permission::Entity::find()
+        .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId.is_in([role_id]))
         .filter(
-            <role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId
-                .is_in([role_id])
+            <role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceType
+                .eq(resource_type),
         )
-        .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceType.eq(resource_type))
         .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Action.eq(action))
         .filter(
             <role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceId
                 .eq(resource_id)
-                .or(<role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceId.is_null()),
+                .or(
+                    <role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceId.is_null(),
+                ),
         )
         .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Allowed.eq(true))
         .one(db)

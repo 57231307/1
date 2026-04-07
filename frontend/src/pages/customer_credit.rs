@@ -1,11 +1,11 @@
 //! 客户信用管理页面
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::customer_credit::{
-    CustomerCredit, CreditQueryParams, CreditRatingRequest, CreditLimitAdjustmentRequest,
+    CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCredit,
 };
 use crate::services::customer_credit_service::CustomerCreditService;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct CustomerCreditPage {
     credits: Vec<CustomerCredit>,
@@ -95,8 +95,16 @@ impl Component for CustomerCreditPage {
                 self.error = None;
                 let params = CreditQueryParams {
                     customer_id: self.filter_customer_id,
-                    credit_level: if self.filter_credit_level.is_empty() { None } else { Some(self.filter_credit_level.clone()) },
-                    status: if self.filter_status.is_empty() { None } else { Some(self.filter_status.clone()) },
+                    credit_level: if self.filter_credit_level.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_credit_level.clone())
+                    },
+                    status: if self.filter_status.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     page: Some(self.page),
                     page_size: Some(self.page_size),
                 };
@@ -187,8 +195,12 @@ impl Component for CustomerCreditPage {
                     let score: i32 = self.rating_score.parse().unwrap_or(0);
                     let limit: f64 = self.rating_limit.parse().unwrap_or(0.0);
                     let days: i32 = self.rating_days.parse().unwrap_or(0);
-                    let remark = if self.rating_remark.is_empty() { None } else { Some(self.rating_remark.clone()) };
-                    
+                    let remark = if self.rating_remark.is_empty() {
+                        None
+                    } else {
+                        Some(self.rating_remark.clone())
+                    };
+
                     let req = CreditRatingRequest {
                         customer_id,
                         credit_level: level,
@@ -197,7 +209,7 @@ impl Component for CustomerCreditPage {
                         credit_days: days,
                         remark,
                     };
-                    
+
                     let link = ctx.link().clone();
                     spawn_local(async move {
                         match CustomerCreditService::set_credit_rating(req).await {
@@ -217,13 +229,13 @@ impl Component for CustomerCreditPage {
                     let adj_type = self.adjust_type.clone();
                     let amount: f64 = self.adjust_amount.parse().unwrap_or(0.0);
                     let reason = self.adjust_reason.clone();
-                    
+
                     let req = CreditLimitAdjustmentRequest {
                         adjustment_type: adj_type,
                         amount: amount.to_string(),
                         reason,
                     };
-                    
+
                     let link = ctx.link().clone();
                     spawn_local(async move {
                         match CustomerCreditService::adjust_credit_limit(customer_id, req).await {
@@ -240,7 +252,9 @@ impl Component for CustomerCreditPage {
             Msg::OccupyCredit(customer_id, amount) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerCreditService::occupy_credit(customer_id, amount.to_string()).await {
+                    match CustomerCreditService::occupy_credit(customer_id, amount.to_string())
+                        .await
+                    {
                         Ok(_) => link.send_message(Msg::LoadCredits),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -250,7 +264,9 @@ impl Component for CustomerCreditPage {
             Msg::ReleaseCredit(customer_id, amount) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerCreditService::release_credit(customer_id, amount.to_string()).await {
+                    match CustomerCreditService::release_credit(customer_id, amount.to_string())
+                        .await
+                    {
                         Ok(_) => link.send_message(Msg::LoadCredits),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -262,13 +278,13 @@ impl Component for CustomerCreditPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
-        
+
         html! {
             <div class="customer-credit-page">
                 <div class="page-header">
                     <h1>{"客户信用管理"}</h1>
                 </div>
-                
+
                 <div class="filter-bar">
                     <div class="filter-group">
                         <label>{"信用等级："}</label>
@@ -283,7 +299,7 @@ impl Component for CustomerCreditPage {
                             <option value="D">{"D级"}</option>
                         </select>
                     </div>
-                    
+
                     <div class="filter-group">
                         <label>{"状态："}</label>
                         <select onchange={link.callback(|e: Event| {
@@ -295,20 +311,20 @@ impl Component for CustomerCreditPage {
                             <option value="inactive">{"停用"}</option>
                         </select>
                     </div>
-                    
+
                     <button class="btn btn-primary" onclick={link.callback(|_| Msg::LoadCredits)}>
                         {"查询"}
                     </button>
                 </div>
-                
+
                 if self.loading {
                     <div class="loading">{"加载中..."}</div>
                 }
-                
+
                 if let Some(e) = &self.error {
                     <div class="error">{e}</div>
                 }
-                
+
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
@@ -352,13 +368,13 @@ impl Component for CustomerCreditPage {
                         </tbody>
                     </table>
                 </div>
-                
+
                 {self.view_pagination(ctx)}
-                
+
                 if self.show_rating_modal {
                     {self.view_rating_modal(ctx)}
                 }
-                
+
                 if self.show_adjust_modal {
                     {self.view_adjust_modal(ctx)}
                 }
@@ -371,7 +387,7 @@ impl CustomerCreditPage {
     fn view_pagination(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
         let current_page = self.page;
-        
+
         html! {
             <div class="pagination">
                 <button class="btn" disabled={current_page <= 1} onclick={link.callback(|_| Msg::ChangePage(1))}>
@@ -392,7 +408,7 @@ impl CustomerCreditPage {
 impl CustomerCreditPage {
     fn view_rating_modal(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
-        
+
         html! {
             <div class="modal-overlay">
                 <div class="modal">
@@ -450,10 +466,10 @@ impl CustomerCreditPage {
             </div>
         }
     }
-    
+
     fn view_adjust_modal(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
-        
+
         html! {
             <div class="modal-overlay">
                 <div class="modal">

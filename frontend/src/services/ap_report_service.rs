@@ -85,9 +85,7 @@ impl ApReportService {
     }
 
     /// 获取账龄分析报告
-    pub async fn get_aging_report(
-        supplier_id: Option<i32>,
-    ) -> Result<ApAgingResponse, String> {
+    pub async fn get_aging_report(supplier_id: Option<i32>) -> Result<ApAgingResponse, String> {
         let query_string = if let Some(sid) = supplier_id {
             format!("?supplier_id={}", sid)
         } else {

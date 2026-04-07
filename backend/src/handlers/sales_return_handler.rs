@@ -9,11 +9,13 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::services::sales_return_service::{CreateSalesReturnRequest, SalesReturnService, UpdateSalesReturnRequest};
+use crate::middleware::auth_context::AuthContext;
+use crate::services::sales_return_service::{
+    CreateSalesReturnRequest, SalesReturnService, UpdateSalesReturnRequest,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::middleware::auth_context::AuthContext;
 
 /// 销售退货查询参数
 #[derive(Deserialize)]
@@ -45,7 +47,13 @@ pub async fn list_returns(
     let page_size = params.page_size.unwrap_or(20);
 
     let (items, total) = service
-        .list_returns(params.return_no, params.status, params.customer_id, page, page_size)
+        .list_returns(
+            params.return_no,
+            params.status,
+            params.customer_id,
+            page,
+            page_size,
+        )
         .await?;
 
     Ok(Json(ApiResponse::success(PaginatedResponse {

@@ -2,13 +2,11 @@
 //!
 //! 付款（AP Payment）管理功能
 
-use yew::prelude::*;
+use crate::models::ap_payment::{ApPayment, ApPaymentQueryParams};
+use crate::services::ap_payment_service::ApPaymentService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::ap_payment::{
-    ApPayment, ApPaymentQueryParams,
-};
-use crate::services::ap_payment_service::ApPaymentService;
+use yew::prelude::*;
 
 /// 付款管理页面状态
 pub struct ApPaymentPage {
@@ -72,8 +70,16 @@ impl Component for ApPaymentPage {
                 self.loading = true;
                 let params = ApPaymentQueryParams {
                     supplier_id: None,
-                    payment_status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    payment_method: if self.filter_method == "全部" { None } else { Some(self.filter_method.clone()) },
+                    payment_status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    payment_method: if self.filter_method == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_method.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -82,7 +88,9 @@ impl Component for ApPaymentPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match ApPaymentService::list_payments(params).await {
-                        Ok(response) => link.send_message(Msg::PaymentsLoaded(response.items, response.total)),
+                        Ok(response) => {
+                            link.send_message(Msg::PaymentsLoaded(response.items, response.total))
+                        }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -112,7 +120,11 @@ impl Component for ApPaymentPage {
                 false
             }
             Msg::ViewPayment(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ap-payments/{}", id)).ok();
+                web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href(&format!("/ap-payments/{}", id))
+                    .ok();
                 false
             }
             Msg::DeletePayment(id) => {
@@ -149,12 +161,20 @@ impl Component for ApPaymentPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_method_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterMethod(target.value())
         });
 

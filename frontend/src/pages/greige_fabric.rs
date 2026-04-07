@@ -1,12 +1,10 @@
 //! 坯布管理页面（原料布匹管理）
 
-use yew::prelude::*;
+use crate::models::greige_fabric::{GreigeFabric, GreigeFabricQuery};
+use crate::services::greige_fabric_service::GreigeFabricService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::greige_fabric::{
-    GreigeFabric, GreigeFabricQuery,
-};
-use crate::services::greige_fabric_service::GreigeFabricService;
+use yew::prelude::*;
 
 pub struct GreigeFabricPage {
     fabrics: Vec<GreigeFabric>,
@@ -60,9 +58,21 @@ impl Component for GreigeFabricPage {
                 let query = GreigeFabricQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    fabric_no: if self.filter_fabric_no.is_empty() { None } else { Some(self.filter_fabric_no.clone()) },
-                    fabric_name: if self.filter_fabric_name.is_empty() { None } else { Some(self.filter_fabric_name.clone()) },
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    fabric_no: if self.filter_fabric_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_fabric_no.clone())
+                    },
+                    fabric_name: if self.filter_fabric_name.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_fabric_name.clone())
+                    },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     ..Default::default()
                 };
                 let link = ctx.link().clone();
@@ -119,17 +129,29 @@ impl Component for GreigeFabricPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_fabric_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetFilterFabricNo(target.value())
         });
 
         let on_fabric_name_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetFilterFabricName(target.value())
         });
 
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 

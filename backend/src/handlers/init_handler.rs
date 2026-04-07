@@ -1,8 +1,8 @@
 //! 系统初始化处理器
 
 use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus};
-use axum::{extract::State, http::StatusCode, Json};
 use crate::utils::app_state::AppState;
+use axum::{extract::State, http::StatusCode, Json};
 
 #[derive(Debug, serde::Serialize)]
 pub struct ErrorResponse {
@@ -83,7 +83,9 @@ pub async fn initialize_system(
         Ok(result) => Ok(Json(result)),
         Err(e) => {
             let error = match e {
-                crate::services::init_service::InitError::AlreadyInitialized => "already_initialized",
+                crate::services::init_service::InitError::AlreadyInitialized => {
+                    "already_initialized"
+                }
                 crate::services::init_service::InitError::HashError(_) => "hash_error",
                 crate::services::init_service::InitError::DatabaseError(_) => "database_error",
                 crate::services::init_service::InitError::UserNotFound => "user_not_found",
@@ -106,7 +108,10 @@ pub async fn initialize_system(
 
             Err((
                 StatusCode::BAD_REQUEST,
-                Json(ErrorResponse { error: error.to_string(), message }),
+                Json(ErrorResponse {
+                    error: error.to_string(),
+                    message,
+                }),
             ))
         }
     }
@@ -128,7 +133,9 @@ pub async fn initialize_system_with_db(
         Ok(result) => Ok(Json(result)),
         Err(e) => {
             let error = match e {
-                crate::services::init_service::InitError::AlreadyInitialized => "already_initialized",
+                crate::services::init_service::InitError::AlreadyInitialized => {
+                    "already_initialized"
+                }
                 crate::services::init_service::InitError::HashError(_) => "hash_error",
                 crate::services::init_service::InitError::DatabaseError(_) => "database_error",
                 crate::services::init_service::InitError::UserNotFound => "user_not_found",
@@ -151,7 +158,10 @@ pub async fn initialize_system_with_db(
 
             Err((
                 StatusCode::BAD_REQUEST,
-                Json(ErrorResponse { error: error.to_string(), message }),
+                Json(ErrorResponse {
+                    error: error.to_string(),
+                    message,
+                }),
             ))
         }
     }
@@ -175,7 +185,10 @@ pub async fn reset_admin_password(
 ) -> Result<Json<ResetPasswordResponse>, (StatusCode, Json<ErrorResponse>)> {
     let init_service = InitService::new(state.db.clone());
 
-    match init_service.reset_password(&payload.username, &payload.new_password).await {
+    match init_service
+        .reset_password(&payload.username, &payload.new_password)
+        .await
+    {
         Ok(_) => Ok(Json(ResetPasswordResponse {
             success: true,
             message: "密码重置成功".to_string(),

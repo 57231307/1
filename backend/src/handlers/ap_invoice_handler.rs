@@ -6,6 +6,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_invoice_service::{
     ApInvoiceService, CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -13,11 +14,10 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use tracing::{info, warn};
 use validator::Validate;
-use rust_decimal::Decimal;
 
 /// 查询应付单列表参数
 #[derive(Debug, Deserialize)]
@@ -298,7 +298,7 @@ pub async fn get_statistics(
     // 计算逾期统计
     let mut overdue_amount = Decimal::new(0, 2);
     let mut overdue_count = 0;
-    
+
     for item in &aging_data {
         if item.aging_bucket != "未到期" {
             overdue_amount += item.total_amount;
@@ -308,7 +308,8 @@ pub async fn get_statistics(
 
     // 计算付款率 (百分比)
     let payment_rate = if balance_summary.total_invoice_amount > Decimal::new(0, 2) {
-        (balance_summary.total_paid_amount / balance_summary.total_invoice_amount) * Decimal::new(100, 0)
+        (balance_summary.total_paid_amount / balance_summary.total_invoice_amount)
+            * Decimal::new(100, 0)
     } else {
         Decimal::new(0, 2)
     };

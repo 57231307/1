@@ -1,10 +1,10 @@
+use crate::services::crm_service::{CrmOpportunity, CrmService};
 use yew::prelude::*;
-use crate::services::crm_service::{CrmService, CrmOpportunity};
 
 #[function_component(CrmOpportunityPage)]
 pub fn crm_opportunity_page() -> Html {
     let opps = use_state(|| Vec::<CrmOpportunity>::new());
-    
+
     {
         let opps = opps.clone();
         use_effect_with((), move |_| {
@@ -29,7 +29,7 @@ pub fn crm_opportunity_page() -> Html {
                     { "新建商机" }
                 </button>
             </div>
-            
+
             <table class="min-w-full bg-white border border-gray-200">
                 <thead>
                     <tr>

@@ -1,5 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QuerySelect, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -9,8 +10,8 @@ use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
 use crate::utils::PaginatedResponse;
-use serde::{Deserialize, Serialize};
 use sea_orm::{FromQueryResult, JoinType, RelationTrait};
+use serde::{Deserialize, Serialize};
 
 /// 销售订单详情响应
 #[derive(Debug, Serialize, Deserialize, Clone, FromQueryResult)]
@@ -170,7 +171,10 @@ impl SalesService {
         order_no: Option<String>,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, sea_orm::DbErr> {
         let mut query = SalesOrderEntity::find()
-            .column_as(crate::models::customer::Column::CustomerName, "customer_name")
+            .column_as(
+                crate::models::customer::Column::CustomerName,
+                "customer_name",
+            )
             .join(JoinType::LeftJoin, sales_order::Relation::Customer.def());
 
         // 应用过滤条件
@@ -214,7 +218,10 @@ impl SalesService {
     ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 获取订单主表数据
         let mut order = SalesOrderEntity::find_by_id(order_id)
-            .column_as(crate::models::customer::Column::CustomerName, "customer_name")
+            .column_as(
+                crate::models::customer::Column::CustomerName,
+                "customer_name",
+            )
             .join(JoinType::LeftJoin, sales_order::Relation::Customer.def())
             .into_model::<SalesOrderDetail>()
             .one(&*self.db)
@@ -228,7 +235,10 @@ impl SalesService {
         let items = SalesOrderItemEntity::find()
             .column_as(product::Column::Code, "product_code")
             .column_as(product::Column::Name, "product_name")
-            .join(JoinType::LeftJoin, sales_order_item::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                sales_order_item::Relation::Product.def(),
+            )
             .filter(sales_order_item::Column::OrderId.eq(order_id))
             .order_by(sales_order_item::Column::Id, Order::Asc)
             .into_model::<SalesOrderItemDetail>()
@@ -251,32 +261,37 @@ impl SalesService {
         let customer = crate::models::customer::Entity::find_by_id(request.customer_id)
             .one(&txn)
             .await?
-            .ok_or(sea_orm::DbErr::Custom(format!("客户 {} 不存在", request.customer_id)))?;
-            
+            .ok_or(sea_orm::DbErr::Custom(format!(
+                "客户 {} 不存在",
+                request.customer_id
+            )))?;
+
         let credit_limit = customer.credit_limit;
-        
+
         // 计算当前未付应收账款总额 (AR invoices that are not 'paid')
-        use sea_orm::{QuerySelect, QueryFilter, ColumnTrait};
+        use sea_orm::{ColumnTrait, QueryFilter, QuerySelect};
         let unpaid_invoices = crate::models::finance_invoice::Entity::find()
             .filter(crate::models::finance_invoice::Column::CustomerId.eq(request.customer_id))
             .filter(crate::models::finance_invoice::Column::InvoiceType.eq("AR"))
             .filter(crate::models::finance_invoice::Column::Status.ne("paid"))
             .all(&txn)
             .await?;
-            
+
         let mut total_unpaid = rust_decimal::Decimal::new(0, 0);
         for inv in unpaid_invoices {
             total_unpaid += inv.total_amount;
         }
-        
+
         // 计算本单金额
         let mut order_amount = rust_decimal::Decimal::new(0, 0);
         for item in &request.items {
             let qty = item.quantity;
             let price = item.unit_price;
-            let discount = item.discount_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
+            let discount = item
+                .discount_percent
+                .unwrap_or(rust_decimal::Decimal::new(0, 0));
             let tax = item.tax_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
-            
+
             let mut subtotal = qty * price;
             if discount > rust_decimal::Decimal::new(0, 0) {
                 let disc_amt = subtotal * discount / rust_decimal::Decimal::new(100, 0);
@@ -288,13 +303,18 @@ impl SalesService {
             }
             order_amount += subtotal;
         }
-        
+
         // 判断是否超额
-        if credit_limit > rust_decimal::Decimal::new(0, 0) && (total_unpaid + order_amount) > credit_limit {
+        if credit_limit > rust_decimal::Decimal::new(0, 0)
+            && (total_unpaid + order_amount) > credit_limit
+        {
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom(format!(
                 "信用风控拦截：客户当前未付账款 {} + 本单金额 {} = {}，超出了信用额度 {}",
-                total_unpaid, order_amount, total_unpaid + order_amount, credit_limit
+                total_unpaid,
+                order_amount,
+                total_unpaid + order_amount,
+                credit_limit
             )));
         }
 
@@ -364,8 +384,7 @@ impl SalesService {
 
             // 计算明细项金额
             let item_subtotal = item_req.quantity * item_req.unit_price;
-            let item_discount =
-                item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
+            let item_discount = item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
             let item_after_discount = item_subtotal - item_discount;
             let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
             let item_total = item_after_discount + item_tax;
@@ -515,8 +534,7 @@ impl SalesService {
                 let item_discount =
                     item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
                 let item_after_discount = item_subtotal - item_discount;
-                let item_tax =
-                    item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
+                let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
                 let item_total = item_after_discount + item_tax;
 
                 subtotal += &item_subtotal;
@@ -766,7 +784,11 @@ impl SalesService {
                 if s.quantity_on_hand < item.quantity {
                     return Err(sea_orm::DbErr::Custom(format!(
                         "产品 {} 在仓库 {} (批次 {}) 库存不足，当前可用 {}，需要 {}",
-                        item.product_id, item.warehouse_id, item.batch_no, s.quantity_on_hand, item.quantity
+                        item.product_id,
+                        item.warehouse_id,
+                        item.batch_no,
+                        s.quantity_on_hand,
+                        item.quantity
                     )));
                 }
 
@@ -803,7 +825,7 @@ impl SalesService {
                     item.product_id, item.warehouse_id, item.batch_no
                 )));
             }
-            
+
             // 更新订单明细的已发货数量
             let order_item = SalesOrderItemEntity::find_by_id(item.order_item_id)
                 .one(txn)
@@ -811,7 +833,8 @@ impl SalesService {
             if let Some(oi) = order_item {
                 let mut oi_update: sales_order_item::ActiveModel = oi.into();
                 let current_shipped = oi_update.shipped_quantity.clone().unwrap();
-                oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
+                oi_update.shipped_quantity =
+                    sea_orm::ActiveValue::Set(current_shipped + item.quantity);
                 oi_update.update(txn).await?;
             }
         }
@@ -890,7 +913,11 @@ impl SalesService {
     }
 
     /// 发货处理
-    pub async fn ship_order(&self, order_id: i32, req: ShipOrderRequest) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn ship_order(
+        &self,
+        order_id: i32,
+        req: ShipOrderRequest,
+    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -966,15 +993,18 @@ impl SalesService {
         txn.commit().await?;
 
         // 自动生成应收账款（AR）发票
-        let finance_service = crate::services::finance_invoice_service::FinanceInvoiceService::new(self.db.clone());
-        
+        let finance_service =
+            crate::services::finance_invoice_service::FinanceInvoiceService::new(self.db.clone());
+
         // 查询客户名称
         let customer = crate::models::customer::Entity::find_by_id(order.customer_id)
             .one(&*self.db)
             .await?;
-            
-        let customer_name = customer.map(|c| c.customer_name).unwrap_or_else(|| "未知客户".to_string());
-        
+
+        let customer_name = customer
+            .map(|c| c.customer_name)
+            .unwrap_or_else(|| "未知客户".to_string());
+
         let invoice_req = crate::services::finance_invoice_service::CreateInvoiceRequest {
             invoice_no: format!("INV-{}", order.order_no),
             order_id: Some(order.id),
@@ -990,7 +1020,7 @@ impl SalesService {
             payment_method: None,
             notes: Some(format!("系统自动生成应收账款：{}", order.order_no)),
         };
-        
+
         if let Err(e) = finance_service.create_invoice(invoice_req).await {
             tracing::error!("自动生成应收账款失败 (订单 {}): {}", order.order_no, e);
         } else {

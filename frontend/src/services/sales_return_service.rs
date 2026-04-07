@@ -5,7 +5,9 @@ use crate::services::api::ApiService;
 pub struct SalesReturnService;
 
 impl SalesReturnService {
-    pub async fn create(req: crate::models::sales_return::CreateSalesReturnRequest) -> Result<SalesReturn, String> {
+    pub async fn create(
+        req: crate::models::sales_return::CreateSalesReturnRequest,
+    ) -> Result<SalesReturn, String> {
         let url = "/sales-returns";
         let response: ApiResponse<SalesReturn> = ApiService::post(url, &req).await?;
         if response.success {

@@ -8,8 +8,11 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::http::{Request, HeaderValue, Method};
-use axum::{routing::{get, post}, Router, Json};
+use axum::http::{HeaderValue, Method, Request};
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
 use sea_orm::Database;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -17,8 +20,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::trace::TraceLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
+use tower_http::trace::TraceLayer;
 use tracing::{info, warn, Level, Span};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -47,7 +50,13 @@ async fn get_init_status() -> Json<InitStatusResponse> {
 
 async fn test_database_connection(
     Json(payload): Json<DatabaseConfig>,
-) -> Result<Json<crate::handlers::init_handler::TestDatabaseResponse>, (axum::http::StatusCode, Json<crate::handlers::init_handler::ErrorResponse>)> {
+) -> Result<
+    Json<crate::handlers::init_handler::TestDatabaseResponse>,
+    (
+        axum::http::StatusCode,
+        Json<crate::handlers::init_handler::ErrorResponse>,
+    ),
+> {
     match InitService::test_database(&payload).await {
         Ok(_) => Ok(Json(crate::handlers::init_handler::TestDatabaseResponse {
             success: true,
@@ -67,7 +76,10 @@ async fn initialize_with_db(
     Json(payload): Json<crate::handlers::init_handler::InitWithDbRequest>,
 ) -> Result<
     Json<crate::services::init_service::InitializationResult>,
-    (axum::http::StatusCode, Json<crate::handlers::init_handler::ErrorResponse>),
+    (
+        axum::http::StatusCode,
+        Json<crate::handlers::init_handler::ErrorResponse>,
+    ),
 > {
     match InitService::initialize_with_db(
         &payload.db_config,
@@ -79,7 +91,9 @@ async fn initialize_with_db(
         Ok(result) => Ok(Json(result)),
         Err(e) => {
             let error = match e {
-                crate::services::init_service::InitError::AlreadyInitialized => "already_initialized",
+                crate::services::init_service::InitError::AlreadyInitialized => {
+                    "already_initialized"
+                }
                 crate::services::init_service::InitError::HashError(_) => "hash_error",
                 crate::services::init_service::InitError::DatabaseError(_) => "database_error",
                 crate::services::init_service::InitError::UserNotFound => "user_not_found",
@@ -102,7 +116,10 @@ async fn initialize_with_db(
 
             Err((
                 axum::http::StatusCode::BAD_REQUEST,
-                Json(crate::handlers::init_handler::ErrorResponse { error: error.to_string(), message }),
+                Json(crate::handlers::init_handler::ErrorResponse {
+                    error: error.to_string(),
+                    message,
+                }),
             ))
         }
     }
@@ -140,7 +157,7 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
-    
+
     tracing::info!("系统收到关闭信号，开始优雅停机 (Graceful Shutdown)...");
 }
 
@@ -153,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(log_dir)?;
 
     let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
-    
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -213,11 +230,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = match db_result {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
-            
+
             std::io::stdout().flush().ok();
             std::io::stderr().flush().ok();
 
-            let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+            let app_state = crate::utils::app_state::AppState::new(
+                Arc::new(db),
+                settings.auth.jwt_secret.clone(),
+            );
             let app_state_clone = app_state.clone();
             create_router(app_state)
                 .layer(
@@ -280,7 +300,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => {
             info!("数据库连接失败: {}", e);
             info!("启动初始化模式，提供数据库配置API");
-            
+
             create_init_router()
                 .layer(
                     TraceLayer::new_for_http()
@@ -342,7 +362,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("===========================================");
 
     axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app)
-        .with_graceful_shutdown(async { shutdown_signal().await; })
+        .with_graceful_shutdown(async {
+            shutdown_signal().await;
+        })
         .await?;
 
     Ok(())

@@ -1,10 +1,10 @@
+use crate::services::crm_service::{CrmLead, CrmService};
 use yew::prelude::*;
-use crate::services::crm_service::{CrmService, CrmLead};
 
 #[function_component(CrmLeadPage)]
 pub fn crm_lead_page() -> Html {
     let leads = use_state(|| Vec::<CrmLead>::new());
-    
+
     {
         let leads = leads.clone();
         use_effect_with((), move |_| {
@@ -29,7 +29,7 @@ pub fn crm_lead_page() -> Html {
                     { "新建线索" }
                 </button>
             </div>
-            
+
             <table class="min-w-full bg-white border border-gray-200">
                 <thead>
                     <tr>

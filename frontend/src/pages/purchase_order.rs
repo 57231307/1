@@ -1,10 +1,10 @@
 //! 采购订单管理页面
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
 use crate::services::purchase_order_service::PurchaseOrderService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct PurchaseOrderPage {
     printing_order: Option<crate::models::purchase_order::PurchaseOrder>,
@@ -70,7 +70,11 @@ impl Component for PurchaseOrderPage {
                 let query = PurchaseOrderQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     supplier_id: None,
                 };
                 let link = ctx.link().clone();
@@ -98,7 +102,11 @@ impl Component for PurchaseOrderPage {
                 false
             }
             Msg::ViewOrder(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/purchase-orders/{}", id)).ok();
+                web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href(&format!("/purchase-orders/{}", id))
+                    .ok();
                 false
             }
             Msg::DeleteOrder(id) => {
@@ -172,7 +180,11 @@ impl Component for PurchaseOrderPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
@@ -204,7 +216,6 @@ impl Component for PurchaseOrderPage {
 }
 
 impl PurchaseOrderPage {
-    
     fn render_print_view(&self) -> Html {
         if let Some(order) = &self.printing_order {
             html! {

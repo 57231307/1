@@ -4,8 +4,7 @@
 
 use crate::models::ap_verification::{
     ApVerification, ApVerificationListResponse, ApVerificationQueryParams, AutoVerifyRequest,
-    CancelVerificationRequest, ManualVerifyRequest, UnverifiedInvoiceItem,
-    UnverifiedPaymentItem,
+    CancelVerificationRequest, ManualVerifyRequest, UnverifiedInvoiceItem, UnverifiedPaymentItem,
 };
 use crate::services::api::ApiService;
 
@@ -14,7 +13,9 @@ pub struct ApVerificationService;
 
 impl ApVerificationService {
     /// 查询核销列表
-    pub async fn list_verifications(params: ApVerificationQueryParams) -> Result<ApVerificationListResponse, String> {
+    pub async fn list_verifications(
+        params: ApVerificationQueryParams,
+    ) -> Result<ApVerificationListResponse, String> {
         let mut query_parts = vec![];
 
         if let Some(sid) = params.supplier_id {
@@ -73,14 +74,24 @@ impl ApVerificationService {
     }
 
     /// 获取未核销应付发票列表
-    pub async fn get_unverified_invoices(supplier_id: i32) -> Result<Vec<UnverifiedInvoiceItem>, String> {
-        let url = format!("/ap-verifications/unverified-invoices?supplier_id={}", supplier_id);
+    pub async fn get_unverified_invoices(
+        supplier_id: i32,
+    ) -> Result<Vec<UnverifiedInvoiceItem>, String> {
+        let url = format!(
+            "/ap-verifications/unverified-invoices?supplier_id={}",
+            supplier_id
+        );
         ApiService::get::<Vec<UnverifiedInvoiceItem>>(&url).await
     }
 
     /// 获取未核销付款单列表
-    pub async fn get_unverified_payments(supplier_id: i32) -> Result<Vec<UnverifiedPaymentItem>, String> {
-        let url = format!("/ap-verifications/unverified-payments?supplier_id={}", supplier_id);
+    pub async fn get_unverified_payments(
+        supplier_id: i32,
+    ) -> Result<Vec<UnverifiedPaymentItem>, String> {
+        let url = format!(
+            "/ap-verifications/unverified-payments?supplier_id={}",
+            supplier_id
+        );
         ApiService::get::<Vec<UnverifiedPaymentItem>>(&url).await
     }
 }

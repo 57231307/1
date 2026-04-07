@@ -1,8 +1,8 @@
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 
 use crate::models::dto::{ApiResponse, PageRequest};
@@ -38,7 +38,9 @@ pub async fn list_orders(
         .list_orders(page_req, query.status, query.customer_id, query.order_no)
         .await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(orders).unwrap_or_default())))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(orders).unwrap_or_default(),
+    )))
 }
 
 /// 获取销售订单详情

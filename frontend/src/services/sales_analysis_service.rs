@@ -1,6 +1,6 @@
 use crate::models::sales_analysis::{
-    CreateSalesTargetRequest, CustomerRanking, ProductRanking, SalesTarget,
-    SalesTrendAnalysis, UpdateSalesTargetRequest,
+    CreateSalesTargetRequest, CustomerRanking, ProductRanking, SalesTarget, SalesTrendAnalysis,
+    UpdateSalesTargetRequest,
 };
 use crate::services::api::ApiService;
 
@@ -24,7 +24,7 @@ impl SalesAnalysisService {
         if let Some(cid) = customer_id {
             query.push_str(&format!("&customer_id={}", cid));
         }
-        
+
         ApiService::get(&format!("/sales-analysis/trend?{}", query)).await
     }
 
@@ -49,7 +49,7 @@ impl SalesAnalysisService {
             query.push_str(&format!("category_id={}&", cid));
         }
         query.push_str(&format!("limit={}", limit));
-        
+
         ApiService::get(&format!("/sales-analysis/product-ranking?{}", query)).await
     }
 
@@ -74,7 +74,7 @@ impl SalesAnalysisService {
             query.push_str(&format!("customer_type={}&", ct));
         }
         query.push_str(&format!("limit={}", limit));
-        
+
         ApiService::get(&format!("/sales-analysis/customer-ranking?{}", query)).await
     }
 
@@ -92,7 +92,7 @@ impl SalesAnalysisService {
             query.push_str(&format!("status={}&", s));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/sales-analysis/targets?{}", query)).await
     }
 
@@ -105,7 +105,10 @@ impl SalesAnalysisService {
         ApiService::post("/sales-analysis/targets", &payload).await
     }
 
-    pub async fn update_target(id: i32, req: UpdateSalesTargetRequest) -> Result<SalesTarget, String> {
+    pub async fn update_target(
+        id: i32,
+        req: UpdateSalesTargetRequest,
+    ) -> Result<SalesTarget, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/sales-analysis/targets/{}", id), &payload).await
     }

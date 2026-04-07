@@ -10,8 +10,8 @@ use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -670,14 +670,20 @@ impl PurchaseOrderService {
         status: Option<String>,
         supplier_id: Option<i32>,
     ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
-        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let mut query = purchase_order::Entity::find()
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
             .column_as(department::Column::Name, "department_name")
             .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
-            .join(JoinType::LeftJoin, purchase_order::Relation::Warehouse.def())
-            .join(JoinType::LeftJoin, purchase_order::Relation::Department.def());
+            .join(
+                JoinType::LeftJoin,
+                purchase_order::Relation::Warehouse.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                purchase_order::Relation::Department.def(),
+            );
 
         // 添加筛选条件
         if let Some(status) = status {
@@ -701,14 +707,20 @@ impl PurchaseOrderService {
 
     /// 获取订单详情
     pub async fn get_order(&self, order_id: i32) -> Result<PurchaseOrderDto, AppError> {
-        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let order = purchase_order::Entity::find_by_id(order_id)
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
             .column_as(department::Column::Name, "department_name")
             .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
-            .join(JoinType::LeftJoin, purchase_order::Relation::Warehouse.def())
-            .join(JoinType::LeftJoin, purchase_order::Relation::Department.def())
+            .join(
+                JoinType::LeftJoin,
+                purchase_order::Relation::Warehouse.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                purchase_order::Relation::Department.def(),
+            )
             .into_model::<PurchaseOrderDto>()
             .one(&*self.db)
             .await?
@@ -722,11 +734,14 @@ impl PurchaseOrderService {
         &self,
         order_id: i32,
     ) -> Result<Vec<PurchaseOrderItemDto>, AppError> {
-        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let items = purchase_order_item::Entity::find()
             .column_as(product::Column::Code, "material_code")
             .column_as(product::Column::Name, "material_name")
-            .join(JoinType::LeftJoin, purchase_order_item::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                purchase_order_item::Relation::Product.def(),
+            )
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
             .into_model::<PurchaseOrderItemDto>()
             .all(&*self.db)

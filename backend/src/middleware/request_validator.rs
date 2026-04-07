@@ -29,7 +29,9 @@ pub async fn request_validator_middleware(
         return Ok(next.run(request).await);
     }
 
-    let x_requested_with = request.headers().get("X-Requested-With")
+    let x_requested_with = request
+        .headers()
+        .get("X-Requested-With")
         .and_then(|header| header.to_str().ok());
 
     match x_requested_with {

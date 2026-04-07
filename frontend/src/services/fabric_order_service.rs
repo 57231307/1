@@ -59,6 +59,10 @@ impl FabricOrderService {
     }
 
     pub async fn approve(id: i32) -> Result<FabricOrder, String> {
-        ApiService::post(&format!("/sales/fabric-orders/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/sales/fabric-orders/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 }

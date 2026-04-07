@@ -1,13 +1,11 @@
 //! 业务追溯页面
 //! 提供面料业务的正向追溯和反向追溯功能
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use crate::models::business_trace::{
-    TraceChain, FullTraceChainResponse, TraceStageDetail,
-};
-use crate::services::business_trace_service::BusinessTraceService;
 use crate::components::main_layout::MainLayout;
+use crate::models::business_trace::{FullTraceChainResponse, TraceChain, TraceStageDetail};
+use crate::services::business_trace_service::BusinessTraceService;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 业务追溯页面状态
 pub struct BusinessTracePage {
@@ -99,7 +97,8 @@ impl Component for BusinessTracePage {
                 let link = ctx.link().clone();
                 let five_dimension_id = self.five_dimension_id_input.clone();
                 spawn_local(async move {
-                    let result = BusinessTraceService::get_trace_by_five_dimension(&five_dimension_id).await;
+                    let result =
+                        BusinessTraceService::get_trace_by_five_dimension(&five_dimension_id).await;
                     link.send_message(Msg::FiveDimensionLoaded(result));
                 });
                 false
@@ -144,7 +143,9 @@ impl Component for BusinessTracePage {
                 spawn_local(async move {
                     let result = BusinessTraceService::forward_trace(supplier_id, &batch_no).await;
                     match result {
-                        Ok(response) => link.send_message(Msg::ForwardTraceLoaded(Ok(response.traces))),
+                        Ok(response) => {
+                            link.send_message(Msg::ForwardTraceLoaded(Ok(response.traces)))
+                        }
                         Err(e) => link.send_message(Msg::ForwardTraceLoaded(Err(e))),
                     }
                 });
@@ -190,7 +191,9 @@ impl Component for BusinessTracePage {
                 spawn_local(async move {
                     let result = BusinessTraceService::backward_trace(customer_id, &batch_no).await;
                     match result {
-                        Ok(response) => link.send_message(Msg::BackwardTraceLoaded(Ok(response.traces))),
+                        Ok(response) => {
+                            link.send_message(Msg::BackwardTraceLoaded(Ok(response.traces)))
+                        }
                         Err(e) => link.send_message(Msg::BackwardTraceLoaded(Err(e))),
                     }
                 });

@@ -1,13 +1,14 @@
 //! 辅助核算页面
 //! 提供辅助核算数据的查询、统计和分析功能
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
+use crate::components::main_layout::MainLayout;
 use crate::models::assist_accounting::{
-    AssistDimension, AssistRecord, AssistSummary, AssistRecordListResponse, AssistRecordQueryParams, AssistSummaryQueryParams,
+    AssistDimension, AssistRecord, AssistRecordListResponse, AssistRecordQueryParams,
+    AssistSummary, AssistSummaryQueryParams,
 };
 use crate::services::assist_accounting_service::AssistAccountingService;
-use crate::components::main_layout::MainLayout;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 辅助核算页面状态
 pub struct AssistAccountingPage {
@@ -188,7 +189,10 @@ impl Component for AssistAccountingPage {
             }
             Msg::SelectDimension(dimension) => {
                 self.selected_dimension = Some(dimension);
-                self.query_params.dimension_code = self.selected_dimension.as_ref().map(|d| d.dimension_code.clone());
+                self.query_params.dimension_code = self
+                    .selected_dimension
+                    .as_ref()
+                    .map(|d| d.dimension_code.clone());
                 ctx.link().send_message(Msg::LoadRecords);
                 false
             }
@@ -202,18 +206,34 @@ impl Component for AssistAccountingPage {
             }
             Msg::UpdateAccountingPeriod(period) => {
                 let period_clone = period.clone();
-                self.query_params.accounting_period = if period.is_empty() { None } else { Some(period) };
-                self.summary_params.accounting_period = if period_clone.is_empty() { chrono::Local::now().format("%Y-%m").to_string() } else { period_clone };
+                self.query_params.accounting_period = if period.is_empty() {
+                    None
+                } else {
+                    Some(period)
+                };
+                self.summary_params.accounting_period = if period_clone.is_empty() {
+                    chrono::Local::now().format("%Y-%m").to_string()
+                } else {
+                    period_clone
+                };
                 false
             }
             Msg::UpdateDimensionCode(code) => {
                 let code_clone = code.clone();
                 self.query_params.dimension_code = if code.is_empty() { None } else { Some(code) };
-                self.summary_params.dimension_code = if code_clone.is_empty() { None } else { Some(code_clone) };
+                self.summary_params.dimension_code = if code_clone.is_empty() {
+                    None
+                } else {
+                    Some(code_clone)
+                };
                 false
             }
             Msg::UpdateBusinessType(business_type) => {
-                self.query_params.business_type = if business_type.is_empty() { None } else { Some(business_type) };
+                self.query_params.business_type = if business_type.is_empty() {
+                    None
+                } else {
+                    Some(business_type)
+                };
                 false
             }
             Msg::UpdateWarehouseId(warehouse_id) => {

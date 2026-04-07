@@ -2,6 +2,9 @@ use chrono::Utc;
 // 操作日志中间件
 // 自动记录用户的 HTTP 请求操作
 
+use crate::services::auth_service::AuthService;
+use crate::services::operation_log_service::OperationLogService;
+use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
     extract::State,
@@ -9,14 +12,11 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use std::sync::Arc;
 use sea_orm::DatabaseConnection;
-use crate::services::operation_log_service::OperationLogService;
-use crate::services::auth_service::AuthService;
-use crate::utils::app_state::AppState;
+use std::sync::Arc;
 
 /// 操作日志中间件
-/// 
+///
 /// 自动记录每个 HTTP 请求的操作信息，包括：
 /// - 用户信息（从 Token 中提取）
 /// - 请求方法、URI、IP
@@ -28,12 +28,12 @@ pub async fn operation_log_middleware(
     next: Next,
 ) -> Result<Response, StatusCode> {
     let start_time = Utc::now();
-    
+
     // 提取请求信息
     let method = request.method().clone();
     let uri = request.uri().clone();
     let headers = request.headers().clone();
-    
+
     // 获取客户端 IP
     let client_ip = headers
         .get("x-forwarded-for")
@@ -41,35 +41,35 @@ pub async fn operation_log_middleware(
         .and_then(|value| value.split(',').next())
         .unwrap_or("unknown")
         .to_string();
-    
+
     // 获取 User-Agent
     let user_agent = headers
         .get("user-agent")
         .and_then(|value| value.to_str().ok())
         .map(|s| s.to_string());
-    
+
     // 尝试从 Authorization 头中提取用户信息
     let (user_id, username) = extract_user_info(&headers, &state.jwt_secret);
-    
+
     // 执行请求
     let response = next.run(request).await;
-    
+
     // 计算耗时
     let end_time = Utc::now();
     let duration_ms = (end_time - start_time).num_milliseconds();
-    
+
     // 判断操作状态
     let _status = if response.status().is_success() {
         "success"
     } else {
         "failure"
     };
-    
+
     // 异步记录日志（不阻塞响应）
     let log_service = OperationLogService::new(state.db.clone());
     let module = extract_module_from_uri(&uri);
     let action = extract_action_from_method(&method);
-    
+
     // 使用 spawn 异步记录，不阻塞主流程
     tokio::spawn(async move {
         let _ = log_service
@@ -88,14 +88,20 @@ pub async fn operation_log_middleware(
             )
             .await;
     });
-    
+
     Ok(response)
 }
 
 /// 从请求头中提取用户信息
-fn extract_user_info(headers: &axum::http::HeaderMap, secret: &str) -> (Option<i32>, Option<String>) {
+fn extract_user_info(
+    headers: &axum::http::HeaderMap,
+    secret: &str,
+) -> (Option<i32>, Option<String>) {
     // 解析 JWT Token 获取真实用户信息
-    if let Some(auth_header) = headers.get(axum::http::header::AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+    if let Some(auth_header) = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+    {
         if auth_header.starts_with("Bearer ") {
             let token = &auth_header[7..];
             if let Ok(claims) = AuthService::validate_token_static(token, secret) {
@@ -103,7 +109,7 @@ fn extract_user_info(headers: &axum::http::HeaderMap, secret: &str) -> (Option<i
             }
         }
     }
-    
+
     // 示例：从自定义头中获取（如果有）
     if let Some(user_id_str) = headers.get("x-user-id").and_then(|v| v.to_str().ok()) {
         if let Ok(user_id) = user_id_str.parse::<i32>() {
@@ -114,14 +120,14 @@ fn extract_user_info(headers: &axum::http::HeaderMap, secret: &str) -> (Option<i
             return (Some(user_id), username);
         }
     }
-    
+
     (None, None)
 }
 
 /// 从 URI 中提取模块名
 fn extract_module_from_uri(uri: &axum::http::Uri) -> String {
     let path = uri.path();
-    
+
     // 根据路径提取模块
     if path.contains("/users") {
         "user".to_string()

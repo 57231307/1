@@ -1,5 +1,6 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::finance_payment_service::FinancePaymentService;
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -7,7 +8,6 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]

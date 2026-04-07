@@ -29,7 +29,7 @@ impl SupplierEvaluationService {
             query.push_str(&format!("status={}&", s));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/supplier-evaluation/evaluations?{}", query)).await
     }
 
@@ -37,25 +37,41 @@ impl SupplierEvaluationService {
         ApiService::get(&format!("/supplier-evaluation/evaluations/{}", id)).await
     }
 
-    pub async fn create_evaluation(req: CreateEvaluationRequest) -> Result<SupplierEvaluation, String> {
+    pub async fn create_evaluation(
+        req: CreateEvaluationRequest,
+    ) -> Result<SupplierEvaluation, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/supplier-evaluation/evaluations", &payload).await
     }
 
-    pub async fn update_evaluation(id: i32, req: UpdateEvaluationRequest) -> Result<SupplierEvaluation, String> {
+    pub async fn update_evaluation(
+        id: i32,
+        req: UpdateEvaluationRequest,
+    ) -> Result<SupplierEvaluation, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/supplier-evaluation/evaluations/{}", id), &payload).await
+        ApiService::put(
+            &format!("/supplier-evaluation/evaluations/{}", id),
+            &payload,
+        )
+        .await
     }
 
     pub async fn delete_evaluation(id: i32) -> Result<(), String> {
         ApiService::delete(&format!("/supplier-evaluation/evaluations/{}", id)).await
     }
 
-    pub async fn calculate_score(supplier_id: i32, period: &str) -> Result<SupplierEvaluation, String> {
+    pub async fn calculate_score(
+        supplier_id: i32,
+        period: &str,
+    ) -> Result<SupplierEvaluation, String> {
         ApiService::post(
-            &format!("/supplier-evaluation/suppliers/{}/calculate?period={}", supplier_id, period),
-            &serde_json::json!({})
-        ).await
+            &format!(
+                "/supplier-evaluation/suppliers/{}/calculate?period={}",
+                supplier_id, period
+            ),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     pub async fn get_rankings(
@@ -85,7 +101,7 @@ impl SupplierEvaluationService {
             query.push_str(&format!("status={}&", s));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/supplier-evaluation/indicators?{}", query)).await
     }
 
@@ -93,12 +109,17 @@ impl SupplierEvaluationService {
         ApiService::get(&format!("/supplier-evaluation/indicators/{}", id)).await
     }
 
-    pub async fn create_indicator(req: CreateIndicatorRequest) -> Result<SupplierIndicator, String> {
+    pub async fn create_indicator(
+        req: CreateIndicatorRequest,
+    ) -> Result<SupplierIndicator, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/supplier-evaluation/indicators", &payload).await
     }
 
-    pub async fn update_indicator(id: i32, req: UpdateIndicatorRequest) -> Result<SupplierIndicator, String> {
+    pub async fn update_indicator(
+        id: i32,
+        req: UpdateIndicatorRequest,
+    ) -> Result<SupplierIndicator, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/supplier-evaluation/indicators/{}", id), &payload).await
     }

@@ -4,27 +4,30 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection,
+    EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 
 /// 拆分 SQL 语句，忽略字符串和 $$ 块内的分号
 fn split_sql_statements(sql: &str) -> Vec<String> {
     let mut statements = Vec::new();
     let mut current_stmt = String::new();
-    
+
     let mut in_string = false;
     let mut in_dollar_quote = false;
     let mut dollar_tag = String::new();
-    
+
     let chars: Vec<char> = sql.chars().collect();
     let mut i = 0;
-    
+
     while i < chars.len() {
         let c = chars[i];
-        
+
         // 处理注释
         if !in_string && !in_dollar_quote {
             // 单行注释 --
-            if c == '-' && i + 1 < chars.len() && chars[i+1] == '-' {
+            if c == '-' && i + 1 < chars.len() && chars[i + 1] == '-' {
                 while i < chars.len() && chars[i] != '\n' {
                     current_stmt.push(chars[i]);
                     i += 1;
@@ -36,20 +39,20 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
                 continue;
             }
             // 多行注释 /* */
-            if c == '/' && i + 1 < chars.len() && chars[i+1] == '*' {
+            if c == '/' && i + 1 < chars.len() && chars[i + 1] == '*' {
                 current_stmt.push('/');
                 current_stmt.push('*');
                 i += 2;
                 let mut depth = 1;
                 while i < chars.len() && depth > 0 {
-                    if chars[i] == '/' && i + 1 < chars.len() && chars[i+1] == '*' {
+                    if chars[i] == '/' && i + 1 < chars.len() && chars[i + 1] == '*' {
                         depth += 1;
                         current_stmt.push('/');
                         current_stmt.push('*');
                         i += 2;
                         continue;
                     }
-                    if chars[i] == '*' && i + 1 < chars.len() && chars[i+1] == '/' {
+                    if chars[i] == '*' && i + 1 < chars.len() && chars[i + 1] == '/' {
                         depth -= 1;
                         current_stmt.push('*');
                         current_stmt.push('/');
@@ -68,7 +71,7 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
         if in_string {
             if c == '\'' {
                 // 检查是否为连续的单引号（转义）
-                if i + 1 < chars.len() && chars[i+1] == '\'' {
+                if i + 1 < chars.len() && chars[i + 1] == '\'' {
                     current_stmt.push('\'');
                     i += 1;
                 } else {
@@ -82,7 +85,7 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
                 let tag_len = dollar_tag.len();
                 if i + tag_len <= chars.len() {
                     for j in 0..tag_len {
-                        if chars[i+j] != dollar_tag.chars().nth(j).unwrap() {
+                        if chars[i + j] != dollar_tag.chars().nth(j).unwrap() {
                             match_tag = false;
                             break;
                         }
@@ -130,15 +133,15 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
                 current_stmt.clear();
             }
         }
-        
+
         i += 1;
     }
-    
+
     let final_stmt = current_stmt.trim();
     if !final_stmt.is_empty() {
         statements.push(final_stmt.to_string());
     }
-    
+
     statements
 }
 use std::sync::Arc;
@@ -179,10 +182,7 @@ impl InitService {
     }
 
     pub async fn check_initialized(&self) -> (bool, String) {
-        match user::Entity::find()
-            .count(self.db.as_ref())
-            .await
-        {
+        match user::Entity::find().count(self.db.as_ref()).await {
             Ok(count) => {
                 if count > 0 {
                     (true, "系统已初始化".to_string())
@@ -190,15 +190,13 @@ impl InitService {
                     (false, "系统未初始化".to_string())
                 }
             }
-            Err(e) => {
-                (false, format!("检查初始化状态失败: {}", e))
-            }
+            Err(e) => (false, format!("检查初始化状态失败: {}", e)),
         }
     }
 
     pub async fn test_database(config: &DatabaseConfig) -> Result<(), InitError> {
         let conn_str = config.to_connection_string();
-        
+
         let mut opt = ConnectOptions::new(&conn_str);
         opt.max_connections(1)
             .min_connections(0)
@@ -215,13 +213,17 @@ impl InitService {
                     .await;
 
                 // 测试查询结果
-                let _ = query_result.as_ref().map(|v| {
-                    v.as_ref().map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
-                }).map(|opt| opt.unwrap_or(0));
+                let _ = query_result
+                    .as_ref()
+                    .map(|v| {
+                        v.as_ref()
+                            .map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
+                    })
+                    .map(|opt| opt.unwrap_or(0));
 
-                return query_result.map(|_| ()).map_err(|e| {
-                    InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
-                });
+                return query_result
+                    .map(|_| ())
+                    .map_err(|e| InitError::DatabaseError(format!("数据库测试查询失败: {}", e)));
             }
             Err(e) => {
                 return Err(InitError::DatabaseError(format!("数据库连接失败: {}", e)));
@@ -242,8 +244,8 @@ impl InitService {
         // Run migrations before creating roles
         self.run_migrations().await?;
 
-        let password_hash =
-            AuthService::hash_password(admin_password).map_err(|e| InitError::HashError(e.to_string()))?;
+        let password_hash = AuthService::hash_password(admin_password)
+            .map_err(|e| InitError::HashError(e.to_string()))?;
 
         let admin_role = self.create_default_roles().await?;
         let department_id = self.create_default_departments().await?;
@@ -266,7 +268,7 @@ impl InitService {
         Self::test_database(db_config).await?;
 
         let conn_str = db_config.to_connection_string();
-        
+
         let mut opt = ConnectOptions::new(&conn_str);
         opt.max_connections(10)
             .min_connections(1)
@@ -294,14 +296,17 @@ impl InitService {
             }
         }
 
-        Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))
+        Err(InitError::DatabaseError(format!(
+            "数据库连接失败: {}",
+            last_error.unwrap()
+        )))
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
-        use sea_orm::{ConnectionTrait, Statement, DatabaseBackend};
+        use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
         use std::path::PathBuf;
         use tracing::{info, warn};
-        
+
         let possible_paths = [
             PathBuf::from("database/migration"),
             PathBuf::from("../database/migration"),
@@ -338,26 +343,38 @@ impl InitService {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("sql") {
                 info!("准备执行数据库迁移脚本: {:?}", path.file_name().unwrap());
-                let sql = std::fs::read_to_string(&path)
-                    .map_err(|e| InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e)))?;
-                
+                let sql = std::fs::read_to_string(&path).map_err(|e| {
+                    InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e))
+                })?;
+
                 // 跳过空的SQL文件
                 if sql.trim().is_empty() {
                     continue;
                 }
 
                 let statements = split_sql_statements(&sql);
-                
+
                 for stmt in statements {
                     let stmt = stmt.trim();
                     if stmt.is_empty() {
                         continue;
                     }
-                    self.db.execute(Statement::from_string(DatabaseBackend::Postgres, stmt.to_string()))
+                    self.db
+                        .execute(Statement::from_string(
+                            DatabaseBackend::Postgres,
+                            stmt.to_string(),
+                        ))
                         .await
-                        .map_err(|e| InitError::DatabaseError(format!("执行SQL片段失败 {:?}: {}\n语句: {}", path.file_name().unwrap(), e, stmt)))?;
+                        .map_err(|e| {
+                            InitError::DatabaseError(format!(
+                                "执行SQL片段失败 {:?}: {}\n语句: {}",
+                                path.file_name().unwrap(),
+                                e,
+                                stmt
+                            ))
+                        })?;
                 }
-                
+
                 info!("成功执行脚本: {:?}", path.file_name().unwrap());
             }
         }
@@ -373,11 +390,11 @@ impl InitService {
             .one(self.db.as_ref())
             .await
             .map_err(|e| InitError::DatabaseError(format!("查询角色失败: {}", e)))?;
-        
+
         if let Some(admin_role) = existing_admin {
             return Ok(admin_role);
         }
-        
+
         // 如果不存在，则创建角色
         let admin_role = role::ActiveModel {
             id: Set(0),
@@ -440,11 +457,11 @@ impl InitService {
             .one(self.db.as_ref())
             .await
             .map_err(|e| InitError::DatabaseError(format!("查询部门失败: {}", e)))?;
-        
+
         if let Some(dept) = existing_dept {
             return Ok(dept.id);
         }
-        
+
         // 如果不存在，则创建部门
         let dept = department::ActiveModel {
             id: Set(0),
@@ -483,10 +500,13 @@ impl InitService {
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
             };
-            
+
             // 尝试创建，如果失败则记录但不中断初始化
             if let Err(e) = dept_model.insert(self.db.as_ref()).await {
-                warn!("创建部门 {} ({}): {} 失败: {}, 可能已存在", name, code, sort, e);
+                warn!(
+                    "创建部门 {} ({}): {} 失败: {}, 可能已存在",
+                    name, code, sort, e
+                );
             }
         }
 
@@ -506,11 +526,11 @@ impl InitService {
             .one(self.db.as_ref())
             .await
             .map_err(|e| InitError::DatabaseError(format!("查询用户失败: {}", e)))?;
-        
+
         if let Some(user) = existing_user {
             return Ok(user);
         }
-        
+
         let user = user::ActiveModel {
             id: Set(0),
             username: Set(username.to_string()),
@@ -541,8 +561,8 @@ impl InitService {
             .await
             .map_err(|_| InitError::UserNotFound)?;
 
-        let password_hash =
-            AuthService::hash_password(new_password).map_err(|e| InitError::HashError(e.to_string()))?;
+        let password_hash = AuthService::hash_password(new_password)
+            .map_err(|e| InitError::HashError(e.to_string()))?;
 
         let mut user_model: user::ActiveModel = user.into();
         user_model.password_hash = Set(password_hash);

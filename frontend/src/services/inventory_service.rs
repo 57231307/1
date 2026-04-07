@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use crate::models::inventory::{
-    StockResponse, StockListResponse, StockFabricResponse, StockFabricListResponse,
-    CreateStockFabricRequest, TransactionListResponse, InventorySummaryResponse,
+    CreateStockFabricRequest, InventorySummaryResponse, StockFabricListResponse,
+    StockFabricResponse, StockListResponse, StockResponse, TransactionListResponse,
 };
 use crate::services::api::ApiService;
 
@@ -17,7 +17,9 @@ impl InventoryService {
         ApiService::get(&format!("/inventory/stock/{}", id)).await
     }
 
-    pub async fn create_stock(stock: &CreateStockFabricRequest) -> Result<StockFabricResponse, String> {
+    pub async fn create_stock(
+        stock: &CreateStockFabricRequest,
+    ) -> Result<StockFabricResponse, String> {
         let payload = serde_json::to_value(stock).map_err(|e| e.to_string())?;
         ApiService::post("/inventory/stock/fabric", &payload).await
     }
@@ -28,7 +30,10 @@ impl InventoryService {
         batch_no: Option<&str>,
         color_no: Option<&str>,
     ) -> Result<StockFabricListResponse, String> {
-        let mut url = format!("/inventory/stock/fabric?page={}&page_size={}", page, page_size);
+        let mut url = format!(
+            "/inventory/stock/fabric?page={}&page_size={}",
+            page, page_size
+        );
         if let Some(batch) = batch_no {
             url.push_str(&format!("&batch_no={}", batch));
         }
@@ -42,7 +47,10 @@ impl InventoryService {
         page: u64,
         page_size: u64,
     ) -> Result<TransactionListResponse, String> {
-        let url = format!("/inventory/stock/transactions?page={}&page_size={}", page, page_size);
+        let url = format!(
+            "/inventory/stock/transactions?page={}&page_size={}",
+            page, page_size
+        );
         ApiService::get(&url).await
     }
 

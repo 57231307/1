@@ -2,6 +2,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -9,7 +10,6 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 /// 创建调整单请求
@@ -83,7 +83,8 @@ pub struct AdjustmentSummary {
 }
 
 /// 创建调整单
-pub async fn create_adjustment(auth: AuthContext, 
+pub async fn create_adjustment(
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(payload): Json<CreateAdjustmentRequestPayload>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
@@ -101,7 +102,7 @@ pub async fn create_adjustment(auth: AuthContext,
             .quantity
             .parse::<Decimal>()
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("数量格式错误：{}", e)))?;
-        
+
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
             quantity,
@@ -155,7 +156,8 @@ pub async fn create_adjustment(auth: AuthContext,
 }
 
 /// 审核调整单
-pub async fn approve_adjustment(auth: AuthContext, 
+pub async fn approve_adjustment(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {

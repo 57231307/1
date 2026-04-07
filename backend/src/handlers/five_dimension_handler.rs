@@ -1,3 +1,4 @@
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -5,12 +6,11 @@ use axum::{
 };
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde::{Deserialize, Serialize};
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, QuerySelect};
 
+use crate::models::{inventory_stock, product, warehouse};
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
-use crate::models::{inventory_stock, warehouse, product};
 
 /// 内部辅助函数：从数据库查询五维统计
 async fn get_stats_from_db(
@@ -35,21 +35,24 @@ async fn get_stats_from_db(
         .one(db)
         .await
         .map_err(|e| e.to_string())?;
-        
+
     let product_name = product_model.map(|p| p.name);
 
     let mut total_meters = Decimal::ZERO;
     let mut total_kg = Decimal::ZERO;
     let mut stock_count = 0;
 
-    let mut warehouse_map: std::collections::HashMap<i32, (Decimal, Decimal)> = std::collections::HashMap::new();
+    let mut warehouse_map: std::collections::HashMap<i32, (Decimal, Decimal)> =
+        std::collections::HashMap::new();
 
     for stock in stocks {
         total_meters += stock.quantity_meters;
         total_kg += stock.quantity_kg;
         stock_count += 1;
 
-        let entry = warehouse_map.entry(stock.warehouse_id).or_insert((Decimal::ZERO, Decimal::ZERO));
+        let entry = warehouse_map
+            .entry(stock.warehouse_id)
+            .or_insert((Decimal::ZERO, Decimal::ZERO));
         entry.0 += stock.quantity_meters;
         entry.1 += stock.quantity_kg;
     }
@@ -189,16 +192,13 @@ pub async fn get_five_dimension_stats(
     let batch_no = params.batch_no.unwrap_or_else(|| "B20240101".to_string());
     let color_no = params.color_no.unwrap_or_else(|| "C001".to_string());
     let grade = params.grade.unwrap_or_else(|| "一等品".to_string());
-    
-    let dimension = FabricFiveDimension::new(
-        product_id,
-        batch_no,
-        color_no,
-        params.dye_lot_no,
-        grade,
-    );
 
-    let response = get_stats_from_db(&state.db, &dimension).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let dimension =
+        FabricFiveDimension::new(product_id, batch_no, color_no, params.dye_lot_no, grade);
+
+    let response = get_stats_from_db(&state.db, &dimension)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     Ok(Json(response))
 }
@@ -221,7 +221,9 @@ pub async fn get_stats_by_five_dimension_id(
         return Err((StatusCode::BAD_REQUEST, format!("五维数据验证失败：{}", e)));
     }
 
-    let response = get_stats_from_db(&state.db, &dimension).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let response = get_stats_from_db(&state.db, &dimension)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     Ok(Json(response))
 }
@@ -279,36 +281,70 @@ pub async fn search_five_dimension(
     if !params.keyword.is_empty() {
         let keyword_pattern = format!("%{}%", params.keyword);
         match params.search_type.as_str() {
-            "batch" => query = query.filter(inventory_stock::Column::BatchNo.like(&keyword_pattern)),
-            "color" => query = query.filter(inventory_stock::Column::ColorNo.like(&keyword_pattern)),
-            "dye_lot" => query = query.filter(inventory_stock::Column::DyeLotNo.like(&keyword_pattern)),
+            "batch" => {
+                query = query.filter(inventory_stock::Column::BatchNo.like(&keyword_pattern))
+            }
+            "color" => {
+                query = query.filter(inventory_stock::Column::ColorNo.like(&keyword_pattern))
+            }
+            "dye_lot" => {
+                query = query.filter(inventory_stock::Column::DyeLotNo.like(&keyword_pattern))
+            }
             "grade" => query = query.filter(inventory_stock::Column::Grade.like(&keyword_pattern)),
             _ => {}
         }
     }
 
-    let items_json: Vec<serde_json::Value> = query.into_json().all(state.db.as_ref()).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
+    let items_json: Vec<serde_json::Value> = query
+        .into_json()
+        .all(state.db.as_ref())
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     let total = items_json.len() as u64;
-    
+
     let start = ((page.saturating_sub(1)) * page_size) as usize;
     let end = (start + page_size as usize).min(items_json.len());
-    
+
     let mut items = Vec::new();
     if start < items_json.len() {
         for val in &items_json[start..end] {
             let product_id = val.get("product_id").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-            let batch_no = val.get("batch_no").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let color_no = val.get("color_no").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let dye_lot_no = val.get("dye_lot_no").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let grade = val.get("grade").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            
-            let product_model = product::Entity::find_by_id(product_id).one(state.db.as_ref()).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let batch_no = val
+                .get("batch_no")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let color_no = val
+                .get("color_no")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let dye_lot_no = val
+                .get("dye_lot_no")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let grade = val
+                .get("grade")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let product_model = product::Entity::find_by_id(product_id)
+                .one(state.db.as_ref())
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
             let product_name = product_model.map(|p| p.name);
-            
-            let dim = FabricFiveDimension::new(product_id, batch_no.clone(), color_no.clone(), dye_lot_no.clone(), grade.clone());
+
+            let dim = FabricFiveDimension::new(
+                product_id,
+                batch_no.clone(),
+                color_no.clone(),
+                dye_lot_no.clone(),
+                grade.clone(),
+            );
             let five_dimension_id = dim.generate_unique_id();
-            
+
             items.push(FiveDimensionItem {
                 product_id,
                 product_name,
@@ -346,29 +382,59 @@ pub async fn list_five_dimension_stats(
         .column(inventory_stock::Column::Grade)
         .distinct();
 
-    if let Some(pid) = params.product_id { query = query.filter(inventory_stock::Column::ProductId.eq(pid)); }
-    if let Some(b) = &params.batch_no { query = query.filter(inventory_stock::Column::BatchNo.eq(b.clone())); }
-    if let Some(c) = &params.color_no { query = query.filter(inventory_stock::Column::ColorNo.eq(c.clone())); }
-    if let Some(d) = &params.dye_lot_no { query = query.filter(inventory_stock::Column::DyeLotNo.eq(d.clone())); }
-    if let Some(g) = &params.grade { query = query.filter(inventory_stock::Column::Grade.eq(g.clone())); }
+    if let Some(pid) = params.product_id {
+        query = query.filter(inventory_stock::Column::ProductId.eq(pid));
+    }
+    if let Some(b) = &params.batch_no {
+        query = query.filter(inventory_stock::Column::BatchNo.eq(b.clone()));
+    }
+    if let Some(c) = &params.color_no {
+        query = query.filter(inventory_stock::Column::ColorNo.eq(c.clone()));
+    }
+    if let Some(d) = &params.dye_lot_no {
+        query = query.filter(inventory_stock::Column::DyeLotNo.eq(d.clone()));
+    }
+    if let Some(g) = &params.grade {
+        query = query.filter(inventory_stock::Column::Grade.eq(g.clone()));
+    }
 
-    let items_json: Vec<serde_json::Value> = query.into_json().all(state.db.as_ref()).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
+    let items_json: Vec<serde_json::Value> = query
+        .into_json()
+        .all(state.db.as_ref())
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     let total = items_json.len() as u64;
-    
+
     let start = ((page.saturating_sub(1)) * page_size) as usize;
     let end = (start + page_size as usize).min(items_json.len());
-    
+
     let mut items = Vec::new();
     if start < items_json.len() {
         for val in &items_json[start..end] {
             let product_id = val.get("product_id").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-            let batch_no = val.get("batch_no").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let color_no = val.get("color_no").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let dye_lot_no = val.get("dye_lot_no").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let grade = val.get("grade").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            
-            let dimension = FabricFiveDimension::new(product_id, batch_no, color_no, dye_lot_no, grade);
+            let batch_no = val
+                .get("batch_no")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let color_no = val
+                .get("color_no")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let dye_lot_no = val
+                .get("dye_lot_no")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let grade = val
+                .get("grade")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let dimension =
+                FabricFiveDimension::new(product_id, batch_no, color_no, dye_lot_no, grade);
             if let Ok(stats) = get_stats_from_db(&state.db, &dimension).await {
                 items.push(stats);
             }

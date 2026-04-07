@@ -1,13 +1,13 @@
 //! 销售订单管理页面
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use crate::models::sales::{SalesOrder, ShipOrderRequest, ShipOrderItemRequest};
-use crate::services::sales_service::SalesService;
+use crate::models::sales::{SalesOrder, ShipOrderItemRequest, ShipOrderRequest};
 use crate::models::warehouse::Warehouse;
+use crate::services::sales_service::SalesService;
 use crate::services::warehouse_service::WarehouseService;
-use std::str::FromStr;
 use rust_decimal::Decimal;
+use std::str::FromStr;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShipItemData {
@@ -27,7 +27,7 @@ pub struct SalesOrderPage {
     page_size: u64,
     printing_order: Option<SalesOrder>,
     print_trigger: bool,
-    
+
     // 发货相关状态
     warehouses: Vec<Warehouse>,
     shipping_order: Option<SalesOrder>,
@@ -41,7 +41,7 @@ pub enum Msg {
     LoadError(String),
     PreparePrint(i32),
     PrintReady(SalesOrder),
-    
+
     // 发货相关消息
     LoadWarehouses,
     WarehousesLoaded(Vec<Warehouse>),
@@ -176,7 +176,7 @@ impl Component for SalesOrderPage {
                 self.shipping_order = Some(order);
                 true
             }
-            
+
             Msg::SubmitOrder(id) => {
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
@@ -185,7 +185,7 @@ impl Component for SalesOrderPage {
                 });
                 true
             }
-Msg::CloseShipModal => {
+            Msg::CloseShipModal => {
                 self.shipping_order = None;
                 self.ship_items.clear();
                 self.submitting_ship = false;
@@ -213,16 +213,19 @@ Msg::CloseShipModal => {
                     // 校验并收集数据
                     for item in &self.ship_items {
                         if item.warehouse_id.is_none() {
-                            ctx.link().send_message(Msg::ShipError("请选择发货仓库".into()));
+                            ctx.link()
+                                .send_message(Msg::ShipError("请选择发货仓库".into()));
                             return false;
                         }
                         if item.batch_no.trim().is_empty() {
-                            ctx.link().send_message(Msg::ShipError("请输入批次号".into()));
+                            ctx.link()
+                                .send_message(Msg::ShipError("请输入批次号".into()));
                             return false;
                         }
-                        
-                        let quantity_dec = Decimal::from_f64_retain(item.quantity).unwrap_or_default();
-                        
+
+                        let quantity_dec =
+                            Decimal::from_f64_retain(item.quantity).unwrap_or_default();
+
                         req_items.push(ShipOrderItemRequest {
                             order_item_id: item.order_item_id,
                             product_id: item.product_id,
@@ -231,12 +234,12 @@ Msg::CloseShipModal => {
                             batch_no: item.batch_no.clone(),
                         });
                     }
-                    
+
                     self.submitting_ship = true;
                     let order_id = order.id;
                     let req = ShipOrderRequest { items: req_items };
                     let link = ctx.link().clone();
-                    
+
                     spawn_local(async move {
                         match SalesService::ship_order(order_id, req).await {
                             Ok(_) => link.send_message(Msg::ShipSuccess),
@@ -255,10 +258,7 @@ Msg::CloseShipModal => {
             }
             Msg::ShipError(e) => {
                 self.submitting_ship = false;
-                web_sys::window()
-                    .unwrap()
-                    .alert_with_message(&e)
-                    .unwrap();
+                web_sys::window().unwrap().alert_with_message(&e).unwrap();
                 true
             }
         }
@@ -385,7 +385,7 @@ impl SalesOrderPage {
                                                 Msg::UpdateShipItemWarehouse(idx, 0)
                                             }
                                         });
-                                        
+
                                         let on_batch_change = ctx.link().callback(move |e: Event| {
                                             use wasm_bindgen::JsCast;
                                             use web_sys::HtmlInputElement;
@@ -399,8 +399,8 @@ impl SalesOrderPage {
                                                 <td>{&item.product_name}</td>
                                                 <td>{item.quantity}</td>
                                                 <td>
-                                                    <select 
-                                                        class="form-control" 
+                                                    <select
+                                                        class="form-control"
                                                         onchange={on_warehouse_change}
                                                         value={item.warehouse_id.map(|id| id.to_string()).unwrap_or_default()}
                                                     >
@@ -411,9 +411,9 @@ impl SalesOrderPage {
                                                     </select>
                                                 </td>
                                                 <td>
-                                                    <input 
-                                                        type="text" 
-                                                        class="form-control" 
+                                                    <input
+                                                        type="text"
+                                                        class="form-control"
                                                         value={item.batch_no.clone()}
                                                         onchange={on_batch_change}
                                                         placeholder="请输入批次号"
@@ -429,8 +429,8 @@ impl SalesOrderPage {
                             <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>
                                 {"取消"}
                             </button>
-                            <button 
-                                class="btn-primary" 
+                            <button
+                                class="btn-primary"
                                 onclick={ctx.link().callback(|_| Msg::SubmitShip)}
                                 disabled={self.submitting_ship}
                             >

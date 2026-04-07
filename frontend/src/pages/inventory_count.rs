@@ -1,15 +1,15 @@
 //! 库存盘点管理页面
 //! 提供库存盘点单的列表、创建、审核、完成等功能
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
+use crate::components::navigation::Navigation;
 use crate::models::inventory_count::{
-    InventoryCount, InventoryCountDetail,
-    InventoryCountQuery, CreateInventoryCountRequest, UpdateInventoryCountRequest,
+    CreateInventoryCountRequest, InventoryCount, InventoryCountDetail, InventoryCountQuery,
+    UpdateInventoryCountRequest,
 };
 use crate::services::inventory_count_service::InventoryCountService;
-use crate::components::navigation::Navigation;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct InventoryCountPage {
     counts: Vec<InventoryCount>,
@@ -30,10 +30,10 @@ pub struct InventoryCountPage {
 
 #[derive(Clone, PartialEq)]
 pub enum ModalMode {
-    View,      // 查看详情
-    Create,    // 创建新盘点单
-    Edit,      // 编辑盘点单
-    Approve,   // 审核盘点单
+    View,    // 查看详情
+    Create,  // 创建新盘点单
+    Edit,    // 编辑盘点单
+    Approve, // 审核盘点单
 }
 
 pub enum Msg {
@@ -93,9 +93,17 @@ impl Component for InventoryCountPage {
                 let query = InventoryCountQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     warehouse_id: self.filter_warehouse_id,
-                    count_no: if self.filter_count_no.is_empty() { None } else { Some(self.filter_count_no.clone()) },
+                    count_no: if self.filter_count_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_count_no.clone())
+                    },
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
@@ -123,7 +131,11 @@ impl Component for InventoryCountPage {
                 false
             }
             Msg::SetFilterWarehouse(warehouse_id) => {
-                self.filter_warehouse_id = if warehouse_id == 0 { None } else { Some(warehouse_id) };
+                self.filter_warehouse_id = if warehouse_id == 0 {
+                    None
+                } else {
+                    Some(warehouse_id)
+                };
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadCounts);
                 false
@@ -194,14 +206,19 @@ impl Component for InventoryCountPage {
             }
             Msg::CreateCount => {
                 if self.form_warehouse_id == 0 {
-                    ctx.link().send_message(Msg::LoadError("请选择仓库".to_string()));
+                    ctx.link()
+                        .send_message(Msg::LoadError("请选择仓库".to_string()));
                     return false;
                 }
                 let req = CreateInventoryCountRequest {
                     warehouse_id: self.form_warehouse_id,
                     count_date: None,
                     status: "pending".to_string(),
-                    notes: if self.form_notes.is_empty() { None } else { Some(self.form_notes.clone()) },
+                    notes: if self.form_notes.is_empty() {
+                        None
+                    } else {
+                        Some(self.form_notes.clone())
+                    },
                     items: None, // 简化版本，实际应从表单获取
                 };
                 let link = ctx.link().clone();
@@ -219,7 +236,11 @@ impl Component for InventoryCountPage {
             Msg::UpdateCount(id) => {
                 let req = UpdateInventoryCountRequest {
                     status: None,
-                    notes: if self.form_notes.is_empty() { None } else { Some(self.form_notes.clone()) },
+                    notes: if self.form_notes.is_empty() {
+                        None
+                    } else {
+                        Some(self.form_notes.clone())
+                    },
                     items: None,
                 };
                 let link = ctx.link().clone();

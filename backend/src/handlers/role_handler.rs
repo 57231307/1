@@ -2,12 +2,12 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 /// 角色响应

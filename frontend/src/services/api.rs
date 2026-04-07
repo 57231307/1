@@ -1,6 +1,6 @@
+use crate::models::api_response::ApiResponse;
 use gloo_net::http::{Request, Response};
 use serde::{de::DeserializeOwned, Serialize};
-use crate::models::api_response::ApiResponse;
 
 /// API 基础路径
 pub const API_BASE: &str = "/api/v1/erp";
@@ -23,29 +23,32 @@ impl ApiService {
 
     /// POST 请求（带重试）
     pub async fn post<T: DeserializeOwned, B: Serialize>(url: &str, body: &B) -> Result<T, String> {
-        let body_value = serde_json::to_value(body).map_err(|e| format!("序列化请求体失败：{}", e))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| format!("序列化请求体失败：{}", e))?;
         Self::request_with_retry::<T>("POST", url, Some(&body_value)).await
     }
 
     /// PUT 请求（带重试）
     pub async fn put<T: DeserializeOwned, B: Serialize>(url: &str, body: &B) -> Result<T, String> {
-        let body_value = serde_json::to_value(body).map_err(|e| format!("序列化请求体失败：{}", e))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| format!("序列化请求体失败：{}", e))?;
         Self::request_with_retry::<T>("PUT", url, Some(&body_value)).await
     }
 
     /// DELETE 请求（带重试）
     pub async fn delete(url: &str) -> Result<(), String> {
-        let _result: serde_json::Value = Self::request_with_retry::<serde_json::Value>("DELETE", url, None).await?;
+        let _result: serde_json::Value =
+            Self::request_with_retry::<serde_json::Value>("DELETE", url, None).await?;
         Ok(())
     }
 
     /// 带重试的请求方法
-    /// 
+    ///
     /// # 参数
     /// * `method` - HTTP 方法 (GET, POST, PUT, DELETE)
     /// * `url` - 请求路径（相对于 API_BASE）
     /// * `body` - 请求体（可选）
-    /// 
+    ///
     /// # 返回
     /// * `Ok(T)` - 请求成功，返回解析后的数据
     /// * `Err(String)` - 请求失败，返回错误信息
@@ -59,31 +62,30 @@ impl ApiService {
 
         for attempt in 0..Self::MAX_RETRIES {
             match Self::do_request(method, &full_url, body).await {
-                Ok(response) => {
-                    match response.json::<ApiResponse<T>>().await {
-                        Ok(api_response) => {
-                            if api_response.success {
-                                if let Some(data) = api_response.data {
-                                    return Ok(data);
-                                } else if method == "DELETE" {
-                                    return Ok(serde_json::from_value(serde_json::json!(null)).unwrap());
-                                }
-                            } else {
-                                let error_msg = api_response.error
-                                    .or(api_response.message)
-                                    .unwrap_or_else(|| "请求失败".to_string());
-                                return Err(error_msg);
+                Ok(response) => match response.json::<ApiResponse<T>>().await {
+                    Ok(api_response) => {
+                        if api_response.success {
+                            if let Some(data) = api_response.data {
+                                return Ok(data);
+                            } else if method == "DELETE" {
+                                return Ok(serde_json::from_value(serde_json::json!(null)).unwrap());
                             }
-                        }
-                        Err(e) => {
-                            last_error = Some(format!("解析响应失败：{}", e));
-                            break;
+                        } else {
+                            let error_msg = api_response
+                                .error
+                                .or(api_response.message)
+                                .unwrap_or_else(|| "请求失败".to_string());
+                            return Err(error_msg);
                         }
                     }
-                }
+                    Err(e) => {
+                        last_error = Some(format!("解析响应失败：{}", e));
+                        break;
+                    }
+                },
                 Err(e) => {
                     last_error = Some(e.clone());
-                    
+
                     if attempt < Self::MAX_RETRIES - 1 {
                         let delay_ms = 1000 * 2u64.pow(attempt);
                         gloo_timers::future::TimeoutFuture::new(delay_ms as u32).await;
@@ -101,8 +103,7 @@ impl ApiService {
         url: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<Response, String> {
-        let token = crate::utils::storage::Storage::get_token()
-            .unwrap_or_else(|| "".to_string());
+        let token = crate::utils::storage::Storage::get_token().unwrap_or_else(|| "".to_string());
 
         let request_builder = match method {
             "GET" => Request::get(url),
@@ -113,16 +114,19 @@ impl ApiService {
         };
 
         let mut request_with_headers = request_builder.header("Content-Type", "application/json");
-        
+
         if !token.is_empty() {
             let auth_header = format!("Bearer {}", token);
-            request_with_headers = request_with_headers.header("Authorization", auth_header.as_str());
+            request_with_headers =
+                request_with_headers.header("Authorization", auth_header.as_str());
         }
 
         let request = match body {
-            Some(body_value) => request_with_headers.json(body_value)
+            Some(body_value) => request_with_headers
+                .json(body_value)
                 .map_err(|e: gloo_net::Error| format!("序列化请求体失败：{}", e))?,
-            None => request_with_headers.build()
+            None => request_with_headers
+                .build()
                 .map_err(|e: gloo_net::Error| format!("构建请求失败：{}", e))?,
         };
 

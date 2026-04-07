@@ -13,7 +13,9 @@ pub struct ApPaymentService;
 
 impl ApPaymentService {
     /// 查询付款列表
-    pub async fn list_payments(params: ApPaymentQueryParams) -> Result<ApPaymentListResponse, String> {
+    pub async fn list_payments(
+        params: ApPaymentQueryParams,
+    ) -> Result<ApPaymentListResponse, String> {
         let mut query_parts = vec![];
 
         if let Some(sid) = params.supplier_id {
@@ -75,7 +77,11 @@ impl ApPaymentService {
 
     /// 确认付款
     pub async fn confirm_payment(id: i32) -> Result<ApPayment, String> {
-        ApiService::post::<ApPayment, serde_json::Value>(&format!("/ap-payments/{}/confirm", id), &serde_json::json!({})).await
+        ApiService::post::<ApPayment, serde_json::Value>(
+            &format!("/ap-payments/{}/confirm", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     /// 获取付款计划

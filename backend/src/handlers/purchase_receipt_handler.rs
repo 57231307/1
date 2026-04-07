@@ -8,6 +8,7 @@ use crate::services::purchase_receipt_service::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, PurchaseReceiptService,
     UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -15,7 +16,6 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -46,7 +46,8 @@ pub async fn list_receipts(
 }
 
 /// 获取采购入库单详情
-pub async fn get_receipt(auth: AuthContext, 
+pub async fn get_receipt(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -58,7 +59,8 @@ pub async fn get_receipt(auth: AuthContext,
 
 /// 创建采购入库单
 #[axum::debug_handler]
-pub async fn create_receipt(auth: AuthContext, 
+pub async fn create_receipt(
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(req): Json<CreatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -79,7 +81,8 @@ pub async fn create_receipt(auth: AuthContext,
 
 /// 更新采购入库单
 #[axum::debug_handler]
-pub async fn update_receipt(auth: AuthContext, 
+pub async fn update_receipt(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReceiptRequest>,
@@ -96,7 +99,8 @@ pub async fn update_receipt(auth: AuthContext,
 }
 
 /// 确认采购入库单
-pub async fn confirm_receipt(auth: AuthContext, 
+pub async fn confirm_receipt(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -112,7 +116,8 @@ pub async fn confirm_receipt(auth: AuthContext,
 }
 
 /// 获取入库明细列表
-pub async fn list_receipt_items(auth: AuthContext, 
+pub async fn list_receipt_items(
+    auth: AuthContext,
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -124,7 +129,8 @@ pub async fn list_receipt_items(auth: AuthContext,
 
 /// 添加入库明细
 #[axum::debug_handler]
-pub async fn create_receipt_item(auth: AuthContext, 
+pub async fn create_receipt_item(
+    auth: AuthContext,
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<CreateReceiptItemRequest>,
@@ -146,7 +152,8 @@ pub async fn create_receipt_item(auth: AuthContext,
 
 /// 更新入库明细
 #[axum::debug_handler]
-pub async fn update_receipt_item(auth: AuthContext, 
+pub async fn update_receipt_item(
+    auth: AuthContext,
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     Json(req): Json<UpdateReceiptItemRequest>,
@@ -163,7 +170,8 @@ pub async fn update_receipt_item(auth: AuthContext,
 }
 
 /// 删除入库明细
-pub async fn delete_receipt_item(auth: AuthContext, 
+pub async fn delete_receipt_item(
+    auth: AuthContext,
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {

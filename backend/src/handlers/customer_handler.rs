@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::app_state::AppState;
 
 /// 创建客户请求
 #[derive(Debug, Deserialize)]

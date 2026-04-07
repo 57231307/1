@@ -1,13 +1,12 @@
 //! 客户管理页面
 
-use yew::prelude::*;
+use crate::models::customer::{
+    CreateCustomerRequest, Customer, CustomerListResponse, CustomerQuery, UpdateCustomerRequest,
+};
+use crate::services::customer_service::CustomerService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::services::customer_service::CustomerService;
-use crate::models::customer::{
-    Customer, CustomerQuery, CustomerListResponse,
-    CreateCustomerRequest, UpdateCustomerRequest,
-};
+use yew::prelude::*;
 
 pub struct CustomerPage {
     customers: Vec<Customer>,
@@ -78,9 +77,21 @@ impl Component for CustomerPage {
                 let query = CustomerQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    customer_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
-                    keyword: if self.keyword.is_empty() { None } else { Some(self.keyword.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    customer_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
+                    keyword: if self.keyword.is_empty() {
+                        None
+                    } else {
+                        Some(self.keyword.clone())
+                    },
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
@@ -173,17 +184,29 @@ impl Component for CustomerPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 
         let on_keyword_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetKeyword(target.value())
         });
 
@@ -233,7 +256,6 @@ impl Component for CustomerPage {
 }
 
 impl CustomerPage {
-    
     fn render_modal(&self, ctx: &Context<Self>) -> Html {
         if !self.show_modal {
             return html! {};
@@ -247,25 +269,65 @@ impl CustomerPage {
 
         let is_readonly = self.modal_mode == ModalMode::View;
 
-        let code = self.current_customer.as_ref().map(|c| c.customer_code.clone()).unwrap_or_default();
-        let name = self.current_customer.as_ref().map(|c| c.customer_name.clone()).unwrap_or_default();
-        let contact = self.current_customer.as_ref().and_then(|c| c.contact_person.clone()).unwrap_or_default();
-        let phone = self.current_customer.as_ref().and_then(|c| c.contact_phone.clone()).unwrap_or_default();
+        let code = self
+            .current_customer
+            .as_ref()
+            .map(|c| c.customer_code.clone())
+            .unwrap_or_default();
+        let name = self
+            .current_customer
+            .as_ref()
+            .map(|c| c.customer_name.clone())
+            .unwrap_or_default();
+        let contact = self
+            .current_customer
+            .as_ref()
+            .and_then(|c| c.contact_person.clone())
+            .unwrap_or_default();
+        let phone = self
+            .current_customer
+            .as_ref()
+            .and_then(|c| c.contact_phone.clone())
+            .unwrap_or_default();
 
         let onsubmit = ctx.link().callback(move |e: SubmitEvent| {
             e.prevent_default();
             let form = e.target_unchecked_into::<web_sys::HtmlFormElement>();
-            
-            let code_input = form.elements().named_item("customer_code").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let name_input = form.elements().named_item("customer_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let contact_input = form.elements().named_item("contact_person").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let phone_input = form.elements().named_item("contact_phone").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            
+
+            let code_input = form
+                .elements()
+                .named_item("customer_code")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let name_input = form
+                .elements()
+                .named_item("customer_name")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let contact_input = form
+                .elements()
+                .named_item("contact_person")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let phone_input = form
+                .elements()
+                .named_item("contact_phone")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+
             let req = CreateCustomerRequest {
                 customer_code: code_input.value(),
                 customer_name: name_input.value(),
-                contact_person: if contact_input.value().is_empty() { None } else { Some(contact_input.value()) },
-                contact_phone: if phone_input.value().is_empty() { None } else { Some(phone_input.value()) },
+                contact_person: if contact_input.value().is_empty() {
+                    None
+                } else {
+                    Some(contact_input.value())
+                },
+                contact_phone: if phone_input.value().is_empty() {
+                    None
+                } else {
+                    Some(phone_input.value())
+                },
                 contact_email: None,
                 address: None,
                 city: None,

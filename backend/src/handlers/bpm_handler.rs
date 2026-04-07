@@ -1,9 +1,12 @@
-use axum::{extract::{State, Query}, Json};
-use crate::utils::app_state::AppState;
+use crate::models::dto::bpm_dto::{ApproveTaskRequest, StartProcessRequest, TaskQuery};
 use crate::models::dto::ApiResponse;
-use crate::models::dto::bpm_dto::{StartProcessRequest, ApproveTaskRequest, TaskQuery};
 use crate::services::bpm_service::BpmService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 
 pub async fn start_process(
     State(state): State<AppState>,
@@ -20,7 +23,9 @@ pub async fn approve_task(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.approve_task(req).await?;
-    Ok(Json(ApiResponse::success("Task processed successfully".to_string())))
+    Ok(Json(ApiResponse::success(
+        "Task processed successfully".to_string(),
+    )))
 }
 
 pub async fn query_tasks(

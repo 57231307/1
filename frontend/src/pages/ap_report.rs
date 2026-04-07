@@ -2,21 +2,21 @@
 //!
 //! 应付报表（AP Report）展示页面，包含统计报表、日报、月报和账龄分析
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::ap_report::{
-    ApStatisticsResponse, ApDailyResponse, ApMonthlyResponse, ApAgingResponse,
+    ApAgingResponse, ApDailyResponse, ApMonthlyResponse, ApStatisticsResponse,
 };
 use crate::services::ap_report_service::ApReportService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 报表类型枚举
 #[derive(Clone, PartialEq)]
 pub enum ReportType {
-    Statistics,  // 统计报表
-    Daily,       // 日报
-    Monthly,     // 月报
-    Aging,       // 账龄分析
+    Statistics, // 统计报表
+    Daily,      // 日报
+    Monthly,    // 月报
+    Aging,      // 账龄分析
 }
 
 /// 应付报表页面状态
@@ -111,7 +111,9 @@ impl Component for ApReportPage {
                 let end_date = self.end_date.clone();
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ApReportService::get_statistics_report(supplier_id, start_date, end_date).await {
+                    match ApReportService::get_statistics_report(supplier_id, start_date, end_date)
+                        .await
+                    {
                         Ok(data) => link.send_message(Msg::StatisticsLoaded(Ok(data))),
                         Err(e) => link.send_message(Msg::StatisticsLoaded(Err(e))),
                     }

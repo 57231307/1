@@ -250,29 +250,51 @@ impl FundManagementService {
         Ok(())
     }
 
-    pub async fn transfer_fund(&self, req: crate::models::dto::fund_dto::TransferFundRequest, user_id: i32) -> Result<crate::models::fund_transfer_record::Model, AppError> {
+    pub async fn transfer_fund(
+        &self,
+        req: crate::models::dto::fund_dto::TransferFundRequest,
+        user_id: i32,
+    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
         use sea_orm::TransactionTrait;
-        let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+        let txn = self
+            .db
+            .begin()
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
         // 1. 扣减转出账户
         let from_acc = crate::models::fund_management::Entity::find_by_id(req.from_account_id)
-            .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("From account not found".into()))?;
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("From account not found".into()))?;
         let total_deduct = req.amount + req.fee.unwrap_or_default();
         if from_acc.available_balance < total_deduct {
             return Err(AppError::ValidationError("Insufficient balance".into()));
         }
         let mut from_active: crate::models::fund_management::ActiveModel = from_acc.into();
         from_active.balance = sea_orm::Set(from_active.balance.unwrap() - total_deduct);
-        from_active.available_balance = sea_orm::Set(from_active.available_balance.unwrap() - total_deduct);
-        let from_acc = from_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        from_active.available_balance =
+            sea_orm::Set(from_active.available_balance.unwrap() - total_deduct);
+        let from_acc = from_active
+            .update(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 2. 增加转入账户
         let to_acc = crate::models::fund_management::Entity::find_by_id(req.to_account_id)
-            .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("To account not found".into()))?;
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("To account not found".into()))?;
         let mut to_active: crate::models::fund_management::ActiveModel = to_acc.into();
         to_active.balance = sea_orm::Set(to_active.balance.unwrap() + req.amount);
-        to_active.available_balance = sea_orm::Set(to_active.available_balance.unwrap() + req.amount);
-        to_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        to_active.available_balance =
+            sea_orm::Set(to_active.available_balance.unwrap() + req.amount);
+        to_active
+            .update(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 3. 记录 Transfer
         let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
@@ -286,9 +308,14 @@ impl FundManagementService {
             remarks: sea_orm::Set(req.reason),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
-        }.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        }
+        .insert(&txn)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(record)
     }
 }

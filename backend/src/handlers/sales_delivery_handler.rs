@@ -1,5 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
-use crate::models::dto::sales_delivery_dto::{CreateSalesDeliveryRequest, SalesDeliveryQueryParams};
+use crate::models::dto::sales_delivery_dto::{
+    CreateSalesDeliveryRequest, SalesDeliveryQueryParams,
+};
 use crate::services::sales_delivery_service::SalesDeliveryService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -15,7 +17,8 @@ pub async fn create_delivery(
     auth: AuthContext,
     Json(req): Json<CreateSalesDeliveryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate().map_err(|e: validator::ValidationErrors| AppError::ValidationError(e.to_string()))?;
+    req.validate()
+        .map_err(|e: validator::ValidationErrors| AppError::ValidationError(e.to_string()))?;
 
     let service = SalesDeliveryService::new(state.db.clone());
     let delivery = service.create_delivery(req, auth.user_id).await?;

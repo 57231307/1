@@ -1,52 +1,41 @@
 use chrono::Datelike;
 // 管理服务 gRPC 实现
-// 
+//
 // 包含采购合同、销售合同、固定资产、预算管理等 gRPC 服务实现
 
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
-use sea_orm::DatabaseConnection;
 
+use crate::services::budget_management_service::BudgetManagementService;
+use crate::services::fixed_asset_service::FixedAssetService;
 use crate::services::purchase_contract_service::PurchaseContractService;
 use crate::services::sales_contract_service::SalesContractService;
-use crate::services::fixed_asset_service::FixedAssetService;
-use crate::services::budget_management_service::BudgetManagementService;
 
 use crate::grpc::service::proto::{
-    purchase_contract_service_server::PurchaseContractService as PurchaseContractServiceTrait,
-    PurchaseContract, ListPurchaseContractsRequest, ListPurchaseContractsResponse,
-    GetPurchaseContractRequest, GetPurchaseContractResponse,
-    CreatePurchaseContractRequest, CreatePurchaseContractResponse,
-    ApprovePurchaseContractRequest, ApprovePurchaseContractResponse,
-    ExecutePurchaseContractRequest, ExecutePurchaseContractResponse,
-    CancelPurchaseContractRequest, CancelPurchaseContractResponse,
-    
-    sales_contract_service_server::SalesContractService as SalesContractServiceTrait,
-    SalesContract, ListSalesContractsRequest, ListSalesContractsResponse,
-    GetSalesContractRequest, GetSalesContractResponse,
-    CreateSalesContractRequest, CreateSalesContractResponse,
-    ApproveSalesContractRequest, ApproveSalesContractResponse,
-    ExecuteSalesContractRequest, ExecuteSalesContractResponse,
-    CancelSalesContractRequest, CancelSalesContractResponse,
-    
-    fixed_asset_service_server::FixedAssetService as FixedAssetServiceTrait,
-    FixedAsset, ListFixedAssetsRequest, ListFixedAssetsResponse,
-    GetFixedAssetRequest, GetFixedAssetResponse,
-    CreateFixedAssetRequest, CreateFixedAssetResponse,
-    DepreciateFixedAssetRequest, DepreciateFixedAssetResponse,
-    DisposeFixedAssetRequest, DisposeFixedAssetResponse,
-    DeleteFixedAssetRequest, DeleteFixedAssetResponse,
-    
     budget_management_service_server::BudgetManagementService as BudgetManagementServiceTrait,
-    BudgetItem, ListBudgetItemsRequest, ListBudgetItemsResponse,
-    GetBudgetItemRequest, GetBudgetItemResponse,
-    CreateBudgetItemRequest, CreateBudgetItemResponse,
-    UpdateBudgetItemRequest, UpdateBudgetItemResponse,
-    DeleteBudgetItemRequest, DeleteBudgetItemResponse, ListBudgetPlansRequest, ListBudgetPlansResponse,
-    GetBudgetPlanRequest, GetBudgetPlanResponse,
-    CreateBudgetPlanRequest, CreateBudgetPlanResponse,
-    ApproveBudgetPlanRequest, ApproveBudgetPlanResponse,
-    ExecuteBudgetPlanRequest, ExecuteBudgetPlanResponse,
+    fixed_asset_service_server::FixedAssetService as FixedAssetServiceTrait,
+    purchase_contract_service_server::PurchaseContractService as PurchaseContractServiceTrait,
+    sales_contract_service_server::SalesContractService as SalesContractServiceTrait,
+    ApproveBudgetPlanRequest, ApproveBudgetPlanResponse, ApprovePurchaseContractRequest,
+    ApprovePurchaseContractResponse, ApproveSalesContractRequest, ApproveSalesContractResponse,
+    BudgetItem, CancelPurchaseContractRequest, CancelPurchaseContractResponse,
+    CancelSalesContractRequest, CancelSalesContractResponse, CreateBudgetItemRequest,
+    CreateBudgetItemResponse, CreateBudgetPlanRequest, CreateBudgetPlanResponse,
+    CreateFixedAssetRequest, CreateFixedAssetResponse, CreatePurchaseContractRequest,
+    CreatePurchaseContractResponse, CreateSalesContractRequest, CreateSalesContractResponse,
+    DeleteBudgetItemRequest, DeleteBudgetItemResponse, DeleteFixedAssetRequest,
+    DeleteFixedAssetResponse, DepreciateFixedAssetRequest, DepreciateFixedAssetResponse,
+    DisposeFixedAssetRequest, DisposeFixedAssetResponse, ExecuteBudgetPlanRequest,
+    ExecuteBudgetPlanResponse, ExecutePurchaseContractRequest, ExecutePurchaseContractResponse,
+    ExecuteSalesContractRequest, ExecuteSalesContractResponse, FixedAsset, GetBudgetItemRequest,
+    GetBudgetItemResponse, GetBudgetPlanRequest, GetBudgetPlanResponse, GetFixedAssetRequest,
+    GetFixedAssetResponse, GetPurchaseContractRequest, GetPurchaseContractResponse,
+    GetSalesContractRequest, GetSalesContractResponse, ListBudgetItemsRequest,
+    ListBudgetItemsResponse, ListBudgetPlansRequest, ListBudgetPlansResponse,
+    ListFixedAssetsRequest, ListFixedAssetsResponse, ListPurchaseContractsRequest,
+    ListPurchaseContractsResponse, ListSalesContractsRequest, ListSalesContractsResponse,
+    PurchaseContract, SalesContract, UpdateBudgetItemRequest, UpdateBudgetItemResponse,
 };
 
 /// gRPC 管理服务集合
@@ -67,9 +56,11 @@ impl GrpcManagementServices {
             budget_management_service: Arc::new(BudgetManagementService::new(db)),
         }
     }
-    
+
     /// 将采购合同转换为 gRPC 模型
-    fn to_grpc_purchase_contract(contract: crate::models::purchase_contract::Model) -> PurchaseContract {
+    fn to_grpc_purchase_contract(
+        contract: crate::models::purchase_contract::Model,
+    ) -> PurchaseContract {
         PurchaseContract {
             id: contract.id,
             contract_no: contract.contract_no,
@@ -77,13 +68,28 @@ impl GrpcManagementServices {
             contract_type: contract.contract_type.unwrap_or_default(),
             supplier_id: contract.supplier_id,
             supplier_name: contract.supplier_name.unwrap_or_default(),
-            total_amount: contract.total_amount.map(|d| d.to_string()).unwrap_or_default(),
-            signed_date: contract.signed_date.map(|d| d.to_string()).unwrap_or_default(),
-            effective_date: contract.effective_date.map(|d| d.to_string()).unwrap_or_default(),
-            expiry_date: contract.expiry_date.map(|d| d.to_string()).unwrap_or_default(),
+            total_amount: contract
+                .total_amount
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            signed_date: contract
+                .signed_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            effective_date: contract
+                .effective_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            expiry_date: contract
+                .expiry_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             payment_terms: contract.payment_terms.unwrap_or_default(),
             payment_method: contract.payment_method.unwrap_or_default(),
-            delivery_date: contract.delivery_date.map(|d| d.to_string()).unwrap_or_default(),
+            delivery_date: contract
+                .delivery_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             delivery_location: contract.delivery_location.unwrap_or_default(),
             status: contract.status,
             created_by: contract.created_by,
@@ -91,7 +97,7 @@ impl GrpcManagementServices {
             updated_at: contract.updated_at.timestamp(),
         }
     }
-    
+
     /// 将销售合同转换为 gRPC 模型
     fn to_grpc_sales_contract(contract: crate::models::sales_contract::Model) -> SalesContract {
         SalesContract {
@@ -101,13 +107,28 @@ impl GrpcManagementServices {
             contract_type: contract.contract_type.unwrap_or_default(),
             customer_id: contract.customer_id,
             customer_name: contract.customer_name.unwrap_or_default(),
-            total_amount: contract.total_amount.map(|d| d.to_string()).unwrap_or_default(),
-            signed_date: contract.signed_date.map(|d| d.to_string()).unwrap_or_default(),
-            effective_date: contract.effective_date.map(|d| d.to_string()).unwrap_or_default(),
-            expiry_date: contract.expiry_date.map(|d| d.to_string()).unwrap_or_default(),
+            total_amount: contract
+                .total_amount
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            signed_date: contract
+                .signed_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            effective_date: contract
+                .effective_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            expiry_date: contract
+                .expiry_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             payment_terms: contract.payment_terms.unwrap_or_default(),
             payment_method: contract.payment_method.unwrap_or_default(),
-            delivery_date: contract.delivery_date.map(|d| d.to_string()).unwrap_or_default(),
+            delivery_date: contract
+                .delivery_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             delivery_location: contract.delivery_location.unwrap_or_default(),
             status: contract.status,
             created_by: contract.created_by,
@@ -115,7 +136,7 @@ impl GrpcManagementServices {
             updated_at: contract.updated_at.timestamp(),
         }
     }
-    
+
     /// 将固定资产转换为 gRPC 模型
     fn to_grpc_fixed_asset(asset: crate::models::fixed_asset::Model) -> FixedAsset {
         FixedAsset {
@@ -129,18 +150,39 @@ impl GrpcManagementServices {
             use_location: asset.use_location.unwrap_or_default(),
             responsible_person_id: asset.responsible_person_id.unwrap_or(0),
             original_value: asset.original_value.to_string(),
-            salvage_value: asset.salvage_value.map(|d| d.to_string()).unwrap_or_default(),
-            salvage_rate: asset.salvage_rate.map(|d| d.to_string()).unwrap_or_default(),
-            depreciable_value: asset.depreciable_value.map(|d| d.to_string()).unwrap_or_default(),
+            salvage_value: asset
+                .salvage_value
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            salvage_rate: asset
+                .salvage_rate
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            depreciable_value: asset
+                .depreciable_value
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             depreciation_method: asset.depreciation_method.unwrap_or_default(),
             useful_life: asset.useful_life.unwrap_or(0),
-            monthly_depreciation: asset.monthly_depreciation.map(|d| d.to_string()).unwrap_or_default(),
+            monthly_depreciation: asset
+                .monthly_depreciation
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             accumulated_depreciation: asset.accumulated_depreciation.to_string(),
             net_value: asset.net_value.map(|d| d.to_string()).unwrap_or_default(),
             status: asset.status,
-            purchase_date: asset.purchase_date.map(|d| d.to_string()).unwrap_or_default(),
-            in_service_date: asset.in_service_date.map(|d| d.to_string()).unwrap_or_default(),
-            disposal_date: asset.disposal_date.map(|d| d.to_string()).unwrap_or_default(),
+            purchase_date: asset
+                .purchase_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            in_service_date: asset
+                .in_service_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            disposal_date: asset
+                .disposal_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
             supplier_id: asset.supplier_id.unwrap_or(0),
             supplier_name: asset.supplier_name.unwrap_or_default(),
             created_by: asset.created_by,
@@ -148,7 +190,7 @@ impl GrpcManagementServices {
             updated_at: asset.updated_at.timestamp(),
         }
     }
-    
+
     /// 将预算项目转换为 gRPC 模型
     fn to_grpc_budget_item(item: crate::models::budget_management::Model) -> BudgetItem {
         BudgetItem {
@@ -172,24 +214,37 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
         request: Request<ListPurchaseContractsRequest>,
     ) -> Result<Response<ListPurchaseContractsResponse>, Status> {
         let req = request.into_inner();
-        
+
         let page = req.page.max(1) as i64;
         let page_size = req.page_size.clamp(1, 100) as i64;
-        
+
         let params = crate::services::purchase_contract_service::ContractQueryParams {
-            keyword: if req.keyword.is_empty() { None } else { Some(req.keyword) },
-            status: if req.status.is_empty() { None } else { Some(req.status) },
-            supplier_id: if req.supplier_id == 0 { None } else { Some(req.supplier_id) },
+            keyword: if req.keyword.is_empty() {
+                None
+            } else {
+                Some(req.keyword)
+            },
+            status: if req.status.is_empty() {
+                None
+            } else {
+                Some(req.status)
+            },
+            supplier_id: if req.supplier_id == 0 {
+                None
+            } else {
+                Some(req.supplier_id)
+            },
             page: page - 1,
             page_size,
         };
-        
+
         match self.purchase_contract_service.get_list(params).await {
             Ok((contracts, total)) => {
-                let grpc_contracts = contracts.into_iter()
+                let grpc_contracts = contracts
+                    .into_iter()
                     .map(Self::to_grpc_purchase_contract)
                     .collect();
-                    
+
                 Ok(Response::new(ListPurchaseContractsResponse {
                     success: true,
                     message: "采购合同列表获取成功".to_string(),
@@ -197,141 +252,165 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
                     total: total as i32,
                 }))
             }
-            Err(e) => Err(Status::internal(format!("获取采购合同列表失败：{}", e)))
+            Err(e) => Err(Status::internal(format!("获取采购合同列表失败：{}", e))),
         }
     }
-    
+
     async fn get_contract(
         &self,
         request: Request<GetPurchaseContractRequest>,
     ) -> Result<Response<GetPurchaseContractResponse>, Status> {
         let req = request.into_inner();
-        
-        match self.purchase_contract_service.get_by_id(req.contract_id).await {
-            Ok(contract) => {
-                Ok(Response::new(GetPurchaseContractResponse {
-                    success: true,
-                    message: "采购合同获取成功".to_string(),
-                    contract: Some(Self::to_grpc_purchase_contract(contract)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::not_found(format!("采购合同不存在：{}", e)))
-            }
+
+        match self
+            .purchase_contract_service
+            .get_by_id(req.contract_id)
+            .await
+        {
+            Ok(contract) => Ok(Response::new(GetPurchaseContractResponse {
+                success: true,
+                message: "采购合同获取成功".to_string(),
+                contract: Some(Self::to_grpc_purchase_contract(contract)),
+            })),
+            Err(e) => Err(Status::not_found(format!("采购合同不存在：{}", e))),
         }
     }
-    
+
     async fn create_contract(
         &self,
         request: Request<CreatePurchaseContractRequest>,
     ) -> Result<Response<CreatePurchaseContractResponse>, Status> {
         let req = request.into_inner();
-        
+
         // 解析金额
-        let total_amount = req.total_amount.parse::<rust_decimal::Decimal>()
+        let total_amount = req
+            .total_amount
+            .parse::<rust_decimal::Decimal>()
             .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?;
-        
+
         // 解析日期
         let delivery_date = chrono::NaiveDate::parse_from_str(&req.delivery_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
-        
+
         let create_req = crate::services::purchase_contract_service::CreateContractRequest {
             contract_no: req.contract_no,
             contract_name: req.contract_name,
             supplier_id: req.supplier_id,
             total_amount,
-            payment_terms: if req.payment_terms.is_empty() { None } else { Some(req.payment_terms) },
+            payment_terms: if req.payment_terms.is_empty() {
+                None
+            } else {
+                Some(req.payment_terms)
+            },
             delivery_date,
-            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+            remark: if req.remark.is_empty() {
+                None
+            } else {
+                Some(req.remark)
+            },
         };
-        
+
         // 暂时用户 ID 为 1，实际应该从验证信息获取
         let user_id = 1;
-        
-        match self.purchase_contract_service.create(create_req, user_id).await {
-            Ok(contract) => {
-                Ok(Response::new(CreatePurchaseContractResponse {
-                    success: true,
-                    message: "采购合同创建成功".to_string(),
-                    contract: Some(Self::to_grpc_purchase_contract(contract)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("创建采购合同失败：{}", e)))
-            }
+
+        match self
+            .purchase_contract_service
+            .create(create_req, user_id)
+            .await
+        {
+            Ok(contract) => Ok(Response::new(CreatePurchaseContractResponse {
+                success: true,
+                message: "采购合同创建成功".to_string(),
+                contract: Some(Self::to_grpc_purchase_contract(contract)),
+            })),
+            Err(e) => Err(Status::internal(format!("创建采购合同失败：{}", e))),
         }
     }
-    
+
     async fn approve_contract(
         &self,
         request: Request<ApprovePurchaseContractRequest>,
     ) -> Result<Response<ApprovePurchaseContractResponse>, Status> {
         let req = request.into_inner();
-        
+
         let user_id = 1;
-        
-        match self.purchase_contract_service.approve(req.contract_id, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(ApprovePurchaseContractResponse {
-                    success: true,
-                    message: "采购合同审批成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("审批采购合同失败：{}", e)))
-            }
+
+        match self
+            .purchase_contract_service
+            .approve(req.contract_id, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(ApprovePurchaseContractResponse {
+                success: true,
+                message: "采购合同审批成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("审批采购合同失败：{}", e))),
         }
     }
-    
+
     async fn execute_contract(
         &self,
         request: Request<ExecutePurchaseContractRequest>,
     ) -> Result<Response<ExecutePurchaseContractResponse>, Status> {
         let req = request.into_inner();
-        
+
         let user_id = 1;
-        
+
         let execute_req = crate::services::purchase_contract_service::ExecuteContractRequest {
             execution_type: req.execution_type,
-            execution_amount: req.execution_amount.parse::<rust_decimal::Decimal>()
+            execution_amount: req
+                .execution_amount
+                .parse::<rust_decimal::Decimal>()
                 .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?,
             execution_date: chrono::Utc::now().naive_utc().date(),
-            related_bill_type: if req.related_bill_type.is_empty() { None } else { Some(req.related_bill_type) },
-            related_bill_id: if req.related_bill_id == 0 { None } else { Some(req.related_bill_id) },
-            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+            related_bill_type: if req.related_bill_type.is_empty() {
+                None
+            } else {
+                Some(req.related_bill_type)
+            },
+            related_bill_id: if req.related_bill_id == 0 {
+                None
+            } else {
+                Some(req.related_bill_id)
+            },
+            remark: if req.remark.is_empty() {
+                None
+            } else {
+                Some(req.remark)
+            },
         };
-        
-        match self.purchase_contract_service.execute(req.contract_id, execute_req, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(ExecutePurchaseContractResponse {
-                    success: true,
-                    message: "采购合同执行成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("执行采购合同失败：{}", e)))
-            }
+
+        match self
+            .purchase_contract_service
+            .execute(req.contract_id, execute_req, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(ExecutePurchaseContractResponse {
+                success: true,
+                message: "采购合同执行成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("执行采购合同失败：{}", e))),
         }
     }
-    
+
     async fn cancel_contract(
         &self,
         request: Request<CancelPurchaseContractRequest>,
     ) -> Result<Response<CancelPurchaseContractResponse>, Status> {
         let req = request.into_inner();
-        
+
         let user_id = 1;
-        
-        match self.purchase_contract_service.cancel(req.contract_id, user_id, req.reason).await {
-            Ok(_) => {
-                Ok(Response::new(CancelPurchaseContractResponse {
-                    success: true,
-                    message: "采购合同取消成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("取消采购合同失败：{}", e)))
-            }
+
+        match self
+            .purchase_contract_service
+            .cancel(req.contract_id, user_id, req.reason)
+            .await
+        {
+            Ok(_) => Ok(Response::new(CancelPurchaseContractResponse {
+                success: true,
+                message: "采购合同取消成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("取消采购合同失败：{}", e))),
         }
     }
 }
@@ -343,24 +422,37 @@ impl SalesContractServiceTrait for GrpcManagementServices {
         request: Request<ListSalesContractsRequest>,
     ) -> Result<Response<ListSalesContractsResponse>, Status> {
         let req = request.into_inner();
-        
+
         let page = req.page.max(1) as i64;
         let page_size = req.page_size.clamp(1, 100) as i64;
-        
+
         let params = crate::services::sales_contract_service::SalesContractQueryParams {
-            keyword: if req.keyword.is_empty() { None } else { Some(req.keyword) },
-            status: if req.status.is_empty() { None } else { Some(req.status) },
-            customer_id: if req.customer_id == 0 { None } else { Some(req.customer_id) },
+            keyword: if req.keyword.is_empty() {
+                None
+            } else {
+                Some(req.keyword)
+            },
+            status: if req.status.is_empty() {
+                None
+            } else {
+                Some(req.status)
+            },
+            customer_id: if req.customer_id == 0 {
+                None
+            } else {
+                Some(req.customer_id)
+            },
             page: page - 1,
             page_size,
         };
-        
+
         match self.sales_contract_service.get_list(params).await {
             Ok((contracts, total)) => {
-                let grpc_contracts = contracts.into_iter()
+                let grpc_contracts = contracts
+                    .into_iter()
                     .map(Self::to_grpc_sales_contract)
                     .collect();
-                    
+
                 Ok(Response::new(ListSalesContractsResponse {
                     success: true,
                     message: "销售合同列表获取成功".to_string(),
@@ -368,134 +460,154 @@ impl SalesContractServiceTrait for GrpcManagementServices {
                     total: total as i32,
                 }))
             }
-            Err(e) => Err(Status::internal(format!("获取销售合同列表失败：{}", e)))
+            Err(e) => Err(Status::internal(format!("获取销售合同列表失败：{}", e))),
         }
     }
-    
+
     async fn get_contract(
         &self,
         request: Request<GetSalesContractRequest>,
     ) -> Result<Response<GetSalesContractResponse>, Status> {
         let req = request.into_inner();
-        
+
         match self.sales_contract_service.get_by_id(req.contract_id).await {
-            Ok(contract) => {
-                Ok(Response::new(GetSalesContractResponse {
-                    success: true,
-                    message: "销售合同获取成功".to_string(),
-                    contract: Some(Self::to_grpc_sales_contract(contract)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::not_found(format!("销售合同不存在：{}", e)))
-            }
+            Ok(contract) => Ok(Response::new(GetSalesContractResponse {
+                success: true,
+                message: "销售合同获取成功".to_string(),
+                contract: Some(Self::to_grpc_sales_contract(contract)),
+            })),
+            Err(e) => Err(Status::not_found(format!("销售合同不存在：{}", e))),
         }
     }
-    
+
     async fn create_contract(
         &self,
         request: Request<CreateSalesContractRequest>,
     ) -> Result<Response<CreateSalesContractResponse>, Status> {
         let req = request.into_inner();
-        
-        let total_amount = req.total_amount.parse::<rust_decimal::Decimal>()
+
+        let total_amount = req
+            .total_amount
+            .parse::<rust_decimal::Decimal>()
             .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?;
-        
+
         let delivery_date = chrono::NaiveDate::parse_from_str(&req.delivery_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
-        
+
         let create_req = crate::services::sales_contract_service::CreateSalesContractRequest {
             contract_no: req.contract_no,
             contract_name: req.contract_name,
             customer_id: req.customer_id,
             total_amount,
-            payment_terms: if req.payment_terms.is_empty() { None } else { Some(req.payment_terms) },
+            payment_terms: if req.payment_terms.is_empty() {
+                None
+            } else {
+                Some(req.payment_terms)
+            },
             delivery_date,
-            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+            remark: if req.remark.is_empty() {
+                None
+            } else {
+                Some(req.remark)
+            },
         };
-        
+
         let user_id = 1;
-        
-        match self.sales_contract_service.create(create_req, user_id).await {
-            Ok(contract) => {
-                Ok(Response::new(CreateSalesContractResponse {
-                    success: true,
-                    message: "销售合同创建成功".to_string(),
-                    contract: Some(Self::to_grpc_sales_contract(contract)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("创建销售合同失败：{}", e)))
-            }
+
+        match self
+            .sales_contract_service
+            .create(create_req, user_id)
+            .await
+        {
+            Ok(contract) => Ok(Response::new(CreateSalesContractResponse {
+                success: true,
+                message: "销售合同创建成功".to_string(),
+                contract: Some(Self::to_grpc_sales_contract(contract)),
+            })),
+            Err(e) => Err(Status::internal(format!("创建销售合同失败：{}", e))),
         }
     }
-    
+
     async fn approve_contract(
         &self,
         request: Request<ApproveSalesContractRequest>,
     ) -> Result<Response<ApproveSalesContractResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
-        match self.sales_contract_service.approve(req.contract_id, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(ApproveSalesContractResponse {
-                    success: true,
-                    message: "销售合同审批成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("审批销售合同失败：{}", e)))
-            }
+
+        match self
+            .sales_contract_service
+            .approve(req.contract_id, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(ApproveSalesContractResponse {
+                success: true,
+                message: "销售合同审批成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("审批销售合同失败：{}", e))),
         }
     }
-    
+
     async fn execute_contract(
         &self,
         request: Request<ExecuteSalesContractRequest>,
     ) -> Result<Response<ExecuteSalesContractResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
+
         let execute_req = crate::services::sales_contract_service::ExecuteSalesContractRequest {
             execution_type: req.execution_type,
-            execution_amount: req.execution_amount.parse::<rust_decimal::Decimal>()
+            execution_amount: req
+                .execution_amount
+                .parse::<rust_decimal::Decimal>()
                 .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?,
-            related_bill_type: if req.related_bill_type.is_empty() { None } else { Some(req.related_bill_type) },
-            related_bill_id: if req.related_bill_id == 0 { None } else { Some(req.related_bill_id) },
-            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+            related_bill_type: if req.related_bill_type.is_empty() {
+                None
+            } else {
+                Some(req.related_bill_type)
+            },
+            related_bill_id: if req.related_bill_id == 0 {
+                None
+            } else {
+                Some(req.related_bill_id)
+            },
+            remark: if req.remark.is_empty() {
+                None
+            } else {
+                Some(req.remark)
+            },
         };
-        
-        match self.sales_contract_service.execute(req.contract_id, execute_req, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(ExecuteSalesContractResponse {
-                    success: true,
-                    message: "销售合同执行成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("执行销售合同失败：{}", e)))
-            }
+
+        match self
+            .sales_contract_service
+            .execute(req.contract_id, execute_req, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(ExecuteSalesContractResponse {
+                success: true,
+                message: "销售合同执行成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("执行销售合同失败：{}", e))),
         }
     }
-    
+
     async fn cancel_contract(
         &self,
         request: Request<CancelSalesContractRequest>,
     ) -> Result<Response<CancelSalesContractResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
-        match self.sales_contract_service.cancel(req.contract_id, user_id, req.reason).await {
-            Ok(_) => {
-                Ok(Response::new(CancelSalesContractResponse {
-                    success: true,
-                    message: "销售合同取消成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("取消销售合同失败：{}", e)))
-            }
+
+        match self
+            .sales_contract_service
+            .cancel(req.contract_id, user_id, req.reason)
+            .await
+        {
+            Ok(_) => Ok(Response::new(CancelSalesContractResponse {
+                success: true,
+                message: "销售合同取消成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("取消销售合同失败：{}", e))),
         }
     }
 }
@@ -507,24 +619,34 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         request: Request<ListFixedAssetsRequest>,
     ) -> Result<Response<ListFixedAssetsResponse>, Status> {
         let req = request.into_inner();
-        
+
         let page = req.page.max(1) as i64;
         let page_size = req.page_size.clamp(1, 100) as i64;
-        
+
         let params = crate::services::fixed_asset_service::AssetQueryParams {
-            keyword: if req.keyword.is_empty() { None } else { Some(req.keyword) },
-            status: if req.status.is_empty() { None } else { Some(req.status) },
-            asset_category: if req.asset_category.is_empty() { None } else { Some(req.asset_category) },
+            keyword: if req.keyword.is_empty() {
+                None
+            } else {
+                Some(req.keyword)
+            },
+            status: if req.status.is_empty() {
+                None
+            } else {
+                Some(req.status)
+            },
+            asset_category: if req.asset_category.is_empty() {
+                None
+            } else {
+                Some(req.asset_category)
+            },
             page: page - 1,
             page_size,
         };
-        
+
         match self.fixed_asset_service.get_list(params).await {
             Ok((assets, total)) => {
-                let grpc_assets = assets.into_iter()
-                    .map(Self::to_grpc_fixed_asset)
-                    .collect();
-                    
+                let grpc_assets = assets.into_iter().map(Self::to_grpc_fixed_asset).collect();
+
                 Ok(Response::new(ListFixedAssetsResponse {
                     success: true,
                     message: "固定资产列表获取成功".to_string(),
@@ -532,148 +654,164 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
                     total: total as i32,
                 }))
             }
-            Err(e) => Err(Status::internal(format!("获取固定资产列表失败：{}", e)))
+            Err(e) => Err(Status::internal(format!("获取固定资产列表失败：{}", e))),
         }
     }
-    
+
     async fn get_asset(
         &self,
         request: Request<GetFixedAssetRequest>,
     ) -> Result<Response<GetFixedAssetResponse>, Status> {
         let req = request.into_inner();
-        
+
         match self.fixed_asset_service.get_by_id(req.asset_id).await {
-            Ok(asset) => {
-                Ok(Response::new(GetFixedAssetResponse {
-                    success: true,
-                    message: "固定资产获取成功".to_string(),
-                    asset: Some(Self::to_grpc_fixed_asset(asset)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::not_found(format!("固定资产不存在：{}", e)))
-            }
+            Ok(asset) => Ok(Response::new(GetFixedAssetResponse {
+                success: true,
+                message: "固定资产获取成功".to_string(),
+                asset: Some(Self::to_grpc_fixed_asset(asset)),
+            })),
+            Err(e) => Err(Status::not_found(format!("固定资产不存在：{}", e))),
         }
     }
-    
+
     async fn create_asset(
         &self,
         request: Request<CreateFixedAssetRequest>,
     ) -> Result<Response<CreateFixedAssetResponse>, Status> {
         let req = request.into_inner();
-        
-        let original_value = req.original_value.parse::<rust_decimal::Decimal>()
+
+        let original_value = req
+            .original_value
+            .parse::<rust_decimal::Decimal>()
             .map_err(|e| Status::invalid_argument(format!("原值格式错误：{}", e)))?;
-        
+
         let purchase_date = chrono::NaiveDate::parse_from_str(&req.purchase_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
-        
+
         let put_in_date = chrono::NaiveDate::parse_from_str(&req.put_in_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
-        
+
         let create_req = crate::services::fixed_asset_service::CreateAssetRequest {
             asset_no: req.asset_no,
             asset_name: req.asset_name,
             asset_category: Some(req.asset_category),
-            specification: if req.specification.is_empty() { None } else { Some(req.specification) },
-            location: if req.location.is_empty() { None } else { Some(req.location) },
+            specification: if req.specification.is_empty() {
+                None
+            } else {
+                Some(req.specification)
+            },
+            location: if req.location.is_empty() {
+                None
+            } else {
+                Some(req.location)
+            },
             original_value,
             useful_life: req.useful_life,
             depreciation_method: Some(req.depreciation_method),
             purchase_date,
             put_in_date,
-            supplier_id: if req.supplier_id == 0 { None } else { Some(req.supplier_id) },
-            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+            supplier_id: if req.supplier_id == 0 {
+                None
+            } else {
+                Some(req.supplier_id)
+            },
+            remark: if req.remark.is_empty() {
+                None
+            } else {
+                Some(req.remark)
+            },
         };
-        
+
         let user_id = 1;
-        
+
         match self.fixed_asset_service.create(create_req, user_id).await {
-            Ok(asset) => {
-                Ok(Response::new(CreateFixedAssetResponse {
-                    success: true,
-                    message: "固定资产创建成功".to_string(),
-                    asset: Some(Self::to_grpc_fixed_asset(asset)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("创建固定资产失败：{}", e)))
-            }
+            Ok(asset) => Ok(Response::new(CreateFixedAssetResponse {
+                success: true,
+                message: "固定资产创建成功".to_string(),
+                asset: Some(Self::to_grpc_fixed_asset(asset)),
+            })),
+            Err(e) => Err(Status::internal(format!("创建固定资产失败：{}", e))),
         }
     }
-    
+
     async fn depreciate_asset(
         &self,
         request: Request<DepreciateFixedAssetRequest>,
     ) -> Result<Response<DepreciateFixedAssetResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
-        match self.fixed_asset_service.depreciate(req.asset_id, &chrono::Utc::now().format("%Y-%m").to_string(), user_id).await {
-            Ok(_) => {
-                Ok(Response::new(DepreciateFixedAssetResponse {
-                    success: true,
-                    message: "资产折旧成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("资产折旧失败：{}", e)))
-            }
+
+        match self
+            .fixed_asset_service
+            .depreciate(
+                req.asset_id,
+                &chrono::Utc::now().format("%Y-%m").to_string(),
+                user_id,
+            )
+            .await
+        {
+            Ok(_) => Ok(Response::new(DepreciateFixedAssetResponse {
+                success: true,
+                message: "资产折旧成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("资产折旧失败：{}", e))),
         }
     }
-    
+
     async fn dispose_asset(
         &self,
         request: Request<DisposeFixedAssetRequest>,
     ) -> Result<Response<DisposeFixedAssetResponse>, Status> {
         let req = request.into_inner();
-        
-        let disposal_value = req.disposal_value.parse::<rust_decimal::Decimal>()
+
+        let disposal_value = req
+            .disposal_value
+            .parse::<rust_decimal::Decimal>()
             .map_err(|e| Status::invalid_argument(format!("处置价值格式错误：{}", e)))?;
-        
+
         let disposal_date = chrono::NaiveDate::parse_from_str(&req.disposal_date, "%Y-%m-%d")
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
-        
+
         let dispose_req = crate::services::fixed_asset_service::DisposalRequest {
             disposal_type: req.disposal_type,
             disposal_value,
             disposal_date,
             reason: req.reason,
-            buyer_info: if req.buyer_info.is_empty() { None } else { Some(req.buyer_info) },
+            buyer_info: if req.buyer_info.is_empty() {
+                None
+            } else {
+                Some(req.buyer_info)
+            },
         };
-        
+
         let user_id = 1;
-        
-        match self.fixed_asset_service.dispose(req.asset_id, dispose_req, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(DisposeFixedAssetResponse {
-                    success: true,
-                    message: "资产处置成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("资产处置失败：{}", e)))
-            }
+
+        match self
+            .fixed_asset_service
+            .dispose(req.asset_id, dispose_req, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(DisposeFixedAssetResponse {
+                success: true,
+                message: "资产处置成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("资产处置失败：{}", e))),
         }
     }
-    
+
     async fn delete_asset(
         &self,
         request: Request<DeleteFixedAssetRequest>,
     ) -> Result<Response<DeleteFixedAssetResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
+
         match self.fixed_asset_service.delete(req.asset_id, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(DeleteFixedAssetResponse {
-                    success: true,
-                    message: "资产删除成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("删除资产失败：{}", e)))
-            }
+            Ok(_) => Ok(Response::new(DeleteFixedAssetResponse {
+                success: true,
+                message: "资产删除成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("删除资产失败：{}", e))),
         }
     }
 }
@@ -685,23 +823,29 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         request: Request<ListBudgetItemsRequest>,
     ) -> Result<Response<ListBudgetItemsResponse>, Status> {
         let req = request.into_inner();
-        
+
         let page = req.page.max(1) as i64;
         let page_size = req.page_size.clamp(1, 100) as i64;
-        
+
         let params = crate::services::budget_management_service::BudgetItemQueryParams {
-            item_type: if req.item_type.is_empty() { None } else { Some(req.item_type) },
-            status: if req.status.is_empty() { None } else { Some(req.status) },
+            item_type: if req.item_type.is_empty() {
+                None
+            } else {
+                Some(req.item_type)
+            },
+            status: if req.status.is_empty() {
+                None
+            } else {
+                Some(req.status)
+            },
             page: page - 1,
             page_size,
         };
-        
+
         match self.budget_management_service.get_items_list(params).await {
             Ok((items, total)) => {
-                let grpc_items = items.into_iter()
-                    .map(Self::to_grpc_budget_item)
-                    .collect();
-                    
+                let grpc_items = items.into_iter().map(Self::to_grpc_budget_item).collect();
+
                 Ok(Response::new(ListBudgetItemsResponse {
                     success: true,
                     message: "预算项目列表获取成功".to_string(),
@@ -709,68 +853,72 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
                     total: total as i32,
                 }))
             }
-            Err(e) => Err(Status::internal(format!("获取预算项目列表失败：{}", e)))
+            Err(e) => Err(Status::internal(format!("获取预算项目列表失败：{}", e))),
         }
     }
-    
+
     async fn get_item(
         &self,
         request: Request<GetBudgetItemRequest>,
     ) -> Result<Response<GetBudgetItemResponse>, Status> {
         let req = request.into_inner();
-        
-        match self.budget_management_service.get_item_by_id(req.item_id).await {
-            Ok(item) => {
-                Ok(Response::new(GetBudgetItemResponse {
-                    success: true,
-                    message: "预算项目获取成功".to_string(),
-                    item: Some(Self::to_grpc_budget_item(item)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::not_found(format!("预算项目不存在：{}", e)))
-            }
+
+        match self
+            .budget_management_service
+            .get_item_by_id(req.item_id)
+            .await
+        {
+            Ok(item) => Ok(Response::new(GetBudgetItemResponse {
+                success: true,
+                message: "预算项目获取成功".to_string(),
+                item: Some(Self::to_grpc_budget_item(item)),
+            })),
+            Err(e) => Err(Status::not_found(format!("预算项目不存在：{}", e))),
         }
     }
-    
+
     async fn create_item(
         &self,
         request: Request<CreateBudgetItemRequest>,
     ) -> Result<Response<CreateBudgetItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         let create_req = crate::services::budget_management_service::CreateBudgetItemRequest {
             item_code: req.item_code,
             item_name: req.item_name,
-            parent_id: if req.parent_id == 0 { None } else { Some(req.parent_id) },
+            parent_id: if req.parent_id == 0 {
+                None
+            } else {
+                Some(req.parent_id)
+            },
             item_type: req.item_type,
             budget_year: chrono::Utc::now().year(),
             planned_amount: rust_decimal::Decimal::ZERO,
             remark: None,
         };
-        
+
         let user_id = 1;
-        
-        match self.budget_management_service.create_item(create_req, user_id).await {
-            Ok(item) => {
-                Ok(Response::new(CreateBudgetItemResponse {
-                    success: true,
-                    message: "预算项目创建成功".to_string(),
-                    item: Some(Self::to_grpc_budget_item(item)),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("创建预算项目失败：{}", e)))
-            }
+
+        match self
+            .budget_management_service
+            .create_item(create_req, user_id)
+            .await
+        {
+            Ok(item) => Ok(Response::new(CreateBudgetItemResponse {
+                success: true,
+                message: "预算项目创建成功".to_string(),
+                item: Some(Self::to_grpc_budget_item(item)),
+            })),
+            Err(e) => Err(Status::internal(format!("创建预算项目失败：{}", e))),
         }
     }
-    
+
     async fn update_item(
         &self,
         request: Request<UpdateBudgetItemRequest>,
     ) -> Result<Response<UpdateBudgetItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         let _update_req = crate::services::budget_management_service::CreateBudgetItemRequest {
             item_code: String::new(),
             item_name: req.item_name,
@@ -780,59 +928,68 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
             planned_amount: rust_decimal::Decimal::ZERO,
             remark: None,
         };
-        
+
         let _user_id = 1;
-        
-        match self.budget_management_service.get_item_by_id(req.item_id).await {
-            Ok(_) => {
-                Ok(Response::new(UpdateBudgetItemResponse {
-                    success: true,
-                    message: "预算项目更新成功".to_string(),
-                    item: None,
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("更新预算项目失败：{}", e)))
-            }
+
+        match self
+            .budget_management_service
+            .get_item_by_id(req.item_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(UpdateBudgetItemResponse {
+                success: true,
+                message: "预算项目更新成功".to_string(),
+                item: None,
+            })),
+            Err(e) => Err(Status::internal(format!("更新预算项目失败：{}", e))),
         }
     }
-    
+
     async fn delete_item(
         &self,
         request: Request<DeleteBudgetItemRequest>,
     ) -> Result<Response<DeleteBudgetItemResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
-        match self.budget_management_service.delete_item(req.item_id, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(DeleteBudgetItemResponse {
-                    success: true,
-                    message: "预算项目删除成功".to_string(),
-                }))
-            }
-            Err(e) => {
-                Err(Status::internal(format!("删除预算项目失败：{}", e)))
-            }
+
+        match self
+            .budget_management_service
+            .delete_item(req.item_id, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(DeleteBudgetItemResponse {
+                success: true,
+                message: "预算项目删除成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("删除预算项目失败：{}", e))),
         }
     }
-    
+
     async fn list_plans(
         &self,
         request: Request<ListBudgetPlansRequest>,
     ) -> Result<Response<ListBudgetPlansResponse>, Status> {
         let req = request.into_inner();
-        
+
         let page = req.page.max(1) as i64;
         let page_size = req.page_size.clamp(1, 100) as i64;
-        
-        let budget_year = if req.budget_year == 0 { None } else { Some(req.budget_year) };
+
+        let budget_year = if req.budget_year == 0 {
+            None
+        } else {
+            Some(req.budget_year)
+        };
         // req does not seem to have department_id in the list request
-        let department_id = None; 
-        
-        match self.budget_management_service.get_plans_list(budget_year, department_id, page - 1, page_size).await {
+        let department_id = None;
+
+        match self
+            .budget_management_service
+            .get_plans_list(budget_year, department_id, page - 1, page_size)
+            .await
+        {
             Ok((plans, total)) => {
-                let grpc_plans = plans.into_iter()
+                let grpc_plans = plans
+                    .into_iter()
                     .map(|p| crate::grpc::service::proto::BudgetPlan {
                         id: p.id,
                         plan_no: p.plan_no,
@@ -848,7 +1005,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
                         updated_at: p.updated_at.timestamp(),
                     })
                     .collect();
-                    
+
                 Ok(Response::new(ListBudgetPlansResponse {
                     success: true,
                     message: "预算方案列表获取成功".to_string(),
@@ -856,17 +1013,21 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
                     total: total as i32,
                 }))
             }
-            Err(e) => Err(Status::internal(format!("获取预算方案列表失败：{}", e)))
+            Err(e) => Err(Status::internal(format!("获取预算方案列表失败：{}", e))),
         }
     }
-    
+
     async fn get_plan(
         &self,
         request: Request<GetBudgetPlanRequest>,
     ) -> Result<Response<GetBudgetPlanResponse>, Status> {
         let req = request.into_inner();
-        
-        match self.budget_management_service.get_plan_by_id(req.plan_id).await {
+
+        match self
+            .budget_management_service
+            .get_plan_by_id(req.plan_id)
+            .await
+        {
             Ok(p) => {
                 let plan = crate::grpc::service::proto::BudgetPlan {
                     id: p.id,
@@ -888,28 +1049,30 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
                     plan: Some(plan),
                 }))
             }
-            Err(e) => Err(Status::not_found(format!("预算方案不存在：{}", e)))
+            Err(e) => Err(Status::not_found(format!("预算方案不存在：{}", e))),
         }
     }
-    
+
     async fn create_plan(
         &self,
         request: Request<CreateBudgetPlanRequest>,
     ) -> Result<Response<CreateBudgetPlanResponse>, Status> {
         let req = request.into_inner();
-        
-        let total_amount = req.total_amount.parse::<rust_decimal::Decimal>()
+
+        let total_amount = req
+            .total_amount
+            .parse::<rust_decimal::Decimal>()
             .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?;
-            
+
         // req does not seem to have start_date, end_date, remark in CreateBudgetPlanRequest proto based on what we saw, wait let me verify
         // The CreateBudgetPlanRequest has: plan_no, plan_name, budget_year, department_id, total_amount, start_date, end_date, remark
         // Let's assume they are there
         let start_date = chrono::NaiveDate::parse_from_str(req.start_date.as_str(), "%Y-%m-%d")
             .unwrap_or(chrono::Utc::now().naive_utc().date());
-            
+
         let end_date = chrono::NaiveDate::parse_from_str(req.end_date.as_str(), "%Y-%m-%d")
             .unwrap_or(chrono::Utc::now().naive_utc().date());
-            
+
         let create_req = crate::services::budget_management_service::CreateBudgetPlanRequest {
             plan_no: req.plan_no,
             plan_name: req.plan_name,
@@ -921,10 +1084,14 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
             end_date,
             remark: None,
         };
-        
+
         let user_id = 1;
-        
-        match self.budget_management_service.create_plan(create_req, user_id).await {
+
+        match self
+            .budget_management_service
+            .create_plan(create_req, user_id)
+            .await
+        {
             Ok(p) => {
                 let plan = crate::grpc::service::proto::BudgetPlan {
                     id: p.id,
@@ -946,58 +1113,68 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
                     plan: Some(plan),
                 }))
             }
-            Err(e) => Err(Status::internal(format!("创建预算方案失败：{}", e)))
+            Err(e) => Err(Status::internal(format!("创建预算方案失败：{}", e))),
         }
     }
-    
+
     async fn approve_plan(
         &self,
         request: Request<ApproveBudgetPlanRequest>,
     ) -> Result<Response<ApproveBudgetPlanResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
-        match self.budget_management_service.approve_plan(req.plan_id, user_id, None).await {
-            Ok(_) => {
-                Ok(Response::new(ApproveBudgetPlanResponse {
-                    success: true,
-                    message: "预算方案审批成功".to_string(),
-                }))
-            }
-            Err(e) => Err(Status::internal(format!("审批预算方案失败：{}", e)))
+
+        match self
+            .budget_management_service
+            .approve_plan(req.plan_id, user_id, None)
+            .await
+        {
+            Ok(_) => Ok(Response::new(ApproveBudgetPlanResponse {
+                success: true,
+                message: "预算方案审批成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("审批预算方案失败：{}", e))),
         }
     }
-    
+
     async fn execute_plan(
         &self,
         request: Request<ExecuteBudgetPlanRequest>,
     ) -> Result<Response<ExecuteBudgetPlanResponse>, Status> {
         let req = request.into_inner();
         let user_id = 1;
-        
+
         // ExecuteBudgetPlanRequest: plan_id, actual_amount, expense_type, expense_date, remark
-        let actual_amount = req.actual_amount.parse::<rust_decimal::Decimal>()
+        let actual_amount = req
+            .actual_amount
+            .parse::<rust_decimal::Decimal>()
             .map_err(|e| Status::invalid_argument(format!("金额格式错误：{}", e)))?;
-            
+
         let expense_date = chrono::NaiveDate::parse_from_str(req.expense_date.as_str(), "%Y-%m-%d")
             .unwrap_or(chrono::Utc::now().naive_utc().date());
-            
+
         let execute_req = crate::services::budget_management_service::BudgetExecuteRequest {
             plan_id: req.plan_id,
             actual_amount,
             expense_type: req.expense_type,
             expense_date,
-            remark: if req.remark.is_empty() { None } else { Some(req.remark) },
+            remark: if req.remark.is_empty() {
+                None
+            } else {
+                Some(req.remark)
+            },
         };
-        
-        match self.budget_management_service.execute_plan(execute_req, user_id).await {
-            Ok(_) => {
-                Ok(Response::new(ExecuteBudgetPlanResponse {
-                    success: true,
-                    message: "预算方案执行成功".to_string(),
-                }))
-            }
-            Err(e) => Err(Status::internal(format!("执行预算方案失败：{}", e)))
+
+        match self
+            .budget_management_service
+            .execute_plan(execute_req, user_id)
+            .await
+        {
+            Ok(_) => Ok(Response::new(ExecuteBudgetPlanResponse {
+                success: true,
+                message: "预算方案执行成功".to_string(),
+            })),
+            Err(e) => Err(Status::internal(format!("执行预算方案失败：{}", e))),
         }
     }
 }

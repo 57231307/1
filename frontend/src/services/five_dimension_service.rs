@@ -15,7 +15,9 @@ pub struct FiveDimensionService;
 impl FiveDimensionService {
     /// 获取五维统计信息
     #[allow(dead_code)]
-    pub async fn get_stats(params: FiveDimensionStatsParams) -> Result<FiveDimensionStatsResponse, String> {
+    pub async fn get_stats(
+        params: FiveDimensionStatsParams,
+    ) -> Result<FiveDimensionStatsResponse, String> {
         let query_string = build_query_string(&params);
         let url = if query_string.is_empty() {
             "/five-dimension/stats".to_string()
@@ -26,13 +28,17 @@ impl FiveDimensionService {
     }
 
     /// 按五维ID获取统计信息
-    pub async fn get_stats_by_id(five_dimension_id: &str) -> Result<FiveDimensionStatsResponse, String> {
+    pub async fn get_stats_by_id(
+        five_dimension_id: &str,
+    ) -> Result<FiveDimensionStatsResponse, String> {
         let url = format!("/five-dimension/{}", five_dimension_id);
         ApiService::get::<FiveDimensionStatsResponse>(&url).await
     }
 
     /// 获取五维列表
-    pub async fn list_stats(params: FiveDimensionStatsParams) -> Result<FiveDimensionListResponse, String> {
+    pub async fn list_stats(
+        params: FiveDimensionStatsParams,
+    ) -> Result<FiveDimensionListResponse, String> {
         let query_string = build_query_string(&params);
         let url = if query_string.is_empty() {
             "/five-dimension/list".to_string()
@@ -43,7 +49,9 @@ impl FiveDimensionService {
     }
 
     /// 搜索五维数据
-    pub async fn search(params: FiveDimensionSearchParams) -> Result<FiveDimensionSearchResponse, String> {
+    pub async fn search(
+        params: FiveDimensionSearchParams,
+    ) -> Result<FiveDimensionSearchResponse, String> {
         let query_string = build_search_query_string(&params);
         let url = if query_string.is_empty() {
             "/five-dimension/search".to_string()
@@ -72,22 +80,34 @@ fn build_query_string(params: &FiveDimensionStatsParams) -> String {
     }
     if let Some(ref batch_no) = params.batch_no {
         if !batch_no.is_empty() {
-            parts.push(format!("batch_no={}", utf8_percent_encode(batch_no, NON_ALPHANUMERIC)));
+            parts.push(format!(
+                "batch_no={}",
+                utf8_percent_encode(batch_no, NON_ALPHANUMERIC)
+            ));
         }
     }
     if let Some(ref color_no) = params.color_no {
         if !color_no.is_empty() {
-            parts.push(format!("color_no={}", utf8_percent_encode(color_no, NON_ALPHANUMERIC)));
+            parts.push(format!(
+                "color_no={}",
+                utf8_percent_encode(color_no, NON_ALPHANUMERIC)
+            ));
         }
     }
     if let Some(ref dye_lot_no) = params.dye_lot_no {
         if !dye_lot_no.is_empty() {
-            parts.push(format!("dye_lot_no={}", utf8_percent_encode(dye_lot_no, NON_ALPHANUMERIC)));
+            parts.push(format!(
+                "dye_lot_no={}",
+                utf8_percent_encode(dye_lot_no, NON_ALPHANUMERIC)
+            ));
         }
     }
     if let Some(ref grade) = params.grade {
         if !grade.is_empty() {
-            parts.push(format!("grade={}", utf8_percent_encode(grade, NON_ALPHANUMERIC)));
+            parts.push(format!(
+                "grade={}",
+                utf8_percent_encode(grade, NON_ALPHANUMERIC)
+            ));
         }
     }
     if let Some(warehouse_id) = params.warehouse_id {
@@ -108,10 +128,16 @@ fn build_search_query_string(params: &FiveDimensionSearchParams) -> String {
     let mut parts = vec![];
 
     if !params.keyword.is_empty() {
-        parts.push(format!("keyword={}", utf8_percent_encode(&params.keyword, NON_ALPHANUMERIC)));
+        parts.push(format!(
+            "keyword={}",
+            utf8_percent_encode(&params.keyword, NON_ALPHANUMERIC)
+        ));
     }
     if !params.search_type.is_empty() {
-        parts.push(format!("search_type={}", utf8_percent_encode(&params.search_type, NON_ALPHANUMERIC)));
+        parts.push(format!(
+            "search_type={}",
+            utf8_percent_encode(&params.search_type, NON_ALPHANUMERIC)
+        ));
     }
     if let Some(page) = params.page {
         parts.push(format!("page={}", page));

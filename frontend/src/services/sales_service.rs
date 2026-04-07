@@ -1,5 +1,7 @@
 use crate::models::api_response::ApiResponse;
-use crate::models::sales::{CreateSalesOrderRequest, SalesOrder, SalesOrderListResponse, UpdateSalesOrderRequest};
+use crate::models::sales::{
+    CreateSalesOrderRequest, SalesOrder, SalesOrderListResponse, UpdateSalesOrderRequest,
+};
 use crate::services::api::ApiService;
 
 /// 销售服务
@@ -36,15 +38,30 @@ impl SalesService {
     }
 
     pub async fn approve_order(id: i32) -> Result<SalesOrder, String> {
-        ApiService::post(&format!("/sales/orders/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/sales/orders/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
-    pub async fn ship_order(id: i32, req: crate::models::sales::ShipOrderRequest) -> Result<SalesOrder, String> {
-        ApiService::post(&format!("/sales/orders/{}/ship", id), &serde_json::to_value(req).unwrap_or_default()).await
+    pub async fn ship_order(
+        id: i32,
+        req: crate::models::sales::ShipOrderRequest,
+    ) -> Result<SalesOrder, String> {
+        ApiService::post(
+            &format!("/sales/orders/{}/ship", id),
+            &serde_json::to_value(req).unwrap_or_default(),
+        )
+        .await
     }
 
     pub async fn complete_order(id: i32) -> Result<SalesOrder, String> {
-        ApiService::post(&format!("/sales/orders/{}/complete", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/sales/orders/{}/complete", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     pub async fn delete_order(id: i32) -> Result<(), String> {

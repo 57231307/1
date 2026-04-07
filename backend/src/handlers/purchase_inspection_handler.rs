@@ -6,13 +6,13 @@ use crate::services::purchase_inspection_service::{
     CompleteInspectionRequest, CreatePurchaseInspectionRequest, PurchaseInspectionService,
     UpdatePurchaseInspectionRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 

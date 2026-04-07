@@ -2,13 +2,11 @@
 //!
 //! 应收发票（AR Invoice）管理功能
 
-use yew::prelude::*;
+use crate::models::ar_invoice::{ArInvoice, ArInvoiceQueryParams};
+use crate::services::ar_invoice_service::ArInvoiceService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::ar_invoice::{
-    ArInvoice, ArInvoiceQueryParams,
-};
-use crate::services::ar_invoice_service::ArInvoiceService;
+use yew::prelude::*;
 
 /// 应收发票管理页面状态
 pub struct ArInvoicePage {
@@ -72,14 +70,20 @@ impl Component for ArInvoicePage {
                 self.loading = true;
                 let params = ArInvoiceQueryParams {
                     customer_id: self.filter_customer_id,
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     page: Some(self.page),
                     page_size: Some(self.page_size),
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match ArInvoiceService::list_invoices(params).await {
-                        Ok(response) => link.send_message(Msg::InvoicesLoaded(response.data, response.total)),
+                        Ok(response) => {
+                            link.send_message(Msg::InvoicesLoaded(response.data, response.total))
+                        }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -103,7 +107,11 @@ impl Component for ArInvoicePage {
                 false
             }
             Msg::ViewInvoice(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ar-invoices/{}", id)).ok();
+                web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href(&format!("/ar-invoices/{}", id))
+                    .ok();
                 false
             }
             Msg::DeleteInvoice(id) => {
@@ -150,7 +158,11 @@ impl Component for ArInvoicePage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 

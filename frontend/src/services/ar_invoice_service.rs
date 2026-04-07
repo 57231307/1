@@ -13,7 +13,9 @@ pub struct ArInvoiceService;
 
 impl ArInvoiceService {
     /// 查询应收发票列表
-    pub async fn list_invoices(params: ArInvoiceQueryParams) -> Result<ArInvoiceListResponse, String> {
+    pub async fn list_invoices(
+        params: ArInvoiceQueryParams,
+    ) -> Result<ArInvoiceListResponse, String> {
         let mut query_parts = vec![];
 
         if let Some(cid) = params.customer_id {
@@ -66,7 +68,11 @@ impl ArInvoiceService {
 
     /// 审核应收发票
     pub async fn approve_invoice(id: i32) -> Result<serde_json::Value, String> {
-        ApiService::post(&format!("/ar-invoices/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/ar-invoices/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     /// 取消应收发票
@@ -77,7 +83,10 @@ impl ArInvoiceService {
 
     /// 收款确认
     #[allow(dead_code)]
-    pub async fn confirm_receive(id: i32, receive_amount: String) -> Result<serde_json::Value, String> {
+    pub async fn confirm_receive(
+        id: i32,
+        receive_amount: String,
+    ) -> Result<serde_json::Value, String> {
         let payload = serde_json::json!({ "receive_amount": receive_amount });
         ApiService::post(&format!("/ar-invoices/{}/receive", id), &payload).await
     }
@@ -85,7 +94,11 @@ impl ArInvoiceService {
     /// 获取客户应收统计
     #[allow(dead_code)]
     pub async fn get_customer_summary(customer_id: i32) -> Result<serde_json::Value, String> {
-        ApiService::get::<serde_json::Value>(&format!("/ar-invoices/customer-summary/{}", customer_id)).await
+        ApiService::get::<serde_json::Value>(&format!(
+            "/ar-invoices/customer-summary/{}",
+            customer_id
+        ))
+        .await
     }
 
     /// 获取账龄分析

@@ -9,8 +9,7 @@ use axum::{
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -183,23 +182,24 @@ pub async fn update_dye_recipe(
     Path(id): Path<i32>,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(r)) => r.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("配方不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut recipe: dye_recipe::ActiveModel =
+        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(r)) => r.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("配方不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     if let Some(color_code) = req.color_code {
         recipe.color_code = Set(color_code);
@@ -277,23 +277,24 @@ pub async fn approve_recipe(
     Path(id): Path<i32>,
     Json(req): Json<ApproveRecipeRequest>,
 ) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(r)) => r.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("配方不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut recipe: dye_recipe::ActiveModel =
+        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(r)) => r.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("配方不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     recipe.status = Set("已审核".to_string());
     recipe.approved_by = Set(Some(req.approved_by));
@@ -402,14 +403,14 @@ pub async fn get_recipe_versions(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    use sea_orm::QueryFilter;
     use sea_orm::Condition;
-    
+    use sea_orm::QueryFilter;
+
     match dye_recipe::Entity::find()
         .filter(
             Condition::any()
                 .add(dye_recipe::Column::ParentRecipeId.eq(id))
-                .add(dye_recipe::Column::Id.eq(id))
+                .add(dye_recipe::Column::Id.eq(id)),
         )
         .order_by_asc(dye_recipe::Column::Version)
         .all(&*state.db)

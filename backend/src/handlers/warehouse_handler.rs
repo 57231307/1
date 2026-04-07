@@ -2,9 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Deserialize;
 
 use crate::models::location::Entity as LocationEntity;
@@ -230,8 +228,14 @@ pub async fn create_location(
         warehouse_id: sea_orm::ActiveValue::Set(req.warehouse_id),
         location_code: sea_orm::ActiveValue::Set(req.location_code),
         location_type: sea_orm::ActiveValue::Set(req.location_type),
-        max_weight: sea_orm::ActiveValue::Set(req.max_weight.map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default())),
-        max_height: sea_orm::ActiveValue::Set(req.max_height.map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default())),
+        max_weight: sea_orm::ActiveValue::Set(
+            req.max_weight
+                .map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default()),
+        ),
+        max_height: sea_orm::ActiveValue::Set(
+            req.max_height
+                .map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default()),
+        ),
         is_batch_managed: sea_orm::ActiveValue::Set(req.is_batch_managed),
         is_color_managed: sea_orm::ActiveValue::Set(req.is_color_managed),
         created_at: Default::default(),
@@ -279,10 +283,14 @@ pub async fn update_location(
         active_location.location_type = sea_orm::Set(Some(location_type));
     }
     if let Some(max_weight) = req.max_weight {
-        active_location.max_weight = sea_orm::Set(Some(rust_decimal::Decimal::from_f64_retain(max_weight).unwrap_or_default()));
+        active_location.max_weight = sea_orm::Set(Some(
+            rust_decimal::Decimal::from_f64_retain(max_weight).unwrap_or_default(),
+        ));
     }
     if let Some(max_height) = req.max_height {
-        active_location.max_height = sea_orm::Set(Some(rust_decimal::Decimal::from_f64_retain(max_height).unwrap_or_default()));
+        active_location.max_height = sea_orm::Set(Some(
+            rust_decimal::Decimal::from_f64_retain(max_height).unwrap_or_default(),
+        ));
     }
     if let Some(is_batch_managed) = req.is_batch_managed {
         active_location.is_batch_managed = sea_orm::Set(Some(is_batch_managed));
@@ -290,7 +298,7 @@ pub async fn update_location(
     if let Some(is_color_managed) = req.is_color_managed {
         active_location.is_color_managed = sea_orm::Set(Some(is_color_managed));
     }
-    
+
     active_location.updated_at = sea_orm::Set(chrono::Utc::now());
 
     let updated_location = active_location.update(&*state.db).await?;

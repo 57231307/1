@@ -4,13 +4,13 @@ use crate::models::supplier_evaluation_record;
 use crate::services::supplier_evaluation_service::{
     CreateEvaluationIndicatorRequest, SupplierEvaluationService, SupplierScoreResponse,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -237,7 +237,9 @@ pub async fn update_evaluation(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在更新评估", auth.user_id);
-    Err(AppError::ValidationError("评估更新功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "评估更新功能尚未实现".to_string(),
+    ))
 }
 
 /// 删除评估
@@ -247,5 +249,7 @@ pub async fn delete_evaluation(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除评估", auth.user_id);
-    Err(AppError::ValidationError("评估删除功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "评估删除功能尚未实现".to_string(),
+    ))
 }
