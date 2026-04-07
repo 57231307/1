@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS departments (
 COMMENT ON TABLE departments IS '部门信息表';
 COMMENT ON COLUMN departments.id IS '部门 ID';
 COMMENT ON COLUMN departments.name IS '部门名称';
+COMMENT ON COLUMN departments.description IS '部门描述';
 COMMENT ON COLUMN departments.parent_id IS '父部门 ID';
 
 CREATE INDEX IF NOT EXISTS idx_departments_name ON departments(name);
@@ -180,7 +181,8 @@ CREATE TABLE IF NOT EXISTS inventory_stocks (
     remark TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(product_id, warehouse_id, batch_no, color_code)
 );
 
 COMMENT ON TABLE inventory_stocks IS '库存信息表（面料批次管理）';
@@ -290,15 +292,15 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_product_id ON inventory_cou
 CREATE TABLE IF NOT EXISTS inventory_adjustments (
     id SERIAL PRIMARY KEY,
     adjustment_no VARCHAR(50) NOT NULL UNIQUE,
-    warehouse_id INTEGER NOT NULL,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
     adjustment_date TIMESTAMPTZ NOT NULL,
     adjustment_type VARCHAR(20) NOT NULL,
     reason_type VARCHAR(20) NOT NULL,
     reason_description TEXT,
     total_quantity DECIMAL(12,2) NOT NULL,
     notes TEXT,
-    created_by INTEGER,
-    approved_by INTEGER,
+    created_by INTEGER REFERENCES users(id),
+    approved_by INTEGER REFERENCES users(id),
     approved_at TIMESTAMPTZ,
     status VARCHAR(20) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -349,8 +351,8 @@ CREATE TABLE IF NOT EXISTS sales_orders (
     status VARCHAR(20) NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
     notes TEXT,
-    created_by INTEGER,
-    approved_by INTEGER,
+    created_by INTEGER REFERENCES users(id),
+    approved_by INTEGER REFERENCES users(id),
     approved_at TIMESTAMPTZ,
     shipped_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
