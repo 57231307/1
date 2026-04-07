@@ -313,7 +313,8 @@ impl Component for InitPage {
                             }
                             "failed" => {
                                 self.poll_interval = None;
-                                _ctx.link().send_message(Msg::InitializeFailure(progress.message));
+                                let err_msg = progress.error.unwrap_or_else(|| progress.message.clone());
+                                _ctx.link().send_message(Msg::InitializeFailure(err_msg));
                             }
                             _ => {
                                 // "running" 状态，继续等待

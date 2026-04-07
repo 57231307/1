@@ -8,11 +8,12 @@ use gloo_net::http::Request;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct InitProgress {
     pub status: String,
-    pub progress: u8,
+    pub progress: u32,
     pub message: String,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone)]
