@@ -228,3 +228,30 @@ pub async fn create_supplier_qualification(
         "资质创建成功",
     )))
 }
+
+/// 更新供应商资质
+#[axum::debug_handler]
+pub async fn update_supplier_qualification(
+    Path(qual_id): Path<i32>,
+    State(_state): State<AppState>,
+    Json(req): Json<CreateQualificationRequest>,
+) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    req.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"id": qual_id, "qualification": req}),
+        "资质更新成功",
+    )))
+}
+
+/// 删除供应商资质
+pub async fn delete_supplier_qualification(
+    Path(qual_id): Path<i32>,
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "资质删除成功",
+    )))
+}

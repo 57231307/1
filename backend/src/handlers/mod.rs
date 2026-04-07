@@ -25,6 +25,7 @@ pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
+pub mod operation_log_handler;
 // 供应商管理模块
 pub mod supplier_handler;
 // 采购管理模块

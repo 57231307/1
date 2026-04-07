@@ -488,7 +488,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(supplier_handler::create_supplier))
         .route("/:id", get(supplier_handler::get_supplier))
         .route("/:id", put(supplier_handler::update_supplier))
-        .route("/:id", delete(supplier_handler::delete_supplier));
+        .route("/:id", delete(supplier_handler::delete_supplier))
+        .route("/:id/contacts", get(crate::handlers::supplier_handler::list_supplier_contacts).post(crate::handlers::supplier_handler::create_supplier_contact))
+        .route("/contacts/:contact_id", put(crate::handlers::supplier_handler::update_supplier_contact).delete(crate::handlers::supplier_handler::delete_supplier_contact))
+        .route("/:id/qualifications", get(crate::handlers::supplier_handler::list_supplier_qualifications).post(crate::handlers::supplier_handler::create_supplier_qualification))
+        .route("/qualifications/:qual_id", put(crate::handlers::supplier_handler::update_supplier_qualification).delete(crate::handlers::supplier_handler::delete_supplier_qualification));
 
     // 供应商评估路由
     let supplier_evaluation_routes = Router::new()
@@ -741,6 +745,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/readiness", get(health_handler::readiness_check))
         .route("/liveness", get(health_handler::liveness_check));
 
+    // 操作日志路由
+    let operation_log_routes = Router::new()
+        .route("/", get(crate::handlers::operation_log_handler::list_logs));
+
     // 添加 /init/status 路由，用于前端检测系统是否已初始化
     let init_routes = Router::new()
         .route("/status", get(|| async {
@@ -797,6 +805,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
+        .nest("/api/v1/erp/operation-logs", operation_log_routes)
         .nest("/api/v1/erp/crm", Router::new()
             .route("/leads", post(crate::handlers::crm_handler::create_lead).get(crate::handlers::crm_handler::list_leads))
             .route("/leads/:id/status", put(crate::handlers::crm_handler::update_lead_status))
