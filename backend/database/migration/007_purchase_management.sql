@@ -117,7 +117,7 @@ ALTER TABLE purchase_order_item ADD CONSTRAINT uk_poi_order_line
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_poi_order_id ON purchase_order_item(order_id);
-CREATE INDEX IF NOT EXISTS idx_poi_material_id ON purchase_order_item(material_id);
+CREATE INDEX IF NOT EXISTS idx_poi_product_id ON purchase_order_item(product_id);
 CREATE INDEX IF NOT EXISTS idx_poi_batch_no ON purchase_order_item(batch_no);
 CREATE INDEX IF NOT EXISTS idx_poi_color_code ON purchase_order_item(color_code);
 CREATE INDEX IF NOT EXISTS idx_poi_lot_no ON purchase_order_item(lot_no);
@@ -267,7 +267,7 @@ ALTER TABLE purchase_receipt_item ADD CONSTRAINT uk_pri_receipt_line
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pri_receipt_id ON purchase_receipt_item(receipt_id);
 CREATE INDEX IF NOT EXISTS idx_pri_order_item_id ON purchase_receipt_item(order_item_id);
-CREATE INDEX IF NOT EXISTS idx_pri_material_id ON purchase_receipt_item(material_id);
+CREATE INDEX IF NOT EXISTS idx_pri_product_id ON purchase_receipt_item(product_id);
 CREATE INDEX IF NOT EXISTS idx_pri_batch_no ON purchase_receipt_item(batch_no);
 CREATE INDEX IF NOT EXISTS idx_pri_color_code ON purchase_receipt_item(color_code);
 CREATE INDEX IF NOT EXISTS idx_pri_lot_no ON purchase_receipt_item(lot_no);
