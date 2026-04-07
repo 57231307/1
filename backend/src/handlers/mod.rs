@@ -23,6 +23,7 @@ pub mod product_handler;
 pub mod role_handler;
 pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
+pub mod sales_delivery_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
 pub mod operation_log_handler;

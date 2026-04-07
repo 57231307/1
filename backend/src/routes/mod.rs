@@ -211,6 +211,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // 销售管理路由
     let sales_routes = Router::new()
+        .route("/deliveries", post(crate::handlers::sales_delivery_handler::create_delivery).get(crate::handlers::sales_delivery_handler::list_deliveries))
         .route("/orders", get(sales_order_handler::list_orders))
         .route("/orders", post(sales_order_handler::create_order))
         .route("/orders/:id", get(sales_order_handler::get_order))

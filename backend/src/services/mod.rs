@@ -21,6 +21,7 @@ pub mod role_permission_service;
 pub mod sales_service;
 pub mod user_service;
 pub mod warehouse_service;
+pub mod sales_delivery_service;
 // 供应商管理模块
 pub mod supplier_evaluation_service;
 pub mod supplier_service;
