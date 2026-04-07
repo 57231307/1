@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 库存调整明细模型
 //! 用于记录库存调整单的明细项
 

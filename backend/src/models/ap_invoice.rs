@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 应付单 Model
 //!
 //! 应付管理模块包含以下实体：

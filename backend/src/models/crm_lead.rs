@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! CRM 线索 Model
 //!
 //! CRM 线索模块

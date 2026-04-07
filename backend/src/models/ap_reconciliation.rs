@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 供应商对账单 Model
 //!
 //! 应付管理模块的供应商对账实体

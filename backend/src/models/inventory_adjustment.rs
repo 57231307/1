@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 库存调整模型
 //! 用于记录库存调整操作（非盘点调整）
 

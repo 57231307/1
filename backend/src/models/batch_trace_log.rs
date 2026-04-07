@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 批次追溯日志 Model
 //!
 //! 批次追溯日志模块

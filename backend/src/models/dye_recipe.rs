@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 染色配方管理模型
 
 use sea_orm::entity::prelude::*;

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 业务追溯链模型
 
 use chrono::{DateTime, Utc};

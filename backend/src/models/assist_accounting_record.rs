@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 辅助核算记录 Model
 //!
 //! 记录每笔业务的辅助核算信息

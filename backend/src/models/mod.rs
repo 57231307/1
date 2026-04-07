@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 pub mod customer;
 pub mod department;
 pub mod dto;

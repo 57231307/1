@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 预算调整 Model
 //!
 //! 预算调整模块

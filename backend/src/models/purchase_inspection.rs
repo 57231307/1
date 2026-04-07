@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购质检 Model
 //!
 //! 采购质检模块

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 匹号映射 Model
 //!
 //! 匹号映射模块

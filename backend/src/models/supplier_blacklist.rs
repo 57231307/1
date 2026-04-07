@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]

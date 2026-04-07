@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 系统日志 Model
 //!
 //! 系统日志模块

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 凭证管理 Service
 //!
 //! 凭证业务逻辑层（核心）

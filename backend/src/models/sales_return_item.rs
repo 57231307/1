@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 销售退货明细 Model
 //!
 //! 销售退货明细模块

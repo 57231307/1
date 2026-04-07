@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 坯布管理模型（原料布匹管理）
 
 use sea_orm::entity::prelude::*;

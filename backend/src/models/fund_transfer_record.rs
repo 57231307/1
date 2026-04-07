@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 资金转账记录 Model
 //!
 //! 资金转账记录模块

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 业务追溯辅助关联 Model
 //!
 //! 业务追溯辅助关联模块

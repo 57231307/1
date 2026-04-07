@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 采购订单 Handler
 //!
 //! 采购订单 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! BPM 流程实例 Model
 //!
 //! BPM 流程实例模块

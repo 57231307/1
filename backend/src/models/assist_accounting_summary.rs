@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 辅助核算汇总 Model
 //!
 //! 按维度汇总数据

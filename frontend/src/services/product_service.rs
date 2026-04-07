@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use crate::models::product::{
     CreateProductRequest, Product, ProductListResponse, UpdateProductRequest,
 };

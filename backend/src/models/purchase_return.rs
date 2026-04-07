@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 采购退货 Model
 //!
 //! 采购退货模块

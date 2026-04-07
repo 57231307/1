@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 pub mod login;
 pub mod init;
 pub mod dashboard;

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 

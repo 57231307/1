@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 收款单 Entity
 //!
 //! 对应数据库表：ar_collections

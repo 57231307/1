@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! Prometheus 监控服务
 //! 提供系统指标收集和导出功能
 

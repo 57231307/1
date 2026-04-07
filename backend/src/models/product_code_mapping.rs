@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! 产品编码映射 Model
 //!
 //! 产品编码映射模块

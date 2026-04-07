@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 销售退货 Service
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑

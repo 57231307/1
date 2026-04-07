@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 //! BPM 任务 Model
 //!
 //! BPM 任务模块
