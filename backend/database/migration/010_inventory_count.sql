@@ -93,10 +93,12 @@ COMMENT ON COLUMN inventory_count_items.updated_at IS '更新时间';
 
 -- ==================== 触发器：自动更新时间 ====================
 -- 为 inventory_counts 表创建触发器
+DROP TRIGGER IF EXISTS update_inventory_counts_updated_at ON inventory_counts;
 CREATE TRIGGER update_inventory_counts_updated_at BEFORE UPDATE ON inventory_counts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 为 inventory_count_items 表创建触发器
+DROP TRIGGER IF EXISTS update_inventory_count_items_updated_at ON inventory_count_items;
 CREATE TRIGGER update_inventory_count_items_updated_at BEFORE UPDATE ON inventory_count_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

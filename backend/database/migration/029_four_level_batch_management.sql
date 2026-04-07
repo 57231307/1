@@ -389,48 +389,57 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_batch_dye_lot_updated_at ON batch_dye_lot;
 CREATE TRIGGER trg_batch_dye_lot_updated_at
     BEFORE UPDATE ON batch_dye_lot
     FOR EACH ROW
     EXECUTE FUNCTION update_batch_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_inventory_piece_updated_at ON inventory_piece;
 CREATE TRIGGER trg_inventory_piece_updated_at
     BEFORE UPDATE ON inventory_piece
     FOR EACH ROW
     EXECUTE FUNCTION update_batch_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_product_code_mapping_updated_at ON product_code_mapping;
 CREATE TRIGGER trg_product_code_mapping_updated_at
     BEFORE UPDATE ON product_code_mapping
     FOR EACH ROW
     EXECUTE FUNCTION update_batch_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_color_code_mapping_updated_at ON color_code_mapping;
 CREATE TRIGGER trg_color_code_mapping_updated_at
     BEFORE UPDATE ON color_code_mapping
     FOR EACH ROW
     EXECUTE FUNCTION update_batch_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_dye_lot_mapping_updated_at ON dye_lot_mapping;
 CREATE TRIGGER trg_dye_lot_mapping_updated_at
     BEFORE UPDATE ON dye_lot_mapping
     FOR EACH ROW
     EXECUTE FUNCTION update_batch_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_piece_mapping_updated_at ON piece_mapping;
 CREATE TRIGGER trg_piece_mapping_updated_at
     BEFORE UPDATE ON piece_mapping
     FOR EACH ROW
     EXECUTE FUNCTION update_batch_updated_at_column();
 
 -- 缸号总匹数自动更新触发器
+DROP TRIGGER IF EXISTS trg_inventory_piece_insert_update_pieces ON inventory_piece;
 CREATE TRIGGER trg_inventory_piece_insert_update_pieces
     AFTER INSERT OR UPDATE ON inventory_piece
     FOR EACH ROW
     EXECUTE FUNCTION update_dye_lot_total_pieces();
 
+DROP TRIGGER IF EXISTS trg_inventory_piece_delete_update_pieces ON inventory_piece;
 CREATE TRIGGER trg_inventory_piece_delete_update_pieces
     AFTER DELETE ON inventory_piece
     FOR EACH ROW
     EXECUTE FUNCTION update_dye_lot_total_pieces();
 
 -- 匹号自动生成触发器（可选）
+DROP TRIGGER IF EXISTS trg_inventory_piece_generate_no ON inventory_piece;
 CREATE TRIGGER trg_inventory_piece_generate_no
     BEFORE INSERT ON inventory_piece
     FOR EACH ROW

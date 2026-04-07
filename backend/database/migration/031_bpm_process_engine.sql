@@ -449,21 +449,25 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_bpm_pd_updated_at ON bpm_process_definition;
 CREATE TRIGGER trg_bpm_pd_updated_at
     BEFORE UPDATE ON bpm_process_definition
     FOR EACH ROW
     EXECUTE FUNCTION update_bpm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_bpm_pi_updated_at ON bpm_process_instance;
 CREATE TRIGGER trg_bpm_pi_updated_at
     BEFORE UPDATE ON bpm_process_instance
     FOR EACH ROW
     EXECUTE FUNCTION update_bpm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_bpm_task_updated_at ON bpm_task;
 CREATE TRIGGER trg_bpm_task_updated_at
     BEFORE UPDATE ON bpm_task
     FOR EACH ROW
     EXECUTE FUNCTION update_bpm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_bpm_nc_updated_at ON bpm_node_config;
 CREATE TRIGGER trg_bpm_nc_updated_at
     BEFORE UPDATE ON bpm_node_config
     FOR EACH ROW

@@ -256,21 +256,25 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 自动生成日志编号触发器
+DROP TRIGGER IF EXISTS trg_log_operation_generate_no ON log_operation;
 CREATE TRIGGER trg_log_operation_generate_no
     BEFORE INSERT ON log_operation
     FOR EACH ROW
     EXECUTE FUNCTION generate_log_no();
 
+DROP TRIGGER IF EXISTS trg_log_system_generate_no ON log_system;
 CREATE TRIGGER trg_log_system_generate_no
     BEFORE INSERT ON log_system
     FOR EACH ROW
     EXECUTE FUNCTION generate_log_no();
 
+DROP TRIGGER IF EXISTS trg_log_login_generate_no ON log_login;
 CREATE TRIGGER trg_log_login_generate_no
     BEFORE INSERT ON log_login
     FOR EACH ROW
     EXECUTE FUNCTION generate_log_no();
 
+DROP TRIGGER IF EXISTS trg_log_api_access_generate_no ON log_api_access;
 CREATE TRIGGER trg_log_api_access_generate_no
     BEFORE INSERT ON log_api_access
     FOR EACH ROW
@@ -353,6 +357,7 @@ CREATE INDEX IF NOT EXISTS idx_lop_partitioned_business ON log_operation_partiti
 CREATE INDEX IF NOT EXISTS idx_lop_partitioned_operation_time ON log_operation_partitioned(operation_time DESC);
 
 -- 为分区表创建触发器以自动生成日志编号
+DROP TRIGGER IF EXISTS trg_log_operation_partitioned_generate_no ON log_operation_partitioned;
 CREATE TRIGGER trg_log_operation_partitioned_generate_no
     BEFORE INSERT ON log_operation_partitioned
     FOR EACH ROW

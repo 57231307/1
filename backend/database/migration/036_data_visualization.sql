@@ -292,21 +292,25 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_report_def_updated_at ON report_definition;
 CREATE TRIGGER trg_report_def_updated_at
     BEFORE UPDATE ON report_definition
     FOR EACH ROW
     EXECUTE FUNCTION update_report_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_report_dashboard_updated_at ON report_dashboard;
 CREATE TRIGGER trg_report_dashboard_updated_at
     BEFORE UPDATE ON report_dashboard
     FOR EACH ROW
     EXECUTE FUNCTION update_report_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_report_widget_updated_at ON report_widget;
 CREATE TRIGGER trg_report_widget_updated_at
     BEFORE UPDATE ON report_widget
     FOR EACH ROW
     EXECUTE FUNCTION update_report_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_report_subscription_updated_at ON report_subscription;
 CREATE TRIGGER trg_report_subscription_updated_at
     BEFORE UPDATE ON report_subscription
     FOR EACH ROW

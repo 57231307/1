@@ -215,16 +215,19 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_oa_ann_updated_at ON oa_announcement;
 CREATE TRIGGER trg_oa_ann_updated_at
     BEFORE UPDATE ON oa_announcement
     FOR EACH ROW
     EXECUTE FUNCTION update_oa_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_oa_ar_updated_at ON oa_announcement_read;
 CREATE TRIGGER trg_oa_ar_updated_at
     BEFORE UPDATE ON oa_announcement_read
     FOR EACH ROW
     EXECUTE FUNCTION update_oa_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_oa_ums_updated_at ON oa_user_message_status;
 CREATE TRIGGER trg_oa_ums_updated_at
     BEFORE UPDATE ON oa_user_message_status
     FOR EACH ROW

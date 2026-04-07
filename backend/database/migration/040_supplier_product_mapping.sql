@@ -130,16 +130,19 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_supplier_products_updated_at ON supplier_products;
 CREATE TRIGGER trg_supplier_products_updated_at
     BEFORE UPDATE ON supplier_products
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_product_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_product_colors_updated_at ON supplier_product_colors;
 CREATE TRIGGER trg_supplier_product_colors_updated_at
     BEFORE UPDATE ON supplier_product_colors
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_product_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_product_supplier_mappings_updated_at ON product_supplier_mappings;
 CREATE TRIGGER trg_product_supplier_mappings_updated_at
     BEFORE UPDATE ON product_supplier_mappings
     FOR EACH ROW

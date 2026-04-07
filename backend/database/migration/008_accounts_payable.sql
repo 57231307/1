@@ -58,6 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_invoice_source ON ap_invoice(source_type, sour
 CREATE INDEX IF NOT EXISTS idx_ap_invoice_created_by ON ap_invoice(created_by);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_ap_invoice_updated_at ON ap_invoice;
 CREATE TRIGGER update_ap_invoice_updated_at
 BEFORE UPDATE ON ap_invoice
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -85,6 +86,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_ap_invoice_status ON ap_invoice;
 CREATE TRIGGER trigger_update_ap_invoice_status
 BEFORE UPDATE OF paid_amount ON ap_invoice
 FOR EACH ROW EXECUTE FUNCTION update_ap_invoice_status();
@@ -146,6 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_request_status ON ap_payment_request(approval_
 CREATE INDEX IF NOT EXISTS idx_ap_request_created_by ON ap_payment_request(created_by);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_ap_payment_request_updated_at ON ap_payment_request;
 CREATE TRIGGER update_ap_payment_request_updated_at
 BEFORE UPDATE ON ap_payment_request
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -221,6 +224,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_payment_request_id ON ap_payment(request_id);
 CREATE INDEX IF NOT EXISTS idx_ap_payment_created_by ON ap_payment(created_by);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_ap_payment_updated_at ON ap_payment;
 CREATE TRIGGER update_ap_payment_updated_at
 BEFORE UPDATE ON ap_payment
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -261,6 +265,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_verification_status ON ap_verification(verific
 CREATE INDEX IF NOT EXISTS idx_ap_verification_created_by ON ap_verification(created_by);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_ap_verification_updated_at ON ap_verification;
 CREATE TRIGGER update_ap_verification_updated_at
 BEFORE UPDATE ON ap_verification
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -333,6 +338,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_status ON ap_reconciliation(rec
 CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_created_by ON ap_reconciliation(created_by);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_ap_reconciliation_updated_at ON ap_reconciliation;
 CREATE TRIGGER update_ap_reconciliation_updated_at
 BEFORE UPDATE ON ap_reconciliation
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

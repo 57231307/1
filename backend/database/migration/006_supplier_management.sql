@@ -335,42 +335,50 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_suppliers_updated_at ON suppliers;
 CREATE TRIGGER trg_suppliers_updated_at
     BEFORE UPDATE ON suppliers
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_contacts_updated_at ON supplier_contacts;
 CREATE TRIGGER trg_supplier_contacts_updated_at
     BEFORE UPDATE ON supplier_contacts
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_categories_updated_at ON supplier_categories;
 CREATE TRIGGER trg_supplier_categories_updated_at
     BEFORE UPDATE ON supplier_categories
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_grades_updated_at ON supplier_grades;
 CREATE TRIGGER trg_supplier_grades_updated_at
     BEFORE UPDATE ON supplier_grades
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_evaluations_updated_at ON supplier_evaluations;
 CREATE TRIGGER trg_supplier_evaluations_updated_at
     BEFORE UPDATE ON supplier_evaluations
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_qualifications_updated_at ON supplier_qualifications;
 CREATE TRIGGER trg_supplier_qualifications_updated_at
     BEFORE UPDATE ON supplier_qualifications
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_supplier_blacklists_updated_at ON supplier_blacklists;
 CREATE TRIGGER trg_supplier_blacklists_updated_at
     BEFORE UPDATE ON supplier_blacklists
     FOR EACH ROW
     EXECUTE FUNCTION update_supplier_updated_at_column();
 
 -- 资质过期检查触发器
+DROP TRIGGER IF EXISTS trg_supplier_qualifications_check_expired ON supplier_qualifications;
 CREATE TRIGGER trg_supplier_qualifications_check_expired
     BEFORE INSERT OR UPDATE ON supplier_qualifications
     FOR EACH ROW

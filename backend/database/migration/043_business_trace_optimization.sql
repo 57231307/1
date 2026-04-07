@@ -207,6 +207,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_trace_status ON business_trace_chain;
 CREATE TRIGGER trg_update_trace_status
     BEFORE INSERT OR UPDATE ON business_trace_chain
     FOR EACH ROW

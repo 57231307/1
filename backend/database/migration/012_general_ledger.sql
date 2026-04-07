@@ -313,16 +313,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_account_subjects ON account_subjects;
 CREATE TRIGGER trg_update_account_subjects
 BEFORE UPDATE ON account_subjects
 FOR EACH ROW
 EXECUTE FUNCTION update_account_subject_timestamp();
 
+DROP TRIGGER IF EXISTS trg_update_vouchers ON vouchers;
 CREATE TRIGGER trg_update_vouchers
 BEFORE UPDATE ON vouchers
 FOR EACH ROW
 EXECUTE FUNCTION update_account_subject_timestamp();
 
+DROP TRIGGER IF EXISTS trg_update_account_balances ON account_balances;
 CREATE TRIGGER trg_update_account_balances
 BEFORE UPDATE ON account_balances
 FOR EACH ROW

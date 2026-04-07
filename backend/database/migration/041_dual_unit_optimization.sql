@@ -71,6 +71,7 @@ $$ LANGUAGE plpgsql;
 
 -- 6. 为 inventory_stocks 表创建触发器
 DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
 CREATE TRIGGER trg_calculate_dual_unit_inventory
     BEFORE INSERT OR UPDATE ON inventory_stocks
     FOR EACH ROW
@@ -78,12 +79,14 @@ CREATE TRIGGER trg_calculate_dual_unit_inventory
 
 -- 7. 为 purchase_receipt_item 表创建触发器
 DROP TRIGGER IF EXISTS trg_calculate_dual_unit_receipt ON purchase_receipt_item;
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_receipt ON purchase_receipt_item;
 CREATE TRIGGER trg_calculate_dual_unit_receipt
     BEFORE INSERT OR UPDATE ON purchase_receipt_item
     FOR EACH ROW
     EXECUTE FUNCTION calculate_dual_unit_quantity();
 
 -- 8. 为 purchase_order_item 表创建触发器
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_order ON purchase_order_item;
 DROP TRIGGER IF EXISTS trg_calculate_dual_unit_order ON purchase_order_item;
 CREATE TRIGGER trg_calculate_dual_unit_order
     BEFORE INSERT OR UPDATE ON purchase_order_item
@@ -101,6 +104,7 @@ BEGIN
     END IF;
     
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_sales ON sales_delivery_item;
         CREATE TRIGGER trg_calculate_dual_unit_sales
             BEFORE INSERT OR UPDATE ON sales_delivery_item
             FOR EACH ROW

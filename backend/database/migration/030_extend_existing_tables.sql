@@ -247,6 +247,7 @@ CREATE INDEX IF NOT EXISTS idx_pri_supplier_piece_nos ON purchase_receipt_item U
 -- ========================================
 
 -- 更新销售发货单的 updated_at
+DROP TRIGGER IF EXISTS trg_sales_delivery_updated_at ON sales_delivery;
 CREATE TRIGGER trg_sales_delivery_updated_at
     BEFORE UPDATE ON sales_delivery
     FOR EACH ROW

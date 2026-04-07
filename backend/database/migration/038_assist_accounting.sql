@@ -157,11 +157,13 @@ COMMENT ON FUNCTION update_account_subject_timestamp() IS '辅助核算表专用
 
 -- 5. 触发器：自动更新 updated_at 字段
 -- ============================================
+DROP TRIGGER IF EXISTS trg_update_assist_dimension ON assist_accounting_dimension;
 CREATE TRIGGER trg_update_assist_dimension
 BEFORE UPDATE ON assist_accounting_dimension
 FOR EACH ROW
 EXECUTE FUNCTION update_account_subject_timestamp();
 
+DROP TRIGGER IF EXISTS trg_update_assist_summary ON assist_accounting_summary;
 CREATE TRIGGER trg_update_assist_summary
 BEFORE UPDATE ON assist_accounting_summary
 FOR EACH ROW

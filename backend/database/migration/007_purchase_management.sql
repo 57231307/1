@@ -60,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_po_expected_delivery ON purchase_order(expected_d
 CREATE INDEX IF NOT EXISTS idx_po_created_by ON purchase_order(created_by);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_purchase_order_updated_at ON purchase_order;
 CREATE TRIGGER update_purchase_order_updated_at
 BEFORE UPDATE ON purchase_order
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -122,6 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_poi_color_code ON purchase_order_item(color_code)
 CREATE INDEX IF NOT EXISTS idx_poi_lot_no ON purchase_order_item(lot_no);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_purchase_order_item_updated_at ON purchase_order_item;
 CREATE TRIGGER update_purchase_order_item_updated_at
 BEFORE UPDATE ON purchase_order_item
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -145,10 +147,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS calc_purchase_order_item_amount_before_insert ON purchase_order_item;
 CREATE TRIGGER calc_purchase_order_item_amount_before_insert
 BEFORE INSERT ON purchase_order_item
 FOR EACH ROW EXECUTE FUNCTION calc_purchase_order_item_amount();
 
+DROP TRIGGER IF EXISTS calc_purchase_order_item_amount_before_update ON purchase_order_item;
 CREATE TRIGGER calc_purchase_order_item_amount_before_update
 BEFORE UPDATE ON purchase_order_item
 FOR EACH ROW EXECUTE FUNCTION calc_purchase_order_item_amount();
@@ -211,6 +215,7 @@ CREATE INDEX IF NOT EXISTS idx_pr_warehouse_id ON purchase_receipt(warehouse_id)
 CREATE INDEX IF NOT EXISTS idx_pr_receipt_status ON purchase_receipt(receipt_status);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_purchase_receipt_updated_at ON purchase_receipt;
 CREATE TRIGGER update_purchase_receipt_updated_at
 BEFORE UPDATE ON purchase_receipt
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -280,10 +285,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS calc_purchase_receipt_item_amount_before_insert ON purchase_receipt_item;
 CREATE TRIGGER calc_purchase_receipt_item_amount_before_insert
 BEFORE INSERT ON purchase_receipt_item
 FOR EACH ROW EXECUTE FUNCTION calc_purchase_receipt_item_amount();
 
+DROP TRIGGER IF EXISTS calc_purchase_receipt_item_amount_before_update ON purchase_receipt_item;
 CREATE TRIGGER calc_purchase_receipt_item_amount_before_update
 BEFORE UPDATE ON purchase_receipt_item
 FOR EACH ROW EXECUTE FUNCTION calc_purchase_receipt_item_amount();
@@ -344,6 +351,7 @@ CREATE INDEX IF NOT EXISTS idx_pret_return_date ON purchase_return(return_date);
 CREATE INDEX IF NOT EXISTS idx_pret_return_status ON purchase_return(return_status);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_purchase_return_updated_at ON purchase_return;
 CREATE TRIGGER update_purchase_return_updated_at
 BEFORE UPDATE ON purchase_return
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -398,6 +406,7 @@ CREATE INDEX IF NOT EXISTS idx_pi_inspector_id ON purchase_inspection(inspector_
 CREATE INDEX IF NOT EXISTS idx_pi_inspection_status ON purchase_inspection(inspection_status);
 
 -- 触发器：更新时间
+DROP TRIGGER IF EXISTS update_purchase_inspection_updated_at ON purchase_inspection;
 CREATE TRIGGER update_purchase_inspection_updated_at
 BEFORE UPDATE ON purchase_inspection
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

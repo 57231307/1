@@ -146,16 +146,19 @@ CREATE INDEX IF NOT EXISTS idx_bpm_tc_priority ON bpm_timeout_config(priority);
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_bpm_tn_updated_at ON bpm_task_notification;
 CREATE TRIGGER trg_bpm_tn_updated_at
     BEFORE UPDATE ON bpm_task_notification
     FOR EACH ROW
     EXECUTE FUNCTION update_bpm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_bpm_sd_updated_at ON bpm_statistics_daily;
 CREATE TRIGGER trg_bpm_sd_updated_at
     BEFORE UPDATE ON bpm_statistics_daily
     FOR EACH ROW
     EXECUTE FUNCTION update_bpm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_bpm_tc_updated_at ON bpm_timeout_config;
 CREATE TRIGGER trg_bpm_tc_updated_at
     BEFORE UPDATE ON bpm_timeout_config
     FOR EACH ROW

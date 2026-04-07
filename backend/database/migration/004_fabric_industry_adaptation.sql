@@ -71,6 +71,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_product_colors_updated_at ON product_colors;
 CREATE TRIGGER trg_product_colors_updated_at
     BEFORE UPDATE ON product_colors
     FOR EACH ROW
@@ -116,6 +117,7 @@ COMMENT ON COLUMN warehouse_locations.is_color_managed IS '是否色号管理';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_location_code ON warehouse_locations(warehouse_id, location_code);
 
 -- 创建触发器：自动更新 updated_at
+DROP TRIGGER IF EXISTS trg_warehouse_locations_updated_at ON warehouse_locations;
 CREATE TRIGGER trg_warehouse_locations_updated_at
     BEFORE UPDATE ON warehouse_locations
     FOR EACH ROW

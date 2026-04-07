@@ -347,26 +347,31 @@ $$ LANGUAGE plpgsql;
 -- ========================================
 
 -- 更新 updated_at 触发器
+DROP TRIGGER IF EXISTS trg_crm_lead_updated_at ON crm_lead;
 CREATE TRIGGER trg_crm_lead_updated_at
     BEFORE UPDATE ON crm_lead
     FOR EACH ROW
     EXECUTE FUNCTION update_crm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_crm_opportunity_updated_at ON crm_opportunity;
 CREATE TRIGGER trg_crm_opportunity_updated_at
     BEFORE UPDATE ON crm_opportunity
     FOR EACH ROW
     EXECUTE FUNCTION update_crm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_crm_follow_up_updated_at ON crm_follow_up;
 CREATE TRIGGER trg_crm_follow_up_updated_at
     BEFORE UPDATE ON crm_follow_up
     FOR EACH ROW
     EXECUTE FUNCTION update_crm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_crm_contact_updated_at ON crm_contact;
 CREATE TRIGGER trg_crm_contact_updated_at
     BEFORE UPDATE ON crm_contact
     FOR EACH ROW
     EXECUTE FUNCTION update_crm_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_crm_sales_funnel_updated_at ON crm_sales_funnel_config;
 CREATE TRIGGER trg_crm_sales_funnel_updated_at
     BEFORE UPDATE ON crm_sales_funnel_config
     FOR EACH ROW
