@@ -19,6 +19,7 @@ use crate::handlers::{
     auth_handler,
     batch_handler,
     batch_new_handler,
+    bpm_handler,
     budget_management_handler,
     business_trace_handler,
     cost_collection_handler,
@@ -722,6 +723,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/status", get(system_update_handler::get_update_status));
 
 
+    // BPM 路由
+    let bpm_routes = Router::new()
+        .route("/instances/start", post(bpm_handler::start_process))
+        .route("/tasks/approve", post(bpm_handler::approve_task))
+        .route("/tasks", get(bpm_handler::query_tasks));
+
     // 健康检查路由
     let health_routes = Router::new()
         .route("/", get(health_handler::health_check))
@@ -781,6 +788,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/purchase-prices", purchase_price_routes)
         .nest("/api/v1/erp/ap", ap_routes)
         .nest("/api/v1/erp/ar", ar_routes)
+        .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
         .nest("/api/v1/erp/init", init_routes)

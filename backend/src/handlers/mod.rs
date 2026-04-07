@@ -65,3 +65,4 @@ pub mod dye_recipe_handler;
 pub mod greige_fabric_handler;
 pub mod system_update_handler;
 pub mod sales_return_handler;
+pub mod bpm_handler;
