@@ -247,13 +247,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_age(Duration::from_secs(86400)); // 24小时
 
     let db_result = Database::connect(&settings.database.connection_string).await;
+    
+    // 如果数据库连接成功，额外检查数据库中是否已有数据（如存在用户记录）
+    // 若无数据，则仍认为系统未初始化，进入引导模式
+    let mut db_initialized = false;
+    let mut active_db = None;
+    if let Ok(db) = db_result {
+        let service = InitService::new(Arc::new(db.clone()));
+        let (initialized, _) = service.check_initialized().await;
+        db_initialized = initialized;
+        active_db = Some(db);
+    }
 
-    let app = match db_result {
-        Ok(db) => {
-            info!("数据库连接成功，启动完整模式");
+    let app = if db_initialized {
+        let db = active_db.unwrap();
+        info!("数据库连接成功且已初始化，启动完整模式");
 
-            std::io::stdout().flush().ok();
-            std::io::stderr().flush().ok();
+        std::io::stdout().flush().ok();
+        std::io::stderr().flush().ok();
 
             let app_state = crate::utils::app_state::AppState::new(
                 Arc::new(db),
@@ -317,12 +328,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     axum::http::header::HeaderName::from_static("permissions-policy"),
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
-        }
-        Err(e) => {
-            info!("数据库连接失败: {}", e);
-            info!("启动初始化模式，提供数据库配置API");
+    } else {
+        info!("数据库连接失败或数据库为空");
+        info!("启动初始化模式，提供引导配置");
 
-            create_init_router()
+        create_init_router()
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {
@@ -371,7 +381,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     axum::http::header::HeaderName::from_static("permissions-policy"),
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
-        }
     };
 
     let http_addr: SocketAddr =

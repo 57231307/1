@@ -982,6 +982,7 @@ pub fn create_router(state: AppState) -> Router {
         Router::new().route("/", get(crate::handlers::operation_log_handler::list_logs));
 
     // 添加 /init/status 路由，用于前端检测系统是否已初始化
+    // 注意：完整模式下，移除 /initialize-with-db 等接口，禁止再次运行引导配置
     let init_routes = Router::new()
         .route(
             "/status",
@@ -992,18 +993,6 @@ pub fn create_router(state: AppState) -> Router {
                     "mode": "normal"
                 }))
             }),
-        )
-        .route(
-            "/progress",
-            get(init_handler::get_init_progress),
-        )
-        .route(
-            "/test-database",
-            post(init_handler::test_database_connection),
-        )
-        .route(
-            "/initialize-with-db",
-            post(init_handler::initialize_system_with_db),
         );
 
     Router::new()
