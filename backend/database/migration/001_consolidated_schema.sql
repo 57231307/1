@@ -9666,3 +9666,36 @@ ALTER TABLE system_version ADD COLUMN IF NOT EXISTS changelog TEXT;
 ALTER TABLE system_version ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT false;
 
 
+
+-- =========================================================
+-- DATA TYPE CORRECTIONS (JSONB -> TEXT/ARRAY) TO MATCH RUST MODELS
+-- =========================================================
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='roles' AND column_name='permissions') THEN
+        ALTER TABLE roles ALTER COLUMN permissions TYPE TEXT USING permissions::TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_api_accesses' AND column_name='query_params') THEN
+        ALTER TABLE log_api_accesses ALTER COLUMN query_params TYPE TEXT USING query_params::TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_api_accesses' AND column_name='request_body') THEN
+        ALTER TABLE log_api_accesses ALTER COLUMN request_body TYPE TEXT USING request_body::TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_system' AND column_name='params') THEN
+        ALTER TABLE log_system ALTER COLUMN params TYPE TEXT USING params::TEXT;
+    END IF;
+END $$;
+
