@@ -9665,23 +9665,4 @@ ALTER TABLE system_version ADD COLUMN IF NOT EXISTS release_date TIMESTAMPTZ NOT
 ALTER TABLE system_version ADD COLUMN IF NOT EXISTS changelog TEXT;
 ALTER TABLE system_version ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT false;
 
-CREATE OR REPLACE VIEW v_business_trace_view AS
-SELECT
-    NULL::INTEGER AS id,
-    ''::TEXT AS trace_chain_id,
-    ''::TEXT AS five_dimension_id,
-    0::INTEGER AS product_id,
-    ''::TEXT AS batch_no,
-    ''::TEXT AS color_no,
-    ''::TEXT AS grade,
-    ''::TEXT AS start_stage,
-    ''::TEXT AS current_stage,
-    0::INTEGER AS stage_count,
-    0::NUMERIC(12,2) AS total_in_meters,
-    0::NUMERIC(12,2) AS total_out_meters,
-    0::NUMERIC(12,2) AS current_stock_meters,
-    NULL::TEXT AS supplier_name,
-    NULL::TEXT AS customer_name,
-    CURRENT_TIMESTAMP::TIMESTAMPTZ AS created_at,
-    CURRENT_TIMESTAMP::TIMESTAMPTZ AS updated_at
-WHERE false;
+
