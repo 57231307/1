@@ -1571,6 +1571,17 @@ cargo test --test user_integration_test
 
 ---
 
+### 5. 前端构建优化说明
+
+针对基于 Yew 和 WebAssembly 的前端项目，默认的 Rust `release` 构建参数可能会导致编译极慢（通常因为 `codegen-units = 1` 和全局 LTO）。我们已经在 `frontend/Cargo.toml` 中应用了以下优化，在兼顾最终 Wasm 产物体积的同时，大幅提升了构建速度：
+
+- **优化级别**：`opt-level = 's'`（优先针对产物体积进行优化）
+- **LTO (链接时优化)**：`lto = "thin"`（使用 Thin LTO 代替 Fat LTO，成倍缩短链接时间）
+- **代码生成单元**：`codegen-units = 16`（开启多核并行代码生成，大幅提升构建速度）
+- **构建工具**：在 CI/CD 中通过 `jetli/trunk-action` 使用预编译的 Trunk，并安装 `binaryen` (wasm-opt) 进行二次压缩，避免了从源码编译工具链的时间浪费。
+
+---
+
 ## 监控与运维
 
 ### 1. 监控系统

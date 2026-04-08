@@ -121,8 +121,14 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: 安装 Trunk
+        uses: jetli/trunk-action@v0.5.0
+        with:
+          version: 'latest'
+
+      - name: 安装 Wasm 优化工具 (binaryen)
         run: |
-          cargo install --locked trunk
+          sudo apt-get update
+          sudo apt-get install -y binaryen
 
       - name: 缓存 Cargo 依赖
         uses: actions/cache@v5
@@ -130,6 +136,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            ~/.cargo/bin
             frontend/target
           key: ${{ runner.os }}-cargo-frontend-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |

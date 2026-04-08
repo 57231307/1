@@ -42,7 +42,7 @@ rust_decimal = { version = "1.41.0", features = ["serde"] }
 wasm-bindgen-test = "0.3"
 
 [profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
+opt-level = 's'
+lto = "thin"
+codegen-units = 16
 strip = true
