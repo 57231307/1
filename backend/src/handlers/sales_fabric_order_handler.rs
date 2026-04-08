@@ -207,15 +207,15 @@ pub async fn create_fabric_order(
         customer_id: Set(req.customer_id),
         order_date: Set(req.order_date),
         required_date: Set(req.required_date),
-        ship_date: Set(None),
+        ship_date: sea_orm::Set(None),
         status: Set("pending".to_string()),
         delivery_type: Set(Some("一次性交货".to_string())),
         partial_delivery_allowed: Set(Some(false)),
-        max_partial_count: Set(None),
-        quality_standard: Set(None),
-        inspection_standard: Set(None),
-        packaging_requirement: Set(None),
-        shipping_mark: Set(None),
+        max_partial_count: sea_orm::Set(None),
+        quality_standard: sea_orm::Set(None),
+        inspection_standard: sea_orm::Set(None),
+        packaging_requirement: sea_orm::Set(None),
+        shipping_mark: sea_orm::Set(None),
         subtotal: Set(total_amount),
         tax_amount: Set(Decimal::ZERO),
         discount_amount: Set(Decimal::ZERO),
@@ -226,9 +226,9 @@ pub async fn create_fabric_order(
         shipping_address: Set(req.shipping_address),
         billing_address: Set(req.delivery_address),
         notes: Set(req.remarks), // 使用 notes 字段存储备注
-        created_by: Set(None),
-        approved_by: Set(None),
-        approved_at: Set(None),
+        created_by: sea_orm::Set(None),
+        approved_by: sea_orm::Set(None),
+        approved_at: sea_orm::Set(None),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     };
@@ -289,7 +289,10 @@ pub async fn create_fabric_order(
             final_price: Set(Some(final_p)),
             shipped_quantity_meters: Set(Decimal::ZERO),
             shipped_quantity_kg: Set(Decimal::ZERO),
-        };
+                        allocated_dye_lot_ids: sea_orm::Set(None),
+                allocated_piece_ids: sea_orm::Set(None),
+                delivery_batch_info: sea_orm::Set(None),
+            };
 
         order_item
             .insert(&txn)
@@ -376,7 +379,7 @@ pub async fn approve_fabric_order(
         .into();
 
     order.status = Set("approved".to_string());
-    order.approved_by = Set(None);
+    order.approved_by = sea_orm::Set(None);
     order.approved_at = Set(Some(Utc::now()));
     order.updated_at = Set(Utc::now());
 

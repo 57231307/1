@@ -186,6 +186,7 @@ impl PurchaseOrderService {
                 notes: Set(item_req.notes),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                            receipt_batch_info: sea_orm::Set(None),
             }
             .insert(&txn)
             .await?;
@@ -510,7 +511,8 @@ impl PurchaseOrderService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-        }
+                        receipt_batch_info: sea_orm::Set(None),
+            }
         .insert(&*self.db)
         .await?;
 

@@ -34,7 +34,9 @@ pub struct Model {
     pub node_name: String,
 
     /// 处理人 ID
-    pub assignee_id: Option<i32>,
+    pub assignee_ids: Option<Vec<i32>>,
+    pub candidate_role_ids: Option<Vec<i32>>,
+    pub candidate_user_ids: Option<Vec<i32>>,
 
     /// 候选用户 IDs（JSON 数组）
     pub candidate_ids: Option<serde_json::Value>,

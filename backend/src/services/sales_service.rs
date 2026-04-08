@@ -442,6 +442,9 @@ impl SalesService {
                 final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                 shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                            allocated_dye_lot_ids: sea_orm::Set(None),
+                allocated_piece_ids: sea_orm::Set(None),
+                delivery_batch_info: sea_orm::Set(None),
             };
 
             item.insert(&txn).await?;
@@ -588,7 +591,10 @@ impl SalesService {
                     final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                     shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                };
+                                allocated_dye_lot_ids: sea_orm::Set(None),
+                allocated_piece_ids: sea_orm::Set(None),
+                delivery_batch_info: sea_orm::Set(None),
+            };
 
                 item.insert(&txn).await?;
             }

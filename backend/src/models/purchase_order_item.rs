@@ -75,6 +75,7 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
+        pub receipt_batch_info: Option<serde_json::Value>,
     pub updated_at: DateTime<Utc>,
 }
 

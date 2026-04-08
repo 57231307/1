@@ -31,7 +31,14 @@ pub struct Model {
     pub sql_query: Option<String>,
 
     /// 报表配置（JSON）
-    pub config: Option<serde_json::Value>,
+    pub data_source_config: Option<serde_json::Value>,
+    pub columns_config: Option<serde_json::Value>,
+    pub filter_config: Option<serde_json::Value>,
+    pub default_filters: Option<serde_json::Value>,
+    pub schedule_config: Option<serde_json::Value>,
+    pub layout_config: Option<serde_json::Value>,
+    pub widgets_config: Option<serde_json::Value>,
+    pub visible_roles: Option<Vec<i32>>,
 
     /// 报表描述
     pub description: Option<String>,

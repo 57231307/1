@@ -21,6 +21,9 @@ pub struct Model {
     pub shipped_quantity: Decimal,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+        pub delivery_batch_info: Option<serde_json::Value>,
+    pub allocated_dye_lot_ids: Option<Vec<i32>>,
+    pub allocated_piece_ids: Option<Vec<i32>>,
     pub updated_at: DateTime<Utc>,
     #[sea_orm(column_separator = '_')]
     pub color_no: String,

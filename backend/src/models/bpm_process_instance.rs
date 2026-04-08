@@ -52,6 +52,9 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
+        pub form_data: Option<serde_json::Value>,
+    pub current_handler_ids: Option<Vec<i32>>,
+    pub current_handler_names: Option<Vec<String>>,
     pub updated_at: DateTime<Utc>,
 }
 

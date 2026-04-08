@@ -51,6 +51,8 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
+        pub competitor_names: Option<Vec<String>>,
+    pub tags: Option<Vec<String>>,
     pub updated_at: DateTime<Utc>,
 }
 

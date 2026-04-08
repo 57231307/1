@@ -31,7 +31,10 @@ pub struct Model {
     pub version: Option<String>,
 
     /// 流程配置（JSON）
-    pub config: Option<serde_json::Value>,
+    pub form_schema: Option<serde_json::Value>,
+    pub flow_definition: Option<serde_json::Value>,
+    pub visible_roles: Option<Vec<i32>>,
+    pub initiator_roles: Option<Vec<i32>>,
 
     /// 状态：DRAFT=草稿，ACTIVE=激活，INACTIVE=停用
     pub status: String,
