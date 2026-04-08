@@ -122,6 +122,13 @@ main() {
     
     # 解压发布包
     log "INFO" "[3/8] 解压发布包..."
+    
+    # 清理旧的数据库迁移脚本，防止出现脏数据残留报错
+    if [ -d "$DEPLOY_DIR/database/migration" ]; then
+        log "INFO" "清理旧的数据库迁移脚本..."
+        rm -rf "$DEPLOY_DIR/database/migration/"*.sql
+    fi
+
     if ls bingxi-erp-*.zip 1> /dev/null 2>&1; then
         check_command "unzip"
         unzip -o bingxi-erp-*.zip -d $DEPLOY_DIR
