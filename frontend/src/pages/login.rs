@@ -66,8 +66,17 @@ impl Component for LoginPage {
             Msg::InitStatusChecked(need_init) => {
                 self.need_init = need_init;
                 if need_init {
-                    if let Some(navigator) = _ctx.link().navigator() {
-                        navigator.push(&Route::Init);
+                    // 添加防死循环标志，如果刚刚从初始化页面跳转过来，不要立即跳回去
+                    let just_initialized = web_sys::window()
+                        .and_then(|w| w.session_storage().ok().flatten())
+                        .and_then(|s| s.get_item("just_initialized").ok().flatten())
+                        .map(|v| v == "true")
+                        .unwrap_or(false);
+
+                    if !just_initialized {
+                        if let Some(navigator) = _ctx.link().navigator() {
+                            navigator.push(&Route::Init);
+                        }
                     }
                 }
                 true
@@ -106,7 +115,11 @@ impl Component for LoginPage {
             Msg::LoginSuccess(token) => {
                 self.is_loading = false;
                 Storage::set_token(&token);
-                // 登录成功，跳转到仪表板
+                // 登录成功后清除 just_initialized 标志
+                if let Ok(Some(storage)) = web_sys::window().map(|w| w.session_storage()) {
+                    let _ = storage.remove_item("just_initialized");
+                }
+                // 跳转到仪表板
                 if let Some(navigator) = _ctx.link().navigator() {
                     navigator.push(&Route::Dashboard);
                 }

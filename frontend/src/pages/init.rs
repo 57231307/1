@@ -342,6 +342,12 @@ impl Component for InitPage {
                 self.success_message = Some(message);
                 self.is_initialized = true;
                 self.current_step = InitStep::Completed;
+                
+                // 设置刚刚初始化的标志，防止登录页瞬间踢回初始化页（死循环）
+                if let Ok(Some(storage)) = web_sys::window().map(|w| w.session_storage()) {
+                    let _ = storage.set_item("just_initialized", "true");
+                }
+
                 if let Some(navigator) = _ctx.link().navigator() {
                     let navigator = navigator.clone();
                     gloo_timers::callback::Timeout::new(2000, move || {

@@ -73,7 +73,8 @@ impl AppSettings {
         // 尝试反序列化，如果失败则使用默认值
         let mut app_settings = match settings.try_deserialize::<AppSettings>() {
             Ok(settings) => settings,
-            Err(_) => {
+            Err(e) => {
+                println!("Failed to deserialize settings, falling back to defaults. Error: {}", e);
                 // 使用默认值
                 AppSettings {
                     server: ServerConfig {
