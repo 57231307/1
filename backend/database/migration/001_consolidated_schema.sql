@@ -8656,16 +8656,16 @@ WHERE quantity IS NOT NULL
 
 UPDATE purchase_receipt_item
 SET 
-    quantity_alt = ROUND(quantity_received * gram_weight * (width / 100.0) / 1000.0, 3),
-    calculated_quantity_alt = ROUND(quantity_received * gram_weight * (width / 100.0) / 1000.0, 3),
+    quantity_alt = ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_alt = ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_received * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity_received, 0),
+        ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity, 0),
         6
     )
-WHERE quantity_received IS NOT NULL 
+WHERE quantity IS NOT NULL 
   AND gram_weight IS NOT NULL 
   AND width IS NOT NULL
-  AND quantity_received > 0
+  AND quantity > 0
   AND gram_weight > 0
   AND width > 0;
 
