@@ -8743,13 +8743,11 @@ ON inventory_stocks(product_id, batch_no, color_no, grade);
 ALTER TABLE inventory_stocks 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::text, '') || '|' ||
+    'B' || COALESCE(batch_no, '') || '|' ||
+    'C' || COALESCE(color_no, '') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, '')
 ) STORED;
 
 -- 3. 为五维 ID 添加索引，加速精确查询
@@ -8764,13 +8762,11 @@ ON purchase_receipt_item(product_id, batch_no, color_code, grade);
 ALTER TABLE purchase_receipt_item 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::text, '') || '|' ||
+    'B' || COALESCE(batch_no, '') || '|' ||
+    'C' || COALESCE(color_code, '') || '|' ||
+    'D' || COALESCE(lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, '')
 ) STORED;
 
 -- 6. 为 purchase_receipt_item 的五维 ID 添加索引
@@ -8785,13 +8781,11 @@ ON sales_delivery_item(product_id, dye_lot_no, color_no);
 ALTER TABLE sales_delivery_item 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::text, '') || '|' ||
+    'B' || '' || '|' ||
+    'C' || COALESCE(color_no, '') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || ''
 ) STORED;
 
 -- 9. 为 sales_delivery_item 的五维 ID 添加索引
@@ -8806,13 +8800,11 @@ ON inventory_transactions(product_id, batch_no, color_no, grade);
 ALTER TABLE inventory_transactions
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', COALESCE(product_id::text, '0'), '|',
-        'B', COALESCE(batch_no, 'N'), '|',
-        'C', COALESCE(color_no, 'N'), '|',
-        'D', 'N', '|',
-        'G', COALESCE(grade, 'N')
-    )
+    'P' || COALESCE(product_id::text, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || 'N' || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 12. 为 inventory_transactions 的五维 ID 添加索引
