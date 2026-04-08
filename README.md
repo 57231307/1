@@ -1590,6 +1590,7 @@ cargo test --test user_integration_test
 - **智能缓存 (Smart Caching)**：在 GitHub Actions CI 中引入了 `Swatinem/rust-cache@v2` 替换了原生的缓存插件。它能对 Rust `target` 目录进行垃圾回收清理（Pruning），避免了随着提交次数增加导致的缓存文件极度膨胀和网络 I/O 阻塞。
 - **针对性降级与分层编译**：为了最大程度压榨构建时间，我们将后端的全局 `opt-level` 调整为 `2`（这仅牺牲了约 5% 的运行时极限性能，却能节省海量的编译时间）。同时，我们彻底关闭了最耗时的 `lto`，并将 `codegen-units` 拉满到 256 以实现最高并发。
 - **依赖项与宏极速处理**：在 Cargo.toml 中配置了专属规则，让构建脚本和过程宏（如 syn、quote）以 `opt-level = 0` 极速编译，避免在无用的依赖优化上浪费时间。
+- **构建配置作用域修复**：移除了全局 `RUSTFLAGS` 污染，严格限制自定义 `lld` 链接器仅在 Linux 服务端生效，避免干扰基于 WebAssembly 的前端专用 `wasm-ld` 链接过程，确保 CI/CD 100% 成功率。
 - **sccache 对象缓存**：在 CI 中引入了 Mozilla 的 `sccache`，能够针对复杂的 Crate 产物进行基于文件的对象级缓存，对宏展开特别有效。
 
 ---
