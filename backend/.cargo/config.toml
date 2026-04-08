@@ -1,10 +1,2 @@
-# 使用国内镜像源加速下载
-# 使用官方源 + 网络优化
-
-[net]
-git-fetch-with-cli = true
-retry = 5
-
-[http]
-timeout = 300000
-low-speed-limit = 100
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]

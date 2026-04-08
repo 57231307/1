@@ -1582,6 +1582,16 @@ cargo test --test user_integration_test
 
 ---
 
+### 6. 后端构建优化说明
+
+除了前端优化，针对后端庞大的依赖树（如 SeaORM、Axum 等宏展开密集型包），我们同样在 `backend/Cargo.toml` 和 CI 流水线中进行了深度构建优化：
+
+- **链接器 (Linker)**：配置了 `lld` 替代系统默认的 GNU `ld`，极大地缩短了最终二进制可执行文件的链接阶段耗时。
+- **智能缓存 (Smart Caching)**：在 GitHub Actions CI 中引入了 `Swatinem/rust-cache@v2` 替换了原生的缓存插件。它能对 Rust `target` 目录进行垃圾回收清理（Pruning），避免了随着提交次数增加导致的缓存文件极度膨胀和网络 I/O 阻塞。
+- **无损优化级别**：得益于上述底层构建工具的优化，后端的 Release 模式得以重新开启 `opt-level = 3` 与 `lto = "thin"`，在不再惧怕编译超时的前提下，享受最高级别的运行时性能。
+
+---
+
 ## 监控与运维
 
 ### 1. 监控系统
