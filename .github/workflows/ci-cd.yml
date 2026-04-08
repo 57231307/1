@@ -1,5 +1,10 @@
 name: CI/CD Pipeline - 自动构建和发布
 
+# 为了防止同时推送 commit 和 tag 时触发两次重复构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
