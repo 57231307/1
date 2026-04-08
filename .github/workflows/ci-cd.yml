@@ -10,14 +10,10 @@ on:
     branches:
       - main
       - master
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
       - master
-  release:
-    types: [created]
 
 env:
   ACTIONS_RUNNER_FORCE_ACTIONS_NODE24: true
@@ -165,7 +161,7 @@ jobs:
     name: 创建发布包
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -279,7 +275,7 @@ jobs:
     name: 发布到 GitHub Release
     needs: package-release
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     permissions:
       contents: write
     steps:
