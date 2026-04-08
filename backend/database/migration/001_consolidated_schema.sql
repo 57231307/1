@@ -8429,12 +8429,12 @@ COMMENT ON TABLE product_supplier_mappings IS '系统产品与供应商产品映
 COMMENT ON COLUMN product_supplier_mappings.is_primary IS '是否为首选供应商';
 COMMENT ON COLUMN product_supplier_mappings.priority IS '优先级（数字越小优先级越高）';
 
--- 唯一约束
-ALTER TABLE product_supplier_mappings ADD CONSTRAINT uk_product_supplier_mapping UNIQUE (
-    product_id, 
-    COALESCE(product_color_id, 0), 
-    supplier_id, 
-    supplier_product_id, 
+-- 唯一约束 (使用 UNIQUE INDEX 替代 CONSTRAINT 以支持 COALESCE 表达式)
+CREATE UNIQUE INDEX uk_product_supplier_mapping ON product_supplier_mappings (
+    product_id,
+    COALESCE(product_color_id, 0),
+    supplier_id,
+    supplier_product_id,
     COALESCE(supplier_product_color_id, 0)
 );
 
