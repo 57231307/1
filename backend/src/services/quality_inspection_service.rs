@@ -290,7 +290,7 @@ impl QualityInspectionService {
 
         unqualified.handling_status = Set(handling_status.to_string());
         unqualified.handling_by = Set(Some(handler_id));
-        unqualified.handling_at = Set(Some(chrono::Utc::now().naive_utc()));
+        unqualified.handling_at = Set(Some(chrono::Utc::now()));
 
         let result = unqualified.update(&*self.db).await?;
         info!("不合格品处理状态更新成功：{}", result.unqualified_no);

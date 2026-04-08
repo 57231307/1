@@ -18,9 +18,9 @@ pub struct Model {
     pub acceptance_criteria: Option<String>,
     pub status: String,
     #[sea_orm(column_type = "Timestamp")]
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     #[sea_orm(column_type = "Timestamp")]
-    pub updated_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
