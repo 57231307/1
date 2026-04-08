@@ -8184,8 +8184,8 @@ BEFORE UPDATE ON assist_accounting_summary
 FOR EACH ROW
 EXECUTE FUNCTION update_account_subject_timestamp();
 
-COMMENT ON TRIGGER trg_update_assist_dimension IS '自动更新辅助核算维度 updated_at 字段';
-COMMENT ON TRIGGER trg_update_assist_summary IS '自动更新辅助核算汇总 updated_at 字段';
+COMMENT ON TRIGGER trg_update_assist_dimension ON assist_accounting_dimension IS '自动更新辅助核算维度 updated_at 字段';
+COMMENT ON TRIGGER trg_update_assist_summary ON assist_accounting_summary IS '自动更新辅助核算汇总 updated_at 字段';
 
 -- ============================================
 -- 迁移完成
