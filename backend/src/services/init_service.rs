@@ -487,8 +487,8 @@ impl InitService {
                     // Update fine-grained progress based on statement execution
                     // For example, file progress ranges from current base progress to base + (90/total_files)
                     // If there's only 1 file (our consolidated schema), it ranges from 10 to 90.
-                    let file_base_prog = if total_files > 0 { 10 + (index as u32 * 80 / total_files) } else { 10 };
-                    let file_prog_step = if total_files > 0 { 80 / total_files } else { 80 };
+                    let file_base_prog = if total_scripts > 0 { 10 + (i as u32 * 80 / total_scripts as u32) } else { 10 };
+                    let file_prog_step = if total_scripts > 0 { 80 / total_scripts as u32 } else { 80 };
                     let stmt_prog = file_base_prog + (stmt_idx as u32 * file_prog_step / total_stmts.max(1));
                     
                     update_init_progress("running", stmt_prog, &format!("Executing {} ({}/{})", file_name, stmt_idx + 1, total_stmts), None);
