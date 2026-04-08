@@ -1,0 +1,15 @@
+with open('/workspace/backend/database/migration/001_consolidated_schema.sql', 'a') as f:
+    f.write("\n-- sales_delivery\n")
+    f.write("ALTER TABLE sales_delivery ADD COLUMN IF NOT EXISTS order_id INTEGER;\n")
+    f.write("ALTER TABLE sales_delivery ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'draft';\n")
+    f.write("ALTER TABLE sales_delivery ADD COLUMN IF NOT EXISTS remarks TEXT;\n")
+    
+    f.write("\n-- sales_delivery_item\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS delivery_id INTEGER;\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS product_id INTEGER;\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS batch_no VARCHAR(50);\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS color_no VARCHAR(50);\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS quantity DECIMAL(18,4) NOT NULL DEFAULT 0;\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS unit_price DECIMAL(18,6) NOT NULL DEFAULT 0;\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS amount DECIMAL(18,2) NOT NULL DEFAULT 0;\n")
+    f.write("ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS remarks TEXT;\n")
