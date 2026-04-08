@@ -24,11 +24,21 @@ $$ language 'plpgsql';
 CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
+    code VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
     parent_id INTEGER REFERENCES departments(id),
+    manager_id INTEGER,
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS code VARCHAR(50) DEFAULT '';
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS manager_id INTEGER;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+UPDATE departments SET code = 'DEPT_' || id WHERE code = '';
 
 COMMENT ON TABLE departments IS '部门信息表';
 COMMENT ON COLUMN departments.id IS '部门 ID';
@@ -43,11 +53,17 @@ CREATE INDEX IF NOT EXISTS idx_departments_parent_id ON departments(parent_id);
 CREATE TABLE IF NOT EXISTS roles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
+    code VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
     permissions JSONB,
+    is_system BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS code VARCHAR(50) DEFAULT '';
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT false;
+UPDATE roles SET code = 'ROLE_' || id WHERE code = '';
 
 COMMENT ON TABLE roles IS '角色信息表';
 COMMENT ON COLUMN roles.permissions IS '权限配置（JSON 格式）';
@@ -100,11 +116,19 @@ CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role
 CREATE TABLE IF NOT EXISTS product_categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
+    category_code VARCHAR(50) NOT NULL UNIQUE,
     parent_id INTEGER REFERENCES product_categories(id),
     description TEXT,
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS category_code VARCHAR(50) DEFAULT '';
+ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+UPDATE product_categories SET category_code = 'CAT_' || id WHERE category_code = '';
 
 COMMENT ON TABLE product_categories IS '产品类别表';
 COMMENT ON COLUMN product_categories.parent_id IS '父类别 ID';
@@ -152,6 +176,10 @@ CREATE TABLE IF NOT EXISTS warehouses (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS temperature_control BOOLEAN DEFAULT false;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS humidity_control BOOLEAN DEFAULT false;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS fire_protection_level VARCHAR(50);
 
 COMMENT ON TABLE warehouses IS '仓库信息表';
 COMMENT ON COLUMN warehouses.code IS '仓库编码';
@@ -472,19 +500,19 @@ CREATE INDEX IF NOT EXISTS idx_operation_logs_status ON operation_logs(status);
 -- ========================================
 
 -- 插入默认角色
-INSERT INTO roles (name, description, permissions) VALUES
-('admin', '系统管理员', '["*"]'::jsonb),
-('manager', '部门经理', '["user:view", "product:*", "inventory:*", "sales:*"]'::jsonb),
-('operator', '操作员', '["product:view", "inventory:view", "sales:view"]'::jsonb)
+INSERT INTO roles (name, code, description, permissions, is_system) VALUES
+('admin', 'ADMIN', '系统管理员', '["*"]'::jsonb, true),
+('manager', 'MANAGER', '部门经理', '["user:view", "product:*", "inventory:*", "sales:*"]'::jsonb, false),
+('operator', 'OPERATOR', '操作员', '["product:view", "inventory:view", "sales:view"]'::jsonb, false)
 ON CONFLICT (name) DO NOTHING;
 
 -- 插入默认部门
-INSERT INTO departments (name, description) VALUES
-('总经办', '公司管理层'),
-('财务部', '财务管理'),
-('销售部', '销售业务'),
-('仓储部', '库存管理'),
-('生产部', '生产管理')
+INSERT INTO departments (name, code, description) VALUES
+('总经办', 'DEPT_GM', '公司管理层'),
+('财务部', 'DEPT_FIN', '财务管理'),
+('销售部', 'DEPT_SALES', '销售业务'),
+('仓储部', 'DEPT_WH', '库存管理'),
+('生产部', 'DEPT_PROD', '生产管理')
 ON CONFLICT (name) DO NOTHING;
 
 -- 插入默认仓库
