@@ -19,6 +19,7 @@ env:
   ACTIONS_RUNNER_FORCE_ACTIONS_NODE24: true
   RUST_VERSION: 1.94.1
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
 
 jobs:
   test:
@@ -47,7 +48,7 @@ jobs:
       - name: 运行后端测试
         working-directory: backend
         run: |
-          cargo test --all --jobs 2
+          cargo test --all
 
   build-backend:
     name: 构建后端
@@ -72,8 +73,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev protobuf-compiler lld
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.4
+
       - name: 构建后端 (Release模式)
         working-directory: backend
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
         run: |
           cargo build --release
 
