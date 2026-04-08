@@ -8525,6 +8525,9 @@ DO $$
 BEGIN 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
         ALTER TABLE sales_delivery_item 
+        ADD COLUMN IF NOT EXISTS quantity_alt DECIMAL(18,4),
+        ADD COLUMN IF NOT EXISTS gram_weight DECIMAL(8,2),
+        ADD COLUMN IF NOT EXISTS width DECIMAL(8,2),
         ADD COLUMN IF NOT EXISTS calculated_quantity_alt DECIMAL(10,3),
         ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
         
@@ -8598,14 +8601,12 @@ $$ LANGUAGE plpgsql;
 
 -- 6. 为 inventory_stocks 表创建触发器
 DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
 CREATE TRIGGER trg_calculate_dual_unit_inventory
     BEFORE INSERT OR UPDATE ON inventory_stocks
     FOR EACH ROW
     EXECUTE FUNCTION calculate_dual_unit_quantity();
 
 -- 7. 为 purchase_receipt_item 表创建触发器
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_receipt ON purchase_receipt_item;
 DROP TRIGGER IF EXISTS trg_calculate_dual_unit_receipt ON purchase_receipt_item;
 CREATE TRIGGER trg_calculate_dual_unit_receipt
     BEFORE INSERT OR UPDATE ON purchase_receipt_item
@@ -8622,15 +8623,8 @@ CREATE TRIGGER trg_calculate_dual_unit_order
 -- 9. 为 sales_delivery_item 表创建触发器（如果存在）
 DO $$ 
 BEGIN 
-    IF EXISTS (
-        SELECT 1 FROM information_schema.triggers 
-        WHERE trigger_name = 'trg_calculate_dual_unit_sales'
-    ) THEN
-        DROP TRIGGER trg_calculate_dual_unit_sales ON sales_delivery_item;
-    END IF;
-    
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_sales ON sales_delivery_item;
+        DROP TRIGGER IF EXISTS trg_calculate_dual_unit_sales ON sales_delivery_item;
         CREATE TRIGGER trg_calculate_dual_unit_sales
             BEFORE INSERT OR UPDATE ON sales_delivery_item
             FOR EACH ROW
