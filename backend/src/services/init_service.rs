@@ -287,7 +287,14 @@ impl InitService {
             if let Err(e) = init_result {
                 update_init_progress("failed", 0, "初始化失败", Some(e.to_string()));
             } else {
-                update_init_progress("completed", 100, "初始化完成", None);
+                update_init_progress("completed", 100, "初始化完成，请手动重启后端服务", None);
+                
+                // 3秒后自动退出进程，以便应用新的数据库配置
+                tokio::spawn(async {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    tracing::info!("系统初始化完成，正在退出以应用新配置...");
+                    std::process::exit(0);
+                });
             }
         });
 
@@ -350,6 +357,25 @@ impl InitService {
                 Ok(db) => {
                     let db = Arc::new(db);
                     let service = Self::new(db);
+                    
+                    // 保存配置到 .env 文件
+                    let mut env_content = std::fs::read_to_string(".env").unwrap_or_default();
+                    if env_content.contains("DATABASE__CONNECTION_STRING") {
+                        let lines: Vec<&str> = env_content.lines().collect();
+                        let mut new_lines = Vec::new();
+                        for line in lines {
+                            if line.starts_with("DATABASE__CONNECTION_STRING") {
+                                new_lines.push(format!("DATABASE__CONNECTION_STRING=\"{}\"", conn_str));
+                            } else {
+                                new_lines.push(line.to_string());
+                            }
+                        }
+                        env_content = new_lines.join("\n");
+                    } else {
+                        env_content.push_str(&format!("\nDATABASE__CONNECTION_STRING=\"{}\"\n", conn_str));
+                    }
+                    let _ = std::fs::write(".env", env_content.trim_start());
+
                     return service.initialize(admin_username, admin_password).await;
                 }
                 Err(e) => {

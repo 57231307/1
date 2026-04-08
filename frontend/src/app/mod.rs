@@ -129,7 +129,7 @@ pub enum Route {
     #[at("/crm/opportunities")]
     CrmOpportunities,
     #[not_found]
-    #[at("/404")]
+    #[at("/404/*path")]
     NotFound,
 }
 

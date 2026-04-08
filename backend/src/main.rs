@@ -41,11 +41,20 @@ struct InitStatusResponse {
 }
 
 async fn get_init_status() -> Json<InitStatusResponse> {
-    Json(InitStatusResponse {
-        initialized: false,
-        message: "系统未初始化，请先配置数据库".to_string(),
-        mode: "setup".to_string(),
-    })
+    let progress = crate::services::init_service::INIT_PROGRESS.read().unwrap();
+    if progress.status == "completed" {
+        Json(InitStatusResponse {
+            initialized: true,
+            message: "系统已初始化，请重启后端服务".to_string(),
+            mode: "setup_completed".to_string(),
+        })
+    } else {
+        Json(InitStatusResponse {
+            initialized: false,
+            message: "系统未初始化，请先配置数据库".to_string(),
+            mode: "setup".to_string(),
+        })
+    }
 }
 
 async fn test_database_connection(
