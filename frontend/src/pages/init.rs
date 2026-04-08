@@ -310,7 +310,7 @@ impl Component for InitPage {
                         self.loading_message = progress.message.clone();
 
                         match progress.status.as_str() {
-                            "completed" | "idle" => {
+                            "completed" => {
                                 self.poll_interval = None;
                                 _ctx.link().send_message(Msg::InitializeSuccess(progress.message));
                             }

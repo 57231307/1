@@ -252,11 +252,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 若无数据，则仍认为系统未初始化，进入引导模式
     let mut db_initialized = false;
     let mut active_db = None;
-    if let Ok(db) = db_result {
-        let service = InitService::new(Arc::new(db.clone()));
-        let (initialized, _) = service.check_initialized().await;
-        db_initialized = initialized;
-        active_db = Some(db);
+    let mut init_error_msg = String::new();
+    match db_result {
+        Ok(db) => {
+            let service = InitService::new(Arc::new(db.clone()));
+            let (initialized, msg) = service.check_initialized().await;
+            db_initialized = initialized;
+            init_error_msg = msg;
+            active_db = Some(db);
+        }
+        Err(e) => {
+            init_error_msg = format!("数据库连接失败: {}", e);
+        }
     }
 
     let app = if db_initialized {
@@ -329,7 +336,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
     } else {
-        info!("数据库连接失败或数据库为空");
+        info!("数据库连接失败或数据库为空: {}", init_error_msg);
         info!("启动初始化模式，提供引导配置");
 
         create_init_router()
