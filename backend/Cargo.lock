@@ -291,6 +291,7 @@ dependencies = [
  "chrono",
  "config",
  "dashmap",
+ "dotenvy",
  "fastrand",
  "futures",
  "http",

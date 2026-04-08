@@ -67,7 +67,6 @@ impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
         let settings = Config::builder()
             .add_source(File::with_name("config").required(false))
-            .add_source(File::with_name(".env").required(false))
             .add_source(config::Environment::default().separator("__"))
             .build()?;
 

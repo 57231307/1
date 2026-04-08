@@ -36,6 +36,7 @@ pub struct InitPage {
     init_progress: u8,
     loading_message: String,
     poll_interval: Option<gloo_timers::callback::Interval>,
+    poll_error_count: u8,
 }
 
 pub enum Msg {
@@ -88,6 +89,7 @@ impl Component for InitPage {
             init_progress: 0,
             loading_message: String::from("准备初始化..."),
             poll_interval: None,
+            poll_error_count: 0,
         }
     }
 
@@ -303,11 +305,12 @@ impl Component for InitPage {
             Msg::ProgressResult(result) => {
                 match result {
                     Ok(progress) => {
+                        self.poll_error_count = 0;
                         self.init_progress = progress.progress as u8;
                         self.loading_message = progress.message.clone();
 
                         match progress.status.as_str() {
-                            "completed" => {
+                            "completed" | "idle" => {
                                 self.poll_interval = None;
                                 _ctx.link().send_message(Msg::InitializeSuccess(progress.message));
                             }
@@ -322,7 +325,13 @@ impl Component for InitPage {
                         }
                     }
                     Err(_) => {
-                        // 忽略错误，继续轮询
+                        // 如果后端由于退出重启而导致请求失败，尝试容错处理
+                        self.poll_error_count += 1;
+                        if self.poll_error_count >= 3 {
+                            // 连续失败3次，假设后端已成功配置并重启，自动跳转登录页
+                            self.poll_interval = None;
+                            _ctx.link().send_message(Msg::InitializeSuccess("后端正在重启，即将跳转登录页...".to_string()));
+                        }
                     }
                 }
                 true

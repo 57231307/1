@@ -181,6 +181,9 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 加载 .env 文件中的环境变量
+    dotenvy::dotenv().ok();
+
     let settings = AppSettings::new()?;
 
     let _log_level = settings.log.level.parse::<Level>()?;
