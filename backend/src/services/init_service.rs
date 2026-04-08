@@ -537,7 +537,11 @@ impl InitService {
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
         // 先检查admin角色是否已存在
         let existing_admin = role::Entity::find()
-            .filter(role::Column::Code.eq("admin"))
+            .filter(
+                sea_orm::Condition::any()
+                    .add(role::Column::Code.eq("admin"))
+                    .add(role::Column::Name.eq("管理员"))
+            )
             .one(self.db.as_ref())
             .await
             .map_err(|e| InitError::DatabaseError(format!("查询角色失败: {}", e)))?;
@@ -604,7 +608,11 @@ impl InitService {
     async fn create_default_departments(&self) -> Result<i32, InitError> {
         // 先检查总经办是否已存在
         let existing_dept = department::Entity::find()
-            .filter(department::Column::Code.eq("D001"))
+            .filter(
+                sea_orm::Condition::any()
+                    .add(department::Column::Code.eq("D001"))
+                    .add(department::Column::Name.eq("总经办"))
+            )
             .one(self.db.as_ref())
             .await
             .map_err(|e| InitError::DatabaseError(format!("查询部门失败: {}", e)))?;
