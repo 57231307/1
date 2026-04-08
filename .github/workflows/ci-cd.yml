@@ -70,7 +70,7 @@ jobs:
       - name: 安装系统依赖
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler lld
+          sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler lld cmake
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.4
@@ -119,10 +119,10 @@ jobs:
         with:
           version: 'latest'
 
-      - name: 安装 Wasm 优化工具 (binaryen)
+      - name: 安装系统依赖与 Wasm 优化工具
         run: |
           sudo apt-get update
-          sudo apt-get install -y binaryen
+          sudo apt-get install -y pkg-config libssl-dev binaryen
 
       - name: 缓存 Cargo 依赖
         uses: actions/cache@v5

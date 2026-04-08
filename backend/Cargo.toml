@@ -94,7 +94,7 @@ path = "src/main.rs"
 
 [profile.dev]
 opt-level = 0
-debug = 0
+debug = false
 
 [profile.release]
 opt-level = 2
@@ -113,6 +113,6 @@ opt-level = 0
 
 [profile.test]
 opt-level = 0
-debug = 0
+debug = false
 codegen-units = 16
 lto = false
