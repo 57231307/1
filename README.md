@@ -1593,7 +1593,6 @@ cargo test --test user_integration_test
 - **构建配置语法规范化**：修复了 `Cargo.toml` 中废弃或非标准的配置属性（例如将非法的 `debug = 0` 修正为标准的 `debug = false`），确保了高版本 Cargo 环境下构建过程不被警告和报错中断。并为前后端统一补充了 `pkg-config`、`libssl-dev`、`cmake` 等完整的 CI 底层构建依赖。
 - **依赖项与宏极速处理**：在 Cargo.toml 中配置了专属规则，让构建脚本和过程宏（如 syn、quote）以 `opt-level = 0` 极速编译，避免在无用的依赖优化上浪费时间。
 - **构建配置作用域修复**：移除了全局 `RUSTFLAGS` 污染，严格限制自定义 `lld` 链接器仅在 Linux 服务端生效，避免干扰基于 WebAssembly 的前端专用 `wasm-ld` 链接过程，确保 CI/CD 100% 成功率。
-- **sccache 对象缓存**：在 CI 中引入了 Mozilla 的 `sccache`，能够针对复杂的 Crate 产物进行基于文件的对象级缓存，对宏展开特别有效。
 
 ---
 
