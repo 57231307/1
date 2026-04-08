@@ -1411,9 +1411,12 @@ COMMENT ON COLUMN suppliers.assist_supplier IS '是否启用供应商核算';
 
 -- 唯一约束
 ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_code;
+ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_code;
 ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_code UNIQUE (supplier_code);
 ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_name;
+ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_name;
 ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_name UNIQUE (supplier_name);
+ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_credit_code;
 ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_credit_code;
 ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_credit_code UNIQUE (credit_code);
 
@@ -1476,6 +1479,7 @@ COMMENT ON COLUMN supplier_categories.level IS '分类层级（1-3）';
 
 -- 唯一约束
 ALTER TABLE supplier_categories DROP CONSTRAINT IF EXISTS uk_categories_code;
+ALTER TABLE supplier_categories DROP CONSTRAINT IF EXISTS uk_categories_code;
 ALTER TABLE supplier_categories ADD CONSTRAINT uk_categories_code UNIQUE (category_code);
 
 -- 索引
@@ -1503,6 +1507,7 @@ CREATE TABLE IF NOT EXISTS supplier_grades (
 COMMENT ON TABLE supplier_grades IS '供应商等级表';
 
 -- 唯一约束
+ALTER TABLE supplier_grades DROP CONSTRAINT IF EXISTS uk_grades_code;
 ALTER TABLE supplier_grades DROP CONSTRAINT IF EXISTS uk_grades_code;
 ALTER TABLE supplier_grades ADD CONSTRAINT uk_grades_code UNIQUE (grade_code);
 
@@ -1578,6 +1583,7 @@ COMMENT ON COLUMN supplier_evaluations.delivery_on_time_rate IS '交货及时率
 COMMENT ON COLUMN supplier_evaluations.order_completion_rate IS '订单完成率（%）';
 
 -- 唯一约束
+ALTER TABLE supplier_evaluations DROP CONSTRAINT IF EXISTS uk_supplier_quarter;
 ALTER TABLE supplier_evaluations DROP CONSTRAINT IF EXISTS uk_supplier_quarter;
 ALTER TABLE supplier_evaluations ADD CONSTRAINT uk_supplier_quarter UNIQUE (supplier_id, evaluation_year, evaluation_quarter);
 
@@ -5123,7 +5129,9 @@ ALTER TABLE batch_dye_lot ADD CONSTRAINT fk_dye_lot_supplier
 
 -- 唯一约束
 ALTER TABLE batch_dye_lot DROP CONSTRAINT IF EXISTS uk_dye_lot_no;
+ALTER TABLE batch_dye_lot DROP CONSTRAINT IF EXISTS uk_dye_lot_no;
 ALTER TABLE batch_dye_lot ADD CONSTRAINT uk_dye_lot_no UNIQUE (dye_lot_no);
+ALTER TABLE batch_dye_lot DROP CONSTRAINT IF EXISTS uk_dye_lot_product_color_supplier;
 ALTER TABLE batch_dye_lot DROP CONSTRAINT IF EXISTS uk_dye_lot_product_color_supplier;
 ALTER TABLE batch_dye_lot ADD CONSTRAINT uk_dye_lot_product_color_supplier UNIQUE (product_id, color_id, supplier_id, dye_lot_no);
 
@@ -5223,9 +5231,12 @@ ALTER TABLE product_code_mapping ADD CONSTRAINT fk_pcm_supplier
 
 -- 唯一约束
 ALTER TABLE product_code_mapping DROP CONSTRAINT IF EXISTS uk_pcm_internal_supplier;
+ALTER TABLE product_code_mapping DROP CONSTRAINT IF EXISTS uk_pcm_internal_supplier;
 ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_internal_supplier UNIQUE (internal_product_code, supplier_product_code, supplier_id);
 ALTER TABLE product_code_mapping DROP CONSTRAINT IF EXISTS uk_pcm_internal;
+ALTER TABLE product_code_mapping DROP CONSTRAINT IF EXISTS uk_pcm_internal;
 ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_internal UNIQUE (internal_product_code, supplier_id);
+ALTER TABLE product_code_mapping DROP CONSTRAINT IF EXISTS uk_pcm_supplier;
 ALTER TABLE product_code_mapping DROP CONSTRAINT IF EXISTS uk_pcm_supplier;
 ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_supplier UNIQUE (supplier_product_code, supplier_id);
 
@@ -5266,9 +5277,12 @@ ALTER TABLE color_code_mapping ADD CONSTRAINT fk_ccm_supplier
 
 -- 唯一约束
 ALTER TABLE color_code_mapping DROP CONSTRAINT IF EXISTS uk_ccm_internal_supplier;
+ALTER TABLE color_code_mapping DROP CONSTRAINT IF EXISTS uk_ccm_internal_supplier;
 ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_internal_supplier UNIQUE (internal_color_no, supplier_color_code, supplier_id);
 ALTER TABLE color_code_mapping DROP CONSTRAINT IF EXISTS uk_ccm_internal;
+ALTER TABLE color_code_mapping DROP CONSTRAINT IF EXISTS uk_ccm_internal;
 ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_internal UNIQUE (internal_color_no, supplier_id);
+ALTER TABLE color_code_mapping DROP CONSTRAINT IF EXISTS uk_ccm_supplier;
 ALTER TABLE color_code_mapping DROP CONSTRAINT IF EXISTS uk_ccm_supplier;
 ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_supplier UNIQUE (supplier_color_code, supplier_id);
 
@@ -5310,6 +5324,7 @@ ALTER TABLE dye_lot_mapping ADD CONSTRAINT fk_dlm_batch_dye_lot
 
 -- 唯一约束
 ALTER TABLE dye_lot_mapping DROP CONSTRAINT IF EXISTS uk_dlm_internal_supplier;
+ALTER TABLE dye_lot_mapping DROP CONSTRAINT IF EXISTS uk_dlm_internal_supplier;
 ALTER TABLE dye_lot_mapping ADD CONSTRAINT uk_dlm_internal_supplier UNIQUE (internal_dye_lot_no, supplier_dye_lot_no, supplier_id);
 
 -- 索引
@@ -5348,6 +5363,7 @@ ALTER TABLE piece_mapping ADD CONSTRAINT fk_pm_inventory_piece
     FOREIGN KEY (inventory_piece_id) REFERENCES inventory_piece(id);
 
 -- 唯一约束
+ALTER TABLE piece_mapping DROP CONSTRAINT IF EXISTS uk_pm_internal_supplier;
 ALTER TABLE piece_mapping DROP CONSTRAINT IF EXISTS uk_pm_internal_supplier;
 ALTER TABLE piece_mapping ADD CONSTRAINT uk_pm_internal_supplier UNIQUE (internal_piece_no, supplier_piece_no, supplier_id);
 
@@ -5868,6 +5884,7 @@ COMMENT ON COLUMN bpm_process_definition.initiator_roles IS '发起人角色 ID 
 
 -- 唯一约束
 ALTER TABLE bpm_process_definition DROP CONSTRAINT IF EXISTS uk_process_key_version;
+ALTER TABLE bpm_process_definition DROP CONSTRAINT IF EXISTS uk_process_key_version;
 ALTER TABLE bpm_process_definition ADD CONSTRAINT uk_process_key_version UNIQUE (process_key, process_version);
 
 -- 索引
@@ -6122,6 +6139,7 @@ ALTER TABLE bpm_node_config ADD CONSTRAINT fk_bpm_nc_process_definition
     FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
 
 -- 唯一约束
+ALTER TABLE bpm_node_config DROP CONSTRAINT IF EXISTS uk_nc_process_node;
 ALTER TABLE bpm_node_config DROP CONSTRAINT IF EXISTS uk_nc_process_node;
 ALTER TABLE bpm_node_config ADD CONSTRAINT uk_nc_process_node UNIQUE (process_definition_id, node_id);
 
@@ -6411,6 +6429,7 @@ ALTER TABLE bpm_statistics_daily ADD CONSTRAINT fk_bpm_sd_process_definition
     FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id);
 
 -- 唯一约束
+ALTER TABLE bpm_statistics_daily DROP CONSTRAINT IF EXISTS uk_sd_date_process;
 ALTER TABLE bpm_statistics_daily DROP CONSTRAINT IF EXISTS uk_sd_date_process;
 ALTER TABLE bpm_statistics_daily ADD CONSTRAINT uk_sd_date_process UNIQUE (statistics_date, process_definition_id);
 
@@ -7545,6 +7564,7 @@ COMMENT ON COLUMN report_definition.filter_config IS '筛选器配置（JSON 格
 
 -- 唯一约束
 ALTER TABLE report_definition DROP CONSTRAINT IF EXISTS uk_report_key;
+ALTER TABLE report_definition DROP CONSTRAINT IF EXISTS uk_report_key;
 ALTER TABLE report_definition ADD CONSTRAINT uk_report_key UNIQUE (report_key);
 
 -- 索引
@@ -7588,6 +7608,7 @@ COMMENT ON COLUMN report_dashboard.layout_config IS '布局配置（JSON 格式�
 COMMENT ON COLUMN report_dashboard.widgets_config IS '组件配置（JSON 格式）';
 
 -- 唯一约束
+ALTER TABLE report_dashboard DROP CONSTRAINT IF EXISTS uk_dashboard_code;
 ALTER TABLE report_dashboard DROP CONSTRAINT IF EXISTS uk_dashboard_code;
 ALTER TABLE report_dashboard ADD CONSTRAINT uk_dashboard_code UNIQUE (dashboard_code);
 
@@ -7677,6 +7698,7 @@ ALTER TABLE report_subscription ADD CONSTRAINT fk_report_sub_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- 唯一约束
+ALTER TABLE report_subscription DROP CONSTRAINT IF EXISTS uk_report_sub_user;
 ALTER TABLE report_subscription DROP CONSTRAINT IF EXISTS uk_report_sub_user;
 ALTER TABLE report_subscription ADD CONSTRAINT uk_report_sub_user UNIQUE (report_id, user_id, subscription_type);
 
@@ -8387,6 +8409,7 @@ COMMENT ON COLUMN supplier_products.product_name IS '供应商产品名称';
 
 -- 唯一约束
 ALTER TABLE supplier_products DROP CONSTRAINT IF EXISTS uk_supplier_product_code;
+ALTER TABLE supplier_products DROP CONSTRAINT IF EXISTS uk_supplier_product_code;
 ALTER TABLE supplier_products ADD CONSTRAINT uk_supplier_product_code UNIQUE (supplier_id, product_code);
 
 -- 索引
@@ -8416,6 +8439,7 @@ COMMENT ON TABLE supplier_product_colors IS '供应商产品颜色表';
 COMMENT ON COLUMN supplier_product_colors.color_no IS '供应商色号编码';
 
 -- 唯一约束
+ALTER TABLE supplier_product_colors DROP CONSTRAINT IF EXISTS uk_supplier_product_color;
 ALTER TABLE supplier_product_colors DROP CONSTRAINT IF EXISTS uk_supplier_product_color;
 ALTER TABLE supplier_product_colors ADD CONSTRAINT uk_supplier_product_color UNIQUE (supplier_product_id, color_no);
 
