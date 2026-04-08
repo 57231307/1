@@ -9200,3 +9200,97 @@ CREATE TRIGGER trg_update_trace_status
 -- - 供应商/客户索引：加速正向/反向追溯
 -- - 快照表：定期保存状态，避免长链查询
 -- ============================================================
+
+
+-- =========================================================
+-- RUST MODEL COMPATIBILITY PATCHES
+-- =========================================================
+
+-- inventory_stocks
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS quantity_available DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS quantity_reserved DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS quantity_incoming DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS reorder_point DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS reorder_quantity DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS bin_location VARCHAR(100);
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS last_count_date TIMESTAMPTZ;
+ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS last_movement_date TIMESTAMPTZ;
+
+-- sales_orders
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS customer_id INTEGER;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS required_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS ship_date TIMESTAMPTZ;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS subtotal DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS balance_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_address TEXT;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS billing_address TEXT;
+
+-- sales_order_items
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS tax_percent DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS subtotal DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS shipped_quantity DECIMAL(12,2) NOT NULL DEFAULT 0;
+
+-- finance_payments
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS order_type VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS order_id INTEGER;
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS customer_id INTEGER;
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS supplier_id INTEGER;
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS balance_amount DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS reference_no VARCHAR(100);
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS approved_by INTEGER;
+ALTER TABLE finance_payments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+
+-- customer_credit_changes
+ALTER TABLE customer_credit_changes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- products
+ALTER TABLE products ADD COLUMN IF NOT EXISTS product_type VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS fabric_composition VARCHAR(200);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS yarn_count VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS density VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS width DECIMAL(10,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gram_weight DECIMAL(10,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS structure VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS finish VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS min_order_quantity DECIMAL(12,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS lead_time INTEGER;
+
+-- purchase_order_item
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS quantity DECIMAL(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS quantity_alt DECIMAL(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS unit_price_foreign DECIMAL(18,6) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS tax_percent DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS subtotal DECIMAL(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS total_amount DECIMAL(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS received_quantity DECIMAL(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS received_quantity_alt DECIMAL(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS product_id INTEGER;
+ALTER TABLE purchase_order_item ADD COLUMN IF NOT EXISTS notes TEXT;
+
+-- sales_delivery
+ALTER TABLE sales_delivery ADD COLUMN IF NOT EXISTS order_id INTEGER;
+ALTER TABLE sales_delivery ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'draft';
+ALTER TABLE sales_delivery ADD COLUMN IF NOT EXISTS remarks TEXT;
+
+-- sales_delivery_item
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS delivery_id INTEGER;
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS product_id INTEGER;
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS batch_no VARCHAR(50);
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS color_no VARCHAR(50);
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS quantity DECIMAL(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS unit_price DECIMAL(18,6) NOT NULL DEFAULT 0;
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS amount DECIMAL(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS remarks TEXT;
