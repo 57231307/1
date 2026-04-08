@@ -1200,49 +1200,13 @@
 
 系统使用数据库迁移文件来管理数据库结构，所有迁移文件位于 [backend/database/migration/](file:///workspace/backend/database/migration/) 目录。
 
-主要迁移文件包括：
-- [001_init.sql](file:///workspace/backend/database/migration/001_init.sql) - 初始数据库结构
-- [002_inventory_reservation.sql](file:///workspace/backend/database/migration/002_inventory_reservation.sql) - 库存预留
-- [004_customers.sql](file:///workspace/backend/database/migration/004_customers.sql) - 客户管理
-- [005_fabric_industry_adaptation.sql](file:///workspace/backend/database/migration/005_fabric_industry_adaptation.sql) - 面料行业适配
-- [006_gl_module.sql](file:///workspace/backend/database/migration/006_gl_module.sql) - 总账模块
-- [007_dual_unit_optimization.sql](file:///workspace/backend/database/migration/007_dual_unit_optimization.sql) - 双计量单位优化
-- [008_five_dimension_optimization.sql](file:///workspace/backend/database/migration/008_five_dimension_optimization.sql) - 五维度优化
-- [009_business_trace_optimization.sql](file:///workspace/backend/database/migration/009_business_trace_optimization.sql) - 业务追溯优化
-- [010_supplier_management.sql](file:///workspace/backend/database/migration/010_supplier_management.sql) - 供应商管理
-- [011_purchase_management.sql](file:///workspace/backend/database/migration/011_purchase_management.sql) - 采购管理
-- [012_accounts_payable.sql](file:///workspace/backend/database/migration/012_accounts_payable.sql) - 应付账款
-- [013_inventory_transfer.sql](file:///workspace/backend/database/migration/013_inventory_transfer.sql) - 库存调拨
-- [014_inventory_count.sql](file:///workspace/backend/database/migration/014_inventory_count.sql) - 库存盘点
-- [015_inventory_count_items.sql](file:///workspace/backend/database/migration/015_inventory_count_items.sql) - 库存盘点明细
-- [020_general_ledger.sql](file:///workspace/backend/database/migration/020_general_ledger.sql) - 总账
-- [021_accounts_receivable.sql](file:///workspace/backend/database/migration/021_accounts_receivable.sql) - 应收账款
-- [022_cost_management.sql](file:///workspace/backend/database/migration/022_cost_management.sql) - 成本管理
-- [030_fixed_assets.sql](file:///workspace/backend/database/migration/030_fixed_assets.sql) - 固定资产
-- [031_purchase_contract.sql](file:///workspace/backend/database/migration/031_purchase_contract.sql) - 采购合同
-- [032_sales_contract.sql](file:///workspace/backend/database/migration/032_sales_contract.sql) - 销售合同
-- [033_customer_credit.sql](file:///workspace/backend/database/migration/033_customer_credit.sql) - 客户信用
-- [034_financial_analysis.sql](file:///workspace/backend/database/migration/034_financial_analysis.sql) - 财务分析
-- [035_supplier_evaluation.sql](file:///workspace/backend/database/migration/035_supplier_evaluation.sql) - 供应商评估
-- [036_fund_management.sql](file:///workspace/backend/database/migration/036_fund_management.sql) - 资金管理
-- [037_budget_management.sql](file:///workspace/backend/database/migration/037_budget_management.sql) - 预算管理
-- [038_purchase_price.sql](file:///workspace/backend/database/migration/038_purchase_price.sql) - 采购价格
-- [039_sales_price.sql](file:///workspace/backend/database/migration/039_sales_price.sql) - 销售价格
-- [040_sales_analysis.sql](file:///workspace/backend/database/migration/040_sales_analysis.sql) - 销售分析
-- [041_quality_inspection.sql](file:///workspace/backend/database/migration/041_quality_inspection.sql) - 质量检验
-- [042_quality_standard.sql](file:///workspace/backend/database/migration/042_quality_standard.sql) - 质量标准
-- [050_four_level_batch_management.sql](file:///workspace/backend/database/migration/050_four_level_batch_management.sql) - 四级批次管理
-- [051_extend_existing_tables.sql](file:///workspace/backend/database/migration/051_extend_existing_tables.sql) - 扩展现有表
-- [052_bpm_process_engine.sql](file:///workspace/backend/database/migration/052_bpm_process_engine.sql) - BPM流程引擎
-- [053_bpm_extension.sql](file:///workspace/backend/database/migration/053_bpm_extension.sql) - BPM扩展
-- [054_log_management.sql](file:///workspace/backend/database/migration/054_log_management.sql) - 日志管理
-- [055_crm_extension.sql](file:///workspace/backend/database/migration/055_crm_extension.sql) - CRM扩展
-- [056_oa_collaboration.sql](file:///workspace/backend/database/migration/056_oa_collaboration.sql) - OA协作
-- [057_data_visualization.sql](file:///workspace/backend/database/migration/057_data_visualization.sql) - 数据可视化
-- [058_test_data.sql](file:///workspace/backend/database/migration/058_test_data.sql) - 测试数据
-- [060_assist_accounting.sql](file:///workspace/backend/database/migration/060_assist_accounting.sql) - 辅助核算
-- [060_performance_optimization.sql](file:///workspace/backend/database/migration/060_performance_optimization.sql) - 性能优化
-- [061_supplier_product_mapping.sql](file:///workspace/backend/database/migration/061_supplier_product_mapping.sql) - 供应商产品映射
+**经过重构优化，目前所有分散的表结构、配置与初始化数据已被合并为一个极简、全能的入口文件：**
+- [001_consolidated_schema.sql](file:///workspace/backend/database/migration/001_consolidated_schema.sql) - 全量数据库结构与初始数据
+
+**核心特性：**
+- 100% 幂等设计（Idempotent），多次运行不会导致报错或数据丢失。
+- 与项目中全部 115 个 Rust SeaORM Entity 模型做到了深度字段对齐，包括复杂类型（JSONB, Array）和枚举类型。
+- 系统启动时直接执行该文件即可完成环境的全量拉起。
 
 ---
 
@@ -1480,6 +1444,14 @@ nano /etc/bingxi/.env
 ```bash
 sudo bingxi restart
 ```
+
+---
+
+### 4. 持续集成与持续部署 (CI/CD)
+
+本项目配置了 Github Actions 自动化打包发布流水线：
+- **触发规则**：目前仅当向 `main` (或 `master`) 主分支推送代码、或产生相关 Pull Request 时，才会触发后端 Rust 代码与前端 WebAssembly 的全自动构建出包。
+- 抛弃了繁琐的 Tag 构建逻辑，保证所有的发版都是“所见即所得”的最新主线代码。
 
 ---
 
