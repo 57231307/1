@@ -298,8 +298,6 @@ jobs:
           chmod +x release/backend/server
           cp release/backend/server release/bingxi-erp/backend/
           cp backend/.env.example release/bingxi-erp/backend/
-          cp backend/config.toml release/bingxi-erp/backend/ 2>/dev/null || true
-          cp backend/config.yaml release/bingxi-erp/backend/ 2>/dev/null || true
 
           # 复制前端文件
           cp -r release/frontend/dist/* release/bingxi-erp/frontend/
