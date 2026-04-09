@@ -24,34 +24,49 @@ pub struct ArReceiptService;
 
 impl ArReceiptService {
     pub async fn create_receipt(
-        _db: &DatabaseConnection,
+        db: &DatabaseConnection,
         req: CreateReceiptRequest,
     ) -> Result<ReceiptResponse, DbErr> {
-        // Mock implementation to satisfy the frontend for now, in reality this would hit the DB
         let now = Utc::now().naive_utc();
-        let receipt = ar_receipt::Model {
-            id: (now.timestamp() % 10000) as i32,
-            receipt_no: format!("RCPT-{}", now.timestamp()),
-            customer_id: req.customer_id,
-            amount: req.amount,
-            payment_method: req.payment_method.clone(),
-            status: "COMPLETED".to_string(),
-            receipt_date: now,
-            created_at: now,
-            updated_at: now,
+        let receipt_no = format!("RCPT-{}", now.timestamp());
+        
+        let new_receipt = ar_receipt::ActiveModel {
+            id: NotSet,
+            receipt_no: Set(receipt_no.clone()),
+            customer_id: Set(req.customer_id),
+            amount: Set(req.amount),
+            payment_method: Set(req.payment_method.clone()),
+            status: Set("COMPLETED".to_string()),
+            receipt_date: Set(now),
+            created_at: Set(now),
+            updated_at: Set(now),
         };
+        
+        let inserted = new_receipt.insert(db).await?;
 
         Ok(ReceiptResponse {
-            id: receipt.id,
-            receipt_no: receipt.receipt_no,
-            customer_id: receipt.customer_id,
-            amount: receipt.amount,
-            payment_method: receipt.payment_method,
-            status: receipt.status,
+            id: inserted.id,
+            receipt_no: inserted.receipt_no,
+            customer_id: inserted.customer_id,
+            amount: inserted.amount,
+            payment_method: inserted.payment_method,
+            status: inserted.status,
         })
     }
 
-    pub async fn list_receipts(_db: &DatabaseConnection) -> Result<Vec<ReceiptResponse>, DbErr> {
-        Ok(vec![])
+    pub async fn list_receipts(db: &DatabaseConnection) -> Result<Vec<ReceiptResponse>, DbErr> {
+        let receipts = ar_receipt::Entity::find()
+            .order_by_desc(ar_receipt::Column::CreatedAt)
+            .all(db)
+            .await?;
+            
+        Ok(receipts.into_iter().map(|r| ReceiptResponse {
+            id: r.id,
+            receipt_no: r.receipt_no,
+            customer_id: r.customer_id,
+            amount: r.amount,
+            payment_method: r.payment_method,
+            status: r.status,
+        }).collect())
     }
 }

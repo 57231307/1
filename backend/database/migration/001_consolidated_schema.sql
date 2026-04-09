@@ -7846,9 +7846,9 @@ INSERT INTO report_dashboard (dashboard_name, dashboard_code, description, is_de
 
 -- 插入默认用户
 INSERT INTO users (id, username, password_hash, email, is_active) VALUES
-(1, 'admin', 'mock_hash', 'admin@example.com', true),
-(2, 'user1', 'mock_hash', 'user1@example.com', true),
-(3, 'user2', 'mock_hash', 'user2@example.com', true) ON CONFLICT DO NOTHING;
+(1, 'admin', '$argon2id$v=19$m=65536,t=3,p=4$A+Cc0xpDSOn9P2eMkRIC4A$TDJ6vM8FILOpVQyYPDUeeavsr2ITut/3mZiPzaoJs7g', 'admin@example.com', true),
+(2, 'user1', '$argon2id$v=19$m=65536,t=3,p=4$A+Cc0xpDSOn9P2eMkRIC4A$TDJ6vM8FILOpVQyYPDUeeavsr2ITut/3mZiPzaoJs7g', 'user1@example.com', true),
+(3, 'user2', '$argon2id$v=19$m=65536,t=3,p=4$A+Cc0xpDSOn9P2eMkRIC4A$TDJ6vM8FILOpVQyYPDUeeavsr2ITut/3mZiPzaoJs7g', 'user2@example.com', true) ON CONFLICT DO NOTHING;
 
 -- 插入默认供应商
 INSERT INTO suppliers (id, supplier_code, supplier_name, supplier_short_name, supplier_type, credit_code, registered_address, legal_representative, registered_capital, bank_name, bank_account, taxpayer_type, contact_phone, establishment_date) VALUES

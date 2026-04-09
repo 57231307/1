@@ -11,12 +11,20 @@ pub struct StockResponse {
     pub id: i32,
     pub product_id: i32,
     pub warehouse_id: i32,
-    pub quantity: f64,
-    pub locked_quantity: f64,
-    pub status: String,
+    pub batch_no: String,
+    pub color_no: String,
+    pub quantity_meters: f64,
+    pub quantity_kg: f64,
+    pub grade: String,
     // Emulated tree view children: Rolls
     #[serde(default)]
     pub rolls: Vec<RollResponse>,
+}
+
+#[derive(Clone, PartialEq, Deserialize)]
+pub struct StockFabricListResponse {
+    pub stock: Vec<StockResponse>,
+    pub total: u64,
 }
 
 #[derive(Clone, PartialEq, Deserialize, Serialize)]
@@ -38,17 +46,23 @@ pub fn inventory_stock_page() -> Html {
         let is_loading = is_loading.clone();
         use_effect_with((), move |_| {
             spawn_local(async move {
-                if let Ok(mut res) = ApiService::get::<Vec<StockResponse>>("/api/v1/erp/inventory-stocks").await {
-                    // Inject mock rolls for demonstration of the tree view since the backend doesn't have the roll table yet
-                    for (i, stock) in res.iter_mut().enumerate() {
-                        if i % 2 == 0 {
-                            stock.rolls = vec![
-                                RollResponse { roll_no: format!("R{}-01", stock.id), batch_no: format!("B{}", stock.id), length: 120.5, defect_points: 0.0 },
-                                RollResponse { roll_no: format!("R{}-02", stock.id), batch_no: format!("B{}", stock.id), length: 118.0, defect_points: 12.5 },
-                            ];
+                if let Ok(res) = ApiService::get::<StockFabricListResponse>("/api/v1/erp/inventory/stock-fabric?page=1&page_size=100").await {
+                    let mut stocks_list = res.stock;
+                    
+                    // Fetch actual rolls from backend piece API
+                    if let Ok(rolls) = ApiService::get::<Vec<RollResponse>>("/api/v1/erp/inventory/pieces").await {
+                        for stock in stocks_list.iter_mut() {
+                            let mut stock_rolls = Vec::new();
+                            for r in &rolls {
+                                if r.batch_no == stock.batch_no {
+                                    stock_rolls.push(r.clone());
+                                }
+                            }
+                            stock.rolls = stock_rolls;
                         }
                     }
-                    stocks.set(res);
+                    
+                    stocks.set(stocks_list);
                 }
                 is_loading.set(false);
             });
@@ -112,10 +126,10 @@ pub fn inventory_stock_page() -> Html {
                                                 <td class="px-4 py-3 font-medium text-slate-900">{s.id}</td>
                                                 <td class="px-4 py-3">{s.product_id}</td>
                                                 <td class="px-4 py-3">{s.warehouse_id}</td>
-                                                <td class="px-4 py-3 text-right numeric-cell font-mono">{format!("{:.2}", s.quantity)}</td>
-                                                <td class="px-4 py-3 text-right numeric-cell font-mono text-orange-500">{format!("{:.2}", s.locked_quantity)}</td>
-                                                <td class="px-4 py-3">
-                                                    <span class="status-badge bg-green-100 text-green-800">{&s.status}</span>
+                                                <td class="px-4 py-3 text-right numeric-cell font-mono">{format!("{:.1} / {:.1}", s.quantity_meters, s.quantity_kg)}</td>
+                                            <td class="px-4 py-3 text-right numeric-cell font-mono text-orange-500">{"0.0"}</td>
+                                            <td class="px-4 py-3 text-center">
+                                                <span class="status-badge bg-green-100 text-green-800">{"正常"}</span>
                                                 </td>
                                             </tr>
                                             if is_expanded {

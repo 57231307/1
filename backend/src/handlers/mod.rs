@@ -17,6 +17,7 @@ pub mod health_handler;
 pub mod init_handler;
 pub mod inventory_adjustment_handler;
 pub mod inventory_count_handler;
+pub mod inventory_piece_handler;
 pub mod inventory_stock_handler;
 pub mod inventory_transfer_handler;
 pub mod operation_log_handler;

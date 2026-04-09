@@ -191,16 +191,51 @@ pub fn dashboard_page() -> Html {
                                         <option>{"订单数"}</option>
                                     </select>
                                 </div>
-                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded text-[#86909C] text-sm">
-                                    {"[折线图表占位]"}
+                                <div class="h-48 flex items-end justify-between bg-[#F5F7FA] rounded p-4 pb-0 mt-2">
+                                    <div class="w-1/6 bg-[#165DFF] h-[40%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"2.1k"}</div></div>
+                                    <div class="w-1/6 bg-[#165DFF] h-[60%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"3.2k"}</div></div>
+                                    <div class="w-1/6 bg-[#165DFF] h-[50%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"2.8k"}</div></div>
+                                    <div class="w-1/6 bg-[#165DFF] h-[80%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"4.5k"}</div></div>
+                                    <div class="w-1/6 bg-[#165DFF] h-[100%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#1D2129] font-bold hidden group-hover:block">{"5.1k"}</div></div>
+                                </div>
+                                <div class="flex justify-between mt-2 text-[10px] text-[#86909C] px-2">
+                                    <span>{"04-05"}</span><span>{"04-06"}</span><span>{"04-07"}</span><span>{"04-08"}</span><span>{"04-09"}</span>
                                 </div>
                             } else if *active_chart_tab == "ratio" {
-                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded text-[#86909C] text-sm mt-4">
-                                    {"[饼图占位]"}
+                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded mt-4 relative">
+                                    <div class="w-32 h-32 rounded-full border-[16px] border-[#4CAF50] border-r-[#2196F3] border-b-[#2196F3] transform -rotate-45 relative">
+                                        <div class="absolute inset-0 m-auto w-full h-full flex flex-col items-center justify-center rotate-45">
+                                            <span class="text-xs text-[#86909C]">{"总计"}</span>
+                                            <span class="text-sm font-bold text-[#1D2129]">{"3,450"}</span>
+                                        </div>
+                                    </div>
+                                    <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+                                        <div class="flex items-center gap-1 text-xs"><span class="w-2 h-2 rounded-full bg-[#4CAF50]"></span>{"针织 65%"}</div>
+                                        <div class="flex items-center gap-1 text-xs"><span class="w-2 h-2 rounded-full bg-[#2196F3]"></span>{"梭织 35%"}</div>
+                                    </div>
                                 </div>
                             } else if *active_chart_tab == "top10" {
-                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded text-[#86909C] text-sm mt-4">
-                                    {"[横向柱状图占位]"}
+                                <div class="h-48 flex flex-col justify-center gap-3 bg-[#F5F7FA] rounded mt-4 p-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-[#4E5969] w-12 truncate">{"32S精梳棉"}</span>
+                                        <div class="h-4 bg-[#165DFF] rounded opacity-100" style="width: 80%;"></div>
+                                        <span class="text-xs text-[#1D2129] font-bold">{"1.2k"}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-[#4E5969] w-12 truncate">{"莫代尔拉架"}</span>
+                                        <div class="h-4 bg-[#165DFF] rounded opacity-80" style="width: 65%;"></div>
+                                        <span class="text-xs text-[#1D2129] font-bold">{"950"}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-[#4E5969] w-12 truncate">{"奥代尔平纹"}</span>
+                                        <div class="h-4 bg-[#165DFF] rounded opacity-60" style="width: 45%;"></div>
+                                        <span class="text-xs text-[#1D2129] font-bold">{"620"}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-[#4E5969] w-12 truncate">{"罗马布"}</span>
+                                        <div class="h-4 bg-[#165DFF] rounded opacity-40" style="width: 30%;"></div>
+                                        <span class="text-xs text-[#1D2129] font-bold">{"410"}</span>
+                                    </div>
                                 </div>
                             }
                         </div>
@@ -215,22 +250,61 @@ pub fn dashboard_page() -> Html {
                                     <option>{"订单数"}</option>
                                 </select>
                             </div>
-                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
-                                {"[折线图表占位]"}
+                            <div class="h-48 p-4 flex flex-col justify-end bg-[#F5F7FA] m-4 rounded relative">
+                                <div class="flex items-end justify-between h-full px-2">
+                                    <div class="w-[10%] bg-[#165DFF] h-[40%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"2.1k"}</div></div>
+                                    <div class="w-[10%] bg-[#165DFF] h-[60%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"3.2k"}</div></div>
+                                    <div class="w-[10%] bg-[#165DFF] h-[50%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"2.8k"}</div></div>
+                                    <div class="w-[10%] bg-[#165DFF] h-[80%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"4.5k"}</div></div>
+                                    <div class="w-[10%] bg-[#165DFF] h-[100%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#1D2129] font-bold hidden group-hover:block">{"5.1k"}</div></div>
+                                    <div class="w-[10%] bg-[#165DFF] h-[70%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#4E5969] hidden group-hover:block">{"3.8k"}</div></div>
+                                    <div class="w-[10%] bg-[#165DFF] h-[90%] rounded-t opacity-80 hover:opacity-100 transition-all relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-[#1D2129] font-bold hidden group-hover:block">{"4.9k"}</div></div>
+                                </div>
+                                <div class="flex justify-between mt-2 text-[10px] text-[#86909C] px-2">
+                                    <span>{"04-03"}</span><span>{"04-04"}</span><span>{"04-05"}</span><span>{"04-06"}</span><span>{"04-07"}</span><span>{"04-08"}</span><span>{"04-09"}</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="card bg-white p-0">
                             <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"针织/梭织销量占比"}</div>
-                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
-                                {"[饼图占位]"}
+                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded relative">
+                                <div class="w-32 h-32 rounded-full border-[16px] border-[#4CAF50] border-r-[#2196F3] border-b-[#2196F3] transform -rotate-45 relative">
+                                    <div class="absolute inset-0 m-auto w-full h-full flex flex-col items-center justify-center rotate-45">
+                                        <span class="text-xs text-[#86909C]">{"总计"}</span>
+                                        <span class="text-sm font-bold text-[#1D2129]">{"3,450"}</span>
+                                    </div>
+                                </div>
+                                <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+                                    <div class="flex items-center gap-1 text-xs"><span class="w-2 h-2 rounded-full bg-[#4CAF50]"></span>{"针织 65%"}</div>
+                                    <div class="flex items-center gap-1 text-xs"><span class="w-2 h-2 rounded-full bg-[#2196F3]"></span>{"梭织 35%"}</div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="card bg-white p-0">
                             <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"热销面料 TOP 10"}</div>
-                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
-                                {"[横向柱状图占位]"}
+                            <div class="h-48 p-4 flex flex-col justify-center gap-3 bg-[#F5F7FA] m-4 rounded">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-[#4E5969] w-16 truncate">{"32S精梳棉"}</span>
+                                    <div class="h-4 bg-[#165DFF] rounded opacity-100" style="width: 80%;"></div>
+                                    <span class="text-xs text-[#1D2129] font-bold">{"1.2k"}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-[#4E5969] w-16 truncate">{"莫代尔拉架"}</span>
+                                    <div class="h-4 bg-[#165DFF] rounded opacity-80" style="width: 65%;"></div>
+                                    <span class="text-xs text-[#1D2129] font-bold">{"950"}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-[#4E5969] w-16 truncate">{"奥代尔平纹"}</span>
+                                    <div class="h-4 bg-[#165DFF] rounded opacity-60" style="width: 45%;"></div>
+                                    <span class="text-xs text-[#1D2129] font-bold">{"620"}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-[#4E5969] w-16 truncate">{"罗马布"}</span>
+                                    <div class="h-4 bg-[#165DFF] rounded opacity-40" style="width: 30%;"></div>
+                                    <span class="text-xs text-[#1D2129] font-bold">{"410"}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

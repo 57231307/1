@@ -6,11 +6,39 @@ pub struct Product {
     pub name: String,
     pub code: String,
     pub category_id: Option<i32>,
+    pub specification: Option<String>,
     pub unit: String,
-    pub price: Option<String>,
+    pub standard_price: Option<f64>,
+    pub cost_price: Option<f64>,
     pub description: Option<String>,
+    pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    
+    // 面料行业字段
+    #[serde(default)]
+    pub product_type: String,
+    #[serde(default)]
+    pub fabric_composition: Option<String>,
+    #[serde(default)]
+    pub yarn_count: Option<String>,
+    #[serde(default)]
+    pub density: Option<String>,
+    #[serde(default)]
+    pub width: Option<f64>,
+    #[serde(default)]
+    pub gram_weight: Option<f64>,
+    #[serde(default)]
+    pub structure: Option<String>,
+    #[serde(default)]
+    pub finish: Option<String>,
+    #[serde(default)]
+    pub min_order_quantity: Option<f64>,
+    #[serde(default)]
+    pub lead_time: Option<i32>,
+    
+    #[serde(default)]
+    pub stock_qty: Option<f64>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]

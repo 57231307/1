@@ -17,6 +17,7 @@ use crate::handlers::{
     finance_payment_handler, financial_analysis_handler, five_dimension_handler,
     fixed_asset_handler, fund_management_handler, health_handler,
     init_handler, inventory_adjustment_handler, inventory_count_handler, inventory_stock_handler,
+    inventory_piece_handler,
     inventory_transfer_handler, product_category_handler, product_handler,
     purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
     purchase_price_handler, purchase_receipt_handler, purchase_return_handler,
@@ -233,6 +234,7 @@ pub fn create_router(state: AppState) -> Router {
             "/stock/transactions",
             get(inventory_stock_handler::list_transactions),
         )
+        .route("/pieces", get(inventory_piece_handler::list_pieces))
         .route(
             "/stock/summary",
             get(inventory_stock_handler::get_inventory_summary),
