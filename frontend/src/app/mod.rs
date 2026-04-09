@@ -220,6 +220,12 @@ fn switch(route: Route) -> Html {
         Route::GreigeFabrics => protected_route(|| html! { <GreigeFabricPage /> }),
         Route::CrmLeads => protected_route(|| html! { <CrmLeadPage /> }),
         Route::CrmOpportunities => protected_route(|| html! { <CrmOpportunityPage /> }),
-        Route::NotFound => html! { <div>{"页面未找到"}</div> },
+        Route::NotFound => html! {
+            <crate::components::main_layout::MainLayout current_page={"404"}>
+                <div class="p-8 text-center text-gray-500 text-xl">
+                    {"404 - 页面未找到"}
+                </div>
+            </crate::components::main_layout::MainLayout>
+        },
     }
 }
