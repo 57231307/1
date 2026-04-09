@@ -1,5 +1,6 @@
 //! 坯布管理页面（原料布匹管理）
 
+use crate::components::main_layout::MainLayout;
 use crate::models::greige_fabric::{GreigeFabric, GreigeFabricQuery};
 use crate::services::greige_fabric_service::GreigeFabricService;
 use wasm_bindgen::JsCast;
@@ -156,7 +157,8 @@ impl Component for GreigeFabricPage {
         });
 
         html! {
-            <div class="greige-fabric-page">
+            <MainLayout current_page={""}>
+<div class="greige-fabric-page">
                 <div class="page-header">
                     <h1>{"📦 坯布管理"}</h1>
                     <button class="btn-primary">
@@ -192,7 +194,8 @@ impl Component for GreigeFabricPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

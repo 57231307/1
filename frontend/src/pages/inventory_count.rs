@@ -1,6 +1,7 @@
 //! 库存盘点管理页面
 //! 提供库存盘点单的列表、创建、审核、完成等功能
 
+use crate::components::main_layout::MainLayout;
 use crate::components::navigation::Navigation;
 use crate::models::inventory_count::{
     CreateInventoryCountRequest, InventoryCount, InventoryCountDetail, InventoryCountQuery,
@@ -291,7 +292,8 @@ impl Component for InventoryCountPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="inventory-count-page">
+            <MainLayout current_page={""}>
+<div class="inventory-count-page">
                 <Navigation current_page="counts" />
 
                 <div class="main-content">
@@ -345,7 +347,8 @@ impl Component for InventoryCountPage {
                     html! {}
                 }}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

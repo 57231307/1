@@ -1,5 +1,6 @@
 //! 库存查询页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::inventory::StockResponse;
 use crate::services::inventory_service::InventoryService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn inventory_stock_page() -> Html {
     }
 
     html! {
-        <div class="inventory-stock-page p-4">
+        <MainLayout current_page={""}>
+<div class="inventory-stock-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"库存查询"}</h1>
             </div>
@@ -66,5 +68,6 @@ pub fn inventory_stock_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

@@ -1,5 +1,6 @@
 //! 缸号管理页面（染色批次管理）
 
+use crate::components::main_layout::MainLayout;
 use crate::models::dye_batch::{
     CompleteDyeBatchRequest, CreateDyeBatchRequest, DyeBatch, DyeBatchQuery,
 };
@@ -207,7 +208,8 @@ impl Component for DyeBatchPage {
         });
 
         html! {
-            <div class="dye-batch-page">
+            <MainLayout current_page={""}>
+<div class="dye-batch-page">
                 <div class="page-header">
                     <h1>{"🏭 缸号管理"}</h1>
                     <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ToggleCreateModal)}>
@@ -251,7 +253,8 @@ impl Component for DyeBatchPage {
                     {self.render_complete_modal(ctx)}
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

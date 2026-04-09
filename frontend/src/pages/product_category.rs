@@ -1,3 +1,4 @@
+use crate::components::main_layout::MainLayout;
 use crate::services::product_category_service::{ProductCategory, ProductCategoryService};
 use yew::prelude::*;
 
@@ -18,7 +19,8 @@ pub fn product_category_page() -> Html {
     }
 
     html! {
-        <div class="product-category-page p-4">
+        <MainLayout current_page={""}>
+<div class="product-category-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"产品类别管理"}</h1>
             </div>
@@ -67,5 +69,6 @@ pub fn product_category_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

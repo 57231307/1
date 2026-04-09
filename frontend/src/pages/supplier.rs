@@ -1,5 +1,6 @@
 //! 供应商管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::supplier::{
     CreateSupplierRequest, Supplier, SupplierQuery, UpdateSupplierRequest,
 };
@@ -222,7 +223,8 @@ impl Component for SupplierPage {
         });
 
         html! {
-            <div class="supplier-page">
+            <MainLayout current_page={""}>
+<div class="supplier-page">
                 <div class="page-header">
                     <h1>{"🏭 供应商管理"}</h1>
                     <div class="header-actions">
@@ -263,7 +265,8 @@ impl Component for SupplierPage {
                 {self.render_content(ctx)}
                 {self.render_modal(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

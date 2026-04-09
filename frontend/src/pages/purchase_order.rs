@@ -1,5 +1,6 @@
 //! 采购订单管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
 use crate::services::purchase_order_service::PurchaseOrderService;
 use wasm_bindgen::JsCast;
@@ -189,7 +190,8 @@ impl Component for PurchaseOrderPage {
         });
 
         html! {
-            <div class="purchase-order-page">
+            <MainLayout current_page={""}>
+<div class="purchase-order-page">
                 <div class="page-header">
                     <h1>{"📦 采购订单管理"}</h1>
                 </div>
@@ -211,7 +213,8 @@ impl Component for PurchaseOrderPage {
                 {self.render_content(ctx)}
                 {self.render_print_view()}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

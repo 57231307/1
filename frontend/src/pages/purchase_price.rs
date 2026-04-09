@@ -1,5 +1,6 @@
 //! 采购价格管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::purchase_price::PurchasePrice;
 use crate::services::purchase_price_service::PurchasePriceService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn purchase_price_page() -> Html {
     }
 
     html! {
-        <div class="purchase-price-page p-4">
+        <MainLayout current_page={""}>
+<div class="purchase-price-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"采购价格管理"}</h1>
             </div>
@@ -68,5 +70,6 @@ pub fn purchase_price_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

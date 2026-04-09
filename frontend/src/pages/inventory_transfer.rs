@@ -1,6 +1,7 @@
 //! 库存调拨管理页面
 //! 提供库存调拨单的列表、创建、审核、发出、接收等功能
 
+use crate::components::main_layout::MainLayout;
 use crate::components::navigation::Navigation;
 use crate::models::inventory_transfer::{
     CreateInventoryTransferRequest, InventoryTransfer, InventoryTransferDetail,
@@ -340,7 +341,8 @@ impl Component for InventoryTransferPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="inventory-transfer-page">
+            <MainLayout current_page={""}>
+<div class="inventory-transfer-page">
                 <Navigation current_page="transfers" />
 
                 <div class="main-content">
@@ -395,7 +397,8 @@ impl Component for InventoryTransferPage {
                     html! {}
                 }}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

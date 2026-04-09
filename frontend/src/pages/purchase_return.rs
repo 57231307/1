@@ -1,5 +1,6 @@
 //! 采购退货管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::purchase_return::{
     CreatePurchaseReturnItemRequest, CreatePurchaseReturnRequest, PurchaseReturn,
     PurchaseReturnQuery,
@@ -222,7 +223,8 @@ impl Component for PurchaseReturnPage {
         });
 
         html! {
-            <div class="purchase-return-page">
+            <MainLayout current_page={""}>
+<div class="purchase-return-page">
                 <div class="page-header">
                     <h1>{"退货管理"}</h1>
                 </div>
@@ -244,7 +246,8 @@ impl Component for PurchaseReturnPage {
                 {self.render_print_view()}
                 {self.render_modal(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

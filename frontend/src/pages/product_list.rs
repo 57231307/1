@@ -1,5 +1,6 @@
 //! 产品列表管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::product::Product;
 use crate::services::product_service::ProductService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn product_list_page() -> Html {
     }
 
     html! {
-        <div class="product-list-page p-4">
+        <MainLayout current_page={""}>
+<div class="product-list-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"产品管理"}</h1>
             </div>
@@ -66,5 +68,6 @@ pub fn product_list_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

@@ -1,3 +1,4 @@
+use crate::components::main_layout::MainLayout;
 use crate::app::Route;
 use crate::services::api::ApiService;
 use crate::utils::storage::Storage;
@@ -278,7 +279,8 @@ impl Component for RoleListPage {
         let on_refresh = link.callback(|_| Msg::LoadRoles);
 
         html! {
-            <div class="role-list-page">
+            <MainLayout current_page={""}>
+<div class="role-list-page">
                 <div class="header">
                     <h1>{"角色管理"}</h1>
                     <div class="header-actions">
@@ -481,7 +483,8 @@ impl Component for RoleListPage {
                     </div>
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

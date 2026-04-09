@@ -1,5 +1,6 @@
 //! 采购合同管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::purchase_contract::{
     CreatePurchaseContractRequest, ExecutePurchaseContractRequest, PurchaseContract,
     PurchaseContractQueryParams,
@@ -321,7 +322,8 @@ impl Component for PurchaseContractPage {
         let total = self.state.total;
 
         html! {
-            <div class="purchase-contract-page">
+            <MainLayout current_page={""}>
+<div class="purchase-contract-page">
                 <div class="page-header">
                     <h1>{"采购合同管理"}</h1>
                     <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ShowCreateModal)}>
@@ -491,7 +493,8 @@ impl Component for PurchaseContractPage {
                     />
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

@@ -1,5 +1,6 @@
 //! 批次管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::batch::{Batch, BatchQuery};
 use crate::services::batch_service::BatchService;
 use wasm_bindgen::JsCast;
@@ -167,7 +168,8 @@ impl Component for BatchPage {
         });
 
         html! {
-            <div class="batch-page">
+            <MainLayout current_page={""}>
+<div class="batch-page">
                 <div class="page-header">
                     <h1>{"🏷️ 批次管理"}</h1>
                 </div>
@@ -200,7 +202,8 @@ impl Component for BatchPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

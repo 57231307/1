@@ -2,6 +2,7 @@
 //!
 //! 应付核销（AP Verification）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::ap_verification::{
     ApVerification, ApVerificationQueryParams, ManualVerifyRequest, UnverifiedInvoiceItem,
     UnverifiedPaymentItem,
@@ -296,7 +297,8 @@ impl Component for ApVerificationPage {
         });
 
         html! {
-            <div class="ap-verification-page">
+            <MainLayout current_page={""}>
+<div class="ap-verification-page">
                 <div class="page-header">
                     <h1>{"🔄 应付核销管理"}</h1>
                 </div>
@@ -335,7 +337,8 @@ impl Component for ApVerificationPage {
                     html! {}
                 }}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

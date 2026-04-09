@@ -2,6 +2,7 @@
 //!
 //! 付款（AP Payment）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::ap_payment::{ApPayment, ApPaymentQueryParams};
 use crate::services::ap_payment_service::ApPaymentService;
 use wasm_bindgen::JsCast;
@@ -179,7 +180,8 @@ impl Component for ApPaymentPage {
         });
 
         html! {
-            <div class="ap-payment-page">
+            <MainLayout current_page={""}>
+<div class="ap-payment-page">
                 <div class="page-header">
                     <h1>{"付款管理"}</h1>
                 </div>
@@ -213,7 +215,8 @@ impl Component for ApPaymentPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

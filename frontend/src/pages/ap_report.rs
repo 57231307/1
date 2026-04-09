@@ -2,6 +2,7 @@
 //!
 //! 应付报表（AP Report）展示页面，包含统计报表、日报、月报和账龄分析
 
+use crate::components::main_layout::MainLayout;
 use crate::models::ap_report::{
     ApAgingResponse, ApDailyResponse, ApMonthlyResponse, ApStatisticsResponse,
 };
@@ -234,7 +235,8 @@ impl Component for ApReportPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="ap-report-page">
+            <MainLayout current_page={""}>
+<div class="ap-report-page">
                 <div class="page-header">
                     <h1>{"📊 应付报表"}</h1>
                 </div>
@@ -275,7 +277,8 @@ impl Component for ApReportPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

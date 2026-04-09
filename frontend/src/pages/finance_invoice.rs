@@ -2,6 +2,7 @@
 //!
 //! 财务发票（Finance Invoice）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::finance_invoice::{FinanceInvoice, InvoiceQueryParams};
 use crate::services::finance_invoice_service::FinanceInvoiceService;
 use wasm_bindgen::JsCast;
@@ -186,7 +187,8 @@ impl Component for FinanceInvoicePage {
         });
 
         html! {
-            <div class="finance-invoice-page">
+            <MainLayout current_page={""}>
+<div class="finance-invoice-page">
                 <div class="page-header">
                     <h1>{"财务发票管理"}</h1>
                 </div>
@@ -222,7 +224,8 @@ impl Component for FinanceInvoicePage {
                 {self.render_content(ctx)}
                 {self.render_print_view()}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

@@ -1,5 +1,6 @@
 //! 预算管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::services::budget_management_service::BudgetManagementService;
 use yew::prelude::*;
 
@@ -27,7 +28,8 @@ pub fn budget_management_page() -> Html {
     };
 
     html! {
-        <div class="budget-management-page">
+        <MainLayout current_page={""}>
+<div class="budget-management-page">
             <div class="header">
                 <h1>{"预算管理"}</h1>
             </div>
@@ -36,5 +38,6 @@ pub fn budget_management_page() -> Html {
                 <p>{ (*adjust_result).clone() }</p>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

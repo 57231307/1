@@ -1,5 +1,6 @@
 //! 采购收货单管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::purchase_receipt::{PurchaseReceipt, PurchaseReceiptItem, PurchaseReceiptQuery};
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use wasm_bindgen::JsCast;
@@ -169,7 +170,8 @@ impl Component for PurchaseReceiptPage {
         });
 
         html! {
-            <div class="purchase-receipt-page">
+            <MainLayout current_page={""}>
+<div class="purchase-receipt-page">
                 <div class="page-header">
                     <h1>{"📥 采购收货单管理"}</h1>
                 </div>
@@ -188,7 +190,8 @@ impl Component for PurchaseReceiptPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

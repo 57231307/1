@@ -2,6 +2,7 @@
 //!
 //! 财务付款（Finance Payment）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::finance_payment::{FinancePayment, PaymentQueryParams};
 use crate::services::finance_payment_service::FinancePaymentService;
 use wasm_bindgen::JsCast;
@@ -163,7 +164,8 @@ impl Component for FinancePaymentPage {
         });
 
         html! {
-            <div class="finance-payment-page">
+            <MainLayout current_page={""}>
+<div class="finance-payment-page">
                 <div class="page-header">
                     <h1>{"财务付款管理"}</h1>
                 </div>
@@ -197,7 +199,8 @@ impl Component for FinancePaymentPage {
                 {self.render_content(ctx)}
                 {self.render_print_view()}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

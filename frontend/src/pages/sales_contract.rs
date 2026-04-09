@@ -1,5 +1,6 @@
 //! 销售合同管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::sales_contract::{
     CreateSalesContractRequest, ExecuteSalesContractRequest, SalesContract,
     SalesContractQueryParams,
@@ -320,7 +321,8 @@ impl Component for SalesContractPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="sales-contract-page">
+            <MainLayout current_page={""}>
+<div class="sales-contract-page">
                 <div class="page-header">
                     <h1>{"销售合同管理"}</h1>
                     <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ShowCreateModal)}>
@@ -492,7 +494,8 @@ impl Component for SalesContractPage {
                     />
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

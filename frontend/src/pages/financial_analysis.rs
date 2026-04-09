@@ -1,5 +1,6 @@
 //! 财务分析页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::financial_analysis::{DupontAnalysis, FinancialRatio};
 use crate::services::financial_analysis_service::FinancialAnalysisService;
 use wasm_bindgen::JsCast;
@@ -87,7 +88,8 @@ impl Component for FinancialAnalysisPage {
         });
 
         html! {
-            <div class="financial-analysis-page">
+            <MainLayout current_page={""}>
+<div class="financial-analysis-page">
                 <div class="page-header">
                     <h1>{"📈 财务分析仪表板"}</h1>
                     <div class="header-actions">
@@ -104,7 +106,8 @@ impl Component for FinancialAnalysisPage {
 
                 {self.render_content()}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

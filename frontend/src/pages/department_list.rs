@@ -1,5 +1,6 @@
 //! 部门管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::department::Department;
 use crate::services::department_service::DepartmentService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn department_list_page() -> Html {
     }
 
     html! {
-        <div class="department-list-page p-4">
+        <MainLayout current_page={""}>
+<div class="department-list-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"部门管理"}</h1>
             </div>
@@ -64,5 +66,6 @@ pub fn department_list_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

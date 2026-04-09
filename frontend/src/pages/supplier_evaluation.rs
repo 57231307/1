@@ -1,5 +1,6 @@
 //! 供应商评估页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::supplier_evaluation::SupplierEvaluation;
 use crate::services::supplier_evaluation_service::SupplierEvaluationService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn supplier_evaluation_page() -> Html {
     }
 
     html! {
-        <div class="p-4">
+        <MainLayout current_page={""}>
+<div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "供应商评估" }</h1>
             <table class="min-w-full bg-white border border-gray-200">
                 <thead>
@@ -56,5 +58,6 @@ pub fn supplier_evaluation_page() -> Html {
                 </tbody>
             </table>
         </div>
-    }
+    
+</MainLayout>}
 }

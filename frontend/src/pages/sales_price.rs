@@ -1,5 +1,6 @@
 //! 销售价格管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::sales_price::SalesPrice;
 use crate::services::sales_price_service::SalesPriceService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn sales_price_page() -> Html {
     }
 
     html! {
-        <div class="p-4">
+        <MainLayout current_page={""}>
+<div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "销售价格管理" }</h1>
             <table class="min-w-full bg-white border border-gray-200">
                 <thead>
@@ -56,5 +58,6 @@ pub fn sales_price_page() -> Html {
                 </tbody>
             </table>
         </div>
-    }
+    
+</MainLayout>}
 }

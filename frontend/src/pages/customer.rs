@@ -1,5 +1,6 @@
 //! 客户管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::customer::{
     CreateCustomerRequest, Customer, CustomerListResponse, CustomerQuery, UpdateCustomerRequest,
 };
@@ -211,7 +212,8 @@ impl Component for CustomerPage {
         });
 
         html! {
-            <div class="customer-page">
+            <MainLayout current_page={""}>
+<div class="customer-page">
                 <div class="page-header">
                     <h1>{"👥 客户管理"}</h1>
                     <div class="header-actions">
@@ -251,7 +253,8 @@ impl Component for CustomerPage {
                 {self.render_content(ctx)}
                 {self.render_modal(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

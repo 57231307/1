@@ -1,5 +1,6 @@
 //! 会计科目管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::account_subject::{AccountSubject, SubjectQueryParams};
 use crate::services::account_subject_service::AccountSubjectService;
 use yew::prelude::*;
@@ -27,7 +28,8 @@ pub fn account_subject_page() -> Html {
     }
 
     html! {
-        <div class="account-subject-page p-4">
+        <MainLayout current_page={""}>
+<div class="account-subject-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"会计科目管理"}</h1>
             </div>
@@ -70,5 +72,6 @@ pub fn account_subject_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

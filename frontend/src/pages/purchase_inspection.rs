@@ -1,5 +1,6 @@
 //! 采购检验页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::purchase_inspection::{
     CompleteInspectionRequest, CreatePurchaseInspectionRequest, PurchaseInspection,
     PurchaseInspectionQuery,
@@ -234,7 +235,8 @@ impl Component for PurchaseInspectionPage {
         let on_create_click = ctx.link().callback(|_| Msg::OpenCreateModal);
 
         html! {
-            <div class="purchase-inspection-page">
+            <MainLayout current_page={""}>
+<div class="purchase-inspection-page">
                 <div class="page-header">
                     <h1>{"采购检验"}</h1>
                     <button class="btn-primary" onclick={on_create_click}>
@@ -256,7 +258,8 @@ impl Component for PurchaseInspectionPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

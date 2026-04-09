@@ -1,5 +1,6 @@
 //! 客户信用管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::customer_credit::{
     CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCredit,
 };
@@ -280,7 +281,8 @@ impl Component for CustomerCreditPage {
         let link = ctx.link();
 
         html! {
-            <div class="customer-credit-page">
+            <MainLayout current_page={""}>
+<div class="customer-credit-page">
                 <div class="page-header">
                     <h1>{"客户信用管理"}</h1>
                 </div>
@@ -379,7 +381,8 @@ impl Component for CustomerCreditPage {
                     {self.view_adjust_modal(ctx)}
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

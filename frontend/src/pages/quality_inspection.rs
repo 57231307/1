@@ -1,5 +1,6 @@
 //! 质量检验页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::quality_inspection::InspectionRecord;
 use crate::services::quality_inspection_service::QualityInspectionService;
 use yew::prelude::*;
@@ -21,7 +22,8 @@ pub fn quality_inspection_page() -> Html {
     }
 
     html! {
-        <div class="p-4">
+        <MainLayout current_page={""}>
+<div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "质量检验记录" }</h1>
             <table class="min-w-full bg-white border border-gray-200">
                 <thead>
@@ -56,5 +58,6 @@ pub fn quality_inspection_page() -> Html {
                 </tbody>
             </table>
         </div>
-    }
+    
+</MainLayout>}
 }

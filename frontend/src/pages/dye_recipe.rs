@@ -1,5 +1,6 @@
 //! 染色配方管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::dye_recipe::{DyeRecipe, DyeRecipeQuery};
 use crate::services::dye_recipe_service::DyeRecipeService;
 use wasm_bindgen::JsCast;
@@ -184,7 +185,8 @@ impl Component for DyeRecipePage {
         });
 
         html! {
-            <div class="dye-recipe-page">
+            <MainLayout current_page={""}>
+<div class="dye-recipe-page">
                 <div class="page-header">
                     <h1>{"🧪 染色配方管理"}</h1>
                     <button class="btn-primary">
@@ -223,7 +225,8 @@ impl Component for DyeRecipePage {
                     {self.render_detail_modal(ctx)}
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

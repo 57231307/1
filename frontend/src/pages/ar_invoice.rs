@@ -2,6 +2,7 @@
 //!
 //! 应收发票（AR Invoice）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::ar_invoice::{ArInvoice, ArInvoiceQueryParams};
 use crate::services::ar_invoice_service::ArInvoiceService;
 use wasm_bindgen::JsCast;
@@ -167,7 +168,8 @@ impl Component for ArInvoicePage {
         });
 
         html! {
-            <div class="ar-invoice-page">
+            <MainLayout current_page={""}>
+<div class="ar-invoice-page">
                 <div class="page-header">
                     <h1>{"应收发票管理"}</h1>
                 </div>
@@ -192,7 +194,8 @@ impl Component for ArInvoicePage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

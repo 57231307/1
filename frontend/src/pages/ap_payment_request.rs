@@ -2,6 +2,7 @@
 //!
 //! 付款申请（AP Payment Request）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::ap_payment_request::{ApPaymentRequest, ApPaymentRequestQueryParams};
 use crate::services::ap_payment_request_service::ApPaymentRequestService;
 use wasm_bindgen::JsCast;
@@ -201,7 +202,8 @@ impl Component for ApPaymentRequestPage {
         });
 
         html! {
-            <div class="ap-payment-request-page">
+            <MainLayout current_page={""}>
+<div class="ap-payment-request-page">
                 <div class="page-header">
                     <h1>{"付款申请管理"}</h1>
                 </div>
@@ -234,7 +236,8 @@ impl Component for ApPaymentRequestPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

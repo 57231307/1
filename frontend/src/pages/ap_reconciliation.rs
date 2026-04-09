@@ -2,6 +2,7 @@
 //!
 //! 应付对账（AP Reconciliation）管理功能
 
+use crate::components::main_layout::MainLayout;
 use crate::models::ap_reconciliation::{ApReconciliation, ApReconciliationQueryParams};
 use crate::services::ap_reconciliation_service::ApReconciliationService;
 use wasm_bindgen::JsCast;
@@ -199,7 +200,8 @@ impl Component for ApReconciliationPage {
         });
 
         html! {
-            <div class="ap-reconciliation-page">
+            <MainLayout current_page={""}>
+<div class="ap-reconciliation-page">
                 <div class="page-header">
                     <h1>{"应付对账管理"}</h1>
                     <div class="header-actions">
@@ -231,7 +233,8 @@ impl Component for ApReconciliationPage {
                     {self.render_dispute_modal(ctx)}
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

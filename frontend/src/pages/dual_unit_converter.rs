@@ -1,5 +1,6 @@
 //! 双计量单位转换器页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::dual_unit_converter::{ConvertUnitResponse, ValidateDualUnitResponse};
 use crate::services::dual_unit_converter_service::DualUnitConverterService;
 use yew::prelude::*;
@@ -151,7 +152,8 @@ pub fn dual_unit_converter_page() -> Html {
     let is_convert_tab = active_tab.as_str() == "convert";
 
     html! {
-        <div class="dual-unit-converter-page">
+        <MainLayout current_page={""}>
+<div class="dual-unit-converter-page">
             <div class="header">
                 <h1>{"双计量单位转换器"}</h1>
             </div>
@@ -401,5 +403,6 @@ pub fn dual_unit_converter_page() -> Html {
                 </div>
             }
         </div>
-    }
+    
+</MainLayout>}
 }

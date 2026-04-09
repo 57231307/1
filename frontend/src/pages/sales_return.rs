@@ -1,5 +1,6 @@
 //! 销售退货管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::sales_return::{
     CreateSalesReturnItemRequest, CreateSalesReturnRequest, SalesReturn, SalesReturnQuery,
 };
@@ -146,7 +147,8 @@ impl Component for SalesReturnPage {
         let link = ctx.link();
 
         html! {
-            <div class="page-container">
+            <MainLayout current_page={""}>
+<div class="page-container">
                 <div class="page-header">
                     <h2>{ "销售退货管理" }</h2>
                     <div class="header-actions">
@@ -190,7 +192,8 @@ impl Component for SalesReturnPage {
                     </div>
                 }
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

@@ -1,5 +1,6 @@
 //! 凭证管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::voucher::{Voucher, VoucherQueryParams};
 use crate::services::voucher_service::VoucherService;
 use yew::prelude::*;
@@ -31,7 +32,8 @@ pub fn voucher_page() -> Html {
     }
 
     html! {
-        <div class="p-4">
+        <MainLayout current_page={""}>
+<div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "凭证管理" }</h1>
             <table class="min-w-full bg-white border border-gray-200">
                 <thead>
@@ -66,5 +68,6 @@ pub fn voucher_page() -> Html {
                 </tbody>
             </table>
         </div>
-    }
+    
+</MainLayout>}
 }

@@ -1,5 +1,6 @@
 //! 资金管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::services::fund_management_service::FundManagementService;
 use yew::prelude::*;
 
@@ -29,7 +30,8 @@ pub fn fund_management_page() -> Html {
     };
 
     html! {
-        <div class="fund-management-page">
+        <MainLayout current_page={""}>
+<div class="fund-management-page">
             <div class="header">
                 <h1>{"资金管理"}</h1>
             </div>
@@ -38,5 +40,6 @@ pub fn fund_management_page() -> Html {
                 <p>{ (*transfer_result).clone() }</p>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

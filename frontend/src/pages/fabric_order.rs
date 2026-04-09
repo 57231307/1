@@ -1,5 +1,6 @@
 //! 面料订单管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::fabric_order::{
     CreateFabricOrderRequest, FabricOrder, FabricOrderQuery, UpdateFabricOrderRequest,
 };
@@ -194,7 +195,8 @@ impl Component for FabricOrderPage {
         });
 
         html! {
-            <div class="fabric-order-page">
+            <MainLayout current_page={""}>
+<div class="fabric-order-page">
                 <div class="page-header">
                     <h1>{"📋 面料订单管理"}</h1>
                     <div class="header-actions">
@@ -219,7 +221,8 @@ impl Component for FabricOrderPage {
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 

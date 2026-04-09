@@ -1,5 +1,6 @@
 //! 库存调整单页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::inventory_adjustment::AdjustmentSummary;
 use crate::services::inventory_adjustment_service::InventoryAdjustmentService;
 use yew::prelude::*;
@@ -22,7 +23,8 @@ pub fn inventory_adjustment_page() -> Html {
     }
 
     html! {
-        <div class="inventory-adjustment-page p-4">
+        <MainLayout current_page={""}>
+<div class="inventory-adjustment-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"库存调整单"}</h1>
             </div>
@@ -69,5 +71,6 @@ pub fn inventory_adjustment_page() -> Html {
                 </table>
             </div>
         </div>
-    }
+    
+</MainLayout>}
 }

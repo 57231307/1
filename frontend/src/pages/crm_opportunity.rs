@@ -1,3 +1,4 @@
+use crate::components::main_layout::MainLayout;
 use crate::services::crm_service::{CrmOpportunity, CrmService};
 use yew::prelude::*;
 
@@ -22,7 +23,8 @@ pub fn crm_opportunity_page() -> Html {
     });
 
     html! {
-        <div class="p-4">
+        <MainLayout current_page={""}>
+<div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "CRM 商机管理" }</h1>
             <div class="mb-4">
                 <button onclick={on_create_click} class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
@@ -57,5 +59,6 @@ pub fn crm_opportunity_page() -> Html {
                 </tbody>
             </table>
         </div>
-    }
+    
+</MainLayout>}
 }

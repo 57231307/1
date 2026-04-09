@@ -1,5 +1,6 @@
 //! 销售订单管理页面
 
+use crate::components::main_layout::MainLayout;
 use crate::models::sales::{SalesOrder, ShipOrderItemRequest, ShipOrderRequest};
 use crate::models::warehouse::Warehouse;
 use crate::services::sales_service::SalesService;
@@ -266,14 +267,16 @@ impl Component for SalesOrderPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="sales-order-page">
+            <MainLayout current_page={""}>
+<div class="sales-order-page">
                 <div class="page-header">
                     <h1>{"📦 销售订单管理"}</h1>
                 </div>
 
                 {self.render_content(ctx)}
             </div>
-        }
+        
+</MainLayout>}
     }
 }
 
