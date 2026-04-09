@@ -37,15 +37,28 @@ jobs:
         id: version
         run: |
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
+            RAW_VERSION=${GITHUB_REF#refs/tags/v}
+            MAJOR=$(echo "$RAW_VERSION" | cut -d. -f1)
+            MINOR=$(echo "$RAW_VERSION" | cut -d. -f2)
+            PATCH=$(echo "$RAW_VERSION" | cut -d. -f3)
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
           else
             git fetch --tags
-            LATEST_TAG=$(git describe --tags --match "v*.*.*.*.*" --abbrev=0 2>/dev/null || echo "")
+            LATEST_TAG=$(git describe --tags --match "v*.*.*" --abbrev=0 2>/dev/null || echo "")
 
             if [ -z "$LATEST_TAG" ]; then
-              NEW_NUM=10000
+              MAJOR=1
+              MINOR=0
+              PATCH=10000
             else
-              LATEST_NUM=$(echo $LATEST_TAG | sed 's/^v//' | sed 's/\.//g')
+              TAG_NO_V=${LATEST_TAG#v}
+              MAJOR=$(echo "$TAG_NO_V" | cut -d. -f1)
+              MINOR=$(echo "$TAG_NO_V" | cut -d. -f2)
+              PATCH=$(echo "$TAG_NO_V" | cut -d. -f3)
+              if ! [[ "$MAJOR" =~ ^[0-9]+$ ]]; then MAJOR=1; fi
+              if ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then MINOR=0; fi
+              if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
+
               COMMITS=$(git log ${LATEST_TAG}..HEAD --format="%s")
 
               SCORE=0
@@ -60,14 +73,12 @@ jobs:
                 fi
               done <<< "$COMMITS"
 
-              if [ "$SCORE" -eq 0 ]; then
-                NEW_NUM=$LATEST_NUM
-              else
-                NEW_NUM=$((LATEST_NUM + SCORE))
+              if [ "$SCORE" -gt 0 ]; then
+                PATCH=$((PATCH + SCORE))
               fi
             fi
 
-            VERSION=$(echo $NEW_NUM | sed -e 's/\(.\)/\1./g' -e 's/\.$//')
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "构建版本: $VERSION"
@@ -353,9 +364,9 @@ jobs:
         run: |
           git fetch --tags
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            PREV_TAG=$(git describe --tags --match "v*.*.*.*.*" --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --match "v*.*.*" --abbrev=0 HEAD^ 2>/dev/null || echo "")
           else
-            PREV_TAG=$(git describe --tags --match "v*.*.*.*.*" --abbrev=0 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --match "v*.*.*" --abbrev=0 2>/dev/null || echo "")
           fi
           
           if [ -z "$PREV_TAG" ]; then
