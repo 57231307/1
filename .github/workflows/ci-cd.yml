@@ -1,8 +1,9 @@
 name: CI/CD Pipeline - 自动构建和发布
 
 # 为了防止同时推送 commit 和 tag 时触发两次重复构建
+# group 表达式修改为分支/PR名称，从而在同一分支有新提交时自动取消旧任务
 concurrency:
-  group: ${{ github.workflow }}-${{ github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 on:
@@ -20,7 +21,8 @@ on:
 env:
   RUST_VERSION: stable
   CARGO_TERM_COLOR: always
-  CARGO_BUILD_JOBS: 8
+  # 限制构建进程数为 16，避免在构建前后端时耗尽内存被系统杀死 (OOM)
+  CARGO_BUILD_JOBS: 16
   # 强制 GitHub Actions 第三方插件(如 actions/checkout) 使用 Node.js 24，消除 Node.js 20 弃用警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
