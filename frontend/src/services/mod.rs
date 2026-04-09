@@ -14,7 +14,6 @@ pub mod batch_service;
 pub mod budget_management_service;
 pub mod business_trace_service;
 pub mod cost_collection_service;
-pub mod crm_service;
 pub mod customer_credit_service;
 pub mod customer_service;
 pub mod dashboard_service;
@@ -51,8 +50,6 @@ pub mod user_service;
 pub mod voucher_service;
 pub mod warehouse_service;
 // 面料行业核心模块
-pub mod dye_batch;
-pub mod dye_recipe;
 pub mod greige_fabric;
 pub mod sales_return_service;
 pub mod unit_converter;

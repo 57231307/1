@@ -110,13 +110,8 @@ pub mod fund_account;
 // 资金转账记录模块
 pub mod fund_transfer_record;
 // 批次相关模块
-pub mod batch_dye_lot;
 pub mod batch_trace_log;
 // 面料行业核心模块
-pub mod dye_batch;
-pub mod dye_lot_mapping;
-pub mod dye_recipe;
-pub mod greige_fabric;
 // 产品编码映射模块
 pub mod product_code_mapping;
 // 色号映射模块
@@ -128,9 +123,6 @@ pub mod inventory_piece;
 // _LOCATION模块
 pub mod location;
 // BPM流程模块
-pub mod bpm_process_definition;
-pub mod bpm_process_instance;
-pub mod bpm_task;
 // 预算执行模块
 pub mod budget_adjustment;
 pub mod budget_execution;
@@ -138,8 +130,6 @@ pub mod budget_execution;
 pub mod business_trace;
 pub mod business_trace_assist_link;
 // CRM模块
-pub mod crm_lead;
-pub mod crm_opportunity;
 // OA模块
 pub mod oa_announcement;
 // 日志模块

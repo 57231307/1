@@ -7,17 +7,15 @@ use axum::{
 };
 
 use crate::controllers::base::unit_converter;
-use crate::controllers::production::{dye_batch, dye_recipe, greige_fabric};
+
 
 use crate::handlers::{
     account_subject_handler, ap_invoice_handler, ap_payment_handler, ap_payment_request_handler,
     ap_reconciliation_handler, ap_report_handler, ap_verification_handler, ar_invoice_handler,
-    assist_accounting_handler, auth_handler, batch_handler, batch_new_handler, bpm_handler,
-    budget_management_handler, business_trace_handler, cost_collection_handler, crm_handler,
-    customer_credit_handler, customer_handler, dashboard_handler, department_handler,
-    dual_unit_converter_handler, dye_batch_handler, dye_recipe_handler, finance_invoice_handler,
+    assist_accounting_handler, auth_handler, batch_handler, batch_new_handler, budget_management_handler, business_trace_handler, cost_collection_handler, customer_credit_handler, customer_handler, dashboard_handler, department_handler,
+    dual_unit_converter_handler, finance_invoice_handler,
     finance_payment_handler, financial_analysis_handler, five_dimension_handler,
-    fixed_asset_handler, fund_management_handler, greige_fabric_handler, health_handler,
+    fixed_asset_handler, fund_management_handler, health_handler,
     init_handler, inventory_adjustment_handler, inventory_count_handler, inventory_stock_handler,
     inventory_transfer_handler, product_category_handler, product_handler,
     purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
@@ -318,49 +316,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id/transfer", post(batch_new_handler::transfer_batch));
 
     // 缸号管理路由（染色批次管理）
-    let dye_batch_routes = Router::new()
-        .route("/", get(dye_batch_handler::list_dye_batches))
-        .route("/", post(dye_batch_handler::create_dye_batch))
-        .route("/:id", get(dye_batch_handler::get_dye_batch))
-        .route("/:id", put(dye_batch_handler::update_dye_batch))
-        .route("/:id", delete(dye_batch_handler::delete_dye_batch))
-        .route("/:id/complete", post(dye_batch_handler::complete_dye_batch))
-        .route(
-            "/by-color/:color_code",
-            get(dye_batch_handler::get_dye_batches_by_color),
-        );
+    
 
     // 坯布管理路由（原料布匹管理）
-    let greige_fabric_routes = Router::new()
-        .route("/", get(greige_fabric_handler::list_greige_fabrics))
-        .route("/", post(greige_fabric_handler::create_greige_fabric))
-        .route("/:id", get(greige_fabric_handler::get_greige_fabric))
-        .route("/:id", put(greige_fabric_handler::update_greige_fabric))
-        .route("/:id", delete(greige_fabric_handler::delete_greige_fabric))
-        .route("/:id/stock-in", post(greige_fabric_handler::stock_in))
-        .route("/:id/stock-out", post(greige_fabric_handler::stock_out))
-        .route(
-            "/by-supplier/:supplier_id",
-            get(greige_fabric_handler::get_greige_by_supplier),
-        );
+    
 
     // 染色配方管理路由
-    let dye_recipe_routes = Router::new()
-        .route("/", get(dye_recipe_handler::list_dye_recipes))
-        .route("/", post(dye_recipe_handler::create_dye_recipe))
-        .route("/:id", get(dye_recipe_handler::get_dye_recipe))
-        .route("/:id", put(dye_recipe_handler::update_dye_recipe))
-        .route("/:id", delete(dye_recipe_handler::delete_dye_recipe))
-        .route("/:id/approve", post(dye_recipe_handler::approve_recipe))
-        .route("/:id/version", post(dye_recipe_handler::create_new_version))
-        .route(
-            "/by-color/:color_code",
-            get(dye_recipe_handler::get_recipes_by_color),
-        )
-        .route(
-            "/:id/versions",
-            get(dye_recipe_handler::get_recipe_versions),
-        );
+    
 
     // 总账管理路由
     let gl_routes = Router::new()
@@ -969,10 +931,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/status", get(system_update_handler::get_update_status));
 
     // BPM 路由
-    let bpm_routes = Router::new()
-        .route("/instances/start", post(bpm_handler::start_process))
-        .route("/tasks/approve", post(bpm_handler::approve_task))
-        .route("/tasks", get(bpm_handler::query_tasks));
+    
 
     // 健康检查路由
     let health_routes = Router::new()
@@ -1004,22 +963,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/constants", get(unit_converter::get_global_constants))
         .route("/products", get(unit_converter::get_product_conversions));
 
-    let production_greige_routes = Router::new()
-        .route("/", get(greige_fabric::get_list))
-        .route("/", post(greige_fabric::create));
+    
 
-    let production_dye_recipe_routes = Router::new()
-        .route("/", get(dye_recipe::get_list))
-        .route("/", post(dye_recipe::create));
+    
 
-    let production_dye_batch_routes = Router::new()
-        .route("/", get(dye_batch::get_list))
-        .route("/", post(dye_batch::create));
+    
 
     Router::new()
-        .nest("/api/v1/erp/production/greige", production_greige_routes)
-        .nest("/api/v1/erp/production/dye_recipe", production_dye_recipe_routes)
-        .nest("/api/v1/erp/production/dye_batch", production_dye_batch_routes)
+        
+        
+        
         .nest("/api/v1/erp/base/units", unit_routes)
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)
@@ -1034,9 +987,9 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/inventory", inventory_routes)
         .nest("/api/v1/erp/customers", customer_routes)
         .nest("/api/v1/erp/batches", batch_routes)
-        .nest("/api/v1/erp/dye-batches", dye_batch_routes)
-        .nest("/api/v1/erp/greige-fabrics", greige_fabric_routes)
-        .nest("/api/v1/erp/dye-recipes", dye_recipe_routes)
+        
+        
+        
         .nest("/api/v1/erp/gl", gl_routes)
         .nest("/api/v1/erp/dual-unit", dual_unit_routes)
         .nest("/api/v1/erp/five-dimension", five_dimension_routes)
@@ -1064,28 +1017,10 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/purchase-prices", purchase_price_routes)
         .nest("/api/v1/erp/ap", ap_routes)
         .nest("/api/v1/erp/ar", ar_routes)
-        .nest("/api/v1/erp/bpm", bpm_routes)
+        
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
         .nest("/api/v1/erp/operation-logs", operation_log_routes)
-        .nest(
-            "/api/v1/erp/crm",
-            Router::new()
-                .route(
-                    "/leads",
-                    post(crate::handlers::crm_handler::create_lead)
-                        .get(crate::handlers::crm_handler::list_leads),
-                )
-                .route(
-                    "/leads/:id/status",
-                    put(crate::handlers::crm_handler::update_lead_status),
-                )
-                .route(
-                    "/opportunities",
-                    post(crate::handlers::crm_handler::create_opportunity)
-                        .get(crate::handlers::crm_handler::list_opportunities),
-                ),
-        )
         .nest("/api/v1/erp/init", init_routes)
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .with_state(state)

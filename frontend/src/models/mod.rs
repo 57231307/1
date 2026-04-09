@@ -18,8 +18,6 @@ pub mod customer_credit;
 pub mod dashboard;
 pub mod department;
 pub mod dual_unit_converter;
-pub mod dye_batch;
-pub mod dye_recipe;
 pub mod fabric_order;
 pub mod finance_invoice;
 pub mod finance_payment;
