@@ -339,7 +339,8 @@ impl DashboardPage {
                             <th>{"当前库存"}</th>
                             <th>{"最低库存"}</th>
                             <th>{"短缺数量"}</th>
-                            <th>{"状态"}</th>
+                            <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                         </tr>
                     </thead>
                     <tbody>

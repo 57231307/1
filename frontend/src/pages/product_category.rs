@@ -127,7 +127,8 @@ pub fn product_category_page() -> Html {
                                 <th>{"编码"}</th>
                                 <th>{"类别名称"}</th>
                                 <th>{"描述"}</th>
-                                <th>{"状态"}</th>
+                                <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -174,7 +174,8 @@ pub fn product_list_page() -> Html {
                                 <th>{"经纬密"}</th>
                                 <th>{"色号"}</th>
                                 <th class="numeric-cell text-right">{"价格"}</th>
-                                <th>{"状态"}</th>
+                                <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -196,7 +197,8 @@ pub fn product_list_page() -> Html {
                                                     <td>{"-"}</td>
                                                     <td>{"-"}</td>
                                                     <td class="numeric-cell text-right">{product.price.as_deref().unwrap_or("0.00")}</td>
-                                                    <td><span class="status-badge bg-green-100 text-green-800">{"在售"}</span></td>
+                                                    <td><span class="text-xs text-blue-500 underline cursor-pointer">{"#关联单据"}</span></td>
+                                                <td><span class="status-badge bg-green-100 text-green-800">{"在售"}</span></td>
                                                 </tr>
                                             }
                                         })

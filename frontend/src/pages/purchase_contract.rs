@@ -390,7 +390,8 @@ impl Component for PurchaseContractPage {
                                 <th>{"供应商"}</th>
                                 <th class="numeric-cell text-right">{"总金额"}</th>
                                 <th>{"交货日期"}</th>
-                                <th>{"状态"}</th>
+                                <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                                 <th>{"操作"}</th>
                             </tr>
                         </thead>
@@ -405,7 +406,8 @@ impl Component for PurchaseContractPage {
                                         <td>{contract.supplier_name.as_deref().unwrap_or("-")}</td>
                                         <td class="numeric-cell text-right">{format!("{:.2}", contract.total_amount)}</td>
                                         <td>{&contract.delivery_date}</td>
-                                        <td><span class="status-badge">{status.display_name()}</span></td>
+                                        <td><span class="text-xs text-blue-500 underline cursor-pointer">{"#关联单据"}</span></td>
+                                                <td><span class="status-badge">{status.display_name()}</span></td>
                                         <td>
                                             <div class="action-buttons">
                                                 if status == ContractStatus::Draft {

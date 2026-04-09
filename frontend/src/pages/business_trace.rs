@@ -628,7 +628,8 @@ impl BusinessTracePage {
                                 <th>{"当前单据"}</th>
                                 <th class="numeric-cell text-right">{"数量(米)"}</th>
                                 <th class="numeric-cell text-right">{"数量(公斤)"}</th>
-                                <th>{"状态"}</th>
+                                <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             </tr>
                         </thead>
                         <tbody>

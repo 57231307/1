@@ -563,7 +563,8 @@ impl SupplierPage {
                             <th>{"联系人"}</th>
                             <th>{"联系电话"}</th>
                             <th class="numeric-cell text-right">{"评级"}</th>
-                            <th>{"状态"}</th>
+                            <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             <th>{"操作"}</th>
                         </tr>
                     </thead>

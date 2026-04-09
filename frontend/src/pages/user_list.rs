@@ -141,7 +141,8 @@ impl Component for UserListPage {
                                         <th>{"邮箱"}</th>
                                         <th>{"手机号"}</th>
                                         <th class="numeric-cell text-right">{"角色"}</th>
-                                        <th>{"状态"}</th>
+                                        <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                                         <th>{"创建时间"}</th>
                                     </tr>
                                 </thead>

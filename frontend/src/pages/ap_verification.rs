@@ -413,7 +413,8 @@ impl ApVerificationPage {
                                 <th>{"核销金额"}</th>
                                 <th>{"发票数量"}</th>
                                 <th>{"付款单数量"}</th>
-                                <th>{"状态"}</th>
+                                <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                                 <th>{"核销人"}</th>
                                 <th>{"操作"}</th>
                             </tr>

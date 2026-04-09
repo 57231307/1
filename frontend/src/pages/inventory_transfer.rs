@@ -445,7 +445,8 @@ impl InventoryTransferPage {
                             <th>{"源仓库"}</th>
                             <th>{"目标仓库"}</th>
                             <th>{"调拨日期"}</th>
-                            <th>{"状态"}</th>
+                            <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             <th class="numeric-cell text-right">{"总数量"}</th>
                             <th>{"操作"}</th>
                         </tr>

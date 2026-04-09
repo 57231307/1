@@ -361,7 +361,8 @@ impl SalesOrderPage {
                             <th>{"花型"}</th>
                             <th>{"客户"}</th>
                             <th class="numeric-cell text-right">{"总金额"}</th>
-                            <th>{"状态"}</th>
+                            <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             <th>{"创建时间"}</th>
                             <th>{"操作"}</th>
                         </tr>
@@ -376,7 +377,8 @@ impl SalesOrderPage {
                                     <td>{"🎨"}</td>
                                     <td>{order.customer_name.as_deref().unwrap_or("-")}</td>
                                     <td class="numeric-cell text-right">{&order.total_amount}</td>
-                                    <td><span class="status-badge">{&order.status}</span></td>
+                                    <td><span class="text-xs text-blue-500 underline cursor-pointer">{"#关联单据"}</span></td>
+                                                <td><span class="status-badge">{&order.status}</span></td>
                                     <td>{&order.created_at}</td>
                                     <td>
                                         <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>

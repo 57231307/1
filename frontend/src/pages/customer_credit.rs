@@ -342,7 +342,8 @@ impl Component for CustomerCreditPage {
                                 <th class="numeric-cell text-right">{"已用额度"}</th>
                                 <th class="numeric-cell text-right">{"可用额度"}</th>
                                 <th class="numeric-cell text-right">{"信用天数"}</th>
-                                <th>{"状态"}</th>
+                                <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                                 <th>{"操作"}</th>
                             </tr>
                         </thead>

@@ -394,7 +394,8 @@ impl InventoryCountPage {
                             <th>{"盘点单号"}</th>
                             <th>{"仓库ID"}</th>
                             <th>{"盘点日期"}</th>
-                            <th>{"状态"}</th>
+                            <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             <th class="numeric-cell text-right">{"总条目"}</th>
                             <th class="numeric-cell text-right">{"已盘条目"}</th>
                             <th class="numeric-cell text-right">{"差异条目"}</th>

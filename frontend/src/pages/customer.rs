@@ -464,7 +464,8 @@ impl CustomerPage {
                             <th>{"联系电话"}</th>
                             <th>{"客户类型"}</th>
                             <th class="numeric-cell text-right">{"信用额度"}</th>
-                            <th>{"状态"}</th>
+                            <th>{"关联源单据"}</th>
+                                                <th>{"状态"}</th>
                             <th>{"操作"}</th>
                         </tr>
                     </thead>
