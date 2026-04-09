@@ -5,6 +5,7 @@ use crate::components::main_layout::MainLayout;
 pub struct ArVerifyItem {
     pub id: i32,
     pub verify_no: String,
+    pub batch_no: String,
     pub customer_name: String,
     pub amount: f64,
     pub status: String,
@@ -23,6 +24,7 @@ pub fn ar_verification_page() -> Html {
                 ArVerifyItem {
                     id: 1,
                     verify_no: "VR-20231001-0001".to_string(),
+                    batch_no: "-".to_string(),
                     customer_name: "江苏服饰厂".to_string(),
                     amount: 50000.0,
                     status: "已核销".to_string(),
@@ -42,7 +44,7 @@ pub fn ar_verification_page() -> Html {
                 </div>
                 
                 <div class="grid-form mb-6 p-4 border rounded bg-white shadow-sm">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="form-item flex flex-col">
                             <label class="mb-1 text-sm text-gray-600">{"核销单号"}</label>
                             <input type="text" class="input-field border rounded px-3 py-2" placeholder="请输入核销单号" />
@@ -50,6 +52,10 @@ pub fn ar_verification_page() -> Html {
                         <div class="form-item flex flex-col">
                             <label class="mb-1 text-sm text-gray-600">{"客户名称"}</label>
                             <input type="text" class="input-field border rounded px-3 py-2" placeholder="请输入客户名称" />
+                        </div>
+                        <div class="form-item flex flex-col">
+                            <label class="mb-1 text-sm text-gray-600">{"关联批次/发货单"}</label>
+                            <input type="text" class="input-field border rounded px-3 py-2" placeholder="请输入批次/发货单号" />
                         </div>
                         <div class="form-item flex items-end">
                             <button class="btn-secondary px-4 py-2 border rounded bg-gray-100 w-full">{"查询"}</button>
@@ -63,6 +69,7 @@ pub fn ar_verification_page() -> Html {
                             <tr>
                                 <th class="p-3">{"ID"}</th>
                                 <th class="p-3">{"核销单号"}</th>
+                                <th class="p-3">{"关联批次/发货单"}</th>
                                 <th class="p-3">{"客户名称"}</th>
                                 <th class="p-3 text-right">{"核销金额"}</th>
                                 <th class="p-3">{"状态"}</th>
@@ -76,6 +83,7 @@ pub fn ar_verification_page() -> Html {
                                     <tr class="border-b hover:bg-gray-50">
                                         <td class="p-3">{item.id}</td>
                                         <td class="p-3">{&item.verify_no}</td>
+                                        <td class="p-3">{&item.batch_no}</td>
                                         <td class="p-3">{&item.customer_name}</td>
                                         <td class="numeric-cell text-right p-3 font-mono">{format!("{:.2}", item.amount)}</td>
                                         <td class="p-3"><span class="status-badge px-2 py-1 rounded text-sm bg-green-100 text-green-800">{&item.status}</span></td>

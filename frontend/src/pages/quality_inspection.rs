@@ -19,6 +19,10 @@ pub struct InspectItem {
 #[function_component(QualityInspectionPage)]
 pub fn quality_inspection_page() -> Html {
     let records = use_state(|| Vec::<InspectItem>::new());
+    let show_add_modal = use_state(|| false);
+    let warp_defects = use_state(|| 0.0);
+    let weft_defects = use_state(|| 0.0);
+    let inspection_area = use_state(|| 100.0);
 
     {
         let records = records.clone();
@@ -63,13 +67,42 @@ pub fn quality_inspection_page() -> Html {
         });
     }
 
+    let show_add_modal_cb = {
+        let show_add_modal = show_add_modal.clone();
+        Callback::from(move |_| show_add_modal.set(true))
+    };
+
+    let close_modal_cb = {
+        let show_add_modal = show_add_modal.clone();
+        Callback::from(move |_| show_add_modal.set(false))
+    };
+
+    let score = if *inspection_area > 0.0 {
+        (*warp_defects + *weft_defects) * 100.0 / *inspection_area
+    } else {
+        0.0
+    };
+
+    let result_text = if score > 40.0 {
+        "C级/不合格"
+    } else {
+        "A级/合格"
+    };
+
+    let result_class = if score > 40.0 {
+        "text-red-600 font-bold"
+    } else {
+        "text-green-600 font-bold"
+    };
+
     html! {
         <MainLayout current_page={"quality_inspection"}>
-            <div class="quality-inspection-page p-4">
+            <div class="quality-inspection-page p-4 relative">
                 <div class="header mb-4 flex justify-between items-center">
                     <h1 class="text-2xl font-bold">{"质量检验记录"}</h1>
-                    <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow-sm">{"新增检验"}</button>
+                    <button onclick={show_add_modal_cb} class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow-sm">{"新增检验"}</button>
                 </div>
+
 
                 <div class="filter-form bg-white p-4 rounded mb-4 shadow-sm border border-gray-100">
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -163,6 +196,100 @@ pub fn quality_inspection_page() -> Html {
                         </tbody>
                     </table>
                 </div>
+
+                if *show_add_modal {
+                    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+                        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+                            <h2 class="text-xl font-bold mb-6">{"新增质量检验 - 美标四分制"}</h2>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{"经向疵点数"}</label>
+                                    <input 
+                                        type="number" 
+                                        min="0"
+                                        class="w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500"
+                                        value={warp_defects.to_string()}
+                                        oninput={
+                                            let warp_defects = warp_defects.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                use wasm_bindgen::JsCast;
+                                                if let Some(input) = e.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+                                                    if let Ok(val) = input.value().parse::<f64>() {
+                                                        warp_defects.set(val);
+                                                    }
+                                                }
+                                            })
+                                        }
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{"纬向疵点数"}</label>
+                                    <input 
+                                        type="number" 
+                                        min="0"
+                                        class="w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500"
+                                        value={weft_defects.to_string()}
+                                        oninput={
+                                            let weft_defects = weft_defects.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                use wasm_bindgen::JsCast;
+                                                if let Some(input) = e.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+                                                    if let Ok(val) = input.value().parse::<f64>() {
+                                                        weft_defects.set(val);
+                                                    }
+                                                }
+                                            })
+                                        }
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{"检验面积(平方码)"}</label>
+                                    <input 
+                                        type="number" 
+                                        min="0.1"
+                                        step="0.1"
+                                        class="w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500"
+                                        value={inspection_area.to_string()}
+                                        oninput={
+                                            let inspection_area = inspection_area.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                use wasm_bindgen::JsCast;
+                                                if let Some(input) = e.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+                                                    if let Ok(val) = input.value().parse::<f64>() {
+                                                        inspection_area.set(val);
+                                                    }
+                                                }
+                                            })
+                                        }
+                                    />
+                                </div>
+
+                                <div class="bg-gray-50 p-4 rounded-md border border-gray-200 mt-6">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-gray-600 font-medium">{"百平方码扣分:"}</span>
+                                        <span class="text-xl font-mono">{format!("{:.1}", score)}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600 font-medium">{"检验结果:"}</span>
+                                        <span class={result_class}>{result_text}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-8 flex justify-end space-x-3">
+                                <button onclick={close_modal_cb.clone()} class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md border border-gray-300 font-medium">
+                                    {"取消"}
+                                </button>
+                                <button onclick={close_modal_cb} class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm font-medium">
+                                    {"保存"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         </MainLayout>
     }

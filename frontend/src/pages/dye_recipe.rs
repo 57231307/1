@@ -18,6 +18,8 @@ pub struct DyeRecipePage {
     new_dyes: String,
     new_temp_c: String,
     new_time_mins: String,
+    new_heating_rate: String,
+    new_dye_ingredients: String,
 }
 
 pub enum Msg {
@@ -45,6 +47,8 @@ impl Component for DyeRecipePage {
             new_dyes: String::new(),
             new_temp_c: String::new(),
             new_time_mins: String::new(),
+            new_heating_rate: String::new(),
+            new_dye_ingredients: String::new(),
         }
     }
 
@@ -89,6 +93,8 @@ impl Component for DyeRecipePage {
                     "dyes" => self.new_dyes = val,
                     "temp_c" => self.new_temp_c = val,
                     "time_mins" => self.new_time_mins = val,
+                    "heating_rate" => self.new_heating_rate = val,
+                    "dye_ingredients" => self.new_dye_ingredients = val,
                     _ => {}
                 }
                 true
@@ -102,6 +108,8 @@ impl Component for DyeRecipePage {
                     dyes: self.new_dyes.clone(),
                     temp_c: self.new_temp_c.parse().unwrap_or(0),
                     time_mins: self.new_time_mins.parse().unwrap_or(0),
+                    heating_rate: self.new_heating_rate.clone(),
+                    dye_ingredients: self.new_dye_ingredients.clone(),
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
@@ -138,6 +146,8 @@ impl Component for DyeRecipePage {
                                 <input class="form-input" placeholder="染料" value={self.new_dyes.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("dyes".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
                                 <input class="form-input" placeholder="温度(℃)" type="number" value={self.new_temp_c.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("temp_c".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
                                 <input class="form-input" placeholder="时间(分)" type="number" value={self.new_time_mins.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("time_mins".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="升温速率(℃/min)" value={self.new_heating_rate.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("heating_rate".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="染料成分数组(如活性黑5%)" value={self.new_dye_ingredients.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("dye_ingredients".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
                                 <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>{"取消"}</button>
@@ -174,6 +184,8 @@ impl DyeRecipePage {
                             <th style="padding: 0.5rem; text-align: left;">{"染料"}</th>
                             <th class="numeric-cell" style="padding: 0.5rem;">{"温度(℃)"}</th>
                             <th class="numeric-cell" style="padding: 0.5rem;">{"时间(分)"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"升温速率(℃/min)"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"染料成分数组"}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -186,6 +198,8 @@ impl DyeRecipePage {
                                     <td style="padding: 0.5rem;">{&r.dyes}</td>
                                     <td class="numeric-cell" style="padding: 0.5rem;">{r.temp_c}</td>
                                     <td class="numeric-cell" style="padding: 0.5rem;">{r.time_mins}</td>
+                                    <td style="padding: 0.5rem;">{&r.heating_rate}</td>
+                                    <td style="padding: 0.5rem;">{&r.dye_ingredients}</td>
                                 </tr>
                             }
                         })}

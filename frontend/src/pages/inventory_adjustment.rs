@@ -7,7 +7,9 @@ use yew::prelude::*;
 pub struct AdjustmentItem {
     pub id: u32,
     pub adjust_no: String,
+    pub barcode: String,
     pub roll_no: String,
+    pub dye_lot_no: String,
     pub adjust_type: String, // 调整类型：盘点差异调整、报损等
     pub adjust_length: f64, // 调整长度(米)
     pub adjust_weight: f64, // 调整重量(kg)
@@ -26,7 +28,9 @@ pub fn inventory_adjustment_page() -> Html {
                 AdjustmentItem {
                     id: 1,
                     adjust_no: "ADJ-20231001-001".to_string(),
+                    barcode: "BC-2023-001".to_string(),
                     roll_no: "匹号A101".to_string(),
+                    dye_lot_no: "DYE-101".to_string(),
                     adjust_type: "盘点差异调整".to_string(),
                     adjust_length: -2.5,
                     adjust_weight: -0.5,
@@ -36,7 +40,9 @@ pub fn inventory_adjustment_page() -> Html {
                 AdjustmentItem {
                     id: 2,
                     adjust_no: "ADJ-20231002-002".to_string(),
+                    barcode: "BC-2023-002".to_string(),
                     roll_no: "匹号B205".to_string(),
+                    dye_lot_no: "DYE-102".to_string(),
                     adjust_type: "质量报损".to_string(),
                     adjust_length: -15.0,
                     adjust_weight: -3.2,
@@ -46,7 +52,9 @@ pub fn inventory_adjustment_page() -> Html {
                 AdjustmentItem {
                     id: 3,
                     adjust_no: "ADJ-20231005-003".to_string(),
+                    barcode: "BC-2023-003".to_string(),
                     roll_no: "匹号C302".to_string(),
+                    dye_lot_no: "DYE-103".to_string(),
                     adjust_type: "盘点差异调整".to_string(),
                     adjust_length: 1.0,
                     adjust_weight: 0.2,
@@ -97,7 +105,9 @@ pub fn inventory_adjustment_page() -> Html {
                             <tr>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"ID"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"调整单号"}</th>
+                                <th class="py-3 px-4 font-semibold text-gray-600">{"条码编号"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"匹号"}</th>
+                                <th class="py-3 px-4 font-semibold text-gray-600">{"入库缸号"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"调整类型"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"调整长度(m)"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"调整重量(kg)"}</th>
@@ -110,7 +120,7 @@ pub fn inventory_adjustment_page() -> Html {
                             {
                                 if adjustments.is_empty() {
                                     html! {
-                                        <tr><td colspan="9" class="text-center py-8 text-gray-500">{"暂无数据"}</td></tr>
+                                        <tr><td colspan="11" class="text-center py-8 text-gray-500">{"暂无数据"}</td></tr>
                                     }
                                 } else {
                                     html! {
@@ -126,7 +136,9 @@ pub fn inventory_adjustment_page() -> Html {
                                                 <tr key={adj.id} class="hover:bg-gray-50 transition-colors">
                                                     <td class="py-3 px-4">{ adj.id }</td>
                                                     <td class="py-3 px-4 font-medium">{ &adj.adjust_no }</td>
+                                                    <td class="py-3 px-4 font-mono text-sm">{ &adj.barcode }</td>
                                                     <td class="py-3 px-4">{ &adj.roll_no }</td>
+                                                    <td class="py-3 px-4 font-mono text-sm">{ &adj.dye_lot_no }</td>
                                                     <td class="py-3 px-4">{ &adj.adjust_type }</td>
                                                     <td class={format!("py-3 px-4 numeric-cell text-right font-mono {}", length_class)}>
                                                         { if adj.adjust_length > 0.0 { format!("+{:.2}", adj.adjust_length) } else { format!("{:.2}", adj.adjust_length) } }

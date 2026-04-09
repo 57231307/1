@@ -9,6 +9,9 @@ pub struct SupplierEvalItem {
     pub supplier_name: String,
     pub evaluation_period: String,
     pub overall_score: f64,
+    pub delivery_score: f64,
+    pub quality_score: f64,
+    pub price_score: f64,
     pub grade: String,
     pub evaluation_date: String,
     pub status: String,
@@ -27,6 +30,9 @@ pub fn supplier_evaluation_page() -> Html {
                     supplier_name: "浙江某印染厂".to_string(),
                     evaluation_period: "2023 Q3".to_string(),
                     overall_score: 92.5,
+                    delivery_score: 90.0,
+                    quality_score: 95.0,
+                    price_score: 92.5,
                     grade: "A".to_string(),
                     evaluation_date: "2023-10-15".to_string(),
                     status: "已归档".to_string(),
@@ -36,6 +42,9 @@ pub fn supplier_evaluation_page() -> Html {
                     supplier_name: "福建某织造厂".to_string(),
                     evaluation_period: "2023 Q3".to_string(),
                     overall_score: 78.0,
+                    delivery_score: 70.0,
+                    quality_score: 80.0,
+                    price_score: 84.0,
                     grade: "C".to_string(),
                     evaluation_date: "2023-10-18".to_string(),
                     status: "整改中".to_string(),
@@ -83,10 +92,13 @@ pub fn supplier_evaluation_page() -> Html {
                     <table class="data-table w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-gray-100 border-b">
-                                <th class="py-2 px-4">{"ID"}</th>
+                                <th class="py-2 px-4 numeric-cell text-right">{"ID"}</th>
                                 <th class="py-2 px-4">{"供应商名称"}</th>
                                 <th class="py-2 px-4">{"评估周期"}</th>
                                 <th class="py-2 px-4 numeric-cell text-right">{"总分"}</th>
+                                <th class="py-2 px-4 numeric-cell text-right">{"交期得分"}</th>
+                                <th class="py-2 px-4 numeric-cell text-right">{"质量得分"}</th>
+                                <th class="py-2 px-4 numeric-cell text-right">{"价格得分"}</th>
                                 <th class="py-2 px-4 text-center">{"等级"}</th>
                                 <th class="py-2 px-4">{"评估日期"}</th>
                                 <th class="py-2 px-4">{"状态"}</th>
@@ -96,15 +108,18 @@ pub fn supplier_evaluation_page() -> Html {
                         <tbody>
                             {
                                 if evaluations.is_empty() {
-                                    html! { <tr><td colspan="8" class="text-center py-4">{ "暂无数据" }</td></tr> }
+                                    html! { <tr><td colspan="11" class="text-center py-4">{ "暂无数据" }</td></tr> }
                                 } else {
                                     html! {
                                         for evaluations.iter().map(|evaluation| html! {
                                             <tr key={evaluation.id} class="border-b hover:bg-gray-50">
-                                                <td class="py-2 px-4">{ evaluation.id }</td>
+                                                <td class="py-2 px-4 numeric-cell text-right">{ evaluation.id }</td>
                                                 <td class="py-2 px-4">{ &evaluation.supplier_name }</td>
                                                 <td class="py-2 px-4">{ &evaluation.evaluation_period }</td>
                                                 <td class="py-2 px-4 numeric-cell text-right font-medium">{ format!("{:.1}", evaluation.overall_score) }</td>
+                                                <td class="py-2 px-4 numeric-cell text-right">{ format!("{:.1}", evaluation.delivery_score) }</td>
+                                                <td class="py-2 px-4 numeric-cell text-right">{ format!("{:.1}", evaluation.quality_score) }</td>
+                                                <td class="py-2 px-4 numeric-cell text-right">{ format!("{:.1}", evaluation.price_score) }</td>
                                                 <td class="py-2 px-4 text-center">
                                                     <span class={format!("status-badge font-bold {}", match evaluation.grade.as_str() {
                                                         "A" => "text-green-600",

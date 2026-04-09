@@ -23,7 +23,7 @@ pub fn crm_lead_page() -> Html {
                 CrmLeadItem {
                     id: 1,
                     lead_no: "LD-2024001".to_string(),
-                    name: "江苏某服装厂采购意向".to_string(),
+                    name: "寻找10万米高弹牛仔布代工".to_string(),
                     source: "上海纺织展会".to_string(),
                     status: "初步接触".to_string(),
                 },
@@ -48,20 +48,20 @@ pub fn crm_lead_page() -> Html {
 
     html! {
         <MainLayout current_page={"crm_lead"}>
-            <div class="p-4">
-                <h1 class="text-2xl font-bold mb-4">{ "CRM 线索管理" }</h1>
+            <div class="p-2 text-sm">
+                <h1 class="text-xl font-bold mb-2">{ "CRM 线索管理" }</h1>
                 
-                <div class="mb-4 flex justify-between items-center bg-white p-4 rounded shadow-sm border border-gray-200">
-                    <div class="flex space-x-4">
-                        <input type="text" placeholder="搜索线索名称/编号..." class="border border-gray-300 p-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        <select class="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="mb-2 flex justify-between items-center bg-white p-2 rounded shadow-sm border border-gray-200">
+                    <div class="flex space-x-2">
+                        <input type="text" placeholder="搜索线索名称/编号..." class="border border-gray-300 p-1 text-sm rounded w-64 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <select class="border border-gray-300 p-1 text-sm rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
                             <option value="">{ "全部来源" }</option>
                             <option value="exhibition">{ "展会" }</option>
                             <option value="online">{ "线上" }</option>
                         </select>
-                        <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">{ "筛选" }</button>
+                        <button class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 text-sm rounded transition-colors">{ "筛选" }</button>
                     </div>
-                    <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors flex items-center">
+                    <button class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 text-sm rounded transition-colors flex items-center">
                         <span class="mr-1">{ "+" }</span> { "新建线索" }
                     </button>
                 </div>
@@ -70,27 +70,27 @@ pub fn crm_lead_page() -> Html {
                     <table class="data-table w-full text-left border-collapse">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
-                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "线索编号" }</th>
-                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "线索名称" }</th>
-                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "来源" }</th>
-                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "状态" }</th>
-                                <th class="py-3 px-4 text-gray-700 font-semibold text-center">{ "操作" }</th>
+                                <th class="py-2 px-3 text-gray-700 font-semibold">{ "线索编号" }</th>
+                                <th class="py-2 px-3 text-gray-700 font-semibold">{ "线索名称" }</th>
+                                <th class="py-2 px-3 text-gray-700 font-semibold">{ "来源" }</th>
+                                <th class="py-2 px-3 text-gray-700 font-semibold">{ "状态" }</th>
+                                <th class="py-2 px-3 text-gray-700 font-semibold text-center">{ "操作" }</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             {
                                 if leads.is_empty() {
-                                    html! { <tr><td colspan="5" class="text-center py-8 text-gray-500">{ "暂无数据" }</td></tr> }
+                                    html! { <tr><td colspan="5" class="text-center py-4 text-gray-500">{ "暂无数据" }</td></tr> }
                                 } else {
                                     html! {
                                         for leads.iter().map(|lead| html! {
                                             <tr key={lead.id} class="hover:bg-gray-50 transition-colors">
-                                                <td class="py-3 px-4 text-gray-600">{ &lead.lead_no }</td>
-                                                <td class="py-3 px-4 font-medium text-gray-800">{ &lead.name }</td>
-                                                <td class="py-3 px-4 text-gray-600">{ &lead.source }</td>
-                                                <td class="py-3 px-4"><span class="status-badge px-2 py-1 rounded text-sm bg-blue-100 text-blue-800">{ &lead.status }</span></td>
-                                                <td class="py-3 px-4 text-center">
-                                                    <button class="text-blue-600 hover:text-blue-800 mr-3">{ "查看" }</button>
+                                                <td class="py-2 px-3 text-gray-600">{ &lead.lead_no }</td>
+                                                <td class="py-2 px-3 font-medium text-gray-800">{ &lead.name }</td>
+                                                <td class="py-2 px-3 text-gray-600">{ &lead.source }</td>
+                                                <td class="py-2 px-3"><span class="status-badge px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800">{ &lead.status }</span></td>
+                                                <td class="py-2 px-3 text-center">
+                                                    <button class="text-blue-600 hover:text-blue-800 mr-2">{ "查看" }</button>
                                                     <button class="text-green-600 hover:text-green-800">{ "转商机" }</button>
                                                 </td>
                                             </tr>

@@ -23,6 +23,15 @@ pub struct Model {
     /// 仓库 ID
     pub warehouse_id: i32,
 
+    /// 条码编号
+    pub barcode: Option<String>,
+
+    /// 卷长
+    pub roll_length: Option<String>,
+
+    /// 入库缸号
+    pub dye_lot_no: Option<String>,
+
     /// 盘点前数量（账面数量）
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub quantity_before: Decimal,

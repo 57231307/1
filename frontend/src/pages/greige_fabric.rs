@@ -181,7 +181,12 @@ pub fn greige_fabric_page() -> Html {
                                     html! {
                                         {for fabrics.iter().map(|fabric| {
                                             let w_m = fabric.width_cm / 100.0;
-                                            let ratio = 1000.0 / (w_m * fabric.weight_gsm);
+                                            let calculated_ratio = if w_m > 0.0 && fabric.weight_gsm > 0.0 {
+                                                1000.0 / (w_m * fabric.weight_gsm)
+                                            } else {
+                                                0.0
+                                            };
+                                            let display_ratio = if fabric.meters_per_kg > 0.0 { fabric.meters_per_kg } else { calculated_ratio };
                                             
                                             html! {
                                                 <tr class="border-b hover:bg-gray-50 transition-colors">
@@ -195,7 +200,7 @@ pub fn greige_fabric_page() -> Html {
                                                         {format!("{:.1}", fabric.weight_gsm)}
                                                     </td>
                                                     <td class="p-3 numeric-cell text-right font-bold text-blue-600">
-                                                        {format!("{:.4}", fabric.meters_per_kg)}
+                                                        {format!("{:.4}", display_ratio)}
                                                     </td>
                                                 </tr>
                                             }

@@ -9,4 +9,8 @@ pub struct DyeRecipe {
     pub dyes: String,
     pub temp_c: i32,
     pub time_mins: i32,
+    #[serde(default)]
+    pub heating_rate: String,
+    #[serde(default)]
+    pub dye_ingredients: String,
 }

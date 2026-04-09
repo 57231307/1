@@ -24,6 +24,10 @@ pub struct Batch {
     pub supplier_name: Option<String>,
     pub purchase_order_no: Option<String>,
     pub remarks: Option<String>,
+    #[serde(default)]
+    pub meters_per_roll: Option<String>,
+    #[serde(default)]
+    pub defect_deduction_meters: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

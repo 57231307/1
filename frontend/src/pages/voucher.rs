@@ -11,6 +11,8 @@ pub struct VoucherItem {
     pub total_amount: f64,
     pub status: String,
     pub creator: String,
+    pub related_batch: Option<String>,
+    pub related_color: Option<String>,
 }
 
 #[function_component(VoucherPage)]
@@ -31,6 +33,8 @@ pub fn voucher_page() -> Html {
                     total_amount: 156_000.00,
                     status: "已记账".to_string(),
                     creator: "张会计".to_string(),
+                    related_batch: None,
+                    related_color: None,
                 },
                 VoucherItem {
                     id: 2,
@@ -41,6 +45,8 @@ pub fn voucher_page() -> Html {
                     total_amount: 450_000.00,
                     status: "已审核".to_string(),
                     creator: "李财务".to_string(),
+                    related_batch: Some("B2023101601".to_string()),
+                    related_color: Some("漂白".to_string()),
                 },
                 VoucherItem {
                     id: 3,
@@ -51,6 +57,8 @@ pub fn voucher_page() -> Html {
                     total_amount: 12_500.00,
                     status: "草稿".to_string(),
                     creator: "王出纳".to_string(),
+                    related_batch: None,
+                    related_color: None,
                 },
             ];
             vouchers.set(mock_data);
@@ -103,6 +111,8 @@ pub fn voucher_page() -> Html {
                                 <th class="px-4 py-2 text-left">{"日期"}</th>
                                 <th class="px-4 py-2 text-left">{"凭证字号"}</th>
                                 <th class="px-4 py-2 text-left">{"摘要"}</th>
+                                <th class="px-4 py-2 text-left">{"相关批次"}</th>
+                                <th class="px-4 py-2 text-left">{"相关色号"}</th>
                                 <th class="numeric-cell text-right px-4 py-2">{"总金额"}</th>
                                 <th class="px-4 py-2 text-center">{"制单人"}</th>
                                 <th class="px-4 py-2 text-center">{"状态"}</th>
@@ -117,6 +127,8 @@ pub fn voucher_page() -> Html {
                                         <td class="px-4 py-2">{ &voucher.date }</td>
                                         <td class="px-4 py-2">{ format!("{}-{:03}", voucher.voucher_word, voucher.voucher_number) }</td>
                                         <td class="px-4 py-2">{ &voucher.summary }</td>
+                                        <td class="px-4 py-2">{ voucher.related_batch.clone().unwrap_or_else(|| "-".to_string()) }</td>
+                                        <td class="px-4 py-2">{ voucher.related_color.clone().unwrap_or_else(|| "-".to_string()) }</td>
                                         <td class="numeric-cell text-right px-4 py-2">{ format!("{:.2}", voucher.total_amount) }</td>
                                         <td class="px-4 py-2 text-center">{ &voucher.creator }</td>
                                         <td class="px-4 py-2 text-center">

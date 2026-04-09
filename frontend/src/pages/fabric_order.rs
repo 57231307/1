@@ -19,6 +19,11 @@ pub struct FabricOrderPage {
     filter_status: String,
     page: u64,
     page_size: u64,
+    // 前端附加字段
+    new_rolls: String,
+    new_total_meters: String,
+    new_weight_width: String,
+    new_color_code: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -40,6 +45,10 @@ pub enum Msg {
     DeleteOrder(i32),
     ApproveOrder(i32),
     ChangePage(u64),
+    UpdateNewRolls(String),
+    UpdateNewTotalMeters(String),
+    UpdateNewWeightWidth(String),
+    UpdateNewColorCode(String),
 }
 
 impl Component for FabricOrderPage {
@@ -57,6 +66,10 @@ impl Component for FabricOrderPage {
             filter_status: String::from("全部"),
             page: 1,
             page_size: 20,
+            new_rolls: String::new(),
+            new_total_meters: String::new(),
+            new_weight_width: String::new(),
+            new_color_code: String::new(),
         }
     }
 
@@ -129,7 +142,7 @@ impl Component for FabricOrderPage {
                     payment_terms: None,
                     remarks: None,
                     batch_no: None,
-                    color_no: None,
+                    color_no: if self.new_color_code.is_empty() { None } else { Some(self.new_color_code.clone()) },
                     dye_lot_no: None,
                     grade: None,
                     packaging_requirement: None,
@@ -143,6 +156,10 @@ impl Component for FabricOrderPage {
                     }
                 });
                 self.show_modal = false;
+                self.new_rolls.clear();
+                self.new_total_meters.clear();
+                self.new_weight_width.clear();
+                self.new_color_code.clear();
                 false
             }
             Msg::UpdateOrder(id, req) => {
@@ -181,6 +198,22 @@ impl Component for FabricOrderPage {
                 ctx.link().send_message(Msg::LoadOrders);
                 false
             }
+            Msg::UpdateNewRolls(val) => {
+                self.new_rolls = val;
+                true
+            }
+            Msg::UpdateNewTotalMeters(val) => {
+                self.new_total_meters = val;
+                true
+            }
+            Msg::UpdateNewWeightWidth(val) => {
+                self.new_weight_width = val;
+                true
+            }
+            Msg::UpdateNewColorCode(val) => {
+                self.new_color_code = val;
+                true
+            }
         }
     }
 
@@ -218,8 +251,8 @@ impl Component for FabricOrderPage {
                         </select>
                     </div>
                 </div>
-
                 {self.render_content(ctx)}
+                {self.render_modal(ctx)}
             </div>
         
 </MainLayout>}
@@ -267,6 +300,8 @@ impl FabricOrderPage {
                     <thead>
                         <tr>
                             <th>{"订单编号"}</th>
+                            <th>{"色卡编号"}</th>
+                            <th>{"花型"}</th>
                             <th>{"客户名称"}</th>
                             <th>{"订单日期"}</th>
                             <th>{"要求交货日期"}</th>
@@ -285,6 +320,8 @@ impl FabricOrderPage {
                             html! {
                                 <tr>
                                     <td>{&order.order_no}</td>
+                                    <td>{"-"}</td>
+                                    <td>{"🎨"}</td>
                                     <td>{order.customer_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&order.order_date}</td>
                                     <td>{&order.required_date}</td>
@@ -320,6 +357,113 @@ impl FabricOrderPage {
                         })}
                     </tbody>
                 </table>
+            </div>
+        }
+    }
+
+    fn render_modal(&self, ctx: &Context<Self>) -> Html {
+        if !self.show_modal {
+            return html! {};
+        }
+        let is_create = self.modal_mode == ModalMode::Create;
+        let title = match self.modal_mode {
+            ModalMode::Create => "新建订单",
+            ModalMode::Edit => "编辑订单",
+            ModalMode::View => "查看订单",
+        };
+
+        let on_rolls_change = ctx.link().callback(move |e: Event| {
+            use wasm_bindgen::JsCast;
+            let target = e.target().unwrap();
+            let input = target.unchecked_into::<web_sys::HtmlInputElement>();
+            Msg::UpdateNewRolls(input.value())
+        });
+        let on_meters_change = ctx.link().callback(move |e: Event| {
+            use wasm_bindgen::JsCast;
+            let target = e.target().unwrap();
+            let input = target.unchecked_into::<web_sys::HtmlInputElement>();
+            Msg::UpdateNewTotalMeters(input.value())
+        });
+        let on_weight_width_change = ctx.link().callback(move |e: Event| {
+            use wasm_bindgen::JsCast;
+            let target = e.target().unwrap();
+            let input = target.unchecked_into::<web_sys::HtmlInputElement>();
+            Msg::UpdateNewWeightWidth(input.value())
+        });
+        let on_color_change = ctx.link().callback(move |e: Event| {
+            use wasm_bindgen::JsCast;
+            let target = e.target().unwrap();
+            let input = target.unchecked_into::<web_sys::HtmlInputElement>();
+            Msg::UpdateNewColorCode(input.value())
+        });
+
+        // Calculate estimated weight
+        let estimated_weight = if let (Ok(meters), Some((weight_str, width_str))) = (
+            self.new_total_meters.parse::<f64>(),
+            self.new_weight_width.split_once('/')
+        ) {
+            if let (Ok(weight), Ok(width)) = (weight_str.parse::<f64>(), width_str.parse::<f64>()) {
+                (meters * weight * width) / 100000.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        html! {
+            <div class="modal-overlay">
+                <div class="modal-content" style="width: 600px;">
+                    <div class="modal-header">
+                        <h2>{title}</h2>
+                        <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        // Existing form fields would go here...
+                        <div class="form-group">
+                            <label>{"匹数(rolls)"}</label>
+                            <input type="number" class="form-control" value={self.new_rolls.clone()} onchange={on_rolls_change} placeholder="请输入匹数" disabled={!is_create} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"总米数"}</label>
+                            <input type="number" class="form-control" value={self.new_total_meters.clone()} onchange={on_meters_change} placeholder="请输入总米数" disabled={!is_create} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"克重/门幅"}</label>
+                            <input type="text" class="form-control" value={self.new_weight_width.clone()} onchange={on_weight_width_change} placeholder="例如: 200/150" disabled={!is_create} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"预估重量(公斤)"}</label>
+                            <div class="form-control" style="background: #f5f5f5;">
+                                {if estimated_weight > 0.0 {
+                                    format!("{:.2} kg", estimated_weight)
+                                } else {
+                                    "-".to_string()
+                                }}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>{"色卡编号"}</label>
+                            <input type="text" class="form-control" value={self.new_color_code.clone()} onchange={on_color_change} placeholder="请输入色卡编号" disabled={!is_create} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"花型"}</label>
+                            <div class="form-control" style="background: #f5f5f5;">
+                                {"🎨"}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"取消"}</button>
+                        {if is_create {
+                            html! {
+                                <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateOrder)}>{"提交"}</button>
+                            }
+                        } else {
+                            html! {}
+                        }}
+                    </div>
+                </div>
             </div>
         }
     }

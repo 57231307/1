@@ -383,6 +383,8 @@ impl Component for SalesContractPage {
                         <thead>
                             <tr>
                                 <th>{"合同编号"}</th>
+                                <th>{"色卡编号"}</th>
+                                <th>{"花型"}</th>
                                 <th>{"合同名称"}</th>
                                 <th>{"客户"}</th>
                                 <th class="numeric-cell text-right">{"总金额"}</th>
@@ -400,6 +402,8 @@ impl Component for SalesContractPage {
                                 html! {
                                     <tr>
                                         <td>{&contract.contract_no}</td>
+                                        <td>{"-"}</td>
+                                        <td>{"🎨"}</td>
                                         <td>{&contract.contract_name}</td>
                                         <td>{contract.customer_name.as_deref().unwrap_or("-")}</td>
                                         <td class="numeric-cell text-right">{format!("{:.2}", contract.total_amount)}</td>
@@ -517,6 +521,7 @@ pub struct CreateContractModalState {
     payment_terms: String,
     delivery_date: String,
     remark: String,
+    color_code: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -538,6 +543,7 @@ impl Component for CreateContractModal {
                 payment_terms: String::new(),
                 delivery_date: String::new(),
                 remark: String::new(),
+                color_code: String::new(),
             },
         }
     }
@@ -579,6 +585,14 @@ impl Component for CreateContractModal {
                         <div class="form-group">
                             <label>{"备注"}</label>
                             <textarea value={self.state.remark.clone()}></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>{"色卡编号"}</label>
+                            <input type="text" value={self.state.color_code.clone()} placeholder="请输入色卡编号" />
+                        </div>
+                        <div class="form-group">
+                            <label>{"花型"}</label>
+                            <div class="form-control" style="background: #f5f5f5;">{"🎨"}</div>
                         </div>
                     </div>
                     <div class="modal-footer">

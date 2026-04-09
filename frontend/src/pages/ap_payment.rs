@@ -16,6 +16,7 @@ pub struct ApPaymentPage {
     error: Option<String>,
     filter_status: String,
     filter_method: String,
+    filter_batch_no: String,
     page: u64,
     page_size: u64,
     total: u64,
@@ -35,6 +36,7 @@ pub enum Msg {
     LoadError(String),
     SetFilterStatus(String),
     SetFilterMethod(String),
+    SetFilterBatchNo(String),
     ViewPayment(i32),
     DeletePayment(i32),
     ConfirmPayment(i32),
@@ -53,6 +55,7 @@ impl Component for ApPaymentPage {
             error: None,
             filter_status: String::from("全部"),
             filter_method: String::from("全部"),
+            filter_batch_no: String::new(),
             page: 1,
             page_size: 20,
             total: 0,
@@ -116,6 +119,12 @@ impl Component for ApPaymentPage {
             }
             Msg::SetFilterMethod(method) => {
                 self.filter_method = method;
+                self.page = 1;
+                ctx.link().send_message(Msg::LoadPayments);
+                false
+            }
+            Msg::SetFilterBatchNo(batch_no) => {
+                self.filter_batch_no = batch_no;
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadPayments);
                 false
@@ -208,6 +217,17 @@ impl Component for ApPaymentPage {
                             <option value="CASH">{"现金"}</option>
                         </select>
                     </div>
+                    <div class="filter-item">
+                        <label>{"关联批次/发货单："}</label>
+                        <input type="text"
+                            value={self.filter_batch_no.clone()}
+                            oninput={ctx.link().callback(|e: InputEvent| {
+                                let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                Msg::SetFilterBatchNo(target.value())
+                            })}
+                            placeholder="请输入批次/发货单号"
+                        />
+                    </div>
                     <button class="btn-refresh" onclick={ctx.link().callback(|_| Msg::Refresh)}>
                         {"刷新"}
                     </button>
@@ -262,6 +282,7 @@ impl ApPaymentPage {
                         <thead>
                             <tr>
                                 <th>{"付款单号"}</th>
+                                <th>{"关联批次/发货单"}</th>
                                 <th>{"供应商"}</th>
                                 <th>{"付款日期"}</th>
                                 <th>{"付款类型"}</th>
@@ -307,6 +328,7 @@ impl ApPaymentPage {
                                 html! {
                                     <tr>
                                         <td>{&payment.payment_no}</td>
+                                        <td>{if self.filter_batch_no.is_empty() { "-" } else { &self.filter_batch_no }}</td>
                                         <td>{payment.supplier_name.as_deref().unwrap_or("-")}</td>
                                         <td>{&payment.payment_date}</td>
                                         <td>{payment_type_text}</td>

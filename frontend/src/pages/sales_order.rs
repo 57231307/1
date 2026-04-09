@@ -18,6 +18,11 @@ pub struct ShipItemData {
     pub quantity: f64,
     pub warehouse_id: Option<i32>,
     pub batch_no: String,
+    // 前端附加字段
+    pub rolls: String,
+    pub total_meters: String,
+    pub weight_width: String,
+    pub color_code: String,
 }
 
 pub struct SalesOrderPage {
@@ -52,6 +57,10 @@ pub enum Msg {
     SubmitOrder(i32),
     UpdateShipItemWarehouse(usize, i32),
     UpdateShipItemBatch(usize, String),
+    UpdateShipItemRolls(usize, String),
+    UpdateShipItemTotalMers(usize, String),
+    UpdateShipItemWeightWidth(usize, String),
+    UpdateShipItemColorCode(usize, String),
     SubmitShip,
     ShipSuccess,
     ShipError(String),
@@ -170,6 +179,10 @@ impl Component for SalesOrderPage {
                             quantity: item.quantity,
                             warehouse_id: None,
                             batch_no: String::new(),
+                            rolls: String::new(),
+                            total_meters: String::new(),
+                            weight_width: String::new(),
+                            color_code: String::new(),
                         });
                     }
                 }
@@ -205,6 +218,30 @@ impl Component for SalesOrderPage {
             Msg::UpdateShipItemBatch(idx, batch_no) => {
                 if let Some(item) = self.ship_items.get_mut(idx) {
                     item.batch_no = batch_no;
+                }
+                true
+            }
+            Msg::UpdateShipItemRolls(idx, rolls) => {
+                if let Some(item) = self.ship_items.get_mut(idx) {
+                    item.rolls = rolls;
+                }
+                true
+            }
+            Msg::UpdateShipItemTotalMers(idx, total_meters) => {
+                if let Some(item) = self.ship_items.get_mut(idx) {
+                    item.total_meters = total_meters;
+                }
+                true
+            }
+            Msg::UpdateShipItemWeightWidth(idx, weight_width) => {
+                if let Some(item) = self.ship_items.get_mut(idx) {
+                    item.weight_width = weight_width;
+                }
+                true
+            }
+            Msg::UpdateShipItemColorCode(idx, color_code) => {
+                if let Some(item) = self.ship_items.get_mut(idx) {
+                    item.color_code = color_code;
                 }
                 true
             }
@@ -319,6 +356,8 @@ impl SalesOrderPage {
                     <thead>
                         <tr>
                             <th>{"订单号"}</th>
+                            <th>{"色卡编号"}</th>
+                            <th>{"花型"}</th>
                             <th>{"客户"}</th>
                             <th class="numeric-cell text-right">{"总金额"}</th>
                             <th>{"状态"}</th>
@@ -332,6 +371,8 @@ impl SalesOrderPage {
                             html! {
                                 <tr>
                                     <td>{&order.order_no}</td>
+                                    <td>{"-"}</td>
+                                    <td>{"🎨"}</td>
                                     <td>{order.customer_name.as_deref().unwrap_or("-")}</td>
                                     <td class="numeric-cell text-right">{&order.total_amount}</td>
                                     <td><span class="status-badge">{&order.status}</span></td>
@@ -370,7 +411,13 @@ impl SalesOrderPage {
                                 <thead>
                                     <tr>
                                         <th>{"商品名称"}</th>
+                                        <th>{"色卡编号"}</th>
+                                        <th>{"花型"}</th>
                                         <th class="numeric-cell text-right">{"数量"}</th>
+                                        <th>{"匹数(rolls)"}</th>
+                                        <th>{"总米数"}</th>
+                                        <th>{"克重/门幅"}</th>
+                                        <th>{"预估重量(公斤)"}</th>
                                         <th>{"发货仓库"}</th>
                                         <th>{"批次号"}</th>
                                     </tr>
@@ -397,10 +444,107 @@ impl SalesOrderPage {
                                             Msg::UpdateShipItemBatch(idx, input.value())
                                         });
 
+                                        let on_rolls_change = ctx.link().callback(move |e: Event| {
+                                            use wasm_bindgen::JsCast;
+                                            use web_sys::HtmlInputElement;
+                                            let target = e.target().unwrap();
+                                            let input = target.unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateShipItemRolls(idx, input.value())
+                                        });
+
+                                        let on_meters_change = ctx.link().callback(move |e: Event| {
+                                            use wasm_bindgen::JsCast;
+                                            use web_sys::HtmlInputElement;
+                                            let target = e.target().unwrap();
+                                            let input = target.unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateShipItemTotalMers(idx, input.value())
+                                        });
+
+                                        let on_weight_width_change = ctx.link().callback(move |e: Event| {
+                                            use wasm_bindgen::JsCast;
+                                            use web_sys::HtmlInputElement;
+                                            let target = e.target().unwrap();
+                                            let input = target.unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateShipItemWeightWidth(idx, input.value())
+                                        });
+
+                                        let on_color_change = ctx.link().callback(move |e: Event| {
+                                            use wasm_bindgen::JsCast;
+                                            use web_sys::HtmlInputElement;
+                                            let target = e.target().unwrap();
+                                            let input = target.unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateShipItemColorCode(idx, input.value())
+                                        });
+
+                                        // Calculate estimated weight
+                                        let estimated_weight = if let (Ok(meters), Some((weight_str, width_str))) = (
+                                            item.total_meters.parse::<f64>(),
+                                            item.weight_width.split_once('/')
+                                        ) {
+                                            if let (Ok(weight), Ok(width)) = (weight_str.parse::<f64>(), width_str.parse::<f64>()) {
+                                                // 重量(kg) = (克重(g/m2) * 门幅(m) * 米数) / 1000
+                                                // 假设门幅单位是cm，如果是m不需要除以100。这里假设克重是g/m2，门幅是cm
+                                                // 重量 = 米数 * 克重 * (门幅 / 100) / 1000 = (米数 * 克重 * 门幅) / 100000
+                                                (meters * weight * width) / 100000.0
+                                            } else {
+                                                0.0
+                                            }
+                                        } else {
+                                            0.0
+                                        };
+
                                         html! {
                                             <tr>
                                                 <td>{&item.product_name}</td>
+                                                <td>
+                                                    <input
+                                                        type="text"
+                                                        class="form-control"
+                                                        style="width: 80px"
+                                                        value={item.color_code.clone()}
+                                                        onchange={on_color_change}
+                                                        placeholder="色卡"
+                                                    />
+                                                </td>
+                                                <td>{"🎨"}</td>
                                                 <td class="numeric-cell text-right">{item.quantity}</td>
+                                                <td>
+                                                    <input
+                                                        type="number"
+                                                        class="form-control"
+                                                        style="width: 80px"
+                                                        value={item.rolls.clone()}
+                                                        onchange={on_rolls_change}
+                                                        placeholder="匹数"
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <input
+                                                        type="number"
+                                                        class="form-control"
+                                                        style="width: 80px"
+                                                        value={item.total_meters.clone()}
+                                                        onchange={on_meters_change}
+                                                        placeholder="总米数"
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <input
+                                                        type="text"
+                                                        class="form-control"
+                                                        style="width: 80px"
+                                                        value={item.weight_width.clone()}
+                                                        onchange={on_weight_width_change}
+                                                        placeholder="200/150"
+                                                    />
+                                                </td>
+                                                <td>
+                                                    {if estimated_weight > 0.0 {
+                                                        format!("{:.2} kg", estimated_weight)
+                                                    } else {
+                                                        "-".to_string()
+                                                    }}
+                                                </td>
                                                 <td>
                                                     <select
                                                         class="form-control"
@@ -503,6 +647,8 @@ impl SalesOrderPage {
                         <thead>
                             <tr>
                                 <th>{"商品名称"}</th>
+                                <th>{"色卡编号"}</th>
+                                <th>{"花型"}</th>
                                 <th class="numeric-cell text-right">{"数量"}</th>
                                 <th class="numeric-cell text-right">{"单价"}</th>
                                 <th class="numeric-cell text-right">{"折扣(%)"}</th>
@@ -514,6 +660,8 @@ impl SalesOrderPage {
                                 html! {
                                     <tr>
                                         <td>{item.product_name.as_deref().unwrap_or("-")}</td>
+                                        <td>{"-"}</td>
+                                        <td>{"🎨"}</td>
                                         <td class="numeric-cell text-right">{item.quantity}</td>
                                         <td class="numeric-cell text-right">{item.unit_price}</td>
                                         <td class="numeric-cell text-right">{item.discount_percent}</td>

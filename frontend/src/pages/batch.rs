@@ -245,10 +245,13 @@ impl BatchPage {
                     <thead>
                         <tr>
                             <th>{"批次号"}</th>
+                            <th>{"缸号关联"}</th>
                             <th>{"产品名称"}</th>
                             <th>{"仓库"}</th>
                             <th>{"色号"}</th>
                             <th>{"等级"}</th>
+                            <th class="numeric-cell text-right">{"单匹米数"}</th>
+                            <th class="numeric-cell text-right">{"疵点扣减"}</th>
                             <th class="numeric-cell text-right">{"数量(米)"}</th>
                             <th class="numeric-cell text-right">{"数量(公斤)"}</th>
                             <th>{"库存状态"}</th>
@@ -260,10 +263,13 @@ impl BatchPage {
                             html! {
                                 <tr>
                                     <td>{&batch.batch_no}</td>
+                                    <td>{batch.dye_lot_no.as_deref().unwrap_or("-")}</td>
                                     <td>{batch.product_name.as_deref().unwrap_or("-")}</td>
                                     <td>{batch.warehouse_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&batch.color_no}</td>
                                     <td>{&batch.grade}</td>
+                                    <td class="numeric-cell text-right">{batch.meters_per_roll.as_deref().unwrap_or("-")}</td>
+                                    <td class="numeric-cell text-right">{batch.defect_deduction_meters.as_deref().unwrap_or("-")}</td>
                                     <td class="numeric-cell text-right">{batch.quantity_meters.to_string()}</td>
                                     <td class="numeric-cell text-right">{batch.quantity_kg.to_string()}</td>
                                     <td>

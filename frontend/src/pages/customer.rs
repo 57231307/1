@@ -374,6 +374,18 @@ impl CustomerPage {
                                     <input name="customer_name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={name} readonly={is_readonly} required=true />
                                 </div>
                                 <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"主营业务(如印染/织造)"}</label>
+                                    <input name="main_products" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={self.current_customer.as_ref().and_then(|c| c.main_products.clone()).unwrap_or_default()} readonly={is_readonly} />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"信用评级(A/B/C)"}</label>
+                                    <select name="credit_rating" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" disabled={is_readonly}>
+                                        <option value="A">{"A"}</option>
+                                        <option value="B">{"B"}</option>
+                                        <option value="C">{"C"}</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-1">
                                     <label class="block text-gray-700 text-sm font-bold mb-2">{"联系人"}</label>
                                     <input name="contact_person" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={contact} readonly={is_readonly} />
                                 </div>
@@ -444,6 +456,8 @@ impl CustomerPage {
                         <tr>
                             <th>{"客户编号"}</th>
                             <th>{"客户名称"}</th>
+                            <th>{"主营业务"}</th>
+                            <th>{"信用评级"}</th>
                             <th>{"联系人"}</th>
                             <th>{"联系电话"}</th>
                             <th>{"客户类型"}</th>
@@ -460,6 +474,8 @@ impl CustomerPage {
                                 <tr>
                                     <td>{&customer.customer_code}</td>
                                     <td>{&customer.customer_name}</td>
+                                    <td>{customer.main_products.as_deref().unwrap_or("-")}</td>
+                                    <td>{"A"}</td>
                                     <td>{customer.contact_person.as_deref().unwrap_or("-")}</td>
                                     <td>{customer.contact_phone.as_deref().unwrap_or("-")}</td>
                                     <td>{customer.customer_type.as_deref().unwrap_or("-")}</td>

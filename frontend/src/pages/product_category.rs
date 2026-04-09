@@ -111,14 +111,14 @@ pub fn product_category_page() -> Html {
                 }
 
                 <div class="content">
-                    <table class="data-table w-full border-collapse">
+                    <table class="data-table w-full">
                         <thead>
-                            <tr class="bg-gray-100">
-                                <th class="py-2 px-4 border-b text-right">{"ID"}</th>
-                                <th class="py-2 px-4 border-b text-left">{"编码"}</th>
-                                <th class="py-2 px-4 border-b text-left">{"类别名称"}</th>
-                                <th class="py-2 px-4 border-b text-left">{"描述"}</th>
-                                <th class="py-2 px-4 border-b text-center">{"状态"}</th>
+                            <tr>
+                                <th class="numeric-cell text-right">{"ID"}</th>
+                                <th>{"编码"}</th>
+                                <th>{"类别名称"}</th>
+                                <th>{"描述"}</th>
+                                <th>{"状态"}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -134,15 +134,15 @@ pub fn product_category_page() -> Html {
                                         {for categories.iter().map(|cat| {
                                             html! {
                                                 <tr key={cat.id} class="hover:bg-gray-50">
-                                                    <td class="py-2 px-4 border-b text-right">{cat.id}</td>
-                                                    <td class="py-2 px-4 border-b text-left">{&cat.code}</td>
-                                                    <td class="py-2 px-4 border-b text-left">{&cat.name}</td>
-                                                    <td class="py-2 px-4 border-b text-left">{&cat.description}</td>
-                                                    <td class="py-2 px-4 border-b text-center">
+                                                    <td class="numeric-cell text-right">{cat.id}</td>
+                                                    <td>{&cat.code}</td>
+                                                    <td>{&cat.name}</td>
+                                                    <td>{&cat.description}</td>
+                                                    <td>
                                                         if cat.is_active {
-                                                            <span class="inline-block px-2 py-1 text-xs text-white bg-green-500 rounded-full">{"启用"}</span>
+                                                            <span class="status-badge bg-green-500 text-white">{"启用"}</span>
                                                         } else {
-                                                            <span class="inline-block px-2 py-1 text-xs text-white bg-red-500 rounded-full">{"禁用"}</span>
+                                                            <span class="status-badge bg-red-500 text-white">{"禁用"}</span>
                                                         }
                                                     </td>
                                                 </tr>

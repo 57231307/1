@@ -500,6 +500,7 @@ impl InventoryCountPage {
                 _ => &detail.status,
             };
             html! {
+                <>
                 <div class="detail-content">
                     <div class="detail-row">
                         <span class="detail-label">{"盘点单号："}</span>
@@ -538,6 +539,54 @@ impl InventoryCountPage {
                         <span class="detail-value">{&detail.created_at}</span>
                     </div>
                 </div>
+                
+                <div class="detail-items mt-6">
+                    <h3 class="text-lg font-bold mb-3">{"盘点明细"}</h3>
+                    <table class="data-table w-full">
+                        <thead>
+                            <tr>
+                                <th>{"库存ID"}</th>
+                                <th>{"条码编号"}</th>
+                                <th>{"卷长"}</th>
+                                <th>{"入库缸号"}</th>
+                                <th class="text-right">{"账面数量"}</th>
+                                <th class="text-right">{"实际数量"}</th>
+                                <th class="text-right">{"差异数量"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {if detail.items.is_empty() {
+                                html! {
+                                    <tr><td colspan="7" class="text-center py-4 text-gray-500">{"暂无明细数据"}</td></tr>
+                                }
+                            } else {
+                                html! {
+                                    {for detail.items.iter().map(|item| {
+                                        let diff_class = if item.quantity_difference.starts_with('-') {
+                                            "text-red-600 font-medium"
+                                        } else if item.quantity_difference != "0" && item.quantity_difference != "0.00" {
+                                            "text-green-600 font-medium"
+                                        } else {
+                                            "text-gray-600"
+                                        };
+                                        html! {
+                                            <tr>
+                                                <td>{item.stock_id}</td>
+                                                <td class="font-mono text-sm">{item.barcode.as_deref().unwrap_or("-")}</td>
+                                                <td class="text-right font-mono">{item.roll_length.as_deref().unwrap_or("-")}</td>
+                                                <td class="font-mono text-sm">{item.dye_lot_no.as_deref().unwrap_or("-")}</td>
+                                                <td class="text-right font-mono">{&item.quantity_before}</td>
+                                                <td class="text-right font-mono">{&item.quantity_actual}</td>
+                                                <td class={format!("text-right font-mono {}", diff_class)}>{&item.quantity_difference}</td>
+                                            </tr>
+                                        }
+                                    })}
+                                }
+                            }}
+                        </tbody>
+                    </table>
+                </div>
+                </>
             }
         } else {
             html! {

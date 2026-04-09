@@ -17,6 +17,8 @@ pub struct DyeBatchPage {
     new_greige_code: String,
     new_total_weight_kg: String,
     new_status: String,
+    new_vat_capacity: String,
+    new_liquor_ratio: String,
 }
 
 pub enum Msg {
@@ -43,6 +45,8 @@ impl Component for DyeBatchPage {
             new_greige_code: String::new(),
             new_total_weight_kg: String::new(),
             new_status: String::from("排缸"),
+            new_vat_capacity: String::new(),
+            new_liquor_ratio: String::from("1:8"),
         }
     }
 
@@ -86,6 +90,8 @@ impl Component for DyeBatchPage {
                     "greige_code" => self.new_greige_code = val,
                     "total_weight_kg" => self.new_total_weight_kg = val,
                     "status" => self.new_status = val,
+                    "vat_capacity" => self.new_vat_capacity = val,
+                    "liquor_ratio" => self.new_liquor_ratio = val,
                     _ => {}
                 }
                 true
@@ -98,6 +104,8 @@ impl Component for DyeBatchPage {
                     greige_code: self.new_greige_code.clone(),
                     total_weight_kg: self.new_total_weight_kg.parse().unwrap_or(0.0),
                     status: self.new_status.clone(),
+                    vat_capacity: self.new_vat_capacity.parse().unwrap_or(0.0),
+                    liquor_ratio: self.new_liquor_ratio.clone(),
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
@@ -115,6 +123,10 @@ impl Component for DyeBatchPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let total_weight = self.new_total_weight_kg.parse::<f64>().unwrap_or(0.0);
+        let ratio_multiplier = self.new_liquor_ratio.split(':').last().unwrap_or("0").parse::<f64>().unwrap_or(0.0);
+        let total_water = total_weight * ratio_multiplier;
+
         html! {
             <MainLayout current_page={"染缸批次"}>
                 <div class="page-container">
@@ -132,11 +144,17 @@ impl Component for DyeBatchPage {
                                 <input class="form-input" placeholder="配方编号" value={self.new_recipe_code.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("recipe_code".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
                                 <input class="form-input" placeholder="坯布编号" value={self.new_greige_code.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("greige_code".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
                                 <input class="form-input" placeholder="总重量(kg)" type="number" step="0.1" value={self.new_total_weight_kg.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("total_weight_kg".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="染缸容量(kg)" type="number" step="0.1" value={self.new_vat_capacity.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("vat_capacity".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="浴比(如 1:8)" value={self.new_liquor_ratio.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("liquor_ratio".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
                                 <select class="form-input" value={self.new_status.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("status".into(), e.target_unchecked_into::<web_sys::HtmlSelectElement>().value()))}>
                                     <option value="排缸">{"排缸"}</option>
                                     <option value="染色中">{"染色中"}</option>
                                     <option value="已完成">{"已完成"}</option>
                                 </select>
+                            </div>
+                            <div style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-color);">
+                                <strong>{"实时计算："}</strong>
+                                <span>{format!(" 总需水量: {:.2} L", total_water)}</span>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
                                 <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>{"取消"}</button>
@@ -171,6 +189,8 @@ impl DyeBatchPage {
                             <th style="padding: 0.5rem; text-align: left;">{"配方编号"}</th>
                             <th style="padding: 0.5rem; text-align: left;">{"坯布编号"}</th>
                             <th class="numeric-cell" style="padding: 0.5rem;">{"总重量(kg)"}</th>
+                            <th class="numeric-cell" style="padding: 0.5rem;">{"染缸容量(kg)"}</th>
+                            <th style="padding: 0.5rem; text-align: center;">{"浴比"}</th>
                             <th style="padding: 0.5rem; text-align: center;">{"状态"}</th>
                         </tr>
                     </thead>
@@ -188,6 +208,8 @@ impl DyeBatchPage {
                                     <td style="padding: 0.5rem;">{&b.recipe_code}</td>
                                     <td style="padding: 0.5rem;">{&b.greige_code}</td>
                                     <td class="numeric-cell" style="padding: 0.5rem;">{format!("{:.2}", b.total_weight_kg)}</td>
+                                    <td class="numeric-cell" style="padding: 0.5rem;">{format!("{:.2}", b.vat_capacity)}</td>
+                                    <td style="padding: 0.5rem; text-align: center;">{&b.liquor_ratio}</td>
                                     <td style="padding: 0.5rem; text-align: center;">
                                         <span class="status-badge" style={format!("background-color: {}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;", status_bg)}>
                                             {&b.status}

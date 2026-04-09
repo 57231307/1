@@ -33,7 +33,7 @@ impl Component for FinancialAnalysisPage {
             error: None,
             dupont_data: None,
             ratios: Vec::new(),
-            period: "2026-03".to_string(), // 默认当前期间
+            period: "2026-04".to_string(), // 默认当前期间
         }
     }
 
@@ -97,6 +97,7 @@ impl Component for FinancialAnalysisPage {
                             <option value="2026-01">{"2026年1月"}</option>
                             <option value="2026-02">{"2026年2月"}</option>
                             <option value="2026-03">{"2026年3月"}</option>
+                            <option value="2026-04">{"2026年4月"}</option>
                         </select>
                         <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadData)}>
                             {"刷新"}

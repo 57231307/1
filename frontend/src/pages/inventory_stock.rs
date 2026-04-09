@@ -6,11 +6,13 @@ use yew::prelude::*;
 #[derive(Clone, PartialEq)]
 pub struct StockItem {
     pub id: u32,
+    pub barcode: String,
     pub roll_no: String,
     pub product_name: String,
     pub color: String,
-    pub length: f64,
+    pub roll_length: f64,
     pub weight: f64,
+    pub dye_lot_no: String,
     pub status: String,
 }
 
@@ -24,29 +26,35 @@ pub fn inventory_stock_page() -> Html {
             let initial_data = vec![
                 StockItem {
                     id: 1,
+                    barcode: "BC-2023-001".to_string(),
                     roll_no: "匹号A101".to_string(),
                     product_name: "纯棉平布".to_string(),
                     color: "漂白".to_string(),
-                    length: 120.5,
+                    roll_length: 120.5,
                     weight: 25.4,
+                    dye_lot_no: "DYE-101".to_string(),
                     status: "可用".to_string(),
                 },
                 StockItem {
                     id: 2,
+                    barcode: "BC-2023-002".to_string(),
                     roll_no: "匹号A102".to_string(),
                     product_name: "涤纶汗布".to_string(),
                     color: "藏青".to_string(),
-                    length: 85.0,
+                    roll_length: 85.0,
                     weight: 18.2,
+                    dye_lot_no: "DYE-102".to_string(),
                     status: "预留".to_string(),
                 },
                 StockItem {
                     id: 3,
+                    barcode: "BC-2023-003".to_string(),
                     roll_no: "匹号A103".to_string(),
                     product_name: "全棉斜纹".to_string(),
                     color: "大红".to_string(),
-                    length: 105.0,
+                    roll_length: 105.0,
                     weight: 22.1,
+                    dye_lot_no: "DYE-103".to_string(),
                     status: "待检".to_string(),
                 },
             ];
@@ -93,11 +101,13 @@ pub fn inventory_stock_page() -> Html {
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"ID"}</th>
+                                <th class="py-3 px-4 font-semibold text-gray-600">{"条码编号"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"匹号"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"品名"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"颜色"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"长度(m)"}</th>
+                                <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"卷长(m)"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"重量(kg)"}</th>
+                                <th class="py-3 px-4 font-semibold text-gray-600">{"入库缸号"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600 text-center">{"状态"}</th>
                                 <th class="py-3 px-4 font-semibold text-gray-600 text-center">{"操作"}</th>
                             </tr>
@@ -106,7 +116,7 @@ pub fn inventory_stock_page() -> Html {
                             {
                                 if stocks.is_empty() {
                                     html! {
-                                        <tr><td colspan="8" class="text-center py-8 text-gray-500">{"暂无数据"}</td></tr>
+                                        <tr><td colspan="10" class="text-center py-8 text-gray-500">{"暂无数据"}</td></tr>
                                     }
                                 } else {
                                     html! {
@@ -120,11 +130,13 @@ pub fn inventory_stock_page() -> Html {
                                             html! {
                                                 <tr key={stock.id} class="hover:bg-gray-50 transition-colors">
                                                     <td class="py-3 px-4">{ stock.id }</td>
+                                                    <td class="py-3 px-4 font-mono text-sm">{ &stock.barcode }</td>
                                                     <td class="py-3 px-4 font-medium">{ &stock.roll_no }</td>
                                                     <td class="py-3 px-4">{ &stock.product_name }</td>
                                                     <td class="py-3 px-4">{ &stock.color }</td>
-                                                    <td class="py-3 px-4 numeric-cell text-right font-mono">{ format!("{:.1}", stock.length) }</td>
+                                                    <td class="py-3 px-4 numeric-cell text-right font-mono">{ format!("{:.1}", stock.roll_length) }</td>
                                                     <td class="py-3 px-4 numeric-cell text-right font-mono">{ format!("{:.1}", stock.weight) }</td>
+                                                    <td class="py-3 px-4 font-mono text-sm">{ &stock.dye_lot_no }</td>
                                                     <td class="py-3 px-4 text-center">
                                                         <span class={format!("status-badge px-2.5 py-1 rounded-full text-xs font-medium {}", status_class)}>
                                                             { &stock.status }

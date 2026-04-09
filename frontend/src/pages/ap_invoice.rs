@@ -31,6 +31,8 @@ pub struct ApInvoicePage {
     balance_loading: bool,
     // 筛选供应商ID
     filter_supplier_id: Option<i32>,
+    // 关联染缸批次/发货单号
+    filter_batch_no: String,
 }
 
 /// 模态框模式
@@ -61,6 +63,7 @@ pub enum Msg {
     // 余额汇总
     LoadBalanceSummary,
     BalanceSummaryLoaded(Vec<BalanceSummaryItem>),
+    SetFilterBatchNo(String),
 }
 
 impl Component for ApInvoicePage {
@@ -83,6 +86,7 @@ impl Component for ApInvoicePage {
             balance_data: Vec::new(),
             balance_loading: false,
             filter_supplier_id: None,
+            filter_batch_no: String::new(),
         }
     }
 
@@ -143,6 +147,12 @@ impl Component for ApInvoicePage {
             }
             Msg::SetFilterType(tp) => {
                 self.filter_type = tp;
+                self.page = 1;
+                ctx.link().send_message(Msg::LoadInvoices);
+                false
+            }
+            Msg::SetFilterBatchNo(batch_no) => {
+                self.filter_batch_no = batch_no;
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadInvoices);
                 false
@@ -296,6 +306,17 @@ impl Component for ApInvoicePage {
                                     <option value="调整发票">{"调整发票"}</option>
                                 </select>
                             </div>
+                            <div class="filter-item">
+                                <label>{"关联批次/发货单："}</label>
+                                <input type="text"
+                                    value={self.filter_batch_no.clone()}
+                                    oninput={ctx.link().callback(|e: InputEvent| {
+                                        let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                        Msg::SetFilterBatchNo(target.value())
+                                    })}
+                                    placeholder="请输入批次/发货单号"
+                                />
+                            </div>
                             <button class="btn-refresh" onclick={ctx.link().callback(|_| Msg::Refresh)}>
                                 {"刷新"}
                             </button>
@@ -380,6 +401,7 @@ impl ApInvoicePage {
                         <thead>
                             <tr>
                                 <th>{"发票编号"}</th>
+                                <th>{"关联批次/发货单"}</th>
                                 <th>{"供应商"}</th>
                                 <th>{"发票日期"}</th>
                                 <th>{"到期日期"}</th>
@@ -405,6 +427,7 @@ impl ApInvoicePage {
                                 html! {
                                     <tr>
                                         <td>{&invoice.invoice_no}</td>
+                                        <td>{if self.filter_batch_no.is_empty() { "-" } else { &self.filter_batch_no }}</td>
                                         <td>{invoice.supplier_name.as_deref().unwrap_or("-")}</td>
                                         <td>{&invoice.invoice_date}</td>
                                         <td>{invoice.due_date.as_deref().unwrap_or("-")}</td>

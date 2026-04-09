@@ -560,6 +560,7 @@ impl InventoryTransferPage {
                 _ => &detail.status,
             };
             html! {
+                <>
                 <div class="detail-content">
                     <div class="detail-row">
                         <span class="detail-label">{"调拨单号:"}</span>
@@ -594,6 +595,47 @@ impl InventoryTransferPage {
                         <span class="detail-value">{&detail.created_at}</span>
                     </div>
                 </div>
+                
+                <div class="detail-items mt-6">
+                    <h3 class="text-lg font-bold mb-3">{"调拨明细"}</h3>
+                    <table class="data-table w-full">
+                        <thead>
+                            <tr>
+                                <th>{"产品ID"}</th>
+                                <th>{"条码编号"}</th>
+                                <th>{"卷长"}</th>
+                                <th>{"入库缸号"}</th>
+                                <th class="text-right">{"计划数量"}</th>
+                                <th class="text-right">{"已发数量"}</th>
+                                <th class="text-right">{"已收数量"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {if detail.items.is_empty() {
+                                html! {
+                                    <tr><td colspan="7" class="text-center py-4 text-gray-500">{"暂无明细数据"}</td></tr>
+                                }
+                            } else {
+                                html! {
+                                    {for detail.items.iter().map(|item| {
+                                        html! {
+                                            <tr>
+                                                <td>{item.product_id}</td>
+                                                <td class="font-mono text-sm">{item.barcode.as_deref().unwrap_or("-")}</td>
+                                                <td class="text-right font-mono">{item.roll_length.as_deref().unwrap_or("-")}</td>
+                                                <td class="font-mono text-sm">{item.dye_lot_no.as_deref().unwrap_or("-")}</td>
+                                                <td class="text-right font-mono">{&item.quantity}</td>
+                                                <td class="text-right font-mono text-blue-600">{&item.shipped_quantity}</td>
+                                                <td class="text-right font-mono text-green-600">{&item.received_quantity}</td>
+                                            </tr>
+                                        }
+                                    })}
+                                }
+                            }}
+                        </tbody>
+                    </table>
+                </div>
+                </>
             }
         } else {
             html! {

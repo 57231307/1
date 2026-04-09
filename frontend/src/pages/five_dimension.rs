@@ -35,6 +35,12 @@ pub struct FiveDimensionPage {
     parse_error: Option<String>,
     // 搜索类型选项
     search_types: Vec<(String, String)>,
+    // 复杂查询过滤条件
+    filter_customer: String,
+    filter_salesman: String,
+    filter_product: String,
+    filter_color: String,
+    filter_batch: String,
 }
 
 pub enum Msg {
@@ -44,6 +50,11 @@ pub enum Msg {
     // 搜索
     UpdateSearchKeyword(String),
     UpdateSearchType(String),
+    UpdateFilterCustomer(String),
+    UpdateFilterSalesman(String),
+    UpdateFilterProduct(String),
+    UpdateFilterColor(String),
+    UpdateFilterBatch(String),
     Search,
     SearchResultLoaded(Result<Vec<FiveDimensionItem>, String>),
     // 解析五维ID
@@ -90,6 +101,11 @@ impl Component for FiveDimensionPage {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
+            filter_customer: String::new(),
+            filter_salesman: String::new(),
+            filter_product: String::new(),
+            filter_color: String::new(),
+            filter_batch: String::new(),
         }
     }
 
@@ -133,6 +149,26 @@ impl Component for FiveDimensionPage {
             }
             Msg::UpdateSearchType(search_type) => {
                 self.search_type = search_type;
+                false
+            }
+            Msg::UpdateFilterCustomer(val) => {
+                self.filter_customer = val;
+                false
+            }
+            Msg::UpdateFilterSalesman(val) => {
+                self.filter_salesman = val;
+                false
+            }
+            Msg::UpdateFilterProduct(val) => {
+                self.filter_product = val;
+                false
+            }
+            Msg::UpdateFilterColor(val) => {
+                self.filter_color = val;
+                false
+            }
+            Msg::UpdateFilterBatch(val) => {
+                self.filter_batch = val;
                 false
             }
             Msg::Search => {
@@ -310,6 +346,64 @@ impl FiveDimensionPage {
                     <h2>{"搜索五维数据"}</h2>
                 </div>
                 <div class="card-body">
+                    <div class="filter-form" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <div class="form-group">
+                            <label>{"客户"}</label>
+                            <select class="form-control" value={self.filter_customer.clone()} onchange={ctx.link().callback(|e: Event| {
+                                let target = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+                                Msg::UpdateFilterCustomer(target.value())
+                            })}>
+                                <option value="">{"全部客户"}</option>
+                                <option value="C001">{"客户A"}</option>
+                                <option value="C002">{"客户B"}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>{"业务员"}</label>
+                            <select class="form-control" value={self.filter_salesman.clone()} onchange={ctx.link().callback(|e: Event| {
+                                let target = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+                                Msg::UpdateFilterSalesman(target.value())
+                            })}>
+                                <option value="">{"全部业务员"}</option>
+                                <option value="S001">{"张三"}</option>
+                                <option value="S002">{"李四"}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>{"产品(门幅/克重)"}</label>
+                            <select class="form-control" value={self.filter_product.clone()} onchange={ctx.link().callback(|e: Event| {
+                                let target = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+                                Msg::UpdateFilterProduct(target.value())
+                            })}>
+                                <option value="">{"全部产品"}</option>
+                                <option value="P001">{"纯棉汗布 (150cm/180g)"}</option>
+                                <option value="P002">{"涤纶网眼 (160cm/150g)"}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>{"颜色"}</label>
+                            <select class="form-control" value={self.filter_color.clone()} onchange={ctx.link().callback(|e: Event| {
+                                let target = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+                                Msg::UpdateFilterColor(target.value())
+                            })}>
+                                <option value="">{"全部颜色"}</option>
+                                <option value="White">{"漂白"}</option>
+                                <option value="Black">{"黑色"}</option>
+                                <option value="Red">{"大红"}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>{"批次"}</label>
+                            <select class="form-control" value={self.filter_batch.clone()} onchange={ctx.link().callback(|e: Event| {
+                                let target = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+                                Msg::UpdateFilterBatch(target.value())
+                            })}>
+                                <option value="">{"全部批次"}</option>
+                                <option value="B20240101">{"B20240101"}</option>
+                                <option value="B20240102">{"B20240102"}</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="search-form">
                         <div class="form-group">
                             <label for="search-type">{"搜索类型"}</label>

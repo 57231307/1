@@ -477,6 +477,18 @@ impl SupplierPage {
                                     <input name="bank_name" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={bank_name} readonly={is_readonly} required=true />
                                 </div>
                                 <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"主营业务(如印染/织造)"}</label>
+                                    <input name="main_business" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={self.current_supplier.as_ref().and_then(|s| s.main_business.clone()).unwrap_or_default()} readonly={is_readonly} />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">{"信用评级(A/B/C)"}</label>
+                                    <select name="grade" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" disabled={is_readonly}>
+                                        <option value="A" selected={self.current_supplier.as_ref().and_then(|s| s.grade.clone()).unwrap_or_default() == "A"}>{"A"}</option>
+                                        <option value="B" selected={self.current_supplier.as_ref().and_then(|s| s.grade.clone()).unwrap_or_default() == "B"}>{"B"}</option>
+                                        <option value="C" selected={self.current_supplier.as_ref().and_then(|s| s.grade.clone()).unwrap_or_default() == "C"}>{"C"}</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-1">
                                     <label class="block text-gray-700 text-sm font-bold mb-2">{"银行账号 *"}</label>
                                     <input name="bank_account" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={bank_account} readonly={is_readonly} required=true />
                                 </div>
@@ -544,6 +556,7 @@ impl SupplierPage {
                             <th>{"供应商编号"}</th>
                             <th>{"供应商名称"}</th>
                             <th>{"简称"}</th>
+                            <th>{"主营业务"}</th>
                             <th>{"类型"}</th>
                             <th>{"联系人"}</th>
                             <th>{"联系电话"}</th>
@@ -562,6 +575,7 @@ impl SupplierPage {
                                     <td>{supplier.credit_code.chars().take(10).collect::<String>()}</td>
                                     <td>{&supplier.supplier_name}</td>
                                     <td>{&supplier.supplier_short_name}</td>
+                                    <td>{supplier.main_business.as_deref().unwrap_or("-")}</td>
                                     <td>{&supplier.supplier_type}</td>
                                     <td>{supplier.legal_representative.clone()}</td>
                                     <td>{&supplier.contact_phone}</td>

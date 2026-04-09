@@ -323,22 +323,22 @@ impl PurchaseReceiptPage {
                     <table class="print-table">
                         <thead>
                             <tr>
-                                <th>{"序号"}</th>
+                                <th class="numeric-cell text-right">{"序号"}</th>
                                 <th>{"物料名称"}</th>
                                 <th>{"规格"}</th>
-                                <th>{"数量"}</th>
-                                <th>{"单价"}</th>
+                                <th class="numeric-cell text-right">{"数量"}</th>
+                                <th class="numeric-cell text-right">{"单价"}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {for items.iter().map(|item| {
                                 html! {
                                     <tr>
-                                        <td>{item.line_no}</td>
+                                        <td class="numeric-cell text-right">{item.line_no}</td>
                                         <td>{&item.material_name}</td>
                                         <td>{item.specification.as_deref().unwrap_or("-")}</td>
-                                        <td>{&item.quantity_received}</td>
-                                        <td>{&item.unit_price}</td>
+                                        <td class="numeric-cell text-right">{&item.quantity_received}</td>
+                                        <td class="numeric-cell text-right">{&item.unit_price}</td>
                                     </tr>
                                 }
                             })}

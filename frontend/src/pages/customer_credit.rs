@@ -332,6 +332,8 @@ impl Component for CustomerCreditPage {
                         <thead>
                             <tr>
                                 <th class="numeric-cell text-right">{"客户ID"}</th>
+                                <th>{"色卡编号"}</th>
+                                <th>{"花型"}</th>
                                 <th>{"信用等级"}</th>
                                 <th class="numeric-cell text-right">{"信用分数"}</th>
                                 <th class="numeric-cell text-right">{"信用额度"}</th>
@@ -349,6 +351,8 @@ impl Component for CustomerCreditPage {
                                 html! {
                                     <tr>
                                         <td class="numeric-cell text-right">{credit.customer_id}</td>
+                                        <td>{"-"}</td>
+                                        <td>{"🎨"}</td>
                                         <td>{credit.credit_level.as_ref().unwrap_or(&"-".to_string())}</td>
                                         <td class="numeric-cell text-right">{credit.credit_score.unwrap_or(0)}</td>
                                         <td class="numeric-cell text-right">{credit.credit_limit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
@@ -461,6 +465,14 @@ impl CustomerCreditPage {
                                 let input: web_sys::HtmlTextAreaElement = e.target_unchecked_into();
                                 Msg::SetRatingRemark(input.value())
                             })} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"色卡编号："}</label>
+                            <input type="text" class="form-control" value="" placeholder="仅作展示" disabled=true />
+                        </div>
+                        <div class="form-group">
+                            <label>{"花型："}</label>
+                            <div class="form-control" style="background: #f5f5f5;">{"🎨"}</div>
                         </div>
                     </div>
                     <div class="modal-footer">

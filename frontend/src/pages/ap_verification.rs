@@ -18,6 +18,7 @@ pub struct ApVerificationPage {
     loading: bool,
     error: Option<String>,
     filter_type: String,
+    filter_batch_no: String,
     selected_supplier_id: Option<i32>,
     page: u64,
     page_size: u64,
@@ -46,6 +47,7 @@ pub enum Msg {
     VerificationsLoaded(Vec<ApVerification>, u64),
     LoadError(String),
     SetFilterType(String),
+    SetFilterBatchNo(String),
     SetSupplierId(i32),
     ChangePage(u64),
     Refresh,
@@ -75,6 +77,7 @@ impl Component for ApVerificationPage {
             loading: true,
             error: None,
             filter_type: String::from("全部"),
+            filter_batch_no: String::new(),
             selected_supplier_id: None,
             page: 1,
             page_size: 20,
@@ -135,6 +138,12 @@ impl Component for ApVerificationPage {
             }
             Msg::SetFilterType(tp) => {
                 self.filter_type = tp;
+                self.page = 1;
+                ctx.link().send_message(Msg::LoadVerifications);
+                false
+            }
+            Msg::SetFilterBatchNo(batch_no) => {
+                self.filter_batch_no = batch_no;
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadVerifications);
                 false
@@ -312,6 +321,17 @@ impl Component for ApVerificationPage {
                             <option value="手工核销">{"手工核销"}</option>
                         </select>
                     </div>
+                    <div class="filter-item">
+                        <label>{"关联批次/发货单："}</label>
+                        <input type="text"
+                            value={self.filter_batch_no.clone()}
+                            oninput={ctx.link().callback(|e: InputEvent| {
+                                let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                Msg::SetFilterBatchNo(target.value())
+                            })}
+                            placeholder="请输入批次/发货单号"
+                        />
+                    </div>
                     <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::OpenAutoVerifyModal)}>
                         {"自动核销"}
                     </button>
@@ -384,6 +404,7 @@ impl ApVerificationPage {
                         <thead>
                             <tr>
                                 <th>{"核销单号"}</th>
+                                <th>{"关联批次/发货单"}</th>
                                 <th>{"供应商"}</th>
                                 <th>{"核销类型"}</th>
                                 <th>{"核销日期"}</th>
@@ -407,6 +428,7 @@ impl ApVerificationPage {
                                 html! {
                                     <tr>
                                         <td>{&v.verification_no}</td>
+                                        <td>{if self.filter_batch_no.is_empty() { "-" } else { &self.filter_batch_no }}</td>
                                         <td>{v.supplier_name.as_deref().unwrap_or("-")}</td>
                                         <td>{&v.verification_type}</td>
                                         <td>{&v.verification_date}</td>
@@ -513,6 +535,7 @@ impl ApVerificationPage {
                                             />
                                             <span class="item-info">
                                                 <span>{"发票号: "}{&inv.invoice_no}</span>
+                                                <span>{"关联批次: "}{if self.filter_batch_no.is_empty() { "-" } else { &self.filter_batch_no }}</span>
                                                 <span>{"日期: "}{&inv.invoice_date}</span>
                                                 <span>{"金额: "}{&inv.total_amount}</span>
                                                 <span>{"未付: "}{&inv.outstanding_amount}</span>

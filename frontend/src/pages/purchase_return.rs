@@ -304,10 +304,10 @@ impl PurchaseReturnPage {
                     <table class="print-table">
                         <thead>
                             <tr>
-                                <th>{"产品 ID"}</th>
-                                <th>{"退货数量"}</th>
-                                <th>{"单价"}</th>
-                                <th>{"金额"}</th>
+                                <th class="numeric-cell text-right">{"产品 ID"}</th>
+                                <th class="numeric-cell text-right">{"退货数量"}</th>
+                                <th class="numeric-cell text-right">{"单价"}</th>
+                                <th class="numeric-cell text-right">{"金额"}</th>
                             </tr>
                         </thead>
                         <tbody>

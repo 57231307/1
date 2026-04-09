@@ -485,11 +485,11 @@ impl CostCollectionPage {
                                         <th>{"批次号"}</th>
                                         <th>{"色号"}</th>
                                         <th>{"车间"}</th>
-                                        <th class="numeric-cell text-right">{"直接材料"}</th>
+                                        <th class="numeric-cell text-right">{"直接原料(纱线)"}</th>
                                         <th class="numeric-cell text-right">{"直接人工"}</th>
-                                        <th class="numeric-cell text-right">{"制造费用"}</th>
+                                        <th class="numeric-cell text-right">{"制造费用(水/电/蒸汽)"}</th>
                                         <th class="numeric-cell text-right">{"加工费"}</th>
-                                        <th class="numeric-cell text-right">{"染色费"}</th>
+                                        <th class="numeric-cell text-right">{"染化料耗用"}</th>
                                         <th>{"操作"}</th>
                                     </tr>
                                 </thead>
@@ -572,7 +572,7 @@ impl CostCollectionPage {
                                 <span class="value">{collection.workshop.clone().unwrap_or_else(|| "-".to_string())}</span>
                             </div>
                             <div class="detail-item">
-                                <span class="label">{"直接材料"}</span>
+                                <span class="label">{"直接原料(纱线)"}</span>
                                 <span class="value numeric">{self.format_decimal(&collection.direct_material)}</span>
                             </div>
                             <div class="detail-item">
@@ -580,7 +580,7 @@ impl CostCollectionPage {
                                 <span class="value numeric">{self.format_decimal(&collection.direct_labor)}</span>
                             </div>
                             <div class="detail-item">
-                                <span class="label">{"制造费用"}</span>
+                                <span class="label">{"制造费用(水/电/蒸汽)"}</span>
                                 <span class="value numeric">{self.format_decimal(&collection.manufacturing_overhead)}</span>
                             </div>
                             <div class="detail-item">
@@ -588,7 +588,7 @@ impl CostCollectionPage {
                                 <span class="value numeric">{self.format_decimal(&collection.processing_fee)}</span>
                             </div>
                             <div class="detail-item">
-                                <span class="label">{"染色费"}</span>
+                                <span class="label">{"染化料耗用"}</span>
                                 <span class="value numeric">{self.format_decimal(&collection.dyeing_fee)}</span>
                             </div>
                             <div class="detail-item">
@@ -733,7 +733,7 @@ impl CostCollectionPage {
                         <h3>{"成本构成"}</h3>
                         <div class="form-grid">
                             <div class="form-group">
-                                <label for="direct-material">{"直接材料"}</label>
+                                <label for="direct-material">{"直接原料(纱线)"}</label>
                                 <input
                                     id="direct-material"
                                     type="number"
@@ -763,7 +763,7 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="manufacturing-overhead">{"制造费用"}</label>
+                                <label for="manufacturing-overhead">{"制造费用(水/电/蒸汽)"}</label>
                                 <input
                                     id="manufacturing-overhead"
                                     type="number"
@@ -793,7 +793,7 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="dyeing-fee">{"染色费"}</label>
+                                <label for="dyeing-fee">{"染化料耗用"}</label>
                                 <input
                                     id="dyeing-fee"
                                     type="number"

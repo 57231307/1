@@ -176,6 +176,8 @@ impl Component for SalesReturnPage {
                             <thead>
                                 <tr>
                                     <th>{ "退货单号" }</th>
+                                    <th>{ "色卡编号" }</th>
+                                    <th>{ "花型" }</th>
                                     <th>{ "客户ID" }</th>
                                     <th>{ "退货日期" }</th>
                                     <th>{ "状态" }</th>
@@ -235,6 +237,8 @@ impl SalesReturnPage {
         html! {
             <tr>
                 <td>{ &return_order.return_no }</td>
+                <td>{ "-" }</td>
+                <td>{ "🎨" }</td>
                 <td>{ return_order.customer_id }</td>
                 <td>{ &return_order.return_date }</td>
                 <td>

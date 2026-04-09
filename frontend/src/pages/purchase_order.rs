@@ -237,12 +237,15 @@ impl PurchaseOrderPage {
                     <table class="print-table">
                         <thead>
                             <tr>
-                                <th>{"序号"}</th>
+                                <th class="numeric-cell text-right">{"序号"}</th>
                                 <th>{"产品名称"}</th>
                                 <th>{"规格"}</th>
-                                <th>{"数量"}</th>
-                                <th>{"单价"}</th>
-                                <th>{"小计"}</th>
+                                <th class="numeric-cell text-right">{"数量"}</th>
+                                <th class="numeric-cell text-right">{"单价"}</th>
+                                <th>{"强力要求"}</th>
+                                <th>{"条干均匀度"}</th>
+                                <th>{"色牢度级别"}</th>
+                                <th class="numeric-cell text-right">{"小计"}</th>
                                 <th>{"备注"}</th>
                             </tr>
                         </thead>
@@ -250,7 +253,7 @@ impl PurchaseOrderPage {
                             // 实际项目中这里应该渲染 items，但目前 purchase_order.rs 的列表中没有展开 items
                             // 所以留出空行或仅打印主表信息
                             <tr>
-                                <td colspan="7" style="text-align: center; padding: 20px;">{"【订单明细请在详情页查看并打印】"}</td>
+                                <td colspan="10" style="text-align: center; padding: 20px;">{"【订单明细请在详情页查看并打印】"}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -306,6 +309,9 @@ impl PurchaseOrderPage {
                             <th>{"供应商"}</th>
                             <th>{"订单日期"}</th>
                             <th>{"要求交货日期"}</th>
+                            <th>{"强力要求"}</th>
+                            <th>{"条干均匀度"}</th>
+                            <th>{"色牢度级别"}</th>
                             <th>{"订单状态"}</th>
                             <th class="numeric-cell text-right">{"总金额"}</th>
                             <th>{"仓库"}</th>
@@ -323,6 +329,9 @@ impl PurchaseOrderPage {
                                     <td>{order.supplier_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&order.order_date}</td>
                                     <td>{order.expected_delivery_date.as_deref().unwrap_or("-")}</td>
+                                    <td>{"-"}</td>
+                                    <td>{"-"}</td>
+                                    <td>{"-"}</td>
                                     <td><span class="status-badge">{status}</span></td>
                                     <td class="numeric-cell text-right">{&order.total_amount}</td>
                                     <td>{order.warehouse_name.as_deref().unwrap_or("-")}</td>

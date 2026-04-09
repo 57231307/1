@@ -305,6 +305,9 @@ impl PurchaseInspectionPage {
                             <th>{"供应商"}</th>
                             <th>{"检验日期"}</th>
                             <th>{"检验结果"}</th>
+                            <th>{"强力要求"}</th>
+                            <th>{"条干均匀度"}</th>
+                            <th>{"色牢度级别"}</th>
                             <th class="numeric-cell text-right">{"合格数量"}</th>
                             <th class="numeric-cell text-right">{"不合格数量"}</th>
                             <th>{"备注"}</th>
@@ -332,6 +335,9 @@ impl PurchaseInspectionPage {
                                     <td>{inspection.supplier_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&inspection.inspection_date}</td>
                                     <td><span class={result_class}>{result_text}</span></td>
+                                    <td>{"-"}</td>
+                                    <td>{"-"}</td>
+                                    <td>{"-"}</td>
                                     <td class="numeric-cell text-right">{&inspection.qualified_quantity}</td>
                                     <td class="numeric-cell text-right">{&inspection.unqualified_quantity}</td>
                                     <td>{inspection.remarks.as_deref().unwrap_or("-")}</td>

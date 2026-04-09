@@ -618,6 +618,7 @@ impl BusinessTracePage {
                                 <th>{"追溯链ID"}</th>
                                 <th>{"五维ID"}</th>
                                 <th>{"产品ID"}</th>
+                                <th>{"全链路溯源"}</th>
                                 <th>{"批次号"}</th>
                                 <th>{"色号"}</th>
                                 <th>{"等级"}</th>
@@ -635,6 +636,17 @@ impl BusinessTracePage {
                                         <td class="trace-chain-id">{&trace.trace_chain_id}</td>
                                         <td class="five-dim-id">{&trace.five_dimension_id}</td>
                                         <td>{trace.product_id.to_string()}</td>
+                                        <td>
+                                            <div class="trace-link">
+                                                <span class="trace-node">{"订单号"}</span>
+                                                <span class="trace-arrow">{"->"}</span>
+                                                <span class="trace-node">{format!("织造批次({})", trace.batch_no)}</span>
+                                                <span class="trace-arrow">{"->"}</span>
+                                                <span class="trace-node">{format!("染缸号({})", trace.dye_lot_no.clone().unwrap_or_else(|| "-".to_string()))}</span>
+                                                <span class="trace-arrow">{"->"}</span>
+                                                <span class="trace-node">{format!("发货单({})", trace.current_bill_no)}</span>
+                                            </div>
+                                        </td>
                                         <td>{&trace.batch_no}</td>
                                         <td>{&trace.color_no}</td>
                                         <td>{&trace.grade}</td>

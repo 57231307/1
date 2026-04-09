@@ -16,6 +16,7 @@ pub struct ArInvoicePage {
     error: Option<String>,
     filter_status: String,
     filter_customer_id: Option<i32>,
+    filter_batch_no: String,
     page: u64,
     page_size: u64,
     total: u64,
@@ -34,6 +35,7 @@ pub enum Msg {
     InvoicesLoaded(Vec<ArInvoice>, u64),
     LoadError(String),
     SetFilterStatus(String),
+    SetFilterBatchNo(String),
     ViewInvoice(i32),
     DeleteInvoice(i32),
     ApproveInvoice(i32),
@@ -53,6 +55,7 @@ impl Component for ArInvoicePage {
             error: None,
             filter_status: String::from("全部"),
             filter_customer_id: None,
+            filter_batch_no: String::new(),
             page: 1,
             page_size: 20,
             total: 0,
@@ -103,6 +106,12 @@ impl Component for ArInvoicePage {
             }
             Msg::SetFilterStatus(status) => {
                 self.filter_status = status;
+                self.page = 1;
+                ctx.link().send_message(Msg::LoadInvoices);
+                false
+            }
+            Msg::SetFilterBatchNo(batch_no) => {
+                self.filter_batch_no = batch_no;
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadInvoices);
                 false
@@ -187,6 +196,17 @@ impl Component for ArInvoicePage {
                             <option value="已核销">{"已核销"}</option>
                         </select>
                     </div>
+                    <div class="filter-item">
+                        <label>{"关联批次/发货单："}</label>
+                        <input type="text"
+                            value={self.filter_batch_no.clone()}
+                            oninput={ctx.link().callback(|e: InputEvent| {
+                                let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                Msg::SetFilterBatchNo(target.value())
+                            })}
+                            placeholder="请输入批次/发货单号"
+                        />
+                    </div>
                     <button class="btn-refresh" onclick={ctx.link().callback(|_| Msg::Refresh)}>
                         {"刷新"}
                     </button>
@@ -249,7 +269,7 @@ impl ArInvoicePage {
                                 <th>{"发票金额"}</th>
                                 <th>{"已收金额"}</th>
                                 <th>{"未收金额"}</th>
-                                <th>{"批次号"}</th>
+                                <th>{"关联批次/发货单"}</th>
                                 <th>{"色号"}</th>
                                 <th>{"销售订单号"}</th>
                                 <th>{"来源单据"}</th>
@@ -289,7 +309,7 @@ impl ArInvoicePage {
                                         <td class="numeric-cell text-right">{&invoice.invoice_amount}</td>
                                         <td class="numeric-cell text-right">{&invoice.received_amount}</td>
                                         <td class="numeric-cell text-right">{&invoice.unpaid_amount}</td>
-                                        <td>{invoice.batch_no.as_deref().unwrap_or("-")}</td>
+                                        <td>{if self.filter_batch_no.is_empty() { invoice.batch_no.as_deref().unwrap_or("-") } else { &self.filter_batch_no }}</td>
                                         <td>{invoice.color_no.as_deref().unwrap_or("-")}</td>
                                         <td>{invoice.sales_order_no.as_deref().unwrap_or("-")}</td>
                                         <td>{invoice.source_bill_no.as_deref().unwrap_or("-")}</td>
