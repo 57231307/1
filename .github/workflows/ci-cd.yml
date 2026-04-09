@@ -21,6 +21,8 @@ env:
   RUST_VERSION: stable
   CARGO_TERM_COLOR: always
   CARGO_BUILD_JOBS: 8
+  # 强制 GitHub Actions 第三方插件(如 actions/checkout) 使用 Node.js 24，消除 Node.js 20 弃用警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   determine-version:
