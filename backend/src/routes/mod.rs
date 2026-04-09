@@ -7,7 +7,7 @@ use axum::{
 };
 
 use crate::controllers::base::unit_converter;
-use crate::controllers::production::greige_fabric;
+use crate::controllers::production::{dye_batch, dye_recipe, greige_fabric};
 
 use crate::handlers::{
     account_subject_handler, ap_invoice_handler, ap_payment_handler, ap_payment_request_handler,
@@ -1008,8 +1008,18 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", get(greige_fabric::get_list))
         .route("/", post(greige_fabric::create));
 
+    let production_dye_recipe_routes = Router::new()
+        .route("/", get(dye_recipe::get_list))
+        .route("/", post(dye_recipe::create));
+
+    let production_dye_batch_routes = Router::new()
+        .route("/", get(dye_batch::get_list))
+        .route("/", post(dye_batch::create));
+
     Router::new()
         .nest("/api/v1/erp/production/greige", production_greige_routes)
+        .nest("/api/v1/erp/production/dye_recipe", production_dye_recipe_routes)
+        .nest("/api/v1/erp/production/dye_batch", production_dye_batch_routes)
         .nest("/api/v1/erp/base/units", unit_routes)
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)

@@ -1,10 +1,6 @@
-//! 缸号管理页面（染色批次管理）
-
 use crate::components::main_layout::MainLayout;
-use crate::models::dye_batch::{
-    CompleteDyeBatchRequest, CreateDyeBatchRequest, DyeBatch, DyeBatchQuery,
-};
-use crate::services::dye_batch_service::DyeBatchService;
+use crate::models::dye_batch::DyeBatch;
+use crate::services::dye_batch::DyeBatchService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
@@ -13,29 +9,23 @@ pub struct DyeBatchPage {
     batches: Vec<DyeBatch>,
     loading: bool,
     error: Option<String>,
-    filter_batch_no: String,
-    filter_color_code: String,
-    filter_status: String,
-    page: u64,
-    page_size: u64,
-    show_create_modal: bool,
-    show_complete_modal: bool,
-    selected_batch: Option<DyeBatch>,
+    show_create_form: bool,
+
+    // Form fields
+    new_batch_no: String,
+    new_recipe_code: String,
+    new_greige_code: String,
+    new_total_weight_kg: String,
+    new_status: String,
 }
 
 pub enum Msg {
     LoadBatches,
     BatchesLoaded(Vec<DyeBatch>),
     LoadError(String),
-    SetFilterBatchNo(String),
-    SetFilterColorCode(String),
-    SetFilterStatus(String),
-    ToggleCreateModal,
-    ToggleCompleteModal(Option<i32>),
-    CreateBatch(CreateDyeBatchRequest),
-    CompleteBatch(i32, CompleteDyeBatchRequest),
-    DeleteBatch(i32),
-    ChangePage(u64),
+    ToggleCreateForm,
+    UpdateNewField(String, String),
+    SubmitCreate,
 }
 
 impl Component for DyeBatchPage {
@@ -47,14 +37,12 @@ impl Component for DyeBatchPage {
             batches: Vec::new(),
             loading: true,
             error: None,
-            filter_batch_no: String::new(),
-            filter_color_code: String::new(),
-            filter_status: String::from("全部"),
-            page: 1,
-            page_size: 20,
-            show_create_modal: false,
-            show_complete_modal: false,
-            selected_batch: None,
+            show_create_form: false,
+            new_batch_no: String::new(),
+            new_recipe_code: String::new(),
+            new_greige_code: String::new(),
+            new_total_weight_kg: String::new(),
+            new_status: String::from("排缸"),
         }
     }
 
@@ -68,30 +56,10 @@ impl Component for DyeBatchPage {
         match msg {
             Msg::LoadBatches => {
                 self.loading = true;
-                let query = DyeBatchQuery {
-                    page: Some(self.page),
-                    page_size: Some(self.page_size),
-                    batch_no: if self.filter_batch_no.is_empty() {
-                        None
-                    } else {
-                        Some(self.filter_batch_no.clone())
-                    },
-                    color_code: if self.filter_color_code.is_empty() {
-                        None
-                    } else {
-                        Some(self.filter_color_code.clone())
-                    },
-                    status: if self.filter_status == "全部" {
-                        None
-                    } else {
-                        Some(self.filter_status.clone())
-                    },
-                    ..Default::default()
-                };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match DyeBatchService::list(query).await {
-                        Ok(batches) => link.send_message(Msg::BatchesLoaded(batches.items)),
+                    match DyeBatchService::get_list().await {
+                        Ok(res) => link.send_message(Msg::BatchesLoaded(res)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -107,277 +75,129 @@ impl Component for DyeBatchPage {
                 self.loading = false;
                 true
             }
-            Msg::SetFilterBatchNo(batch_no) => {
-                self.filter_batch_no = batch_no;
-                ctx.link().send_message(Msg::LoadBatches);
-                false
-            }
-            Msg::SetFilterColorCode(color_code) => {
-                self.filter_color_code = color_code;
-                ctx.link().send_message(Msg::LoadBatches);
-                false
-            }
-            Msg::SetFilterStatus(status) => {
-                self.filter_status = status;
-                ctx.link().send_message(Msg::LoadBatches);
-                false
-            }
-            Msg::ToggleCreateModal => {
-                self.show_create_modal = !self.show_create_modal;
+            Msg::ToggleCreateForm => {
+                self.show_create_form = !self.show_create_form;
                 true
             }
-            Msg::ToggleCompleteModal(id) => {
-                self.show_complete_modal = !self.show_complete_modal;
-                if let Some(batch_id) = id {
-                    self.selected_batch = self.batches.iter().find(|b| b.id == batch_id).cloned();
-                } else {
-                    self.selected_batch = None;
+            Msg::UpdateNewField(field, val) => {
+                match field.as_str() {
+                    "batch_no" => self.new_batch_no = val,
+                    "recipe_code" => self.new_recipe_code = val,
+                    "greige_code" => self.new_greige_code = val,
+                    "total_weight_kg" => self.new_total_weight_kg = val,
+                    "status" => self.new_status = val,
+                    _ => {}
                 }
                 true
             }
-            Msg::CreateBatch(req) => {
+            Msg::SubmitCreate => {
+                let req = DyeBatch {
+                    id: 0,
+                    batch_no: self.new_batch_no.clone(),
+                    recipe_code: self.new_recipe_code.clone(),
+                    greige_code: self.new_greige_code.clone(),
+                    total_weight_kg: self.new_total_weight_kg.parse().unwrap_or(0.0),
+                    status: self.new_status.clone(),
+                };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match DyeBatchService::create(req).await {
+                    match DyeBatchService::create(&req).await {
                         Ok(_) => {
-                            link.send_message(Msg::ToggleCreateModal);
+                            link.send_message(Msg::ToggleCreateForm);
                             link.send_message(Msg::LoadBatches);
                         }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
-                false
-            }
-            Msg::CompleteBatch(id, req) => {
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match DyeBatchService::complete(id, req).await {
-                        Ok(_) => {
-                            link.send_message(Msg::ToggleCompleteModal(None));
-                            link.send_message(Msg::LoadBatches);
-                        }
-                        Err(e) => link.send_message(Msg::LoadError(e)),
-                    }
-                });
-                false
-            }
-            Msg::DeleteBatch(id) => {
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match DyeBatchService::delete(id).await {
-                        Ok(_) => link.send_message(Msg::LoadBatches),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
-                    }
-                });
-                false
-            }
-            Msg::ChangePage(page) => {
-                self.page = page;
-                ctx.link().send_message(Msg::LoadBatches);
                 false
             }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_batch_no_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-            Msg::SetFilterBatchNo(target.value())
-        });
-
-        let on_color_code_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-            Msg::SetFilterColorCode(target.value())
-        });
-
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlSelectElement>()
-                .unwrap();
-            Msg::SetFilterStatus(target.value())
-        });
-
         html! {
-            <MainLayout current_page={""}>
-<div class="dye-batch-page">
-                <div class="page-header">
-                    <h1>{"🏭 缸号管理"}</h1>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ToggleCreateModal)}>
-                        {"+ 新增缸号"}
-                    </button>
+            <MainLayout current_page={"染缸批次"}>
+                <div class="page-container">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h1 style="font-size: 1.25rem; margin: 0;">{"🏭 染缸批次"}</h1>
+                        <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>
+                            {"+ 新增"}
+                        </button>
+                    </div>
+
+                    if self.show_create_form {
+                        <div class="create-form-container" style="background: var(--surface-color); padding: 1rem; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); margin-bottom: 1rem; border: 1px solid var(--border-color);">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+                                <input class="form-input" placeholder="缸号" value={self.new_batch_no.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("batch_no".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="配方编号" value={self.new_recipe_code.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("recipe_code".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="坯布编号" value={self.new_greige_code.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("greige_code".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="总重量(kg)" type="number" step="0.1" value={self.new_total_weight_kg.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("total_weight_kg".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <select class="form-input" value={self.new_status.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("status".into(), e.target_unchecked_into::<web_sys::HtmlSelectElement>().value()))}>
+                                    <option value="排缸">{"排缸"}</option>
+                                    <option value="染色中">{"染色中"}</option>
+                                    <option value="已完成">{"已完成"}</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>{"取消"}</button>
+                                <button class="btn-success" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>{"保存"}</button>
+                            </div>
+                        </div>
+                    }
+
+                    {self.render_table(ctx)}
                 </div>
-
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>{"缸号："}</label>
-                        <input type="text" placeholder="请输入缸号"
-                            value={self.filter_batch_no.clone()}
-                            onchange={on_batch_no_change}
-                        />
-                    </div>
-                    <div class="filter-item">
-                        <label>{"色号："}</label>
-                        <input type="text" placeholder="请输入色号"
-                            value={self.filter_color_code.clone()}
-                            onchange={on_color_code_change}
-                        />
-                    </div>
-                    <div class="filter-item">
-                        <label>{"状态："}</label>
-                        <select value={self.filter_status.clone()} onchange={on_status_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="待生产">{"待生产"}</option>
-                            <option value="生产中">{"生产中"}</option>
-                            <option value="已完成">{"已完成"}</option>
-                        </select>
-                    </div>
-                </div>
-
-                {self.render_content(ctx)}
-
-                if self.show_create_modal {
-                    {self.render_create_modal(ctx)}
-                }
-
-                if self.show_complete_modal && self.selected_batch.is_some() {
-                    {self.render_complete_modal(ctx)}
-                }
-            </div>
-        
-</MainLayout>}
+            </MainLayout>
+        }
     }
 }
 
 impl DyeBatchPage {
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
+    fn render_table(&self, _ctx: &Context<Self>) -> Html {
         if self.loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
+            return html! { <div style="padding: 2rem; text-align: center;">{"加载中..."}</div> };
         }
 
-        if let Some(error) = &self.error {
-            return html! {
-                <div class="error-container">
-                    <div class="error-icon">{"⚠️"}</div>
-                    <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadBatches)}>
-                        {"重新加载"}
-                    </button>
-                </div>
-            };
-        }
-
-        if self.batches.is_empty() {
-            return html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"🏭"}</div>
-                    <p>{"暂无缸号数据"}</p>
-                </div>
-            };
+        if let Some(err) = &self.error {
+            return html! { <div style="padding: 2rem; color: red; text-align: center;">{err}</div> };
         }
 
         html! {
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
+            <div style="overflow-x: auto; background: var(--surface-color); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead style="background: #f9fafb; border-bottom: 2px solid var(--border-color);">
                         <tr>
-                            <th>{"缸号"}</th>
-                            <th>{"色号"}</th>
-                            <th>{"颜色名称"}</th>
-                            <th>{"面料类型"}</th>
-                            <th>{"重量(kg)"}</th>
-                            <th>{"状态"}</th>
-                            <th>{"质量等级"}</th>
-                            <th>{"生产日期"}</th>
-                            <th>{"操作"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"缸号"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"配方编号"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"坯布编号"}</th>
+                            <th class="numeric-cell" style="padding: 0.5rem;">{"总重量(kg)"}</th>
+                            <th style="padding: 0.5rem; text-align: center;">{"状态"}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {for self.batches.iter().map(|batch| {
-                            let batch_id = batch.id;
-                            let status = batch.status.clone();
-                            let is_completed = status == "已完成";
+                        {for self.batches.iter().map(|b| {
+                            let status_bg = match b.status.as_str() {
+                                "排缸" => "#9CA3AF",      // Gray
+                                "染色中" => "#3B82F6",    // Blue
+                                "已完成" => "#10B981",    // Green
+                                _ => "#6B7280"
+                            };
                             html! {
-                                <tr>
-                                    <td>{&batch.batch_no}</td>
-                                    <td>{&batch.color_code}</td>
-                                    <td>{&batch.color_name}</td>
-                                    <td>{batch.fabric_type.as_deref().unwrap_or("-")}</td>
-                                    <td class="numeric">{batch.weight_kg.clone().map(|w| format!("{:.2}", w)).unwrap_or("-".to_string())}</td>
-                                    <td>
-                                        <span class={format!("status-badge status-{}", status)}>
-                                            {&status}
+                                <tr style="border-bottom: 1px solid var(--border-color);">
+                                    <td style="padding: 0.5rem;">{&b.batch_no}</td>
+                                    <td style="padding: 0.5rem;">{&b.recipe_code}</td>
+                                    <td style="padding: 0.5rem;">{&b.greige_code}</td>
+                                    <td class="numeric-cell" style="padding: 0.5rem;">{format!("{:.2}", b.total_weight_kg)}</td>
+                                    <td style="padding: 0.5rem; text-align: center;">
+                                        <span class="status-badge" style={format!("background-color: {}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;", status_bg)}>
+                                            {&b.status}
                                         </span>
-                                    </td>
-                                    <td>{batch.quality_grade.as_deref().unwrap_or("-")}</td>
-                                    <td>{batch.production_date.as_deref().unwrap_or("-")}</td>
-                                    <td class="actions">
-                                        if !is_completed {
-                                            <button class="btn-small btn-success"
-                                                onclick={ctx.link().callback(move |_| Msg::ToggleCompleteModal(Some(batch_id)))}>
-                                                {"完成"}
-                                            </button>
-                                        }
-                                        <button class="btn-small btn-danger"
-                                            onclick={ctx.link().callback(move |_| Msg::DeleteBatch(batch_id))}>
-                                            {"删除"}
-                                        </button>
                                     </td>
                                 </tr>
                             }
                         })}
                     </tbody>
                 </table>
-            </div>
-        }
-    }
-
-    fn render_create_modal(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::ToggleCreateModal)}>
-                <div class="modal-content" onclick={|e: MouseEvent| e.stop_propagation()}>
-                    <div class="modal-header">
-                        <h2>{"新增缸号"}</h2>
-                        <button class="modal-close" onclick={ctx.link().callback(|_| Msg::ToggleCreateModal)}>
-                            {"×"}
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <p>{"缸号创建功能已就绪，请填写相关信息"}</p>
-                    </div>
-                </div>
-            </div>
-        }
-    }
-
-    fn render_complete_modal(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::ToggleCompleteModal(None))}>
-                <div class="modal-content" onclick={|e: MouseEvent| e.stop_propagation()}>
-                    <div class="modal-header">
-                        <h2>{"完成缸号"}</h2>
-                        <button class="modal-close" onclick={ctx.link().callback(|_| Msg::ToggleCompleteModal(None))}>
-                            {"×"}
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <p>{"确认完成此缸号？请选择质量等级"}</p>
-                    </div>
-                </div>
             </div>
         }
     }

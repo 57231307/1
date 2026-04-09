@@ -1,8 +1,6 @@
-//! 染色配方管理页面
-
 use crate::components::main_layout::MainLayout;
-use crate::models::dye_recipe::{DyeRecipe, DyeRecipeQuery};
-use crate::services::dye_recipe_service::DyeRecipeService;
+use crate::models::dye_recipe::DyeRecipe;
+use crate::services::dye_recipe::DyeRecipeService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
@@ -11,27 +9,24 @@ pub struct DyeRecipePage {
     recipes: Vec<DyeRecipe>,
     loading: bool,
     error: Option<String>,
-    filter_recipe_no: String,
-    filter_color_code: String,
-    filter_status: String,
-    page: u64,
-    page_size: u64,
-    selected_recipe: Option<DyeRecipe>,
-    show_detail_modal: bool,
+    show_create_form: bool,
+
+    // Form fields
+    new_recipe_code: String,
+    new_color_name: String,
+    new_fabric_type: String,
+    new_dyes: String,
+    new_temp_c: String,
+    new_time_mins: String,
 }
 
 pub enum Msg {
     LoadRecipes,
     RecipesLoaded(Vec<DyeRecipe>),
     LoadError(String),
-    SetFilterRecipeNo(String),
-    SetFilterColorCode(String),
-    SetFilterStatus(String),
-    ViewRecipe(i32),
-    CloseDetail,
-    ApproveRecipe(i32),
-    DeleteRecipe(i32),
-    ChangePage(u64),
+    ToggleCreateForm,
+    UpdateNewField(String, String),
+    SubmitCreate,
 }
 
 impl Component for DyeRecipePage {
@@ -43,13 +38,13 @@ impl Component for DyeRecipePage {
             recipes: Vec::new(),
             loading: true,
             error: None,
-            filter_recipe_no: String::new(),
-            filter_color_code: String::new(),
-            filter_status: String::from("全部"),
-            page: 1,
-            page_size: 20,
-            selected_recipe: None,
-            show_detail_modal: false,
+            show_create_form: false,
+            new_recipe_code: String::new(),
+            new_color_name: String::new(),
+            new_fabric_type: String::new(),
+            new_dyes: String::new(),
+            new_temp_c: String::new(),
+            new_time_mins: String::new(),
         }
     }
 
@@ -63,30 +58,10 @@ impl Component for DyeRecipePage {
         match msg {
             Msg::LoadRecipes => {
                 self.loading = true;
-                let query = DyeRecipeQuery {
-                    page: Some(self.page),
-                    page_size: Some(self.page_size),
-                    recipe_no: if self.filter_recipe_no.is_empty() {
-                        None
-                    } else {
-                        Some(self.filter_recipe_no.clone())
-                    },
-                    color_code: if self.filter_color_code.is_empty() {
-                        None
-                    } else {
-                        Some(self.filter_color_code.clone())
-                    },
-                    status: if self.filter_status == "全部" {
-                        None
-                    } else {
-                        Some(self.filter_status.clone())
-                    },
-                    ..Default::default()
-                };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match DyeRecipeService::list(query).await {
-                        Ok(recipes) => link.send_message(Msg::RecipesLoaded(recipes.items)),
+                    match DyeRecipeService::get_list().await {
+                        Ok(res) => link.send_message(Msg::RecipesLoaded(res)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -102,300 +77,121 @@ impl Component for DyeRecipePage {
                 self.loading = false;
                 true
             }
-            Msg::SetFilterRecipeNo(recipe_no) => {
-                self.filter_recipe_no = recipe_no;
-                ctx.link().send_message(Msg::LoadRecipes);
-                false
-            }
-            Msg::SetFilterColorCode(color_code) => {
-                self.filter_color_code = color_code;
-                ctx.link().send_message(Msg::LoadRecipes);
-                false
-            }
-            Msg::SetFilterStatus(status) => {
-                self.filter_status = status;
-                ctx.link().send_message(Msg::LoadRecipes);
-                false
-            }
-            Msg::ViewRecipe(id) => {
-                self.selected_recipe = self.recipes.iter().find(|r| r.id == id).cloned();
-                self.show_detail_modal = true;
+            Msg::ToggleCreateForm => {
+                self.show_create_form = !self.show_create_form;
                 true
             }
-            Msg::CloseDetail => {
-                self.show_detail_modal = false;
-                self.selected_recipe = None;
+            Msg::UpdateNewField(field, val) => {
+                match field.as_str() {
+                    "recipe_code" => self.new_recipe_code = val,
+                    "color_name" => self.new_color_name = val,
+                    "fabric_type" => self.new_fabric_type = val,
+                    "dyes" => self.new_dyes = val,
+                    "temp_c" => self.new_temp_c = val,
+                    "time_mins" => self.new_time_mins = val,
+                    _ => {}
+                }
                 true
             }
-            Msg::ApproveRecipe(id) => {
+            Msg::SubmitCreate => {
+                let req = DyeRecipe {
+                    id: 0,
+                    recipe_code: self.new_recipe_code.clone(),
+                    color_name: self.new_color_name.clone(),
+                    fabric_type: self.new_fabric_type.clone(),
+                    dyes: self.new_dyes.clone(),
+                    temp_c: self.new_temp_c.parse().unwrap_or(0),
+                    time_mins: self.new_time_mins.parse().unwrap_or(0),
+                };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    let req = crate::models::dye_recipe::ApproveRecipeRequest { approved_by: 1 };
-                    match DyeRecipeService::approve(id, req).await {
-                        Ok(_) => link.send_message(Msg::LoadRecipes),
+                    match DyeRecipeService::create(&req).await {
+                        Ok(_) => {
+                            link.send_message(Msg::ToggleCreateForm);
+                            link.send_message(Msg::LoadRecipes);
+                        }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
-                false
-            }
-            Msg::DeleteRecipe(id) => {
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match DyeRecipeService::delete(id).await {
-                        Ok(_) => link.send_message(Msg::LoadRecipes),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
-                    }
-                });
-                false
-            }
-            Msg::ChangePage(page) => {
-                self.page = page;
-                ctx.link().send_message(Msg::LoadRecipes);
                 false
             }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_recipe_no_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-            Msg::SetFilterRecipeNo(target.value())
-        });
-
-        let on_color_code_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-            Msg::SetFilterColorCode(target.value())
-        });
-
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlSelectElement>()
-                .unwrap();
-            Msg::SetFilterStatus(target.value())
-        });
-
         html! {
-            <MainLayout current_page={""}>
-<div class="dye-recipe-page">
-                <div class="page-header">
-                    <h1>{"🧪 染色配方管理"}</h1>
-                    <button class="btn-primary">
-                        {"+ 新增配方"}
-                    </button>
+            <MainLayout current_page={"染化料配方"}>
+                <div class="page-container">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h1 style="font-size: 1.25rem; margin: 0;">{"🧪 染化料配方"}</h1>
+                        <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>
+                            {"+ 新增"}
+                        </button>
+                    </div>
+
+                    if self.show_create_form {
+                        <div class="create-form-container" style="background: var(--surface-color); padding: 1rem; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); margin-bottom: 1rem; border: 1px solid var(--border-color);">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+                                <input class="form-input" placeholder="配方编号" value={self.new_recipe_code.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("recipe_code".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="颜色名称" value={self.new_color_name.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("color_name".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="面料类型" value={self.new_fabric_type.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("fabric_type".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="染料" value={self.new_dyes.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("dyes".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="温度(℃)" type="number" value={self.new_temp_c.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("temp_c".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                                <input class="form-input" placeholder="时间(分)" type="number" value={self.new_time_mins.clone()} onchange={ctx.link().callback(|e: Event| Msg::UpdateNewField("time_mins".into(), e.target_unchecked_into::<web_sys::HtmlInputElement>().value()))} />
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>{"取消"}</button>
+                                <button class="btn-success" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>{"保存"}</button>
+                            </div>
+                        </div>
+                    }
+
+                    {self.render_table(ctx)}
                 </div>
-
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>{"配方编号："}</label>
-                        <input type="text" placeholder="请输入配方编号"
-                            value={self.filter_recipe_no.clone()}
-                            onchange={on_recipe_no_change}
-                        />
-                    </div>
-                    <div class="filter-item">
-                        <label>{"色号："}</label>
-                        <input type="text" placeholder="请输入色号"
-                            value={self.filter_color_code.clone()}
-                            onchange={on_color_code_change}
-                        />
-                    </div>
-                    <div class="filter-item">
-                        <label>{"状态："}</label>
-                        <select value={self.filter_status.clone()} onchange={on_status_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="草稿">{"草稿"}</option>
-                            <option value="已审核">{"已审核"}</option>
-                        </select>
-                    </div>
-                </div>
-
-                {self.render_content(ctx)}
-
-                if self.show_detail_modal {
-                    {self.render_detail_modal(ctx)}
-                }
-            </div>
-        
-</MainLayout>}
+            </MainLayout>
+        }
     }
 }
 
 impl DyeRecipePage {
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
+    fn render_table(&self, _ctx: &Context<Self>) -> Html {
         if self.loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
+            return html! { <div style="padding: 2rem; text-align: center;">{"加载中..."}</div> };
         }
 
-        if let Some(error) = &self.error {
-            return html! {
-                <div class="error-container">
-                    <div class="error-icon">{"⚠️"}</div>
-                    <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadRecipes)}>
-                        {"重新加载"}
-                    </button>
-                </div>
-            };
-        }
-
-        if self.recipes.is_empty() {
-            return html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"🧪"}</div>
-                    <p>{"暂无配方数据"}</p>
-                </div>
-            };
+        if let Some(err) = &self.error {
+            return html! { <div style="padding: 2rem; color: red; text-align: center;">{err}</div> };
         }
 
         html! {
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
+            <div style="overflow-x: auto; background: var(--surface-color); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead style="background: #f9fafb; border-bottom: 2px solid var(--border-color);">
                         <tr>
-                            <th>{"配方编号"}</th>
-                            <th>{"色号"}</th>
-                            <th>{"颜色名称"}</th>
-                            <th>{"染色类型"}</th>
-                            <th>{"温度(℃)"}</th>
-                            <th>{"时间(分钟)"}</th>
-                            <th>{"浴比"}</th>
-                            <th>{"版本"}</th>
-                            <th>{"状态"}</th>
-                            <th>{"操作"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"配方编号"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"颜色名称"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"面料类型"}</th>
+                            <th style="padding: 0.5rem; text-align: left;">{"染料"}</th>
+                            <th class="numeric-cell" style="padding: 0.5rem;">{"温度(℃)"}</th>
+                            <th class="numeric-cell" style="padding: 0.5rem;">{"时间(分)"}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {for self.recipes.iter().map(|recipe| {
-                            let recipe_id = recipe.id;
-                            let status = recipe.status.clone();
-                            let is_draft = status == "草稿";
+                        {for self.recipes.iter().map(|r| {
                             html! {
-                                <tr>
-                                    <td>{&recipe.recipe_no}</td>
-                                    <td>{&recipe.color_code}</td>
-                                    <td>{&recipe.color_name}</td>
-                                    <td>{recipe.dye_type.as_deref().unwrap_or("-")}</td>
-                                    <td class="numeric">{recipe.temperature.clone().map(|t| format!("{:.1}", t)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{recipe.ph_value.clone().map(|p| format!("{:.1}", p)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{recipe.liquor_ratio.clone().map(|l| format!("1:{}", l)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{format!("V{}", recipe.version.unwrap_or(1))}</td>
-                                    <td>
-                                        <span class={format!("status-badge status-{}", if is_draft { "draft" } else { "approved" })}>
-                                            {&status}
-                                        </span>
-                                    </td>
-                                    <td class="actions">
-                                        <button class="btn-small btn-info"
-                                            onclick={ctx.link().callback(move |_| Msg::ViewRecipe(recipe_id))}>
-                                            {"详情"}
-                                        </button>
-                                        if is_draft {
-                                            <button class="btn-small btn-success"
-                                                onclick={ctx.link().callback(move |_| Msg::ApproveRecipe(recipe_id))}>
-                                                {"审核"}
-                                            </button>
-                                        }
-                                        <button class="btn-small btn-danger"
-                                            onclick={ctx.link().callback(move |_| Msg::DeleteRecipe(recipe_id))}>
-                                            {"删除"}
-                                        </button>
-                                    </td>
+                                <tr style="border-bottom: 1px solid var(--border-color);">
+                                    <td style="padding: 0.5rem;">{&r.recipe_code}</td>
+                                    <td style="padding: 0.5rem;">{&r.color_name}</td>
+                                    <td style="padding: 0.5rem;">{&r.fabric_type}</td>
+                                    <td style="padding: 0.5rem;">{&r.dyes}</td>
+                                    <td class="numeric-cell" style="padding: 0.5rem;">{r.temp_c}</td>
+                                    <td class="numeric-cell" style="padding: 0.5rem;">{r.time_mins}</td>
                                 </tr>
                             }
                         })}
                     </tbody>
                 </table>
             </div>
-        }
-    }
-
-    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
-        if let Some(recipe) = &self.selected_recipe {
-            html! {
-                <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
-                    <div class="modal-content modal-lg" onclick={|e: MouseEvent| e.stop_propagation()}>
-                        <div class="modal-header">
-                            <h2>{"配方详情"}</h2>
-                            <button class="modal-close" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
-                                {"×"}
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <label>{"配方编号："}</label>
-                                    <span>{&recipe.recipe_no}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"色号："}</label>
-                                    <span>{&recipe.color_code}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"颜色名称："}</label>
-                                    <span>{&recipe.color_name}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"面料类型："}</label>
-                                    <span>{recipe.fabric_type.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"染色类型："}</label>
-                                    <span>{recipe.dye_type.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"温度："}</label>
-                                    <span>{recipe.temperature.clone().map(|t| format!("{}℃", t)).unwrap_or("-".to_string())}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"时间："}</label>
-                                    <span>{recipe.time_minutes.map(|t| format!("{}分钟", t)).unwrap_or("-".to_string())}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"pH值："}</label>
-                                    <span>{recipe.ph_value.clone().map(|p| format!("{:.1}", p)).unwrap_or("-".to_string())}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"浴比："}</label>
-                                    <span>{recipe.liquor_ratio.clone().map(|l| format!("1:{}", l)).unwrap_or("-".to_string())}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>{"版本："}</label>
-                                    <span>{format!("V{}", recipe.version.unwrap_or(1))}</span>
-                                </div>
-                            </div>
-                            if let Some(formula) = &recipe.chemical_formula {
-                                <div class="detail-section">
-                                    <h3>{"化学配方"}</h3>
-                                    <pre>{formula}</pre>
-                                </div>
-                            }
-                            if let Some(aux) = &recipe.auxiliaries {
-                                <div class="detail-section">
-                                    <h3>{"助剂信息"}</h3>
-                                    <pre>{serde_json::to_string_pretty(aux).unwrap_or_default()}</pre>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
-            }
-        } else {
-            html! {}
         }
     }
 }
