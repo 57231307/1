@@ -31,6 +31,7 @@ pub struct CreateProductRequest {
     pub unit: String,
     pub standard_price: Option<f64>,
     pub cost_price: Option<f64>,
+    pub sample_price: Option<f64>,
     pub description: Option<String>,
     pub status: Option<String>,
     // 面料行业字段
@@ -54,6 +55,7 @@ pub struct UpdateProductRequest {
     pub unit: Option<String>,
     pub standard_price: Option<f64>,
     pub cost_price: Option<f64>,
+    pub sample_price: Option<f64>,
     pub description: Option<String>,
     pub status: Option<String>,
     // 面料行业字段
@@ -150,6 +152,7 @@ pub async fn create_product(
             req.unit,
             req.standard_price,
             req.cost_price,
+            req.sample_price,
             req.description,
             req.status.unwrap_or_else(|| "active".to_string()),
             req.product_type,
@@ -184,6 +187,7 @@ pub async fn update_product(
             req.unit,
             req.standard_price,
             req.cost_price,
+            req.sample_price,
             req.description,
             req.status,
             req.product_type,

@@ -1,3 +1,4 @@
+use rust_decimal::prelude::*;
 // 新增服务 gRPC 实现
 //
 // 包含辅助核算、供应商评估、五维查询、库存预留、财务分析等 gRPC 服务实现

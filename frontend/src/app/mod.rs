@@ -93,6 +93,8 @@ pub enum Route {
     ArVerifications,
     #[at("/ar-receipts")]
     ArReceipts,
+    #[at("/color-cards")]
+    ColorCard,
     #[not_found]
     #[at("/404/*path")]
     NotFound,
@@ -142,6 +144,7 @@ fn switch(route: Route) -> Html {
         Route::Inventory => protected_route(|| html! { <InventoryStockPage /> }),
         Route::Sales => protected_route(|| html! { <SalesOrderPage /> }),
         Route::Transfers => protected_route(|| html! { <InventoryTransferPage /> }),
+        Route::ColorCard => html! { <crate::pages::color_card::ColorCardPage /> },
         Route::Counts => protected_route(|| html! { <InventoryCountPage /> }),
         Route::SalesReturns => protected_route(|| html! { <SalesReturnPage /> }),
         Route::Customers => protected_route(|| html! { <CustomerPage /> }),

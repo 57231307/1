@@ -7,7 +7,6 @@
 pub mod config;
 pub mod controllers;
 pub mod database;
-pub mod grpc;
 pub mod handlers;
 pub mod middleware;
 pub mod models;

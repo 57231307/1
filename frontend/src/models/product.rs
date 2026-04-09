@@ -8,8 +8,9 @@ pub struct Product {
     pub category_id: Option<i32>,
     pub specification: Option<String>,
     pub unit: String,
-    pub standard_price: Option<f64>,
+    pub standard_price: Option<f64>, // 大货价
     pub cost_price: Option<f64>,
+    pub sample_price: Option<f64>,   // 剪样价/零剪价
     pub description: Option<String>,
     pub status: String,
     pub created_at: String,

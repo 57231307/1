@@ -60,6 +60,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { name: "客户管理", route: Route::Customers },
                 MenuItem { name: "供应商", route: Route::Suppliers },
                 MenuItem { name: "仓库管理", route: Route::Warehouses },
+                MenuItem { name: "色卡管理", route: Route::ColorCard },
             ],
         },
         MenuGroup {

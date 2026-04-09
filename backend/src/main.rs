@@ -1,7 +1,6 @@
 #![allow(warnings)]
 mod config;
 mod controllers;
-mod grpc;
 mod handlers;
 mod middleware;
 mod models;

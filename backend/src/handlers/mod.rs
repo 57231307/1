@@ -67,3 +67,4 @@ pub mod supplier_evaluation_handler;
 // 面料行业核心模块
 pub mod sales_return_handler;
 pub mod system_update_handler;
+pub mod color_card_handler;

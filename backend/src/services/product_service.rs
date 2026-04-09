@@ -92,6 +92,7 @@ impl ProductService {
         unit: String,
         standard_price: Option<f64>,
         cost_price: Option<f64>,
+        sample_price: Option<f64>,
         description: Option<String>,
         status: String,
         // 面料行业字段
@@ -119,6 +120,7 @@ impl ProductService {
             cost_price: Set(
                 cost_price.map(|p| Decimal::from_f64_retain(p).unwrap_or(Decimal::ZERO))
             ),
+            sample_price: Set(sample_price.map(|p| Decimal::from_f64_retain(p).unwrap_or(Decimal::ZERO))),
             description: Set(description),
             status: Set(status),
             // 面料行业字段
@@ -166,6 +168,7 @@ impl ProductService {
         unit: Option<String>,
         standard_price: Option<f64>,
         cost_price: Option<f64>,
+        sample_price: Option<f64>,
         description: Option<String>,
         status: Option<String>,
         // 面料行业字段

@@ -104,6 +104,7 @@ impl BatchService {
                 unit: Set(req.unit.clone().unwrap_or_else(|| "件".to_string())),
                 standard_price: Set(standard_price),
                 cost_price: Set(cost_price),
+                sample_price: Set(None),
                 description: Set(req.description.clone()),
                 status: Set("active".to_string()),
                 created_at: Set(chrono::Utc::now()),

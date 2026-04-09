@@ -1,3 +1,4 @@
+use rust_decimal::prelude::*;
 use chrono::Datelike;
 // 管理服务 gRPC 实现
 //

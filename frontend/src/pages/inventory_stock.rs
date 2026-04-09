@@ -5,6 +5,12 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 use std::collections::HashMap;
+use web_sys::HtmlInputElement;
+#[derive(Clone, PartialEq, Serialize)]
+pub struct SplitPieceRequest {
+    pub split_length: f64,
+}
+
 
 #[derive(Clone, PartialEq, Deserialize, Serialize)]
 pub struct StockResponse {
@@ -40,11 +46,15 @@ pub fn inventory_stock_page() -> Html {
     let stocks = use_state(|| Vec::<StockResponse>::new());
     let is_loading = use_state(|| true);
     let expanded_rows = use_state(|| HashMap::<i32, bool>::new());
+    let split_modal_open = use_state(|| false);
+    let split_roll_no = use_state(|| String::new());
+    let split_length_val = use_state(|| String::new());
+    let refresh_trigger = use_state(|| 0);
 
     {
         let stocks = stocks.clone();
         let is_loading = is_loading.clone();
-        use_effect_with((), move |_| {
+        use_effect_with(*refresh_trigger, move |_| {
             spawn_local(async move {
                 if let Ok(res) = ApiService::get::<StockFabricListResponse>("/api/v1/erp/inventory/stock-fabric?page=1&page_size=100").await {
                     let mut stocks_list = res.stock;
@@ -69,6 +79,56 @@ pub fn inventory_stock_page() -> Html {
             || ()
         });
     }
+
+
+    let open_split_modal = {
+        let split_modal_open = split_modal_open.clone();
+        let split_roll_no = split_roll_no.clone();
+        let split_length_val = split_length_val.clone();
+        Callback::from(move |roll_no: String| {
+            split_roll_no.set(roll_no);
+            split_length_val.set("".to_string());
+            split_modal_open.set(true);
+        })
+    };
+
+    let close_split_modal = {
+        let split_modal_open = split_modal_open.clone();
+        Callback::from(move |_: MouseEvent| split_modal_open.set(false))
+    };
+
+    let on_split_length_change = {
+        let split_length_val = split_length_val.clone();
+        Callback::from(move |e: Event| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            split_length_val.set(input.value());
+        })
+    };
+
+    let confirm_split = {
+        let split_modal_open = split_modal_open.clone();
+        let split_roll_no = split_roll_no.clone();
+        let split_length_val = split_length_val.clone();
+        let refresh_trigger = refresh_trigger.clone();
+        Callback::from(move |_: MouseEvent| {
+            let roll_no = (*split_roll_no).clone();
+            let length: f64 = (*split_length_val).parse().unwrap_or(0.0);
+            let modal_open = split_modal_open.clone();
+            let refresh = refresh_trigger.clone();
+            
+            if length > 0.0 {
+                spawn_local(async move {
+                    let req = SplitPieceRequest { split_length: length };
+                    let _ = ApiService::post::<RollResponse, SplitPieceRequest>(
+                        &format!("/api/v1/erp/inventory/pieces/{}/split", roll_no), 
+                        &req
+                    ).await;
+                    modal_open.set(false);
+                    refresh.set(*refresh + 1);
+                });
+            }
+        })
+    };
 
     let toggle_row = {
         let expanded = expanded_rows.clone();

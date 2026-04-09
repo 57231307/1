@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS products (
     unit VARCHAR(20) NOT NULL DEFAULT '件',
     standard_price DECIMAL(10,2),
     cost_price DECIMAL(10,2),
+    sample_price DECIMAL(10,2),
     description TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -9561,3 +9562,29 @@ ALTER TABLE system_version ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL 
 
 
 
+CREATE TABLE IF NOT EXISTS color_cards (
+    id SERIAL PRIMARY KEY,
+    card_no VARCHAR(50) NOT NULL UNIQUE,
+    product_id INTEGER NOT NULL REFERENCES products(id),
+    season VARCHAR(50),
+    description TEXT,
+    stock_quantity INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE color_cards IS '色卡主数据表';
+
+CREATE TABLE IF NOT EXISTS color_card_records (
+    id SERIAL PRIMARY KEY,
+    color_card_id INTEGER NOT NULL REFERENCES color_cards(id),
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    issue_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    return_date TIMESTAMPTZ,
+    status VARCHAR(20) DEFAULT 'ISSUED', -- ISSUED, RETURNED, LOST
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE color_card_records IS '色卡发放追踪表';

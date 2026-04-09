@@ -231,10 +231,10 @@ pub fn product_list_page() -> Html {
                                                         <td class="font-bold text-[#1D2129] cursor-pointer hover:text-[#165DFF]">{&product.code}</td>
                                                         <td>{&product.name}</td>
                                                         <td><span class={format!("px-2 py-0.5 rounded text-[12px] {}", badge_class)}>{badge_text}</span></td>
-                                                        <td class="text-[#4E5969]">{"100%棉 / 180g / 170cm"}</td>
+                                                        <td class="text-[#4E5969] text-[12px]">{specs}</td>
                                                         <td class="text-right text-[#1D2129]">
-                                                            <div>{"¥"}{product.standard_price.map(|p| format!("{:.2}", p)).unwrap_or_else(|| "0.00".to_string())}</div>
-                                                            <div class="text-[#86909C] text-[12px]">{"¥"}{product.cost_price.map(|p| format!("{:.2}", p)).unwrap_or_else(|| "0.00".to_string())}</div>
+                                                            <div>{"¥"}{product.standard_price.map(|p| format!("{:.2}", p)).unwrap_or_else(|| "0.00".to_string())} <span class="text-xs text-[#86909C]">{"(大货)"}</span></div>
+                                                            <div class="text-[#86909C] text-[12px]">{"¥"}{product.sample_price.map(|p| format!("{:.2}", p)).unwrap_or_else(|| "0.00".to_string())} <span class="text-xs text-[#86909C]">{"(剪样)"}</span></div>
                                                         </td>
                                                         <td class={format!("text-right {}", stock_class)}>{stock_qty}{" kg"}</td>
                                                         <td class="text-[#4E5969]">{"主仓库 - 针织A区"}</td>

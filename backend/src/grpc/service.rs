@@ -1,3 +1,4 @@
+use rust_decimal::prelude::*;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};

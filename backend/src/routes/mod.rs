@@ -17,7 +17,7 @@ use crate::handlers::{
     finance_payment_handler, financial_analysis_handler, five_dimension_handler,
     fixed_asset_handler, fund_management_handler, health_handler,
     init_handler, inventory_adjustment_handler, inventory_count_handler, inventory_stock_handler,
-    inventory_piece_handler,
+    inventory_piece_handler, color_card_handler,
     inventory_transfer_handler, product_category_handler, product_handler,
     purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
     purchase_price_handler, purchase_receipt_handler, purchase_return_handler,
@@ -235,6 +235,7 @@ pub fn create_router(state: AppState) -> Router {
             get(inventory_stock_handler::list_transactions),
         )
         .route("/pieces", get(inventory_piece_handler::list_pieces))
+        .route("/pieces/:piece_no/split", post(inventory_piece_handler::split_piece))
         .route(
             "/stock/summary",
             get(inventory_stock_handler::get_inventory_summary),
@@ -971,10 +972,12 @@ pub fn create_router(state: AppState) -> Router {
 
     
 
+    let color_card_routes = Router::new()
+        .route("/", get(color_card_handler::list_color_cards).post(color_card_handler::create_color_card))
+        .route("/records", get(color_card_handler::list_color_card_records).post(color_card_handler::issue_color_card));
+
     Router::new()
-        
-        
-        
+        .nest("/api/v1/erp/color-cards", color_card_routes)
         .nest("/api/v1/erp/base/units", unit_routes)
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)

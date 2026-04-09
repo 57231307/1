@@ -22,10 +22,12 @@ pub struct Model {
     pub specification: Option<String>,
     /// 计量单位
     pub unit: String,
-    /// 标准价格
+    /// 大货价/标准售价
     pub standard_price: Option<Decimal>,
     /// 成本价格
     pub cost_price: Option<Decimal>,
+    /// 剪样价/散剪价
+    pub sample_price: Option<Decimal>,
     /// 产品描述
     pub description: Option<String>,
     /// 状态：active-启用，inactive-停用

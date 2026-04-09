@@ -142,3 +142,5 @@ pub mod report_definition;
 pub mod sales_return;
 pub mod sales_return_item;
 pub mod system;
+pub mod color_card;
+pub mod color_card_record;
