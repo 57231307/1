@@ -349,7 +349,8 @@ impl Component for InitPage {
 
                 if let Some(navigator) = _ctx.link().navigator() {
                     let navigator = navigator.clone();
-                    gloo_timers::callback::Timeout::new(2000, move || {
+                    // 等待 10 秒以确保 systemd 完全重启了后端进程
+                    gloo_timers::callback::Timeout::new(10000, move || {
                         navigator.push(&Route::Login);
                     })
                     .forget();
@@ -547,7 +548,7 @@ impl Component for InitPage {
                                         </svg>
                                     </div>
                                     <h2 class="completed-title">{"系统已就绪！"}</h2>
-                                    <p class="completed-text">{"秉羲管理系统已成功配置，您现在可以开始使用了。"}</p>
+                                    <p class="completed-text">{"秉羲管理系统已成功配置，服务器正在重启，约需 10 秒钟，请稍候..."}</p>
 
                                     <div class="completed-info">
                                         <div class="info-item">
@@ -561,7 +562,7 @@ impl Component for InitPage {
                                     </div>
 
                                     <button class="btn btn-primary btn-large" onclick={onlogin}>
-                                        {"前往登录"}
+                                        {"立即前往登录"}
                                     </button>
                                 </div>
                             </div>

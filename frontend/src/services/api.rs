@@ -143,7 +143,18 @@ impl ApiService {
                 .text()
                 .await
                 .unwrap_or_else(|_| "未知错误".to_string());
-            Err(format!("请求失败 ({}): {}", status, error_text))
+                
+            let friendly_error = if error_text.contains("<html") || error_text.contains("502 Bad Gateway") {
+                if status == 502 {
+                    "服务器正在重启或暂时不可用，请稍后重试 (502)".to_string()
+                } else {
+                    format!("服务器返回了无效的格式 (HTTP {})", status)
+                }
+            } else {
+                error_text
+            };
+            
+            Err(format!("请求失败 ({}): {}", status, friendly_error))
         }
     }
 }
