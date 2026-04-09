@@ -1,8 +1,35 @@
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
+use wasm_bindgen::JsCast;
 
 #[function_component(DashboardPage)]
 pub fn dashboard_page() -> Html {
+    let is_mobile = use_state(|| {
+        window().unwrap().inner_width().unwrap().as_f64().unwrap() < 768.0
+    });
+    let active_chart_tab = use_state(|| "trend".to_string());
+
+    {
+        let is_mobile = is_mobile.clone();
+        use_effect_with((), move |_| {
+            let win = window().unwrap();
+            let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
+                is_mobile.set(window().unwrap().inner_width().unwrap().as_f64().unwrap() < 768.0);
+            }) as Box<dyn FnMut()>);
+            win.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref()).unwrap();
+            closure.forget();
+            || ()
+        });
+    }
+
+    let on_chart_tab_change = {
+        let active_chart_tab = active_chart_tab.clone();
+        Callback::from(move |tab: &str| {
+            active_chart_tab.set(tab.to_string());
+        })
+    };
+
     html! {
         <MainLayout current_page="仪表板">
             <div class="space-y-4 md:space-y-6">
@@ -137,35 +164,77 @@ pub fn dashboard_page() -> Html {
                 </div>
 
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                    
-                    <div class="card bg-white p-0">
-                        <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129] flex justify-between items-center">
-                            {"近7日销售趋势"}
-                            <select class="w-24 h-7 text-xs py-0 border-[#E5E6EB] rounded">
-                                <option>{"销售额"}</option>
-                                <option>{"订单数"}</option>
-                            </select>
+                if *is_mobile {
+                    <div class="card bg-white p-0 pb-20">
+                        <div class="flex items-center justify-between p-2 border-b border-[#E5E6EB] bg-[#F5F7FA] text-[14px]">
+                            <button
+                                onclick={let on_chart_tab_change = on_chart_tab_change.clone(); Callback::from(move |_| on_chart_tab_change.emit("trend"))}
+                                class={format!("flex-1 py-2 text-center rounded transition-colors {}", if *active_chart_tab == "trend" { "bg-white text-[#165DFF] shadow-sm font-bold" } else { "text-[#4E5969]" })}>
+                                {"销售趋势"}
+                            </button>
+                            <button
+                                onclick={let on_chart_tab_change = on_chart_tab_change.clone(); Callback::from(move |_| on_chart_tab_change.emit("ratio"))}
+                                class={format!("flex-1 py-2 text-center rounded transition-colors {}", if *active_chart_tab == "ratio" { "bg-white text-[#165DFF] shadow-sm font-bold" } else { "text-[#4E5969]" })}>
+                                {"品类占比"}
+                            </button>
+                            <button
+                                onclick={let on_chart_tab_change = on_chart_tab_change.clone(); Callback::from(move |_| on_chart_tab_change.emit("top10"))}
+                                class={format!("flex-1 py-2 text-center rounded transition-colors {}", if *active_chart_tab == "top10" { "bg-white text-[#165DFF] shadow-sm font-bold" } else { "text-[#4E5969]" })}>
+                                {"热销面料"}
+                            </button>
                         </div>
-                        <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
-                            {"[折线图表占位]"}
+                        <div class="p-4">
+                            if *active_chart_tab == "trend" {
+                                <div class="flex justify-end mb-2">
+                                    <select class="w-24 h-7 text-xs py-0 border-[#E5E6EB] rounded">
+                                        <option>{"销售额"}</option>
+                                        <option>{"订单数"}</option>
+                                    </select>
+                                </div>
+                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded text-[#86909C] text-sm">
+                                    {"[折线图表占位]"}
+                                </div>
+                            } else if *active_chart_tab == "ratio" {
+                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded text-[#86909C] text-sm mt-4">
+                                    {"[饼图占位]"}
+                                </div>
+                            } else if *active_chart_tab == "top10" {
+                                <div class="h-48 flex items-center justify-center bg-[#F5F7FA] rounded text-[#86909C] text-sm mt-4">
+                                    {"[横向柱状图占位]"}
+                                </div>
+                            }
                         </div>
                     </div>
-                    
-                    <div class="card bg-white p-0">
-                        <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"针织/梭织销量占比"}</div>
-                        <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
-                            {"[饼图占位]"}
+                } else {
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                        <div class="card bg-white p-0">
+                            <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129] flex justify-between items-center">
+                                {"近7日销售趋势"}
+                                <select class="w-24 h-7 text-xs py-0 border-[#E5E6EB] rounded">
+                                    <option>{"销售额"}</option>
+                                    <option>{"订单数"}</option>
+                                </select>
+                            </div>
+                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
+                                {"[折线图表占位]"}
+                            </div>
+                        </div>
+
+                        <div class="card bg-white p-0">
+                            <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"针织/梭织销量占比"}</div>
+                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
+                                {"[饼图占位]"}
+                            </div>
+                        </div>
+
+                        <div class="card bg-white p-0">
+                            <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"热销面料 TOP 10"}</div>
+                            <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
+                                {"[横向柱状图占位]"}
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="card bg-white p-0">
-                        <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"热销面料 TOP 10"}</div>
-                        <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
-                            {"[横向柱状图占位]"}
-                        </div>
-                    </div>
-                </div>
+                }
 
             </div>
         </MainLayout>

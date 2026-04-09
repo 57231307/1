@@ -207,8 +207,8 @@ pub fn product_list_page() -> Html {
                                                     <tr key={product.id}>
                                                         <td class="text-center text-[#86909C]">{index + 1}</td>
                                                         <td>
-                                                            <div class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 cursor-pointer hover:opacity-80">
-                                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                            <div class="w-20 h-20 bg-gray-200 rounded flex items-center justify-center text-gray-400 cursor-pointer hover:opacity-80">
+                                                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                                             </div>
                                                         </td>
                                                         <td class="font-bold text-[#1D2129] cursor-pointer hover:text-[#165DFF]">{&product.code}</td>
@@ -225,7 +225,8 @@ pub fn product_list_page() -> Html {
                                                             <div class="flex items-center justify-center gap-2">
                                                                 <button class="text-[#165DFF] hover:text-[#0F4CD0] text-[14px]">{"查看"}</button>
                                                                 <button class="text-[#165DFF] hover:text-[#0F4CD0] text-[14px]">{"编辑"}</button>
-                                                                <button class="text-[#165DFF] hover:text-[#0F4CD0] text-[14px]">{"打印"}</button>
+                                                                <button class="text-[#165DFF] hover:text-[#0F4CD0] text-[14px]">{"打印标签"}</button>
+                                                                <button class="text-[#F53F3F] hover:text-[#E03535] text-[14px]">{"删除"}</button>
                                                             </div>
                                                         </td>
                                                     </tr>
