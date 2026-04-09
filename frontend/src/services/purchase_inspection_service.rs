@@ -34,14 +34,14 @@ impl PurchaseInspectionService {
         };
 
         let response: ApiResponse<InspectionListResponse> =
-            ApiService::get(&format!("/purchase-inspections{}", query_string)).await?;
+            ApiService::get(&format!("/purchases/inspections{}", query_string)).await?;
         response.into_result()
     }
 
     /// 获取检验单详情
     pub async fn get(id: i32) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
-            ApiService::get(&format!("/purchase-inspections/{}", id)).await?;
+            ApiService::get(&format!("/purchases/inspections/{}", id)).await?;
         response.into_result()
     }
 
@@ -50,7 +50,7 @@ impl PurchaseInspectionService {
         req: CreatePurchaseInspectionRequest,
     ) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
-            ApiService::post("/purchase-inspections", &req).await?;
+            ApiService::post("/purchases/inspections", &req).await?;
         response.into_result()
     }
 
@@ -61,7 +61,7 @@ impl PurchaseInspectionService {
         req: UpdatePurchaseInspectionRequest,
     ) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
-            ApiService::put(&format!("/purchase-inspections/{}", id), &req).await?;
+            ApiService::put(&format!("/purchases/inspections/{}", id), &req).await?;
         response.into_result()
     }
 
@@ -71,7 +71,7 @@ impl PurchaseInspectionService {
         req: CompleteInspectionRequest,
     ) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
-            ApiService::post(&format!("/purchase-inspections/{}/complete", id), &req).await?;
+            ApiService::post(&format!("/purchases/inspections/{}/complete", id), &req).await?;
         response.into_result()
     }
 }

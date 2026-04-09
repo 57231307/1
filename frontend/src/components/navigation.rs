@@ -105,6 +105,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { title: "固定资产", route: Route::FixedAssets },
                 MenuItem { title: "成本归集", route: Route::CostCollections },
                 MenuItem { title: "五维数据", route: Route::FiveDimensions },
+                MenuItem { title: "单位换算", route: Route::DualUnitConverter },
                 MenuItem { title: "财务分析", route: Route::FinancialAnalysis },
             ]
         },
@@ -117,6 +118,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { title: "应付付款", route: Route::ApPayments },
                 MenuItem { title: "应付核销", route: Route::ApVerifications },
                 MenuItem { title: "应付对账", route: Route::ApReconciliations },
+                MenuItem { title: "应付报表", route: Route::ApReports },
                 MenuItem { title: "应收发票", route: Route::ArInvoices },
                 MenuItem { title: "发票管理", route: Route::FinanceInvoices },
                 MenuItem { title: "收付款", route: Route::FinancePayments },

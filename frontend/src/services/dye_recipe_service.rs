@@ -35,9 +35,9 @@ impl DyeRecipeService {
         }
 
         let url = if params.is_empty() {
-            String::from("/dye-recipe")
+            String::from("/dye-recipes")
         } else {
-            format!("/dye-recipe?{}", params.join("&"))
+            format!("/dye-recipes?{}", params.join("&"))
         };
         let response: ApiResponse<DyeRecipeListResponse> = ApiService::get(&url).await?;
         response.into_result()
@@ -45,34 +45,34 @@ impl DyeRecipeService {
 
     pub async fn get(id: i32) -> Result<DyeRecipe, String> {
         let response: ApiResponse<DyeRecipe> =
-            ApiService::get(&format!("/dye-recipe/{}", id)).await?;
+            ApiService::get(&format!("/dye-recipes/{}", id)).await?;
         response.into_result()
     }
 
     pub async fn create(req: CreateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::post("/dye-recipe", &req).await?;
+        let response: ApiResponse<DyeRecipe> = ApiService::post("/dye-recipes", &req).await?;
         response.into_result()
     }
 
     pub async fn update(id: i32, req: UpdateDyeRecipeRequest) -> Result<DyeRecipe, String> {
         let response: ApiResponse<DyeRecipe> =
-            ApiService::put(&format!("/dye-recipe/{}", id), &req).await?;
+            ApiService::put(&format!("/dye-recipes/{}", id), &req).await?;
         response.into_result()
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/dye-recipe/{}", id)).await
+        ApiService::delete(&format!("/dye-recipes/{}", id)).await
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {
         let response: ApiResponse<DyeRecipe> =
-            ApiService::post(&format!("/dye-recipe/{}/approve", id), &req).await?;
+            ApiService::post(&format!("/dye-recipes/{}/approve", id), &req).await?;
         response.into_result()
     }
 
     pub async fn create_version(id: i32, req: CreateVersionRequest) -> Result<DyeRecipe, String> {
         let response: ApiResponse<DyeRecipe> =
-            ApiService::post(&format!("/dye-recipe/{}/version", id), &req).await?;
+            ApiService::post(&format!("/dye-recipes/{}/version", id), &req).await?;
         response.into_result()
     }
 }

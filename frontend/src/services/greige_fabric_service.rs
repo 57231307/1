@@ -38,9 +38,9 @@ impl GreigeFabricService {
         }
 
         let url = if params.is_empty() {
-            String::from("/greige-fabric")
+            String::from("/greige-fabrics")
         } else {
-            format!("/greige-fabric?{}", params.join("&"))
+            format!("/greige-fabrics?{}", params.join("&"))
         };
         let response: ApiResponse<GreigeFabricListResponse> = ApiService::get(&url).await?;
         response.into_result()
@@ -48,34 +48,34 @@ impl GreigeFabricService {
 
     pub async fn get(id: i32) -> Result<GreigeFabric, String> {
         let response: ApiResponse<GreigeFabric> =
-            ApiService::get(&format!("/greige-fabric/{}", id)).await?;
+            ApiService::get(&format!("/greige-fabrics/{}", id)).await?;
         response.into_result()
     }
 
     pub async fn create(req: CreateGreigeFabricRequest) -> Result<GreigeFabric, String> {
-        let response: ApiResponse<GreigeFabric> = ApiService::post("/greige-fabric", &req).await?;
+        let response: ApiResponse<GreigeFabric> = ApiService::post("/greige-fabrics", &req).await?;
         response.into_result()
     }
 
     pub async fn update(id: i32, req: UpdateGreigeFabricRequest) -> Result<GreigeFabric, String> {
         let response: ApiResponse<GreigeFabric> =
-            ApiService::put(&format!("/greige-fabric/{}", id), &req).await?;
+            ApiService::put(&format!("/greige-fabrics/{}", id), &req).await?;
         response.into_result()
     }
 
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/greige-fabric/{}", id)).await
+        ApiService::delete(&format!("/greige-fabrics/{}", id)).await
     }
 
     pub async fn stock_in(id: i32, req: StockInRequest) -> Result<GreigeFabric, String> {
         let response: ApiResponse<GreigeFabric> =
-            ApiService::post(&format!("/greige-fabric/{}/stock-in", id), &req).await?;
+            ApiService::post(&format!("/greige-fabrics/{}/stock-in", id), &req).await?;
         response.into_result()
     }
 
     pub async fn stock_out(id: i32, req: StockOutRequest) -> Result<GreigeFabric, String> {
         let response: ApiResponse<GreigeFabric> =
-            ApiService::post(&format!("/greige-fabric/{}/stock-out", id), &req).await?;
+            ApiService::post(&format!("/greige-fabrics/{}/stock-out", id), &req).await?;
         response.into_result()
     }
 }

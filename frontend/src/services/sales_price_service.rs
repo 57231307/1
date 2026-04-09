@@ -46,46 +46,46 @@ impl SalesPriceService {
         };
 
         let response: ApiResponse<Vec<SalesPrice>> =
-            ApiService::get(&format!("/sales/prices{}", query)).await?;
+            ApiService::get(&format!("/sales-prices{}", query)).await?;
         response.into_result()
     }
 
     /// 获取销售价格详情
     pub async fn get(id: i32) -> Result<SalesPrice, String> {
         let response: ApiResponse<SalesPrice> =
-            ApiService::get(&format!("/sales/prices/{}", id)).await?;
+            ApiService::get(&format!("/sales-prices/{}", id)).await?;
         response.into_result()
     }
 
     /// 创建销售价格
     pub async fn create(req: CreateSalesPriceRequest) -> Result<SalesPrice, String> {
-        let response: ApiResponse<SalesPrice> = ApiService::post("/sales/prices", &req).await?;
+        let response: ApiResponse<SalesPrice> = ApiService::post("/sales-prices", &req).await?;
         response.into_result()
     }
 
     /// 更新销售价格
     pub async fn update(id: i32, req: UpdateSalesPriceRequest) -> Result<SalesPrice, String> {
         let response: ApiResponse<SalesPrice> =
-            ApiService::put(&format!("/sales/prices/{}", id), &req).await?;
+            ApiService::put(&format!("/sales-prices/{}", id), &req).await?;
         response.into_result()
     }
 
     /// 删除销售价格
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/sales/prices/{}", id)).await
+        ApiService::delete(&format!("/sales-prices/{}", id)).await
     }
 
     /// 审批销售价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<SalesPrice, String> {
         let response: ApiResponse<SalesPrice> =
-            ApiService::post(&format!("/sales/prices/{}/approve", id), &req).await?;
+            ApiService::post(&format!("/sales-prices/{}/approve", id), &req).await?;
         response.into_result()
     }
 
     /// 获取客户价格等级
     pub async fn get_customer_price_level(customer_type: &str) -> Result<Vec<SalesPrice>, String> {
         let response: ApiResponse<Vec<SalesPrice>> =
-            ApiService::get(&format!("/sales/prices/customer-level/{}", customer_type)).await?;
+            ApiService::get(&format!("/sales-prices/customer-level/{}", customer_type)).await?;
         response.into_result()
     }
 
@@ -98,7 +98,7 @@ impl SalesPriceService {
         };
 
         let response: ApiResponse<Vec<SalesPrice>> =
-            ApiService::get(&format!("/sales/prices/strategies{}", query)).await?;
+            ApiService::get(&format!("/sales-prices/strategies{}", query)).await?;
         response.into_result()
     }
 }

@@ -13,7 +13,7 @@ pub struct FixedAssetService;
 impl FixedAssetService {
     /// 获取资产列表
     pub async fn list_assets(params: AssetQueryParams) -> Result<AssetListResponse, String> {
-        let mut url = String::from("/assets");
+        let mut url = String::from("/fixed-assets");
         let mut query_params = Vec::new();
 
         if let Some(keyword) = &params.keyword {
@@ -42,32 +42,32 @@ impl FixedAssetService {
 
     /// 获取资产详情
     pub async fn get_asset(id: i32) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::get(&format!("/assets/{}", id)).await?;
+        let response: ApiResponse<FixedAsset> = ApiService::get(&format!("/fixed-assets/{}", id)).await?;
         response.into_result()
     }
 
     /// 创建资产
     pub async fn create_asset(req: CreateAssetRequest) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::post("/assets", &req).await?;
+        let response: ApiResponse<FixedAsset> = ApiService::post("/fixed-assets", &req).await?;
         response.into_result()
     }
 
     /// 计提折旧
     pub async fn depreciate_asset(id: i32, req: DepreciateRequest) -> Result<FixedAsset, String> {
         let response: ApiResponse<FixedAsset> =
-            ApiService::post(&format!("/assets/{}/depreciate", id), &req).await?;
+            ApiService::post(&format!("/fixed-assets/{}/depreciate", id), &req).await?;
         response.into_result()
     }
 
     /// 处置资产
     pub async fn dispose_asset(id: i32, req: DisposalRequest) -> Result<FixedAsset, String> {
         let response: ApiResponse<FixedAsset> =
-            ApiService::post(&format!("/assets/{}/dispose", id), &req).await?;
+            ApiService::post(&format!("/fixed-assets/{}/dispose", id), &req).await?;
         response.into_result()
     }
 
     /// 删除资产
     pub async fn delete_asset(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/assets/{}", id)).await
+        ApiService::delete(&format!("/fixed-assets/{}", id)).await
     }
 }

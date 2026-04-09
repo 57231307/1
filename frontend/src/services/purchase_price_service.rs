@@ -43,40 +43,40 @@ impl PurchasePriceService {
         };
 
         let response: ApiResponse<Vec<PurchasePrice>> =
-            ApiService::get(&format!("/purchases/prices{}", query)).await?;
+            ApiService::get(&format!("/purchase-prices{}", query)).await?;
         response.into_result()
     }
 
     /// 获取采购价格详情
     pub async fn get(id: i32) -> Result<PurchasePrice, String> {
         let response: ApiResponse<PurchasePrice> =
-            ApiService::get(&format!("/purchases/prices/{}", id)).await?;
+            ApiService::get(&format!("/purchase-prices/{}", id)).await?;
         response.into_result()
     }
 
     /// 创建采购价格
     pub async fn create(req: CreatePurchasePriceRequest) -> Result<PurchasePrice, String> {
         let response: ApiResponse<PurchasePrice> =
-            ApiService::post("/purchases/prices", &req).await?;
+            ApiService::post("/purchase-prices", &req).await?;
         response.into_result()
     }
 
     /// 更新采购价格
     pub async fn update(id: i32, req: UpdatePurchasePriceRequest) -> Result<PurchasePrice, String> {
         let response: ApiResponse<PurchasePrice> =
-            ApiService::put(&format!("/purchases/prices/{}", id), &req).await?;
+            ApiService::put(&format!("/purchase-prices/{}", id), &req).await?;
         response.into_result()
     }
 
     /// 删除采购价格
     pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/purchases/prices/{}", id)).await
+        ApiService::delete(&format!("/purchase-prices/{}", id)).await
     }
 
     /// 审批采购价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<PurchasePrice, String> {
         let response: ApiResponse<PurchasePrice> =
-            ApiService::post(&format!("/purchases/prices/{}/approve", id), &req).await?;
+            ApiService::post(&format!("/purchase-prices/{}/approve", id), &req).await?;
         response.into_result()
     }
 
@@ -87,7 +87,7 @@ impl PurchasePriceService {
         limit: i64,
     ) -> Result<Vec<PurchasePrice>, String> {
         let response: ApiResponse<Vec<PurchasePrice>> = ApiService::get(&format!(
-            "/purchases/prices/history/{}/{}?limit={}",
+            "/purchase-prices/history/{}/{}?limit={}",
             product_id, supplier_id, limit
         ))
         .await?;
@@ -100,7 +100,7 @@ impl PurchasePriceService {
         supplier_id: i32,
     ) -> Result<PriceTrendAnalysis, String> {
         let response: ApiResponse<PriceTrendAnalysis> = ApiService::get(&format!(
-            "/purchases/prices/trend/{}/{}",
+            "/purchase-prices/trend/{}/{}",
             product_id, supplier_id
         ))
         .await?;
