@@ -116,10 +116,10 @@ impl Component for LoginPage {
                 self.is_loading = false;
                 Storage::set_token(&token);
                 // 登录成功后清除 just_initialized 标志
-                if let Ok(Some(storage)) = web_sys::window().map(|w| w.session_storage()) {
+                if let Some(Ok(Some(storage))) = web_sys::window().map(|w| w.session_storage()) {
                     let _ = storage.remove_item("just_initialized");
                 }
-                // 跳转到仪表板
+                // 登录成功，跳转到仪表板
                 if let Some(navigator) = _ctx.link().navigator() {
                     navigator.push(&Route::Dashboard);
                 }
