@@ -1,3 +1,5 @@
+pub mod ar_receipt_handler;
+pub mod ar_verification_handler;
 pub mod account_subject_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;

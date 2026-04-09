@@ -1,4 +1,6 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+pub mod ar_receipt;
+pub mod ar_verification;
+#[allow(dead_code, unused_imports, unused_variables)]
 pub mod customer;
 pub mod department;
 pub mod dto;

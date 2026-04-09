@@ -1,3 +1,5 @@
+pub mod ar_receipt_service;
+pub mod ar_verification_service;
 pub mod assist_accounting_service;
 pub mod auth_service;
 pub mod batch_service;
