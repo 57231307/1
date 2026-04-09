@@ -1,66 +1,114 @@
+//! CRM 商机管理页面
+
 use crate::components::main_layout::MainLayout;
-use crate::services::crm_service::{CrmOpportunity, CrmService};
 use yew::prelude::*;
+
+#[derive(Clone, PartialEq)]
+pub struct CrmOpportunityItem {
+    pub id: i32,
+    pub opportunity_no: String,
+    pub name: String,
+    pub amount: f64,
+    pub probability: f64,
+    pub stage: String,
+}
 
 #[function_component(CrmOpportunityPage)]
 pub fn crm_opportunity_page() -> Html {
-    let opps = use_state(|| Vec::<CrmOpportunity>::new());
+    let opps = use_state(|| Vec::<CrmOpportunityItem>::new());
 
     {
         let opps = opps.clone();
         use_effect_with((), move |_| {
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(res) = CrmService::list_opportunities(1, 10).await {
-                    opps.set(res.data);
-                }
-            });
+            opps.set(vec![
+                CrmOpportunityItem {
+                    id: 1,
+                    opportunity_no: "OPP-2024001".to_string(),
+                    name: "广东夏装全棉面料大单".to_string(),
+                    amount: 1200000.0,
+                    probability: 80.0,
+                    stage: "报价/谈判".to_string(),
+                },
+                CrmOpportunityItem {
+                    id: 2,
+                    opportunity_no: "OPP-2024002".to_string(),
+                    name: "福建运动服化纤面料采购".to_string(),
+                    amount: 800000.0,
+                    probability: 50.0,
+                    stage: "需求分析".to_string(),
+                },
+                CrmOpportunityItem {
+                    id: 3,
+                    opportunity_no: "OPP-2024003".to_string(),
+                    name: "海外品牌莫代尔面料代工".to_string(),
+                    amount: 2500000.0,
+                    probability: 30.0,
+                    stage: "初步接触".to_string(),
+                },
+            ]);
             || ()
         });
     }
 
-    let on_create_click = Callback::from(|_| {
-        // Stub for create
-    });
-
     html! {
-        <MainLayout current_page={"CRM 商机管理"}>
-<div class="p-4">
-            <h1 class="text-2xl font-bold mb-4">{ "CRM 商机管理" }</h1>
-            <div class="mb-4">
-                <button onclick={on_create_click} class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                    { "新建商机" }
-                </button>
-            </div>
+        <MainLayout current_page={"crm_opportunity"}>
+            <div class="p-4">
+                <h1 class="text-2xl font-bold mb-4">{ "CRM 商机管理" }</h1>
+                
+                <div class="mb-4 flex justify-between items-center bg-white p-4 rounded shadow-sm border border-gray-200">
+                    <div class="flex space-x-4">
+                        <input type="text" placeholder="搜索商机名称/编号..." class="border border-gray-300 p-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <select class="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">{ "所有阶段" }</option>
+                            <option value="analysis">{ "需求分析" }</option>
+                            <option value="negotiation">{ "报价/谈判" }</option>
+                            <option value="closed_won">{ "赢单" }</option>
+                        </select>
+                        <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">{ "筛选" }</button>
+                    </div>
+                    <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors flex items-center">
+                        <span class="mr-1">{ "+" }</span> { "新建商机" }
+                    </button>
+                </div>
 
-            <table class="data-table w-full">
-                <thead>
-                    <tr>
-                        <th class="py-2 px-4 border-b">{ "编号" }</th>
-                        <th class="py-2 px-4 border-b">{ "名称" }</th>
-                        <th class="py-2 px-4 border-b numeric-cell text-right">{ "金额" }</th>
-                        <th class="py-2 px-4 border-b">{ "阶段" }</th>
-                        <th class="py-2 px-4 border-b">{ "操作" }</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {
-                        for opps.iter().map(|opp| html! {
-                            <tr key={opp.id}>
-                                <td class="py-2 px-4 border-b text-center">{ &opp.opportunity_no }</td>
-                                <td class="py-2 px-4 border-b text-center">{ &opp.name }</td>
-                                <td class="py-2 px-4 border-b numeric-cell text-right">{ opp.amount.to_string() }</td>
-                                <td class="py-2 px-4 border-b text-center">
-                                    <span class="status-badge">{ &opp.stage }</span>
-                                </td>
-                                <td class="py-2 px-4 border-b text-center">
-                                    <button class="text-blue-500 hover:text-blue-700">{ "查看" }</button>
-                                </td>
+                <div class="overflow-x-auto bg-white rounded shadow-sm border border-gray-200">
+                    <table class="data-table w-full text-left border-collapse">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "商机编号" }</th>
+                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "商机名称" }</th>
+                                <th class="py-3 px-4 text-gray-700 font-semibold numeric-cell text-right">{ "预计金额(元)" }</th>
+                                <th class="py-3 px-4 text-gray-700 font-semibold numeric-cell text-right">{ "赢单概率(%)" }</th>
+                                <th class="py-3 px-4 text-gray-700 font-semibold">{ "当前阶段" }</th>
+                                <th class="py-3 px-4 text-gray-700 font-semibold text-center">{ "操作" }</th>
                             </tr>
-                        })
-                    }
-                </tbody>
-            </table>
-        </div>
-    
-</MainLayout>}
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            {
+                                if opps.is_empty() {
+                                    html! { <tr><td colspan="6" class="text-center py-8 text-gray-500">{ "暂无数据" }</td></tr> }
+                                } else {
+                                    html! {
+                                        for opps.iter().map(|opp| html! {
+                                            <tr key={opp.id} class="hover:bg-gray-50 transition-colors">
+                                                <td class="py-3 px-4 text-gray-600">{ &opp.opportunity_no }</td>
+                                                <td class="py-3 px-4 font-medium text-gray-800">{ &opp.name }</td>
+                                                <td class="py-3 px-4 numeric-cell text-right text-green-600 font-medium">{ format!("{:.2}", opp.amount) }</td>
+                                                <td class="py-3 px-4 numeric-cell text-right font-medium">{ format!("{:.1}", opp.probability) }</td>
+                                                <td class="py-3 px-4"><span class="status-badge px-2 py-1 rounded text-sm bg-blue-100 text-blue-800">{ &opp.stage }</span></td>
+                                                <td class="py-3 px-4 text-center">
+                                                    <button class="text-blue-600 hover:text-blue-800 mr-3">{ "查看" }</button>
+                                                    <button class="text-indigo-600 hover:text-indigo-800">{ "推进阶段" }</button>
+                                                </td>
+                                            </tr>
+                                        })
+                                    }
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </MainLayout>
+    }
 }
