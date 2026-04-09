@@ -202,7 +202,7 @@ impl Component for LoginPage {
                     </form>
 
                     <div class="login-footer">
-                        <p>{"秉羲管理系统 v1.0.0"}</p>
+                        <p>{format!("秉羲管理系统 v{}", env!("CARGO_PKG_VERSION"))}</p>
                     </div>
                 </div>
             </div>

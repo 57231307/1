@@ -553,7 +553,7 @@ impl Component for InitPage {
                                     <div class="completed-info">
                                         <div class="info-item">
                                             <span class="info-label">{"系统版本"}</span>
-                                            <span class="info-value">{"v1.0.0"}</span>
+                                            <span class="info-value">{format!("v{}", env!("CARGO_PKG_VERSION"))}</span>
                                         </div>
                                         <div class="info-item">
                                             <span class="info-label">{"数据库"}</span>
@@ -838,7 +838,7 @@ impl Component for InitPage {
 
                     // 页脚
                     <div class="init-footer">
-                        <p>{"秉羲管理系统 v1.0.0"}</p>
+                        <p>{format!("秉羲管理系统 v{}", env!("CARGO_PKG_VERSION"))}</p>
                         <p class="footer-link">{"需要帮助？查看文档"}</p>
                     </div>
                 </div>

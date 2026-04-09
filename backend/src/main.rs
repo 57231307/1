@@ -188,6 +188,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv_override().ok();
 
     let settings = AppSettings::new()?;
+    
+    // 强制打印出当前加载的数据库连接，用于排查
+    // println!("=== DATABASE CONFIG ===");
+    // println!("Connection string: {}", settings.database.connection_string);
+    // println!("=======================");
 
     let _log_level = settings.log.level.parse::<Level>()?;
     let log_dir = &settings.log.dir;
