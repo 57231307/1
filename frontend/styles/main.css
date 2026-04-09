@@ -9,7 +9,7 @@
     --success-color: #10B981; /* Emerald 500 */
     --danger-color: #EF4444; /* Red 500 */
     --warning-color: #F59E0B; /* Amber 500 */
-    --background-color: #F9FAFB; /* Gray 50 */
+    --background-color: #ffffff; /* Changed to pure white */
     --surface-color: #FFFFFF;
     --border-color: #E5E7EB; /* Gray 200 */
     --text-primary: #111827; /* Gray 900 */
@@ -157,7 +157,7 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #ffffff;
 }
 
 .login-box {
@@ -274,6 +274,7 @@ body {
     min-height: 100vh;
     position: relative;
     overflow: hidden;
+    background-color: #ffffff;
 }
 
 .init-background {
@@ -282,7 +283,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background: #ffffff;
     z-index: 0;
 }
 
