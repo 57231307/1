@@ -1,5 +1,27 @@
 use config::{Config, ConfigError, File};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+
+// 辅助函数：将逗号分隔的字符串或序列反序列化为 Vec<String>
+fn deserialize_comma_separated<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrVec {
+        String(String),
+        Vec(Vec<String>),
+    }
+
+    match StringOrVec::deserialize(deserializer)? {
+        StringOrVec::Vec(v) => Ok(v),
+        StringOrVec::String(s) => Ok(s
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()),
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct AppSettings {
@@ -158,7 +180,7 @@ fn default_log_dir() -> String { "/var/log/bingxi-erp".to_string() }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
-    #[serde(default = "default_cors")]
+    #[serde(default = "default_cors", deserialize_with = "deserialize_comma_separated")]
     pub allowed_origins: Vec<String>,
 }
 

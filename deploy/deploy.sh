@@ -217,7 +217,12 @@ main() {
     log "INFO" "========================================"
     log "INFO" "后端服务状态: $(systemctl is-active bingxi-backend)"
     log "INFO" "Nginx 服务状态: $(systemctl is-active nginx)"
-    log "INFO" "访问地址: http://$(hostname -I | awk '{print $1}')"
+    # 尝试获取公网 IP（如果失败则回退到本地 IP）
+    PUBLIC_IP=$(curl -s --connect-timeout 2 ifconfig.me | awk '{print $1}')
+    if [ -z "$PUBLIC_IP" ]; then
+        PUBLIC_IP=$(hostname -I | awk '{print $1}')
+    fi
+    log "INFO" "访问地址: http://$PUBLIC_IP"
     log "INFO" "日志目录: $LOG_DIR"
     log "INFO" "部署日志: $DEPLOY_LOG"
     log "INFO" ""

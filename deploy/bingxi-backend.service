@@ -3,6 +3,8 @@
 Description=Bingxi ERP Backend Service (Axum)
 Documentation=https://github.com/bingxi-erp/backend
 After=network.target postgresql.service
+StartLimitBurst=3
+StartLimitIntervalSec=60
 
 [Service]
 # 服务类型
@@ -20,10 +22,6 @@ EnvironmentFile=/etc/bingxi/.env
 # 重启策略（服务失败时自动重启）
 Restart=always
 RestartSec=5
-
-# 启动延迟（等待数据库完全就绪）
-StartLimitBurst=3
-StartLimitIntervalSec=60
 
 # 安全配置 - 以非root用户运行（如果创建了专用用户）
 # User=bingxi
