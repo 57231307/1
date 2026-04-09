@@ -5,6 +5,7 @@ server:
   port: "8082"
 
 database:
+  connection_string: "postgres://postgres:postgres@localhost:5432/bingxi_erp"
   host: "localhost"
   port: 5432
   name: "bingxi_erp"
