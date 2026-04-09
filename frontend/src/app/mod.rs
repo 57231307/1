@@ -1,4 +1,4 @@
-use crate::pages::{sales_delivery::SalesDeliveryPage, inventory_reservation::InventoryReservationPage, operation_log::OperationLogPage,
+use crate::pages::{customer_statement::CustomerStatementPage, sales_delivery::SalesDeliveryPage, inventory_reservation::InventoryReservationPage, operation_log::OperationLogPage,
     crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage, AccountSubjectPage, ApInvoicePage,
     ApPaymentPage, ApPaymentRequestPage, ApReconciliationPage, ApReportPage, ApVerificationPage,
     ArInvoicePage, ArReceiptPage, ArVerificationPage, AssistAccountingPage, BatchPage, BudgetManagementPage, BusinessTracePage, CostCollectionPage,
@@ -22,6 +22,8 @@ pub enum Route {
     SalesDeliveries,
     #[at("/inventory-reservations")]
     InventoryReservations,
+    #[at("/customer-statement")]
+    CustomerStatement,
     #[at("/operation-logs")]
     OperationLogs,
     #[at("/")]
@@ -228,6 +230,7 @@ fn switch(route: Route) -> Html {
         Route::BudgetManagement => protected_route(|| html! { <BudgetManagementPage /> }),
         Route::SalesDeliveries => protected_route(|| html! { <SalesDeliveryPage /> }),
         Route::InventoryReservations => protected_route(|| html! { <InventoryReservationPage /> }),
+        Route::CustomerStatement => protected_route(|| html! { <CustomerStatementPage /> }),
         Route::OperationLogs => protected_route(|| html! { <OperationLogPage /> }),
         Route::NotFound => html! {
             <crate::components::main_layout::MainLayout current_page={"404"}>

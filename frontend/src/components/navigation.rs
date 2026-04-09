@@ -58,6 +58,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { name: "销售合同", route: Route::SalesContracts },
                 MenuItem { name: "销售退货", route: Route::SalesReturns },
                 MenuItem { name: "销售价格", route: Route::SalesPrices },
+                MenuItem { name: "客户对账单", route: Route::CustomerStatement },
                 MenuItem { name: "客户信用", route: Route::CustomerCredits },
                 MenuItem { name: "销售分析", route: Route::SalesAnalysis },
                 MenuItem { name: "CRM线索", route: Route::CrmLeads },

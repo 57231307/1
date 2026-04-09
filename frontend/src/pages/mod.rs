@@ -1,3 +1,5 @@
+pub use customer_statement::CustomerStatementPage;
+pub mod customer_statement;
 pub use sales_delivery::SalesDeliveryPage;
 pub use inventory_reservation::InventoryReservationPage;
 pub use operation_log::OperationLogPage;

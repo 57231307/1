@@ -1,370 +1,91 @@
 use crate::components::main_layout::MainLayout;
-use crate::models::dashboard::{
-    DashboardOverview, InventoryStatistics, LowStockAlert, SalesStatistics,
-};
-use crate::services::dashboard_service::DashboardService;
-use chrono::{Datelike, Timelike};
-use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
-use web_sys::window;
 
-pub struct DashboardPage {
-    overview: Option<DashboardOverview>,
-    low_stock_alerts: Vec<LowStockAlert>,
-    sales_trend: Option<SalesStatistics>,
-    inventory_status: Option<InventoryStatistics>,
-    loading: bool,
-    error: Option<String>,
-    auto_refresh: bool,
-}
-
-pub enum Msg {
-    LoadData,
-    DataLoaded {
-        overview: DashboardOverview,
-        low_stock_alerts: Vec<LowStockAlert>,
-        sales_trend: SalesStatistics,
-        inventory_status: InventoryStatistics,
-    },
-    Error(String),
-    ToggleAutoRefresh,
-    RefreshData,
-}
-
-impl Component for DashboardPage {
-    type Message = Msg;
-    type Properties = ();
-
-    fn create(ctx: &Context<Self>) -> Self {
-        ctx.link().send_message(Msg::LoadData);
-        Self {
-            overview: None,
-            low_stock_alerts: Vec::new(),
-            sales_trend: None,
-            inventory_status: None,
-            loading: true,
-            error: None,
-            auto_refresh: false,
-        }
-    }
-
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::LoadData | Msg::RefreshData => {
-                self.loading = true;
-                let link = _ctx.link().clone();
-                spawn_local(async move {
-                    let now = chrono::Utc::now();
-                    let start_of_month = now
-                        .with_day(1)
-                        .unwrap_or(now)
-                        .with_hour(0)
-                        .unwrap_or(now)
-                        .with_minute(0)
-                        .unwrap_or(now);
-
-                    let overview_result = DashboardService::get_overview(
-                        &start_of_month.format("%Y-%m-%d").to_string(),
-                        &now.format("%Y-%m-%d").to_string(),
-                    )
-                    .await;
-
-                    let alerts_result = DashboardService::get_low_stock_alerts().await;
-                    let sales_trend_result = DashboardService::get_sales_statistics(
-                        &start_of_month.format("%Y-%m-%d").to_string(),
-                        &now.format("%Y-%m-%d").to_string(),
-                    )
-                    .await;
-                    let inventory_status_result =
-                        DashboardService::get_inventory_statistics().await;
-
-                    match (
-                        overview_result,
-                        alerts_result,
-                        sales_trend_result,
-                        inventory_status_result,
-                    ) {
-                        (Ok(overview), Ok(alerts), Ok(sales_trend), Ok(inventory_status)) => {
-                            link.send_message(Msg::DataLoaded {
-                                overview,
-                                low_stock_alerts: alerts,
-                                sales_trend,
-                                inventory_status,
-                            });
-                        }
-                        (Err(e), _, _, _)
-                        | (_, Err(e), _, _)
-                        | (_, _, Err(e), _)
-                        | (_, _, _, Err(e)) => {
-                            link.send_message(Msg::Error(e));
-                        }
-                    }
-                });
-                false
-            }
-            Msg::DataLoaded {
-                overview,
-                low_stock_alerts,
-                sales_trend,
-                inventory_status,
-            } => {
-                self.overview = Some(overview);
-                self.low_stock_alerts = low_stock_alerts;
-                self.sales_trend = Some(sales_trend);
-                self.inventory_status = Some(inventory_status);
-                self.loading = false;
-                true
-            }
-            Msg::Error(e) => {
-                self.error = Some(e);
-                self.loading = false;
-                true
-            }
-            Msg::ToggleAutoRefresh => {
-                self.auto_refresh = !self.auto_refresh;
-                true
-            }
-        }
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <MainLayout current_page={"仪表板"}>
-                <div class="dashboard-page">
-                    <div class="dashboard-header">
-                        <div class="header-left">
-                            <h1>{"📊 管理仪表板"}</h1>
-                            <p class="subtitle">{"欢迎使用秉羲管理系统"}</p>
-                        </div>
-                        <div class="header-right">
-                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::RefreshData)}>
-                                {"🔄 刷新数据"}
-                            </button>
-                            <label class="toggle-switch">
-                                <input
-                                    type="checkbox"
-                                    checked={self.auto_refresh}
-                                    onclick={ctx.link().callback(|_| Msg::ToggleAutoRefresh)}
-                                />
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <span class="toggle-label">{"自动刷新"}</span>
-                        </div>
+#[function_component(DashboardPage)]
+pub fn dashboard_page() -> Html {
+    html! {
+        <MainLayout current_page="仪表板">
+            <div class="space-y-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight text-slate-900">{"概览"}</h2>
+                        <p class="text-sm text-slate-500">{"欢迎回来，这里是您的二批面料贸易管家实时数据。"}</p>
                     </div>
-                    {self.render_content(ctx)}
-                </div>
-            </MainLayout>
-        }
-    }
-}
-
-impl DashboardPage {
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
-        if self.loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
-        }
-
-        if let Some(error) = &self.error {
-            return html! {
-                <div class="error-container">
-                    <div class="error-icon">{"⚠️"}</div>
-                    <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadData)}>
-                        {"重新加载"}
-                    </button>
-                </div>
-            };
-        }
-
-        let overview = match &self.overview {
-            Some(ov) => ov,
-            None => return html! { <div>{"数据加载失败"}</div> },
-        };
-
-        html! {
-            <>
-                // 关键指标卡片
-                <div class="metrics-grid">
-                    {self.render_metric_card("📦", "产品总数", &overview.total_products.to_string(), "所有产品")}
-                    {self.render_metric_card("🏭", "仓库数量", &overview.total_warehouses.to_string(), "活跃仓库")}
-                    {self.render_metric_card("💰", "库存总价值", &overview.total_inventory_value, "当前库存估值")}
-                    {self.render_metric_card("📝", "订单总数", &overview.total_orders.to_string(), "所有订单")}
-                    {self.render_metric_card("⏳", "待处理订单", &overview.pending_orders.to_string(), "等待处理")}
-                    {self.render_metric_card("👥", "活跃用户", &overview.active_users.to_string(), "最近7天登录")}
-                </div>
-
-                // 图表区域
-                <div class="charts-grid">
-                    // 销售趋势图表
-                    <div class="card chart-card">
-                        <div class="card-header">
-                            <h2>{"📈 销售趋势"}</h2>
-                        </div>
-                        <div class="card-body">
-                            {self.render_sales_chart()}
-                        </div>
-                    </div>
-
-                    // 库存状态图表
-                    <div class="card chart-card">
-                        <div class="card-header">
-                            <h2>{"📊 库存状态"}</h2>
-                        </div>
-                        <div class="card-body">
-                            {self.render_inventory_chart()}
-                        </div>
+                    <div class="flex gap-2 mt-4 md:mt-0">
+                        <button class="btn-outline text-sm text-slate-600">{"📅 本月"}</button>
+                        <button class="btn-primary text-sm">{"下载报表"}</button>
                     </div>
                 </div>
 
-                // 低库存预警表格
-                <div class="card">
-                    <div class="card-header">
-                        <h2>{"⚠️ 低库存预警"}</h2>
-                        <span class="badge">{self.low_stock_alerts.len()}</span>
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div class="card p-6 bg-white shadow-sm border-slate-200">
+                        <div class="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-slate-500">{"今日销售总额"}</h3>
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-900">{"¥45,231.89"}</div>
+                        <p class="text-xs text-green-600 font-medium mt-1">{"+20.1% 较昨日"}</p>
                     </div>
-                    <div class="card-body">
-                        {self.render_low_stock_table()}
+                    <div class="card p-6 bg-white shadow-sm border-slate-200">
+                        <div class="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-slate-500">{"待收账款 (AR)"}</h3>
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-900">{"¥124,500.00"}</div>
+                        <p class="text-xs text-red-500 font-medium mt-1">{"有 3 笔账款已逾期"}</p>
+                    </div>
+                    <div class="card p-6 bg-white shadow-sm border-slate-200">
+                        <div class="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-slate-500">{"库存预警"}</h3>
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-900">{"12 款"}</div>
+                        <p class="text-xs text-slate-500 mt-1">{"低于安全库存水位"}</p>
+                    </div>
+                    <div class="card p-6 bg-white shadow-sm border-slate-200">
+                        <div class="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 class="tracking-tight text-sm font-medium text-slate-500">{"待发货订单"}</h3>
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-900">{"8 笔"}</div>
+                        <p class="text-xs text-blue-600 font-medium mt-1">{"需今日内处理"}</p>
                     </div>
                 </div>
-            </>
-        }
-    }
 
-    fn render_metric_card(&self, icon: &str, title: &str, value: &str, description: &str) -> Html {
-        html! {
-            <div class="metric-card">
-                <div class="metric-icon">{icon}</div>
-                <div class="metric-content">
-                    <div class="metric-title">{title}</div>
-                    <div class="metric-value">{value}</div>
-                    <div class="metric-description">{description}</div>
-                </div>
-            </div>
-        }
-    }
-
-    fn render_sales_chart(&self) -> Html {
-        if let Some(sales_data) = &self.sales_trend {
-            html! {
-                <div class="chart-container">
-                    <div class="sales-trend-chart">
-                        <div class="metric-card">
-                            <div class="metric-title">{"总销售额"}</div>
-                            <div class="metric-value">{&sales_data.total_sales_amount}</div>
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                    <div class="card col-span-4 p-6 bg-white shadow-sm border-slate-200">
+                        <div class="flex flex-col space-y-1.5 pb-4 border-b border-slate-100">
+                            <h3 class="font-semibold leading-none tracking-tight text-slate-900">{"销售趋势"}</h3>
                         </div>
-                        <div class="metric-card">
-                            <div class="metric-title">{"订单数量"}</div>
-                            <div class="metric-value">{sales_data.order_count}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">{"平均客单价"}</div>
-                            <div class="metric-value">{&sales_data.avg_order_amount}</div>
+                        <div class="pt-4 h-64 flex items-center justify-center bg-slate-50 rounded-md border border-slate-100 mt-2">
+                            <span class="text-slate-400 text-sm">{"[折线图表占位区] 此处接入 ECharts/Chart.js"}</span>
                         </div>
                     </div>
-                </div>
-            }
-        } else {
-            html! {
-                <div class="skeleton-chart"></div>
-            }
-        }
-    }
-
-    fn render_inventory_chart(&self) -> Html {
-        if let Some(inventory_data) = &self.inventory_status {
-            if inventory_data.warehouse_distribution.is_empty() {
-                return html! {
-                    <div class="empty-state">
-                        <div class="empty-icon">{"📊"}</div>
-                        <p>{"暂无库存数据"}</p>
-                    </div>
-                };
-            }
-
-            // 生成库存状态图表
-            html! {
-                <div class="chart-container">
-                    <div class="inventory-status-chart">
-                        {for inventory_data.warehouse_distribution.iter().map(|warehouse| {
-                            html! {
-                                <div class="inventory-item">
-                                    <div class="inventory-label">{&warehouse.warehouse_name}</div>
-                                    <div class="inventory-progress">
-                                        <div
-                                            class="inventory-progress-bar"
-                                            style={format!("width: 50%")}
-                                        ></div>
-                                    </div>
-                                    <div class="inventory-value">{&warehouse.total_quantity}</div>
+                    <div class="card col-span-3 p-6 bg-white shadow-sm border-slate-200">
+                        <div class="flex flex-col space-y-1.5 pb-4 border-b border-slate-100">
+                            <h3 class="font-semibold leading-none tracking-tight text-slate-900">{"近期低库存面料 (Top 5)"}</h3>
+                        </div>
+                        <div class="pt-4 space-y-4">
+                            <div class="flex items-center">
+                                <div class="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                                <div class="ml-2 space-y-1">
+                                    <p class="text-sm font-medium leading-none text-slate-900">{"SJ-100C 全棉汗布 (32S)"}</p>
+                                    <p class="text-sm text-slate-500">{"剩余: 120 kg | 安全线: 500 kg"}</p>
                                 </div>
-                            }
-                        })}
+                                <div class="ml-auto font-medium text-sm text-blue-600 cursor-pointer">{"立即采购"}</div>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
+                                <div class="ml-2 space-y-1">
+                                    <p class="text-sm font-medium leading-none text-slate-900">{"PK-6535 CVC珠地网眼"}</p>
+                                    <p class="text-sm text-slate-500">{"剩余: 230 kg | 安全线: 300 kg"}</p>
+                                </div>
+                                <div class="ml-auto font-medium text-sm text-blue-600 cursor-pointer">{"立即采购"}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            }
-        } else {
-            html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"📊"}</div>
-                    <p>{"暂无库存数据"}</p>
-                </div>
-            }
-        }
-    }
-
-    fn render_low_stock_table(&self) -> Html {
-        if self.low_stock_alerts.is_empty() {
-            return html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"✅"}</div>
-                    <p>{"暂无低库存预警"}</p>
-                </div>
-            };
-        }
-
-        html! {
-            <div class="table-responsive">
-                <div class="overflow-x-auto w-full pb-4">
-<table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>{"产品 ID"}</th>
-                            <th>{"产品名称"}</th>
-                            <th>{"仓库"}</th>
-                            <th>{"当前库存"}</th>
-                            <th>{"最低库存"}</th>
-                            <th>{"短缺数量"}</th>
-                            <th>{"关联源单据"}</th>
-                                                <th>{"状态"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {for self.low_stock_alerts.iter().map(|alert| {
-                            html! {
-                                <tr>
-                                    <td>{alert.product_id.to_string()}</td>
-                                    <td>{&alert.product_name}</td>
-                                    <td>{&alert.warehouse_name}</td>
-                                    <td class="numeric">{&alert.current_quantity}</td>
-                                    <td class="numeric">{&alert.min_stock}</td>
-                                    <td class="numeric negative">{"-"}{&alert.shortage}</td>
-                                    <td>
-                                        <span class="status-badge status-warning">
-                                            {"缺货"}
-                                        </span>
-                                    </td>
-                                </tr>
-                            }
-                        })}
-                    </tbody>
-                </table>
-</div>
             </div>
-        }
+        </MainLayout>
     }
 }
