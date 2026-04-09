@@ -53,6 +53,6 @@ pub mod warehouse_service;
 // 面料行业核心模块
 pub mod dye_batch_service;
 pub mod dye_recipe_service;
-pub mod greige_fabric_service;
+pub mod greige_fabric;
 pub mod sales_return_service;
 pub mod unit_converter;

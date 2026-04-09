@@ -7,6 +7,7 @@ use axum::{
 };
 
 use crate::controllers::base::unit_converter;
+use crate::controllers::production::greige_fabric;
 
 use crate::handlers::{
     account_subject_handler, ap_invoice_handler, ap_payment_handler, ap_payment_request_handler,
@@ -1003,7 +1004,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/constants", get(unit_converter::get_global_constants))
         .route("/products", get(unit_converter::get_product_conversions));
 
+    let production_greige_routes = Router::new()
+        .route("/", get(greige_fabric::get_list))
+        .route("/", post(greige_fabric::create));
+
     Router::new()
+        .nest("/api/v1/erp/production/greige", production_greige_routes)
         .nest("/api/v1/erp/base/units", unit_routes)
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)

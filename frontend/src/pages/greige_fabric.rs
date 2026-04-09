@@ -1,287 +1,212 @@
-//! 坯布管理页面（原料布匹管理）
-
 use crate::components::main_layout::MainLayout;
-use crate::models::greige_fabric::{GreigeFabric, GreigeFabricQuery};
-use crate::services::greige_fabric_service::GreigeFabricService;
-use wasm_bindgen::JsCast;
+use crate::models::greige_fabric::GreigeFabric;
+use crate::services::greige_fabric::GreigeFabricService;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
-pub struct GreigeFabricPage {
-    fabrics: Vec<GreigeFabric>,
-    loading: bool,
-    error: Option<String>,
-    filter_fabric_no: String,
-    filter_fabric_name: String,
-    filter_status: String,
-    page: u64,
-    page_size: u64,
-}
+#[function_component(GreigeFabricPage)]
+pub fn greige_fabric_page() -> Html {
+    let fabrics = use_state(Vec::<GreigeFabric>::new);
+    let loading = use_state(|| true);
+    let show_form = use_state(|| false);
 
-pub enum Msg {
-    LoadFabrics,
-    FabricsLoaded(Vec<GreigeFabric>),
-    LoadError(String),
-    SetFilterFabricNo(String),
-    SetFilterFabricName(String),
-    SetFilterStatus(String),
-    DeleteFabric(i32),
-    ChangePage(u64),
-}
+    // 表单状态
+    let form_no = use_state(String::new);
+    let form_name = use_state(String::new);
+    let form_type = use_state(String::new);
+    let form_width = use_state(String::new);
+    let form_weight = use_state(String::new);
 
-impl Component for GreigeFabricPage {
-    type Message = Msg;
-    type Properties = ();
+    let refresh_trigger = use_state(|| 0);
 
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self {
-            fabrics: Vec::new(),
-            loading: true,
-            error: None,
-            filter_fabric_no: String::new(),
-            filter_fabric_name: String::new(),
-            filter_status: String::from("全部"),
-            page: 1,
-            page_size: 20,
-        }
+    // 加载数据
+    {
+        let fabrics = fabrics.clone();
+        let loading = loading.clone();
+        use_effect_with(refresh_trigger.clone(), move |_| {
+            spawn_local(async move {
+                if let Ok(res) = GreigeFabricService::get_list().await {
+                    fabrics.set(res);
+                }
+                loading.set(false);
+            });
+            || ()
+        });
     }
 
-    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
-        if first_render {
-            ctx.link().send_message(Msg::LoadFabrics);
+    let on_add_click = {
+        let show_form = show_form.clone();
+        Callback::from(move |_| {
+            show_form.set(!*show_form);
+        })
+    };
+
+    // 换算比计算公式：1000 / (门幅(m) * 克重)
+    let calculate_ratio = |w_cm: &str, w_kg: &str| -> Option<f64> {
+        let width: f64 = w_cm.parse().ok()?;
+        let weight: f64 = w_kg.parse().ok()?;
+        if width <= 0.0 || weight <= 0.0 {
+            return None;
         }
-    }
+        let width_m = width / 100.0;
+        Some(1000.0 / (width_m * weight))
+    };
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::LoadFabrics => {
-                self.loading = true;
-                let query = GreigeFabricQuery {
-                    page: Some(self.page),
-                    page_size: Some(self.page_size),
-                    fabric_no: if self.filter_fabric_no.is_empty() {
-                        None
-                    } else {
-                        Some(self.filter_fabric_no.clone())
-                    },
-                    fabric_name: if self.filter_fabric_name.is_empty() {
-                        None
-                    } else {
-                        Some(self.filter_fabric_name.clone())
-                    },
-                    status: if self.filter_status == "全部" {
-                        None
-                    } else {
-                        Some(self.filter_status.clone())
-                    },
-                    ..Default::default()
-                };
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match GreigeFabricService::list(query).await {
-                        Ok(fabrics) => link.send_message(Msg::FabricsLoaded(fabrics.items)),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
-                    }
-                });
-                false
-            }
-            Msg::FabricsLoaded(fabrics) => {
-                self.fabrics = fabrics;
-                self.loading = false;
-                true
-            }
-            Msg::LoadError(e) => {
-                self.error = Some(e);
-                self.loading = false;
-                true
-            }
-            Msg::SetFilterFabricNo(fabric_no) => {
-                self.filter_fabric_no = fabric_no;
-                ctx.link().send_message(Msg::LoadFabrics);
-                false
-            }
-            Msg::SetFilterFabricName(fabric_name) => {
-                self.filter_fabric_name = fabric_name;
-                ctx.link().send_message(Msg::LoadFabrics);
-                false
-            }
-            Msg::SetFilterStatus(status) => {
-                self.filter_status = status;
-                ctx.link().send_message(Msg::LoadFabrics);
-                false
-            }
-            Msg::DeleteFabric(id) => {
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match GreigeFabricService::delete(id).await {
-                        Ok(_) => link.send_message(Msg::LoadFabrics),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
-                    }
-                });
-                false
-            }
-            Msg::ChangePage(page) => {
-                self.page = page;
-                ctx.link().send_message(Msg::LoadFabrics);
-                false
-            }
-        }
-    }
+    let on_submit = {
+        let form_no = form_no.clone();
+        let form_name = form_name.clone();
+        let form_type = form_type.clone();
+        let form_width = form_width.clone();
+        let form_weight = form_weight.clone();
+        let show_form = show_form.clone();
+        let refresh_trigger = refresh_trigger.clone();
+        let loading = loading.clone();
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_fabric_no_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-            Msg::SetFilterFabricNo(target.value())
-        });
+        Callback::from(move |e: SubmitEvent| {
+            e.prevent_default();
+            
+            let req = crate::models::greige_fabric::GreigeFabric {
+                id: 0,
+                code: (*form_no).clone(),
+                name: (*form_name).clone(),
+                width_cm: (*form_width).clone().parse::<f64>().unwrap_or(0.0),
+                weight_gsm: (*form_weight).clone().parse::<f64>().unwrap_or(0.0),
+                composition: (*form_type).clone(),
+                meters_per_kg: 0.0,
+            };
 
-        let on_fabric_name_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-            Msg::SetFilterFabricName(target.value())
-        });
+            let show_form = show_form.clone();
+            let refresh_trigger = refresh_trigger.clone();
+            let loading = loading.clone();
 
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e
-                .target()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlSelectElement>()
-                .unwrap();
-            Msg::SetFilterStatus(target.value())
-        });
+            let form_no = form_no.clone();
+            let form_name = form_name.clone();
+            let form_type = form_type.clone();
+            let form_width = form_width.clone();
+            let form_weight = form_weight.clone();
 
-        html! {
-            <MainLayout current_page={""}>
-<div class="greige-fabric-page">
-                <div class="page-header">
-                    <h1>{"📦 坯布管理"}</h1>
-                    <button class="btn-primary">
-                        {"+ 新增坯布"}
+            spawn_local(async move {
+                loading.set(true);
+                if let Ok(_) = GreigeFabricService::create(&req).await {
+                    show_form.set(false);
+                    form_no.set(String::new());
+                    form_name.set(String::new());
+                    form_type.set(String::new());
+                    form_width.set(String::new());
+                    form_weight.set(String::new());
+                    refresh_trigger.set(*refresh_trigger + 1);
+                } else {
+                    loading.set(false);
+                }
+            });
+        })
+    };
+
+    let current_ratio = calculate_ratio(&form_width, &form_weight);
+
+    let on_input_no = { let form_no = form_no.clone(); Callback::from(move |e: InputEvent| { if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() { form_no.set(input.value()); } }) };
+    let on_input_name = { let form_name = form_name.clone(); Callback::from(move |e: InputEvent| { if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() { form_name.set(input.value()); } }) };
+    let on_input_type = { let form_type = form_type.clone(); Callback::from(move |e: InputEvent| { if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() { form_type.set(input.value()); } }) };
+    let on_input_width = { let form_width = form_width.clone(); Callback::from(move |e: InputEvent| { if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() { form_width.set(input.value()); } }) };
+    let on_input_weight = { let form_weight = form_weight.clone(); Callback::from(move |e: InputEvent| { if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() { form_weight.set(input.value()); } }) };
+
+    html! {
+        <MainLayout current_page={"坯布管理"}>
+            <div class="p-4">
+                <div class="page-header flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{"坯布管理"}</h2>
+                    <button class="btn-primary px-4 py-2 bg-blue-600 text-white rounded shadow" onclick={on_add_click}>
+                        {if *show_form { "取消新增" } else { "+ 新增坯布" }}
                     </button>
                 </div>
 
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>{"坯布编号："}</label>
-                        <input type="text" placeholder="请输入坯布编号"
-                            value={self.filter_fabric_no.clone()}
-                            onchange={on_fabric_no_change}
-                        />
+                if *show_form {
+                    <div class="bg-white p-4 shadow-sm rounded border mb-6">
+                        <h3 class="text-lg font-bold mb-4 border-b pb-2">{"新增坯布录入"}</h3>
+                        <form onsubmit={on_submit} class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                            <div>
+                                <label class="block text-sm mb-1 font-medium text-gray-700">{"编号"}</label>
+                                <input type="text" class="form-input w-full border rounded px-3 py-2" value={(*form_no).clone()} oninput={on_input_no} required=true placeholder="输入编号" />
+                            </div>
+                            <div>
+                                <label class="block text-sm mb-1 font-medium text-gray-700">{"名称"}</label>
+                                <input type="text" class="form-input w-full border rounded px-3 py-2" value={(*form_name).clone()} oninput={on_input_name} required=true placeholder="输入名称" />
+                            </div>
+                            <div>
+                                <label class="block text-sm mb-1 font-medium text-gray-700">{"成分"}</label>
+                                <input type="text" class="form-input w-full border rounded px-3 py-2" value={(*form_type).clone()} oninput={on_input_type} required=true placeholder="输入成分" />
+                            </div>
+                            <div>
+                                <label class="block text-sm mb-1 font-medium text-gray-700">{"门幅 (cm)"}</label>
+                                <input type="number" step="0.1" class="form-input w-full border rounded px-3 py-2" value={(*form_width).clone()} oninput={on_input_width} required=true placeholder="如: 150" />
+                            </div>
+                            <div>
+                                <label class="block text-sm mb-1 font-medium text-gray-700">{"克重 (g/m²)"}</label>
+                                <input type="number" step="0.1" class="form-input w-full border rounded px-3 py-2" value={(*form_weight).clone()} oninput={on_input_weight} required=true placeholder="如: 200" />
+                            </div>
+                            <div>
+                                <label class="block text-sm mb-1 font-medium text-gray-700">{"米/公斤 换算比"}</label>
+                                <div class="w-full bg-gray-50 font-bold text-blue-600 flex items-center px-3 border rounded h-[42px]">
+                                    {if let Some(r) = current_ratio { format!("{:.4}", r) } else { "-".to_string() }}
+                                </div>
+                            </div>
+                            <div class="col-span-1 md:col-span-6 flex justify-end mt-2">
+                                <button type="submit" class="btn-primary bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow transition-colors">
+                                    {"保存坯布"}
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="filter-item">
-                        <label>{"坯布名称："}</label>
-                        <input type="text" placeholder="请输入坯布名称"
-                            value={self.filter_fabric_name.clone()}
-                            onchange={on_fabric_name_change}
-                        />
-                    </div>
-                    <div class="filter-item">
-                        <label>{"状态："}</label>
-                        <select value={self.filter_status.clone()} onchange={on_status_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="在库">{"在库"}</option>
-                            <option value="已出库">{"已出库"}</option>
-                            <option value="待入库">{"待入库"}</option>
-                        </select>
-                    </div>
-                </div>
+                }
 
-                {self.render_content(ctx)}
-            </div>
-        
-</MainLayout>}
-    }
-}
-
-impl GreigeFabricPage {
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
-        if self.loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
-        }
-
-        if let Some(error) = &self.error {
-            return html! {
-                <div class="error-container">
-                    <div class="error-icon">{"⚠️"}</div>
-                    <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadFabrics)}>
-                        {"重新加载"}
-                    </button>
-                </div>
-            };
-        }
-
-        if self.fabrics.is_empty() {
-            return html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"📦"}</div>
-                    <p>{"暂无坯布数据"}</p>
-                </div>
-            };
-        }
-
-        html! {
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>{"坯布编号"}</th>
-                            <th>{"坯布名称"}</th>
-                            <th>{"坯布类型"}</th>
-                            <th>{"幅宽(cm)"}</th>
-                            <th>{"重量(kg)"}</th>
-                            <th>{"长度(m)"}</th>
-                            <th>{"状态"}</th>
-                            <th>{"质量等级"}</th>
-                            <th>{"操作"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {for self.fabrics.iter().map(|fabric| {
-                            let fabric_id = fabric.id;
-                            let status = fabric.status.clone();
-                            html! {
-                                <tr>
-                                    <td>{&fabric.fabric_no}</td>
-                                    <td>{&fabric.fabric_name}</td>
-                                    <td>{&fabric.fabric_type}</td>
-                                    <td class="numeric">{fabric.width_cm.clone().map(|w| format!("{:.1}", w)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{fabric.weight_kg.clone().map(|w| format!("{:.2}", w)).unwrap_or("-".to_string())}</td>
-                                    <td class="numeric">{fabric.length_m.clone().map(|l| format!("{:.2}", l)).unwrap_or("-".to_string())}</td>
-                                    <td>
-                                        <span class={format!("status-badge status-{}", status)}>
-                                            {&status}
-                                        </span>
-                                    </td>
-                                    <td>{fabric.quality_grade.as_deref().unwrap_or("-")}</td>
-                                    <td class="actions">
-                                        if status == "在库" {
-                                            <button class="btn-small btn-warning">
-                                                {"出库"}
-                                            </button>
-                                        }
-                                        <button class="btn-small btn-danger"
-                                            onclick={ctx.link().callback(move |_| Msg::DeleteFabric(fabric_id))}>
-                                            {"删除"}
-                                        </button>
-                                    </td>
-                                </tr>
+                <div class="table-responsive bg-white shadow-sm rounded border">
+                    <table class="data-table w-full border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 border-b">
+                                <th class="p-3 text-left font-semibold text-gray-700">{"编号"}</th>
+                                <th class="p-3 text-left font-semibold text-gray-700">{"名称"}</th>
+                                <th class="p-3 text-left font-semibold text-gray-700">{"成分"}</th>
+                                <th class="p-3 text-right font-semibold text-gray-700">{"门幅 (cm)"}</th>
+                                <th class="p-3 text-right font-semibold text-gray-700">{"克重 (g/m²)"}</th>
+                                <th class="p-3 text-right font-semibold text-gray-700">{"米/公斤换算比"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                if *loading {
+                                    html! { <tr><td colspan="6" class="text-center py-8 text-gray-500">{"加载中..."}</td></tr> }
+                                } else if fabrics.is_empty() {
+                                    html! { <tr><td colspan="6" class="text-center py-8 text-gray-500">{"暂无数据"}</td></tr> }
+                                } else {
+                                    html! {
+                                        {for fabrics.iter().map(|fabric| {
+                                            let w_m = fabric.width_cm / 100.0;
+                                            let ratio = 1000.0 / (w_m * fabric.weight_gsm);
+                                            
+                                            html! {
+                                                <tr class="border-b hover:bg-gray-50 transition-colors">
+                                                    <td class="p-3">{&fabric.code}</td>
+                                                    <td class="p-3">{&fabric.name}</td>
+                                                    <td class="p-3">{&fabric.composition}</td>
+                                                    <td class="p-3 numeric-cell text-right">
+                                                        {format!("{:.1}", fabric.width_cm)}
+                                                    </td>
+                                                    <td class="p-3 numeric-cell text-right">
+                                                        {format!("{:.1}", fabric.weight_gsm)}
+                                                    </td>
+                                                    <td class="p-3 numeric-cell text-right font-bold text-blue-600">
+                                                        {format!("{:.4}", fabric.meters_per_kg)}
+                                                    </td>
+                                                </tr>
+                                            }
+                                        })}
+                                    }
+                                }
                             }
-                        })}
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        }
+        </MainLayout>
     }
 }
