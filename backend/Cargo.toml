@@ -96,11 +96,12 @@ path = "src/main.rs"
 [profile.dev]
 opt-level = 0
 debug = false
+codegen-units = 16
 
 [profile.release]
 opt-level = 2
 lto = false
-codegen-units = 256
+codegen-units = 16
 debug = false
 strip = true
 
