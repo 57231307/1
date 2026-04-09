@@ -62,14 +62,17 @@ impl Component for DashboardPage {
                         .unwrap_or(now);
 
                     let overview_result = DashboardService::get_overview(
-                        &start_of_month.to_rfc3339(),
-                        &now.to_rfc3339(),
+                        &start_of_month.format("%Y-%m-%d").to_string(),
+                        &now.format("%Y-%m-%d").to_string(),
                     )
                     .await;
 
                     let alerts_result = DashboardService::get_low_stock_alerts().await;
-                    let sales_trend_result =
-                        DashboardService::get_sales_statistics("2026-01-01", "2026-03-31").await;
+                    let sales_trend_result = DashboardService::get_sales_statistics(
+                        &start_of_month.format("%Y-%m-%d").to_string(),
+                        &now.format("%Y-%m-%d").to_string(),
+                    )
+                    .await;
                     let inventory_status_result =
                         DashboardService::get_inventory_statistics().await;
 
