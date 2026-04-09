@@ -1,168 +1,169 @@
-//! 库存查询页面
-
 use crate::components::main_layout::MainLayout;
+use crate::components::tracked_print_button::TrackedPrintButton;
+use crate::services::api::ApiService;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
-use web_sys::window;
+use std::collections::HashMap;
 
-#[derive(Clone, PartialEq)]
-pub struct StockItem {
-    pub id: u32,
-    pub barcode: String,
-    pub roll_no: String,
-    pub product_name: String,
-    pub color: String,
-    pub roll_length: f64,
-    pub weight: f64,
-    pub dye_lot_no: String,
+#[derive(Clone, PartialEq, Deserialize, Serialize)]
+pub struct StockResponse {
+    pub id: i32,
+    pub product_id: i32,
+    pub warehouse_id: i32,
+    pub quantity: f64,
+    pub locked_quantity: f64,
     pub status: String,
+    // Emulated tree view children: Rolls
+    #[serde(default)]
+    pub rolls: Vec<RollResponse>,
+}
+
+#[derive(Clone, PartialEq, Deserialize, Serialize)]
+pub struct RollResponse {
+    pub roll_no: String,
+    pub batch_no: String,
+    pub length: f64,
+    pub defect_points: f64,
 }
 
 #[function_component(InventoryStockPage)]
 pub fn inventory_stock_page() -> Html {
-    let stocks = use_state(|| Vec::<StockItem>::new());
-    let on_print = Callback::from(|_: yew::MouseEvent| {
-        if let Some(win) = window() {
-            let _ = win.print();
-        }
-    });
-
+    let stocks = use_state(|| Vec::<StockResponse>::new());
+    let is_loading = use_state(|| true);
+    let expanded_rows = use_state(|| HashMap::<i32, bool>::new());
 
     {
         let stocks = stocks.clone();
+        let is_loading = is_loading.clone();
         use_effect_with((), move |_| {
-            let initial_data = vec![
-                StockItem {
-                    id: 1,
-                    barcode: "BC-2023-001".to_string(),
-                    roll_no: "匹号A101".to_string(),
-                    product_name: "纯棉平布".to_string(),
-                    color: "漂白".to_string(),
-                    roll_length: 120.5,
-                    weight: 25.4,
-                    dye_lot_no: "DYE-101".to_string(),
-                    status: "可用".to_string(),
-                },
-                StockItem {
-                    id: 2,
-                    barcode: "BC-2023-002".to_string(),
-                    roll_no: "匹号A102".to_string(),
-                    product_name: "涤纶汗布".to_string(),
-                    color: "藏青".to_string(),
-                    roll_length: 85.0,
-                    weight: 18.2,
-                    dye_lot_no: "DYE-102".to_string(),
-                    status: "预留".to_string(),
-                },
-                StockItem {
-                    id: 3,
-                    barcode: "BC-2023-003".to_string(),
-                    roll_no: "匹号A103".to_string(),
-                    product_name: "全棉斜纹".to_string(),
-                    color: "大红".to_string(),
-                    roll_length: 105.0,
-                    weight: 22.1,
-                    dye_lot_no: "DYE-103".to_string(),
-                    status: "待检".to_string(),
-                },
-            ];
-            stocks.set(initial_data);
+            spawn_local(async move {
+                if let Ok(mut res) = ApiService::get::<Vec<StockResponse>>("/api/v1/erp/inventory-stocks").await {
+                    // Inject mock rolls for demonstration of the tree view since the backend doesn't have the roll table yet
+                    for (i, stock) in res.iter_mut().enumerate() {
+                        if i % 2 == 0 {
+                            stock.rolls = vec![
+                                RollResponse { roll_no: format!("R{}-01", stock.id), batch_no: format!("B{}", stock.id), length: 120.5, defect_points: 0.0 },
+                                RollResponse { roll_no: format!("R{}-02", stock.id), batch_no: format!("B{}", stock.id), length: 118.0, defect_points: 12.5 },
+                            ];
+                        }
+                    }
+                    stocks.set(res);
+                }
+                is_loading.set(false);
+            });
             || ()
         });
     }
 
+    let toggle_row = {
+        let expanded = expanded_rows.clone();
+        Callback::from(move |id: i32| {
+            let mut current = (*expanded).clone();
+            let is_open = current.get(&id).copied().unwrap_or(false);
+            current.insert(id, !is_open);
+            expanded.set(current);
+        })
+    };
+
     html! {
-        <MainLayout current_page={"inventory_stock"}>
-            <div class="inventory-stock-page p-4">
-                <div class="header mb-4 flex justify-between items-center">
-                    <h1 class="text-2xl font-bold">{"库存查询"}</h1>
-                    <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow-sm">{"新增库存"}</button>
-                </div>
-                
-                <div class="filter-form bg-white p-4 rounded mb-4 shadow-sm border border-gray-100">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{"匹号"}</label>
-                            <input type="text" class="block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" placeholder="如: 匹号A102" />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{"品名"}</label>
-                            <input type="text" class="block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" placeholder="输入品名" />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{"状态"}</label>
-                            <select class="block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">{"全部"}</option>
-                                <option value="可用">{"可用"}</option>
-                                <option value="预留">{"预留"}</option>
-                                <option value="待检">{"待检"}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded border border-gray-300 shadow-sm font-medium">{"查询"}</button>
-                        </div>
+        <MainLayout current_page="库存查询">
+            <div class="card p-4 md:p-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-xl font-bold text-slate-800">{"条码级库存看板"}</h2>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <TrackedPrintButton document_type="InventoryStockList" document_id="ALL" class="w-full md:w-auto" />
                     </div>
                 </div>
 
-                <div class="content bg-white rounded shadow-sm border border-gray-100 overflow-hidden">
+                if *is_loading {
+                    <div class="skeleton skeleton-row"></div>
+                    <div class="skeleton skeleton-row mt-2"></div>
+                    <div class="skeleton skeleton-row mt-2"></div>
+                } else {
                     <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
-<table class="data-table w-full text-left">
-                        <thead class="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="py-3 px-4 font-semibold text-gray-600">{"ID"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600">{"条码编号"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600">{"匹号"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600">{"品名"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600">{"颜色"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"卷长(m)"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600 numeric-cell text-right">{"重量(kg)"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600">{"入库缸号"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600 text-center">{"状态"}</th>
-                                <th class="py-3 px-4 font-semibold text-gray-600 text-center">{"操作"}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            {
-                                if stocks.is_empty() {
+                        <table class="data-table w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-slate-700">
+                                <tr>
+                                    <th class="px-4 py-3 font-semibold w-10"></th>
+                                    <th class="px-4 py-3 font-semibold">{"库存ID"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"产品ID"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"仓库ID"}</th>
+                                    <th class="px-4 py-3 font-semibold text-right">{"总数量"}</th>
+                                    <th class="px-4 py-3 font-semibold text-right">{"锁库量"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"状态"}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                {for stocks.iter().map(|s| {
+                                    let is_expanded = expanded_rows.get(&s.id).copied().unwrap_or(false);
+                                    let toggle = toggle_row.clone();
+                                    let id = s.id;
+                                    let has_children = !s.rolls.is_empty();
+                                    
                                     html! {
-                                        <tr><td colspan="10" class="text-center py-8 text-gray-500">{"暂无数据"}</td></tr>
-                                    }
-                                } else {
-                                    html! {
-                                        for stocks.iter().map(|stock| {
-                                            let status_class = match stock.status.as_str() {
-                                                "可用" => "bg-green-100 text-green-800",
-                                                "预留" => "bg-blue-100 text-blue-800",
-                                                "待检" => "bg-yellow-100 text-yellow-800",
-                                                _ => "bg-gray-100 text-gray-800"
-                                            };
-                                            html! {
-                                                <tr key={stock.id} class="hover:bg-gray-50 transition-colors">
-                                                    <td class="py-3 px-4">{ stock.id }</td>
-                                                    <td class="py-3 px-4 font-mono text-sm">{ &stock.barcode }</td>
-                                                    <td class="py-3 px-4 font-medium">{ &stock.roll_no }</td>
-                                                    <td class="py-3 px-4">{ &stock.product_name }</td>
-                                                    <td class="py-3 px-4">{ &stock.color }</td>
-                                                    <td class="py-3 px-4 numeric-cell text-right font-mono">{ format!("{:.1}", stock.roll_length) }</td>
-                                                    <td class="py-3 px-4 numeric-cell text-right font-mono">{ format!("{:.1}", stock.weight) }</td>
-                                                    <td class="py-3 px-4 font-mono text-sm">{ &stock.dye_lot_no }</td>
-                                                    <td class="py-3 px-4 text-center">
-                                                        <span class={format!("status-badge px-2.5 py-1 rounded-full text-xs font-medium {}", status_class)}>
-                                                            { &stock.status }
-                                                        </span>
-                                                    </td>
-                                                    <td class="py-3 px-4 text-center">
-                                                        <button class="text-blue-600 hover:text-blue-800 font-medium">{"查看明细"}</button>
+                                        <>
+                                            <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick={move |_| { if has_children { toggle.emit(id) } }}>
+                                                <td class="px-4 py-3 text-slate-400">
+                                                    if has_children {
+                                                        <svg class={format!("w-4 h-4 transform transition-transform {}", if is_expanded { "rotate-90" } else { "" })} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                                    }
+                                                </td>
+                                                <td class="px-4 py-3 font-medium text-slate-900">{s.id}</td>
+                                                <td class="px-4 py-3">{s.product_id}</td>
+                                                <td class="px-4 py-3">{s.warehouse_id}</td>
+                                                <td class="px-4 py-3 text-right numeric-cell font-mono">{format!("{:.2}", s.quantity)}</td>
+                                                <td class="px-4 py-3 text-right numeric-cell font-mono text-orange-500">{format!("{:.2}", s.locked_quantity)}</td>
+                                                <td class="px-4 py-3">
+                                                    <span class="status-badge bg-green-100 text-green-800">{&s.status}</span>
+                                                </td>
+                                            </tr>
+                                            if is_expanded {
+                                                <tr class="bg-slate-50/50">
+                                                    <td colspan="7" class="p-0">
+                                                        <div class="pl-12 pr-4 py-3 border-l-4 border-indigo-400 bg-indigo-50/30">
+                                                            <div class="text-xs font-semibold text-indigo-800 mb-2">{"条码级匹号明细 (Roll Level)"}</div>
+                                                            <table class="w-full text-xs text-slate-600 mb-2">
+                                                                <thead>
+                                                                    <tr class="border-b border-indigo-100 text-indigo-700">
+                                                                        <th class="py-1 text-left">{"卷号/条码"}</th>
+                                                                        <th class="py-1 text-left">{"关联缸号/批次"}</th>
+                                                                        <th class="py-1 text-right">{"卷长 (米/码)"}</th>
+                                                                        <th class="py-1 text-right">{"四分制扣分"}</th>
+                                                                        <th class="py-1 text-right">{"操作"}</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody class="divide-y divide-indigo-50">
+                                                                    {for s.rolls.iter().map(|r| html! {
+                                                                        <tr>
+                                                                            <td class="py-1.5 font-mono">{&r.roll_no}</td>
+                                                                            <td class="py-1.5">{&r.batch_no}</td>
+                                                                            <td class="py-1.5 text-right font-mono">{format!("{:.2}", r.length)}</td>
+                                                                            <td class="py-1.5 text-right font-mono text-red-500">{format!("{:.1}", r.defect_points)}</td>
+                                                                            <td class="py-1.5 text-right">
+                                                                                <button class="text-indigo-600 hover:text-indigo-800 mr-2">{"条码打印"}</button>
+                                                                                <button class="text-blue-600 hover:text-blue-800">{"分卷"}</button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             }
-                                        })
+                                        </>
                                     }
+                                })}
+                                if stocks.is_empty() {
+                                    <tr>
+                                        <td colspan="7" class="px-4 py-8 text-center text-slate-500">{"库存为空"}</td>
+                                    </tr>
                                 }
-                            }
-                        </tbody>
-                    </table>
-</div>
-                </div>
+                            </tbody>
+                        </table>
+                    </div>
+                }
             </div>
         </MainLayout>
     }
