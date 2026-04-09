@@ -32,6 +32,7 @@ pub mod inventory_adjustment_service;
 pub mod inventory_count_service;
 pub mod inventory_service;
 pub mod inventory_transfer_service;
+pub mod product_category_service;
 pub mod product_service;
 pub mod purchase_contract_service;
 pub mod purchase_inspection_service;
