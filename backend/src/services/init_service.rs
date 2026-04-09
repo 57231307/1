@@ -718,7 +718,16 @@ impl InitService {
             .map_err(|e| InitError::DatabaseError(format!("查询用户失败: {}", e)))?;
 
         if let Some(user) = existing_user {
-            return Ok(user);
+            // 用户已存在，则更新其密码、角色和部门，确保初始化的密码生效
+            let mut active_user: user::ActiveModel = user.into();
+            active_user.password_hash = Set(password_hash.to_string());
+            active_user.role_id = Set(Some(role_id));
+            active_user.department_id = Set(Some(department_id));
+            active_user.is_active = Set(true);
+            return active_user
+                .update(self.db.as_ref())
+                .await
+                .map_err(|e| InitError::DatabaseError(format!("更新管理员用户失败: {}", e)));
         }
 
         let user = user::ActiveModel {
