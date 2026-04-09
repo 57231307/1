@@ -292,7 +292,6 @@ jobs:
           mkdir -p release/bingxi-erp/backend
           mkdir -p release/bingxi-erp/frontend
           mkdir -p release/bingxi-erp/deploy
-          mkdir -p release/bingxi-erp/docs
 
           # 复制后端文件
           chmod +x release/backend/server
@@ -309,10 +308,6 @@ jobs:
           if [ -d "backend/database" ]; then
             cp -r backend/database release/bingxi-erp/ 2>/dev/null || true
           fi
-
-          # 复制文档
-          cp DOCUMENTATION_INDEX.md release/bingxi-erp/docs/ 2>/dev/null || true
-          cp README.md release/bingxi-erp/ 2>/dev/null || true
 
           # 写入版本号文件
           echo "${{ needs.determine-version.outputs.version }}" > release/bingxi-erp/VERSION
