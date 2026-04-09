@@ -21,8 +21,6 @@ on:
 env:
   RUST_VERSION: stable
   CARGO_TERM_COLOR: always
-  # 限制构建进程数为 16，避免在构建前后端时耗尽内存被系统杀死 (OOM)
-  CARGO_BUILD_JOBS: 16
   # 强制 GitHub Actions 第三方插件(如 actions/checkout) 使用 Node.js 24，消除 Node.js 20 弃用警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -116,7 +114,7 @@ jobs:
           set -euo pipefail
           cargo --version
           rustc --version
-          cargo test --all -j 8 2>&1 | tee backend-test.log
+          cargo test --all 2>&1 | tee backend-test.log
 
       - name: 上传后端测试日志
         if: always()
@@ -128,7 +126,7 @@ jobs:
 
   build-backend:
     name: 构建后端
-    needs: [test, determine-version]
+    needs: [determine-version]
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
@@ -161,7 +159,7 @@ jobs:
           set -euo pipefail
           cargo --version
           rustc --version
-          cargo build --release -j 8 -vv 2>&1 | tee backend-build.log
+          cargo build --release 2>&1 | tee backend-build.log
 
       - name: 上传后端构建日志
         if: always()
@@ -190,7 +188,7 @@ jobs:
 
   build-frontend:
     name: 构建前端
-    needs: [test, determine-version]
+    needs: [determine-version]
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
@@ -218,17 +216,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev binaryen
 
-      - name: 缓存 Cargo 依赖
-        uses: actions/cache@v5
+      - name: Rust 智能缓存
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cargo/bin
-            frontend/target
-          key: ${{ runner.os }}-cargo-frontend-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-frontend-
+          workspaces: "frontend -> target"
 
       - name: 构建前端 (Release模式)
         working-directory: frontend
@@ -267,7 +258,7 @@ jobs:
 
   package-release:
     name: 创建发布包
-    needs: [build-backend, build-frontend, determine-version]
+    needs: [test, build-backend, build-frontend, determine-version]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     outputs:
