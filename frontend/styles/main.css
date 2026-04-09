@@ -25,6 +25,13 @@
     --radius-xl: 1rem;
     --radius-full: 9999px;
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Compact CSS Variables */
+    --sidebar-width: 200px;
+    --spacing-compact: 4px 8px;
+    --font-size-base: 13px;
+    --font-size-small: 12px;
+    --table-row-height: 32px;
 }
 
 * {
@@ -34,26 +41,32 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: var(--background-color);
     color: var(--text-primary);
+    font-size: var(--font-size-base); /* Updated to use 13px */
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
 
+.numeric-cell {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
 
 /* 导航菜单样式 */
-.navigation {
-    width: 260px;
-    height: 100vh;
-    background: var(--surface-color);
+.sidebar {
+    width: var(--sidebar-width); /* Changed from fixed 250px */
+    background-color: var(--surface-color);
     border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
     position: fixed;
     left: 0;
     top: 0;
-    overflow-y: auto;
-    transition: var(--transition);
-    z-index: 40;
+    z-index: 100;
 }
 
 .nav-brand {
@@ -69,50 +82,52 @@ body {
     padding: 10px 0;
 }
 
-/* 导航组样式 */
+/* Multi-level Sidebar Styles */
 .nav-group {
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 
 .nav-group-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 20px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+    padding: 8px 16px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
     font-weight: 600;
-    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    border-radius: 6px;
+    margin: 0 8px;
 }
 
 .nav-group-header:hover {
-    background-color: #f8f9ff;
-}
-
-.nav-group-title {
-    font-size: 14px;
+    background-color: var(--background-color);
+    color: var(--primary-color);
 }
 
 .nav-group-icon {
-    font-size: 12px;
-    color: #667eea;
-    transition: transform 0.3s;
+    font-size: 10px;
+    transition: transform 0.3s ease;
 }
 
 .nav-group-icon.open {
-    transform: rotate(180deg);
+    transform: rotate(90deg);
 }
 
-.nav-group-content {
-    background-color: #f9f9f9;
+.nav-sub-items {
+    max-height: 0;
     overflow: hidden;
-    max-height: 500px;
-    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
-    opacity: 1;
+    transition: max-height 0.3s ease-out;
 }
 
-.nav-group-content {
-    max-height: 500px;
+.nav-sub-items.open {
+    max-height: 500px; /* Large enough to show all items */
+}
+
+.nav-sub-items .nav-item {
+    padding-left: 40px; /* Indent sub-items */
+    font-size: var(--font-size-small); /* Use smaller font for sub-items */
 }
 
 .nav-item {
@@ -146,9 +161,10 @@ body {
 
 .main-content {
     flex: 1;
-    margin-left: 250px;
-    padding: 20px;
-    transition: margin-left 0.3s;
+    margin-left: var(--sidebar-width); /* Changed from 250px */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 /* 登录页面样式 */
@@ -1394,6 +1410,14 @@ input:checked + .toggle-slider:before {
     overflow: hidden;
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border-color);
+}
+
+.data-table th, .data-table td {
+    padding: var(--spacing-compact); /* Updated to 4px 8px */
+    height: var(--table-row-height);  /* Updated to 32px */
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    font-size: var(--font-size-base);
 }
 
 
