@@ -181,8 +181,11 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 加载 .env 文件中的环境变量
-    dotenvy::dotenv().ok();
+    // 1. 先尝试从系统级配置加载（如 systemd 环境）
+    dotenvy::from_path_override("/etc/bingxi/.env").ok();
+    
+    // 2. 加载当前目录的 .env 文件并覆盖环境变量，保证页面上最新修改的配置生效
+    dotenvy::dotenv_override().ok();
 
     let settings = AppSettings::new()?;
 

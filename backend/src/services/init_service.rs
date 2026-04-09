@@ -359,7 +359,10 @@ impl InitService {
                     let service = Self::new(db);
                     
                     // 保存配置到 .env 文件
-                    let mut env_content = std::fs::read_to_string(".env").unwrap_or_default();
+                    // 优先读取系统级配置，以便不丢失其他环境变量
+                    let mut env_content = std::fs::read_to_string("/etc/bingxi/.env")
+                        .unwrap_or_else(|_| std::fs::read_to_string(".env").unwrap_or_default());
+                        
                     if env_content.contains("DATABASE__CONNECTION_STRING") {
                         let lines: Vec<&str> = env_content.lines().collect();
                         let mut new_lines = Vec::new();
@@ -375,6 +378,8 @@ impl InitService {
                         env_content.push_str(&format!("\nDATABASE__CONNECTION_STRING=\"{}\"\n", conn_str));
                     }
                     let _ = std::fs::write(".env", env_content.trim_start());
+                    // 尝试同步更新系统级的环境配置（生产环境 systemd 部署所需）
+                    let _ = std::fs::write("/etc/bingxi/.env", env_content.trim_start());
 
                     return service.initialize(admin_username, admin_password).await;
                 }
