@@ -5,27 +5,25 @@ use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 #[derive(Clone, PartialEq, Deserialize, Serialize)]
-pub struct ReceiptResponse {
+pub struct LogResponse {
     pub id: i32,
-    pub receipt_no: String,
-    pub customer_id: i32,
-    pub amount: f64,
-    pub payment_method: String,
-    pub status: String,
+    pub user_id: i32,
+    pub action: String,
+    pub details: String,
 }
 
-#[function_component(ArReceiptPage)]
-pub fn ar_receipt_page() -> Html {
-    let receipts = use_state(|| Vec::<ReceiptResponse>::new());
+#[function_component(OperationLogPage)]
+pub fn operation_log_page() -> Html {
+    let logs = use_state(|| Vec::<LogResponse>::new());
     let is_loading = use_state(|| true);
 
     {
-        let receipts = receipts.clone();
+        let logs = logs.clone();
         let is_loading = is_loading.clone();
         use_effect_with((), move |_| {
             spawn_local(async move {
-                if let Ok(res) = ApiService::get::<Vec<ReceiptResponse>>("/api/v1/erp/ar-receipts").await {
-                    receipts.set(res);
+                if let Ok(res) = ApiService::get::<Vec<LogResponse>>("/api/v1/erp/operation-logs").await {
+                    logs.set(res);
                 }
                 is_loading.set(false);
             });
@@ -40,12 +38,11 @@ pub fn ar_receipt_page() -> Html {
     });
 
     html! {
-        <MainLayout current_page="应收收款单">
+        <MainLayout current_page="操作日志">
             <div class="card p-4 md:p-6">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <h2 class="text-xl font-bold text-slate-800">{"应收收款单"}</h2>
+                    <h2 class="text-xl font-bold text-slate-800">{"系统操作日志"}</h2>
                     <div class="flex gap-2 w-full md:w-auto">
-                        <button class="btn-primary w-full md:w-auto">{"+ 新建收款单"}</button>
                         <button onclick={on_print} class="btn-outline w-full md:w-auto text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                     </div>
                 </div>
@@ -58,28 +55,26 @@ pub fn ar_receipt_page() -> Html {
                         <table class="data-table w-full text-left text-sm text-slate-600">
                             <thead class="bg-slate-50 text-slate-700">
                                 <tr>
-                                    <th class="px-4 py-3 font-semibold">{"收款单号"}</th>
-                                    <th class="px-4 py-3 font-semibold">{"客户ID"}</th>
-                                    <th class="px-4 py-3 font-semibold text-right">{"收款金额"}</th>
-                                    <th class="px-4 py-3 font-semibold">{"支付方式"}</th>
-                                    <th class="px-4 py-3 font-semibold">{"状态"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"日志ID"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"操作用户ID"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"动作类型"}</th>
+                                    <th class="px-4 py-3 font-semibold">{"详情"}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200">
-                                {for receipts.iter().map(|r| html! {
+                                {for logs.iter().map(|log| html! {
                                     <tr class="hover:bg-slate-50 transition-colors">
-                                        <td class="px-4 py-3 font-medium text-slate-900">{&r.receipt_no}</td>
-                                        <td class="px-4 py-3">{r.customer_id}</td>
-                                        <td class="px-4 py-3 text-right numeric-cell font-mono text-green-600">{format!("¥{:.2}", r.amount)}</td>
-                                        <td class="px-4 py-3">{&r.payment_method}</td>
+                                        <td class="px-4 py-3 font-medium text-slate-900">{log.id}</td>
+                                        <td class="px-4 py-3">{log.user_id}</td>
                                         <td class="px-4 py-3">
-                                            <span class="status-badge bg-green-100 text-green-800">{&r.status}</span>
+                                            <span class="status-badge bg-blue-100 text-blue-800">{&log.action}</span>
                                         </td>
+                                        <td class="px-4 py-3 text-xs font-mono truncate max-w-xs">{&log.details}</td>
                                     </tr>
                                 })}
-                                if receipts.is_empty() {
+                                if logs.is_empty() {
                                     <tr>
-                                        <td colspan="5" class="px-4 py-8 text-center text-slate-500">{"暂无收款单记录"}</td>
+                                        <td colspan="4" class="px-4 py-8 text-center text-slate-500">{"暂无日志记录"}</td>
                                     </tr>
                                 }
                             </tbody>

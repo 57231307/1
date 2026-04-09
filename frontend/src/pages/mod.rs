@@ -1,4 +1,10 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
+pub use sales_delivery::SalesDeliveryPage;
+pub use inventory_reservation::InventoryReservationPage;
+pub use operation_log::OperationLogPage;
+pub mod sales_delivery;
+pub mod inventory_reservation;
+pub mod operation_log;
+#[allow(dead_code, unused_variables, unused_imports, unused_mut)]
 pub mod account_subject;
 pub mod batch;
 pub mod crm_lead;

@@ -1,4 +1,4 @@
-use crate::pages::{
+use crate::pages::{sales_delivery::SalesDeliveryPage, inventory_reservation::InventoryReservationPage, operation_log::OperationLogPage,
     crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage, AccountSubjectPage, ApInvoicePage,
     ApPaymentPage, ApPaymentRequestPage, ApReconciliationPage, ApReportPage, ApVerificationPage,
     ArInvoicePage, ArReceiptPage, ArVerificationPage, AssistAccountingPage, BatchPage, BudgetManagementPage, BusinessTracePage, CostCollectionPage,
@@ -18,6 +18,12 @@ use yew_router::prelude::*;
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {
+    #[at("/sales-deliveries")]
+    SalesDeliveries,
+    #[at("/inventory-reservations")]
+    InventoryReservations,
+    #[at("/operation-logs")]
+    OperationLogs,
     #[at("/")]
     Init,
     #[at("/login")]
@@ -220,6 +226,9 @@ fn switch(route: Route) -> Html {
         Route::ArVerifications => protected_route(|| html! { <ArVerificationPage /> }),
         Route::ArReceipts => protected_route(|| html! { <ArReceiptPage /> }),
         Route::BudgetManagement => protected_route(|| html! { <BudgetManagementPage /> }),
+        Route::SalesDeliveries => protected_route(|| html! { <SalesDeliveryPage /> }),
+        Route::InventoryReservations => protected_route(|| html! { <InventoryReservationPage /> }),
+        Route::OperationLogs => protected_route(|| html! { <OperationLogPage /> }),
         Route::NotFound => html! {
             <crate::components::main_layout::MainLayout current_page={"404"}>
                 <div class="p-8 text-center text-gray-500 text-xl">

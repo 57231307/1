@@ -53,6 +53,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
             title: "销售与CRM", icon: "🤝",
             items: vec![
                 MenuItem { name: "销售订单", route: Route::Sales },
+                MenuItem { name: "销售发货", route: Route::SalesDeliveries },
                 MenuItem { name: "面料订单", route: Route::FabricOrders },
                 MenuItem { name: "销售合同", route: Route::SalesContracts },
                 MenuItem { name: "销售退货", route: Route::SalesReturns },
@@ -67,6 +68,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
             title: "库存管理", icon: "📦",
             items: vec![
                 MenuItem { name: "库存查询", route: Route::Inventory },
+                MenuItem { name: "库存预留", route: Route::InventoryReservations },
                 MenuItem { name: "库存盘点", route: Route::Counts },
                 MenuItem { name: "库存调拨", route: Route::Transfers },
                 MenuItem { name: "库存调整", route: Route::InventoryAdjustments },
@@ -107,6 +109,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { name: "用户管理", route: Route::Users },
                 MenuItem { name: "角色管理", route: Route::Roles },
                 MenuItem { name: "部门管理", route: Route::Departments },
+                MenuItem { name: "操作日志", route: Route::OperationLogs },
             ],
         },
     ];
