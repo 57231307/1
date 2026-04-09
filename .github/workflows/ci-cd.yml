@@ -1,9 +1,12 @@
 name: CI/CD Pipeline - 自动构建和发布
 
 # 为了防止同时推送 commit 和 tag 时触发两次重复构建
-# group 表达式修改为分支/PR名称，从而在同一分支有新提交时自动取消旧任务
+# 或者是连续推送多个 commit，我们需要一种智能策略。
+# 按照 github.ref 加上 event_name，但是如果你先推送了主干，又马上推送了 tag，
+# 我们想让它们只执行一次最新的，或者只取消旧的。
+# 我们改用 github.ref_name 和 github.sha 组合的逻辑来最大化取消
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
@@ -190,7 +193,7 @@ jobs:
 
   build-frontend:
     name: 构建前端
-    needs: [test, determine-version, build-backend]
+    needs: [test, determine-version]
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
