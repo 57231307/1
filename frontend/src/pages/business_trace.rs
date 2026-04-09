@@ -6,6 +6,7 @@ use crate::models::business_trace::{FullTraceChainResponse, TraceChain, TraceSta
 use crate::services::business_trace_service::BusinessTraceService;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 /// 业务追溯页面状态
 pub struct BusinessTracePage {
@@ -612,7 +613,8 @@ impl BusinessTracePage {
             <div class="trace-list">
                 <h3>{"追溯结果"}</h3>
                 <div class="table-responsive">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"追溯链ID"}</th>
@@ -664,6 +666,7 @@ impl BusinessTracePage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         }

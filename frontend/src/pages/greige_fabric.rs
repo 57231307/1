@@ -3,10 +3,17 @@ use crate::models::greige_fabric::GreigeFabric;
 use crate::services::greige_fabric::GreigeFabricService;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 #[function_component(GreigeFabricPage)]
 pub fn greige_fabric_page() -> Html {
     let fabrics = use_state(Vec::<GreigeFabric>::new);
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let loading = use_state(|| true);
     let show_form = use_state(|| false);
 
@@ -160,7 +167,8 @@ pub fn greige_fabric_page() -> Html {
                 }
 
                 <div class="table-responsive bg-white shadow-sm rounded border">
-                    <table class="data-table w-full border-collapse">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full border-collapse">
                         <thead>
                             <tr class="bg-gray-50 border-b">
                                 <th class="p-3 text-left font-semibold text-gray-700">{"编号"}</th>
@@ -210,6 +218,7 @@ pub fn greige_fabric_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

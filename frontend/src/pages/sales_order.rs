@@ -352,7 +352,8 @@ impl SalesOrderPage {
         html! {
             <>
             <div class="table-responsive">
-                <table class="data-table w-full">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"订单号"}</th>
@@ -390,6 +391,7 @@ impl SalesOrderPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
             {self.render_print_view()}
             {self.render_ship_modal(ctx)}
@@ -407,7 +409,8 @@ impl SalesOrderPage {
                             <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>{"×"}</button>
                         </div>
                         <div class="modal-body">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"商品名称"}</th>
@@ -571,6 +574,7 @@ impl SalesOrderPage {
                                     })}
                                 </tbody>
                             </table>
+</div>
                         </div>
                         <div class="modal-footer">
                             <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>
@@ -643,7 +647,8 @@ impl SalesOrderPage {
                         <p>{"订单状态: "}<span class="status-badge">{&order.status}</span></p>
                         <p>{"创建时间: "}{&order.created_at}</p>
                     </div>
-                    <table class="data-table w-full print-table">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full print-table">
                         <thead>
                             <tr>
                                 <th>{"商品名称"}</th>
@@ -671,6 +676,7 @@ impl SalesOrderPage {
                             })}
                         </tbody>
                     </table>
+</div>
                     <div style="margin-top: 20px; text-align: right;">
                         <h3>{"总金额: "}{&order.total_amount}</h3>
                     </div>

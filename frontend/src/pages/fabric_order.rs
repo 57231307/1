@@ -8,6 +8,7 @@ use crate::services::fabric_order_service::FabricOrderService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct FabricOrderPage {
     orders: Vec<FabricOrder>,
@@ -296,7 +297,8 @@ impl FabricOrderPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table w-full">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"订单编号"}</th>
@@ -357,6 +359,7 @@ impl FabricOrderPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }

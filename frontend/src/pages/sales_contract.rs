@@ -8,6 +8,7 @@ use crate::models::sales_contract::{
 use crate::services::sales_contract_service::SalesContractService;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContractStatus {
@@ -379,7 +380,8 @@ impl Component for SalesContractPage {
 
                 // 合同列表
                 <div class="contract-table">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"合同编号"}</th>
@@ -433,6 +435,7 @@ impl Component for SalesContractPage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 // 分页
@@ -634,7 +637,9 @@ impl Component for ExecuteContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
+</div>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
@@ -674,7 +679,9 @@ impl Component for CancelContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
+</div>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>

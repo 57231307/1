@@ -4,6 +4,7 @@ use crate::services::dye_batch::DyeBatchService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct DyeBatchPage {
     batches: Vec<DyeBatch>,
@@ -123,6 +124,12 @@ impl Component for DyeBatchPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = web_sys::window() {
+            let _ = win.print();
+        }
+    });
+
         let total_weight = self.new_total_weight_kg.parse::<f64>().unwrap_or(0.0);
         let ratio_multiplier = self.new_liquor_ratio.split(':').last().unwrap_or("0").parse::<f64>().unwrap_or(0.0);
         let total_water = total_weight * ratio_multiplier;
@@ -135,6 +142,7 @@ impl Component for DyeBatchPage {
                         <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>
                             {"+ 新增"}
                         </button>
+                                <button onclick={on_print.clone()} class="btn-outline ml-2 text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                     </div>
 
                     if self.show_create_form {
@@ -182,7 +190,8 @@ impl DyeBatchPage {
 
         html! {
             <div style="overflow-x: auto; background: var(--surface-color); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                     <thead style="background: #f9fafb; border-bottom: 2px solid var(--border-color);">
                         <tr>
                             <th style="padding: 0.5rem; text-align: left;">{"缸号"}</th>
@@ -220,6 +229,7 @@ impl DyeBatchPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }

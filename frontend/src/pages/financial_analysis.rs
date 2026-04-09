@@ -6,6 +6,7 @@ use crate::services::financial_analysis_service::FinancialAnalysisService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct FinancialAnalysisPage {
     loading: bool,
@@ -210,7 +211,8 @@ impl FinancialAnalysisPage {
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="data-table w-full">
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"指标名称"}</th>
@@ -244,6 +246,7 @@ impl FinancialAnalysisPage {
                                 })}
                             </tbody>
                         </table>
+</div>
                     </div>
                 </div>
             </div>

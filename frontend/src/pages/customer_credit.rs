@@ -7,6 +7,7 @@ use crate::models::customer_credit::{
 use crate::services::customer_credit_service::CustomerCreditService;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct CustomerCreditPage {
     credits: Vec<CustomerCredit>,
@@ -328,7 +329,8 @@ impl Component for CustomerCreditPage {
                 }
 
                 <div class="table-container">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th class="numeric-cell text-right">{"客户ID"}</th>
@@ -375,6 +377,7 @@ impl Component for CustomerCreditPage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 {self.view_pagination(ctx)}

@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 
@@ -21,6 +22,12 @@ pub struct SalePriceItem {
 #[function_component(SalesPricePage)]
 pub fn sales_price_page() -> Html {
     let prices = use_state(|| Vec::<SalePriceItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let quantities = use_state(|| HashMap::<i32, f64>::new());
 
     {

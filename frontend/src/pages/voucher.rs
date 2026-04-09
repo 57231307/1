@@ -1,4 +1,5 @@
 use yew::prelude::*;
+use web_sys::window;
 use crate::components::main_layout::MainLayout;
 
 #[derive(Clone, PartialEq)]
@@ -18,6 +19,12 @@ pub struct VoucherItem {
 #[function_component(VoucherPage)]
 pub fn voucher_page() -> Html {
     let vouchers = use_state(|| Vec::<VoucherItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let vouchers = vouchers.clone();
@@ -104,7 +111,8 @@ pub fn voucher_page() -> Html {
                 </div>
 
                 <div class="bg-white shadow rounded overflow-hidden">
-                    <table class="data-table w-full text-sm">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full text-sm">
                         <thead class="bg-gray-50 border-b">
                             <tr>
                                 <th class="px-4 py-2 text-left">{"ID"}</th>
@@ -143,6 +151,7 @@ pub fn voucher_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

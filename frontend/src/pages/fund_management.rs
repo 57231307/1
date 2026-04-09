@@ -1,6 +1,7 @@
 //! 资金管理页面
 
 use yew::prelude::*;
+use web_sys::window;
 use crate::components::main_layout::MainLayout;
 
 #[derive(Clone, PartialEq)]
@@ -15,6 +16,12 @@ pub struct FundItem {
 #[function_component(FundManagementPage)]
 pub fn fund_management_page() -> Html {
     let fund_items = use_state(|| Vec::<FundItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let fund_items = fund_items.clone();
@@ -82,7 +89,8 @@ pub fn fund_management_page() -> Html {
 
                 <div class="content bg-white rounded shadow overflow-hidden">
                     <div class="table-responsive">
-                        <table class="data-table w-full">
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                             <thead class="bg-gray-50 border-b">
                                 <tr>
                                     <th class="px-4 py-3 text-left">{"ID"}</th>
@@ -121,6 +129,7 @@ pub fn fund_management_page() -> Html {
                                 }
                             </tbody>
                         </table>
+</div>
                     </div>
                 </div>
             </div>

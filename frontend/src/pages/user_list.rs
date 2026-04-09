@@ -5,6 +5,7 @@ use crate::services::user_service::UserService;
 use crate::utils::storage::Storage;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 use yew_router::prelude::*;
 
 pub struct UserListPage {
@@ -131,7 +132,8 @@ impl Component for UserListPage {
                         <div class="loading">{"加载中..."}</div>
                     } else {
                         <div class="user-table-container">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th class="numeric-cell text-right">{"ID"}</th>
@@ -183,6 +185,7 @@ impl Component for UserListPage {
                                     })}
                                 </tbody>
                             </table>
+</div>
 
                             <div class="pagination">
                                 <button onclick={on_prev} disabled={self.page == 0}>

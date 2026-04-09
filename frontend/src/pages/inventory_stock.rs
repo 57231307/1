@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct StockItem {
@@ -19,6 +20,12 @@ pub struct StockItem {
 #[function_component(InventoryStockPage)]
 pub fn inventory_stock_page() -> Html {
     let stocks = use_state(|| Vec::<StockItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let stocks = stocks.clone();
@@ -97,7 +104,8 @@ pub fn inventory_stock_page() -> Html {
                 </div>
 
                 <div class="content bg-white rounded shadow-sm border border-gray-100 overflow-hidden">
-                    <table class="data-table w-full text-left">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full text-left">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"ID"}</th>
@@ -153,6 +161,7 @@ pub fn inventory_stock_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

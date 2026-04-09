@@ -298,7 +298,8 @@ impl Component for RoleListPage {
                         <div class="loading">{"加载中..."}</div>
                     } else {
                         <div class="role-table-container">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th class="numeric-cell text-right">{"ID"}</th>
@@ -346,6 +347,7 @@ impl Component for RoleListPage {
                                     })}
                                 </tbody>
                             </table>
+</div>
 
                             <div class="summary">
                                 {format!("共 {} 个角色", self.total)}

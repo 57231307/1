@@ -9,6 +9,7 @@ use crate::models::five_dimension::{
 use crate::services::five_dimension_service::FiveDimensionService;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct FiveDimensionPage {
     // 列表数据
@@ -451,7 +452,8 @@ impl FiveDimensionPage {
                         <div class="search-results">
                             <h3>{"搜索结果"}</h3>
                             <div class="table-responsive">
-                                <table class="data-table w-full">
+                                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                     <thead>
                                         <tr>
                                             <th>{"五维ID"}</th>
@@ -489,6 +491,7 @@ impl FiveDimensionPage {
                                         })}
                                     </tbody>
                                 </table>
+</div>
                             </div>
                         </div>
                     }
@@ -592,7 +595,8 @@ impl FiveDimensionPage {
                             </div>
                         } else {
                             <div class="table-responsive">
-                                <table class="data-table w-full">
+                                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                     <thead>
                                         <tr>
                                             <th>{"五维ID"}</th>
@@ -628,6 +632,7 @@ impl FiveDimensionPage {
                                         })}
                                     </tbody>
                                 </table>
+</div>
                             </div>
                             <div class="pagination-info">
                                 <span>{"第 "}{list_data.page + 1}{" / "}{((list_data.total as f64 / list_data.page_size as f64).ceil() as u64).max(1)}{" 页"}</span>

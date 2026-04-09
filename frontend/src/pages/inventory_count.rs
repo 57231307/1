@@ -11,6 +11,7 @@ use crate::services::inventory_count_service::InventoryCountService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct InventoryCountPage {
     counts: Vec<InventoryCount>,
@@ -386,7 +387,8 @@ impl InventoryCountPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table w-full">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"盘点单号"}</th>
@@ -458,6 +460,7 @@ impl InventoryCountPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }
@@ -542,7 +545,8 @@ impl InventoryCountPage {
                 
                 <div class="detail-items mt-6">
                     <h3 class="text-lg font-bold mb-3">{"盘点明细"}</h3>
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"库存ID"}</th>
@@ -585,6 +589,7 @@ impl InventoryCountPage {
                             }}
                         </tbody>
                     </table>
+</div>
                 </div>
                 </>
             }

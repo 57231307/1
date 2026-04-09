@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct InspectItem {
@@ -19,6 +20,12 @@ pub struct InspectItem {
 #[function_component(QualityInspectionPage)]
 pub fn quality_inspection_page() -> Html {
     let records = use_state(|| Vec::<InspectItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let show_add_modal = use_state(|| false);
     let warp_defects = use_state(|| 0.0);
     let weft_defects = use_state(|| 0.0);
@@ -130,7 +137,8 @@ pub fn quality_inspection_page() -> Html {
                 </div>
 
                 <div class="content bg-white rounded shadow-sm border border-gray-100 overflow-hidden">
-                    <table class="data-table w-full text-left">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full text-left">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <th class="py-3 px-4 font-semibold text-gray-600">{"ID"}</th>
@@ -195,6 +203,7 @@ pub fn quality_inspection_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 if *show_add_modal {

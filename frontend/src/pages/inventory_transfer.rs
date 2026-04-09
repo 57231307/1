@@ -11,6 +11,7 @@ use crate::services::inventory_transfer_service::InventoryTransferService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct InventoryTransferPage {
     transfers: Vec<InventoryTransfer>,
@@ -436,7 +437,8 @@ impl InventoryTransferPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table w-full">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"调拨单号"}</th>
@@ -517,6 +519,7 @@ impl InventoryTransferPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }
@@ -598,7 +601,8 @@ impl InventoryTransferPage {
                 
                 <div class="detail-items mt-6">
                     <h3 class="text-lg font-bold mb-3">{"调拨明细"}</h3>
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"产品ID"}</th>
@@ -634,6 +638,7 @@ impl InventoryTransferPage {
                             }}
                         </tbody>
                     </table>
+</div>
                 </div>
                 </>
             }

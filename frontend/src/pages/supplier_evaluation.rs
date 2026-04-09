@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct SupplierEvalItem {
@@ -20,6 +21,12 @@ pub struct SupplierEvalItem {
 #[function_component(SupplierEvaluationPage)]
 pub fn supplier_evaluation_page() -> Html {
     let evaluations = use_state(|| Vec::<SupplierEvalItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let evaluations = evaluations.clone();
@@ -63,6 +70,7 @@ pub fn supplier_evaluation_page() -> Html {
                     <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
                         {"+ 新增评估"}
                     </button>
+                                <button onclick={on_print.clone()} class="btn-outline ml-2 text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                 </div>
 
                 <div class="bg-white p-4 rounded shadow mb-4">
@@ -89,7 +97,8 @@ pub fn supplier_evaluation_page() -> Html {
                 </div>
 
                 <div class="table-responsive">
-                    <table class="data-table w-full text-left border-collapse">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-gray-100 border-b">
                                 <th class="py-2 px-4 numeric-cell text-right">{"ID"}</th>
@@ -142,6 +151,7 @@ pub fn supplier_evaluation_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

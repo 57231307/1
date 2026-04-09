@@ -285,7 +285,8 @@ impl FinancePaymentPage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"付款单号"}</th>
@@ -327,6 +328,7 @@ impl FinancePaymentPage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 <div class="pagination">

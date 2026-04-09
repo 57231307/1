@@ -4,6 +4,7 @@ use crate::services::dye_recipe::DyeRecipeService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct DyeRecipePage {
     recipes: Vec<DyeRecipe>,
@@ -127,6 +128,12 @@ impl Component for DyeRecipePage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = web_sys::window() {
+            let _ = win.print();
+        }
+    });
+
         html! {
             <MainLayout current_page={"染化料配方"}>
                 <div class="page-container">
@@ -135,6 +142,7 @@ impl Component for DyeRecipePage {
                         <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ToggleCreateForm)}>
                             {"+ 新增"}
                         </button>
+                                <button onclick={on_print.clone()} class="btn-outline ml-2 text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                     </div>
 
                     if self.show_create_form {
@@ -175,7 +183,8 @@ impl DyeRecipePage {
 
         html! {
             <div style="overflow-x: auto; background: var(--surface-color); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                     <thead style="background: #f9fafb; border-bottom: 2px solid var(--border-color);">
                         <tr>
                             <th style="padding: 0.5rem; text-align: left;">{"配方编号"}</th>
@@ -205,6 +214,7 @@ impl DyeRecipePage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }

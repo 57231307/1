@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 
@@ -22,6 +23,12 @@ pub struct PurchasePriceItem {
 #[function_component(PurchasePricePage)]
 pub fn purchase_price_page() -> Html {
     let prices = use_state(|| Vec::<PurchasePriceItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let quantities = use_state(|| HashMap::<i32, f64>::new());
 
     {
@@ -78,6 +85,7 @@ pub fn purchase_price_page() -> Html {
                     <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 text-sm rounded transition-colors">
                         {"+ 新增报价"}
                     </button>
+                                <button onclick={on_print.clone()} class="btn-outline ml-2 text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                 </div>
                 
                 <div class="bg-white p-3 rounded shadow-sm border border-gray-200 mb-2">

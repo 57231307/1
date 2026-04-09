@@ -308,7 +308,8 @@ impl FinanceInvoicePage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"发票编号"}</th>
@@ -356,6 +357,7 @@ impl FinanceInvoicePage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 <div class="pagination">

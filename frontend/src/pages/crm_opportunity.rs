@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct CrmOpportunityItem {
@@ -18,6 +19,12 @@ pub struct CrmOpportunityItem {
 #[function_component(CrmOpportunityPage)]
 pub fn crm_opportunity_page() -> Html {
     let opps = use_state(|| Vec::<CrmOpportunityItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let opps = opps.clone();

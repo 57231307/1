@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct CrmLeadItem {
@@ -15,6 +16,12 @@ pub struct CrmLeadItem {
 #[function_component(CrmLeadPage)]
 pub fn crm_lead_page() -> Html {
     let leads = use_state(|| Vec::<CrmLeadItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let leads = leads.clone();

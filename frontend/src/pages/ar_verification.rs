@@ -1,4 +1,5 @@
 use yew::prelude::*;
+use web_sys::window;
 use crate::components::main_layout::MainLayout;
 
 #[derive(Clone, PartialEq, Default)]
@@ -15,6 +16,12 @@ pub struct ArVerifyItem {
 #[function_component(ArVerificationPage)]
 pub fn ar_verification_page() -> Html {
     let items = use_state(Vec::<ArVerifyItem>::new);
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     
     {
         let items = items.clone();
@@ -64,7 +71,8 @@ pub fn ar_verification_page() -> Html {
                 </div>
 
                 <div class="table-container bg-white rounded shadow-sm overflow-x-auto">
-                    <table class="data-table w-full text-left border-collapse">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full text-left border-collapse">
                         <thead class="bg-gray-50 border-b">
                             <tr>
                                 <th class="p-3">{"ID"}</th>
@@ -94,6 +102,7 @@ pub fn ar_verification_page() -> Html {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

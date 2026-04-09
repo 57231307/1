@@ -6,6 +6,7 @@ use crate::services::batch_service::BatchService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct BatchPage {
     batches: Vec<Batch>,
@@ -241,7 +242,8 @@ impl BatchPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table w-full">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"批次号"}</th>
@@ -282,6 +284,7 @@ impl BatchPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }

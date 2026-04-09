@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct SalesAnalysisItem {
@@ -16,6 +17,12 @@ pub struct SalesAnalysisItem {
 #[function_component(SalesAnalysisPage)]
 pub fn sales_analysis_page() -> Html {
     let items = use_state(|| Vec::<SalesAnalysisItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
 
     {
         let items = items.clone();

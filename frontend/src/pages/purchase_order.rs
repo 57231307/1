@@ -302,7 +302,8 @@ impl PurchaseOrderPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table w-full">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"订单编号"}</th>
@@ -361,6 +362,7 @@ impl PurchaseOrderPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }

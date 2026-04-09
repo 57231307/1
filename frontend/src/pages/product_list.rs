@@ -2,11 +2,18 @@ use crate::components::main_layout::MainLayout;
 use crate::services::product_service::ProductService;
 use crate::models::product::{Product, CreateProductRequest};
 use yew::prelude::*;
+use web_sys::window;
 use wasm_bindgen_futures::spawn_local;
 
 #[function_component(ProductListPage)]
 pub fn product_list_page() -> Html {
     let products = use_state(|| Vec::<Product>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let show_form = use_state(|| false);
 
     let form_code = use_state(String::new);
@@ -78,6 +85,7 @@ pub fn product_list_page() -> Html {
                     <button onclick={on_add_click} class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
                         {"+ 新增"}
                     </button>
+                                <button onclick={on_print.clone()} class="btn-outline ml-2 text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                 </div>
 
                 if *show_form {
@@ -154,7 +162,8 @@ pub fn product_list_page() -> Html {
                 }
 
                 <div class="content">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th class="numeric-cell text-right">{"ID"}</th>
@@ -196,6 +205,7 @@ pub fn product_list_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

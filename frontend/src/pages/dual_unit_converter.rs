@@ -1,4 +1,5 @@
 use yew::prelude::*;
+use web_sys::window;
 use crate::components::main_layout::MainLayout;
 use crate::models::unit_converter::{GlobalUnitConstant, ProductConversion};
 use crate::services::unit_converter::UnitConverterService;
@@ -7,6 +8,12 @@ use wasm_bindgen_futures::spawn_local;
 #[function_component(DualUnitConverterPage)]
 pub fn dual_unit_converter_page() -> Html {
     let constants = use_state(Vec::new);
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let products = use_state(Vec::new);
     let loading = use_state(|| true);
 
@@ -32,6 +39,7 @@ pub fn dual_unit_converter_page() -> Html {
         <MainLayout current_page={"双单位换算"}>
             <div class="p-4">
                 <h2 class="text-xl font-bold mb-4">{"双单位换算规则中心"}</h2>
+                        <div class="mb-4"><button onclick={on_print.clone()} class="btn-outline text-slate-600 border-slate-300">{"🖨️ 打印"}</button></div>
                 
                 if *loading {
                     <div>{"数据加载中..."}</div>
@@ -39,7 +47,8 @@ pub fn dual_unit_converter_page() -> Html {
                     <div class="mb-8">
                         <h3 class="text-lg font-semibold mb-2">{"全局固定公式 (物理换算)"}</h3>
                         <div class="table-responsive">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"换算前单位"}</th>
@@ -57,13 +66,15 @@ pub fn dual_unit_converter_page() -> Html {
                                     })}
                                 </tbody>
                             </table>
+</div>
                         </div>
                     </div>
 
                     <div>
                         <h3 class="text-lg font-semibold mb-2">{"产品级绑定公式 (米 ↔ 公斤)"}</h3>
                         <div class="table-responsive">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"产品编号"}</th>
@@ -89,6 +100,7 @@ pub fn dual_unit_converter_page() -> Html {
                                     })}
                                 </tbody>
                             </table>
+</div>
                         </div>
                     </div>
                 }

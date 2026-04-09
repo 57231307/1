@@ -8,6 +8,7 @@ use crate::models::purchase_contract::{
 use crate::services::purchase_contract_service::PurchaseContractService;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
+use web_sys::window;
 
 /// 采购合同状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -380,7 +381,8 @@ impl Component for PurchaseContractPage {
 
                 // 合同列表
                 <div class="contract-table table-responsive">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"合同编号"}</th>
@@ -428,6 +430,7 @@ impl Component for PurchaseContractPage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 // 分页

@@ -2,6 +2,7 @@
 
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
+use web_sys::window;
 
 #[derive(Clone, PartialEq)]
 pub struct WarehouseItem {
@@ -15,6 +16,12 @@ pub struct WarehouseItem {
 #[function_component(WarehouseListPage)]
 pub fn warehouse_list_page() -> Html {
     let warehouses = use_state(|| Vec::<WarehouseItem>::new());
+    let on_print = Callback::from(|_: yew::MouseEvent| {
+        if let Some(win) = window() {
+            let _ = win.print();
+        }
+    });
+
     let show_form = use_state(|| false);
     
     let new_name = use_state(|| String::new());
@@ -122,6 +129,7 @@ pub fn warehouse_list_page() -> Html {
                         class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow">
                         {"+ 新增"}
                     </button>
+                                <button onclick={on_print.clone()} class="btn-outline ml-2 text-slate-600 border-slate-300">{"🖨️ 打印"}</button>
                 </div>
 
                 if *show_form {
@@ -147,7 +155,8 @@ pub fn warehouse_list_page() -> Html {
                 }
 
                 <div class="content overflow-x-auto">
-                    <table class="data-table w-full border-collapse">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full border-collapse">
                         <thead>
                             <tr class="bg-gray-100">
                                 <th class="py-2 px-4 border-b numeric-cell text-right">{"ID"}</th>
@@ -187,6 +196,7 @@ pub fn warehouse_list_page() -> Html {
                             }
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
         </MainLayout>

@@ -10,6 +10,7 @@ use crate::services::ap_report_service::ApReportService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 /// 报表类型枚举
 #[derive(Clone, PartialEq)]
@@ -418,7 +419,8 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table w-full">
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -444,6 +446,7 @@ impl ApReportPage {
                                 })}
                             </tbody>
                         </table>
+</div>
                     </div>
                 </>
             }
@@ -481,7 +484,8 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table w-full">
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -507,6 +511,7 @@ impl ApReportPage {
                                 })}
                             </tbody>
                         </table>
+</div>
                     </div>
                 </>
             }
@@ -544,7 +549,8 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table w-full">
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -570,6 +576,7 @@ impl ApReportPage {
                                 })}
                             </tbody>
                         </table>
+</div>
                     </div>
                 </>
             }
@@ -611,7 +618,8 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table w-full">
+                        <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -643,6 +651,7 @@ impl ApReportPage {
                                 })}
                             </tbody>
                         </table>
+</div>
                     </div>
                 </>
             }

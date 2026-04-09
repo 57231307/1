@@ -6,6 +6,7 @@ use crate::services::dashboard_service::DashboardService;
 use chrono::{Datelike, Timelike};
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use web_sys::window;
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,
@@ -328,7 +329,8 @@ impl DashboardPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <div class="overflow-x-auto w-full pb-4">
+<table class="data-table">
                     <thead>
                         <tr>
                             <th>{"产品 ID"}</th>
@@ -360,6 +362,7 @@ impl DashboardPage {
                         })}
                     </tbody>
                 </table>
+</div>
             </div>
         }
     }

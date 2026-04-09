@@ -397,7 +397,8 @@ impl ApInvoicePage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table w-full">
+                    <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"发票编号"}</th>
@@ -444,6 +445,7 @@ impl ApInvoicePage {
                             })}
                         </tbody>
                     </table>
+</div>
                 </div>
 
                 <div class="pagination">
@@ -494,7 +496,8 @@ impl ApInvoicePage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"供应商ID"}</th>
@@ -524,6 +527,7 @@ impl ApInvoicePage {
                                     })}
                                 </tbody>
                             </table>
+</div>
                         </div>
                     }
                 </div>
@@ -554,7 +558,8 @@ impl ApInvoicePage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table w-full">
+                            <div class="overflow-x-auto w-full pb-4">
+<table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"供应商ID"}</th>
@@ -580,6 +585,7 @@ impl ApInvoicePage {
                                     })}
                                 </tbody>
                             </table>
+</div>
                         </div>
                     }
                 </div>
