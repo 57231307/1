@@ -23,7 +23,7 @@ pub fn crm_lead_page() -> Html {
     });
 
     html! {
-        <MainLayout current_page={""}>
+        <MainLayout current_page={"CRM 线索管理"}>
 <div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "CRM 线索管理" }</h1>
             <div class="mb-4">
@@ -32,7 +32,7 @@ pub fn crm_lead_page() -> Html {
                 </button>
             </div>
 
-            <table class="min-w-full bg-white border border-gray-200">
+            <table class="data-table w-full">
                 <thead>
                     <tr>
                         <th class="py-2 px-4 border-b">{ "编号" }</th>
@@ -49,7 +49,9 @@ pub fn crm_lead_page() -> Html {
                                 <td class="py-2 px-4 border-b text-center">{ &lead.lead_no }</td>
                                 <td class="py-2 px-4 border-b text-center">{ &lead.name }</td>
                                 <td class="py-2 px-4 border-b text-center">{ &lead.source }</td>
-                                <td class="py-2 px-4 border-b text-center">{ &lead.status }</td>
+                                <td class="py-2 px-4 border-b text-center">
+                                    <span class="status-badge">{ &lead.status }</span>
+                                </td>
                                 <td class="py-2 px-4 border-b text-center">
                                     <button class="text-blue-500 hover:text-blue-700">{ "查看" }</button>
                                 </td>

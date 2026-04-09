@@ -322,7 +322,7 @@ impl Component for PurchaseContractPage {
         let total = self.state.total;
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"/purchase-contracts"}>
 <div class="purchase-contract-page">
                 <div class="page-header">
                     <h1>{"采购合同管理"}</h1>
@@ -379,14 +379,14 @@ impl Component for PurchaseContractPage {
                 }
 
                 // 合同列表
-                <div class="contract-table">
-                    <table>
+                <div class="contract-table table-responsive">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"合同编号"}</th>
                                 <th>{"合同名称"}</th>
                                 <th>{"供应商"}</th>
-                                <th>{"总金额"}</th>
+                                <th class="numeric-cell text-right">{"总金额"}</th>
                                 <th>{"交货日期"}</th>
                                 <th>{"状态"}</th>
                                 <th>{"操作"}</th>
@@ -401,9 +401,9 @@ impl Component for PurchaseContractPage {
                                         <td>{&contract.contract_no}</td>
                                         <td>{&contract.contract_name}</td>
                                         <td>{contract.supplier_name.as_deref().unwrap_or("-")}</td>
-                                        <td>{format!("{:.2}", contract.total_amount)}</td>
+                                        <td class="numeric-cell text-right">{format!("{:.2}", contract.total_amount)}</td>
                                         <td>{&contract.delivery_date}</td>
-                                        <td>{status.display_name()}</td>
+                                        <td><span class="status-badge">{status.display_name()}</span></td>
                                         <td>
                                             <div class="action-buttons">
                                                 if status == ContractStatus::Draft {

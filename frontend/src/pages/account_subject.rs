@@ -28,48 +28,52 @@ pub fn account_subject_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
+        <MainLayout current_page={"account_subject"}>
 <div class="account-subject-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"会计科目管理"}</h1>
             </div>
             <div class="content">
-                <table class="min-w-full bg-white border border-gray-200">
-                    <thead>
-                        <tr>
-                            <th class="py-2 px-4 border-b">{"ID"}</th>
-                            <th class="py-2 px-4 border-b">{"代码"}</th>
-                            <th class="py-2 px-4 border-b">{"名称"}</th>
-                            <th class="py-2 px-4 border-b">{"级别"}</th>
-                            <th class="py-2 px-4 border-b">{"状态"}</th>
-                            <th class="py-2 px-4 border-b">{"操作"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {
-                            if subjects.is_empty() {
-                                html! {
-                                    <tr><td colspan="6" class="text-center py-4">{"暂无数据"}</td></tr>
-                                }
-                            } else {
-                                html! {
-                                    for subjects.iter().map(|subject| html! {
-                                        <tr key={subject.id}>
-                                            <td class="py-2 px-4 border-b text-center">{ subject.id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &subject.code }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &subject.name }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ subject.level }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &subject.status }</td>
-                                            <td class="py-2 px-4 border-b text-center">
-                                                <button class="text-blue-500 hover:text-blue-700">{"查看"}</button>
-                                            </td>
-                                        </tr>
-                                    })
+                <div class="table-responsive">
+                    <table class="data-table w-full">
+                        <thead>
+                            <tr>
+                                <th>{"ID"}</th>
+                                <th>{"代码"}</th>
+                                <th>{"名称"}</th>
+                                <th>{"级别"}</th>
+                                <th>{"状态"}</th>
+                                <th>{"操作"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                if subjects.is_empty() {
+                                    html! {
+                                        <tr><td colspan="6" class="text-center py-4">{"暂无数据"}</td></tr>
+                                    }
+                                } else {
+                                    html! {
+                                        for subjects.iter().map(|subject| html! {
+                                            <tr key={subject.id}>
+                                                <td>{ subject.id }</td>
+                                                <td>{ &subject.code }</td>
+                                                <td>{ &subject.name }</td>
+                                                <td>{ subject.level }</td>
+                                                <td>
+                                                    <span class="status-badge">{ &subject.status }</span>
+                                                </td>
+                                                <td>
+                                                    <button class="text-blue-500 hover:text-blue-700">{"查看"}</button>
+                                                </td>
+                                            </tr>
+                                        })
+                                    }
                                 }
                             }
-                        }
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     

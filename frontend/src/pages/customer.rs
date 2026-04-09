@@ -212,7 +212,7 @@ impl Component for CustomerPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"客户管理"}>
 <div class="customer-page">
                 <div class="page-header">
                     <h1>{"👥 客户管理"}</h1>
@@ -439,7 +439,7 @@ impl CustomerPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"客户编号"}</th>
@@ -447,7 +447,7 @@ impl CustomerPage {
                             <th>{"联系人"}</th>
                             <th>{"联系电话"}</th>
                             <th>{"客户类型"}</th>
-                            <th>{"信用额度"}</th>
+                            <th class="numeric-cell text-right">{"信用额度"}</th>
                             <th>{"状态"}</th>
                             <th>{"操作"}</th>
                         </tr>
@@ -463,7 +463,7 @@ impl CustomerPage {
                                     <td>{customer.contact_person.as_deref().unwrap_or("-")}</td>
                                     <td>{customer.contact_phone.as_deref().unwrap_or("-")}</td>
                                     <td>{customer.customer_type.as_deref().unwrap_or("-")}</td>
-                                    <td class="numeric">{customer.credit_limit.as_deref().unwrap_or("-")}</td>
+                                    <td class="numeric-cell text-right">{customer.credit_limit.as_deref().unwrap_or("-")}</td>
                                     <td>
                                         <span class={format!("status-badge status-{}", self.get_status_class(&customer.status))}>
                                             {&customer.status}

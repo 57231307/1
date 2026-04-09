@@ -612,7 +612,7 @@ impl BusinessTracePage {
             <div class="trace-list">
                 <h3>{"追溯结果"}</h3>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"追溯链ID"}</th>
@@ -623,8 +623,8 @@ impl BusinessTracePage {
                                 <th>{"等级"}</th>
                                 <th>{"当前环节"}</th>
                                 <th>{"当前单据"}</th>
-                                <th>{"数量(米)"}</th>
-                                <th>{"数量(公斤)"}</th>
+                                <th class="numeric-cell text-right">{"数量(米)"}</th>
+                                <th class="numeric-cell text-right">{"数量(公斤)"}</th>
                                 <th>{"状态"}</th>
                             </tr>
                         </thead>
@@ -640,8 +640,8 @@ impl BusinessTracePage {
                                         <td>{&trace.grade}</td>
                                         <td>{&trace.current_stage}</td>
                                         <td>{&trace.current_bill_no}</td>
-                                        <td class="numeric">{format!("{:.2}", trace.quantity_meters)}</td>
-                                        <td class="numeric">{format!("{:.2}", trace.quantity_kg)}</td>
+                                        <td class="numeric-cell text-right">{format!("{:.2}", trace.quantity_meters)}</td>
+                                        <td class="numeric-cell text-right">{format!("{:.2}", trace.quantity_kg)}</td>
                                         <td>
                                             <span class={format!("status-badge status-{}", trace.trace_status.to_lowercase())}>
                                                 {&trace.trace_status}

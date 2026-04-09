@@ -357,7 +357,7 @@ impl FiveDimensionPage {
                         <div class="search-results">
                             <h3>{"搜索结果"}</h3>
                             <div class="table-responsive">
-                                <table class="data-table">
+                                <table class="data-table w-full">
                                     <thead>
                                         <tr>
                                             <th>{"五维ID"}</th>
@@ -498,7 +498,7 @@ impl FiveDimensionPage {
                             </div>
                         } else {
                             <div class="table-responsive">
-                                <table class="data-table">
+                                <table class="data-table w-full">
                                     <thead>
                                         <tr>
                                             <th>{"五维ID"}</th>
@@ -507,9 +507,9 @@ impl FiveDimensionPage {
                                             <th>{"色号"}</th>
                                             <th>{"染缸"}</th>
                                             <th>{"等级"}</th>
-                                            <th>{"总米数"}</th>
-                                            <th>{"总公斤数"}</th>
-                                            <th>{"库存记录数"}</th>
+                                            <th class="numeric-cell text-right">{"总米数"}</th>
+                                            <th class="numeric-cell text-right">{"总公斤数"}</th>
+                                            <th class="numeric-cell text-right">{"库存记录数"}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -526,9 +526,9 @@ impl FiveDimensionPage {
                                                     <td>{&item.dimension.color_no}</td>
                                                     <td>{item.dimension.dye_lot_no.clone().unwrap_or_else(|| "-".to_string())}</td>
                                                     <td>{&item.dimension.grade}</td>
-                                                    <td class="numeric">{self.format_decimal(&item.total_meters)}</td>
-                                                    <td class="numeric">{self.format_decimal(&item.total_kg)}</td>
-                                                    <td class="numeric">{item.stock_count.to_string()}</td>
+                                                    <td class="numeric-cell text-right">{self.format_decimal(&item.total_meters)}</td>
+                                                    <td class="numeric-cell text-right">{self.format_decimal(&item.total_kg)}</td>
+                                                    <td class="numeric-cell text-right">{item.stock_count.to_string()}</td>
                                                 </tr>
                                             }
                                         })}

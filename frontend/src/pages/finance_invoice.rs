@@ -187,7 +187,7 @@ impl Component for FinanceInvoicePage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"finance_invoice"}>
 <div class="finance-invoice-page">
                 <div class="page-header">
                     <h1>{"财务发票管理"}</h1>
@@ -308,7 +308,7 @@ impl FinanceInvoicePage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"发票编号"}</th>
@@ -317,9 +317,9 @@ impl FinanceInvoicePage {
                                 <th>{"发票日期"}</th>
                                 <th>{"到期日期"}</th>
                                 <th>{"发票状态"}</th>
-                                <th>{"金额"}</th>
-                                <th>{"税额"}</th>
-                                <th>{"价税合计"}</th>
+                                <th class="numeric-cell text-right">{"金额"}</th>
+                                <th class="numeric-cell text-right">{"税额"}</th>
+                                <th class="numeric-cell text-right">{"价税合计"}</th>
                                 <th>{"付款方式"}</th>
                                 <th>{"付款日期"}</th>
                             </tr>
@@ -346,9 +346,9 @@ impl FinanceInvoicePage {
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status}</span>
                                         </td>
-                                        <td class="numeric">{&invoice.amount}</td>
-                                        <td class="numeric">{&invoice.tax_amount}</td>
-                                        <td class="numeric">{&invoice.total_amount}</td>
+                                        <td class="numeric-cell text-right">{&invoice.amount}</td>
+                                        <td class="numeric-cell text-right">{&invoice.tax_amount}</td>
+                                        <td class="numeric-cell text-right">{&invoice.total_amount}</td>
                                         <td>{invoice.payment_method.as_deref().unwrap_or("-")}</td>
                                         <td>{invoice.paid_date.as_deref().unwrap_or("-")}</td>
                                     </tr>

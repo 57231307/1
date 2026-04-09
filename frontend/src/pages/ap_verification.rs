@@ -297,7 +297,7 @@ impl Component for ApVerificationPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"ap_verifications"}>
 <div class="ap-verification-page">
                 <div class="page-header">
                     <h1>{"🔄 应付核销管理"}</h1>
@@ -380,7 +380,7 @@ impl ApVerificationPage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"核销单号"}</th>
@@ -410,9 +410,9 @@ impl ApVerificationPage {
                                         <td>{v.supplier_name.as_deref().unwrap_or("-")}</td>
                                         <td>{&v.verification_type}</td>
                                         <td>{&v.verification_date}</td>
-                                        <td class="numeric">{&v.total_amount}</td>
-                                        <td class="numeric">{v.invoice_count}</td>
-                                        <td class="numeric">{v.payment_count}</td>
+                                        <td class="numeric-cell text-right">{&v.total_amount}</td>
+                                        <td class="numeric-cell text-right">{v.invoice_count}</td>
+                                        <td class="numeric-cell text-right">{v.payment_count}</td>
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status}</span>
                                         </td>

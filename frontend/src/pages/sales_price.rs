@@ -22,15 +22,15 @@ pub fn sales_price_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
+        <MainLayout current_page={"sales_price"}>
 <div class="p-4">
             <h1 class="text-2xl font-bold mb-4">{ "销售价格管理" }</h1>
-            <table class="min-w-full bg-white border border-gray-200">
+            <table class="data-table w-full min-w-full bg-white border border-gray-200">
                 <thead>
                     <tr>
                         <th class="py-2 px-4 border-b">{ "产品ID" }</th>
                         <th class="py-2 px-4 border-b">{ "价格类型" }</th>
-                        <th class="py-2 px-4 border-b">{ "价格" }</th>
+                        <th class="py-2 px-4 border-b numeric-cell text-right">{ "价格" }</th>
                         <th class="py-2 px-4 border-b">{ "货币" }</th>
                         <th class="py-2 px-4 border-b">{ "生效日期" }</th>
                         <th class="py-2 px-4 border-b">{ "状态" }</th>
@@ -46,10 +46,10 @@ pub fn sales_price_page() -> Html {
                                     <tr key={price.id}>
                                         <td class="py-2 px-4 border-b text-center">{ price.product_id }</td>
                                         <td class="py-2 px-4 border-b text-center">{ &price.price_type }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &price.price }</td>
+                                        <td class="py-2 px-4 border-b numeric-cell text-right">{ &price.price }</td>
                                         <td class="py-2 px-4 border-b text-center">{ &price.currency }</td>
                                         <td class="py-2 px-4 border-b text-center">{ &price.effective_date }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &price.status }</td>
+                                        <td class="py-2 px-4 border-b text-center"><span class="status-badge">{ &price.status }</span></td>
                                     </tr>
                                 })
                             }

@@ -223,7 +223,7 @@ impl Component for PurchaseReturnPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"/purchase-returns"}>
 <div class="purchase-return-page">
                 <div class="page-header">
                     <h1>{"退货管理"}</h1>
@@ -361,7 +361,7 @@ impl PurchaseReturnPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"退货单号"}</th>
@@ -369,8 +369,8 @@ impl PurchaseReturnPage {
                             <th>{"供应商"}</th>
                             <th>{"退货日期"}</th>
                             <th>{"退货状态"}</th>
-                            <th>{"退货数量"}</th>
-                            <th>{"退货金额"}</th>
+                            <th class="numeric-cell text-right">{"退货数量"}</th>
+                            <th class="numeric-cell text-right">{"退货金额"}</th>
                             <th>{"仓库"}</th>
                         </tr>
                     </thead>
@@ -383,9 +383,9 @@ impl PurchaseReturnPage {
                                     <td>{ret.order_no.as_deref().unwrap_or("-")}</td>
                                     <td>{ret.supplier_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&ret.return_date}</td>
-                                    <td>{status}</td>
-                                    <td class="numeric">{&ret.total_quantity}</td>
-                                    <td class="numeric">{&ret.total_amount}</td>
+                                    <td><span class="status-badge">{status}</span></td>
+                                    <td class="numeric-cell text-right">{&ret.total_quantity}</td>
+                                    <td class="numeric-cell text-right">{&ret.total_amount}</td>
                                     <td>{ret.warehouse_name.as_deref().unwrap_or("-")}</td>
                                 </tr>
                             }

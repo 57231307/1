@@ -22,36 +22,36 @@ pub fn warehouse_list_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
-<div class="p-4">
-            <h1 class="text-2xl font-bold mb-4">{ "仓库管理" }</h1>
-            <table class="min-w-full bg-white border border-gray-200">
-                <thead>
-                    <tr>
-                        <th class="py-2 px-4 border-b">{ "编号" }</th>
-                        <th class="py-2 px-4 border-b">{ "名称" }</th>
-                        <th class="py-2 px-4 border-b">{ "状态" }</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {
-                        if warehouses.is_empty() {
-                            html! { <tr><td colspan="3" class="text-center py-4">{ "暂无数据" }</td></tr> }
-                        } else {
-                            html! {
-                                for warehouses.iter().map(|warehouse| html! {
-                                    <tr key={warehouse.id}>
-                                        <td class="py-2 px-4 border-b text-center">{ &warehouse.code }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &warehouse.name }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &warehouse.status }</td>
-                                    </tr>
-                                })
+        <MainLayout current_page={"warehouse_list"}>
+            <div class="p-4">
+                <h1 class="text-2xl font-bold mb-4">{ "仓库管理" }</h1>
+                <table class="data-table w-full">
+                    <thead>
+                        <tr>
+                            <th class="py-2 px-4 border-b text-left">{ "编号" }</th>
+                            <th class="py-2 px-4 border-b text-left">{ "名称" }</th>
+                            <th class="py-2 px-4 border-b text-center">{ "状态" }</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {
+                            if warehouses.is_empty() {
+                                html! { <tr><td colspan="3" class="text-center py-4">{ "暂无数据" }</td></tr> }
+                            } else {
+                                html! {
+                                    for warehouses.iter().map(|warehouse| html! {
+                                        <tr key={warehouse.id}>
+                                            <td class="py-2 px-4 border-b text-left">{ &warehouse.code }</td>
+                                            <td class="py-2 px-4 border-b text-left">{ &warehouse.name }</td>
+                                            <td class="py-2 px-4 border-b text-center"><span class="status-badge">{ &warehouse.status }</span></td>
+                                        </tr>
+                                    })
+                                }
                             }
                         }
-                    }
-                </tbody>
-            </table>
-        </div>
-    
-</MainLayout>}
+                    </tbody>
+                </table>
+            </div>
+        </MainLayout>
+    }
 }

@@ -180,7 +180,7 @@ impl Component for ApPaymentPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"ap_payment"}>
 <div class="ap-payment-page">
                 <div class="page-header">
                     <h1>{"付款管理"}</h1>
@@ -258,7 +258,7 @@ impl ApPaymentPage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"付款单号"}</th>
@@ -311,7 +311,7 @@ impl ApPaymentPage {
                                         <td>{&payment.payment_date}</td>
                                         <td>{payment_type_text}</td>
                                         <td>{payment_method_text}</td>
-                                        <td class="numeric">{&payment.payment_amount.to_string()}</td>
+                                        <td class="numeric-cell text-right">{&payment.payment_amount.to_string()}</td>
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status_text}</span>
                                         </td>

@@ -376,7 +376,7 @@ impl ApInvoicePage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"发票编号"}</th>
@@ -412,9 +412,9 @@ impl ApInvoicePage {
                                             <span class={format!("status-badge {}", status_class)}>{status}</span>
                                         </td>
                                         <td>{&invoice.invoice_type}</td>
-                                        <td class="numeric">{&invoice.total_amount}</td>
-                                        <td class="numeric">{invoice.paid_amount.as_deref().unwrap_or("0.00")}</td>
-                                        <td class="numeric">{invoice.outstanding_amount.as_deref().unwrap_or("0.00")}</td>
+                                        <td class="numeric-cell text-right">{&invoice.total_amount}</td>
+                                        <td class="numeric-cell text-right">{invoice.paid_amount.as_deref().unwrap_or("0.00")}</td>
+                                        <td class="numeric-cell text-right">{invoice.outstanding_amount.as_deref().unwrap_or("0.00")}</td>
                                         <td>{invoice.source_bill_no.as_deref().unwrap_or("-")}</td>
                                     </tr>
                                 }
@@ -471,7 +471,7 @@ impl ApInvoicePage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"供应商ID"}</th>
@@ -490,12 +490,12 @@ impl ApInvoicePage {
                                             <tr>
                                                 <td>{item.supplier_id.to_string()}</td>
                                                 <td>{&item.supplier_name}</td>
-                                                <td class="numeric">{&item.current_amount}</td>
-                                                <td class="numeric">{&item.days_1_30}</td>
-                                                <td class="numeric">{&item.days_31_60}</td>
-                                                <td class="numeric">{&item.days_61_90}</td>
-                                                <td class="numeric highlight">{&item.days_over_90}</td>
-                                                <td class="numeric total">{&item.total_outstanding}</td>
+                                                <td class="numeric-cell text-right">{&item.current_amount}</td>
+                                                <td class="numeric-cell text-right">{&item.days_1_30}</td>
+                                                <td class="numeric-cell text-right">{&item.days_31_60}</td>
+                                                <td class="numeric-cell text-right">{&item.days_61_90}</td>
+                                                <td class="numeric-cell text-right highlight">{&item.days_over_90}</td>
+                                                <td class="numeric-cell text-right total">{&item.total_outstanding}</td>
                                             </tr>
                                         }
                                     })}
@@ -531,7 +531,7 @@ impl ApInvoicePage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"供应商ID"}</th>
@@ -548,10 +548,10 @@ impl ApInvoicePage {
                                             <tr>
                                                 <td>{item.supplier_id.to_string()}</td>
                                                 <td>{&item.supplier_name}</td>
-                                                <td class="numeric">{item.invoice_count.to_string()}</td>
-                                                <td class="numeric">{&item.total_amount}</td>
-                                                <td class="numeric">{&item.paid_amount}</td>
-                                                <td class="numeric highlight">{&item.outstanding_amount}</td>
+                                                <td class="numeric-cell text-right">{item.invoice_count.to_string()}</td>
+                                                <td class="numeric-cell text-right">{&item.total_amount}</td>
+                                                <td class="numeric-cell text-right">{&item.paid_amount}</td>
+                                                <td class="numeric-cell text-right highlight">{&item.outstanding_amount}</td>
                                             </tr>
                                         }
                                     })}

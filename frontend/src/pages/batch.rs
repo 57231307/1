@@ -168,8 +168,8 @@ impl Component for BatchPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
-<div class="batch-page">
+            <MainLayout current_page={"batch"}>
+                <div class="batch-page">
                 <div class="page-header">
                     <h1>{"🏷️ 批次管理"}</h1>
                 </div>
@@ -201,9 +201,9 @@ impl Component for BatchPage {
                 </div>
 
                 {self.render_content(ctx)}
-            </div>
-        
-</MainLayout>}
+                </div>
+            </MainLayout>
+        }
     }
 }
 
@@ -241,7 +241,7 @@ impl BatchPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"批次号"}</th>
@@ -249,8 +249,8 @@ impl BatchPage {
                             <th>{"仓库"}</th>
                             <th>{"色号"}</th>
                             <th>{"等级"}</th>
-                            <th>{"数量(米)"}</th>
-                            <th>{"数量(公斤)"}</th>
+                            <th class="numeric-cell text-right">{"数量(米)"}</th>
+                            <th class="numeric-cell text-right">{"数量(公斤)"}</th>
                             <th>{"库存状态"}</th>
                         </tr>
                     </thead>
@@ -264,9 +264,13 @@ impl BatchPage {
                                     <td>{batch.warehouse_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&batch.color_no}</td>
                                     <td>{&batch.grade}</td>
-                                    <td class="numeric">{batch.quantity_meters.to_string()}</td>
-                                    <td class="numeric">{batch.quantity_kg.to_string()}</td>
-                                    <td>{status}</td>
+                                    <td class="numeric-cell text-right">{batch.quantity_meters.to_string()}</td>
+                                    <td class="numeric-cell text-right">{batch.quantity_kg.to_string()}</td>
+                                    <td>
+                                        <span class={format!("status-badge status-{}", status.to_lowercase())}>
+                                            {status}
+                                        </span>
+                                    </td>
                                 </tr>
                             }
                         })}

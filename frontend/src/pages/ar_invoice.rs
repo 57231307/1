@@ -168,7 +168,7 @@ impl Component for ArInvoicePage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"ar_invoices"}>
 <div class="ar-invoice-page">
                 <div class="page-header">
                     <h1>{"应收发票管理"}</h1>
@@ -237,7 +237,7 @@ impl ArInvoicePage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"发票编号"}</th>
@@ -286,9 +286,9 @@ impl ArInvoicePage {
                                         <td>
                                             <span class={format!("status-badge {}", approval_class)}>{approval_status}</span>
                                         </td>
-                                        <td class="numeric">{&invoice.invoice_amount}</td>
-                                        <td class="numeric">{&invoice.received_amount}</td>
-                                        <td class="numeric">{&invoice.unpaid_amount}</td>
+                                        <td class="numeric-cell text-right">{&invoice.invoice_amount}</td>
+                                        <td class="numeric-cell text-right">{&invoice.received_amount}</td>
+                                        <td class="numeric-cell text-right">{&invoice.unpaid_amount}</td>
                                         <td>{invoice.batch_no.as_deref().unwrap_or("-")}</td>
                                         <td>{invoice.color_no.as_deref().unwrap_or("-")}</td>
                                         <td>{invoice.sales_order_no.as_deref().unwrap_or("-")}</td>

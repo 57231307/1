@@ -190,7 +190,7 @@ impl Component for PurchaseOrderPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"/purchase-orders"}>
 <div class="purchase-order-page">
                 <div class="page-header">
                     <h1>{"📦 采购订单管理"}</h1>
@@ -299,7 +299,7 @@ impl PurchaseOrderPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"订单编号"}</th>
@@ -307,7 +307,7 @@ impl PurchaseOrderPage {
                             <th>{"订单日期"}</th>
                             <th>{"要求交货日期"}</th>
                             <th>{"订单状态"}</th>
-                            <th>{"总金额"}</th>
+                            <th class="numeric-cell text-right">{"总金额"}</th>
                             <th>{"仓库"}</th>
                             <th>{"操作"}</th>
                         </tr>
@@ -323,8 +323,8 @@ impl PurchaseOrderPage {
                                     <td>{order.supplier_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&order.order_date}</td>
                                     <td>{order.expected_delivery_date.as_deref().unwrap_or("-")}</td>
-                                    <td>{status}</td>
-                                    <td class="numeric">{&order.total_amount}</td>
+                                    <td><span class="status-badge">{status}</span></td>
+                                    <td class="numeric-cell text-right">{&order.total_amount}</td>
                                     <td>{order.warehouse_name.as_deref().unwrap_or("-")}</td>
                                     <td>
                                         {if status_check == "REJECTED" || status_check == "DRAFT" {

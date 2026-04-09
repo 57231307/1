@@ -235,7 +235,7 @@ impl Component for ApReportPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"ap_reports"}>
 <div class="ap-report-page">
                 <div class="page-header">
                     <h1>{"📊 应付报表"}</h1>
@@ -418,7 +418,7 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -435,10 +435,10 @@ impl ApReportPage {
                                         <tr>
                                             <td>{item.supplier_id}</td>
                                             <td>{&item.supplier_name}</td>
-                                            <td class="numeric">{item.invoice_count}</td>
-                                            <td class="numeric">{&item.total_amount}</td>
-                                            <td class="numeric">{&item.paid_amount}</td>
-                                            <td class="numeric">{&item.outstanding_amount}</td>
+                                            <td class="numeric-cell text-right">{item.invoice_count}</td>
+                                            <td class="numeric-cell text-right">{&item.total_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.paid_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.outstanding_amount}</td>
                                         </tr>
                                     }
                                 })}
@@ -481,7 +481,7 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -498,10 +498,10 @@ impl ApReportPage {
                                         <tr>
                                             <td>{item.supplier_id}</td>
                                             <td>{&item.supplier_name}</td>
-                                            <td class="numeric">{item.invoice_count}</td>
-                                            <td class="numeric">{&item.new_amount}</td>
-                                            <td class="numeric">{&item.paid_amount}</td>
-                                            <td class="numeric">{&item.outstanding_amount}</td>
+                                            <td class="numeric-cell text-right">{item.invoice_count}</td>
+                                            <td class="numeric-cell text-right">{&item.new_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.paid_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.outstanding_amount}</td>
                                         </tr>
                                     }
                                 })}
@@ -544,7 +544,7 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -561,10 +561,10 @@ impl ApReportPage {
                                         <tr>
                                             <td>{item.supplier_id}</td>
                                             <td>{&item.supplier_name}</td>
-                                            <td class="numeric">{item.invoice_count}</td>
-                                            <td class="numeric">{&item.month_amount}</td>
-                                            <td class="numeric">{&item.paid_amount}</td>
-                                            <td class="numeric">{&item.outstanding_amount}</td>
+                                            <td class="numeric-cell text-right">{item.invoice_count}</td>
+                                            <td class="numeric-cell text-right">{&item.month_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.paid_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.outstanding_amount}</td>
                                         </tr>
                                     }
                                 })}
@@ -611,7 +611,7 @@ impl ApReportPage {
                     </div>
 
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"供应商编号"}</th>
@@ -631,13 +631,13 @@ impl ApReportPage {
                                         <tr>
                                             <td>{item.supplier_id}</td>
                                             <td>{&item.supplier_name}</td>
-                                            <td class="numeric">{item.invoice_count}</td>
-                                            <td class="numeric">{&item.total_outstanding}</td>
-                                            <td class="numeric">{&item.current_amount}</td>
-                                            <td class="numeric">{&item.days_1_30}</td>
-                                            <td class="numeric">{&item.days_31_60}</td>
-                                            <td class="numeric">{&item.days_61_90}</td>
-                                            <td class="numeric">{&item.days_over_90}</td>
+                                            <td class="numeric-cell text-right">{item.invoice_count}</td>
+                                            <td class="numeric-cell text-right">{&item.total_outstanding}</td>
+                                            <td class="numeric-cell text-right">{&item.current_amount}</td>
+                                            <td class="numeric-cell text-right">{&item.days_1_30}</td>
+                                            <td class="numeric-cell text-right">{&item.days_31_60}</td>
+                                            <td class="numeric-cell text-right">{&item.days_61_90}</td>
+                                            <td class="numeric-cell text-right">{&item.days_over_90}</td>
                                         </tr>
                                     }
                                 })}

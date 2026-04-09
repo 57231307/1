@@ -147,7 +147,7 @@ impl Component for SalesReturnPage {
         let link = ctx.link();
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"sales_return"}>
 <div class="page-container">
                 <div class="page-header">
                     <h2>{ "销售退货管理" }</h2>
@@ -172,14 +172,14 @@ impl Component for SalesReturnPage {
                     </div>
                 } else {
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{ "退货单号" }</th>
                                     <th>{ "客户ID" }</th>
                                     <th>{ "退货日期" }</th>
                                     <th>{ "状态" }</th>
-                                    <th>{ "退货金额" }</th>
+                                    <th class="numeric-cell text-right">{ "退货金额" }</th>
                                     <th>{ "退货原因" }</th>
                                     <th>{ "创建时间" }</th>
                                     <th>{ "操作" }</th>
@@ -242,7 +242,7 @@ impl SalesReturnPage {
                         { &return_order.status }
                     </span>
                 </td>
-                <td>{ format!("¥{:.2}", return_order.total_amount) }</td>
+                <td class="numeric-cell text-right">{ format!("¥{:.2}", return_order.total_amount) }</td>
                 <td>{ &return_order.reason }</td>
                 <td>{ return_order.created_at.split('T').next().unwrap_or("") }</td>
                 <td class="actions">

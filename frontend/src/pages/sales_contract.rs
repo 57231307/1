@@ -321,7 +321,7 @@ impl Component for SalesContractPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"sales_contract"}>
 <div class="sales-contract-page">
                 <div class="page-header">
                     <h1>{"销售合同管理"}</h1>
@@ -379,13 +379,13 @@ impl Component for SalesContractPage {
 
                 // 合同列表
                 <div class="contract-table">
-                    <table>
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"合同编号"}</th>
                                 <th>{"合同名称"}</th>
                                 <th>{"客户"}</th>
-                                <th>{"总金额"}</th>
+                                <th class="numeric-cell text-right">{"总金额"}</th>
                                 <th>{"交货日期"}</th>
                                 <th>{"状态"}</th>
                                 <th>{"操作"}</th>
@@ -402,9 +402,9 @@ impl Component for SalesContractPage {
                                         <td>{&contract.contract_no}</td>
                                         <td>{&contract.contract_name}</td>
                                         <td>{contract.customer_name.as_deref().unwrap_or("-")}</td>
-                                        <td>{format!("{:.2}", contract.total_amount)}</td>
+                                        <td class="numeric-cell text-right">{format!("{:.2}", contract.total_amount)}</td>
                                         <td>{&contract.delivery_date}</td>
-                                        <td>{status.display_name()}</td>
+                                        <td><span class="status-badge">{status.display_name()}</span></td>
                                         <td>
                                             <div class="action-buttons">
                                                 if status == ContractStatus::Draft {
@@ -620,7 +620,7 @@ impl Component for ExecuteContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <table class="table"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
+                        <table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
@@ -660,7 +660,7 @@ impl Component for CancelContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <table class="table"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
+                        <table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>

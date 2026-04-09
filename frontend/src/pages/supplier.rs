@@ -223,7 +223,7 @@ impl Component for SupplierPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"供应商管理"}>
 <div class="supplier-page">
                 <div class="page-header">
                     <h1>{"🏭 供应商管理"}</h1>
@@ -538,7 +538,7 @@ impl SupplierPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"供应商编号"}</th>
@@ -547,7 +547,7 @@ impl SupplierPage {
                             <th>{"类型"}</th>
                             <th>{"联系人"}</th>
                             <th>{"联系电话"}</th>
-                            <th>{"评级"}</th>
+                            <th class="numeric-cell text-right">{"评级"}</th>
                             <th>{"状态"}</th>
                             <th>{"操作"}</th>
                         </tr>
@@ -565,7 +565,7 @@ impl SupplierPage {
                                     <td>{&supplier.supplier_type}</td>
                                     <td>{supplier.legal_representative.clone()}</td>
                                     <td>{&supplier.contact_phone}</td>
-                                    <td>
+                                    <td class="numeric-cell text-right">
                                         {supplier.grade.as_deref().unwrap_or("-")}
                                     </td>
                                     <td>

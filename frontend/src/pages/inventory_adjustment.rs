@@ -23,54 +23,58 @@ pub fn inventory_adjustment_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
-<div class="inventory-adjustment-page p-4">
-            <div class="header mb-4">
-                <h1 class="text-2xl font-bold">{"库存调整单"}</h1>
-            </div>
-            <div class="content">
-                <table class="min-w-full bg-white border border-gray-200">
-                    <thead>
-                        <tr>
-                            <th class="py-2 px-4 border-b">{"ID"}</th>
-                            <th class="py-2 px-4 border-b">{"调整单号"}</th>
-                            <th class="py-2 px-4 border-b">{"仓库ID"}</th>
-                            <th class="py-2 px-4 border-b">{"调整类型"}</th>
-                            <th class="py-2 px-4 border-b">{"原因类型"}</th>
-                            <th class="py-2 px-4 border-b">{"总数量"}</th>
-                            <th class="py-2 px-4 border-b">{"状态"}</th>
-                            <th class="py-2 px-4 border-b">{"操作"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {
-                            if adjustments.is_empty() {
-                                html! {
-                                    <tr><td colspan="8" class="text-center py-4">{"暂无数据"}</td></tr>
-                                }
-                            } else {
-                                html! {
-                                    for adjustments.iter().map(|adj| html! {
-                                        <tr key={adj.id}>
-                                            <td class="py-2 px-4 border-b text-center">{ adj.id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &adj.adjustment_no }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ adj.warehouse_id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &adj.adjustment_type }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &adj.reason_type }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &adj.total_quantity }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &adj.status }</td>
-                                            <td class="py-2 px-4 border-b text-center">
-                                                <button class="text-blue-500 hover:text-blue-700">{"查看"}</button>
-                                            </td>
-                                        </tr>
-                                    })
+        <MainLayout current_page={"inventory_adjustment"}>
+            <div class="inventory-adjustment-page p-4">
+                <div class="header mb-4">
+                    <h1 class="text-2xl font-bold">{"库存调整单"}</h1>
+                </div>
+                <div class="content">
+                    <table class="data-table w-full">
+                        <thead>
+                            <tr>
+                                <th class="py-2 px-4 border-b">{"ID"}</th>
+                                <th class="py-2 px-4 border-b">{"调整单号"}</th>
+                                <th class="py-2 px-4 border-b">{"仓库ID"}</th>
+                                <th class="py-2 px-4 border-b">{"调整类型"}</th>
+                                <th class="py-2 px-4 border-b">{"原因类型"}</th>
+                                <th class="py-2 px-4 border-b numeric-cell text-right">{"总数量"}</th>
+                                <th class="py-2 px-4 border-b">{"状态"}</th>
+                                <th class="py-2 px-4 border-b">{"操作"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                if adjustments.is_empty() {
+                                    html! {
+                                        <tr><td colspan="8" class="text-center py-4">{"暂无数据"}</td></tr>
+                                    }
+                                } else {
+                                    html! {
+                                        for adjustments.iter().map(|adj| html! {
+                                            <tr key={adj.id}>
+                                                <td class="py-2 px-4 border-b text-center">{ adj.id }</td>
+                                                <td class="py-2 px-4 border-b text-center">{ &adj.adjustment_no }</td>
+                                                <td class="py-2 px-4 border-b text-center">{ adj.warehouse_id }</td>
+                                                <td class="py-2 px-4 border-b text-center">{ &adj.adjustment_type }</td>
+                                                <td class="py-2 px-4 border-b text-center">{ &adj.reason_type }</td>
+                                                <td class="py-2 px-4 border-b numeric-cell text-right">{ &adj.total_quantity }</td>
+                                                <td class="py-2 px-4 border-b text-center">
+                                                    <span class={format!("status-badge status-{}", adj.status.to_lowercase())}>
+                                                        { &adj.status }
+                                                    </span>
+                                                </td>
+                                                <td class="py-2 px-4 border-b text-center">
+                                                    <button class="text-blue-500 hover:text-blue-700">{"查看"}</button>
+                                                </td>
+                                            </tr>
+                                        })
+                                    }
                                 }
                             }
-                        }
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    
-</MainLayout>}
+        </MainLayout>
+    }
 }

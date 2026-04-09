@@ -200,7 +200,7 @@ impl Component for ApReconciliationPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"ap_reconciliations"}>
 <div class="ap-reconciliation-page">
                 <div class="page-header">
                     <h1>{"应付对账管理"}</h1>
@@ -276,7 +276,7 @@ impl ApReconciliationPage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"对账单号"}</th>
@@ -318,10 +318,10 @@ impl ApReconciliationPage {
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status_text}</span>
                                         </td>
-                                        <td class="numeric">{&reconciliation.total_amount}</td>
-                                        <td class="numeric">{reconciliation.confirmed_amount.as_deref().unwrap_or("0.00")}</td>
-                                        <td class="numeric">{reconciliation.disputed_amount.as_deref().unwrap_or("0.00")}</td>
-                                        <td class="numeric">{reconciliation.invoice_count.to_string()}</td>
+                                        <td class="numeric-cell text-right">{&reconciliation.total_amount}</td>
+                                        <td class="numeric-cell text-right">{reconciliation.confirmed_amount.as_deref().unwrap_or("0.00")}</td>
+                                        <td class="numeric-cell text-right">{reconciliation.disputed_amount.as_deref().unwrap_or("0.00")}</td>
+                                        <td class="numeric-cell text-right">{reconciliation.invoice_count.to_string()}</td>
                                         <td>
                                             <div class="action-buttons">
                                                 <button class="btn-action" onclick={ctx.link().callback(move |_| Msg::ViewReconciliation(reconciliation_id))}>

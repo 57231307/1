@@ -22,42 +22,46 @@ pub fn quality_inspection_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
-<div class="p-4">
-            <h1 class="text-2xl font-bold mb-4">{ "质量检验记录" }</h1>
-            <table class="min-w-full bg-white border border-gray-200">
-                <thead>
-                    <tr>
-                        <th class="py-2 px-4 border-b">{ "记录号" }</th>
-                        <th class="py-2 px-4 border-b">{ "产品ID" }</th>
-                        <th class="py-2 px-4 border-b">{ "批号" }</th>
-                        <th class="py-2 px-4 border-b">{ "检验结果" }</th>
-                        <th class="py-2 px-4 border-b">{ "数量" }</th>
-                        <th class="py-2 px-4 border-b">{ "检验日期" }</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {
-                        if records.is_empty() {
-                            html! { <tr><td colspan="6" class="text-center py-4">{ "暂无数据" }</td></tr> }
-                        } else {
-                            html! {
-                                for records.iter().map(|record| html! {
-                                    <tr key={record.id}>
-                                        <td class="py-2 px-4 border-b text-center">{ &record.record_number }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ record.product_id }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &record.batch_number }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &record.inspection_result }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ record.quantity }</td>
-                                        <td class="py-2 px-4 border-b text-center">{ &record.inspection_date }</td>
-                                    </tr>
-                                })
+        <MainLayout current_page={"quality_inspection"}>
+            <div class="p-4">
+                <h1 class="text-2xl font-bold mb-4">{ "质量检验记录" }</h1>
+                <table class="data-table w-full">
+                    <thead>
+                        <tr>
+                            <th class="py-2 px-4 border-b">{ "记录号" }</th>
+                            <th class="py-2 px-4 border-b">{ "产品ID" }</th>
+                            <th class="py-2 px-4 border-b">{ "批号" }</th>
+                            <th class="py-2 px-4 border-b">{ "检验结果" }</th>
+                            <th class="py-2 px-4 border-b numeric-cell text-right">{ "数量" }</th>
+                            <th class="py-2 px-4 border-b">{ "检验日期" }</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {
+                            if records.is_empty() {
+                                html! { <tr><td colspan="6" class="text-center py-4">{ "暂无数据" }</td></tr> }
+                            } else {
+                                html! {
+                                    for records.iter().map(|record| html! {
+                                        <tr key={record.id}>
+                                            <td class="py-2 px-4 border-b text-center">{ &record.record_number }</td>
+                                            <td class="py-2 px-4 border-b text-center">{ record.product_id }</td>
+                                            <td class="py-2 px-4 border-b text-center">{ &record.batch_number }</td>
+                                            <td class="py-2 px-4 border-b text-center">
+                                                <span class={format!("status-badge status-{}", record.inspection_result.to_lowercase())}>
+                                                    { &record.inspection_result }
+                                                </span>
+                                            </td>
+                                            <td class="py-2 px-4 border-b numeric-cell text-right">{ record.quantity }</td>
+                                            <td class="py-2 px-4 border-b text-center">{ &record.inspection_date }</td>
+                                        </tr>
+                                    })
+                                }
                             }
                         }
-                    }
-                </tbody>
-            </table>
-        </div>
-    
-</MainLayout>}
+                    </tbody>
+                </table>
+            </div>
+        </MainLayout>
+    }
 }

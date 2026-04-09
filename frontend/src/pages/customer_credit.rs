@@ -281,7 +281,7 @@ impl Component for CustomerCreditPage {
         let link = ctx.link();
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"客户信用管理"}>
 <div class="customer-credit-page">
                 <div class="page-header">
                     <h1>{"客户信用管理"}</h1>
@@ -328,16 +328,16 @@ impl Component for CustomerCreditPage {
                 }
 
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
-                                <th>{"客户ID"}</th>
+                                <th class="numeric-cell text-right">{"客户ID"}</th>
                                 <th>{"信用等级"}</th>
-                                <th>{"信用分数"}</th>
-                                <th>{"信用额度"}</th>
-                                <th>{"已用额度"}</th>
-                                <th>{"可用额度"}</th>
-                                <th>{"信用天数"}</th>
+                                <th class="numeric-cell text-right">{"信用分数"}</th>
+                                <th class="numeric-cell text-right">{"信用额度"}</th>
+                                <th class="numeric-cell text-right">{"已用额度"}</th>
+                                <th class="numeric-cell text-right">{"可用额度"}</th>
+                                <th class="numeric-cell text-right">{"信用天数"}</th>
                                 <th>{"状态"}</th>
                                 <th>{"操作"}</th>
                             </tr>
@@ -348,14 +348,16 @@ impl Component for CustomerCreditPage {
                                 let credit_clone2 = credit.clone();
                                 html! {
                                     <tr>
-                                        <td>{credit.customer_id}</td>
+                                        <td class="numeric-cell text-right">{credit.customer_id}</td>
                                         <td>{credit.credit_level.as_ref().unwrap_or(&"-".to_string())}</td>
-                                        <td>{credit.credit_score.unwrap_or(0)}</td>
-                                        <td>{credit.credit_limit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
-                                        <td>{credit.used_credit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
-                                        <td>{credit.available_credit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
-                                        <td>{credit.credit_days.unwrap_or(0)}</td>
-                                        <td>{credit.status.as_ref().unwrap_or(&"-".to_string())}</td>
+                                        <td class="numeric-cell text-right">{credit.credit_score.unwrap_or(0)}</td>
+                                        <td class="numeric-cell text-right">{credit.credit_limit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
+                                        <td class="numeric-cell text-right">{credit.used_credit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
+                                        <td class="numeric-cell text-right">{credit.available_credit.clone().map(|v| format!("{:.2}", v)).unwrap_or("-".to_string())}</td>
+                                        <td class="numeric-cell text-right">{credit.credit_days.unwrap_or(0)}</td>
+                                        <td>
+                                            <span class="status-badge">{credit.status.as_ref().unwrap_or(&"-".to_string())}</span>
+                                        </td>
                                         <td class="actions">
                                             <button class="btn btn-sm" onclick={link.callback(move |_| Msg::SelectCredit(credit_clone.clone()))}>
                                                 {"评级"}

@@ -28,7 +28,7 @@ pub fn budget_management_page() -> Html {
     };
 
     html! {
-        <MainLayout current_page={""}>
+        <MainLayout current_page={"budget_management"}>
 <div class="budget-management-page">
             <div class="header">
                 <h1>{"预算管理"}</h1>

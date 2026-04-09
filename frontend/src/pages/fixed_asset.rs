@@ -29,50 +29,54 @@ pub fn fixed_asset_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
+        <MainLayout current_page={"fixed_asset"}>
 <div class="fixed-asset-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"固定资产管理"}</h1>
             </div>
             <div class="content">
-                <table class="min-w-full bg-white border border-gray-200">
-                    <thead>
-                        <tr>
-                            <th class="py-2 px-4 border-b">{"ID"}</th>
-                            <th class="py-2 px-4 border-b">{"资产编号"}</th>
-                            <th class="py-2 px-4 border-b">{"资产名称"}</th>
-                            <th class="py-2 px-4 border-b">{"资产类别"}</th>
-                            <th class="py-2 px-4 border-b">{"原值"}</th>
-                            <th class="py-2 px-4 border-b">{"状态"}</th>
-                            <th class="py-2 px-4 border-b">{"操作"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {
-                            if assets.is_empty() {
-                                html! {
-                                    <tr><td colspan="7" class="text-center py-4">{"暂无数据"}</td></tr>
-                                }
-                            } else {
-                                html! {
-                                    for assets.iter().map(|asset| html! {
-                                        <tr key={asset.id}>
-                                            <td class="py-2 px-4 border-b text-center">{ asset.id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &asset.asset_no }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &asset.asset_name }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ asset.asset_category.clone().unwrap_or_default() }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &asset.original_value }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ asset.status.clone().unwrap_or_default() }</td>
-                                            <td class="py-2 px-4 border-b text-center">
-                                                <button class="text-blue-500 hover:text-blue-700">{"查看"}</button>
-                                            </td>
-                                        </tr>
-                                    })
+                <div class="table-responsive">
+                    <table class="data-table w-full">
+                        <thead>
+                            <tr>
+                                <th>{"ID"}</th>
+                                <th>{"资产编号"}</th>
+                                <th>{"资产名称"}</th>
+                                <th>{"资产类别"}</th>
+                                <th class="numeric-cell text-right">{"原值"}</th>
+                                <th>{"状态"}</th>
+                                <th>{"操作"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                if assets.is_empty() {
+                                    html! {
+                                        <tr><td colspan="7" class="text-center py-4">{"暂无数据"}</td></tr>
+                                    }
+                                } else {
+                                    html! {
+                                        for assets.iter().map(|asset| html! {
+                                            <tr key={asset.id}>
+                                                <td>{ asset.id }</td>
+                                                <td>{ &asset.asset_no }</td>
+                                                <td>{ &asset.asset_name }</td>
+                                                <td>{ asset.asset_category.clone().unwrap_or_default() }</td>
+                                                <td class="numeric-cell text-right">{ &asset.original_value }</td>
+                                                <td>
+                                                    <span class="status-badge">{ asset.status.clone().unwrap_or_default() }</span>
+                                                </td>
+                                                <td>
+                                                    <button class="text-blue-500 hover:text-blue-700">{"查看"}</button>
+                                                </td>
+                                            </tr>
+                                        })
+                                    }
                                 }
                             }
-                        }
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     

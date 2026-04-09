@@ -170,7 +170,7 @@ impl Component for PurchaseReceiptPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"/purchase-receipts"}>
 <div class="purchase-receipt-page">
                 <div class="page-header">
                     <h1>{"📥 采购收货单管理"}</h1>
@@ -230,7 +230,7 @@ impl PurchaseReceiptPage {
         html! {
             <>
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"收货单编号"}</th>
@@ -238,8 +238,8 @@ impl PurchaseReceiptPage {
                             <th>{"供应商"}</th>
                             <th>{"收货日期"}</th>
                             <th>{"收货单状态"}</th>
-                            <th>{"总数量"}</th>
-                            <th>{"总金额"}</th>
+                            <th class="numeric-cell text-right">{"总数量"}</th>
+                            <th class="numeric-cell text-right">{"总金额"}</th>
                             <th>{"仓库"}</th>
                             <th>{"操作"}</th>
                         </tr>
@@ -254,9 +254,9 @@ impl PurchaseReceiptPage {
                                     <td>{receipt.order_no.as_deref().unwrap_or("-")}</td>
                                     <td>{receipt.supplier_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&receipt.receipt_date}</td>
-                                    <td>{status}</td>
-                                    <td class="numeric">{&receipt.total_quantity}</td>
-                                    <td class="numeric">{&receipt.total_amount}</td>
+                                    <td><span class="status-badge">{status}</span></td>
+                                    <td class="numeric-cell text-right">{&receipt.total_quantity}</td>
+                                    <td class="numeric-cell text-right">{&receipt.total_amount}</td>
                                     <td>{receipt.warehouse_name.as_deref().unwrap_or("-")}</td>
                                     <td>
                                         <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>

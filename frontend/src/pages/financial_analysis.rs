@@ -88,7 +88,7 @@ impl Component for FinancialAnalysisPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"financial_analysis"}>
 <div class="financial-analysis-page">
                 <div class="page-header">
                     <h1>{"📈 财务分析仪表板"}</h1>
@@ -209,12 +209,12 @@ impl FinancialAnalysisPage {
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table w-full">
                             <thead>
                                 <tr>
                                     <th>{"指标名称"}</th>
-                                    <th>{"当前值"}</th>
-                                    <th>{"行业平均"}</th>
+                                    <th class="numeric-cell text-right">{"当前值"}</th>
+                                    <th class="numeric-cell text-right">{"行业平均"}</th>
                                     <th>{"水平"}</th>
                                     <th>{"分析结果"}</th>
                                 </tr>
@@ -224,8 +224,8 @@ impl FinancialAnalysisPage {
                                     html! {
                                         <tr>
                                             <td>{&ratio.indicator_name}</td>
-                                            <td class="numeric">{&ratio.indicator_value}</td>
-                                            <td class="numeric">{&ratio.industry_average}</td>
+                                            <td class="numeric-cell text-right">{&ratio.indicator_value}</td>
+                                            <td class="numeric-cell text-right">{&ratio.industry_average}</td>
                                             <td>
                                                 <span class={format!("status-badge status-{}", match ratio.ratio_level.as_str() {
                                                     "优秀" => "success",

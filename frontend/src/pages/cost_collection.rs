@@ -477,7 +477,7 @@ impl CostCollectionPage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"归集编号"}</th>
@@ -485,11 +485,11 @@ impl CostCollectionPage {
                                         <th>{"批次号"}</th>
                                         <th>{"色号"}</th>
                                         <th>{"车间"}</th>
-                                        <th>{"直接材料"}</th>
-                                        <th>{"直接人工"}</th>
-                                        <th>{"制造费用"}</th>
-                                        <th>{"加工费"}</th>
-                                        <th>{"染色费"}</th>
+                                        <th class="numeric-cell text-right">{"直接材料"}</th>
+                                        <th class="numeric-cell text-right">{"直接人工"}</th>
+                                        <th class="numeric-cell text-right">{"制造费用"}</th>
+                                        <th class="numeric-cell text-right">{"加工费"}</th>
+                                        <th class="numeric-cell text-right">{"染色费"}</th>
                                         <th>{"操作"}</th>
                                     </tr>
                                 </thead>
@@ -503,11 +503,11 @@ impl CostCollectionPage {
                                                 <td>{collection.batch_no.clone().unwrap_or_else(|| "-".to_string())}</td>
                                                 <td>{collection.color_no.clone().unwrap_or_else(|| "-".to_string())}</td>
                                                 <td>{collection.workshop.clone().unwrap_or_else(|| "-".to_string())}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.direct_material)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.direct_labor)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.manufacturing_overhead)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.processing_fee)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.dyeing_fee)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&collection.direct_material)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&collection.direct_labor)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&collection.manufacturing_overhead)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&collection.processing_fee)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&collection.dyeing_fee)}</td>
                                                 <td>
                                                     <button
                                                         class="btn-sm btn-info"

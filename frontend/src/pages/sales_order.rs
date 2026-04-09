@@ -267,7 +267,7 @@ impl Component for SalesOrderPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"sales_order"}>
 <div class="sales-order-page">
                 <div class="page-header">
                     <h1>{"📦 销售订单管理"}</h1>
@@ -315,12 +315,12 @@ impl SalesOrderPage {
         html! {
             <>
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"订单号"}</th>
                             <th>{"客户"}</th>
-                            <th>{"总金额"}</th>
+                            <th class="numeric-cell text-right">{"总金额"}</th>
                             <th>{"状态"}</th>
                             <th>{"创建时间"}</th>
                             <th>{"操作"}</th>
@@ -333,8 +333,8 @@ impl SalesOrderPage {
                                 <tr>
                                     <td>{&order.order_no}</td>
                                     <td>{order.customer_name.as_deref().unwrap_or("-")}</td>
-                                    <td class="numeric">{&order.total_amount}</td>
-                                    <td>{&order.status}</td>
+                                    <td class="numeric-cell text-right">{&order.total_amount}</td>
+                                    <td><span class="status-badge">{&order.status}</span></td>
                                     <td>{&order.created_at}</td>
                                     <td>
                                         <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>
@@ -366,11 +366,11 @@ impl SalesOrderPage {
                             <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>{"×"}</button>
                         </div>
                         <div class="modal-body">
-                            <table class="data-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"商品名称"}</th>
-                                        <th>{"数量"}</th>
+                                        <th class="numeric-cell text-right">{"数量"}</th>
                                         <th>{"发货仓库"}</th>
                                         <th>{"批次号"}</th>
                                     </tr>
@@ -400,7 +400,7 @@ impl SalesOrderPage {
                                         html! {
                                             <tr>
                                                 <td>{&item.product_name}</td>
-                                                <td>{item.quantity}</td>
+                                                <td class="numeric-cell text-right">{item.quantity}</td>
                                                 <td>
                                                     <select
                                                         class="form-control"
@@ -496,17 +496,17 @@ impl SalesOrderPage {
                     </div>
                     <div class="print-info" style="margin-bottom: 20px;">
                         <p>{"客户: "}{order.customer_name.as_deref().unwrap_or("-")}</p>
-                        <p>{"订单状态: "}{&order.status}</p>
+                        <p>{"订单状态: "}<span class="status-badge">{&order.status}</span></p>
                         <p>{"创建时间: "}{&order.created_at}</p>
                     </div>
-                    <table class="print-table">
+                    <table class="data-table w-full print-table">
                         <thead>
                             <tr>
                                 <th>{"商品名称"}</th>
-                                <th>{"数量"}</th>
-                                <th>{"单价"}</th>
-                                <th>{"折扣(%)"}</th>
-                                <th>{"总价"}</th>
+                                <th class="numeric-cell text-right">{"数量"}</th>
+                                <th class="numeric-cell text-right">{"单价"}</th>
+                                <th class="numeric-cell text-right">{"折扣(%)"}</th>
+                                <th class="numeric-cell text-right">{"总价"}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -514,10 +514,10 @@ impl SalesOrderPage {
                                 html! {
                                     <tr>
                                         <td>{item.product_name.as_deref().unwrap_or("-")}</td>
-                                        <td>{item.quantity}</td>
-                                        <td>{item.unit_price}</td>
-                                        <td>{item.discount_percent}</td>
-                                        <td>{item.total_amount}</td>
+                                        <td class="numeric-cell text-right">{item.quantity}</td>
+                                        <td class="numeric-cell text-right">{item.unit_price}</td>
+                                        <td class="numeric-cell text-right">{item.discount_percent}</td>
+                                        <td class="numeric-cell text-right">{item.total_amount}</td>
                                     </tr>
                                 }
                             })}

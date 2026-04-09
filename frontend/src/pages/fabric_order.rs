@@ -195,7 +195,7 @@ impl Component for FabricOrderPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"fabric_order"}>
 <div class="fabric-order-page">
                 <div class="page-header">
                     <h1>{"📋 面料订单管理"}</h1>
@@ -263,7 +263,7 @@ impl FabricOrderPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"订单编号"}</th>
@@ -271,7 +271,7 @@ impl FabricOrderPage {
                             <th>{"订单日期"}</th>
                             <th>{"要求交货日期"}</th>
                             <th>{"订单状态"}</th>
-                            <th>{"总金额"}</th>
+                            <th class="numeric-cell text-right">{"总金额"}</th>
                             <th>{"批次号"}</th>
                             <th>{"色号"}</th>
                             <th>{"操作"}</th>
@@ -293,7 +293,7 @@ impl FabricOrderPage {
                                             {&order.status}
                                         </span>
                                     </td>
-                                    <td class="numeric">{&order.total_amount}</td>
+                                    <td class="numeric-cell text-right">{&order.total_amount}</td>
                                     <td>{order.batch_no.as_deref().unwrap_or("-")}</td>
                                     <td>{order.color_no.as_deref().unwrap_or("-")}</td>
                                     <td>

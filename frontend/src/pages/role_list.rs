@@ -279,212 +279,212 @@ impl Component for RoleListPage {
         let on_refresh = link.callback(|_| Msg::LoadRoles);
 
         html! {
-            <MainLayout current_page={""}>
-<div class="role-list-page">
-                <div class="header">
-                    <h1>{"角色管理"}</h1>
-                    <div class="header-actions">
-                        <button class="refresh-button" onclick={on_refresh}>{"刷新"}</button>
-                        <button class="create-button" onclick={on_create}>{"新建角色"}</button>
-                        <button class="logout-button" onclick={on_logout}>{"退出登录"}</button>
+            <MainLayout current_page={"role_list"}>
+                <div class="role-list-page">
+                    <div class="header">
+                        <h1>{"角色管理"}</h1>
+                        <div class="header-actions">
+                            <button class="refresh-button" onclick={on_refresh}>{"刷新"}</button>
+                            <button class="create-button" onclick={on_create}>{"新建角色"}</button>
+                            <button class="logout-button" onclick={on_logout}>{"退出登录"}</button>
+                        </div>
                     </div>
+
+                    if let Some(error) = &self.error_message {
+                        <div class="error-message">{error}</div>
+                    }
+
+                    if self.is_loading {
+                        <div class="loading">{"加载中..."}</div>
+                    } else {
+                        <div class="role-table-container">
+                            <table class="data-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th class="numeric-cell text-right">{"ID"}</th>
+                                        <th>{"角色名称"}</th>
+                                        <th>{"角色编码"}</th>
+                                        <th>{"描述"}</th>
+                                        <th>{"系统角色"}</th>
+                                        <th>{"创建时间"}</th>
+                                        <th>{"操作"}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {for self.roles.iter().map(|role| {
+                                        let role_edit = role.clone();
+                                        let role_delete = role.clone();
+                                        let on_edit = link.callback(move |_| Msg::ShowEditModal(role_edit.clone()));
+                                        let on_delete = link.callback(move |_| Msg::DeleteRole(role_delete.id));
+
+                                        html! {
+                                            <tr>
+                                                <td class="numeric-cell text-right">{role.id}</td>
+                                                <td>{&role.name}</td>
+                                                <td>{&role.code}</td>
+                                                <td>
+                                                    if let Some(desc) = &role.description {
+                                                        {desc}
+                                                    } else {
+                                                        {"-"}
+                                                    }
+                                                </td>
+                                                <td>
+                                                    if role.is_system {
+                                                        <span class="status-badge badge-system">{"是"}</span>
+                                                    } else {
+                                                        <span class="status-badge badge-user">{"否"}</span>
+                                                    }
+                                                </td>
+                                                <td>{&role.created_at}</td>
+                                                <td class="actions">
+                                                    <button class="edit-btn" onclick={on_edit}>{"编辑"}</button>
+                                                    <button class="delete-btn" onclick={on_delete}>{"删除"}</button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    })}
+                                </tbody>
+                            </table>
+
+                            <div class="summary">
+                                {format!("共 {} 个角色", self.total)}
+                            </div>
+                        </div>
+                    }
+
+                    if self.show_create_modal {
+                        <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseCreateModal)}>
+                            <div class="modal" onclick={|e: MouseEvent| e.stop_propagation()}>
+                                <div class="modal-header">
+                                    <h2>{"新建角色"}</h2>
+                                    <button class="close-btn" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"×"}</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label>{"角色名称"}</label>
+                                        <input
+                                            type="text"
+                                            value={self.name.clone()}
+                                            onchange={link.callback(|e: Event| {
+                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                Msg::NameChanged(input.value())
+                                            })}
+                                            placeholder="请输入角色名称"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>{"角色编码"}</label>
+                                        <input
+                                            type="text"
+                                            value={self.code.clone()}
+                                            onchange={link.callback(|e: Event| {
+                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                Msg::CodeChanged(input.value())
+                                            })}
+                                            placeholder="请输入角色编码"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>{"描述"}</label>
+                                        <textarea
+                                            value={self.description.clone()}
+                                            onchange={link.callback(|e: Event| {
+                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
+                                                Msg::DescriptionChanged(input.value())
+                                            })}
+                                            placeholder="请输入角色描述"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                checked={self.is_system}
+                                                onchange={link.callback(|e: Event| {
+                                                    let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                    Msg::IsSystemChanged(input.checked())
+                                                })}
+                                            />
+                                            <span>{"系统角色"}</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="cancel-btn" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"取消"}</button>
+                                    <button class="confirm-btn" onclick={link.callback(|_| Msg::CreateRole)}>{"确定"}</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if self.show_edit_modal {
+                        <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseEditModal)}>
+                            <div class="modal" onclick={|e: MouseEvent| e.stop_propagation()}>
+                                <div class="modal-header">
+                                    <h2>{"编辑角色"}</h2>
+                                    <button class="close-btn" onclick={link.callback(|_| Msg::CloseEditModal)}>{"×"}</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label>{"角色名称"}</label>
+                                        <input
+                                            type="text"
+                                            value={self.name.clone()}
+                                            onchange={link.callback(|e: Event| {
+                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                Msg::NameChanged(input.value())
+                                            })}
+                                            placeholder="请输入角色名称"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>{"角色编码"}</label>
+                                        <input
+                                            type="text"
+                                            value={self.code.clone()}
+                                            onchange={link.callback(|e: Event| {
+                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                Msg::CodeChanged(input.value())
+                                            })}
+                                            placeholder="请输入角色编码"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>{"描述"}</label>
+                                        <textarea
+                                            value={self.description.clone()}
+                                            onchange={link.callback(|e: Event| {
+                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
+                                                Msg::DescriptionChanged(input.value())
+                                            })}
+                                            placeholder="请输入角色描述"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                checked={self.is_system}
+                                                onchange={link.callback(|e: Event| {
+                                                    let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                    Msg::IsSystemChanged(input.checked())
+                                                })}
+                                            />
+                                            <span>{"系统角色"}</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="cancel-btn" onclick={link.callback(|_| Msg::CloseEditModal)}>{"取消"}</button>
+                                    <button class="confirm-btn" onclick={link.callback(|_| Msg::UpdateRole)}>{"确定"}</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
                 </div>
-
-                if let Some(error) = &self.error_message {
-                    <div class="error-message">{error}</div>
-                }
-
-                if self.is_loading {
-                    <div class="loading">{"加载中..."}</div>
-                } else {
-                    <div class="role-table-container">
-                        <table class="role-table">
-                            <thead>
-                                <tr>
-                                    <th>{"ID"}</th>
-                                    <th>{"角色名称"}</th>
-                                    <th>{"角色编码"}</th>
-                                    <th>{"描述"}</th>
-                                    <th>{"系统角色"}</th>
-                                    <th>{"创建时间"}</th>
-                                    <th>{"操作"}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {for self.roles.iter().map(|role| {
-                                    let role_edit = role.clone();
-                                    let role_delete = role.clone();
-                                    let on_edit = link.callback(move |_| Msg::ShowEditModal(role_edit.clone()));
-                                    let on_delete = link.callback(move |_| Msg::DeleteRole(role_delete.id));
-
-                                    html! {
-                                        <tr>
-                                            <td>{role.id}</td>
-                                            <td>{&role.name}</td>
-                                            <td>{&role.code}</td>
-                                            <td>
-                                                if let Some(desc) = &role.description {
-                                                    {desc}
-                                                } else {
-                                                    {"-"}
-                                                }
-                                            </td>
-                                            <td>
-                                                if role.is_system {
-                                                    <span class="badge-system">{"是"}</span>
-                                                } else {
-                                                    <span class="badge-user">{"否"}</span>
-                                                }
-                                            </td>
-                                            <td>{&role.created_at}</td>
-                                            <td class="actions">
-                                                <button class="edit-btn" onclick={on_edit}>{"编辑"}</button>
-                                                <button class="delete-btn" onclick={on_delete}>{"删除"}</button>
-                                            </td>
-                                        </tr>
-                                    }
-                                })}
-                            </tbody>
-                        </table>
-
-                        <div class="summary">
-                            {format!("共 {} 个角色", self.total)}
-                        </div>
-                    </div>
-                }
-
-                if self.show_create_modal {
-                    <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseCreateModal)}>
-                        <div class="modal" onclick={|e: MouseEvent| e.stop_propagation()}>
-                            <div class="modal-header">
-                                <h2>{"新建角色"}</h2>
-                                <button class="close-btn" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"×"}</button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="form-group">
-                                    <label>{"角色名称"}</label>
-                                    <input
-                                        type="text"
-                                        value={self.name.clone()}
-                                        onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                            Msg::NameChanged(input.value())
-                                        })}
-                                        placeholder="请输入角色名称"
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label>{"角色编码"}</label>
-                                    <input
-                                        type="text"
-                                        value={self.code.clone()}
-                                        onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                            Msg::CodeChanged(input.value())
-                                        })}
-                                        placeholder="请输入角色编码"
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label>{"描述"}</label>
-                                    <textarea
-                                        value={self.description.clone()}
-                                        onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                                            Msg::DescriptionChanged(input.value())
-                                        })}
-                                        placeholder="请输入角色描述"
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label class="checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={self.is_system}
-                                            onchange={link.callback(|e: Event| {
-                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                                Msg::IsSystemChanged(input.checked())
-                                            })}
-                                        />
-                                        <span>{"系统角色"}</span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button class="cancel-btn" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"取消"}</button>
-                                <button class="confirm-btn" onclick={link.callback(|_| Msg::CreateRole)}>{"确定"}</button>
-                            </div>
-                        </div>
-                    </div>
-                }
-
-                if self.show_edit_modal {
-                    <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseEditModal)}>
-                        <div class="modal" onclick={|e: MouseEvent| e.stop_propagation()}>
-                            <div class="modal-header">
-                                <h2>{"编辑角色"}</h2>
-                                <button class="close-btn" onclick={link.callback(|_| Msg::CloseEditModal)}>{"×"}</button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="form-group">
-                                    <label>{"角色名称"}</label>
-                                    <input
-                                        type="text"
-                                        value={self.name.clone()}
-                                        onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                            Msg::NameChanged(input.value())
-                                        })}
-                                        placeholder="请输入角色名称"
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label>{"角色编码"}</label>
-                                    <input
-                                        type="text"
-                                        value={self.code.clone()}
-                                        onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                            Msg::CodeChanged(input.value())
-                                        })}
-                                        placeholder="请输入角色编码"
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label>{"描述"}</label>
-                                    <textarea
-                                        value={self.description.clone()}
-                                        onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                                            Msg::DescriptionChanged(input.value())
-                                        })}
-                                        placeholder="请输入角色描述"
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label class="checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={self.is_system}
-                                            onchange={link.callback(|e: Event| {
-                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                                Msg::IsSystemChanged(input.checked())
-                                            })}
-                                        />
-                                        <span>{"系统角色"}</span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button class="cancel-btn" onclick={link.callback(|_| Msg::CloseEditModal)}>{"取消"}</button>
-                                <button class="confirm-btn" onclick={link.callback(|_| Msg::UpdateRole)}>{"确定"}</button>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
-        
-</MainLayout>}
+            </MainLayout>
+        }
     }
 }
 

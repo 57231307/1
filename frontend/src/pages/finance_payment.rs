@@ -164,7 +164,7 @@ impl Component for FinancePaymentPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"finance_payment"}>
 <div class="finance-payment-page">
                 <div class="page-header">
                     <h1>{"财务付款管理"}</h1>
@@ -285,7 +285,7 @@ impl FinancePaymentPage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"付款单号"}</th>
@@ -293,7 +293,7 @@ impl FinancePaymentPage {
                                 <th>{"订单类型"}</th>
                                 <th>{"付款日期"}</th>
                                 <th>{"付款状态"}</th>
-                                <th>{"付款金额"}</th>
+                                <th class="numeric-cell text-right">{"付款金额"}</th>
                                 <th>{"付款方式"}</th>
                                 <th>{"参考单号"}</th>
                                 <th>{"创建时间"}</th>
@@ -318,7 +318,7 @@ impl FinancePaymentPage {
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status}</span>
                                         </td>
-                                        <td class="numeric">{payment.amount.to_string()}</td>
+                                        <td class="numeric-cell text-right">{payment.amount.to_string()}</td>
                                         <td>{payment.payment_method.as_deref().unwrap_or("-")}</td>
                                         <td>{payment.reference_no.as_deref().unwrap_or("-")}</td>
                                         <td>{&payment.created_at}</td>

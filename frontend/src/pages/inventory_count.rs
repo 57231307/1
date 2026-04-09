@@ -292,8 +292,8 @@ impl Component for InventoryCountPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page={""}>
-<div class="inventory-count-page">
+            <MainLayout current_page={"inventory_count"}>
+                <div class="inventory-count-page">
                 <Navigation current_page="counts" />
 
                 <div class="main-content">
@@ -346,9 +346,9 @@ impl Component for InventoryCountPage {
                 } else {
                     html! {}
                 }}
-            </div>
-        
-</MainLayout>}
+                </div>
+            </MainLayout>
+        }
     }
 }
 
@@ -386,16 +386,16 @@ impl InventoryCountPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"盘点单号"}</th>
                             <th>{"仓库ID"}</th>
                             <th>{"盘点日期"}</th>
                             <th>{"状态"}</th>
-                            <th>{"总条目"}</th>
-                            <th>{"已盘条目"}</th>
-                            <th>{"差异条目"}</th>
+                            <th class="numeric-cell text-right">{"总条目"}</th>
+                            <th class="numeric-cell text-right">{"已盘条目"}</th>
+                            <th class="numeric-cell text-right">{"差异条目"}</th>
                             <th>{"操作"}</th>
                         </tr>
                     </thead>
@@ -426,9 +426,9 @@ impl InventoryCountPage {
                                     <td>{count.warehouse_id}</td>
                                     <td>{&count.count_date}</td>
                                     <td><span class={format!("status-badge {}", status_class)}>{status_text}</span></td>
-                                    <td class="numeric">{count.total_items}</td>
-                                    <td class="numeric">{count.counted_items}</td>
-                                    <td class="numeric">{count.variance_items}</td>
+                                    <td class="numeric-cell text-right">{count.total_items}</td>
+                                    <td class="numeric-cell text-right">{count.counted_items}</td>
+                                    <td class="numeric-cell text-right">{count.variance_items}</td>
                                     <td>
                                         <div class="action-buttons">
                                             {if count.status == "pending" {

@@ -131,14 +131,14 @@ impl Component for UserListPage {
                         <div class="loading">{"加载中..."}</div>
                     } else {
                         <div class="user-table-container">
-                            <table class="user-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
-                                        <th>{"ID"}</th>
+                                        <th class="numeric-cell text-right">{"ID"}</th>
                                         <th>{"用户名"}</th>
                                         <th>{"邮箱"}</th>
                                         <th>{"手机号"}</th>
-                                        <th>{"角色"}</th>
+                                        <th class="numeric-cell text-right">{"角色"}</th>
                                         <th>{"状态"}</th>
                                         <th>{"创建时间"}</th>
                                     </tr>
@@ -147,7 +147,7 @@ impl Component for UserListPage {
                                     {for self.users.iter().map(|user| {
                                         html! {
                                             <tr>
-                                                <td>{user.id}</td>
+                                                <td class="numeric-cell text-right">{user.id}</td>
                                                 <td>{&user.username}</td>
                                                 <td>
                                                     if let Some(email) = &user.email {
@@ -163,7 +163,7 @@ impl Component for UserListPage {
                                                         {"-"}
                                                     }
                                                 </td>
-                                                <td>
+                                                <td class="numeric-cell text-right">
                                                     if let Some(role_id) = user.role_id {
                                                         {format!("角色 #{}", role_id)}
                                                     } else {
@@ -172,9 +172,9 @@ impl Component for UserListPage {
                                                 </td>
                                                 <td>
                                                     if user.is_active {
-                                                        <span class="status-active">{"正常"}</span>
+                                                        <span class="status-badge status-active">{"正常"}</span>
                                                     } else {
-                                                        <span class="status-inactive">{"禁用"}</span>
+                                                        <span class="status-badge status-inactive">{"禁用"}</span>
                                                     }
                                                 </td>
                                                 <td>{&user.created_at}</td>

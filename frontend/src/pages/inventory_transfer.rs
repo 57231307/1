@@ -341,8 +341,8 @@ impl Component for InventoryTransferPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page={""}>
-<div class="inventory-transfer-page">
+            <MainLayout current_page={"inventory_transfer"}>
+                <div class="inventory-transfer-page">
                 <Navigation current_page="transfers" />
 
                 <div class="main-content">
@@ -396,9 +396,9 @@ impl Component for InventoryTransferPage {
                 } else {
                     html! {}
                 }}
-            </div>
-        
-</MainLayout>}
+                </div>
+            </MainLayout>
+        }
     }
 }
 
@@ -436,7 +436,7 @@ impl InventoryTransferPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"调拨单号"}</th>
@@ -444,7 +444,7 @@ impl InventoryTransferPage {
                             <th>{"目标仓库"}</th>
                             <th>{"调拨日期"}</th>
                             <th>{"状态"}</th>
-                            <th>{"总数量"}</th>
+                            <th class="numeric-cell text-right">{"总数量"}</th>
                             <th>{"操作"}</th>
                         </tr>
                     </thead>
@@ -478,7 +478,7 @@ impl InventoryTransferPage {
                                     <td>{transfer.to_warehouse_id}</td>
                                     <td>{&transfer.transfer_date}</td>
                                     <td><span class={format!("status-badge {}", status_class)}>{status_text}</span></td>
-                                    <td class="numeric">{&transfer.total_quantity}</td>
+                                    <td class="numeric-cell text-right">{&transfer.total_quantity}</td>
                                     <td>
                                         <div class="action-buttons">
                                             {if transfer.status == "pending" {

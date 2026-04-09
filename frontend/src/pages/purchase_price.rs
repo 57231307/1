@@ -22,23 +22,23 @@ pub fn purchase_price_page() -> Html {
     }
 
     html! {
-        <MainLayout current_page={""}>
+            <MainLayout current_page={"/purchase-prices"}>
 <div class="purchase-price-page p-4">
             <div class="header mb-4">
                 <h1 class="text-2xl font-bold">{"采购价格管理"}</h1>
             </div>
-            <div class="content">
-                <table class="min-w-full bg-white border border-gray-200">
+            <div class="content table-responsive">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
-                            <th class="py-2 px-4 border-b">{"ID"}</th>
-                            <th class="py-2 px-4 border-b">{"产品ID"}</th>
-                            <th class="py-2 px-4 border-b">{"供应商ID"}</th>
-                            <th class="py-2 px-4 border-b">{"价格"}</th>
-                            <th class="py-2 px-4 border-b">{"币种"}</th>
-                            <th class="py-2 px-4 border-b">{"生效日期"}</th>
-                            <th class="py-2 px-4 border-b">{"状态"}</th>
-                            <th class="py-2 px-4 border-b">{"操作"}</th>
+                            <th>{"ID"}</th>
+                            <th>{"产品ID"}</th>
+                            <th>{"供应商ID"}</th>
+                            <th class="numeric-cell text-right">{"价格"}</th>
+                            <th>{"币种"}</th>
+                            <th>{"生效日期"}</th>
+                            <th>{"状态"}</th>
+                            <th>{"操作"}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -51,14 +51,14 @@ pub fn purchase_price_page() -> Html {
                                 html! {
                                     for prices.iter().map(|price| html! {
                                         <tr key={price.id}>
-                                            <td class="py-2 px-4 border-b text-center">{ price.id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ price.product_id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ price.supplier_id }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &price.price }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &price.currency }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ &price.effective_date }</td>
-                                            <td class="py-2 px-4 border-b text-center">{ price.expiry_date.as_deref().unwrap_or("-") }</td>
-                                            <td class="py-2 px-4 border-b text-center">
+                                            <td>{ price.id }</td>
+                                            <td>{ price.product_id }</td>
+                                            <td>{ price.supplier_id }</td>
+                                            <td class="numeric-cell text-right">{ &price.price }</td>
+                                            <td>{ &price.currency }</td>
+                                            <td>{ &price.effective_date }</td>
+                                            <td><span class="status-badge">{ price.expiry_date.as_deref().unwrap_or("-") }</span></td>
+                                            <td>
                                                 <button class="text-blue-500 hover:text-blue-700 mr-2">{"查看"}</button>
                                             </td>
                                         </tr>

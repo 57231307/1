@@ -30,7 +30,7 @@ pub fn fund_management_page() -> Html {
     };
 
     html! {
-        <MainLayout current_page={""}>
+        <MainLayout current_page={"fund_management"}>
 <div class="fund-management-page">
             <div class="header">
                 <h1>{"资金管理"}</h1>

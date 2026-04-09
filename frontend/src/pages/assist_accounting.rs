@@ -372,7 +372,9 @@ impl AssistAccountingPage {
                                         <div class="dimension-name">{&dim.dimension_name}</div>
                                         <div class="dimension-desc">{dim.description.clone().unwrap_or_else(|| "-".to_string())}</div>
                                         <div class="dimension-status">
-                                            {if dim.is_active { "启用" } else { "禁用" }}
+                                            <span class="status-badge">
+                                                {if dim.is_active { "启用" } else { "禁用" }}
+                                            </span>
                                         </div>
                                     </div>
                                 }
@@ -419,7 +421,7 @@ impl AssistAccountingPage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"ID"}</th>
@@ -429,8 +431,8 @@ impl AssistAccountingPage {
                                         <th>{"批次"}</th>
                                         <th>{"色号"}</th>
                                         <th>{"等级"}</th>
-                                        <th>{"借方金额"}</th>
-                                        <th>{"贷方金额"}</th>
+                                        <th class="numeric-cell text-right">{"借方金额"}</th>
+                                        <th class="numeric-cell text-right">{"贷方金额"}</th>
                                         <th>{"操作"}</th>
                                     </tr>
                                 </thead>
@@ -446,8 +448,8 @@ impl AssistAccountingPage {
                                                 <td>{&record.batch_no}</td>
                                                 <td>{&record.color_no}</td>
                                                 <td>{&record.grade}</td>
-                                                <td class="numeric">{self.format_decimal(&record.debit_amount)}</td>
-                                                <td class="numeric">{self.format_decimal(&record.credit_amount)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&record.debit_amount)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&record.credit_amount)}</td>
                                                 <td>
                                                     <button
                                                         class="btn-sm btn-info"
@@ -571,7 +573,7 @@ impl AssistAccountingPage {
                         </div>
                     } else {
                         <div class="table-responsive">
-                            <table class="data-table">
+                            <table class="data-table w-full">
                                 <thead>
                                     <tr>
                                         <th>{"ID"}</th>
@@ -579,11 +581,11 @@ impl AssistAccountingPage {
                                         <th>{"维度代码"}</th>
                                         <th>{"维度值"}</th>
                                         <th>{"会计科目ID"}</th>
-                                        <th>{"借方合计"}</th>
-                                        <th>{"贷方合计"}</th>
-                                        <th>{"总米数"}</th>
-                                        <th>{"总公斤数"}</th>
-                                        <th>{"记录数"}</th>
+                                        <th class="numeric-cell text-right">{"借方合计"}</th>
+                                        <th class="numeric-cell text-right">{"贷方合计"}</th>
+                                        <th class="numeric-cell text-right">{"总米数"}</th>
+                                        <th class="numeric-cell text-right">{"总公斤数"}</th>
+                                        <th class="numeric-cell text-right">{"记录数"}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -595,11 +597,11 @@ impl AssistAccountingPage {
                                                 <td>{&summary.dimension_code}</td>
                                                 <td>{&summary.dimension_value_name}</td>
                                                 <td>{summary.account_subject_id.to_string()}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_debit)}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_credit)}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_quantity_meters)}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_quantity_kg)}</td>
-                                                <td class="numeric">{summary.record_count.to_string()}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&summary.total_debit)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&summary.total_credit)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&summary.total_quantity_meters)}</td>
+                                                <td class="numeric-cell text-right">{self.format_decimal(&summary.total_quantity_kg)}</td>
+                                                <td class="numeric-cell text-right">{summary.record_count.to_string()}</td>
                                             </tr>
                                         }
                                     })}

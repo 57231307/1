@@ -202,7 +202,7 @@ impl Component for ApPaymentRequestPage {
         });
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"ap_payment_requests"}>
 <div class="ap-payment-request-page">
                 <div class="page-header">
                     <h1>{"付款申请管理"}</h1>
@@ -279,7 +279,7 @@ impl ApPaymentRequestPage {
         html! {
             <>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table w-full">
                         <thead>
                             <tr>
                                 <th>{"申请单号"}</th>
@@ -334,7 +334,7 @@ impl ApPaymentRequestPage {
                                         <td>{&request.request_date}</td>
                                         <td>{payment_type_text}</td>
                                         <td>{payment_method_text}</td>
-                                        <td class="numeric">{&request.request_amount.to_string()}</td>
+                                        <td class="numeric-cell text-right">{&request.request_amount.to_string()}</td>
                                         <td>
                                             <span class={format!("status-badge {}", status_class)}>{status_text}</span>
                                         </td>

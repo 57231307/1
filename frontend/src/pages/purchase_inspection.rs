@@ -235,7 +235,7 @@ impl Component for PurchaseInspectionPage {
         let on_create_click = ctx.link().callback(|_| Msg::OpenCreateModal);
 
         html! {
-            <MainLayout current_page={""}>
+            <MainLayout current_page={"/purchase-inspections"}>
 <div class="purchase-inspection-page">
                 <div class="page-header">
                     <h1>{"采购检验"}</h1>
@@ -298,15 +298,15 @@ impl PurchaseInspectionPage {
 
         html! {
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table w-full">
                     <thead>
                         <tr>
                             <th>{"检验单号"}</th>
                             <th>{"供应商"}</th>
                             <th>{"检验日期"}</th>
                             <th>{"检验结果"}</th>
-                            <th>{"合格数量"}</th>
-                            <th>{"不合格数量"}</th>
+                            <th class="numeric-cell text-right">{"合格数量"}</th>
+                            <th class="numeric-cell text-right">{"不合格数量"}</th>
                             <th>{"备注"}</th>
                             <th>{"操作"}</th>
                         </tr>
@@ -321,19 +321,19 @@ impl PurchaseInspectionPage {
                                 _ => &inspection.result,
                             };
                             let result_class = match inspection.result.as_str() {
-                                "PENDING" => "status-pending",
-                                "PASSED" => "status-passed",
-                                "FAILED" => "status-failed",
-                                _ => "",
+                                "PENDING" => "status-badge status-pending",
+                                "PASSED" => "status-badge status-passed",
+                                "FAILED" => "status-badge status-failed",
+                                _ => "status-badge",
                             };
                             html! {
                                 <tr>
                                     <td>{&inspection.inspection_no}</td>
                                     <td>{inspection.supplier_name.as_deref().unwrap_or("-")}</td>
                                     <td>{&inspection.inspection_date}</td>
-                                    <td class={result_class}>{result_text}</td>
-                                    <td class="numeric">{&inspection.qualified_quantity}</td>
-                                    <td class="numeric">{&inspection.unqualified_quantity}</td>
+                                    <td><span class={result_class}>{result_text}</span></td>
+                                    <td class="numeric-cell text-right">{&inspection.qualified_quantity}</td>
+                                    <td class="numeric-cell text-right">{&inspection.unqualified_quantity}</td>
                                     <td>{inspection.remarks.as_deref().unwrap_or("-")}</td>
                                     <td>
                                         <button class="btn-link" onclick={ctx.link().callback(move |_| Msg::ViewInspection(inspection_id))}>
