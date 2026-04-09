@@ -44,9 +44,6 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { name: "产品管理", route: Route::Products },
                 MenuItem { name: "产品分类", route: Route::ProductCategories },
                 MenuItem { name: "仓库管理", route: Route::Warehouses },
-                MenuItem { name: "部门管理", route: Route::Departments },
-                MenuItem { name: "角色管理", route: Route::Roles },
-                MenuItem { name: "用户管理", route: Route::Users },
                 MenuItem { name: "供应商", route: Route::Suppliers },
                 MenuItem { name: "客户管理", route: Route::Customers },
                 MenuItem { name: "双单位换算", route: Route::DualUnitConverter },
@@ -56,7 +53,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
             title: "销售与CRM", icon: "🤝",
             items: vec![
                 MenuItem { name: "销售订单", route: Route::Sales },
-                MenuItem { name: "面料订单", route: Route::FabricOrders }, 
+                MenuItem { name: "面料订单", route: Route::FabricOrders },
                 MenuItem { name: "销售合同", route: Route::SalesContracts },
                 MenuItem { name: "销售退货", route: Route::SalesReturns },
                 MenuItem { name: "销售价格", route: Route::SalesPrices },
@@ -64,16 +61,6 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 MenuItem { name: "销售分析", route: Route::SalesAnalysis },
                 MenuItem { name: "CRM线索", route: Route::CrmLeads },
                 MenuItem { name: "CRM商机", route: Route::CrmOpportunities },
-            ],
-        },
-        MenuGroup {
-            title: "生产管理", icon: "🏭",
-            items: vec![
-                MenuItem { name: "坯布管理", route: Route::GreigeFabrics },
-                MenuItem { name: "染化料配方", route: Route::DyeRecipes },
-                MenuItem { name: "染缸批次", route: Route::DyeBatches },
-                MenuItem { name: "面料批次", route: Route::Batches },
-                MenuItem { name: "质检管理", route: Route::QualityInspection },
             ],
         },
         MenuGroup {
@@ -102,16 +89,24 @@ pub fn navigation(props: &NavigationProps) -> Html {
             items: vec![
                 MenuItem { name: "应收账款", route: Route::ArInvoices },
                 MenuItem { name: "应付账款", route: Route::ApInvoices },
-                MenuItem { name: "收款核销", route: Route::ArVerifications }, 
+                MenuItem { name: "收款核销", route: Route::ArVerifications },
                 MenuItem { name: "付款核销", route: Route::ApVerifications },
                 MenuItem { name: "资金管理", route: Route::FundManagement },
                 MenuItem { name: "财务分析", route: Route::FinancialAnalysis },
                 MenuItem { name: "凭证管理", route: Route::Vouchers },
-                MenuItem { name: "预算管理", route: Route::BudgetManagement }, // Fallback placeholder
+                MenuItem { name: "预算管理", route: Route::BudgetManagement },
                 MenuItem { name: "成本收集", route: Route::CostCollections },
                 MenuItem { name: "辅助核算", route: Route::AssistAccounting },
                 MenuItem { name: "业务追溯", route: Route::BusinessTrace },
                 MenuItem { name: "固定资产", route: Route::FixedAssets },
+            ],
+        },
+        MenuGroup {
+            title: "系统设置", icon: "⚙️",
+            items: vec![
+                MenuItem { name: "用户管理", route: Route::Users },
+                MenuItem { name: "角色管理", route: Route::Roles },
+                MenuItem { name: "部门管理", route: Route::Departments },
             ],
         },
     ];

@@ -1,22 +1,12 @@
 use crate::components::main_layout::MainLayout;
+use crate::services::product_service::ProductService;
+use crate::models::product::{Product, CreateProductRequest};
 use yew::prelude::*;
-
-#[derive(Clone, PartialEq)]
-struct ProductItem {
-    id: u32,
-    code: String,
-    name: String,
-    composition: String,
-    yarn_count: String,
-    density: String,
-    color_code: String,
-    price: f64,
-    status: String,
-}
+use wasm_bindgen_futures::spawn_local;
 
 #[function_component(ProductListPage)]
 pub fn product_list_page() -> Html {
-    let products = use_state(|| Vec::<ProductItem>::new());
+    let products = use_state(|| Vec::<Product>::new());
     let show_form = use_state(|| false);
 
     let form_code = use_state(String::new);
@@ -30,19 +20,20 @@ pub fn product_list_page() -> Html {
     {
         let products = products.clone();
         use_effect_with((), move |_| {
-            products.set(vec![
-                ProductItem { id: 101, code: "SJ-100C".to_string(), name: "全棉汗布".to_string(), composition: "100% 棉".to_string(), yarn_count: "32S纯棉精梳纱".to_string(), density: "133x72".to_string(), color_code: "01-White".to_string(), price: 35.50, status: "在售".to_string() },
-                ProductItem { id: 102, code: "PK-6535".to_string(), name: "CVC珠地网眼".to_string(), composition: "60%棉 40%聚酯纤维".to_string(), yarn_count: "40S".to_string(), density: "120x60".to_string(), color_code: "02-Black".to_string(), price: 28.00, status: "在售".to_string() },
-                ProductItem { id: 103, code: "RB-SP".to_string(), name: "氨纶罗纹".to_string(), composition: "95%棉 5%氨纶".to_string(), yarn_count: "32S+40D".to_string(), density: "-".to_string(), color_code: "03-Grey".to_string(), price: 42.00, status: "缺货".to_string() },
-                ProductItem { id: 104, code: "FL-PF".to_string(), name: "摇粒绒".to_string(), composition: "100% 聚酯纤维".to_string(), yarn_count: "150D/288F".to_string(), density: "-".to_string(), color_code: "04-Navy".to_string(), price: 18.50, status: "下架".to_string() },
-            ]);
+            spawn_local(async move {
+                if let Ok(res) = ProductService::list_products().await {
+                    products.set(res.products);
+                }
+            });
             || ()
         });
     }
 
     let on_add_click = {
         let show_form = show_form.clone();
-        Callback::from(move |_| show_form.set(!*show_form))
+        Callback::from(move |_| {
+            show_form.set(!*show_form);
+        })
     };
 
     let on_submit = {
@@ -51,36 +42,31 @@ pub fn product_list_page() -> Html {
         let form_code = form_code.clone();
         let form_name = form_name.clone();
         let form_comp = form_comp.clone();
-        let form_yarn_count = form_yarn_count.clone();
-        let form_density = form_density.clone();
-        let form_color_code = form_color_code.clone();
         let form_price = form_price.clone();
-
+        
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
-            let mut list = (*products).clone();
-            let new_id = list.iter().map(|p| p.id).max().unwrap_or(0) + 1;
-            let price = form_price.parse::<f64>().unwrap_or(0.0);
-            list.push(ProductItem {
-                id: new_id,
-                code: (*form_code).clone(),
+            
+            let req = CreateProductRequest {
                 name: (*form_name).clone(),
-                composition: (*form_comp).clone(),
-                yarn_count: (*form_yarn_count).clone(),
-                density: (*form_density).clone(),
-                color_code: (*form_color_code).clone(),
-                price,
-                status: "在售".to_string(),
+                code: (*form_code).clone(),
+                category_id: Some(1),
+                unit: "m".to_string(),
+                price: Some((*form_price).clone()),
+                description: Some((*form_comp).clone()),
+            };
+
+            let products_clone = products.clone();
+            let show_form_clone = show_form.clone();
+            
+            spawn_local(async move {
+                if let Ok(_) = ProductService::create_product(req).await {
+                    if let Ok(res) = ProductService::list_products().await {
+                        products_clone.set(res.products);
+                    }
+                    show_form_clone.set(false);
+                }
             });
-            products.set(list);
-            show_form.set(false);
-            form_code.set(String::new());
-            form_name.set(String::new());
-            form_comp.set(String::new());
-            form_yarn_count.set(String::new());
-            form_density.set(String::new());
-            form_color_code.set(String::new());
-            form_price.set(String::new());
         })
     };
 
@@ -191,26 +177,17 @@ pub fn product_list_page() -> Html {
                                 } else {
                                     html! {
                                         for products.iter().map(|product| {
-                                            let badge_class = match product.status.as_str() {
-                                                "在售" => "bg-green-500 text-white",
-                                                "缺货" => "bg-yellow-500 text-white",
-                                                _ => "bg-gray-400 text-white",
-                                            };
                                             html! {
                                                 <tr key={product.id} class="hover:bg-gray-50">
-                                                    <td class="numeric-cell text-right">{ product.id }</td>
-                                                    <td>{ &product.code }</td>
-                                                    <td>{ &product.name }</td>
-                                                    <td>{ &product.composition }</td>
-                                                    <td>{ &product.yarn_count }</td>
-                                                    <td>{ &product.density }</td>
-                                                    <td>{ &product.color_code }</td>
-                                                    <td class="numeric-cell text-right">{ format!("¥{:.2}", product.price) }</td>
-                                                    <td>
-                                                        <span class={format!("status-badge {}", badge_class)}>
-                                                            { &product.status }
-                                                        </span>
-                                                    </td>
+                                                    <td class="numeric-cell text-right">{product.id}</td>
+                                                    <td>{&product.code}</td>
+                                                    <td>{&product.name}</td>
+                                                    <td>{product.description.as_deref().unwrap_or("-")}</td>
+                                                    <td>{"-"}</td>
+                                                    <td>{"-"}</td>
+                                                    <td>{"-"}</td>
+                                                    <td class="numeric-cell text-right">{product.price.as_deref().unwrap_or("0.00")}</td>
+                                                    <td><span class="status-badge bg-green-100 text-green-800">{"在售"}</span></td>
                                                 </tr>
                                             }
                                         })
