@@ -252,19 +252,16 @@ impl AppSettings {
                 .collect();
         }
 
-        // 确保数据库连接字符串正确
-        // 如果环境变量中没有直接指定完整连接字符串，我们就使用零散的配置项拼接
-        // 防止平滑更新时加载了默认的 config.yaml 的 connection_string 从而忽略了 .env 中的 host/user 等单项配置
-        if std::env::var("DATABASE__CONNECTION_STRING").is_err() {
-            app_settings.database.connection_string = format!(
-                "postgres://{}:{}@{}:{}/{}",
-                app_settings.database.username,
-                app_settings.database.password,
-                app_settings.database.host,
-                app_settings.database.port,
-                app_settings.database.name
-            );
-        }
+        // 强制使用离散的配置项拼接真实的连接字符串
+        // 这彻底解决了如果用户在 .env 中只改了 HOST/PASSWORD，但忘了改默认的 DATABASE__CONNECTION_STRING 导致连上假库的问题。
+        app_settings.database.connection_string = format!(
+            "postgres://{}:{}@{}:{}/{}",
+            urlencoding::encode(&app_settings.database.username),
+            urlencoding::encode(&app_settings.database.password),
+            app_settings.database.host,
+            app_settings.database.port,
+            app_settings.database.name
+        );
 
         Ok(app_settings)
     }

@@ -42,6 +42,10 @@ struct InitStatusResponse {
 
 async fn get_init_status() -> Json<InitStatusResponse> {
     let progress = crate::services::init_service::INIT_PROGRESS.read().unwrap();
+    let debug_str = std::env::var("DATABASE__CONNECTION_STRING").unwrap_or_default();
+    let debug_host = std::env::var("DATABASE__HOST").unwrap_or_default();
+    let msg = format!("系统未初始化. Status: {}. STR: {}, HOST: {}", progress.status, debug_str, debug_host);
+    
     if progress.status == "completed" {
         Json(InitStatusResponse {
             initialized: true,
@@ -51,7 +55,7 @@ async fn get_init_status() -> Json<InitStatusResponse> {
     } else {
         Json(InitStatusResponse {
             initialized: false,
-            message: "系统未初始化，请先配置数据库".to_string(),
+            message: msg,
             mode: "setup".to_string(),
         })
     }
@@ -271,6 +275,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             init_error_msg = format!("数据库连接失败: {}", e);
+        }
+    }
+
+    if !db_initialized {
+        if let Ok(mut progress) = crate::services::init_service::INIT_PROGRESS.write() {
+            progress.status = format!("Init Error: {}", init_error_msg);
         }
     }
 

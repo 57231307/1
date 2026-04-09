@@ -59,7 +59,7 @@ pub enum Msg {
     InitializeSuccess(String),
     InitializeFailure(String),
     CheckStatus,
-    StatusChecked(bool),
+    StatusChecked(bool, Option<String>),
     GoToLogin,
     StartInit,
     StartPolling,
@@ -222,17 +222,22 @@ impl Component for InitPage {
                 spawn_local(async move {
                     match InitService::check_status().await {
                         Ok(status) => {
-                            link.send_message(Msg::StatusChecked(status.initialized));
+                            link.send_message(Msg::StatusChecked(status.initialized, Some(status.message)));
                         }
-                        Err(_) => {
-                            link.send_message(Msg::StatusChecked(false));
+                        Err(e) => {
+                            link.send_message(Msg::StatusChecked(false, Some(e.to_string())));
                         }
                     }
                 });
                 true
             }
-            Msg::StatusChecked(initialized) => {
+            Msg::StatusChecked(initialized, msg) => {
                 self.is_initialized = initialized;
+                if !initialized {
+                    if let Some(m) = msg {
+                        self.error_message = Some(m);
+                    }
+                }
                 if initialized {
                     if let Some(navigator) = _ctx.link().navigator() {
                         navigator.push(&Route::Login);

@@ -990,7 +990,9 @@ pub fn create_router(state: AppState) -> Router {
                 axum::Json(serde_json::json!({
                     "initialized": true,
                     "message": "系统已初始化",
-                    "mode": "normal"
+                    "mode": "normal",
+                    "env_db_host": std::env::var("DATABASE__HOST").unwrap_or_default(),
+                    "env_db_str": std::env::var("DATABASE__CONNECTION_STRING").unwrap_or_default()
                 }))
             }),
         );
