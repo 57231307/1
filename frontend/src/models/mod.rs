@@ -51,3 +51,4 @@ pub mod supplier_evaluation;
 pub mod user;
 pub mod voucher;
 pub mod warehouse;
+pub mod unit_converter;

@@ -6,6 +6,8 @@ use axum::{
     Router,
 };
 
+use crate::controllers::base::unit_converter;
+
 use crate::handlers::{
     account_subject_handler, ap_invoice_handler, ap_payment_handler, ap_payment_request_handler,
     ap_reconciliation_handler, ap_report_handler, ap_verification_handler, ar_invoice_handler,
@@ -997,7 +999,12 @@ pub fn create_router(state: AppState) -> Router {
             }),
         );
 
+    let unit_routes = Router::new()
+        .route("/constants", get(unit_converter::get_global_constants))
+        .route("/products", get(unit_converter::get_product_conversions));
+
     Router::new()
+        .nest("/api/v1/erp/base/units", unit_routes)
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)
         .nest("/api/v1/erp/roles", role_routes)
