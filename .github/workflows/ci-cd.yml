@@ -1,10 +1,11 @@
 name: CI/CD Pipeline - 自动构建和发布
 
 # 智能取消策略：
-# 对于 Pull Request，基于 PR 编号分组；对于普通 push，基于分支名（如 refs/heads/main）分组。
-# 这样在同一分支连续推送时，新提交会自动取消仍在运行的旧构建，节省资源。
+# 直接使用工作流名称作为全局唯一分组，
+# 确保无论你推的是主干、分支还是标签，全仓库在同一时间
+# 永远只保留最后一次（最新）的源代码构建任务，之前的统统无条件取消！
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}
   cancel-in-progress: true
 
 on:
