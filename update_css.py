@@ -1,4 +1,7 @@
-/* 
+import os
+import re
+
+css_content = """/* 
  * 面料二批管理系统 - 全局样式核心规范
  * 主色调：#165DFF 
  * 辅助色：#F5F7FA, #E5E6EB, #E8F3FF
@@ -327,3 +330,9 @@ input:focus, select:focus, textarea:focus {
       color: var(--primary);
   }
 }
+"""
+
+with open('frontend/styles/main.css', 'w', encoding='utf-8') as f:
+    f.write(css_content)
+
+print("CSS updated successfully.")

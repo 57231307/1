@@ -295,7 +295,7 @@ impl Component for InventoryCountPage {
         html! {
             <MainLayout current_page={"inventory_count"}>
                 <div class="inventory-count-page">
-                <Navigation current_page="counts" />
+                
 
                 <div class="main-content">
                     <div class="page-header">

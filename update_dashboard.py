@@ -1,4 +1,6 @@
-use crate::components::main_layout::MainLayout;
+import os
+
+dashboard_content = """use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
 
 #[function_component(DashboardPage)]
@@ -7,9 +9,9 @@ pub fn dashboard_page() -> Html {
         <MainLayout current_page="仪表板">
             <div class="space-y-4 md:space-y-6">
                 
-                
+                {/* Top Data Cards */}
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                    
+                    {/* 今日销售额 */}
                     <div class="card bg-white p-4 md:p-5 flex flex-col justify-between">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm text-[#4E5969] font-medium">{"今日销售额"}</span>
@@ -23,7 +25,7 @@ pub fn dashboard_page() -> Html {
                             {"同比昨日 +12.5%"}
                         </div>
                     </div>
-                    
+                    {/* 今日销售单数 */}
                     <div class="card bg-white p-4 md:p-5 flex flex-col justify-between">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm text-[#4E5969] font-medium">{"今日销售单数"}</span>
@@ -37,7 +39,7 @@ pub fn dashboard_page() -> Html {
                             {"同比昨日 -2.1%"}
                         </div>
                     </div>
-                    
+                    {/* 当前库存总额 */}
                     <div class="card bg-white p-4 md:p-5 flex flex-col justify-between">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm text-[#4E5969] font-medium">{"当前库存总额"}</span>
@@ -51,7 +53,7 @@ pub fn dashboard_page() -> Html {
                             <span class="badge-woven px-1 py-0 rounded text-[10px]">{"梭 35%"}</span>
                         </div>
                     </div>
-                    
+                    {/* 逾期应收金额 */}
                     <div class="card bg-white p-4 md:p-5 flex flex-col justify-between">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm text-[#4E5969] font-medium">{"逾期应收金额"}</span>
@@ -64,9 +66,9 @@ pub fn dashboard_page() -> Html {
                     </div>
                 </div>
 
-                
+                {/* Middle Todos */}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                    
+                    {/* 待处理事项 */}
                     <div class="card bg-white p-0 overflow-hidden">
                         <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"待处理事项"}</div>
                         <div class="divide-y divide-[#E5E6EB]">
@@ -112,7 +114,7 @@ pub fn dashboard_page() -> Html {
                             </div>
                         </div>
                     </div>
-                    
+                    {/* 常用操作 */}
                     <div class="card bg-white p-0 overflow-hidden">
                         <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"常用操作"}</div>
                         <div class="grid grid-cols-2 gap-px bg-[#E5E6EB]">
@@ -136,9 +138,9 @@ pub fn dashboard_page() -> Html {
                     </div>
                 </div>
 
-                
+                {/* Bottom Charts */}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                    
+                    {/* 近7日销售趋势 */}
                     <div class="card bg-white p-0">
                         <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129] flex justify-between items-center">
                             {"近7日销售趋势"}
@@ -151,14 +153,14 @@ pub fn dashboard_page() -> Html {
                             {"[折线图表占位]"}
                         </div>
                     </div>
-                    
+                    {/* 针织/梭织销量占比 */}
                     <div class="card bg-white p-0">
                         <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"针织/梭织销量占比"}</div>
                         <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
                             {"[饼图占位]"}
                         </div>
                     </div>
-                    
+                    {/* 热销面料TOP10 */}
                     <div class="card bg-white p-0">
                         <div class="px-4 py-3 border-b border-[#E5E6EB] font-bold text-[16px] text-[#1D2129]">{"热销面料 TOP 10"}</div>
                         <div class="h-48 p-4 flex items-center justify-center bg-[#F5F7FA] m-4 rounded text-[#86909C] text-sm">
@@ -171,3 +173,9 @@ pub fn dashboard_page() -> Html {
         </MainLayout>
     }
 }
+"""
+
+with open('frontend/src/pages/dashboard.rs', 'w', encoding='utf-8') as f:
+    f.write(dashboard_content)
+
+print("Dashboard updated.")

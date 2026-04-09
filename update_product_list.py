@@ -1,4 +1,6 @@
-use crate::components::main_layout::MainLayout;
+import os
+
+product_list_content = """use crate::components::main_layout::MainLayout;
 use crate::services::product_service::ProductService;
 use crate::models::product::{Product, CreateProductRequest};
 use yew::prelude::*;
@@ -61,11 +63,11 @@ pub fn product_list_page() -> Html {
     html! {
         <MainLayout current_page="面料档案">
             <div class="space-y-4">
-                
+                {/* 顶部操作区 */}
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="flex flex-col md:flex-row md:items-center gap-4">
                         <h1 class="text-[18px] font-bold text-[#1D2129]">{"面料档案管理"}</h1>
-                        
+                        {/* 品类快速切换 */}
                         <div class="flex items-center gap-2 bg-[#F5F7FA] p-1 rounded">
                             <button 
                                 onclick={let on_tab_change = on_tab_change.clone(); Callback::from(move |_| on_tab_change.emit("all"))}
@@ -93,7 +95,7 @@ pub fn product_list_page() -> Html {
                     </div>
                 </div>
 
-                
+                {/* 搜索筛选区 */}
                 <div class="card p-4 flex flex-wrap gap-3 items-center">
                     <div class="w-full md:w-[220px]">
                         <input type="text" placeholder="面料编号" 
@@ -133,9 +135,9 @@ pub fn product_list_page() -> Html {
                     </button>
                 </div>
 
-                
+                {/* 面料列表区 */}
                 if *is_mobile {
-                    
+                    {/* 移动端卡片列表 */}
                     <div class="grid grid-cols-1 gap-3 pb-20">
                         {
                             for filtered_products.iter().enumerate().map(|(i, product)| {
@@ -173,7 +175,7 @@ pub fn product_list_page() -> Html {
                         }
                     </div>
                 } else {
-                    
+                    {/* PC端表格 */}
                     <div class="card p-0 overflow-hidden">
                         <div class="table-responsive">
                             <table class="data-table">
@@ -236,7 +238,7 @@ pub fn product_list_page() -> Html {
                                 </tbody>
                             </table>
                         </div>
-                        
+                        {/* Pagination */}
                         <div class="p-4 border-t border-[#E5E6EB] flex justify-between items-center text-[14px]">
                             <div class="text-[#86909C]">{"共 "}{filtered_products.len()}{" 条记录"}</div>
                             <div class="flex items-center gap-2">
@@ -251,3 +253,9 @@ pub fn product_list_page() -> Html {
         </MainLayout>
     }
 }
+"""
+
+with open('frontend/src/pages/product_list.rs', 'w', encoding='utf-8') as f:
+    f.write(product_list_content)
+
+print("Product List updated.")

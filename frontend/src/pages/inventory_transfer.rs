@@ -344,7 +344,7 @@ impl Component for InventoryTransferPage {
         html! {
             <MainLayout current_page={"inventory_transfer"}>
                 <div class="inventory-transfer-page">
-                <Navigation current_page="transfers" />
+                
 
                 <div class="main-content">
                     <div class="page-header">
