@@ -1,3 +1,4 @@
+use crate::components::main_layout::MainLayout;
 use crate::models::dashboard::{
     DashboardOverview, InventoryStatistics, LowStockAlert, SalesStatistics,
 };
@@ -127,30 +128,31 @@ impl Component for DashboardPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="dashboard-page">
-                <div class="dashboard-header">
-                    <div class="header-left">
-                        <h1>{"📊 管理仪表板"}</h1>
-                        <p class="subtitle">{"欢迎使用秉羲管理系统"}</p>
+            <MainLayout current_page={"仪表板"}>
+                <div class="dashboard-page">
+                    <div class="dashboard-header">
+                        <div class="header-left">
+                            <h1>{"📊 管理仪表板"}</h1>
+                            <p class="subtitle">{"欢迎使用秉羲管理系统"}</p>
+                        </div>
+                        <div class="header-right">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::RefreshData)}>
+                                {"🔄 刷新数据"}
+                            </button>
+                            <label class="toggle-switch">
+                                <input
+                                    type="checkbox"
+                                    checked={self.auto_refresh}
+                                    onclick={ctx.link().callback(|_| Msg::ToggleAutoRefresh)}
+                                />
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label">{"自动刷新"}</span>
+                        </div>
                     </div>
-                    <div class="header-right">
-                        <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::RefreshData)}>
-                            {"🔄 刷新数据"}
-                        </button>
-                        <label class="toggle-switch">
-                            <input
-                                type="checkbox"
-                                checked={self.auto_refresh}
-                                onclick={ctx.link().callback(|_| Msg::ToggleAutoRefresh)}
-                            />
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <span class="toggle-label">{"自动刷新"}</span>
-                    </div>
+                    {self.render_content(ctx)}
                 </div>
-
-                {self.render_content(ctx)}
-            </div>
+            </MainLayout>
         }
     }
 }
