@@ -101,7 +101,7 @@ codegen-units = 16
 [profile.release]
 opt-level = 2
 lto = false
-codegen-units = 1
+codegen-units = 8
 debug = false
 strip = true
 

@@ -19,6 +19,7 @@ env:
   ACTIONS_RUNNER_FORCE_ACTIONS_NODE24: true
   RUST_VERSION: 1.94.1
   CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 8
 
 jobs:
   determine-version:
@@ -151,7 +152,7 @@ jobs:
 
   build-frontend:
     name: 构建前端
-    needs: [test, determine-version]
+    needs: [test, determine-version, build-backend]
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
