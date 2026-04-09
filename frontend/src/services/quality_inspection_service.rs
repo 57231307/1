@@ -79,11 +79,11 @@ impl QualityInspectionService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
 
-        ApiService::get(&format!("/quality-inspection/records?{}", query)).await
+        ApiService::get(&format!("/quality-inspections/records?{}", query)).await
     }
 
     pub async fn get_record(id: i32) -> Result<InspectionRecord, String> {
-        ApiService::get(&format!("/quality-inspection/records/{}", id)).await
+        ApiService::get(&format!("/quality-inspections/records/{}", id)).await
     }
 
     pub async fn create_record(
@@ -99,7 +99,7 @@ impl QualityInspectionService {
         } else {
             String::new()
         };
-        ApiService::get(&format!("/quality-inspection/statistics{}", query)).await
+        ApiService::get(&format!("/quality-inspections/statistics{}", query)).await
     }
 
     pub async fn list_defects(
@@ -117,7 +117,7 @@ impl QualityInspectionService {
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
 
-        ApiService::get(&format!("/quality-inspection/defects?{}", query)).await
+        ApiService::get(&format!("/quality-inspections/defects?{}", query)).await
     }
 
     pub async fn create_defect(req: CreateQualityDefectRequest) -> Result<QualityDefect, String> {

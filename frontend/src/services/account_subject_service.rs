@@ -45,7 +45,7 @@ impl AccountSubjectService {
             query_string.push_str(&format!(
                 "{}keyword={}",
                 if has_param { "&" } else { "?" },
-                keyword
+                urlencoding::encode(keyword)
             ));
         }
 

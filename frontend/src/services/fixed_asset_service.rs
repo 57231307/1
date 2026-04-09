@@ -17,7 +17,7 @@ impl FixedAssetService {
         let mut query_params = Vec::new();
 
         if let Some(keyword) = &params.keyword {
-            query_params.push(format!("keyword={}", keyword));
+            query_params.push(format!("keyword={}", urlencoding::encode(keyword)));
         }
         if let Some(status) = &params.status {
             query_params.push(format!("status={}", status));

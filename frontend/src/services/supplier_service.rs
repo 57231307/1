@@ -32,7 +32,7 @@ impl SupplierService {
             params.push(format!("status={}", status));
         }
         if let Some(ref keyword) = query.keyword {
-            params.push(format!("keyword={}", keyword));
+            params.push(format!("keyword={}", urlencoding::encode(keyword)));
         }
         if let Some(ref sort_by) = query.sort_by {
             params.push(format!("sort_by={}", sort_by));

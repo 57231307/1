@@ -79,6 +79,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-web",
+ "urlencoding",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

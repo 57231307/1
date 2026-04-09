@@ -41,21 +41,21 @@ impl FinancePaymentService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/finance-payments{}", query_string);
+        let url = format!("/finance/payments{}", query_string);
         ApiService::get::<PaymentListResponse>(&url).await
     }
 
     /// 获取财务付款详情
     #[allow(dead_code)]
     pub async fn get_payment(id: i32) -> Result<FinancePayment, String> {
-        ApiService::get::<FinancePayment>(&format!("/finance-payments/{}", id)).await
+        ApiService::get::<FinancePayment>(&format!("/finance/payments/{}", id)).await
     }
 
     /// 创建财务付款
     #[allow(dead_code)]
     pub async fn create_payment(req: CreatePaymentRequest) -> Result<FinancePayment, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/finance-payments", &payload).await
+        ApiService::post("/finance/payments", &payload).await
     }
 
     /// 更新财务付款
@@ -65,11 +65,11 @@ impl FinancePaymentService {
         req: UpdatePaymentRequest,
     ) -> Result<FinancePayment, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/finance-payments/{}", id), &payload).await
+        ApiService::put(&format!("/finance/payments/{}", id), &payload).await
     }
 
     /// 删除财务付款
     pub async fn delete_payment(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/finance-payments/{}", id)).await
+        ApiService::delete(&format!("/finance/payments/{}", id)).await
     }
 }

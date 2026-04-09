@@ -32,7 +32,7 @@ impl ApReportService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-reports/statistics{}", query_string);
+        let url = format!("/ap/reports/statistics{}", query_string);
         ApiService::get::<ApStatisticsResponse>(&url).await
     }
 
@@ -55,7 +55,7 @@ impl ApReportService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-reports/daily{}", query_string);
+        let url = format!("/ap/reports/daily{}", query_string);
         ApiService::get::<ApDailyResponse>(&url).await
     }
 
@@ -80,7 +80,7 @@ impl ApReportService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-reports/monthly{}", query_string);
+        let url = format!("/ap/reports/monthly{}", query_string);
         ApiService::get::<ApMonthlyResponse>(&url).await
     }
 
@@ -92,7 +92,7 @@ impl ApReportService {
             String::new()
         };
 
-        let url = format!("/ap-reports/aging{}", query_string);
+        let url = format!("/ap/reports/aging{}", query_string);
         ApiService::get::<ApAgingResponse>(&url).await
     }
 }

@@ -44,21 +44,21 @@ impl FinanceInvoiceService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/finance-invoices{}", query_string);
+        let url = format!("/finance/invoices{}", query_string);
         ApiService::get::<InvoiceListResponse>(&url).await
     }
 
     /// 获取财务发票详情
     #[allow(dead_code)]
     pub async fn get_invoice(id: i32) -> Result<FinanceInvoice, String> {
-        ApiService::get::<FinanceInvoice>(&format!("/finance-invoices/{}", id)).await
+        ApiService::get::<FinanceInvoice>(&format!("/finance/invoices/{}", id)).await
     }
 
     /// 创建财务发票
     #[allow(dead_code)]
     pub async fn create_invoice(req: CreateInvoiceRequest) -> Result<FinanceInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/finance-invoices", &payload).await
+        ApiService::post("/finance/invoices", &payload).await
     }
 
     /// 更新财务发票
@@ -68,18 +68,18 @@ impl FinanceInvoiceService {
         req: UpdateInvoiceRequest,
     ) -> Result<FinanceInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/finance-invoices/{}", id), &payload).await
+        ApiService::put(&format!("/finance/invoices/{}", id), &payload).await
     }
 
     /// 删除财务发票
     pub async fn delete_invoice(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/finance-invoices/{}", id)).await
+        ApiService::delete(&format!("/finance/invoices/{}", id)).await
     }
 
     /// 审核财务发票
     pub async fn approve_invoice(id: i32) -> Result<FinanceInvoice, String> {
         ApiService::post::<FinanceInvoice, serde_json::Value>(
-            &format!("/finance-invoices/{}/approve", id),
+            &format!("/finance/invoices/{}/approve", id),
             &serde_json::json!({}),
         )
         .await
@@ -89,6 +89,6 @@ impl FinanceInvoiceService {
     pub async fn verify_invoice(id: i32, payment_method: String) -> Result<FinanceInvoice, String> {
         let req = VerifyInvoiceRequest { payment_method };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/finance-invoices/{}/verify", id), &payload).await
+        ApiService::post(&format!("/finance/invoices/{}/verify", id), &payload).await
     }
 }

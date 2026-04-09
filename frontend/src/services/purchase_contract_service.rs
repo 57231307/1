@@ -19,7 +19,7 @@ impl PurchaseContractService {
         let mut url = String::from("/purchase-contracts?");
 
         if let Some(keyword) = &params.keyword {
-            url.push_str(&format!("keyword={}&", keyword));
+            url.push_str(&format!("keyword={}&", urlencoding::encode(keyword)));
         }
         if let Some(status) = &params.status {
             url.push_str(&format!("status={}&", status));

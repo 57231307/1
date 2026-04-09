@@ -43,34 +43,34 @@ impl ApVerificationService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-verifications{}", query_string);
+        let url = format!("/ap/verifications{}", query_string);
         ApiService::get::<ApVerificationListResponse>(&url).await
     }
 
     /// 获取核销详情
     #[allow(dead_code)]
     pub async fn get_verification(id: i32) -> Result<ApVerification, String> {
-        ApiService::get::<ApVerification>(&format!("/ap-verifications/{}", id)).await
+        ApiService::get::<ApVerification>(&format!("/ap/verifications/{}", id)).await
     }
 
     /// 自动核销
     pub async fn auto_verify(supplier_id: i32) -> Result<ApVerification, String> {
         let req = AutoVerifyRequest { supplier_id };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ap-verifications/auto-verify", &payload).await
+        ApiService::post("/ap/verifications/auto-verify", &payload).await
     }
 
     /// 手工核销
     pub async fn manual_verify(req: ManualVerifyRequest) -> Result<ApVerification, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ap-verifications/manual-verify", &payload).await
+        ApiService::post("/ap/verifications/manual-verify", &payload).await
     }
 
     /// 取消核销
     pub async fn cancel_verification(id: i32, reason: String) -> Result<ApVerification, String> {
         let req = CancelVerificationRequest { reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/ap-verifications/{}/cancel", id), &payload).await
+        ApiService::post(&format!("/ap/verifications/{}/cancel", id), &payload).await
     }
 
     /// 获取未核销应付发票列表
@@ -78,7 +78,7 @@ impl ApVerificationService {
         supplier_id: i32,
     ) -> Result<Vec<UnverifiedInvoiceItem>, String> {
         let url = format!(
-            "/ap-verifications/unverified-invoices?supplier_id={}",
+            "/ap/verifications/unverified-invoices?supplier_id={}",
             supplier_id
         );
         ApiService::get::<Vec<UnverifiedInvoiceItem>>(&url).await
@@ -89,7 +89,7 @@ impl ApVerificationService {
         supplier_id: i32,
     ) -> Result<Vec<UnverifiedPaymentItem>, String> {
         let url = format!(
-            "/ap-verifications/unverified-payments?supplier_id={}",
+            "/ap/verifications/unverified-payments?supplier_id={}",
             supplier_id
         );
         ApiService::get::<Vec<UnverifiedPaymentItem>>(&url).await

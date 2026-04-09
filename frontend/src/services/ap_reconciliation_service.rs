@@ -43,14 +43,14 @@ impl ApReconciliationService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-reconciliations{}", query_string);
+        let url = format!("/ap/reconciliations{}", query_string);
         ApiService::get::<ApReconciliationListResponse>(&url).await
     }
 
     /// 获取对账单详情
     #[allow(dead_code)]
     pub async fn get_reconciliation(id: i32) -> Result<ApReconciliation, String> {
-        ApiService::get::<ApReconciliation>(&format!("/ap-reconciliations/{}", id)).await
+        ApiService::get::<ApReconciliation>(&format!("/ap/reconciliations/{}", id)).await
     }
 
     /// 生成对账单
@@ -59,7 +59,7 @@ impl ApReconciliationService {
         req: GenerateReconciliationRequest,
     ) -> Result<ApReconciliation, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ap-reconciliations", &payload).await
+        ApiService::post("/ap/reconciliations", &payload).await
     }
 
     /// 更新对账单
@@ -69,19 +69,19 @@ impl ApReconciliationService {
         req: UpdateReconciliationRequest,
     ) -> Result<ApReconciliation, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/ap-reconciliations/{}", id), &payload).await
+        ApiService::put(&format!("/ap/reconciliations/{}", id), &payload).await
     }
 
     /// 删除对账单
     #[allow(dead_code)]
     pub async fn delete_reconciliation(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/ap-reconciliations/{}", id)).await
+        ApiService::delete(&format!("/ap/reconciliations/{}", id)).await
     }
 
     /// 确认对账单
     pub async fn confirm_reconciliation(id: i32) -> Result<ApReconciliation, String> {
         ApiService::post::<ApReconciliation, serde_json::Value>(
-            &format!("/ap-reconciliations/{}/confirm", id),
+            &format!("/ap/reconciliations/{}/confirm", id),
             &serde_json::json!({}),
         )
         .await
@@ -94,7 +94,7 @@ impl ApReconciliationService {
     ) -> Result<ApReconciliation, String> {
         let req = DisputeRequest { reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/ap-reconciliations/{}/dispute", id), &payload).await
+        ApiService::post(&format!("/ap/reconciliations/{}/dispute", id), &payload).await
     }
 
     /// 获取供应商应付汇总
@@ -107,7 +107,7 @@ impl ApReconciliationService {
         } else {
             String::new()
         };
-        let url = format!("/ap-reconciliations/supplier-summary{}", query_string);
+        let url = format!("/ap/reconciliations/summary{}", query_string);
         ApiService::get::<Vec<SupplierSummary>>(&url).await
     }
 }

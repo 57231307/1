@@ -46,21 +46,21 @@ impl ApPaymentRequestService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ap-payment-requests{}", query_string);
+        let url = format!("/ap/payment-requests{}", query_string);
         ApiService::get::<ApPaymentRequestListResponse>(&url).await
     }
 
     /// 获取付款申请详情
     #[allow(dead_code)]
     pub async fn get_request(id: i32) -> Result<ApPaymentRequest, String> {
-        ApiService::get::<ApPaymentRequest>(&format!("/ap-payment-requests/{}", id)).await
+        ApiService::get::<ApPaymentRequest>(&format!("/ap/payment-requests/{}", id)).await
     }
 
     /// 创建付款申请
     #[allow(dead_code)]
     pub async fn create_request(req: CreateApPaymentRequest) -> Result<ApPaymentRequest, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ap-payment-requests", &payload).await
+        ApiService::post("/ap/payment-requests", &payload).await
     }
 
     /// 更新付款申请
@@ -70,18 +70,18 @@ impl ApPaymentRequestService {
         req: UpdateApPaymentRequest,
     ) -> Result<ApPaymentRequest, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/ap-payment-requests/{}", id), &payload).await
+        ApiService::put(&format!("/ap/payment-requests/{}", id), &payload).await
     }
 
     /// 删除付款申请
     pub async fn delete_request(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/ap-payment-requests/{}", id)).await
+        ApiService::delete(&format!("/ap/payment-requests/{}", id)).await
     }
 
     /// 提交付款申请
     pub async fn submit_request(id: i32) -> Result<ApPaymentRequest, String> {
         ApiService::post::<ApPaymentRequest, serde_json::Value>(
-            &format!("/ap-payment-requests/{}/submit", id),
+            &format!("/ap/payment-requests/{}/submit", id),
             &serde_json::json!({}),
         )
         .await
@@ -90,7 +90,7 @@ impl ApPaymentRequestService {
     /// 审批付款申请
     pub async fn approve_request(id: i32) -> Result<ApPaymentRequest, String> {
         ApiService::post::<ApPaymentRequest, serde_json::Value>(
-            &format!("/ap-payment-requests/{}/approve", id),
+            &format!("/ap/payment-requests/{}/approve", id),
             &serde_json::json!({}),
         )
         .await
@@ -100,6 +100,6 @@ impl ApPaymentRequestService {
     pub async fn reject_request(id: i32, reason: String) -> Result<ApPaymentRequest, String> {
         let req = RejectApPaymentRequest { reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/ap-payment-requests/{}/reject", id), &payload).await
+        ApiService::post(&format!("/ap/payment-requests/{}/reject", id), &payload).await
     }
 }

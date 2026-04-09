@@ -24,7 +24,7 @@ impl CustomerService {
             params.push(format!("customer_type={}", customer_type));
         }
         if let Some(ref keyword) = query.keyword {
-            params.push(format!("keyword={}", keyword));
+            params.push(format!("keyword={}", urlencoding::encode(keyword)));
         }
 
         let query_string = if params.is_empty() {

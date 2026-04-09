@@ -37,39 +37,39 @@ impl ArInvoiceService {
             format!("?{}", query_parts.join("&"))
         };
 
-        let url = format!("/ar-invoices{}", query_string);
+        let url = format!("/ar/invoices{}", query_string);
         ApiService::get::<ArInvoiceListResponse>(&url).await
     }
 
     /// 获取应收发票详情
     #[allow(dead_code)]
     pub async fn get_invoice(id: i32) -> Result<ArInvoice, String> {
-        ApiService::get::<ArInvoice>(&format!("/ar-invoices/{}", id)).await
+        ApiService::get::<ArInvoice>(&format!("/ar/invoices/{}", id)).await
     }
 
     /// 创建应收发票
     #[allow(dead_code)]
     pub async fn create_invoice(req: CreateArInvoiceRequest) -> Result<ArInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/ar-invoices", &payload).await
+        ApiService::post("/ar/invoices", &payload).await
     }
 
     /// 更新应收发票
     #[allow(dead_code)]
     pub async fn update_invoice(id: i32, req: UpdateArInvoiceRequest) -> Result<ArInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/ar-invoices/{}", id), &payload).await
+        ApiService::put(&format!("/ar/invoices/{}", id), &payload).await
     }
 
     /// 删除应收发票
     pub async fn delete_invoice(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/ar-invoices/{}", id)).await
+        ApiService::delete(&format!("/ar/invoices/{}", id)).await
     }
 
     /// 审核应收发票
     pub async fn approve_invoice(id: i32) -> Result<serde_json::Value, String> {
         ApiService::post(
-            &format!("/ar-invoices/{}/approve", id),
+            &format!("/ar/invoices/{}/approve", id),
             &serde_json::json!({}),
         )
         .await
@@ -78,7 +78,7 @@ impl ArInvoiceService {
     /// 取消应收发票
     pub async fn cancel_invoice(id: i32, reason: String) -> Result<serde_json::Value, String> {
         let payload = serde_json::json!({ "reason": reason });
-        ApiService::post(&format!("/ar-invoices/{}/cancel", id), &payload).await
+        ApiService::post(&format!("/ar/invoices/{}/cancel", id), &payload).await
     }
 
     /// 收款确认
@@ -88,14 +88,14 @@ impl ArInvoiceService {
         receive_amount: String,
     ) -> Result<serde_json::Value, String> {
         let payload = serde_json::json!({ "receive_amount": receive_amount });
-        ApiService::post(&format!("/ar-invoices/{}/receive", id), &payload).await
+        ApiService::post(&format!("/ar/invoices/{}/receive", id), &payload).await
     }
 
     /// 获取客户应收统计
     #[allow(dead_code)]
     pub async fn get_customer_summary(customer_id: i32) -> Result<serde_json::Value, String> {
         ApiService::get::<serde_json::Value>(&format!(
-            "/ar-invoices/customer-summary/{}",
+            "/ar/invoices/customer-summary/{}",
             customer_id
         ))
         .await
@@ -109,7 +109,7 @@ impl ArInvoiceService {
         } else {
             String::new()
         };
-        let url = format!("/ar-invoices/aging-analysis{}", query_string);
+        let url = format!("/ar/invoices/aging-analysis{}", query_string);
         ApiService::get::<serde_json::Value>(&url).await
     }
 }
