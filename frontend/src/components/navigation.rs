@@ -102,12 +102,12 @@ pub fn navigation(props: &NavigationProps) -> Html {
             items: vec![
                 MenuItem { name: "应收账款", route: Route::ArInvoices },
                 MenuItem { name: "应付账款", route: Route::ApInvoices },
-                MenuItem { name: "收款核销", route: Route::ApVerifications }, 
+                MenuItem { name: "收款核销", route: Route::ArVerifications }, 
                 MenuItem { name: "付款核销", route: Route::ApVerifications },
                 MenuItem { name: "资金管理", route: Route::FundManagement },
                 MenuItem { name: "财务分析", route: Route::FinancialAnalysis },
                 MenuItem { name: "凭证管理", route: Route::Vouchers },
-                MenuItem { name: "预算管理", route: Route::AccountSubjects }, // Fallback placeholder
+                MenuItem { name: "预算管理", route: Route::BudgetManagement }, // Fallback placeholder
                 MenuItem { name: "成本收集", route: Route::CostCollections },
                 MenuItem { name: "辅助核算", route: Route::AssistAccounting },
                 MenuItem { name: "业务追溯", route: Route::BusinessTrace },

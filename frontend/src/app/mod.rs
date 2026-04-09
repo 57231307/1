@@ -1,7 +1,7 @@
 use crate::pages::{
     crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage, AccountSubjectPage, ApInvoicePage,
     ApPaymentPage, ApPaymentRequestPage, ApReconciliationPage, ApReportPage, ApVerificationPage,
-    ArInvoicePage, AssistAccountingPage, BatchPage, BusinessTracePage, CostCollectionPage,
+    ArInvoicePage, ArReceiptPage, ArVerificationPage, AssistAccountingPage, BatchPage, BudgetManagementPage, BusinessTracePage, CostCollectionPage,
     CustomerCreditPage, CustomerPage, DashboardPage, DepartmentListPage, DualUnitConverterPage,
     DyeBatchPage, DyeRecipePage, FabricOrderPage, FinanceInvoicePage, FinancePaymentPage,
     FinancialAnalysisPage, FiveDimensionPage, FixedAssetPage, FundManagementPage, GreigeFabricPage,
@@ -128,6 +128,12 @@ pub enum Route {
     CrmLeads,
     #[at("/crm/opportunities")]
     CrmOpportunities,
+    #[at("/ar-verifications")]
+    ArVerifications,
+    #[at("/ar-receipts")]
+    ArReceipts,
+    #[at("/budget-management")]
+    BudgetManagement,
     #[not_found]
     #[at("/404/*path")]
     NotFound,
@@ -220,6 +226,9 @@ fn switch(route: Route) -> Html {
         Route::GreigeFabrics => protected_route(|| html! { <GreigeFabricPage /> }),
         Route::CrmLeads => protected_route(|| html! { <CrmLeadPage /> }),
         Route::CrmOpportunities => protected_route(|| html! { <CrmOpportunityPage /> }),
+        Route::ArVerifications => protected_route(|| html! { <ArVerificationPage /> }),
+        Route::ArReceipts => protected_route(|| html! { <ArReceiptPage /> }),
+        Route::BudgetManagement => protected_route(|| html! { <BudgetManagementPage /> }),
         Route::NotFound => html! {
             <crate::components::main_layout::MainLayout current_page={"404"}>
                 <div class="p-8 text-center text-gray-500 text-xl">

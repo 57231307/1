@@ -71,6 +71,7 @@ pub use ar_receipt::ArReceiptPage;
 pub use ar_verification::ArVerificationPage;
 pub use assist_accounting::AssistAccountingPage;
 pub use batch::BatchPage;
+pub use budget_management::BudgetManagementPage;
 pub use business_trace::BusinessTracePage;
 pub use cost_collection::CostCollectionPage;
 pub use customer::CustomerPage;
