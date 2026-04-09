@@ -2,7 +2,7 @@ name: CI/CD Pipeline - 自动构建和发布
 
 # 为了防止同时推送 commit 和 tag 时触发两次重复构建
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: true
 
 on:
@@ -10,14 +10,15 @@ on:
     branches:
       - main
       - master
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
       - master
 
 env:
-  ACTIONS_RUNNER_FORCE_ACTIONS_NODE24: true
-  RUST_VERSION: 1.94.1
+  RUST_VERSION: stable
   CARGO_TERM_COLOR: always
   CARGO_BUILD_JOBS: 8
 
@@ -97,7 +98,18 @@ jobs:
       - name: 运行后端测试
         working-directory: backend
         run: |
-          cargo test --all
+          set -euo pipefail
+          cargo --version
+          rustc --version
+          cargo test --all -j 8 2>&1 | tee backend-test.log
+
+      - name: 上传后端测试日志
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-test-log
+          path: backend/backend-test.log
+          retention-days: 30
 
   build-backend:
     name: 构建后端
@@ -131,7 +143,18 @@ jobs:
       - name: 构建后端 (Release模式)
         working-directory: backend
         run: |
-          cargo build --release
+          set -euo pipefail
+          cargo --version
+          rustc --version
+          cargo build --release -j 8 -vv 2>&1 | tee backend-build.log
+
+      - name: 上传后端构建日志
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-build-log
+          path: backend/backend-build.log
+          retention-days: 30
 
       - name: 验证后端可执行文件
         run: |
@@ -195,7 +218,20 @@ jobs:
       - name: 构建前端 (Release模式)
         working-directory: frontend
         run: |
-          trunk build --release
+          set -euo pipefail
+          cargo --version
+          rustc --version
+          rustup target list --installed
+          trunk --version
+          trunk build --release 2>&1 | tee frontend-build.log
+
+      - name: 上传前端构建日志
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-build-log
+          path: frontend/frontend-build.log
+          retention-days: 30
 
       - name: 验证前端构建产物
         run: |
