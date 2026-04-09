@@ -27,10 +27,11 @@ pub async fn auth_middleware(
         "/api/v1/erp/live",
         "/api/v1/erp/auth/login",
         "/api/v1/erp/init", // 初始化接口由内部数据库状态锁死保护
+        "/api/v1/erp/init/status",
     ];
 
-    // 精确匹配，防止如 /health/hack 这种前缀绕过
-    if public_paths.iter().any(|&p| path == p) {
+    // 精确匹配或允许前缀匹配 init 路由
+    if public_paths.iter().any(|&p| path == p) || path.starts_with("/api/v1/erp/init/") {
         return Ok(next.run(request).await);
     }
 

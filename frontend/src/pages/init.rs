@@ -235,6 +235,14 @@ impl Component for InitPage {
                 self.is_initialized = initialized;
                 if !initialized {
                     if let Some(m) = msg {
+                        // 如果状态码是 401 或 404，大概率是后端处于已初始化正常模式(拦截了init或者没路由)
+                        // 这时应该跳转到登录页
+                        if m.contains("401") || m.contains("404") {
+                            if let Some(navigator) = _ctx.link().navigator() {
+                                navigator.push(&Route::Login);
+                                return true;
+                            }
+                        }
                         self.error_message = Some(m);
                     }
                 }

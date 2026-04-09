@@ -54,10 +54,15 @@ impl Component for LoginPage {
                             link.send_message(Msg::InitStatusChecked(!status.initialized));
                         }
                         Err(err) => {
-                            // 发生网络错误时，不应盲目跳转到初始化页面，而应保持在登录页
-                            // 让用户可以看到可能的后端连接错误，而不是陷入无限循环
-                            web_sys::console::error_1(&format!("检查初始化状态失败: {}", err).into());
-                            link.send_message(Msg::InitStatusChecked(false));
+                            // 发生网络错误或 401/404 时，意味着后端拒绝/未挂载 init 接口
+                            // 这通常意味着系统已处于正常运行(已初始化)状态，不应跳转到初始化页面
+                            let err_msg = err.to_string();
+                            if err_msg.contains("401") || err_msg.contains("404") {
+                                link.send_message(Msg::InitStatusChecked(false));
+                            } else {
+                                web_sys::console::error_1(&format!("检查初始化状态失败: {}", err_msg).into());
+                                link.send_message(Msg::InitStatusChecked(false));
+                            }
                         }
                     }
                 });
