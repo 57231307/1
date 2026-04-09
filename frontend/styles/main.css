@@ -1884,3 +1884,36 @@ input:focus, select:focus {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+
+/* Shadcn-like Minimalist Card & Form Upgrades */
+.card {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.table-responsive {
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--card));
+}
+
+/* Debounce & Virtual Scrolling Indicators */
+.virtual-scroll-container {
+  contain: strict;
+  will-change: scroll-position;
+}
+
+/* Form Layout Mobile Adaptation */
+@media (max-width: 640px) {
+  .grid-cols-4, .grid-cols-3, .grid-cols-2 {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+  }
+  .modal-content {
+    width: 95% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+}

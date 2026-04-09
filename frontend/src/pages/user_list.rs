@@ -132,7 +132,7 @@ impl Component for UserListPage {
                         <div class="loading">{"加载中..."}</div>
                     } else {
                         <div class="user-table-container">
-                            <div class="overflow-x-auto w-full pb-4">
+                            <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full">
                                 <thead>
                                     <tr>

@@ -71,7 +71,7 @@ pub fn ar_verification_page() -> Html {
                 </div>
 
                 <div class="table-container bg-white rounded shadow-sm overflow-x-auto">
-                    <div class="overflow-x-auto w-full pb-4">
+                    <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full text-left border-collapse">
                         <thead class="bg-gray-50 border-b">
                             <tr>

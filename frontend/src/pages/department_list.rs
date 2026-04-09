@@ -155,7 +155,7 @@ pub fn department_list_page() -> Html {
                 }
 
                 <div class="content overflow-x-auto">
-                    <div class="overflow-x-auto w-full pb-4">
+                    <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full border-collapse">
                         <thead>
                             <tr class="bg-gray-100">

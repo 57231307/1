@@ -3,8 +3,8 @@ use crate::pages::{
     ApPaymentPage, ApPaymentRequestPage, ApReconciliationPage, ApReportPage, ApVerificationPage,
     ArInvoicePage, ArReceiptPage, ArVerificationPage, AssistAccountingPage, BatchPage, BudgetManagementPage, BusinessTracePage, CostCollectionPage,
     CustomerCreditPage, CustomerPage, DashboardPage, DepartmentListPage, DualUnitConverterPage,
-    DyeBatchPage, DyeRecipePage, FabricOrderPage, FinanceInvoicePage, FinancePaymentPage,
-    FinancialAnalysisPage, FiveDimensionPage, FixedAssetPage, FundManagementPage, GreigeFabricPage,
+    FabricOrderPage, FinanceInvoicePage, FinancePaymentPage,
+    FinancialAnalysisPage, FiveDimensionPage, FixedAssetPage, FundManagementPage, 
     InitPage, InventoryAdjustmentPage, InventoryCountPage, InventoryStockPage,
     InventoryTransferPage, LoginPage, ProductCategoryPage, ProductListPage, PurchaseContractPage,
     PurchaseInspectionPage, PurchaseOrderPage, PurchasePricePage, PurchaseReceiptPage,
@@ -118,12 +118,6 @@ pub enum Route {
     CostCollections,
     #[at("/purchase-inspections")]
     PurchaseInspections,
-    #[at("/dye-batches")]
-    DyeBatches,
-    #[at("/dye-recipes")]
-    DyeRecipes,
-    #[at("/greige-fabrics")]
-    GreigeFabrics,
     #[at("/crm/leads")]
     CrmLeads,
     #[at("/crm/opportunities")]
@@ -221,9 +215,6 @@ fn switch(route: Route) -> Html {
         Route::PurchaseContracts => protected_route(|| html! { <PurchaseContractPage /> }),
         Route::CostCollections => protected_route(|| html! { <CostCollectionPage /> }),
         Route::PurchaseInspections => protected_route(|| html! { <PurchaseInspectionPage /> }),
-        Route::DyeBatches => protected_route(|| html! { <DyeBatchPage /> }),
-        Route::DyeRecipes => protected_route(|| html! { <DyeRecipePage /> }),
-        Route::GreigeFabrics => protected_route(|| html! { <GreigeFabricPage /> }),
         Route::CrmLeads => protected_route(|| html! { <CrmLeadPage /> }),
         Route::CrmOpportunities => protected_route(|| html! { <CrmOpportunityPage /> }),
         Route::ArVerifications => protected_route(|| html! { <ArVerificationPage /> }),

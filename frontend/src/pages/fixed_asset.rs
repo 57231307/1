@@ -106,7 +106,7 @@ pub fn fixed_asset_page() -> Html {
                 </div>
 
                 <div class="bg-white shadow rounded overflow-hidden">
-                    <div class="overflow-x-auto w-full pb-4">
+                    <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full text-sm">
                         <thead class="bg-gray-50 border-b">
                             <tr>

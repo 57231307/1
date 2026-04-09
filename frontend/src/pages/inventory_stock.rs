@@ -104,7 +104,7 @@ pub fn inventory_stock_page() -> Html {
                 </div>
 
                 <div class="content bg-white rounded shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="overflow-x-auto w-full pb-4">
+                    <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full text-left">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>

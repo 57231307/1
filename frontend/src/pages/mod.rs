@@ -55,9 +55,6 @@ pub mod purchase_inspection;
 pub mod sales_contract;
 pub mod voucher;
 // 面料行业核心模块
-pub mod dye_batch;
-pub mod dye_recipe;
-pub mod greige_fabric;
 
 pub use account_subject::AccountSubjectPage;
 pub use ap_invoice::ApInvoicePage;
@@ -112,8 +109,5 @@ pub use user_list::UserListPage;
 pub use voucher::VoucherPage;
 pub use warehouse_list::WarehouseListPage;
 // 面料行业核心模块
-pub use dye_batch::DyeBatchPage;
-pub use dye_recipe::DyeRecipePage;
-pub use greige_fabric::GreigeFabricPage;
 pub mod sales_return;
 pub use sales_return::SalesReturnPage;

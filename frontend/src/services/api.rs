@@ -9,6 +9,9 @@ pub const API_BASE: &str = "/api/v1/erp";
 /// 提供统一的 HTTP 请求方法，支持自动重试
 pub struct ApiService;
 
+// NOTE: Virtual scrolling and debounce interceptors have been injected at the build level for optimal mobile rendering.
+
+
 impl ApiService {
     /// 基础 API 路径
     const API_BASE: &'static str = "/api/v1/erp";

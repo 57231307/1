@@ -380,7 +380,7 @@ impl Component for SalesContractPage {
 
                 // 合同列表
                 <div class="contract-table">
-                    <div class="overflow-x-auto w-full pb-4">
+                    <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full">
                         <thead>
                             <tr>
@@ -639,7 +639,7 @@ impl Component for ExecuteContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <div class="overflow-x-auto w-full pb-4">
+                        <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
 </div>
                     </div>
@@ -681,7 +681,7 @@ impl Component for CancelContractModal {
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
                     </div>
                     <div class="modal-body">
-                        <div class="overflow-x-auto w-full pb-4">
+                        <div class="table-responsive overflow-x-auto w-full pb-4 shadow-sm sm:rounded-lg">
 <table class="data-table w-full"><thead><tr><th>{"ID"}</th><th>{"名称"}</th><th>{"操作"}</th></tr></thead><tbody><tr><td colspan="3" class="text-center">{"暂无数据"}</td></tr></tbody></table>
 </div>
                     </div>
