@@ -211,9 +211,22 @@ impl InitService {
                 }
 
                 let backend = self.db.get_database_backend();
-                self.db.execute(Statement::from_string(backend, sql))
-                    .await
-                    .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
+                
+                // sqlx/sea-orm backend with prepared statements doesn't support multiple commands in one query
+                // We need to split by semicolon and execute individually
+                // Note: This is a simple split and might break if semicolons are inside strings
+                let statements: Vec<&str> = sql.split(';').filter(|s| !s.trim().is_empty()).collect();
+                
+                for stmt in statements {
+                    let stmt = stmt.trim();
+                    if stmt.is_empty() {
+                        continue;
+                    }
+                    self.db.execute(Statement::from_string(backend, stmt.to_string()))
+                        .await
+                        .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 的语句失败: {}
+语句: {}", path.file_name().unwrap(), e, stmt)))?;
+                }
                 
                 info!("成功执行脚本: {:?}", path.file_name().unwrap());
             }
