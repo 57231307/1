@@ -355,7 +355,7 @@ impl Component for InitPage {
                                     </defs>
                                 </svg>
                             </div>
-                            <h1>{"秉羲管理系统"}</h1>
+                            <h1>{"秉羲面料管理"}</h1>
                             <p class="init-subtitle">{"企业级面料ERP解决方案"}</p>
                         </div>
 
@@ -419,7 +419,7 @@ impl Component for InitPage {
                                             <circle cx="52" cy="55" r="3" fill="#667eea" opacity="0.6"/>
                                         </svg>
                                     </div>
-                                    <h2 class="welcome-title">{"欢迎使用秉羲管理系统"}</h2>
+                                    <h2 class="welcome-title">{"欢迎使用秉羲面料管理"}</h2>
                                     <p class="welcome-text">{"让我们花几分钟时间来配置您的系统，开始您的数字化转型之旅。"}</p>
                                     
                                     <div class="feature-list">
@@ -469,7 +469,7 @@ impl Component for InitPage {
                                         </svg>
                                     </div>
                                     <h2 class="completed-title">{"系统已就绪！"}</h2>
-                                    <p class="completed-text">{"秉羲管理系统已成功配置，您现在可以开始使用了。"}</p>
+                                    <p class="completed-text">{"秉羲面料管理已成功配置，您现在可以开始使用了。"}</p>
                                     
                                     <div class="completed-info">
                                         <div class="info-item">
@@ -818,7 +818,7 @@ impl Component for InitPage {
 
                     // 页脚
                     <div class="init-footer">
-                        <p>{"秉羲管理系统 v1.0.0"}</p>
+                        <p>{"秉羲面料管理 v1.0.0"}</p>
                         <p class="footer-link">{"需要帮助？查看文档"}</p>
                     </div>
                 </div>

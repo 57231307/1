@@ -245,9 +245,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ),
                 )
                 .layer(cors.clone())
+                .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), permission_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
                 .layer(axum::middleware::from_fn(request_validator_middleware))
-                .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), auth_middleware))
-                .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
                     HeaderValue::from_static("nosniff"),

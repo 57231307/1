@@ -189,7 +189,7 @@ impl FinancePaymentPage {
             html! {
                 <div class="print-view" style="display: none;">
                     <div class="print-header">
-                        <h2>{"秉羲管理系统 - 财务付款单"}</h2>
+                        <h2>{"秉羲面料管理 - 财务付款单"}</h2>
                     </div>
                     <div class="print-info-grid">
                         <div><strong>{"付款单号："}</strong> {&payment.payment_no}</div>

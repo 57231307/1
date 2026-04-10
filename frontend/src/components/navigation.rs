@@ -34,6 +34,15 @@ pub fn navigation(props: &NavigationProps) -> Html {
             }
         })
     };
+    
+    let on_system_settings = {
+        let navigator = navigator.clone();
+        Callback::from(move |_: yew::MouseEvent| {
+            if let Some(nav) = &navigator {
+                nav.push(&Route::SystemSettings);
+            }
+        })
+    };
 
     let on_products = {
         let navigator = navigator.clone();

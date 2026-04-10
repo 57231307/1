@@ -146,7 +146,7 @@ impl Component for LoginPage {
         html! {
             <div class="login-container">
                 <div class="login-box">
-                    <h1>{"秉羲管理系统"}</h1>
+                    <h1>{"秉羲面料管理"}</h1>
                     <h2>{"用户登录"}</h2>
                     
                     if let Some(error) = &self.error_message {
@@ -192,7 +192,7 @@ impl Component for LoginPage {
                     </form>
 
                     <div class="login-footer">
-                        <p>{"秉羲管理系统 v1.0.0"}</p>
+                        <p>{"秉羲面料管理 v1.0.0"}</p>
                     </div>
                 </div>
             </div>

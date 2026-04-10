@@ -103,7 +103,7 @@ impl Component for DashboardPage {
                 <div class="dashboard-header">
                     <div class="header-left">
                         <h1>{"📊 管理仪表板"}</h1>
-                        <p class="subtitle">{"欢迎使用秉羲管理系统"}</p>
+                        <p class="subtitle">{"欢迎使用秉羲面料管理"}</p>
                     </div>
                     <div class="header-right">
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::RefreshData)}>

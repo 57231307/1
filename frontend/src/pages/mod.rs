@@ -112,3 +112,5 @@ pub use dye_recipe::DyeRecipePage;
 pub use greige_fabric::GreigeFabricPage;
 pub mod sales_return;
 pub use sales_return::SalesReturnPage;
+pub mod system_settings;
+pub use system_settings::SystemSettingsPage;

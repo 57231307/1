@@ -214,7 +214,7 @@ impl FinanceInvoicePage {
             html! {
                 <div class="print-view" style="display: none;">
                     <div class="print-header">
-                        <h2>{if invoice.invoice_type == "AP" { "秉羲管理系统 - 应付账款单" } else { "秉羲管理系统 - 应收账款单" }}</h2>
+                        <h2>{if invoice.invoice_type == "AP" { "秉羲面料管理 - 应付账款单" } else { "秉羲面料管理 - 应收账款单" }}</h2>
                     </div>
                     <div class="print-info-grid">
                         <div><strong>{"发票号："}</strong> {&invoice.invoice_no}</div>

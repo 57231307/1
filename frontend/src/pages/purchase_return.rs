@@ -269,7 +269,7 @@ impl PurchaseReturnPage {
             html! {
                 <div class="print-view" style="display: none;">
                     <div class="print-header">
-                        <h2>{"秉羲管理系统 - 采购退货单"}</h2>
+                        <h2>{"秉羲面料管理 - 采购退货单"}</h2>
                     </div>
                     <div class="print-info-grid">
                         <div><strong>{"退货单号："}</strong> {&ret.return_no}</div>
