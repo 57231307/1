@@ -7,6 +7,15 @@
 -- 启用扩展
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 通用触发器函数：自动更新 updated_at 字段
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ========================================
 -- 1. 基础数据表
 -- ========================================
@@ -416,6 +425,9 @@ CREATE TABLE IF NOT EXISTS finance_invoices (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE finance_payments ADD CONSTRAINT fk_finance_payments_invoice
+    FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id);
 
 COMMENT ON TABLE finance_invoices IS '发票表';
 COMMENT ON COLUMN finance_invoices.status IS '状态：draft-草稿，approved-已审核，verified-已核销，cancelled-已作废';
@@ -2415,7 +2427,7 @@ ALTER TABLE purchase_order_item ADD CONSTRAINT uk_poi_order_line
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_poi_order_id ON purchase_order_item(order_id);
-CREATE INDEX IF NOT EXISTS idx_poi_material_id ON purchase_order_item(material_id);
+CREATE INDEX IF NOT EXISTS idx_poi_product_id ON purchase_order_item(product_id);
 CREATE INDEX IF NOT EXISTS idx_poi_batch_no ON purchase_order_item(batch_no);
 CREATE INDEX IF NOT EXISTS idx_poi_color_code ON purchase_order_item(color_code);
 CREATE INDEX IF NOT EXISTS idx_poi_lot_no ON purchase_order_item(lot_no);
@@ -2561,7 +2573,7 @@ ALTER TABLE purchase_receipt_item ADD CONSTRAINT uk_pri_receipt_line
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pri_receipt_id ON purchase_receipt_item(receipt_id);
 CREATE INDEX IF NOT EXISTS idx_pri_order_item_id ON purchase_receipt_item(order_item_id);
-CREATE INDEX IF NOT EXISTS idx_pri_material_id ON purchase_receipt_item(material_id);
+CREATE INDEX IF NOT EXISTS idx_pri_product_id ON purchase_receipt_item(product_id);
 CREATE INDEX IF NOT EXISTS idx_pri_batch_no ON purchase_receipt_item(batch_no);
 CREATE INDEX IF NOT EXISTS idx_pri_color_code ON purchase_receipt_item(color_code);
 CREATE INDEX IF NOT EXISTS idx_pri_lot_no ON purchase_receipt_item(lot_no);
@@ -3465,7 +3477,7 @@ COMMENT ON COLUMN inventory_counts.total_cost_difference IS '总成本差异';
 
 -- 1. 会计科目表（基础版）
 -- ============================================
-CREATE TABLE account_subjects (
+CREATE TABLE IF NOT EXISTS account_subjects (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(200) NOT NULL,
@@ -3538,7 +3550,7 @@ CREATE INDEX IF NOT EXISTS idx_account_subjects_status ON account_subjects(statu
 
 -- 2. 凭证表（基础版）
 -- ============================================
-CREATE TABLE vouchers (
+CREATE TABLE IF NOT EXISTS vouchers (
     id SERIAL PRIMARY KEY,
     voucher_no VARCHAR(50) NOT NULL UNIQUE,
     voucher_type VARCHAR(20) NOT NULL,
@@ -3599,7 +3611,7 @@ CREATE INDEX IF NOT EXISTS idx_vouchers_created_by ON vouchers(created_by);
 
 -- 3. 凭证分录表
 -- ============================================
-CREATE TABLE voucher_items (
+CREATE TABLE IF NOT EXISTS voucher_items (
     id SERIAL PRIMARY KEY,
     voucher_id INTEGER NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
     line_no INTEGER NOT NULL,
