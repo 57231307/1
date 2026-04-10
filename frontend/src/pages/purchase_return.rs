@@ -207,6 +207,9 @@ impl Component for PurchaseReturnPage {
             <div class="purchase-return-page">
                 <div class="page-header">
                     <h1>{"退货管理"}</h1>
+                    <button class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700" onclick={ctx.link().callback(|_| Msg::OpenModal)}>
+                        {"新建退货单"}
+                    </button>
                 </div>
 
                 <div class="filter-bar">

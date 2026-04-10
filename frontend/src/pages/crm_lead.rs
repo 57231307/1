@@ -1,3 +1,4 @@
+use gloo_dialogs;
 use yew::prelude::*;
 use crate::services::crm_service::{CrmService, CrmLead};
 
@@ -49,7 +50,7 @@ pub fn crm_lead_page() -> Html {
                                 <td class="py-2 px-4 border-b text-center">{ &lead.source }</td>
                                 <td class="py-2 px-4 border-b text-center">{ &lead.status }</td>
                                 <td class="py-2 px-4 border-b text-center">
-                                    <button class="text-blue-500 hover:text-blue-700">{ "查看" }</button>
+                                    <button class="text-blue-500 hover:text-blue-700" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>{ "查看" }</button>
                                 </td>
                             </tr>
                         })

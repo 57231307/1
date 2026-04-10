@@ -1,4 +1,5 @@
-//! 坯布管理页面（原料布匹管理）
+use gloo_dialogs;
+/// 坯布管理页面（原料布匹管理）
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -137,7 +138,7 @@ impl Component for GreigeFabricPage {
             <div class="greige-fabric-page">
                 <div class="page-header">
                     <h1>{"📦 坯布管理"}</h1>
-                    <button class="btn-primary">
+                    <button class="btn-primary" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>
                         {"+ 新增坯布"}
                     </button>
                 </div>
@@ -242,7 +243,7 @@ impl GreigeFabricPage {
                                     <td>{fabric.quality_grade.as_deref().unwrap_or("-")}</td>
                                     <td class="actions">
                                         if status == "在库" {
-                                            <button class="btn-small btn-warning">
+                                            <button class="btn-small btn-warning" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>
                                                 {"出库"}
                                             </button>
                                         }

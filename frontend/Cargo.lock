@@ -67,6 +67,7 @@ dependencies = [
  "chrono",
  "console_error_panic_hook",
  "gloo 0.10.0",
+ "gloo-dialogs 0.3.0",
  "gloo-net 0.4.0",
  "gloo-timers 0.3.0",
  "js-sys",
@@ -422,6 +423,16 @@ name = "gloo-dialogs"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf4748e10122b01435750ff530095b1217cf6546173459448b83913ebe7815df"
+dependencies = [
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "gloo-dialogs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45618929b7022bb49903b958b5b7af1d4fb58fbd99712926d91641fe582f3d55"
 dependencies = [
  "wasm-bindgen",
  "web-sys",

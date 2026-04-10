@@ -1,3 +1,4 @@
+use gloo_dialogs;
 use yew::prelude::*;
 use crate::services::crm_service::{CrmService, CrmOpportunity};
 
@@ -49,7 +50,7 @@ pub fn crm_opportunity_page() -> Html {
                                 <td class="py-2 px-4 border-b text-center">{ opp.amount.to_string() }</td>
                                 <td class="py-2 px-4 border-b text-center">{ &opp.stage }</td>
                                 <td class="py-2 px-4 border-b text-center">
-                                    <button class="text-blue-500 hover:text-blue-700">{ "查看" }</button>
+                                    <button class="text-blue-500 hover:text-blue-700" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>{ "查看" }</button>
                                 </td>
                             </tr>
                         })

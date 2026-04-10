@@ -226,7 +226,7 @@ impl Component for CustomerPage {
                 </div>
 
                 {self.render_content(ctx)}
-                {self.render_modal(ctx)}
+                { self.render_modal(ctx) }
             </div>
         }
     }

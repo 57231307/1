@@ -211,6 +211,7 @@ impl Component for FabricOrderPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_modal(ctx)}
             </div>
         }
     }
@@ -321,6 +322,42 @@ impl FabricOrderPage {
             "已完成" => "success",
             "已取消" => "danger",
             _ => "default",
+        }
+    }
+
+    fn render_modal(&self, ctx: &Context<Self>) -> Html {
+        if !self.show_modal {
+            return html! {};
+        }
+        
+        let title = match self.modal_mode {
+            ModalMode::Create => "新建面料订单",
+            ModalMode::Edit => "编辑面料订单",
+            ModalMode::View => "查看面料订单",
+        };
+
+        html! {
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>{title}</h3>
+                        <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        <p>{"面料订单详情功能开发中..."}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"关闭"}</button>
+                        {if self.modal_mode == ModalMode::Create {
+                            html! {
+                                <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateOrder)}>{"保存"}</button>
+                            }
+                        } else {
+                            html! {}
+                        }}
+                    </div>
+                </div>
+            </div>
         }
     }
 }

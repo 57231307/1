@@ -1,3 +1,4 @@
+use gloo_dialogs;
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
 
@@ -22,7 +23,7 @@ pub fn system_settings_page() -> Html {
                     <textarea rows="3" placeholder="请输入公司详细地址" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                 </div>
                 <div class="pt-4">
-                    <button class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <button onclick={Callback::from(|_| gloo_dialogs::alert("保存成功"))} class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         {"保存设置"}
                     </button>
                 </div>
@@ -34,7 +35,7 @@ pub fn system_settings_page() -> Html {
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-medium text-gray-900">{"数据字典配置"}</h3>
-                <button class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50">
+                <button onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50">
                     {"+ 新增字典"}
                 </button>
             </div>
@@ -56,8 +57,8 @@ pub fn system_settings_page() -> Html {
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{"启用"}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="javascript:void(0);" class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
-                                <a href="javascript:void(0);" class="text-red-600 hover:text-red-900">{"停用"}</a>
+                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
+                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-red-600 hover:text-red-900">{"停用"}</a>
                             </td>
                         </tr>
                         <tr>
@@ -67,8 +68,8 @@ pub fn system_settings_page() -> Html {
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{"启用"}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="javascript:void(0);" class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
-                                <a href="javascript:void(0);" class="text-red-600 hover:text-red-900">{"停用"}</a>
+                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
+                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-red-600 hover:text-red-900">{"停用"}</a>
                             </td>
                         </tr>
                     </tbody>
@@ -86,7 +87,7 @@ pub fn system_settings_page() -> Html {
                         <h4 class="text-sm font-medium text-gray-900">{"允许负库存发货"}</h4>
                         <p class="text-xs text-gray-500">{"开启后，在面料二批扫码发货时若无库存将自动生成负库存记录"}</p>
                     </div>
-                    <button class="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <button onclick={Callback::from(|_| gloo_dialogs::alert("风控功能开发中..."))} class="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         <span class="translate-x-5 pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
                     </button>
                 </div>
@@ -95,7 +96,7 @@ pub fn system_settings_page() -> Html {
                         <h4 class="text-sm font-medium text-gray-900">{"开启客户信用风控"}</h4>
                         <p class="text-xs text-gray-500">{"开单时若订单金额超过客户信用额度，将强制拦截"}</p>
                     </div>
-                    <button class="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <button onclick={Callback::from(|_| gloo_dialogs::alert("风控功能开发中..."))} class="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         <span class="translate-x-5 pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
                     </button>
                 </div>

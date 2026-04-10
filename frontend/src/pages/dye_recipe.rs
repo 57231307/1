@@ -1,4 +1,5 @@
-//! 染色配方管理页面
+use gloo_dialogs;
+/// 染色配方管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -167,7 +168,7 @@ impl Component for DyeRecipePage {
             <div class="dye-recipe-page">
                 <div class="page-header">
                     <h1>{"🧪 染色配方管理"}</h1>
-                    <button class="btn-primary">
+                    <button class="btn-primary" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>
                         {"+ 新增配方"}
                     </button>
                 </div>

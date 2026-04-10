@@ -1,4 +1,5 @@
-//! 销售合同管理页面
+use gloo_dialogs;
+/// 销售合同管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -575,7 +576,7 @@ impl Component for CreateContractModal {
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
-                        <button class="btn-primary">{"提交"}</button>
+                        <button class="btn-primary" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>{"提交"}</button>
                     </div>
                 </div>
             </div>

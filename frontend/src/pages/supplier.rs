@@ -237,7 +237,7 @@ impl Component for SupplierPage {
                 </div>
 
                 {self.render_content(ctx)}
-                {self.render_modal(ctx)}
+                { self.render_modal(ctx) }
             </div>
         }
     }
