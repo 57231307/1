@@ -69,3 +69,4 @@ pub mod sales_return_handler;
 pub mod bpm_handler;
 pub mod logistics_handler;
 pub mod barcode_scanner_handler;
+pub mod piece_split_handler;

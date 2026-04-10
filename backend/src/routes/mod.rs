@@ -247,6 +247,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // 库存管理路由
     let inventory_routes = Router::new()
+        .route("/piece-split", post(crate::handlers::piece_split_handler::split_fabric_piece))
         .route("/stock", get(inventory_stock_handler::list_stock))
         .route("/stock", post(inventory_stock_handler::create_stock))
         .route("/stock/:id", get(inventory_stock_handler::get_stock))
