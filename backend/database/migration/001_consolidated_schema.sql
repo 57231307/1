@@ -1502,7 +1502,7 @@ COMMENT ON INDEX idx_purchase_receipt_five_dim IS '采购收货五维索引';
 COMMENT ON INDEX idx_sales_delivery_five_dim IS '销售发货五维索引';
 COMMENT ON INDEX idx_inventory_transaction_five_dim IS '库存流水五维索引';
 COMMENT ON VIEW v_five_dimension_inventory_summary IS '五维库存统计视图';
-COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模糊匹配）';
+-- COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模糊匹配）';
 
 -- ============================================================
 -- 迁移完成
@@ -1657,9 +1657,9 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE business_trace_chain IS '业务追溯链 - 记录物料从采购到销售的完整流转过程';
 COMMENT ON TABLE business_trace_snapshot IS '业务追溯快照 - 定期保存追溯链状态，用于快速查询';
 COMMENT ON VIEW v_business_trace_view IS '业务追溯视图 - 简化追溯查询';
-COMMENT ON FUNCTION get_trace_chain_by_five_dim IS '按五维 ID 查询追溯链';
-COMMENT ON FUNCTION forward_trace_by_supplier IS '正向追溯：从供应商到客户';
-COMMENT ON FUNCTION backward_trace_by_customer IS '反向追溯：从客户到供应商';
+-- COMMENT ON FUNCTION get_trace_chain_by_five_dim IS '按五维 ID 查询追溯链';
+-- COMMENT ON FUNCTION forward_trace_by_supplier IS '正向追溯：从供应商到客户';
+-- COMMENT ON FUNCTION backward_trace_by_customer IS '反向追溯：从客户到供应商';
 
 -- 10. 添加触发器：自动更新追溯链状态
 CREATE OR REPLACE FUNCTION update_trace_chain_status()
@@ -3553,7 +3553,7 @@ BEFORE UPDATE ON account_balances
 FOR EACH ROW
 EXECUTE FUNCTION update_account_subject_timestamp();
 
-COMMENT ON FUNCTION update_account_subject_timestamp() IS '自动更新 updated_at 字段';
+-- COMMENT ON FUNCTION update_account_subject_timestamp() IS '自动更新 updated_at 字段';
 
 -- 7. 凭证编号生成规则（按月连续编号）
 -- ============================================
@@ -3593,7 +3593,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION generate_voucher_no IS '生成凭证编号（按月连续）';
+-- COMMENT ON FUNCTION generate_voucher_no IS '生成凭证编号（按月连续）';
 
 -- ============================================
 -- 迁移完成
@@ -8482,7 +8482,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION update_account_subject_timestamp() IS '辅助核算表专用时间戳更新函数';
+-- COMMENT ON FUNCTION update_account_subject_timestamp() IS '辅助核算表专用时间戳更新函数';
 
 -- 5. 触发器：自动更新 updated_at 字段
 -- ============================================
@@ -8496,8 +8496,8 @@ BEFORE UPDATE ON assist_accounting_summary
 FOR EACH ROW
 EXECUTE FUNCTION update_account_subject_timestamp();
 
-COMMENT ON TRIGGER trg_update_assist_dimension IS '自动更新辅助核算维度 updated_at 字段';
-COMMENT ON TRIGGER trg_update_assist_summary IS '自动更新辅助核算汇总 updated_at 字段';
+-- COMMENT ON TRIGGER trg_update_assist_dimension IS '自动更新辅助核算维度 updated_at 字段';
+-- COMMENT ON TRIGGER trg_update_assist_summary IS '自动更新辅助核算汇总 updated_at 字段';
 
 -- ============================================
 -- 迁移完成
@@ -9029,7 +9029,7 @@ COMMENT ON INDEX idx_purchase_receipt_five_dim IS '采购收货五维索引';
 COMMENT ON INDEX idx_sales_delivery_five_dim IS '销售发货五维索引';
 COMMENT ON INDEX idx_inventory_transaction_five_dim IS '库存流水五维索引';
 COMMENT ON VIEW v_five_dimension_inventory_summary IS '五维库存统计视图';
-COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模糊匹配）';
+-- COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模糊匹配）';
 
 -- ============================================================
 -- 迁移完成
@@ -9230,9 +9230,9 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE business_trace_chain IS '业务追溯链 - 记录物料从采购到销售的完整流转过程';
 COMMENT ON TABLE business_trace_snapshot IS '业务追溯快照 - 定期保存追溯链状态，用于快速查询';
 COMMENT ON VIEW v_business_trace_view IS '业务追溯视图 - 简化追溯查询';
-COMMENT ON FUNCTION get_trace_chain_by_five_dim IS '按五维 ID 查询追溯链';
-COMMENT ON FUNCTION forward_trace_by_supplier IS '正向追溯：从供应商到客户';
-COMMENT ON FUNCTION backward_trace_by_customer IS '反向追溯：从客户到供应商';
+-- COMMENT ON FUNCTION get_trace_chain_by_five_dim IS '按五维 ID 查询追溯链';
+-- COMMENT ON FUNCTION forward_trace_by_supplier IS '正向追溯：从供应商到客户';
+-- COMMENT ON FUNCTION backward_trace_by_customer IS '反向追溯：从客户到供应商';
 
 -- 10. 添加触发器：自动更新追溯链状态
 CREATE OR REPLACE FUNCTION update_trace_chain_status()
