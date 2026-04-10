@@ -46,3 +46,31 @@ async fn test_password_hashing() {
     let hash = hash_result.unwrap();
     assert!(!hash.is_empty());
 }
+
+#[test]
+fn test_migration_order_no_sales_orders_fk_before_001_init() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("database/migration");
+    let mut entries: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let init_index = entries
+        .iter()
+        .position(|e| e.file_name() == std::ffi::OsString::from("001_init.sql"))
+        .unwrap();
+
+    for entry in entries.iter().take(init_index) {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("sql") {
+            continue;
+        }
+        let sql = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            !sql.contains("REFERENCES sales_orders"),
+            "迁移脚本 {:?} 在 001_init.sql 之前引用了 sales_orders",
+            path.file_name().unwrap()
+        );
+    }
+}
