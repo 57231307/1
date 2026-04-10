@@ -79,6 +79,8 @@ pub struct FabricOrderItemRequest {
     pub batch_requirement: Option<String>,
     pub dye_lot_requirement: Option<String>,
     pub base_price: Option<f64>,
+    pub paper_tube_weight: Option<rust_decimal::Decimal>,
+    pub is_net_weight: Option<bool>,
     pub color_extra_cost: Option<f64>,
     pub grade_price_diff: Option<f64>,
     pub final_price: Option<f64>,
@@ -281,6 +283,8 @@ pub async fn create_fabric_order(
             final_price: Set(Some(final_p)),
             shipped_quantity_meters: Set(Decimal::ZERO),
             shipped_quantity_kg: Set(Decimal::ZERO),
+            paper_tube_weight: Set(item.paper_tube_weight),
+            is_net_weight: Set(item.is_net_weight),
         };
 
         order_item

@@ -70,6 +70,8 @@ pub struct SalesOrderItemDetail {
     pub quantity_kg: rust_decimal::Decimal,
     pub gram_weight: Option<rust_decimal::Decimal>,
     pub width: Option<rust_decimal::Decimal>,
+    pub paper_tube_weight: Option<rust_decimal::Decimal>,
+    pub is_net_weight: Option<bool>,
     pub batch_requirement: Option<String>,
     pub dye_lot_requirement: Option<String>,
     pub base_price: Option<rust_decimal::Decimal>,
@@ -118,6 +120,8 @@ pub struct SalesOrderItemRequest {
     pub quantity_kg: Option<rust_decimal::Decimal>,
     pub gram_weight: Option<rust_decimal::Decimal>,
     pub width: Option<rust_decimal::Decimal>,
+    pub paper_tube_weight: Option<rust_decimal::Decimal>,
+    pub is_net_weight: Option<bool>,
     pub batch_requirement: Option<String>,
     pub dye_lot_requirement: Option<String>,
     pub base_price: Option<rust_decimal::Decimal>,
@@ -416,6 +420,8 @@ impl SalesService {
                 final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                 shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
+                is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
             };
 
             item.insert(&txn).await?;
@@ -562,8 +568,10 @@ impl SalesService {
                     ),
                     final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                     shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                };
+                        shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                        paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
+                        is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+                    };
 
                 item.insert(&txn).await?;
             }
@@ -858,6 +866,8 @@ impl SalesService {
                 color_extra_cost: Some(item.color_extra_cost),
                 grade_price_diff: Some(item.grade_price_diff),
                 final_price: item.final_price,
+                paper_tube_weight: item.paper_tube_weight,
+                is_net_weight: item.is_net_weight,
             })
             .collect();
 
