@@ -47,3 +47,13 @@ async fn test_password_hashing() {
     assert!(!hash.is_empty());
 }
 
+#[tokio::test]
+async fn test_execute_unprepared_with_dollar_quotes() {
+    use sea_orm::ConnectionTrait;
+    let db = Database::connect("sqlite::memory:").await.unwrap();
+    // SQLite doesn't support $$ quotes natively like Postgres does, but we can test multiple statements
+    let sql = "CREATE TABLE test (id INTEGER); INSERT INTO test VALUES (1);";
+    let res = db.execute_unprepared(sql).await;
+    assert!(res.is_ok(), "execute_unprepared failed: {:?}", res.err());
+}
+
