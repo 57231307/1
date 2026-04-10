@@ -697,6 +697,7 @@ CREATE TRIGGER trg_warehouse_locations_updated_at
 
 -- 3.1 库存表增加面料行业核心字段
 ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS batch_no VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE inventory_stocks ALTER COLUMN batch_no SET DEFAULT '';
 ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS color_no VARCHAR(50) NOT NULL DEFAULT '';
 ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS dye_lot_no VARCHAR(50);
 ALTER TABLE inventory_stocks ADD COLUMN IF NOT EXISTS grade VARCHAR(20) DEFAULT '一等品';
@@ -1419,10 +1420,10 @@ ON sales_delivery_item(five_dimension_id);
 
 -- 10. 为 inventory_transaction 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim
-ON inventory_transaction(product_id, batch_no, color_no, grade);
+ON inventory_transactions(product_id, batch_no, color_no, grade);
 
 -- 11. 为 inventory_transaction 表添加五维 ID 计算列
-ALTER TABLE inventory_transaction 
+ALTER TABLE inventory_transactions 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
     CONCAT(
@@ -1436,7 +1437,7 @@ GENERATED ALWAYS AS (
 
 -- 12. 为 inventory_transaction 的五维 ID 添加索引
 CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim_id
-ON inventory_transaction(five_dimension_id);
+ON inventory_transactions(five_dimension_id);
 
 -- 13. 创建五维统计视图（简化查询）
 CREATE OR REPLACE VIEW v_five_dimension_inventory_summary AS
@@ -8949,7 +8950,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim
 ON inventory_transactions(product_id, batch_no, color_no, grade);
 
 -- 11. 为 inventory_transactions 表添加五维 ID 计算列
-ALTER TABLE inventory_transactions
+ALTER TABLE inventory_transactionss
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
 GENERATED ALWAYS AS (
     CONCAT(
@@ -9275,3 +9276,64 @@ CREATE TRIGGER trg_update_trace_status
 -- ============================================================
 ALTER TABLE sales_order_items ADD COLUMN paper_tube_weight DECIMAL(10,2);
 ALTER TABLE sales_order_items ADD COLUMN is_net_weight BOOLEAN;
+
+
+-- 4. 为 purchase_receipt_item 表添加五维组合索引
+CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
+ON purchase_receipt_item(product_id, batch_no, color_no, grade);
+
+-- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
+ALTER TABLE purchase_receipt_item
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
+
+-- 6. 为 purchase_receipt_item 的五维 ID 添加索引
+CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim_id
+ON purchase_receipt_item(five_dimension_id);
+
+-- 7. 为 sales_delivery_item 表添加五维组合索引
+CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
+ON sales_delivery_item(product_id, batch_no, color_no, grade);
+
+-- 8. 为 sales_delivery_item 表添加五维 ID 计算列
+ALTER TABLE sales_delivery_item
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
+
+-- 9. 为 sales_delivery_item 的五维 ID 添加索引
+CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim_id
+ON sales_delivery_item(five_dimension_id);
+
+
+-- 10. 为 inventory_transaction 表添加五维组合索引
+CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim
+ON inventory_transactions(product_id, batch_no, color_no, grade);
+
+-- 11. 为 inventory_transaction 表添加五维 ID 计算列
+ALTER TABLE inventory_transactions
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
