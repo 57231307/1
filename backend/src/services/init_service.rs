@@ -210,7 +210,8 @@ impl InitService {
                     continue;
                 }
 
-                self.db.execute(Statement::from_string(DatabaseBackend::Postgres, sql))
+                let backend = self.db.get_database_backend();
+                self.db.execute(Statement::from_string(backend, sql))
                     .await
                     .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
                 

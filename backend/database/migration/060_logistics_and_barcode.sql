@@ -17,4 +17,4 @@ CREATE TABLE IF NOT EXISTS logistics_waybills (
 COMMENT ON TABLE logistics_waybills IS '物流运单与发货追踪表';
 
 -- Add barcode field to inventory_pieces if not exists
-ALTER TABLE inventory_pieces ADD COLUMN IF NOT EXISTS barcode VARCHAR(100) UNIQUE;
+ALTER TABLE inventory_pieces ADD COLUMN barcode VARCHAR(100) UNIQUE;

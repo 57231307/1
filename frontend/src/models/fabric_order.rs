@@ -47,6 +47,8 @@ pub struct FabricOrderItem {
     pub color_extra_cost: Option<String>,
     pub grade_price_diff: Option<String>,
     pub final_price: Option<String>,
+    pub paper_tube_weight: Option<String>,
+    pub is_net_weight: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -98,6 +100,8 @@ pub struct FabricOrderItemRequest {
     pub color_extra_cost: Option<String>,
     pub grade_price_diff: Option<String>,
     pub final_price: Option<String>,
+    pub paper_tube_weight: Option<String>,
+    pub is_net_weight: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
