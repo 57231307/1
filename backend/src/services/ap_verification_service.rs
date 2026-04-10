@@ -165,7 +165,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item_dto.invoice_id)
                 .one(&txn)
                 .await?
-                .unwrap();
+                .ok_or_else(|| AppError::NotFound("应付单未找到".to_string()))?;
 
             invoice.paid_amount += item_dto.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -267,7 +267,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .unwrap();
+                .ok_or_else(|| AppError::NotFound("应付单未找到".to_string()))?;
 
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -318,7 +318,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .unwrap();
+                .ok_or_else(|| AppError::NotFound("应付单未找到".to_string()))?;
 
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;

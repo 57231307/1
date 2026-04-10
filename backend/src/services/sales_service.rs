@@ -572,7 +572,7 @@ impl SalesService {
             let order_entity = SalesOrderEntity::find_by_id(order_id)
                 .one(&txn)
                 .await?
-                .unwrap();
+                .ok_or_else(|| sea_orm::DbErr::Custom("销售订单不存在".to_string()))?;
             let mut order_update: sales_order::ActiveModel = order_entity.into();
             order_update.subtotal = sea_orm::ActiveValue::Set(subtotal);
             order_update.tax_amount = sea_orm::ActiveValue::Set(tax_amount);

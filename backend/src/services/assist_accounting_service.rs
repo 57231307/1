@@ -179,13 +179,13 @@ impl AssistAccountingService {
             let start = chrono::DateTime::<Utc>::from_naive_utc_and_offset(
                 start_date
                     .and_hms_opt(0, 0, 0)
-                    .unwrap_or_else(|| start_date.and_hms_opt(0, 0, 0).unwrap()),
+                    .unwrap_or_else(|| start_date.and_hms_opt(0, 0, 0).unwrap_or_default()),
                 chrono::Utc,
             );
             let end = chrono::DateTime::<Utc>::from_naive_utc_and_offset(
                 end_date
                     .and_hms_opt(0, 0, 0)
-                    .unwrap_or_else(|| end_date.and_hms_opt(0, 0, 0).unwrap()),
+                    .unwrap_or_else(|| end_date.and_hms_opt(0, 0, 0).unwrap_or_default()),
                 chrono::Utc,
             );
             let records = assist_accounting_record::Entity::find()
@@ -315,7 +315,7 @@ impl AssistAccountingService {
             if let Ok((year, month)) = parse_period(period) {
                 let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).map(|d| {
                     d.and_hms_opt(0, 0, 0)
-                        .unwrap_or_else(|| d.and_hms_opt(0, 0, 0).unwrap())
+                        .unwrap_or_else(|| d.and_hms_opt(0, 0, 0).unwrap_or_default())
                         .and_utc()
                 });
                 let end_date = if month == 12 {

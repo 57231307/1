@@ -39,6 +39,8 @@ pub struct Model {
     pub final_price: Option<Decimal>,
     pub shipped_quantity_meters: Decimal,
     pub shipped_quantity_kg: Decimal,
+    pub paper_tube_weight: Option<Decimal>,
+    pub is_net_weight: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

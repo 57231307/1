@@ -112,8 +112,10 @@ impl ApiService {
             _ => return Err(format!("不支持的 HTTP 方法：{}", method)),
         };
 
-        let mut request_with_headers = request_builder.header("Content-Type", "application/json");
-        
+        let mut request_with_headers = request_builder
+            .header("Content-Type", "application/json")
+            .header("X-Requested-With", "XMLHttpRequest");
+
         if !token.is_empty() {
             let auth_header = format!("Bearer {}", token);
             request_with_headers = request_with_headers.header("Authorization", auth_header.as_str());
