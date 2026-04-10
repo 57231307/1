@@ -195,23 +195,6 @@ CREATE INDEX IF NOT EXISTS idx_inventory_stocks_batch_no ON inventory_stocks(bat
 CREATE INDEX IF NOT EXISTS idx_inventory_stocks_status ON inventory_stocks(status);
 
 -- ==================== 库存调拨表 ====================
-CREATE TABLE IF NOT EXISTS inventory_transfers (
-    id SERIAL PRIMARY KEY,
-    transfer_no VARCHAR(50) NOT NULL UNIQUE,
-    from_warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
-    to_warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
-    transfer_date TIMESTAMPTZ NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    total_quantity DECIMAL(12,2) NOT NULL,
-    notes TEXT,
-    created_by INTEGER,
-    approved_by INTEGER,
-    approved_at TIMESTAMPTZ,
-    shipped_at TIMESTAMPTZ,
-    received_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
 COMMENT ON TABLE inventory_transfers IS '库存调拨表';
 COMMENT ON COLUMN inventory_transfers.status IS '状态：pending-待审核，approved-已审核，rejected-已驳回，shipped-已发出，completed-已完成';
@@ -220,18 +203,6 @@ CREATE INDEX IF NOT EXISTS idx_inventory_transfers_no ON inventory_transfers(tra
 CREATE INDEX IF NOT EXISTS idx_inventory_transfers_status ON inventory_transfers(status);
 
 -- ==================== 库存调拨明细表 ====================
-CREATE TABLE IF NOT EXISTS inventory_transfer_items (
-    id SERIAL PRIMARY KEY,
-    transfer_id INTEGER NOT NULL REFERENCES inventory_transfers(id) ON DELETE CASCADE,
-    product_id INTEGER NOT NULL REFERENCES products(id),
-    quantity DECIMAL(12,2) NOT NULL,
-    shipped_quantity DECIMAL(12,2) NOT NULL,
-    received_quantity DECIMAL(12,2) NOT NULL,
-    unit_cost DECIMAL(12,2),
-    notes TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
 COMMENT ON TABLE inventory_transfer_items IS '库存调拨明细表';
 
@@ -239,23 +210,6 @@ CREATE INDEX IF NOT EXISTS idx_inventory_transfer_items_transfer_id ON inventory
 CREATE INDEX IF NOT EXISTS idx_inventory_transfer_items_product_id ON inventory_transfer_items(product_id);
 
 -- ==================== 库存盘点表 ====================
-CREATE TABLE IF NOT EXISTS inventory_counts (
-    id SERIAL PRIMARY KEY,
-    count_no VARCHAR(50) NOT NULL UNIQUE,
-    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
-    count_date TIMESTAMPTZ NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    total_items INTEGER NOT NULL DEFAULT 0,
-    counted_items INTEGER NOT NULL DEFAULT 0,
-    variance_items INTEGER NOT NULL DEFAULT 0,
-    notes TEXT,
-    created_by INTEGER,
-    approved_by INTEGER,
-    approved_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
 COMMENT ON TABLE inventory_counts IS '库存盘点表';
 COMMENT ON COLUMN inventory_counts.status IS '状态：pending-待审核，approved-已审核，rejected-已驳回，completed-已完成';
@@ -264,27 +218,9 @@ CREATE INDEX IF NOT EXISTS idx_inventory_counts_no ON inventory_counts(count_no)
 CREATE INDEX IF NOT EXISTS idx_inventory_counts_status ON inventory_counts(status);
 
 -- ==================== 库存盘点明细表 ====================
-CREATE TABLE IF NOT EXISTS inventory_count_items (
-    id SERIAL PRIMARY KEY,
-    count_id INTEGER NOT NULL REFERENCES inventory_counts(id) ON DELETE CASCADE,
-    product_id INTEGER NOT NULL REFERENCES products(id),
-    bin_location VARCHAR(50),
-    quantity_book DECIMAL(12,2) NOT NULL,
-    quantity_actual DECIMAL(12,2) NOT NULL,
-    quantity_variance DECIMAL(12,2) NOT NULL,
-    unit_cost DECIMAL(12,2),
-    variance_amount DECIMAL(12,2),
-    notes TEXT,
-    counted_by INTEGER,
-    counted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
 COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';
 
-CREATE INDEX IF NOT EXISTS idx_inventory_count_items_count_id ON inventory_count_items(count_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_count_items_product_id ON inventory_count_items(product_id);
 
 -- ==================== 库存调整表 ====================
 CREATE TABLE IF NOT EXISTS inventory_adjustments (
@@ -1071,51 +1007,6 @@ END $$;
 -- ========================================
 -- 1. 会计科目表
 -- ========================================
-CREATE TABLE IF NOT EXISTS account_subjects (
-    id SERIAL PRIMARY KEY,
-    code VARCHAR(50) NOT NULL UNIQUE,
-    name VARCHAR(200) NOT NULL,
-    level INTEGER NOT NULL,
-    parent_id INTEGER REFERENCES account_subjects(id),
-    full_code VARCHAR(200),
-    
-    -- 余额属性
-    balance_direction VARCHAR(10),
-    initial_balance_debit DECIMAL(14,2) DEFAULT 0,
-    initial_balance_credit DECIMAL(14,2) DEFAULT 0,
-    current_period_debit DECIMAL(14,2) DEFAULT 0,
-    current_period_credit DECIMAL(14,2) DEFAULT 0,
-    ending_balance_debit DECIMAL(14,2) DEFAULT 0,
-    ending_balance_credit DECIMAL(14,2) DEFAULT 0,
-    
-    -- 辅助核算
-    assist_customer BOOLEAN DEFAULT false,
-    assist_supplier BOOLEAN DEFAULT false,
-    assist_department BOOLEAN DEFAULT false,
-    assist_employee BOOLEAN DEFAULT false,
-    assist_project BOOLEAN DEFAULT false,
-    assist_batch BOOLEAN DEFAULT false,           -- 面料行业：批次核算
-    assist_color_no BOOLEAN DEFAULT false,        -- 面料行业：色号核算
-    assist_dye_lot BOOLEAN DEFAULT false,         -- 面料行业：缸号核算
-    assist_grade BOOLEAN DEFAULT false,           -- 面料行业：等级核算
-    assist_workshop BOOLEAN DEFAULT false,        -- 面料行业：车间核算
-    
-    -- 双计量单位
-    enable_dual_unit BOOLEAN DEFAULT false,       -- 面料行业：双计量单位
-    primary_unit VARCHAR(20) DEFAULT '米',        -- 主单位
-    secondary_unit VARCHAR(20) DEFAULT '公斤',    -- 辅单位
-    
-    -- 控制属性
-    is_cash_account BOOLEAN DEFAULT false,
-    is_bank_account BOOLEAN DEFAULT false,
-    allow_manual_entry BOOLEAN DEFAULT true,
-    require_summary BOOLEAN DEFAULT false,
-    
-    -- 状态
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
 
 COMMENT ON TABLE account_subjects IS '会计科目表（面料行业版）';
 COMMENT ON COLUMN account_subjects.code IS '科目编码';
@@ -1133,44 +1024,6 @@ CREATE INDEX IF NOT EXISTS idx_account_subjects_level ON account_subjects(level)
 -- ========================================
 -- 2. 凭证表
 -- ========================================
-CREATE TABLE IF NOT EXISTS vouchers (
-    id SERIAL PRIMARY KEY,
-    voucher_no VARCHAR(50) NOT NULL UNIQUE,
-    voucher_type VARCHAR(20) NOT NULL,
-    voucher_date DATE NOT NULL,
-    
-    -- 凭证来源
-    source_type VARCHAR(20),
-    source_module VARCHAR(50),
-    source_bill_id INTEGER,
-    source_bill_no VARCHAR(50),
-    
-    -- 面料行业字段
-    batch_no VARCHAR(50),                 -- 批次号
-    color_no VARCHAR(50),                 -- 色号
-    dye_lot_no VARCHAR(50),               -- 缸号
-    workshop VARCHAR(100),                -- 车间
-    production_order_no VARCHAR(50),      -- 生产订单号
-    
-    -- 双计量单位
-    quantity_meters DECIMAL(14,2),        -- 数量（米）
-    quantity_kg DECIMAL(14,2),            -- 数量（公斤）
-    gram_weight DECIMAL(10,2),            -- 克重
-    
-    -- 状态
-    attachment_count INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'draft',
-    
-    -- 审核
-    created_by INTEGER,
-    reviewed_by INTEGER,
-    reviewed_at TIMESTAMPTZ,
-    posted_by INTEGER,
-    posted_at TIMESTAMPTZ,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
 
 COMMENT ON TABLE vouchers IS '凭证表（面料行业版）';
 COMMENT ON COLUMN vouchers.voucher_no IS '凭证字号';
@@ -1188,41 +1041,6 @@ CREATE INDEX IF NOT EXISTS idx_vouchers_batch ON vouchers(batch_no, color_no);
 -- ========================================
 -- 3. 凭证分录表
 -- ========================================
-CREATE TABLE IF NOT EXISTS voucher_items (
-    id SERIAL PRIMARY KEY,
-    voucher_id INTEGER NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
-    line_no INTEGER NOT NULL,
-    
-    -- 科目
-    subject_code VARCHAR(50) NOT NULL,
-    subject_name VARCHAR(200) NOT NULL,
-    
-    -- 金额
-    debit DECIMAL(14,2) DEFAULT 0,
-    credit DECIMAL(14,2) DEFAULT 0,
-    
-    -- 摘要
-    summary TEXT,
-    
-    -- 辅助核算
-    assist_customer_id INTEGER,
-    assist_supplier_id INTEGER,
-    assist_department_id INTEGER,
-    assist_employee_id INTEGER,
-    assist_project_id INTEGER,
-    assist_batch_id INTEGER,              -- 面料行业：批次
-    assist_color_no_id INTEGER,           -- 面料行业：色号
-    assist_dye_lot_id INTEGER,            -- 面料行业：缸号
-    assist_grade VARCHAR(20),             -- 面料行业：等级
-    assist_workshop_id INTEGER,           -- 面料行业：车间
-    
-    -- 双计量单位
-    quantity_meters DECIMAL(14,2),        -- 数量（米）
-    quantity_kg DECIMAL(14,2),            -- 数量（公斤）
-    unit_price DECIMAL(12,2),             -- 单价
-    
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 
 COMMENT ON TABLE voucher_items IS '凭证分录表（面料行业版）';
 COMMENT ON COLUMN voucher_items.assist_batch_id IS '批次辅助核算 ID';
@@ -1701,54 +1519,8 @@ COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模�
 -- ============================================================
 
 -- 1. 创建业务追溯链表
-CREATE TABLE IF NOT EXISTS business_trace_chain (
-    id SERIAL PRIMARY KEY,
-    trace_chain_id VARCHAR(255) NOT NULL UNIQUE,
-    five_dimension_id VARCHAR(255) NOT NULL,
-    product_id INTEGER NOT NULL,
-    batch_no VARCHAR(100) NOT NULL,
-    color_no VARCHAR(50) NOT NULL,
-    dye_lot_no VARCHAR(100),
-    grade VARCHAR(50) NOT NULL,
-    current_stage VARCHAR(50) NOT NULL,
-    current_bill_type VARCHAR(50) NOT NULL,
-    current_bill_no VARCHAR(100) NOT NULL,
-    current_bill_id INTEGER NOT NULL,
-    previous_trace_id INTEGER,
-    next_trace_id INTEGER,
-    quantity_meters DECIMAL(12,2) NOT NULL,
-    quantity_kg DECIMAL(12,2) NOT NULL,
-    warehouse_id INTEGER NOT NULL,
-    supplier_id INTEGER,
-    customer_id INTEGER,
-    workshop_id INTEGER,
-    trace_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    remarks TEXT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    created_by INTEGER,
-    
-    CONSTRAINT fk_previous_trace FOREIGN KEY (previous_trace_id) REFERENCES business_trace_chain(id),
-    CONSTRAINT fk_next_trace FOREIGN KEY (next_trace_id) REFERENCES business_trace_chain(id)
-);
 
 -- 2. 创建业务追溯快照表
-CREATE TABLE IF NOT EXISTS business_trace_snapshot (
-    id SERIAL PRIMARY KEY,
-    trace_chain_id VARCHAR(255) NOT NULL,
-    five_dimension_id VARCHAR(255) NOT NULL,
-    product_id INTEGER NOT NULL,
-    batch_no VARCHAR(100) NOT NULL,
-    color_no VARCHAR(50) NOT NULL,
-    grade VARCHAR(50) NOT NULL,
-    current_stage VARCHAR(50) NOT NULL,
-    warehouse_id INTEGER NOT NULL,
-    current_quantity_meters DECIMAL(12,2) NOT NULL,
-    current_quantity_kg DECIMAL(12,2) NOT NULL,
-    supplier_name VARCHAR(255),
-    customer_name VARCHAR(255),
-    trace_path JSONB NOT NULL,
-    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
 
 -- 3. 为追溯链表添加索引
 CREATE INDEX IF NOT EXISTS idx_trace_chain_five_dim ON business_trace_chain(five_dimension_id);
@@ -3357,22 +3129,6 @@ COMMENT ON COLUMN inventory_counts.updated_at IS '更新时间';
 
 -- ==================== 库存盘点明细表 ====================
 -- 存储库存盘点单的明细项
-CREATE TABLE IF NOT EXISTS inventory_count_items (
-    id SERIAL PRIMARY KEY,                              -- 明细 ID（主键）
-    count_id INTEGER NOT NULL REFERENCES inventory_counts(id) ON DELETE CASCADE,  -- 盘点单 ID
-    product_id INTEGER NOT NULL REFERENCES products(id),  -- 产品 ID
-    bin_location VARCHAR(50),                           -- 库位
-    quantity_book DECIMAL(12,2) NOT NULL,               -- 账面数量
-    quantity_actual DECIMAL(12,2) NOT NULL,             -- 实际数量
-    quantity_variance DECIMAL(12,2) NOT NULL,           -- 差异数量
-    unit_cost DECIMAL(12,2),                            -- 单位成本
-    variance_amount DECIMAL(12,2),                      -- 差异金额
-    notes TEXT,                                         -- 备注
-    counted_by INTEGER,                                 -- 盘点人
-    counted_at TIMESTAMPTZ,                             -- 盘点时间
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP   -- 更新时间
-);
 
 -- 为盘点单 ID 创建索引（高频查询字段）
 CREATE INDEX IF NOT EXISTS idx_count_items_count_id ON inventory_count_items(count_id);
