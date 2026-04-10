@@ -8621,11 +8621,11 @@ COMMENT ON COLUMN product_supplier_mappings.is_primary IS '是否为首选供应
 COMMENT ON COLUMN product_supplier_mappings.priority IS '优先级（数字越小优先级越高）';
 
 -- 唯一约束
-ALTER TABLE product_supplier_mappings ADD CONSTRAINT uk_product_supplier_mapping UNIQUE (
-    product_id, 
-    COALESCE(product_color_id, 0), 
-    supplier_id, 
-    supplier_product_id, 
+CREATE UNIQUE INDEX uk_product_supplier_mapping ON product_supplier_mappings (
+    product_id,
+    COALESCE(product_color_id, 0),
+    supplier_id,
+    supplier_product_id,
     COALESCE(supplier_product_color_id, 0)
 );
 
