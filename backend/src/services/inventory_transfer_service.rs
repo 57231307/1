@@ -358,7 +358,7 @@ impl InventoryTransferService {
             let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
                 .one(&txn)
                 .await?
-                .unwrap();
+                .ok_or_else(|| AppError::NotFound("调拨单不存在".to_string()))?;
             let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
             transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
             transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
