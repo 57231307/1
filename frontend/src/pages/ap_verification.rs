@@ -1,6 +1,6 @@
-//! 应付核销管理页面
-//!
-//! 应付核销（AP Verification）管理功能
+// 应付核销管理页面
+//
+// 应付核销（AP Verification）管理功能
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

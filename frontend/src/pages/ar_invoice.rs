@@ -1,6 +1,7 @@
-//! 应收发票管理页面
-//!
-//! 应收发票（AR Invoice）管理功能
+use gloo_dialogs;
+// 应收发票管理页面
+//
+// 应收发票（AR Invoice）管理功能
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -103,7 +104,7 @@ impl Component for ArInvoicePage {
                 false
             }
             Msg::ViewInvoice(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ar-invoices/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::DeleteInvoice(id) => {

@@ -1,4 +1,5 @@
-//! 销售退货管理页面
+use gloo_dialogs;
+// 销售退货管理页面
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -100,7 +101,7 @@ impl Component for SalesReturnPage {
                 false
             }
             Msg::ViewReturn(id) => {
-                let _ = web_sys::window().unwrap().location().set_href(&format!("/sales-returns/{}", id));
+                let _ = gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::SubmitReturn(id) => {
@@ -142,7 +143,7 @@ impl Component for SalesReturnPage {
                     <h2>{ "销售退货管理" }</h2>
                     <div class="header-actions">
                         <button class="btn btn-primary" onclick={Callback::from(|_| {
-                            let _ = web_sys::window().unwrap().location().set_href("/sales-returns/new");
+                            gloo_dialogs::alert("详情页面功能开发中...");
                         })}>
                             <i class="fas fa-plus"></i> { "新建退货单" }
                         </button>

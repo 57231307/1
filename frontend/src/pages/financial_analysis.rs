@@ -1,4 +1,4 @@
-//! 财务分析页面
+// 财务分析页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

@@ -1,4 +1,5 @@
-//! 采购收货单管理页面
+use gloo_dialogs;
+// 采购收货单管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -106,7 +107,7 @@ impl Component for PurchaseReceiptPage {
                 false
             }
             Msg::ViewReceipt(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/purchase-receipts/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::ConfirmReceipt(id) => {

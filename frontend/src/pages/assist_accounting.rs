@@ -1,5 +1,5 @@
-//! 辅助核算页面
-//! 提供辅助核算数据的查询、统计和分析功能
+// 辅助核算页面
+// 提供辅助核算数据的查询、统计和分析功能
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;

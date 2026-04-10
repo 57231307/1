@@ -1,6 +1,6 @@
-//! 应付报表页面
-//!
-//! 应付报表（AP Report）展示页面，包含统计报表、日报、月报和账龄分析
+// 应付报表页面
+//
+// 应付报表（AP Report）展示页面，包含统计报表、日报、月报和账龄分析
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

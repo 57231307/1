@@ -1,4 +1,4 @@
-//! 缸号管理页面（染色批次管理）
+// 缸号管理页面（染色批次管理）
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

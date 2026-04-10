@@ -1,4 +1,4 @@
-//! 供应商管理页面
+// 供应商管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

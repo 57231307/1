@@ -1,4 +1,4 @@
-//! 批次管理页面
+// 批次管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

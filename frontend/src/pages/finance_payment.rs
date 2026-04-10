@@ -1,6 +1,7 @@
-//! 财务付款管理页面
-//!
-//! 财务付款（Finance Payment）管理功能
+use gloo_dialogs;
+// 财务付款管理页面
+//
+// 财务付款（Finance Payment）管理功能
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -107,7 +108,7 @@ impl Component for FinancePaymentPage {
                 false
             }
             Msg::ViewPayment(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/finance-payments/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::DeletePayment(id) => {
@@ -327,6 +328,7 @@ impl FinancePaymentPage {
                         >
                             {"下一页"}
                         </button>
+
                     </div>
                 </div>
             </>

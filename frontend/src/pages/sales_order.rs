@@ -1,4 +1,4 @@
-//! 销售订单管理页面
+// 销售订单管理页面
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;

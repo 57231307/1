@@ -1,6 +1,7 @@
-//! 应付发票管理页面
-//!
-//! 应付发票（AP Invoice）管理功能，包含账龄分析和余额汇总
+use gloo_dialogs;
+// 应付发票管理页面
+//
+// 应付发票（AP Invoice）管理功能，包含账龄分析和余额汇总
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -138,7 +139,7 @@ impl Component for ApInvoicePage {
                 false
             }
             Msg::ViewInvoice(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ap-invoices/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::DeleteInvoice(id) => {
@@ -420,6 +421,7 @@ impl ApInvoicePage {
                         >
                             {"下一页"}
                         </button>
+
                     </div>
                 </div>
             </>

@@ -1,5 +1,5 @@
-//! 成本归集页面
-//! 提供成本归集数据的查询、创建和管理功能
+// 成本归集页面
+// 提供成本归集数据的查询、创建和管理功能
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;

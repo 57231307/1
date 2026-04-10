@@ -515,8 +515,19 @@ pub struct CreateContractModalState {
     remark: String,
 }
 
+pub enum CreateContractMsg {
+    UpdateContractNo(String),
+    UpdateContractName(String),
+    UpdateSupplierId(String),
+    UpdateTotalAmount(String),
+    UpdatePaymentTerms(String),
+    UpdateDeliveryDate(String),
+    UpdateRemark(String),
+    Submit,
+}
+
 impl Component for CreateContractModal {
-    type Message = ();
+    type Message = CreateContractMsg;
     type Properties = CreateContractModalProps;
 
     fn create(_ctx: &Context<Self>) -> Self {
@@ -533,8 +544,65 @@ impl Component for CreateContractModal {
         }
     }
 
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
+            CreateContractMsg::UpdateContractNo(val) => {
+                self.state.contract_no = val;
+                true
+            }
+            CreateContractMsg::UpdateContractName(val) => {
+                self.state.contract_name = val;
+                true
+            }
+            CreateContractMsg::UpdateSupplierId(val) => {
+                if let Ok(id) = val.parse::<i32>() {
+                    self.state.supplier_id = id;
+                }
+                true
+            }
+            CreateContractMsg::UpdateTotalAmount(val) => {
+                self.state.total_amount = val;
+                true
+            }
+            CreateContractMsg::UpdatePaymentTerms(val) => {
+                self.state.payment_terms = val;
+                true
+            }
+            CreateContractMsg::UpdateDeliveryDate(val) => {
+                self.state.delivery_date = val;
+                true
+            }
+            CreateContractMsg::UpdateRemark(val) => {
+                self.state.remark = val;
+                true
+            }
+            CreateContractMsg::Submit => {
+                let req = CreatePurchaseContractRequest {
+                    contract_no: self.state.contract_no.clone(),
+                    contract_name: self.state.contract_name.clone(),
+                    supplier_id: self.state.supplier_id,
+                    total_amount: self.state.total_amount.clone(),
+                    payment_terms: Some(self.state.payment_terms.clone()),
+                    delivery_date: self.state.delivery_date.clone(),
+                    remark: if self.state.remark.is_empty() { None } else { Some(self.state.remark.clone()) },
+                };
+                ctx.props().on_submit.emit(req);
+                false
+            }
+        }
+    }
+
     fn view(&self, ctx: &Context<Self>) -> Html {
         let props = ctx.props();
+        
+        let on_input = |msg: fn(String) -> CreateContractMsg| {
+            ctx.link().callback(move |e: InputEvent| {
+                let target = e.target().unwrap();
+                let input = target.unchecked_into::<web_sys::HtmlInputElement>();
+                msg(input.value())
+            })
+        };
+
         html! {
             <div class="modal-overlay">
                 <div class="modal">
@@ -545,36 +613,36 @@ impl Component for CreateContractModal {
                     <div class="modal-body">
                         <div class="form-group">
                             <label>{"合同编号"}</label>
-                            <input type="text" value={self.state.contract_no.clone()} />
+                            <input type="text" value={self.state.contract_no.clone()} oninput={on_input(CreateContractMsg::UpdateContractNo)} />
                         </div>
                         <div class="form-group">
                             <label>{"合同名称"}</label>
-                            <input type="text" value={self.state.contract_name.clone()} />
+                            <input type="text" value={self.state.contract_name.clone()} oninput={on_input(CreateContractMsg::UpdateContractName)} />
                         </div>
                         <div class="form-group">
                             <label>{"供应商ID"}</label>
-                            <input type="number" value={self.state.supplier_id.to_string()} />
+                            <input type="number" value={self.state.supplier_id.to_string()} oninput={on_input(CreateContractMsg::UpdateSupplierId)} />
                         </div>
                         <div class="form-group">
                             <label>{"总金额"}</label>
-                            <input type="text" value={self.state.total_amount.clone()} />
+                            <input type="number" step="0.01" value={self.state.total_amount.clone()} oninput={on_input(CreateContractMsg::UpdateTotalAmount)} />
                         </div>
                         <div class="form-group">
                             <label>{"付款条款"}</label>
-                            <input type="text" value={self.state.payment_terms.clone()} />
+                            <input type="text" value={self.state.payment_terms.clone()} oninput={on_input(CreateContractMsg::UpdatePaymentTerms)} />
                         </div>
                         <div class="form-group">
                             <label>{"交货日期"}</label>
-                            <input type="date" value={self.state.delivery_date.clone()} />
+                            <input type="date" value={self.state.delivery_date.clone()} oninput={on_input(CreateContractMsg::UpdateDeliveryDate)} />
                         </div>
                         <div class="form-group">
                             <label>{"备注"}</label>
-                            <textarea value={self.state.remark.clone()}></textarea>
+                            <input type="text" value={self.state.remark.clone()} oninput={on_input(CreateContractMsg::UpdateRemark)} />
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
-                        <button class="btn-primary" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>{"提交"}</button>
+                        <button class="btn-primary" onclick={ctx.link().callback(|_| CreateContractMsg::Submit)}>{"提交"}</button>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-//! 客户管理页面
+// 客户管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

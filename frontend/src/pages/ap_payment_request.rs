@@ -1,6 +1,7 @@
-//! 付款申请管理页面
-//!
-//! 付款申请（AP Payment Request）管理功能
+use gloo_dialogs;
+// 付款申请管理页面
+//
+// 付款申请（AP Payment Request）管理功能
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -114,7 +115,7 @@ impl Component for ApPaymentRequestPage {
                 false
             }
             Msg::ViewRequest(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ap-payment-requests/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::DeleteRequest(id) => {

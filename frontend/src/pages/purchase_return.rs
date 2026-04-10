@@ -1,4 +1,5 @@
-//! 采购退货管理页面
+use gloo_dialogs;
+// 采购退货管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -108,7 +109,7 @@ impl Component for PurchaseReturnPage {
                 false
             }
             Msg::ViewReturn(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/purchase-returns/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::DeleteReturn(_id) => {

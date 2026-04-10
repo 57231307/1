@@ -1,4 +1,4 @@
-//! 面料订单管理页面
+// 面料订单管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;

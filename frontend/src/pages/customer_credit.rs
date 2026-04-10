@@ -1,4 +1,4 @@
-//! 客户信用管理页面
+// 客户信用管理页面
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;

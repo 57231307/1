@@ -1,5 +1,5 @@
-//! 业务追溯页面
-//! 提供面料业务的正向追溯和反向追溯功能
+// 业务追溯页面
+// 提供面料业务的正向追溯和反向追溯功能
 
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;

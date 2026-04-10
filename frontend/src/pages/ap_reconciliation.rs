@@ -1,6 +1,7 @@
-//! 应付对账管理页面
-//!
-//! 应付对账（AP Reconciliation）管理功能
+use gloo_dialogs;
+// 应付对账管理页面
+//
+// 应付对账（AP Reconciliation）管理功能
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -115,7 +116,7 @@ impl Component for ApReconciliationPage {
                 false
             }
             Msg::ViewReconciliation(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/ap-reconciliations/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::GenerateReconciliation => {

@@ -1,4 +1,4 @@
-//! 预算管理页面
+// 预算管理页面
 
 use yew::prelude::*;
 use crate::services::budget_management_service::BudgetManagementService;

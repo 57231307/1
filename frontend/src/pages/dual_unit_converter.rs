@@ -1,4 +1,4 @@
-//! 双计量单位转换器页面
+// 双计量单位转换器页面
 
 use yew::prelude::*;
 use crate::models::dual_unit_converter::{

@@ -1,4 +1,5 @@
-//! 采购订单管理页面
+use gloo_dialogs;
+// 采购订单管理页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
@@ -98,7 +99,7 @@ impl Component for PurchaseOrderPage {
                 false
             }
             Msg::ViewOrder(id) => {
-                web_sys::window().unwrap().location().set_href(&format!("/purchase-orders/{}", id)).ok();
+                gloo_dialogs::alert("详情页面功能开发中...");
                 false
             }
             Msg::DeleteOrder(id) => {

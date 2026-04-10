@@ -1,4 +1,4 @@
-//! 资金管理页面
+// 资金管理页面
 
 use yew::prelude::*;
 use crate::services::fund_management_service::FundManagementService;

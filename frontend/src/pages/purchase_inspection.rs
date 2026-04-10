@@ -1,4 +1,4 @@
-//! 采购检验页面
+// 采购检验页面
 
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
