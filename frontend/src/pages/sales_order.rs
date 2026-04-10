@@ -33,6 +33,11 @@ pub struct SalesOrderPage {
     shipping_order: Option<SalesOrder>,
     ship_items: Vec<ShipItemData>,
     submitting_ship: bool,
+    
+    // 物流与扫码
+    logistics_carrier: String,
+    tracking_number: String,
+    barcode_input: String,
 }
 
 pub enum Msg {
@@ -54,6 +59,13 @@ pub enum Msg {
     SubmitShip,
     ShipSuccess,
     ShipError(String),
+    
+    FastShip(i32),
+    UpdateLogisticsCarrier(String),
+    UpdateTrackingNumber(String),
+    UpdateBarcodeInput(String),
+    ProcessBarcode,
+    Ignore,
 }
 
 impl Component for SalesOrderPage {
@@ -73,6 +85,10 @@ impl Component for SalesOrderPage {
             shipping_order: None,
             ship_items: Vec::new(),
             submitting_ship: false,
+            
+            logistics_carrier: String::new(),
+            tracking_number: String::new(),
+            barcode_input: String::new(),
         }
     }
 
@@ -261,6 +277,7 @@ Msg::CloseShipModal => {
                     .unwrap();
                 true
             }
+            _ => false,
         }
     }
 
@@ -363,6 +380,74 @@ impl SalesOrderPage {
                             <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>{"×"}</button>
                         </div>
                         <div class="modal-body">
+                            <div class="ship-extra-info" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; border: 1px solid #e5e6eb;">
+                                <h4 style="margin-top: 0; margin-bottom: 15px; font-size: 14px; color: #1d2129;">{"发货追踪与扫码 (选填)"}</h4>
+                                <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+                                    <div style="flex: 1;">
+                                        <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #4e5969;">{"物流承运商"}</label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            placeholder="如：顺丰、跨越速运"
+                                            value={self.logistics_carrier.clone()}
+                                            oninput={ctx.link().callback(|e: InputEvent| {
+                                                use wasm_bindgen::JsCast;
+                                                use web_sys::HtmlInputElement;
+                                                let target = e.target().unwrap();
+                                                let input = target.unchecked_into::<HtmlInputElement>();
+                                                Msg::UpdateLogisticsCarrier(input.value())
+                                            })}
+                                        />
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #4e5969;">{"物流运单号"}</label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            placeholder="请扫码或输入运单号"
+                                            value={self.tracking_number.clone()}
+                                            oninput={ctx.link().callback(|e: InputEvent| {
+                                                use wasm_bindgen::JsCast;
+                                                use web_sys::HtmlInputElement;
+                                                let target = e.target().unwrap();
+                                                let input = target.unchecked_into::<HtmlInputElement>();
+                                                Msg::UpdateTrackingNumber(input.value())
+                                            })}
+                                        />
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 15px;">
+                                    <div style="flex: 1;">
+                                        <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #4e5969;">{"条码枪录入 (布卷条码 -> 批次)"}</label>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input 
+                                                type="text" 
+                                                class="form-control" 
+                                                placeholder="请用 PDA 扫码枪扫描布卷条码..."
+                                                value={self.barcode_input.clone()}
+                                                oninput={ctx.link().callback(|e: InputEvent| {
+                                                    use wasm_bindgen::JsCast;
+                                                    use web_sys::HtmlInputElement;
+                                                    let target = e.target().unwrap();
+                                                    let input = target.unchecked_into::<HtmlInputElement>();
+                                                    Msg::UpdateBarcodeInput(input.value())
+                                                })}
+                                                onkeyup={ctx.link().callback(|e: KeyboardEvent| {
+                                                    if e.key() == "Enter" {
+                                                        Msg::ProcessBarcode
+                                                    } else {
+                                                        Msg::Ignore
+                                                    }
+                                                })}
+                                            />
+                                            <button type="button" class="btn-secondary" onclick={ctx.link().callback(|_| Msg::ProcessBarcode)}>
+                                                {"识别"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <table class="data-table">
                                 <thead>
                                     <tr>

@@ -42,6 +42,8 @@ pub struct Model {
 
     /// 备注
     pub remarks: Option<String>,
+    
+    pub barcode: Option<String>,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,
