@@ -23,7 +23,8 @@ pub struct FinancePaymentPage {
     page: u64,
     page_size: u64,
     total: u64,
-}
+
+    viewing_item: Option<FinancePayment>,}
 
 /// 消息枚举
 pub enum Msg {
@@ -36,7 +37,8 @@ pub enum Msg {
     DeletePayment(i32),
     ChangePage(u64),
     Refresh,
-}
+
+    CloseDetailModal,}
 
 impl Component for FinancePaymentPage {
     type Message = Msg;
@@ -44,6 +46,7 @@ impl Component for FinancePaymentPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
+            viewing_item: None,
             payments: Vec::new(),
             loading: true,
             printing_payment: None,
@@ -65,6 +68,10 @@ impl Component for FinancePaymentPage {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
+            }
             Msg::LoadPayments => {
                 self.loading = true;
                 let params = PaymentQueryParams {
@@ -108,8 +115,8 @@ impl Component for FinancePaymentPage {
                 false
             }
             Msg::ViewPayment(id) => {
-                gloo_dialogs::alert("详情页面功能开发中...");
-                false
+                self.viewing_item = self.payments.iter().find(|i| i.id == id).cloned();
+                true
             }
             Msg::DeletePayment(id) => {
                 let link = ctx.link().clone();
@@ -177,6 +184,7 @@ impl Component for FinancePaymentPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_detail_modal(ctx)}
                 {self.render_print_view()}
             </div>
         }
@@ -332,6 +340,89 @@ impl FinancePaymentPage {
                     </div>
                 </div>
             </>
+        }
+    }
+    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
+        if let Some(item) = &self.viewing_item {
+            html! {
+                <div class="modal-overlay">
+                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
+                        <div class="modal-header">
+                            <h2>{"详情"}</h2>
+                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
+                                    <span class="detail-value">{item.id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment No: "}</span>
+                                    <span class="detail-value">{&item.payment_no}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment Type: "}</span>
+                                    <span class="detail-value">{&item.payment_type}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order Type: "}</span>
+                                    <span class="detail-value">{item.order_type.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order Id: "}</span>
+                                    <span class="detail-value">{item.order_id.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Customer Id: "}</span>
+                                    <span class="detail-value">{item.customer_id.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Id: "}</span>
+                                    <span class="detail-value">{item.supplier_id.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Amount: "}</span>
+                                    <span class="detail-value">{item.amount.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Status: "}</span>
+                                    <span class="detail-value">{&item.status}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment Date: "}</span>
+                                    <span class="detail-value">{&item.payment_date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment Method: "}</span>
+                                    <span class="detail-value">{item.payment_method.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Reference No: "}</span>
+                                    <span class="detail-value">{item.reference_no.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Notes: "}</span>
+                                    <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created At: "}</span>
+                                    <span class="detail-value">{&item.created_at}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated At: "}</span>
+                                    <span class="detail-value">{item.updated_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 }

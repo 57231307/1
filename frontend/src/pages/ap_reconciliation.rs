@@ -24,7 +24,8 @@ pub struct ApReconciliationPage {
     show_dispute_modal: bool,
     selected_id: Option<i32>,
     dispute_reason: String,
-}
+
+    viewing_item: Option<ApReconciliation>,}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -49,7 +50,8 @@ pub enum Msg {
     CloseGenerateModal,
     CloseDisputeModal,
     SetDisputeReason(String),
-}
+
+    CloseDetailModal,}
 
 impl Component for ApReconciliationPage {
     type Message = Msg;
@@ -57,6 +59,7 @@ impl Component for ApReconciliationPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
+            viewing_item: None,
             reconciliations: Vec::new(),
             loading: true,
             error: None,
@@ -79,6 +82,10 @@ impl Component for ApReconciliationPage {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
+            }
             Msg::LoadReconciliations => {
                 self.loading = true;
                 let params = ApReconciliationQueryParams {
@@ -116,8 +123,8 @@ impl Component for ApReconciliationPage {
                 false
             }
             Msg::ViewReconciliation(id) => {
-                gloo_dialogs::alert("详情页面功能开发中...");
-                false
+                self.viewing_item = self.reconciliations.iter().find(|i| i.id == id).cloned();
+                true
             }
             Msg::GenerateReconciliation => {
                 self.show_generate_modal = true;
@@ -214,6 +221,7 @@ impl Component for ApReconciliationPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_detail_modal(ctx)}
 
                 if self.show_dispute_modal {
                     {self.render_dispute_modal(ctx)}
@@ -388,6 +396,177 @@ impl ApReconciliationPage {
                     </div>
                 </div>
             </div>
+        }
+    }
+    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
+        if let Some(item) = &self.viewing_item {
+            html! {
+                <div class="modal-overlay">
+                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
+                        <div class="modal-header">
+                            <h2>{"详情"}</h2>
+                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
+                                    <span class="detail-value">{item.id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Reconciliation No: "}</span>
+                                    <span class="detail-value">{&item.reconciliation_no}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Id: "}</span>
+                                    <span class="detail-value">{item.supplier_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Name: "}</span>
+                                    <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Reconciliation Date: "}</span>
+                                    <span class="detail-value">{&item.reconciliation_date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Period Start: "}</span>
+                                    <span class="detail-value">{&item.period_start}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Period End: "}</span>
+                                    <span class="detail-value">{&item.period_end}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Reconciliation Status: "}</span>
+                                    <span class="detail-value">{&item.reconciliation_status}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Amount: "}</span>
+                                    <span class="detail-value">{&item.total_amount}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Confirmed Amount: "}</span>
+                                    <span class="detail-value">{item.confirmed_amount.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Disputed Amount: "}</span>
+                                    <span class="detail-value">{item.disputed_amount.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Paid Amount: "}</span>
+                                    <span class="detail-value">{item.paid_amount.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Outstanding Amount: "}</span>
+                                    <span class="detail-value">{item.outstanding_amount.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Currency Code: "}</span>
+                                    <span class="detail-value">{item.currency_code.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Exchange Rate: "}</span>
+                                    <span class="detail-value">{item.exchange_rate.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Invoice Count: "}</span>
+                                    <span class="detail-value">{item.invoice_count.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Confirmed Invoice Count: "}</span>
+                                    <span class="detail-value">{item.confirmed_invoice_count.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Disputed Invoice Count: "}</span>
+                                    <span class="detail-value">{item.disputed_invoice_count.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Source Type: "}</span>
+                                    <span class="detail-value">{item.source_type.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Source Module: "}</span>
+                                    <span class="detail-value">{item.source_module.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Source Bill Id: "}</span>
+                                    <span class="detail-value">{item.source_bill_id.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Source Bill No: "}</span>
+                                    <span class="detail-value">{item.source_bill_no.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Remarks: "}</span>
+                                    <span class="detail-value">{item.remarks.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Confirmed At: "}</span>
+                                    <span class="detail-value">{item.confirmed_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Confirmed By: "}</span>
+                                    <span class="detail-value">{item.confirmed_by.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Confirmed By Name: "}</span>
+                                    <span class="detail-value">{item.confirmed_by_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Disputed At: "}</span>
+                                    <span class="detail-value">{item.disputed_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Disputed By: "}</span>
+                                    <span class="detail-value">{item.disputed_by.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Disputed By Name: "}</span>
+                                    <span class="detail-value">{item.disputed_by_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Dispute Reason: "}</span>
+                                    <span class="detail-value">{item.dispute_reason.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approver Id: "}</span>
+                                    <span class="detail-value">{item.approver_id.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approver Name: "}</span>
+                                    <span class="detail-value">{item.approver_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approved At: "}</span>
+                                    <span class="detail-value">{item.approved_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Creator Id: "}</span>
+                                    <span class="detail-value">{item.creator_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Creator Name: "}</span>
+                                    <span class="detail-value">{item.creator_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created At: "}</span>
+                                    <span class="detail-value">{&item.created_at}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated At: "}</span>
+                                    <span class="detail-value">{&item.updated_at}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 }

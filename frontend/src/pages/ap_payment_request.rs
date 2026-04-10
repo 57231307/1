@@ -21,7 +21,8 @@ pub struct ApPaymentRequestPage {
     page: u64,
     page_size: u64,
     total: u64,
-}
+
+    viewing_item: Option<ApPaymentRequest>,}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -44,7 +45,8 @@ pub enum Msg {
     RejectRequest(i32, String),
     ChangePage(u64),
     Refresh,
-}
+
+    CloseDetailModal,}
 
 impl Component for ApPaymentRequestPage {
     type Message = Msg;
@@ -52,6 +54,7 @@ impl Component for ApPaymentRequestPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
+            viewing_item: None,
             requests: Vec::new(),
             loading: true,
             error: None,
@@ -71,6 +74,10 @@ impl Component for ApPaymentRequestPage {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
+            }
             Msg::LoadRequests => {
                 self.loading = true;
                 let params = ApPaymentRequestQueryParams {
@@ -115,8 +122,8 @@ impl Component for ApPaymentRequestPage {
                 false
             }
             Msg::ViewRequest(id) => {
-                gloo_dialogs::alert("详情页面功能开发中...");
-                false
+                self.viewing_item = self.requests.iter().find(|i| i.id == id).cloned();
+                true
             }
             Msg::DeleteRequest(id) => {
                 let link = ctx.link().clone();
@@ -214,6 +221,7 @@ impl Component for ApPaymentRequestPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_detail_modal(ctx)}
             </div>
         }
     }
@@ -366,6 +374,161 @@ impl ApPaymentRequestPage {
                     </div>
                 </div>
             </>
+        }
+    }
+    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
+        if let Some(item) = &self.viewing_item {
+            html! {
+                <div class="modal-overlay">
+                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
+                        <div class="modal-header">
+                            <h2>{"详情"}</h2>
+                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
+                                    <span class="detail-value">{item.id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Request No: "}</span>
+                                    <span class="detail-value">{&item.request_no}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Request Date: "}</span>
+                                    <span class="detail-value">{&item.request_date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Id: "}</span>
+                                    <span class="detail-value">{item.supplier_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Name: "}</span>
+                                    <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment Type: "}</span>
+                                    <span class="detail-value">{&item.payment_type}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment Method: "}</span>
+                                    <span class="detail-value">{&item.payment_method}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Request Amount: "}</span>
+                                    <span class="detail-value">{&item.request_amount}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approval Status: "}</span>
+                                    <span class="detail-value">{&item.approval_status}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Currency: "}</span>
+                                    <span class="detail-value">{&item.currency}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Exchange Rate: "}</span>
+                                    <span class="detail-value">{&item.exchange_rate}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Request Amount Foreign: "}</span>
+                                    <span class="detail-value">{item.request_amount_foreign.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Expected Payment Date: "}</span>
+                                    <span class="detail-value">{item.expected_payment_date.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Bank Name: "}</span>
+                                    <span class="detail-value">{item.bank_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Bank Account: "}</span>
+                                    <span class="detail-value">{item.bank_account.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Bank Account Name: "}</span>
+                                    <span class="detail-value">{item.bank_account_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Notes: "}</span>
+                                    <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Attachment Urls: "}</span>
+                                    <span class="detail-value">{item.attachment_urls.as_ref().map_or("-".to_string(), |v| v.join(", "))}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created By: "}</span>
+                                    <span class="detail-value">{item.created_by.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Creator Name: "}</span>
+                                    <span class="detail-value">{item.creator_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created At: "}</span>
+                                    <span class="detail-value">{&item.created_at}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated By: "}</span>
+                                    <span class="detail-value">{item.updated_by.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated At: "}</span>
+                                    <span class="detail-value">{&item.updated_at}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Submitted By: "}</span>
+                                    <span class="detail-value">{item.submitted_by.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Submitter Name: "}</span>
+                                    <span class="detail-value">{item.submitter_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Submitted At: "}</span>
+                                    <span class="detail-value">{item.submitted_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approved By: "}</span>
+                                    <span class="detail-value">{item.approved_by.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approver Name: "}</span>
+                                    <span class="detail-value">{item.approver_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Approved At: "}</span>
+                                    <span class="detail-value">{item.approved_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Rejected By: "}</span>
+                                    <span class="detail-value">{item.rejected_by.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Rejecter Name: "}</span>
+                                    <span class="detail-value">{item.rejecter_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Rejected At: "}</span>
+                                    <span class="detail-value">{item.rejected_at.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Rejected Reason: "}</span>
+                                    <span class="detail-value">{item.rejected_reason.as_deref().unwrap_or("-")}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 }

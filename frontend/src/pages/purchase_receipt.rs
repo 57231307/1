@@ -19,7 +19,8 @@ pub struct PurchaseReceiptPage {
     page_size: u64,
     printing_receipt: Option<(PurchaseReceipt, Vec<PurchaseReceiptItem>)>,
     print_trigger: bool,
-}
+
+    viewing_item: Option<PurchaseReceipt>,}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -40,7 +41,8 @@ pub enum Msg {
     PreparePrint(i32),
     PrintReady(PurchaseReceipt, Vec<PurchaseReceiptItem>),
     ClearPrint,
-}
+
+    CloseDetailModal,}
 
 impl Component for PurchaseReceiptPage {
     type Message = Msg;
@@ -48,6 +50,7 @@ impl Component for PurchaseReceiptPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
+            viewing_item: None,
             receipts: Vec::new(),
             loading: true,
             error: None,
@@ -73,6 +76,10 @@ impl Component for PurchaseReceiptPage {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
+            }
             Msg::LoadReceipts => {
                 self.loading = true;
                 let query = PurchaseReceiptQuery {
@@ -107,8 +114,8 @@ impl Component for PurchaseReceiptPage {
                 false
             }
             Msg::ViewReceipt(id) => {
-                gloo_dialogs::alert("详情页面功能开发中...");
-                false
+                self.viewing_item = self.receipts.iter().find(|i| i.id == id).cloned();
+                true
             }
             Msg::ConfirmReceipt(id) => {
                 let link = ctx.link().clone();
@@ -178,6 +185,7 @@ impl Component for PurchaseReceiptPage {
                 </div>
 
                 {self.render_content(ctx)}
+                {self.render_detail_modal(ctx)}
             </div>
         }
     }
@@ -332,6 +340,105 @@ impl PurchaseReceiptPage {
                             })}
                         </tbody>
                     </table>
+                </div>
+            }
+        } else {
+            html! {}
+        }
+    }
+    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
+        if let Some(item) = &self.viewing_item {
+            html! {
+                <div class="modal-overlay">
+                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
+                        <div class="modal-header">
+                            <h2>{"详情"}</h2>
+                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
+                                    <span class="detail-value">{item.id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Receipt No: "}</span>
+                                    <span class="detail-value">{&item.receipt_no}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order Id: "}</span>
+                                    <span class="detail-value">{item.order_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order No: "}</span>
+                                    <span class="detail-value">{item.order_no.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Id: "}</span>
+                                    <span class="detail-value">{item.supplier_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Name: "}</span>
+                                    <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Receipt Date: "}</span>
+                                    <span class="detail-value">{&item.receipt_date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Status: "}</span>
+                                    <span class="detail-value">{&item.status}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Quantity: "}</span>
+                                    <span class="detail-value">{&item.total_quantity}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Amount: "}</span>
+                                    <span class="detail-value">{&item.total_amount}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Warehouse Id: "}</span>
+                                    <span class="detail-value">{item.warehouse_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Warehouse Name: "}</span>
+                                    <span class="detail-value">{item.warehouse_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Department Id: "}</span>
+                                    <span class="detail-value">{item.department_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Department Name: "}</span>
+                                    <span class="detail-value">{item.department_name.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Inspector: "}</span>
+                                    <span class="detail-value">{item.inspector.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Inspection Date: "}</span>
+                                    <span class="detail-value">{item.inspection_date.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Notes: "}</span>
+                                    <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created At: "}</span>
+                                    <span class="detail-value">{&item.created_at}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated At: "}</span>
+                                    <span class="detail-value">{&item.updated_at}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
+                        </div>
+                    </div>
                 </div>
             }
         } else {

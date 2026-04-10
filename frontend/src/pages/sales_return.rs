@@ -22,6 +22,7 @@ pub struct SalesReturnPage {
     filter_status: String,
     page: u64,
     page_size: u64,
+    viewing_item: Option<SalesReturn>,
 }
 
 /// 消息枚举
@@ -34,6 +35,7 @@ pub enum Msg {
     SubmitReturn(i32),
     ApproveReturn(i32),
     ChangePage(u64),
+    CloseDetailModal,
 }
 
 impl Component for SalesReturnPage {
@@ -42,6 +44,7 @@ impl Component for SalesReturnPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
+            viewing_item: None,
             returns: Vec::new(),
             loading: true,
             printing_return: None,
@@ -67,6 +70,10 @@ impl Component for SalesReturnPage {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
+            }
             Msg::LoadReturns => {
                 self.loading = true;
                 let query = SalesReturnQuery {
@@ -101,8 +108,8 @@ impl Component for SalesReturnPage {
                 false
             }
             Msg::ViewReturn(id) => {
-                let _ = gloo_dialogs::alert("详情页面功能开发中...");
-                false
+                self.viewing_item = self.returns.iter().find(|i| i.id == id).cloned();
+                true
             }
             Msg::SubmitReturn(id) => {
                 let link = ctx.link().clone();
@@ -143,7 +150,7 @@ impl Component for SalesReturnPage {
                     <h2>{ "销售退货管理" }</h2>
                     <div class="header-actions">
                         <button class="btn btn-primary" onclick={Callback::from(|_| {
-                            gloo_dialogs::alert("详情页面功能开发中...");
+                            gloo_dialogs::alert("新建退货单功能开发中...");
                         })}>
                             <i class="fas fa-plus"></i> { "新建退货单" }
                         </button>
@@ -151,6 +158,7 @@ impl Component for SalesReturnPage {
                 </div>
 
                 { self.render_filters(ctx) }
+                { self.render_detail_modal(ctx) }
                 
                 if let Some(ref err) = self.error {
                     <div class="alert alert-danger">{ err }</div>
@@ -243,6 +251,58 @@ impl SalesReturnPage {
                     }
                 </td>
             </tr>
+        }
+    }
+
+    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
+        if let Some(item) = &self.viewing_item {
+            html! {
+                <div class="modal-overlay">
+                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
+                        <div class="modal-header">
+                            <h2>{"详情"}</h2>
+                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
+                                    <span class="detail-value">{item.id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Return No: "}</span>
+                                    <span class="detail-value">{&item.return_no}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Sales Order Id: "}</span>
+                                    <span class="detail-value">{item.sales_order_id.map_or("-".to_string(), |v| v.to_string())}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Customer Id: "}</span>
+                                    <span class="detail-value">{item.customer_id.to_string()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Return Date: "}</span>
+                                    <span class="detail-value">{&item.return_date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Status: "}</span>
+                                    <span class="detail-value">{&item.status}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Amount: "}</span>
+                                    <span class="detail-value">{item.total_amount.to_string()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        } else {
+            html! {}
         }
     }
 }
