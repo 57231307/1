@@ -3,7 +3,7 @@ name = "bingxi-backend"
 version = "1.0.0"
 edition = "2021"
 authors = ["BingXi Team"]
-description = "秉羲管理系统 - Rust 后端服务"
+description = "秉羲面料管理 - Rust 后端服务"
 
 [dependencies]
 # Web 框架

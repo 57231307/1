@@ -1,5 +1,5 @@
 #![allow(warnings)]
-//! 秉羲管理系统 - Rust 后端服务
+//! 秉羲面料管理 - Rust 后端服务
 //!
 //! 本项目使用 SeaORM 1.0 + Axum + Tokio 技术栈
 //! 数据库：PostgreSQL 18

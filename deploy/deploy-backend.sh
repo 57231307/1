@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秉羲管理系统 - 后端服务部署脚本
+# 秉羲面料管理 - 后端服务部署脚本
 # 使用方式：sudo ./deploy-backend.sh
 
 set -e
@@ -21,7 +21,7 @@ LOG_DIR="/var/log/面料 ERP"
 SERVICE_FILE="bingxi-backend.service"
 
 echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}秉羲管理系统后端服务部署脚本${NC}"
+echo -e "${GREEN}秉羲面料管理后端服务部署脚本${NC}"
 echo -e "${GREEN}=========================================${NC}"
 
 # 检查是否以 root 运行

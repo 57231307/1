@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秉羲管理系统 - 前端部署脚本
+# 秉羲面料管理 - 前端部署脚本
 # 使用方式：sudo ./deploy-frontend.sh
 
 set -e
@@ -17,7 +17,7 @@ NGINX_CONFIG="/etc/nginx/sites-available/bingxi-frontend"
 NGINX_ENABLED="/etc/nginx/sites-enabled/bingxi-frontend"
 
 echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}秉羲管理系统前端部署脚本${NC}"
+echo -e "${GREEN}秉羲面料管理前端部署脚本${NC}"
 echo -e "${GREEN}=========================================${NC}"
 
 # 检查是否以 root 运行

@@ -115,7 +115,7 @@ case "$1" in
         curl -fsSL --http1.1 --ipv4 --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
         ;;
     *)
-        echo "秉羲管理系统 CLI 工具"
+        echo "秉羲面料管理 CLI 工具"
         echo "用法: bingxi {start|stop|restart|status|update}"
         ;;
 esac
@@ -181,7 +181,7 @@ case "$1" in
     status) sudo systemctl status bingxi-backend --no-pager ;;
     restart) sudo systemctl restart bingxi-backend; sudo systemctl restart nginx ;;
     *) 
-        echo "秉羲管理系统 - 一键管理脚本"
+        echo "秉羲面料管理 - 一键管理脚本"
         echo "使用方法: $0 {install|update|start|stop|status|restart}"
         ;;
 esac

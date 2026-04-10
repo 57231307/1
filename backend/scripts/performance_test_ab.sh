@@ -14,7 +14,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}======================================${NC}"
-echo -e "${GREEN}秉羲管理系统 - 性能测试脚本 (Apache Bench)${NC}"
+echo -e "${GREEN}秉羲面料管理 - 性能测试脚本 (Apache Bench)${NC}"
 echo -e "${GREEN}======================================${NC}"
 echo ""
 

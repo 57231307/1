@@ -80,8 +80,8 @@ use utoipa::OpenApi;
         (name = "预算管理", description = "预算管理"),
     ),
     info(
-        title = "秉羲管理系统 API",
-        description = "秉羲管理系统的 RESTful API 文档",
+        title = "秉羲面料管理 API",
+        description = "秉羲面料管理的 RESTful API 文档",
         version = "1.0.0",
         contact(
             name = "秉羲团队",
