@@ -441,7 +441,7 @@ impl InventoryTransferPage {
                             html! {
                                 <tr>
                                     <td>
-                                        <a href="#" onclick={ctx.link().callback(move |_| Msg::OpenViewModal(transfer_id))}>
+                                        <a href="javascript:void(0);" onclick={ctx.link().callback(move |_| Msg::OpenViewModal(transfer_id))}>
                                             {&transfer.transfer_no}
                                         </a>
                                     </td>

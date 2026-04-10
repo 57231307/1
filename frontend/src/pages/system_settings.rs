@@ -56,8 +56,8 @@ pub fn system_settings_page() -> Html {
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{"启用"}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
-                                <a href="#" class="text-red-600 hover:text-red-900">{"停用"}</a>
+                                <a href="javascript:void(0);" class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
+                                <a href="javascript:void(0);" class="text-red-600 hover:text-red-900">{"停用"}</a>
                             </td>
                         </tr>
                         <tr>
@@ -67,8 +67,8 @@ pub fn system_settings_page() -> Html {
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{"启用"}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
-                                <a href="#" class="text-red-600 hover:text-red-900">{"停用"}</a>
+                                <a href="javascript:void(0);" class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
+                                <a href="javascript:void(0);" class="text-red-600 hover:text-red-900">{"停用"}</a>
                             </td>
                         </tr>
                     </tbody>
