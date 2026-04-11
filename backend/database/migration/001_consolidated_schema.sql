@@ -194,34 +194,6 @@ CREATE INDEX IF NOT EXISTS idx_inventory_stocks_warehouse_id ON inventory_stocks
 CREATE INDEX IF NOT EXISTS idx_inventory_stocks_batch_no ON inventory_stocks(batch_no);
 CREATE INDEX IF NOT EXISTS idx_inventory_stocks_status ON inventory_stocks(status);
 
--- ==================== 库存调拨表 ====================
-
-COMMENT ON TABLE inventory_transfers IS '库存调拨表';
-COMMENT ON COLUMN inventory_transfers.status IS '状态：pending-待审核，approved-已审核，rejected-已驳回，shipped-已发出，completed-已完成';
-
-CREATE INDEX IF NOT EXISTS idx_inventory_transfers_no ON inventory_transfers(transfer_no);
-CREATE INDEX IF NOT EXISTS idx_inventory_transfers_status ON inventory_transfers(status);
-
--- ==================== 库存调拨明细表 ====================
-
-COMMENT ON TABLE inventory_transfer_items IS '库存调拨明细表';
-
-CREATE INDEX IF NOT EXISTS idx_inventory_transfer_items_transfer_id ON inventory_transfer_items(transfer_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_transfer_items_product_id ON inventory_transfer_items(product_id);
-
--- ==================== 库存盘点表 ====================
-
-COMMENT ON TABLE inventory_counts IS '库存盘点表';
-COMMENT ON COLUMN inventory_counts.status IS '状态：pending-待审核，approved-已审核，rejected-已驳回，completed-已完成';
-
-CREATE INDEX IF NOT EXISTS idx_inventory_counts_no ON inventory_counts(count_no);
-CREATE INDEX IF NOT EXISTS idx_inventory_counts_status ON inventory_counts(status);
-
--- ==================== 库存盘点明细表 ====================
-
-COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';
-
-
 -- ==================== 库存调整表 ====================
 CREATE TABLE IF NOT EXISTS inventory_adjustments (
     id SERIAL PRIMARY KEY,
@@ -999,708 +971,6 @@ BEGIN
     RAISE NOTICE '  - v_color_sales_analysis (色号销售分析)';
     RAISE NOTICE '========================================';
 END $$;
--- ========================================
--- 总账管理模块（面料行业版）
--- 版本：2026-03-15
--- 说明：财务系统核心基础模块
--- ========================================
-
--- ========================================
--- 1. 会计科目表
--- ========================================
-
-COMMENT ON TABLE account_subjects IS '会计科目表（面料行业版）';
-COMMENT ON COLUMN account_subjects.code IS '科目编码';
-COMMENT ON COLUMN account_subjects.name IS '科目名称';
-COMMENT ON COLUMN account_subjects.level IS '科目级别（1-6）';
-COMMENT ON COLUMN account_subjects.balance_direction IS '余额方向：借/贷/无';
-COMMENT ON COLUMN account_subjects.assist_batch IS '是否启用批次辅助核算';
-COMMENT ON COLUMN account_subjects.assist_color_no IS '是否启用色号辅助核算';
-COMMENT ON COLUMN account_subjects.enable_dual_unit IS '是否启用双计量单位';
-
-CREATE INDEX IF NOT EXISTS idx_account_subjects_code ON account_subjects(code);
-CREATE INDEX IF NOT EXISTS idx_account_subjects_parent ON account_subjects(parent_id);
-CREATE INDEX IF NOT EXISTS idx_account_subjects_level ON account_subjects(level);
-
--- ========================================
--- 2. 凭证表
--- ========================================
-
-COMMENT ON TABLE vouchers IS '凭证表（面料行业版）';
-COMMENT ON COLUMN vouchers.voucher_no IS '凭证字号';
-COMMENT ON COLUMN vouchers.voucher_type IS '凭证类型：记/收/付/转';
-COMMENT ON COLUMN vouchers.batch_no IS '批次号';
-COMMENT ON COLUMN vouchers.color_no IS '色号';
-COMMENT ON COLUMN vouchers.quantity_meters IS '数量（米）';
-COMMENT ON COLUMN vouchers.quantity_kg IS '数量（公斤）';
-
-CREATE INDEX IF NOT EXISTS idx_vouchers_no ON vouchers(voucher_no);
-CREATE INDEX IF NOT EXISTS idx_vouchers_date ON vouchers(voucher_date);
-CREATE INDEX IF NOT EXISTS idx_vouchers_status ON vouchers(status);
-CREATE INDEX IF NOT EXISTS idx_vouchers_batch ON vouchers(batch_no, color_no);
-
--- ========================================
--- 3. 凭证分录表
--- ========================================
-
-COMMENT ON TABLE voucher_items IS '凭证分录表（面料行业版）';
-COMMENT ON COLUMN voucher_items.assist_batch_id IS '批次辅助核算 ID';
-COMMENT ON COLUMN voucher_items.assist_color_no_id IS '色号辅助核算 ID';
-COMMENT ON COLUMN voucher_items.quantity_meters IS '数量（米）';
-
-CREATE INDEX IF NOT EXISTS idx_voucher_items_voucher ON voucher_items(voucher_id);
-CREATE INDEX IF NOT EXISTS idx_voucher_items_subject ON voucher_items(subject_code);
-CREATE INDEX IF NOT EXISTS idx_voucher_items_batch ON voucher_items(assist_batch_id, assist_color_no_id);
-
--- ========================================
--- 4. 会计期间表
--- ========================================
-CREATE TABLE IF NOT EXISTS accounting_periods (
-    id SERIAL PRIMARY KEY,
-    year INTEGER NOT NULL,
-    period INTEGER NOT NULL,
-    period_name VARCHAR(50) NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    status VARCHAR(20) DEFAULT 'OPEN',
-    closed_at TIMESTAMPTZ,
-    closed_by INTEGER,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-COMMENT ON TABLE accounting_periods IS '会计期间表';
-CREATE UNIQUE INDEX IF NOT EXISTS idx_accounting_periods_year_period ON accounting_periods(year, period);
-
--- ========================================
--- 5. 初始化会计科目（面料行业）
--- ========================================
-
--- 插入一级科目
-INSERT INTO account_subjects (code, name, level, balance_direction, status) VALUES
-('1001', '库存现金', 1, '借', 'active'),
-('1002', '银行存款', 1, '借', 'active'),
-('1122', '应收账款', 1, '借', 'active'),
-('1405', '库存商品', 1, '借', 'active'),
-('2202', '应付账款', 1, '贷', 'active'),
-('2221', '应交税费', 1, '贷', 'active'),
-('5001', '生产成本', 1, '借', 'active'),
-('6001', '主营业务收入', 1, '贷', 'active'),
-('6401', '主营业务成本', 1, '借', 'active');
-
--- 插入二级科目（示例）
-INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
-SELECT 
-    '1002.01', '工商银行', 2, id, '借', 'active'
-FROM account_subjects WHERE code = '1002';
-
-INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
-SELECT 
-    '1405.01', '坯布', 2, id, '借', 'active'
-FROM account_subjects WHERE code = '1405';
-
-INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status, assist_batch, assist_color_no, enable_dual_unit)
-SELECT 
-    '1405.02', '成品布', 2, id, '借', 'active', true, true, true
-FROM account_subjects WHERE code = '1405';
-
--- ========================================
--- 6. 创建视图
--- ========================================
-
--- 科目余额视图
-CREATE OR REPLACE VIEW v_account_balance AS
-SELECT 
-    id,
-    code,
-    name,
-    level,
-    balance_direction,
-    initial_balance_debit,
-    initial_balance_credit,
-    current_period_debit,
-    current_period_credit,
-    ending_balance_debit,
-    ending_balance_credit
-FROM account_subjects
-WHERE status = 'active';
-
-COMMENT ON VIEW v_account_balance IS '科目余额视图';
-
--- ========================================
--- 迁移完成提示
--- ========================================
-
-DO $$
-BEGIN
-    RAISE NOTICE '========================================';
-    RAISE NOTICE '总账管理模块（面料行业版）迁移完成';
-    RAISE NOTICE '版本：2026-03-15';
-    RAISE NOTICE '========================================';
-    RAISE NOTICE '新增表：4 个';
-    RAISE NOTICE '  - account_subjects (会计科目表)';
-    RAISE NOTICE '  - vouchers (凭证表)';
-    RAISE NOTICE '  - voucher_items (凭证分录表)';
-    RAISE NOTICE '  - accounting_periods (会计期间表)';
-    RAISE NOTICE '';
-    RAISE NOTICE '创建视图：1 个';
-    RAISE NOTICE '  - v_account_balance (科目余额视图)';
-    RAISE NOTICE '========================================';
-END $$;
--- 双计量单位优化迁移脚本
--- 创建时间：2026-03-15
--- 说明：添加双计量单位计算字段、触发器和索引
-
--- 1. 库存表添加计算字段
-ALTER TABLE inventory_stocks 
-ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
-ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
-
-COMMENT ON COLUMN inventory_stocks.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（公斤/米）';
-
--- 2. 采购入库明细表添加计算字段
-ALTER TABLE purchase_receipt_item 
-ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
-ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
-
-COMMENT ON COLUMN purchase_receipt_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-COMMENT ON COLUMN purchase_receipt_item.unit_conversion_rate IS '单位换算率（公斤/米）';
-
--- 3. 采购订单明细表添加计算字段
-ALTER TABLE purchase_order_item 
-ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
-ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
-
-COMMENT ON COLUMN purchase_order_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-COMMENT ON COLUMN purchase_order_item.unit_conversion_rate IS '单位换算率（公斤/米）';
-
--- 4. 销售出库明细表添加计算字段（如果存在该表）
-DO $$ 
-BEGIN 
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
-        ALTER TABLE sales_delivery_item 
-        ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
-        ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
-        
-        COMMENT ON COLUMN sales_delivery_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-        COMMENT ON COLUMN sales_delivery_item.unit_conversion_rate IS '单位换算率（公斤/米）';
-    END IF;
-END $$;
-
--- 5. 创建双计量单位自动计算触发器函数
-CREATE OR REPLACE FUNCTION calculate_dual_unit_quantity()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- 只有当米数、克重、幅宽都存在时才计算
-    IF NEW.quantity_meters IS NOT NULL 
-       AND NEW.gram_weight IS NOT NULL 
-       AND NEW.width_cm IS NOT NULL 
-       AND NEW.quantity_meters > 0
-       AND NEW.gram_weight > 0
-       AND NEW.width_cm > 0 THEN
-        
-        -- 计算公斤数：米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
-        NEW.quantity_kg := ROUND(
-            NEW.quantity_meters * NEW.gram_weight * (NEW.width_cm / 100.0) / 1000.0,
-            3
-        );
-        NEW.calculated_quantity_kg := NEW.quantity_kg;
-        
-        -- 计算换算率：公斤数 ÷ 米数
-        NEW.unit_conversion_rate := ROUND(
-            NEW.quantity_kg / NULLIF(NEW.quantity_meters, 0),
-            6
-        );
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- 6. 为 inventory_stocks 表创建触发器
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
-CREATE TRIGGER trg_calculate_dual_unit_inventory
-    BEFORE INSERT OR UPDATE ON inventory_stocks
-    FOR EACH ROW
-    EXECUTE FUNCTION calculate_dual_unit_quantity();
-
--- 7. 为 purchase_receipt_item 表创建触发器
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_receipt ON purchase_receipt_item;
-CREATE TRIGGER trg_calculate_dual_unit_receipt
-    BEFORE INSERT OR UPDATE ON purchase_receipt_item
-    FOR EACH ROW
-    EXECUTE FUNCTION calculate_dual_unit_quantity();
-
--- 8. 为 purchase_order_item 表创建触发器
-DROP TRIGGER IF EXISTS trg_calculate_dual_unit_order ON purchase_order_item;
-CREATE TRIGGER trg_calculate_dual_unit_order
-    BEFORE INSERT OR UPDATE ON purchase_order_item
-    FOR EACH ROW
-    EXECUTE FUNCTION calculate_dual_unit_quantity();
-
--- 9. 为 sales_delivery_item 表创建触发器（如果存在）
-DO $$ 
-BEGIN 
-    IF EXISTS (
-        SELECT 1 FROM information_schema.triggers 
-        WHERE trigger_name = 'trg_calculate_dual_unit_sales'
-    ) THEN
-        DROP TRIGGER trg_calculate_dual_unit_sales ON sales_delivery_item;
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
-        CREATE TRIGGER trg_calculate_dual_unit_sales
-            BEFORE INSERT OR UPDATE ON sales_delivery_item
-            FOR EACH ROW
-            EXECUTE FUNCTION calculate_dual_unit_quantity();
-    END IF;
-END $$;
-
--- 10. 更新现有数据（一次性操作）
-UPDATE inventory_stocks
-SET 
-    quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    unit_conversion_rate = ROUND(
-        ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_meters, 0),
-        6
-    )
-WHERE quantity_meters IS NOT NULL 
-  AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
-  AND quantity_meters > 0
-  AND gram_weight > 0
-  AND width_cm > 0;
-
-UPDATE purchase_receipt_item
-SET 
-    quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    unit_conversion_rate = ROUND(
-        ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_received, 0),
-        6
-    )
-WHERE quantity_received IS NOT NULL 
-  AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
-  AND quantity_received > 0
-  AND gram_weight > 0
-  AND width_cm > 0;
-
-UPDATE purchase_order_item
-SET 
-    quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    unit_conversion_rate = ROUND(
-        ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_ordered, 0),
-        6
-    )
-WHERE quantity_ordered IS NOT NULL 
-  AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
-  AND quantity_ordered > 0
-  AND gram_weight > 0
-  AND width_cm > 0;
-
--- 11. 创建索引优化查询性能
-CREATE INDEX IF NOT EXISTS idx_inventory_dual_unit 
-ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width_cm);
-
-CREATE INDEX IF NOT EXISTS idx_receipt_dual_unit 
-ON purchase_receipt_item(quantity_received, quantity_kg, gram_weight, width_cm);
-
-CREATE INDEX IF NOT EXISTS idx_order_dual_unit 
-ON purchase_order_item(quantity_ordered, quantity_kg, gram_weight, width_cm);
-
--- 12. 创建视图方便双计量单位查询
-CREATE OR REPLACE VIEW v_inventory_dual_unit AS
-SELECT 
-    id,
-    product_id,
-    batch_no,
-    color_no,
-    dye_lot_no,
-    grade,
-    quantity_meters,
-    quantity_kg,
-    calculated_quantity_kg,
-    unit_conversion_rate,
-    gram_weight,
-    width_cm,
-    warehouse_id,
-    stock_status,
-    quality_status,
-    created_at,
-    updated_at
-FROM inventory_stocks
-WHERE quantity_meters IS NOT NULL;
-
-COMMENT ON VIEW v_inventory_dual_unit IS '库存双计量单位视图（包含换算信息）';
-
--- 迁移完成提示
-DO $$
-BEGIN
-    RAISE NOTICE '双计量单位优化迁移完成！';
-    RAISE NOTICE '- 新增字段：calculated_quantity_kg, unit_conversion_rate';
-    RAISE NOTICE '- 新增触发器：自动计算公斤数和换算率';
-    RAISE NOTICE '- 新增索引：优化双计量单位查询';
-    RAISE NOTICE '- 新增视图：v_inventory_dual_unit';
-END $$;
--- ============================================================
--- 面料行业五维管理优化迁移脚本
--- 版本：v2.0
--- 日期：2024-01-01
--- 说明：优化五维查询性能，添加组合索引和计算列
--- ============================================================
-
--- 1. 为 inventory_stocks 表添加五维组合索引
--- 优化按批次 + 色号 + 等级查询
-CREATE INDEX IF NOT EXISTS idx_inventory_five_dimension
-ON inventory_stocks(product_id, batch_no, color_no, grade);
-
--- 2. 为 inventory_stocks 表添加五维 ID 计算列（虚拟列）
--- 格式：P{id}|B{batch}|C{color}|D{dye_lot}|G{grade}
-ALTER TABLE inventory_stocks 
-ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
-GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
-) STORED;
-
--- 3. 为五维 ID 添加索引，加速精确查询
-CREATE INDEX IF NOT EXISTS idx_inventory_five_dimension_id
-ON inventory_stocks(five_dimension_id);
-
--- 4. 为 purchase_receipt_item 表添加五维组合索引
-CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
-ON purchase_receipt_item(product_id, batch_no, color_no, grade);
-
--- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
-ALTER TABLE purchase_receipt_item 
-ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
-GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
-) STORED;
-
--- 6. 为 purchase_receipt_item 的五维 ID 添加索引
-CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim_id
-ON purchase_receipt_item(five_dimension_id);
-
--- 7. 为 sales_delivery_item 表添加五维组合索引
-CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
-ON sales_delivery_item(product_id, batch_no, color_no, grade);
-
--- 8. 为 sales_delivery_item 表添加五维 ID 计算列
-ALTER TABLE sales_delivery_item 
-ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
-GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
-) STORED;
-
--- 9. 为 sales_delivery_item 的五维 ID 添加索引
-CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim_id
-ON sales_delivery_item(five_dimension_id);
-
--- 10. 为 inventory_transaction 表添加五维组合索引
-CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim
-ON inventory_transactions(product_id, batch_no, color_no, grade);
-
--- 11. 为 inventory_transaction 表添加五维 ID 计算列
-ALTER TABLE inventory_transactions 
-ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
-GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
-) STORED;
-
--- 12. 为 inventory_transaction 的五维 ID 添加索引
-CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim_id
-ON inventory_transactions(five_dimension_id);
-
--- 13. 创建五维统计视图（简化查询）
-CREATE OR REPLACE VIEW v_five_dimension_inventory_summary AS
-SELECT 
-    product_id,
-    batch_no,
-    color_no,
-    dye_lot_no,
-    grade,
-    five_dimension_id,
-    COUNT(*) as stock_count,
-    SUM(quantity_meters) as total_meters,
-    SUM(quantity_kg) as total_kg,
-    MAX(updated_at) as last_updated
-FROM inventory_stocks
-GROUP BY 
-    product_id,
-    batch_no,
-    color_no,
-    dye_lot_no,
-    grade,
-    five_dimension_id;
-
--- 14. 创建五维查询函数（带模糊匹配）
-CREATE OR REPLACE FUNCTION search_by_five_dimension(
-    p_product_id INTEGER DEFAULT NULL,
-    p_batch_no VARCHAR DEFAULT NULL,
-    p_color_no VARCHAR DEFAULT NULL,
-    p_dye_lot_no VARCHAR DEFAULT NULL,
-    p_grade VARCHAR DEFAULT NULL
-)
-RETURNS TABLE (
-    inventory_id INTEGER,
-    five_dim_id VARCHAR,
-    warehouse_id INTEGER,
-    quantity_meters DECIMAL,
-    quantity_kg DECIMAL,
-    stock_status VARCHAR
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        i.id,
-        i.five_dimension_id,
-        i.warehouse_id,
-        i.quantity_meters,
-        i.quantity_kg,
-        i.stock_status
-    FROM inventory_stocks i
-    WHERE 
-        (p_product_id IS NULL OR i.product_id = p_product_id)
-        AND (p_batch_no IS NULL OR i.batch_no LIKE CONCAT('%', p_batch_no, '%'))
-        AND (p_color_no IS NULL OR i.color_no LIKE CONCAT('%', p_color_no, '%'))
-        AND (p_dye_lot_no IS NULL OR i.dye_lot_no IS NOT NULL AND i.dye_lot_no LIKE CONCAT('%', p_dye_lot_no, '%'))
-        AND (p_grade IS NULL OR i.grade = p_grade);
-END;
-$$ LANGUAGE plpgsql;
-
--- 15. 添加注释说明
-COMMENT ON INDEX idx_inventory_five_dimension IS '五维组合索引 - 优化库存查询';
-COMMENT ON INDEX idx_inventory_five_dimension_id IS '五维 ID 索引 - 精确查询';
-COMMENT ON INDEX idx_purchase_receipt_five_dim IS '采购收货五维索引';
-COMMENT ON INDEX idx_sales_delivery_five_dim IS '销售发货五维索引';
-COMMENT ON INDEX idx_inventory_transaction_five_dim IS '库存流水五维索引';
-COMMENT ON VIEW v_five_dimension_inventory_summary IS '五维库存统计视图';
--- COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模糊匹配）';
-
--- ============================================================
--- 迁移完成
--- 性能提升预期：
--- - 五维组合查询速度提升：80-90%
--- - 精确查询（通过五维 ID）：95%+
--- - 模糊查询：60-70%
--- ============================================================
--- ============================================================
--- 面料行业业务追溯链条优化迁移脚本
--- 版本：v2.0
--- 日期：2024-01-01
--- 说明：实现完整的正向 + 反向业务追溯体系
--- ============================================================
-
--- 1. 创建业务追溯链表
-
--- 2. 创建业务追溯快照表
-
--- 3. 为追溯链表添加索引
-CREATE INDEX IF NOT EXISTS idx_trace_chain_five_dim ON business_trace_chain(five_dimension_id);
-CREATE INDEX IF NOT EXISTS idx_trace_chain_batch ON business_trace_chain(batch_no);
-CREATE INDEX IF NOT EXISTS idx_trace_chain_supplier ON business_trace_chain(supplier_id);
-CREATE INDEX IF NOT EXISTS idx_trace_chain_customer ON business_trace_chain(customer_id);
-CREATE INDEX IF NOT EXISTS idx_trace_chain_stage ON business_trace_chain(current_stage);
-CREATE INDEX IF NOT EXISTS idx_trace_chain_status ON business_trace_chain(trace_status);
-CREATE INDEX IF NOT EXISTS idx_trace_chain_created ON business_trace_chain(created_at);
-
--- 4. 为追溯快照表添加索引
-CREATE INDEX IF NOT EXISTS idx_trace_snapshot_chain_id ON business_trace_snapshot(trace_chain_id);
-CREATE INDEX IF NOT EXISTS idx_trace_snapshot_five_dim ON business_trace_snapshot(five_dimension_id);
-CREATE INDEX IF NOT EXISTS idx_trace_snapshot_batch ON business_trace_snapshot(batch_no);
-CREATE INDEX IF NOT EXISTS idx_trace_snapshot_time ON business_trace_snapshot(snapshot_time);
-
--- 5. 创建业务追溯视图（简化查询）
-CREATE OR REPLACE VIEW v_business_trace_view AS
-SELECT 
-    t.id,
-    t.trace_chain_id,
-    t.five_dimension_id,
-    t.product_id,
-    t.batch_no,
-    t.color_no,
-    t.grade,
-    FIRST_VALUE(t.current_stage) OVER (
-        PARTITION BY t.trace_chain_id 
-        ORDER BY t.created_at ASC
-    ) as start_stage,
-    t.current_stage,
-    COUNT(*) OVER (PARTITION BY t.trace_chain_id) as stage_count,
-    SUM(CASE 
-        WHEN t.current_stage IN ('PURCHASE_RECEIPT', 'INVENTORY_IN', 'PRODUCTION_OUTPUT') 
-        THEN t.quantity_meters 
-        ELSE 0 
-    END) OVER (PARTITION BY t.trace_chain_id) as total_in_meters,
-    SUM(CASE 
-        WHEN t.current_stage IN ('INVENTORY_OUT', 'SALES_DELIVERY', 'PRODUCTION_INPUT') 
-        THEN t.quantity_meters 
-        ELSE 0 
-    END) OVER (PARTITION BY t.trace_chain_id) as total_out_meters,
-    t.quantity_meters as current_stock_meters,
-    NULL as supplier_name,
-    NULL as customer_name,
-    t.created_at,
-    MAX(t.created_at) OVER (PARTITION BY t.trace_chain_id) as updated_at
-FROM business_trace_chain t;
-
--- 6. 创建追溯链查询函数
-CREATE OR REPLACE FUNCTION get_trace_chain_by_five_dim(p_five_dimension_id VARCHAR)
-RETURNS TABLE (
-    trace_id INTEGER,
-    trace_chain_id VARCHAR,
-    stage_name VARCHAR,
-    bill_type VARCHAR,
-    bill_no VARCHAR,
-    quantity_meters DECIMAL,
-    warehouse_id INTEGER,
-    created_at TIMESTAMP
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        t.id,
-        t.trace_chain_id,
-        t.current_stage,
-        t.current_bill_type,
-        t.current_bill_no,
-        t.quantity_meters,
-        t.warehouse_id,
-        t.created_at
-    FROM business_trace_chain t
-    WHERE t.five_dimension_id = p_five_dimension_id
-    ORDER BY t.created_at ASC;
-END;
-$$ LANGUAGE plpgsql;
-
--- 7. 创建正向追溯函数
-CREATE OR REPLACE FUNCTION forward_trace_by_supplier(p_supplier_id INTEGER, p_batch_no VARCHAR)
-RETURNS TABLE (
-    trace_id INTEGER,
-    trace_chain_id VARCHAR,
-    five_dimension_id VARCHAR,
-    current_stage VARCHAR,
-    quantity_meters DECIMAL,
-    created_at TIMESTAMP
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        t.id,
-        t.trace_chain_id,
-        t.five_dimension_id,
-        t.current_stage,
-        t.quantity_meters,
-        t.created_at
-    FROM business_trace_chain t
-    WHERE t.supplier_id = p_supplier_id
-      AND t.batch_no = p_batch_no
-      AND t.current_stage = 'PURCHASE_RECEIPT'
-    ORDER BY t.created_at ASC;
-END;
-$$ LANGUAGE plpgsql;
-
--- 8. 创建反向追溯函数
-CREATE OR REPLACE FUNCTION backward_trace_by_customer(p_customer_id INTEGER, p_batch_no VARCHAR)
-RETURNS TABLE (
-    trace_id INTEGER,
-    trace_chain_id VARCHAR,
-    five_dimension_id VARCHAR,
-    current_stage VARCHAR,
-    quantity_meters DECIMAL,
-    created_at TIMESTAMP
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        t.id,
-        t.trace_chain_id,
-        t.five_dimension_id,
-        t.current_stage,
-        t.quantity_meters,
-        t.created_at
-    FROM business_trace_chain t
-    WHERE t.customer_id = p_customer_id
-      AND t.batch_no = p_batch_no
-      AND t.current_stage = 'SALES_DELIVERY'
-    ORDER BY t.created_at DESC;
-END;
-$$ LANGUAGE plpgsql;
-
--- 9. 添加注释说明
-COMMENT ON TABLE business_trace_chain IS '业务追溯链 - 记录物料从采购到销售的完整流转过程';
-COMMENT ON TABLE business_trace_snapshot IS '业务追溯快照 - 定期保存追溯链状态，用于快速查询';
-COMMENT ON VIEW v_business_trace_view IS '业务追溯视图 - 简化追溯查询';
--- COMMENT ON FUNCTION get_trace_chain_by_five_dim IS '按五维 ID 查询追溯链';
--- COMMENT ON FUNCTION forward_trace_by_supplier IS '正向追溯：从供应商到客户';
--- COMMENT ON FUNCTION backward_trace_by_customer IS '反向追溯：从客户到供应商';
-
--- 10. 添加触发器：自动更新追溯链状态
-CREATE OR REPLACE FUNCTION update_trace_chain_status()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- 如果是最后一个环节（销售发货），标记为已完成
-    IF NEW.current_stage = 'SALES_DELIVERY' THEN
-        NEW.trace_status := 'COMPLETED';
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_update_trace_status
-    BEFORE INSERT OR UPDATE ON business_trace_chain
-    FOR EACH ROW
-    EXECUTE FUNCTION update_trace_chain_status();
-
--- ============================================================
--- 追溯链条说明
--- ============================================================
--- 正向追溯流程：
--- 1. PURCHASE_RECEIPT (采购收货) - 供应商 → 仓库
--- 2. INVENTORY_IN (入库) - 仓库接收
--- 3. PRODUCTION_INPUT (生产投入) - 仓库 → 车间
--- 4. PRODUCTION_OUTPUT (生产产出) - 车间 → 仓库
--- 5. INVENTORY_OUT (出库) - 仓库备货
--- 6. SALES_DELIVERY (销售发货) - 仓库 → 客户
---
--- 反向追溯流程：
--- 1. 从销售发货开始
--- 2. 通过 previous_trace_id 逐级回溯
--- 3. 直到采购收货环节
---
--- 性能优化：
--- - 五维 ID 索引：加速按批次 + 色号查询
--- - 供应商/客户索引：加速正向/反向追溯
--- - 快照表：定期保存状态，避免长链查询
--- ============================================================
 -- ========================================
 -- 秉羲 ERP 系统 - 供应商管理模块数据库迁移
 -- 版本：2026-03-15
@@ -3128,45 +2398,6 @@ COMMENT ON COLUMN inventory_counts.completed_at IS '完成时间';
 COMMENT ON COLUMN inventory_counts.created_at IS '创建时间';
 COMMENT ON COLUMN inventory_counts.updated_at IS '更新时间';
 
--- ==================== 库存盘点明细表 ====================
--- 存储库存盘点单的明细项
-
--- 为盘点单 ID 创建索引（高频查询字段）
-CREATE INDEX IF NOT EXISTS idx_count_items_count_id ON inventory_count_items(count_id);
--- 为产品 ID 创建索引
-CREATE INDEX IF NOT EXISTS idx_count_items_product_id ON inventory_count_items(product_id);
-
--- 添加表注释
-COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';
-COMMENT ON COLUMN inventory_count_items.id IS '明细 ID';
-COMMENT ON COLUMN inventory_count_items.count_id IS '盘点单 ID';
-COMMENT ON COLUMN inventory_count_items.product_id IS '产品 ID';
-COMMENT ON COLUMN inventory_count_items.bin_location IS '库位';
-COMMENT ON COLUMN inventory_count_items.quantity_book IS '账面数量';
-COMMENT ON COLUMN inventory_count_items.quantity_actual IS '实际数量';
-COMMENT ON COLUMN inventory_count_items.quantity_variance IS '差异数量';
-COMMENT ON COLUMN inventory_count_items.unit_cost IS '单位成本';
-COMMENT ON COLUMN inventory_count_items.variance_amount IS '差异金额';
-COMMENT ON COLUMN inventory_count_items.notes IS '备注';
-COMMENT ON COLUMN inventory_count_items.counted_by IS '盘点人';
-COMMENT ON COLUMN inventory_count_items.counted_at IS '盘点时间';
-COMMENT ON COLUMN inventory_count_items.created_at IS '创建时间';
-COMMENT ON COLUMN inventory_count_items.updated_at IS '更新时间';
-
--- ==================== 触发器：自动更新时间 ====================
--- 为 inventory_counts 表创建触发器
-CREATE TRIGGER update_inventory_counts_updated_at BEFORE UPDATE ON inventory_counts
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 为 inventory_count_items 表创建触发器
-CREATE TRIGGER update_inventory_count_items_updated_at BEFORE UPDATE ON inventory_count_items
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- ==================== 完成提示 ====================
-DO $$
-BEGIN
-    RAISE NOTICE '库存盘点表创建完成！';
-END $$;
 -- ============================================
 -- 库存盘点明细表 - 补充表
 -- ============================================
@@ -9337,3 +8568,774 @@ GENERATED ALWAYS AS (
         'G', grade
     )
 ) STORED;
+
+-- ====== MOVED ORPHAN BLOCKS ======
+-- ==================== 库存调拨表 ====================
+
+COMMENT ON TABLE inventory_transfers IS '库存调拨表';
+COMMENT ON COLUMN inventory_transfers.status IS '状态：pending-待审核，approved-已审核，rejected-已驳回，shipped-已发出，completed-已完成';
+
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_no ON inventory_transfers(transfer_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfers_status ON inventory_transfers(status);
+
+-- ==================== 库存调拨明细表 ====================
+
+COMMENT ON TABLE inventory_transfer_items IS '库存调拨明细表';
+
+CREATE INDEX IF NOT EXISTS idx_inventory_transfer_items_transfer_id ON inventory_transfer_items(transfer_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_transfer_items_product_id ON inventory_transfer_items(product_id);
+
+-- ==================== 库存盘点表 ====================
+
+COMMENT ON TABLE inventory_counts IS '库存盘点表';
+COMMENT ON COLUMN inventory_counts.status IS '状态：pending-待审核，approved-已审核，rejected-已驳回，completed-已完成';
+
+CREATE INDEX IF NOT EXISTS idx_inventory_counts_no ON inventory_counts(count_no);
+CREATE INDEX IF NOT EXISTS idx_inventory_counts_status ON inventory_counts(status);
+
+-- ==================== 库存盘点明细表 ====================
+
+COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';
+
+
+-- ========================================
+-- 总账管理模块（面料行业版）
+-- 版本：2026-03-15
+-- 说明：财务系统核心基础模块
+-- ========================================
+
+-- ========================================
+-- 1. 会计科目表
+-- ========================================
+
+COMMENT ON TABLE account_subjects IS '会计科目表（面料行业版）';
+COMMENT ON COLUMN account_subjects.code IS '科目编码';
+COMMENT ON COLUMN account_subjects.name IS '科目名称';
+COMMENT ON COLUMN account_subjects.level IS '科目级别（1-6）';
+COMMENT ON COLUMN account_subjects.balance_direction IS '余额方向：借/贷/无';
+COMMENT ON COLUMN account_subjects.assist_batch IS '是否启用批次辅助核算';
+COMMENT ON COLUMN account_subjects.assist_color_no IS '是否启用色号辅助核算';
+COMMENT ON COLUMN account_subjects.enable_dual_unit IS '是否启用双计量单位';
+
+CREATE INDEX IF NOT EXISTS idx_account_subjects_code ON account_subjects(code);
+CREATE INDEX IF NOT EXISTS idx_account_subjects_parent ON account_subjects(parent_id);
+CREATE INDEX IF NOT EXISTS idx_account_subjects_level ON account_subjects(level);
+
+-- ========================================
+-- 2. 凭证表
+-- ========================================
+
+COMMENT ON TABLE vouchers IS '凭证表（面料行业版）';
+COMMENT ON COLUMN vouchers.voucher_no IS '凭证字号';
+COMMENT ON COLUMN vouchers.voucher_type IS '凭证类型：记/收/付/转';
+COMMENT ON COLUMN vouchers.batch_no IS '批次号';
+COMMENT ON COLUMN vouchers.color_no IS '色号';
+COMMENT ON COLUMN vouchers.quantity_meters IS '数量（米）';
+COMMENT ON COLUMN vouchers.quantity_kg IS '数量（公斤）';
+
+CREATE INDEX IF NOT EXISTS idx_vouchers_no ON vouchers(voucher_no);
+CREATE INDEX IF NOT EXISTS idx_vouchers_date ON vouchers(voucher_date);
+CREATE INDEX IF NOT EXISTS idx_vouchers_status ON vouchers(status);
+CREATE INDEX IF NOT EXISTS idx_vouchers_batch ON vouchers(batch_no, color_no);
+
+-- ========================================
+-- 3. 凭证分录表
+-- ========================================
+
+COMMENT ON TABLE voucher_items IS '凭证分录表（面料行业版）';
+COMMENT ON COLUMN voucher_items.assist_batch_id IS '批次辅助核算 ID';
+COMMENT ON COLUMN voucher_items.assist_color_no_id IS '色号辅助核算 ID';
+COMMENT ON COLUMN voucher_items.quantity_meters IS '数量（米）';
+
+CREATE INDEX IF NOT EXISTS idx_voucher_items_voucher ON voucher_items(voucher_id);
+CREATE INDEX IF NOT EXISTS idx_voucher_items_subject ON voucher_items(subject_code);
+CREATE INDEX IF NOT EXISTS idx_voucher_items_batch ON voucher_items(assist_batch_id, assist_color_no_id);
+
+-- ========================================
+-- 4. 会计期间表
+-- ========================================
+CREATE TABLE IF NOT EXISTS accounting_periods (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    period INTEGER NOT NULL,
+    period_name VARCHAR(50) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'OPEN',
+    closed_at TIMESTAMPTZ,
+    closed_by INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE accounting_periods IS '会计期间表';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accounting_periods_year_period ON accounting_periods(year, period);
+
+-- ========================================
+-- 5. 初始化会计科目（面料行业）
+-- ========================================
+
+-- 插入一级科目
+INSERT INTO account_subjects (code, name, level, balance_direction, status) VALUES
+('1001', '库存现金', 1, '借', 'active'),
+('1002', '银行存款', 1, '借', 'active'),
+('1122', '应收账款', 1, '借', 'active'),
+('1405', '库存商品', 1, '借', 'active'),
+('2202', '应付账款', 1, '贷', 'active'),
+('2221', '应交税费', 1, '贷', 'active'),
+('5001', '生产成本', 1, '借', 'active'),
+('6001', '主营业务收入', 1, '贷', 'active'),
+('6401', '主营业务成本', 1, '借', 'active');
+
+-- 插入二级科目（示例）
+INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
+SELECT 
+    '1002.01', '工商银行', 2, id, '借', 'active'
+FROM account_subjects WHERE code = '1002';
+
+INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
+SELECT 
+    '1405.01', '坯布', 2, id, '借', 'active'
+FROM account_subjects WHERE code = '1405';
+
+INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status, assist_batch, assist_color_no, enable_dual_unit)
+SELECT 
+    '1405.02', '成品布', 2, id, '借', 'active', true, true, true
+FROM account_subjects WHERE code = '1405';
+
+-- ========================================
+-- 6. 创建视图
+-- ========================================
+
+-- 科目余额视图
+CREATE OR REPLACE VIEW v_account_balance AS
+SELECT 
+    id,
+    code,
+    name,
+    level,
+    balance_direction,
+    initial_balance_debit,
+    initial_balance_credit,
+    current_period_debit,
+    current_period_credit,
+    ending_balance_debit,
+    ending_balance_credit
+FROM account_subjects
+WHERE status = 'active';
+
+COMMENT ON VIEW v_account_balance IS '科目余额视图';
+
+-- ========================================
+-- 迁移完成提示
+-- ========================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE '总账管理模块（面料行业版）迁移完成';
+    RAISE NOTICE '版本：2026-03-15';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE '新增表：4 个';
+    RAISE NOTICE '  - account_subjects (会计科目表)';
+    RAISE NOTICE '  - vouchers (凭证表)';
+    RAISE NOTICE '  - voucher_items (凭证分录表)';
+    RAISE NOTICE '  - accounting_periods (会计期间表)';
+    RAISE NOTICE '';
+    RAISE NOTICE '创建视图：1 个';
+    RAISE NOTICE '  - v_account_balance (科目余额视图)';
+    RAISE NOTICE '========================================';
+END $$;
+-- 双计量单位优化迁移脚本
+-- 创建时间：2026-03-15
+-- 说明：添加双计量单位计算字段、触发器和索引
+
+-- 1. 库存表添加计算字段
+ALTER TABLE inventory_stocks 
+ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
+ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
+
+COMMENT ON COLUMN inventory_stocks.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
+COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（公斤/米）';
+
+-- 2. 采购入库明细表添加计算字段
+ALTER TABLE purchase_receipt_item 
+ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
+ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
+
+COMMENT ON COLUMN purchase_receipt_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
+COMMENT ON COLUMN purchase_receipt_item.unit_conversion_rate IS '单位换算率（公斤/米）';
+
+-- 3. 采购订单明细表添加计算字段
+ALTER TABLE purchase_order_item 
+ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
+ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
+
+COMMENT ON COLUMN purchase_order_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
+COMMENT ON COLUMN purchase_order_item.unit_conversion_rate IS '单位换算率（公斤/米）';
+
+-- 4. 销售出库明细表添加计算字段（如果存在该表）
+DO $$ 
+BEGIN 
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
+        ALTER TABLE sales_delivery_item 
+        ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
+        ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
+        
+        COMMENT ON COLUMN sales_delivery_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
+        COMMENT ON COLUMN sales_delivery_item.unit_conversion_rate IS '单位换算率（公斤/米）';
+    END IF;
+END $$;
+
+-- 5. 创建双计量单位自动计算触发器函数
+CREATE OR REPLACE FUNCTION calculate_dual_unit_quantity()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 只有当米数、克重、幅宽都存在时才计算
+    IF NEW.quantity_meters IS NOT NULL 
+       AND NEW.gram_weight IS NOT NULL 
+       AND NEW.width_cm IS NOT NULL 
+       AND NEW.quantity_meters > 0
+       AND NEW.gram_weight > 0
+       AND NEW.width_cm > 0 THEN
+        
+        -- 计算公斤数：米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
+        NEW.quantity_kg := ROUND(
+            NEW.quantity_meters * NEW.gram_weight * (NEW.width_cm / 100.0) / 1000.0,
+            3
+        );
+        NEW.calculated_quantity_kg := NEW.quantity_kg;
+        
+        -- 计算换算率：公斤数 ÷ 米数
+        NEW.unit_conversion_rate := ROUND(
+            NEW.quantity_kg / NULLIF(NEW.quantity_meters, 0),
+            6
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 6. 为 inventory_stocks 表创建触发器
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_inventory ON inventory_stocks;
+CREATE TRIGGER trg_calculate_dual_unit_inventory
+    BEFORE INSERT OR UPDATE ON inventory_stocks
+    FOR EACH ROW
+    EXECUTE FUNCTION calculate_dual_unit_quantity();
+
+-- 7. 为 purchase_receipt_item 表创建触发器
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_receipt ON purchase_receipt_item;
+CREATE TRIGGER trg_calculate_dual_unit_receipt
+    BEFORE INSERT OR UPDATE ON purchase_receipt_item
+    FOR EACH ROW
+    EXECUTE FUNCTION calculate_dual_unit_quantity();
+
+-- 8. 为 purchase_order_item 表创建触发器
+DROP TRIGGER IF EXISTS trg_calculate_dual_unit_order ON purchase_order_item;
+CREATE TRIGGER trg_calculate_dual_unit_order
+    BEFORE INSERT OR UPDATE ON purchase_order_item
+    FOR EACH ROW
+    EXECUTE FUNCTION calculate_dual_unit_quantity();
+
+-- 9. 为 sales_delivery_item 表创建触发器（如果存在）
+DO $$ 
+BEGIN 
+    IF EXISTS (
+        SELECT 1 FROM information_schema.triggers 
+        WHERE trigger_name = 'trg_calculate_dual_unit_sales'
+    ) THEN
+        DROP TRIGGER trg_calculate_dual_unit_sales ON sales_delivery_item;
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
+        CREATE TRIGGER trg_calculate_dual_unit_sales
+            BEFORE INSERT OR UPDATE ON sales_delivery_item
+            FOR EACH ROW
+            EXECUTE FUNCTION calculate_dual_unit_quantity();
+    END IF;
+END $$;
+
+-- 10. 更新现有数据（一次性操作）
+UPDATE inventory_stocks
+SET 
+    quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    unit_conversion_rate = ROUND(
+        ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_meters, 0),
+        6
+    )
+WHERE quantity_meters IS NOT NULL 
+  AND gram_weight IS NOT NULL 
+  AND width_cm IS NOT NULL
+  AND quantity_meters > 0
+  AND gram_weight > 0
+  AND width_cm > 0;
+
+UPDATE purchase_receipt_item
+SET 
+    quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    unit_conversion_rate = ROUND(
+        ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_received, 0),
+        6
+    )
+WHERE quantity_received IS NOT NULL 
+  AND gram_weight IS NOT NULL 
+  AND width_cm IS NOT NULL
+  AND quantity_received > 0
+  AND gram_weight > 0
+  AND width_cm > 0;
+
+UPDATE purchase_order_item
+SET 
+    quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    unit_conversion_rate = ROUND(
+        ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_ordered, 0),
+        6
+    )
+WHERE quantity_ordered IS NOT NULL 
+  AND gram_weight IS NOT NULL 
+  AND width_cm IS NOT NULL
+  AND quantity_ordered > 0
+  AND gram_weight > 0
+  AND width_cm > 0;
+
+-- 11. 创建索引优化查询性能
+CREATE INDEX IF NOT EXISTS idx_inventory_dual_unit 
+ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width_cm);
+
+CREATE INDEX IF NOT EXISTS idx_receipt_dual_unit 
+ON purchase_receipt_item(quantity_received, quantity_kg, gram_weight, width_cm);
+
+CREATE INDEX IF NOT EXISTS idx_order_dual_unit 
+ON purchase_order_item(quantity_ordered, quantity_kg, gram_weight, width_cm);
+
+-- 12. 创建视图方便双计量单位查询
+CREATE OR REPLACE VIEW v_inventory_dual_unit AS
+SELECT 
+    id,
+    product_id,
+    batch_no,
+    color_no,
+    dye_lot_no,
+    grade,
+    quantity_meters,
+    quantity_kg,
+    calculated_quantity_kg,
+    unit_conversion_rate,
+    gram_weight,
+    width_cm,
+    warehouse_id,
+    stock_status,
+    quality_status,
+    created_at,
+    updated_at
+FROM inventory_stocks
+WHERE quantity_meters IS NOT NULL;
+
+COMMENT ON VIEW v_inventory_dual_unit IS '库存双计量单位视图（包含换算信息）';
+
+-- 迁移完成提示
+DO $$
+BEGIN
+    RAISE NOTICE '双计量单位优化迁移完成！';
+    RAISE NOTICE '- 新增字段：calculated_quantity_kg, unit_conversion_rate';
+    RAISE NOTICE '- 新增触发器：自动计算公斤数和换算率';
+    RAISE NOTICE '- 新增索引：优化双计量单位查询';
+    RAISE NOTICE '- 新增视图：v_inventory_dual_unit';
+END $$;
+-- ============================================================
+-- 面料行业五维管理优化迁移脚本
+-- 版本：v2.0
+-- 日期：2024-01-01
+-- 说明：优化五维查询性能，添加组合索引和计算列
+-- ============================================================
+
+-- 1. 为 inventory_stocks 表添加五维组合索引
+-- 优化按批次 + 色号 + 等级查询
+CREATE INDEX IF NOT EXISTS idx_inventory_five_dimension
+ON inventory_stocks(product_id, batch_no, color_no, grade);
+
+-- 2. 为 inventory_stocks 表添加五维 ID 计算列（虚拟列）
+-- 格式：P{id}|B{batch}|C{color}|D{dye_lot}|G{grade}
+ALTER TABLE inventory_stocks 
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
+
+-- 3. 为五维 ID 添加索引，加速精确查询
+CREATE INDEX IF NOT EXISTS idx_inventory_five_dimension_id
+ON inventory_stocks(five_dimension_id);
+
+-- 4. 为 purchase_receipt_item 表添加五维组合索引
+CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
+ON purchase_receipt_item(product_id, batch_no, color_no, grade);
+
+-- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
+ALTER TABLE purchase_receipt_item 
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
+
+-- 6. 为 purchase_receipt_item 的五维 ID 添加索引
+CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim_id
+ON purchase_receipt_item(five_dimension_id);
+
+-- 7. 为 sales_delivery_item 表添加五维组合索引
+CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
+ON sales_delivery_item(product_id, batch_no, color_no, grade);
+
+-- 8. 为 sales_delivery_item 表添加五维 ID 计算列
+ALTER TABLE sales_delivery_item 
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
+
+-- 9. 为 sales_delivery_item 的五维 ID 添加索引
+CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim_id
+ON sales_delivery_item(five_dimension_id);
+
+-- 10. 为 inventory_transaction 表添加五维组合索引
+CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim
+ON inventory_transactions(product_id, batch_no, color_no, grade);
+
+-- 11. 为 inventory_transaction 表添加五维 ID 计算列
+ALTER TABLE inventory_transactions 
+ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
+GENERATED ALWAYS AS (
+    CONCAT(
+        'P', product_id, '|',
+        'B', batch_no, '|',
+        'C', color_no, '|',
+        'D', COALESCE(dye_lot_no, 'N'), '|',
+        'G', grade
+    )
+) STORED;
+
+-- 12. 为 inventory_transaction 的五维 ID 添加索引
+CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim_id
+ON inventory_transactions(five_dimension_id);
+
+-- 13. 创建五维统计视图（简化查询）
+CREATE OR REPLACE VIEW v_five_dimension_inventory_summary AS
+SELECT 
+    product_id,
+    batch_no,
+    color_no,
+    dye_lot_no,
+    grade,
+    five_dimension_id,
+    COUNT(*) as stock_count,
+    SUM(quantity_meters) as total_meters,
+    SUM(quantity_kg) as total_kg,
+    MAX(updated_at) as last_updated
+FROM inventory_stocks
+GROUP BY 
+    product_id,
+    batch_no,
+    color_no,
+    dye_lot_no,
+    grade,
+    five_dimension_id;
+
+-- 14. 创建五维查询函数（带模糊匹配）
+CREATE OR REPLACE FUNCTION search_by_five_dimension(
+    p_product_id INTEGER DEFAULT NULL,
+    p_batch_no VARCHAR DEFAULT NULL,
+    p_color_no VARCHAR DEFAULT NULL,
+    p_dye_lot_no VARCHAR DEFAULT NULL,
+    p_grade VARCHAR DEFAULT NULL
+)
+RETURNS TABLE (
+    inventory_id INTEGER,
+    five_dim_id VARCHAR,
+    warehouse_id INTEGER,
+    quantity_meters DECIMAL,
+    quantity_kg DECIMAL,
+    stock_status VARCHAR
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        i.id,
+        i.five_dimension_id,
+        i.warehouse_id,
+        i.quantity_meters,
+        i.quantity_kg,
+        i.stock_status
+    FROM inventory_stocks i
+    WHERE 
+        (p_product_id IS NULL OR i.product_id = p_product_id)
+        AND (p_batch_no IS NULL OR i.batch_no LIKE CONCAT('%', p_batch_no, '%'))
+        AND (p_color_no IS NULL OR i.color_no LIKE CONCAT('%', p_color_no, '%'))
+        AND (p_dye_lot_no IS NULL OR i.dye_lot_no IS NOT NULL AND i.dye_lot_no LIKE CONCAT('%', p_dye_lot_no, '%'))
+        AND (p_grade IS NULL OR i.grade = p_grade);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 15. 添加注释说明
+COMMENT ON INDEX idx_inventory_five_dimension IS '五维组合索引 - 优化库存查询';
+COMMENT ON INDEX idx_inventory_five_dimension_id IS '五维 ID 索引 - 精确查询';
+COMMENT ON INDEX idx_purchase_receipt_five_dim IS '采购收货五维索引';
+COMMENT ON INDEX idx_sales_delivery_five_dim IS '销售发货五维索引';
+COMMENT ON INDEX idx_inventory_transaction_five_dim IS '库存流水五维索引';
+COMMENT ON VIEW v_five_dimension_inventory_summary IS '五维库存统计视图';
+-- COMMENT ON FUNCTION search_by_five_dimension IS '五维搜索函数（支持模糊匹配）';
+
+-- ============================================================
+-- 迁移完成
+-- 性能提升预期：
+-- - 五维组合查询速度提升：80-90%
+-- - 精确查询（通过五维 ID）：95%+
+-- - 模糊查询：60-70%
+-- ============================================================
+-- ============================================================
+-- 面料行业业务追溯链条优化迁移脚本
+-- 版本：v2.0
+-- 日期：2024-01-01
+-- 说明：实现完整的正向 + 反向业务追溯体系
+-- ============================================================
+
+-- 1. 创建业务追溯链表
+
+-- 2. 创建业务追溯快照表
+
+-- 3. 为追溯链表添加索引
+CREATE INDEX IF NOT EXISTS idx_trace_chain_five_dim ON business_trace_chain(five_dimension_id);
+CREATE INDEX IF NOT EXISTS idx_trace_chain_batch ON business_trace_chain(batch_no);
+CREATE INDEX IF NOT EXISTS idx_trace_chain_supplier ON business_trace_chain(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_trace_chain_customer ON business_trace_chain(customer_id);
+CREATE INDEX IF NOT EXISTS idx_trace_chain_stage ON business_trace_chain(current_stage);
+CREATE INDEX IF NOT EXISTS idx_trace_chain_status ON business_trace_chain(trace_status);
+CREATE INDEX IF NOT EXISTS idx_trace_chain_created ON business_trace_chain(created_at);
+
+-- 4. 为追溯快照表添加索引
+CREATE INDEX IF NOT EXISTS idx_trace_snapshot_chain_id ON business_trace_snapshot(trace_chain_id);
+CREATE INDEX IF NOT EXISTS idx_trace_snapshot_five_dim ON business_trace_snapshot(five_dimension_id);
+CREATE INDEX IF NOT EXISTS idx_trace_snapshot_batch ON business_trace_snapshot(batch_no);
+CREATE INDEX IF NOT EXISTS idx_trace_snapshot_time ON business_trace_snapshot(snapshot_time);
+
+-- 5. 创建业务追溯视图（简化查询）
+CREATE OR REPLACE VIEW v_business_trace_view AS
+SELECT 
+    t.id,
+    t.trace_chain_id,
+    t.five_dimension_id,
+    t.product_id,
+    t.batch_no,
+    t.color_no,
+    t.grade,
+    FIRST_VALUE(t.current_stage) OVER (
+        PARTITION BY t.trace_chain_id 
+        ORDER BY t.created_at ASC
+    ) as start_stage,
+    t.current_stage,
+    COUNT(*) OVER (PARTITION BY t.trace_chain_id) as stage_count,
+    SUM(CASE 
+        WHEN t.current_stage IN ('PURCHASE_RECEIPT', 'INVENTORY_IN', 'PRODUCTION_OUTPUT') 
+        THEN t.quantity_meters 
+        ELSE 0 
+    END) OVER (PARTITION BY t.trace_chain_id) as total_in_meters,
+    SUM(CASE 
+        WHEN t.current_stage IN ('INVENTORY_OUT', 'SALES_DELIVERY', 'PRODUCTION_INPUT') 
+        THEN t.quantity_meters 
+        ELSE 0 
+    END) OVER (PARTITION BY t.trace_chain_id) as total_out_meters,
+    t.quantity_meters as current_stock_meters,
+    NULL as supplier_name,
+    NULL as customer_name,
+    t.created_at,
+    MAX(t.created_at) OVER (PARTITION BY t.trace_chain_id) as updated_at
+FROM business_trace_chain t;
+
+-- 6. 创建追溯链查询函数
+CREATE OR REPLACE FUNCTION get_trace_chain_by_five_dim(p_five_dimension_id VARCHAR)
+RETURNS TABLE (
+    trace_id INTEGER,
+    trace_chain_id VARCHAR,
+    stage_name VARCHAR,
+    bill_type VARCHAR,
+    bill_no VARCHAR,
+    quantity_meters DECIMAL,
+    warehouse_id INTEGER,
+    created_at TIMESTAMP
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        t.id,
+        t.trace_chain_id,
+        t.current_stage,
+        t.current_bill_type,
+        t.current_bill_no,
+        t.quantity_meters,
+        t.warehouse_id,
+        t.created_at
+    FROM business_trace_chain t
+    WHERE t.five_dimension_id = p_five_dimension_id
+    ORDER BY t.created_at ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 7. 创建正向追溯函数
+CREATE OR REPLACE FUNCTION forward_trace_by_supplier(p_supplier_id INTEGER, p_batch_no VARCHAR)
+RETURNS TABLE (
+    trace_id INTEGER,
+    trace_chain_id VARCHAR,
+    five_dimension_id VARCHAR,
+    current_stage VARCHAR,
+    quantity_meters DECIMAL,
+    created_at TIMESTAMP
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        t.id,
+        t.trace_chain_id,
+        t.five_dimension_id,
+        t.current_stage,
+        t.quantity_meters,
+        t.created_at
+    FROM business_trace_chain t
+    WHERE t.supplier_id = p_supplier_id
+      AND t.batch_no = p_batch_no
+      AND t.current_stage = 'PURCHASE_RECEIPT'
+    ORDER BY t.created_at ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8. 创建反向追溯函数
+CREATE OR REPLACE FUNCTION backward_trace_by_customer(p_customer_id INTEGER, p_batch_no VARCHAR)
+RETURNS TABLE (
+    trace_id INTEGER,
+    trace_chain_id VARCHAR,
+    five_dimension_id VARCHAR,
+    current_stage VARCHAR,
+    quantity_meters DECIMAL,
+    created_at TIMESTAMP
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        t.id,
+        t.trace_chain_id,
+        t.five_dimension_id,
+        t.current_stage,
+        t.quantity_meters,
+        t.created_at
+    FROM business_trace_chain t
+    WHERE t.customer_id = p_customer_id
+      AND t.batch_no = p_batch_no
+      AND t.current_stage = 'SALES_DELIVERY'
+    ORDER BY t.created_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 9. 添加注释说明
+COMMENT ON TABLE business_trace_chain IS '业务追溯链 - 记录物料从采购到销售的完整流转过程';
+COMMENT ON TABLE business_trace_snapshot IS '业务追溯快照 - 定期保存追溯链状态，用于快速查询';
+COMMENT ON VIEW v_business_trace_view IS '业务追溯视图 - 简化追溯查询';
+-- COMMENT ON FUNCTION get_trace_chain_by_five_dim IS '按五维 ID 查询追溯链';
+-- COMMENT ON FUNCTION forward_trace_by_supplier IS '正向追溯：从供应商到客户';
+-- COMMENT ON FUNCTION backward_trace_by_customer IS '反向追溯：从客户到供应商';
+
+-- 10. 添加触发器：自动更新追溯链状态
+CREATE OR REPLACE FUNCTION update_trace_chain_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 如果是最后一个环节（销售发货），标记为已完成
+    IF NEW.current_stage = 'SALES_DELIVERY' THEN
+        NEW.trace_status := 'COMPLETED';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_trace_status
+    BEFORE INSERT OR UPDATE ON business_trace_chain
+    FOR EACH ROW
+    EXECUTE FUNCTION update_trace_chain_status();
+
+-- ============================================================
+-- 追溯链条说明
+-- ============================================================
+-- 正向追溯流程：
+-- 1. PURCHASE_RECEIPT (采购收货) - 供应商 → 仓库
+-- 2. INVENTORY_IN (入库) - 仓库接收
+-- 3. PRODUCTION_INPUT (生产投入) - 仓库 → 车间
+-- 4. PRODUCTION_OUTPUT (生产产出) - 车间 → 仓库
+-- 5. INVENTORY_OUT (出库) - 仓库备货
+-- 6. SALES_DELIVERY (销售发货) - 仓库 → 客户
+--
+-- 反向追溯流程：
+-- 1. 从销售发货开始
+-- 2. 通过 previous_trace_id 逐级回溯
+-- 3. 直到采购收货环节
+--
+-- 性能优化：
+-- - 五维 ID 索引：加速按批次 + 色号查询
+-- - 供应商/客户索引：加速正向/反向追溯
+-- - 快照表：定期保存状态，避免长链查询
+-- ============================================================
+-- ==================== 库存盘点明细表 ====================
+-- 存储库存盘点单的明细项
+
+-- 为盘点单 ID 创建索引（高频查询字段）
+CREATE INDEX IF NOT EXISTS idx_count_items_count_id ON inventory_count_items(count_id);
+-- 为产品 ID 创建索引
+CREATE INDEX IF NOT EXISTS idx_count_items_product_id ON inventory_count_items(product_id);
+
+-- 添加表注释
+COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';
+COMMENT ON COLUMN inventory_count_items.id IS '明细 ID';
+COMMENT ON COLUMN inventory_count_items.count_id IS '盘点单 ID';
+COMMENT ON COLUMN inventory_count_items.product_id IS '产品 ID';
+COMMENT ON COLUMN inventory_count_items.bin_location IS '库位';
+COMMENT ON COLUMN inventory_count_items.quantity_book IS '账面数量';
+COMMENT ON COLUMN inventory_count_items.quantity_actual IS '实际数量';
+COMMENT ON COLUMN inventory_count_items.quantity_variance IS '差异数量';
+COMMENT ON COLUMN inventory_count_items.unit_cost IS '单位成本';
+COMMENT ON COLUMN inventory_count_items.variance_amount IS '差异金额';
+COMMENT ON COLUMN inventory_count_items.notes IS '备注';
+COMMENT ON COLUMN inventory_count_items.counted_by IS '盘点人';
+COMMENT ON COLUMN inventory_count_items.counted_at IS '盘点时间';
+COMMENT ON COLUMN inventory_count_items.created_at IS '创建时间';
+COMMENT ON COLUMN inventory_count_items.updated_at IS '更新时间';
+
+-- ==================== 触发器：自动更新时间 ====================
+-- 为 inventory_counts 表创建触发器
+CREATE TRIGGER update_inventory_counts_updated_at BEFORE UPDATE ON inventory_counts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- 为 inventory_count_items 表创建触发器
+CREATE TRIGGER update_inventory_count_items_updated_at BEFORE UPDATE ON inventory_count_items
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ==================== 完成提示 ====================
+DO $$
+BEGIN
+    RAISE NOTICE '库存盘点表创建完成！';
+END $$;
