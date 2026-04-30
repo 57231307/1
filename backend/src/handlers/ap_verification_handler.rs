@@ -4,6 +4,7 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_verification_service::{ApVerificationService, ManualVerifyRequest};
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -11,7 +12,6 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::{info, warn};

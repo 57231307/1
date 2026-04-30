@@ -1,6 +1,5 @@
 use crate::models::inventory_adjustment::{
-    CreateAdjustmentRequest,
-    InventoryAdjustment, InventoryAdjustmentListResponse,
+    CreateAdjustmentRequest, InventoryAdjustment, InventoryAdjustmentListResponse,
 };
 use crate::services::api::ApiService;
 
@@ -29,16 +28,26 @@ impl InventoryAdjustmentService {
         ApiService::get::<InventoryAdjustment>(&format!("/inventory-adjustments/{}", id)).await
     }
 
-    pub async fn create_adjustment(request: CreateAdjustmentRequest) -> Result<InventoryAdjustment, String> {
+    pub async fn create_adjustment(
+        request: CreateAdjustmentRequest,
+    ) -> Result<InventoryAdjustment, String> {
         let payload = serde_json::to_value(&request).map_err(|e| e.to_string())?;
         ApiService::post("/inventory-adjustments", &payload).await
     }
 
     pub async fn approve_adjustment(id: i32) -> Result<InventoryAdjustment, String> {
-        ApiService::post::<InventoryAdjustment, serde_json::Value>(&format!("/inventory-adjustments/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post::<InventoryAdjustment, serde_json::Value>(
+            &format!("/inventory-adjustments/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     pub async fn reject_adjustment(id: i32) -> Result<InventoryAdjustment, String> {
-        ApiService::post::<InventoryAdjustment, serde_json::Value>(&format!("/inventory-adjustments/{}/reject", id), &serde_json::json!({})).await
+        ApiService::post::<InventoryAdjustment, serde_json::Value>(
+            &format!("/inventory-adjustments/{}/reject", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 }

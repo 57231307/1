@@ -6,13 +6,13 @@ use crate::services::quality_inspection_service::{
     CreateInspectionRecordRequest, CreateQualityInspectionStandardRequest,
     ProcessUnqualifiedRequest, QualityInspectionService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde::Serialize;
 use tracing::info;

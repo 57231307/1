@@ -1,7 +1,9 @@
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
+use crate::services::dashboard_service::{
+    DashboardOverview, DashboardService, InventoryStatistics, LowStockAlert, SalesStatistics,
+};
 use chrono::{Datelike, Timelike};
-use crate::services::dashboard_service::{DashboardService, DashboardOverview, LowStockAlert, SalesStatistics, InventoryStatistics};
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,
@@ -50,34 +52,56 @@ impl Component for DashboardPage {
                 let link = _ctx.link().clone();
                 spawn_local(async move {
                     let now = chrono::Utc::now();
-                    let start_of_month = now.with_day(1).unwrap_or(now).with_hour(0).unwrap_or(now).with_minute(0).unwrap_or(now);
-                    
+                    let start_of_month = now
+                        .with_day(1)
+                        .unwrap_or(now)
+                        .with_hour(0)
+                        .unwrap_or(now)
+                        .with_minute(0)
+                        .unwrap_or(now);
+
                     let overview_result = DashboardService::get_overview(
                         &start_of_month.to_rfc3339(),
-                        &now.to_rfc3339()
-                    ).await;
-                    
+                        &now.to_rfc3339(),
+                    )
+                    .await;
+
                     let alerts_result = DashboardService::get_low_stock_alerts().await;
-                    let sales_trend_result = DashboardService::get_sales_statistics("2026-01-01", "2026-03-31").await;
-                    let inventory_status_result = DashboardService::get_inventory_statistics().await;
-                    
-                    match (overview_result, alerts_result, sales_trend_result, inventory_status_result) {
+                    let sales_trend_result =
+                        DashboardService::get_sales_statistics("2026-01-01", "2026-03-31").await;
+                    let inventory_status_result =
+                        DashboardService::get_inventory_statistics().await;
+
+                    match (
+                        overview_result,
+                        alerts_result,
+                        sales_trend_result,
+                        inventory_status_result,
+                    ) {
                         (Ok(overview), Ok(alerts), Ok(sales_trend), Ok(inventory_status)) => {
-                            link.send_message(Msg::DataLoaded { 
-                                overview, 
+                            link.send_message(Msg::DataLoaded {
+                                overview,
                                 low_stock_alerts: alerts,
                                 sales_trend,
                                 inventory_status,
                             });
                         }
-                        (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => {
+                        (Err(e), _, _, _)
+                        | (_, Err(e), _, _)
+                        | (_, _, Err(e), _)
+                        | (_, _, _, Err(e)) => {
                             link.send_message(Msg::Error(e));
                         }
                     }
                 });
                 false
             }
-            Msg::DataLoaded { overview, low_stock_alerts, sales_trend, inventory_status } => {
+            Msg::DataLoaded {
+                overview,
+                low_stock_alerts,
+                sales_trend,
+                inventory_status,
+            } => {
                 self.overview = Some(overview);
                 self.low_stock_alerts = low_stock_alerts;
                 self.sales_trend = Some(sales_trend);
@@ -110,9 +134,9 @@ impl Component for DashboardPage {
                             {"🔄 刷新数据"}
                         </button>
                         <label class="toggle-switch">
-                            <input 
-                                type="checkbox" 
-                                checked={self.auto_refresh} 
+                            <input
+                                type="checkbox"
+                                checked={self.auto_refresh}
                                 onclick={ctx.link().callback(|_| Msg::ToggleAutoRefresh)}
                             />
                             <span class="toggle-slider"></span>
@@ -238,8 +262,8 @@ impl DashboardPage {
                                     <div class="chart-bar">
                                         <div class="bar-label">{&trend.date}</div>
                                         <div class="bar-container">
-                                            <div 
-                                                class="bar-fill" 
+                                            <div
+                                                class="bar-fill"
                                                 style={format!("width: {}%", trend.amount.parse::<f64>().unwrap_or(0.0) / 10000.0 * 100.0)}
                                             ></div>
                                         </div>
@@ -281,8 +305,8 @@ impl DashboardPage {
                                 <div class="inventory-item">
                                     <div class="inventory-label">{&warehouse.warehouse_name}</div>
                                     <div class="inventory-progress">
-                                        <div 
-                                            class="inventory-progress-bar" 
+                                        <div
+                                            class="inventory-progress-bar"
                                             style={format!("width: 50%")}
                                         ></div>
                                     </div>

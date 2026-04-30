@@ -3,13 +3,13 @@ use crate::models::fixed_asset;
 use crate::services::fixed_asset_service::{
     CreateAssetRequest, DisposalRequest, FixedAssetService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -191,11 +191,14 @@ pub async fn delete_asset(
     Ok(Json(ApiResponse::success(message)))
 }
 
-
 /// 固定资产更新功能尚未实现
 pub async fn update_asset(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在固定资产更新功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("固定资产更新功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "固定资产更新功能尚未实现".to_string(),
+    ))
 }

@@ -166,9 +166,7 @@ pub async fn create_voucher(
     };
 
     let service = VoucherService::new(state.db.clone());
-    let voucher = service
-        .create(create_req, auth.user_id)
-        .await?;
+    let voucher = service.create(create_req, auth.user_id).await?;
     info!(
         "用户 {} 创建凭证成功：{}",
         auth.username, voucher.voucher_no

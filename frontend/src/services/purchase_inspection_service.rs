@@ -46,7 +46,9 @@ impl PurchaseInspectionService {
     }
 
     /// 创建采购检验单
-    pub async fn create(req: CreatePurchaseInspectionRequest) -> Result<PurchaseInspection, String> {
+    pub async fn create(
+        req: CreatePurchaseInspectionRequest,
+    ) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
             ApiService::post("/purchase-inspections", &req).await?;
         response.into_result()
@@ -54,14 +56,20 @@ impl PurchaseInspectionService {
 
     /// 更新采购检验单
     #[allow(dead_code)]
-    pub async fn update(id: i32, req: UpdatePurchaseInspectionRequest) -> Result<PurchaseInspection, String> {
+    pub async fn update(
+        id: i32,
+        req: UpdatePurchaseInspectionRequest,
+    ) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
             ApiService::put(&format!("/purchase-inspections/{}", id), &req).await?;
         response.into_result()
     }
 
     /// 完成采购检验单
-    pub async fn complete(id: i32, req: CompleteInspectionRequest) -> Result<PurchaseInspection, String> {
+    pub async fn complete(
+        id: i32,
+        req: CompleteInspectionRequest,
+    ) -> Result<PurchaseInspection, String> {
         let response: ApiResponse<PurchaseInspection> =
             ApiService::post(&format!("/purchase-inspections/{}/complete", id), &req).await?;
         response.into_result()

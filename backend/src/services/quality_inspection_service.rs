@@ -209,7 +209,7 @@ impl QualityInspectionService {
                 let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
                     .one(&*self.db)
                     .await?;
-                    
+
                 if let Some(r) = receipt {
                     let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
                     receipt_active.inspection_status = Set(result.inspection_result.clone());

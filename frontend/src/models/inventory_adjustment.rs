@@ -1,6 +1,5 @@
 //! 库存调整模型
 
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct InventoryAdjustment {
     pub id: i32,

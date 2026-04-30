@@ -18,7 +18,7 @@ pub struct Model {
 
     /// 批次号
     pub batch_no: String,
-    
+
     /// 母卷ID（如果是拆分或剪裁而来的布卷，指向原始布卷ID）
     pub parent_piece_id: Option<i32>,
 
@@ -45,7 +45,7 @@ pub struct Model {
 
     /// 备注
     pub remarks: Option<String>,
-    
+
     pub barcode: Option<String>,
 
     /// 创建时间

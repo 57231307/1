@@ -2,7 +2,9 @@
 //!
 //! 与后端凭证API交互
 
-use crate::models::voucher::{CreateVoucherRequest, Voucher, VoucherListResponse, VoucherQueryParams};
+use crate::models::voucher::{
+    CreateVoucherRequest, Voucher, VoucherListResponse, VoucherQueryParams,
+};
 use crate::services::api::ApiService;
 
 /// 凭证服务

@@ -25,7 +25,7 @@ impl QualityInspectionService {
             query.push_str(&format!("status={}&", s));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/quality-standards?{}", query)).await
     }
 
@@ -33,12 +33,17 @@ impl QualityInspectionService {
         ApiService::get(&format!("/quality-standards/{}", id)).await
     }
 
-    pub async fn create_standard(req: CreateInspectionStandardRequest) -> Result<InspectionStandard, String> {
+    pub async fn create_standard(
+        req: CreateInspectionStandardRequest,
+    ) -> Result<InspectionStandard, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/quality-standards", &payload).await
     }
 
-    pub async fn update_standard(id: i32, req: CreateInspectionStandardRequest) -> Result<InspectionStandard, String> {
+    pub async fn update_standard(
+        id: i32,
+        req: CreateInspectionStandardRequest,
+    ) -> Result<InspectionStandard, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/quality-standards/{}", id), &payload).await
     }
@@ -73,7 +78,7 @@ impl QualityInspectionService {
             query.push_str(&format!("end_date={}&", ed));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/quality-inspection/records?{}", query)).await
     }
 
@@ -81,7 +86,9 @@ impl QualityInspectionService {
         ApiService::get(&format!("/quality-inspection/records/{}", id)).await
     }
 
-    pub async fn create_record(req: CreateInspectionRecordRequest) -> Result<InspectionRecord, String> {
+    pub async fn create_record(
+        req: CreateInspectionRecordRequest,
+    ) -> Result<InspectionRecord, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/quality-inspections/records", &payload).await
     }
@@ -109,7 +116,7 @@ impl QualityInspectionService {
             query.push_str(&format!("status={}&", s));
         }
         query.push_str(&format!("page={}&page_size={}", page, page_size));
-        
+
         ApiService::get(&format!("/quality-inspection/defects?{}", query)).await
     }
 
@@ -120,6 +127,10 @@ impl QualityInspectionService {
 
     pub async fn handle_defect(id: i32, req: HandleDefectRequest) -> Result<QualityDefect, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/quality-inspections/defects/{}/handle", id), &payload).await
+        ApiService::post(
+            &format!("/quality-inspections/defects/{}/handle", id),
+            &payload,
+        )
+        .await
     }
 }

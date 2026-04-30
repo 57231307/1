@@ -1,8 +1,8 @@
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 
 use crate::models::product;

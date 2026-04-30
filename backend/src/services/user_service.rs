@@ -78,7 +78,9 @@ impl UserService {
         let paginator = user::Entity::find().paginate(self.db.as_ref(), page_size);
 
         let total = paginator.num_items().await?;
-        let users = paginator.fetch_page(if page > 0 { page - 1 } else { 0 }).await?;
+        let users = paginator
+            .fetch_page(if page > 0 { page - 1 } else { 0 })
+            .await?;
 
         Ok((users, total))
     }

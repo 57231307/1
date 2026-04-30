@@ -13,11 +13,11 @@ impl AuthService {
     }
 
     /// 用户登录
-    /// 
+    ///
     /// # 参数
     /// * `username` - 用户名
     /// * `password` - 密码
-    /// 
+    ///
     /// # 返回
     /// * `Ok(LoginResponse)` - 登录成功，返回包含 Token 的响应
     /// * `Err(String)` - 登录失败，返回错误信息
@@ -34,7 +34,11 @@ impl AuthService {
     /// 用户注销
     /// 调用后端接口并清除本地存储的 Token
     pub async fn logout(&self) -> Result<(), String> {
-        let _ = ApiService::post::<serde_json::Value, serde_json::Value>("/auth/logout", &serde_json::json!({})).await;
+        let _ = ApiService::post::<serde_json::Value, serde_json::Value>(
+            "/auth/logout",
+            &serde_json::json!({}),
+        )
+        .await;
         crate::utils::storage::Storage::remove_token();
         Ok(())
     }
@@ -46,12 +50,13 @@ impl AuthService {
             token: String,
             expires_in: u64,
         }
-        let response: RefreshResponse = ApiService::post("/auth/refresh", &serde_json::json!({})).await?;
+        let response: RefreshResponse =
+            ApiService::post("/auth/refresh", &serde_json::json!({})).await?;
         Ok(response.token)
     }
 
     /// 检查用户是否已认证
-    /// 
+    ///
     /// # 返回
     /// * `true` - 已认证（存在有效 Token）
     /// * `false` - 未认证

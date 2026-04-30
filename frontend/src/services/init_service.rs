@@ -45,10 +45,14 @@ impl InitService {
                     return Err(InitError::ServerError(msg.to_string()));
                 }
             }
-            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+            return Err(InitError::ServerError(format!(
+                "请求失败，状态码: {}",
+                response.status()
+            )));
         }
 
-        response.json::<InitStatus>()
+        response
+            .json::<InitStatus>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }
@@ -79,15 +83,22 @@ impl InitService {
                     return Err(InitError::ServerError(msg.to_string()));
                 }
             }
-            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+            return Err(InitError::ServerError(format!(
+                "请求失败，状态码: {}",
+                response.status()
+            )));
         }
 
-        response.json::<DbTestResult>()
+        response
+            .json::<DbTestResult>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }
 
-    pub async fn initialize(admin_username: &str, admin_password: &str) -> Result<InitResult, InitError> {
+    pub async fn initialize(
+        admin_username: &str,
+        admin_password: &str,
+    ) -> Result<InitResult, InitError> {
         let base_url = Self::get_base_url();
         let url = format!("{}/init/initialize", base_url);
 
@@ -110,10 +121,14 @@ impl InitService {
                     return Err(InitError::ServerError(msg.to_string()));
                 }
             }
-            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+            return Err(InitError::ServerError(format!(
+                "请求失败，状态码: {}",
+                response.status()
+            )));
         }
 
-        response.json::<InitResult>()
+        response
+            .json::<InitResult>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }
@@ -146,15 +161,22 @@ impl InitService {
                     return Err(InitError::ServerError(msg.to_string()));
                 }
             }
-            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+            return Err(InitError::ServerError(format!(
+                "请求失败，状态码: {}",
+                response.status()
+            )));
         }
 
-        response.json::<InitResult>()
+        response
+            .json::<InitResult>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }
 
-    pub async fn reset_password(username: &str, new_password: &str) -> Result<ResetPasswordResponse, InitError> {
+    pub async fn reset_password(
+        username: &str,
+        new_password: &str,
+    ) -> Result<ResetPasswordResponse, InitError> {
         let base_url = Self::get_base_url();
         let url = format!("{}/init/reset-password", base_url);
 
@@ -177,10 +199,14 @@ impl InitService {
                     return Err(InitError::ServerError(msg.to_string()));
                 }
             }
-            return Err(InitError::ServerError(format!("请求失败，状态码: {}", response.status())));
+            return Err(InitError::ServerError(format!(
+                "请求失败，状态码: {}",
+                response.status()
+            )));
         }
 
-        response.json::<ResetPasswordResponse>()
+        response
+            .json::<ResetPasswordResponse>()
             .await
             .map_err(|e| InitError::ParseError(e.to_string()))
     }

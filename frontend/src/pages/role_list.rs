@@ -1,10 +1,10 @@
-use yew::prelude::*;
-use yew_router::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use wasm_bindgen::JsCast;
 use crate::app::Route;
 use crate::services::api::ApiService;
 use crate::utils::storage::Storage;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
+use yew_router::prelude::*;
 
 #[derive(Debug, Clone, serde::Deserialize)]
 struct Role {
@@ -169,7 +169,11 @@ impl Component for RoleListPage {
                         "is_system": is_system
                     });
 
-                    match ApiService::post::<serde_json::Value, serde_json::Value>("/roles", &payload).await {
+                    match ApiService::post::<serde_json::Value, serde_json::Value>(
+                        "/roles", &payload,
+                    )
+                    .await
+                    {
                         Ok(_) => {
                             link.send_message(Msg::CloseCreateModal);
                             link.send_message(Msg::LoadRoles);
@@ -202,7 +206,12 @@ impl Component for RoleListPage {
                         "is_system": is_system
                     });
 
-                    match ApiService::put::<serde_json::Value, serde_json::Value>(&format!("/roles/{}", role_id), &payload).await {
+                    match ApiService::put::<serde_json::Value, serde_json::Value>(
+                        &format!("/roles/{}", role_id),
+                        &payload,
+                    )
+                    .await
+                    {
                         Ok(_) => {
                             link.send_message(Msg::CloseEditModal);
                             link.send_message(Msg::LoadRoles);
@@ -218,7 +227,8 @@ impl Component for RoleListPage {
                 let link = ctx.link().clone();
 
                 spawn_local(async move {
-                    if web_sys::window().unwrap()
+                    if web_sys::window()
+                        .unwrap()
                         .confirm_with_message("确定要删除这个角色吗？")
                         .unwrap_or(false)
                     {
@@ -304,7 +314,7 @@ impl Component for RoleListPage {
                                     let role_delete = role.clone();
                                     let on_edit = link.callback(move |_| Msg::ShowEditModal(role_edit.clone()));
                                     let on_delete = link.callback(move |_| Msg::DeleteRole(role_delete.id));
-                                    
+
                                     html! {
                                         <tr>
                                             <td>{role.id}</td>

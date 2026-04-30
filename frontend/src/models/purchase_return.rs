@@ -66,9 +66,6 @@ pub struct PurchaseReturnQuery {
 
 /// 创建采购退货单请求
 
-
-
-
 /// 更新采购退货单请求
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdatePurchaseReturnRequest {

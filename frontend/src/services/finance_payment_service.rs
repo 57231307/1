@@ -60,7 +60,10 @@ impl FinancePaymentService {
 
     /// 更新财务付款
     #[allow(dead_code)]
-    pub async fn update_payment(id: i32, req: UpdatePaymentRequest) -> Result<FinancePayment, String> {
+    pub async fn update_payment(
+        id: i32,
+        req: UpdatePaymentRequest,
+    ) -> Result<FinancePayment, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/finance-payments/{}", id), &payload).await
     }

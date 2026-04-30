@@ -44,7 +44,8 @@ impl DyeRecipeService {
     }
 
     pub async fn get(id: i32) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::get(&format!("/dye-recipe/{}", id)).await?;
+        let response: ApiResponse<DyeRecipe> =
+            ApiService::get(&format!("/dye-recipe/{}", id)).await?;
         response.into_result()
     }
 
@@ -54,7 +55,8 @@ impl DyeRecipeService {
     }
 
     pub async fn update(id: i32, req: UpdateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::put(&format!("/dye-recipe/{}", id), &req).await?;
+        let response: ApiResponse<DyeRecipe> =
+            ApiService::put(&format!("/dye-recipe/{}", id), &req).await?;
         response.into_result()
     }
 
@@ -63,12 +65,14 @@ impl DyeRecipeService {
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::post(&format!("/dye-recipe/{}/approve", id), &req).await?;
+        let response: ApiResponse<DyeRecipe> =
+            ApiService::post(&format!("/dye-recipe/{}/approve", id), &req).await?;
         response.into_result()
     }
 
     pub async fn create_version(id: i32, req: CreateVersionRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::post(&format!("/dye-recipe/{}/version", id), &req).await?;
+        let response: ApiResponse<DyeRecipe> =
+            ApiService::post(&format!("/dye-recipe/{}/version", id), &req).await?;
         response.into_result()
     }
 }

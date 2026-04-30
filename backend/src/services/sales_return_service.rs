@@ -3,13 +3,13 @@
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 
-use crate::models::{sales_return, sales_return_item, product, inventory_stock};
+use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -48,7 +48,7 @@ pub struct SalesReturnService {
 
 impl SalesReturnService {
     /// 创建服务实例
-/// 创建服务实例
+    /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
@@ -58,7 +58,7 @@ impl SalesReturnService {
         return_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        use sea_orm::{QuerySelect, ColumnTrait};
+        use sea_orm::{ColumnTrait, QuerySelect};
         let items = crate::models::sales_return_item::Entity::find()
             .filter(crate::models::sales_return_item::Column::ReturnId.eq(return_id))
             .all(txn)
@@ -84,7 +84,6 @@ impl SalesReturnService {
         return_active.update(txn).await?;
         Ok(())
     }
-
 
     /// 生成退货单号
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
@@ -220,7 +219,9 @@ impl SalesReturnService {
             .await?;
 
         if items_count == 0 {
-            return Err(AppError::BusinessError("退货单没有明细，无法提交".to_string()));
+            return Err(AppError::BusinessError(
+                "退货单没有明细，无法提交".to_string(),
+            ));
         }
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
@@ -312,23 +313,29 @@ impl SalesReturnService {
             }
 
             // 增加库存交易记录
-            stock_service.record_transaction(
-                "SALES_RETURN".to_string(),
-                item.product_id,
-                return_order.warehouse_id,
-                batch_no.clone(),
-                color_no.clone(),
-                Some(batch_no.clone()), // dye_lot_no
-                grade.clone(),
-                item.quantity, // 正数，表示入库
-                item.quantity_alt,
-                Some("SALES_RETURN".to_string()),
-                Some(return_order.return_no.clone()),
-                Some(return_order.id),
-                None, None, None, None,
-                Some("销售退货入库".to_string()),
-                Some(user_id),
-            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            stock_service
+                .record_transaction(
+                    "SALES_RETURN".to_string(),
+                    item.product_id,
+                    return_order.warehouse_id,
+                    batch_no.clone(),
+                    color_no.clone(),
+                    Some(batch_no.clone()), // dye_lot_no
+                    grade.clone(),
+                    item.quantity, // 正数，表示入库
+                    item.quantity_alt,
+                    Some("SALES_RETURN".to_string()),
+                    Some(return_order.return_no.clone()),
+                    Some(return_order.id),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("销售退货入库".to_string()),
+                    Some(user_id),
+                )
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
 
         let mut active_model: sales_return::ActiveModel = return_order.clone().into();
@@ -358,7 +365,11 @@ impl SalesReturnService {
         };
 
         if let Err(e) = ar_invoice_service.create(ar_request, user_id).await {
-            tracing::error!("自动生成红字应收单失败 (退货单 {}): {}", return_order.return_no, e);
+            tracing::error!(
+                "自动生成红字应收单失败 (退货单 {}): {}",
+                return_order.return_no,
+                e
+            );
         } else {
             tracing::info!("成功自动生成红字应收单 (退货单 {})", return_order.return_no);
         }

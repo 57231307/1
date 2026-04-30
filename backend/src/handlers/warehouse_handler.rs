@@ -2,9 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Deserialize;
 
 use crate::models::location::Entity as LocationEntity;

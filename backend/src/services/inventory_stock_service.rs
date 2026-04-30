@@ -168,7 +168,11 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"))
             // 检查可用库存低于重新订购点
-            .filter(sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint)))
+            .filter(
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint),
+                ),
+            )
             // 只检查重新订购点大于0的记录
             .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
 
@@ -425,7 +429,8 @@ impl InventoryStockService {
         }
 
         if let Some(transaction_type) = transaction_type {
-            query = query.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
+            query =
+                query.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
         }
 
         if let Some(start_date) = start_date {
@@ -458,7 +463,7 @@ impl InventoryStockService {
             "s.stock_status = '正常'".to_string(),
             "s.quality_status = '合格'".to_string(),
         ];
-        
+
         let mut values = vec![];
 
         if let Some(wid) = warehouse_id {

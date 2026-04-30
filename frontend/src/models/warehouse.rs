@@ -1,6 +1,5 @@
 //! 仓库模型
 
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Warehouse {
     pub id: i32,

@@ -3,8 +3,8 @@
 //! 与后端应付对账 API 交互
 
 use crate::models::ap_reconciliation::{
-    ApReconciliation, ApReconciliationListResponse, ApReconciliationQueryParams, DisputeRequest, GenerateReconciliationRequest, SupplierSummary,
-    UpdateReconciliationRequest,
+    ApReconciliation, ApReconciliationListResponse, ApReconciliationQueryParams, DisputeRequest,
+    GenerateReconciliationRequest, SupplierSummary, UpdateReconciliationRequest,
 };
 use crate::services::api::ApiService;
 
@@ -13,7 +13,9 @@ pub struct ApReconciliationService;
 
 impl ApReconciliationService {
     /// 查询对账单列表
-    pub async fn list_reconciliations(params: ApReconciliationQueryParams) -> Result<ApReconciliationListResponse, String> {
+    pub async fn list_reconciliations(
+        params: ApReconciliationQueryParams,
+    ) -> Result<ApReconciliationListResponse, String> {
         let mut query_parts = vec![];
 
         if let Some(sid) = params.supplier_id {
@@ -53,14 +55,19 @@ impl ApReconciliationService {
 
     /// 生成对账单
     #[allow(dead_code)]
-    pub async fn generate_reconciliation(req: GenerateReconciliationRequest) -> Result<ApReconciliation, String> {
+    pub async fn generate_reconciliation(
+        req: GenerateReconciliationRequest,
+    ) -> Result<ApReconciliation, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/ap-reconciliations", &payload).await
     }
 
     /// 更新对账单
     #[allow(dead_code)]
-    pub async fn update_reconciliation(id: i32, req: UpdateReconciliationRequest) -> Result<ApReconciliation, String> {
+    pub async fn update_reconciliation(
+        id: i32,
+        req: UpdateReconciliationRequest,
+    ) -> Result<ApReconciliation, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/ap-reconciliations/{}", id), &payload).await
     }
@@ -73,11 +80,18 @@ impl ApReconciliationService {
 
     /// 确认对账单
     pub async fn confirm_reconciliation(id: i32) -> Result<ApReconciliation, String> {
-        ApiService::post::<ApReconciliation, serde_json::Value>(&format!("/ap-reconciliations/{}/confirm", id), &serde_json::json!({})).await
+        ApiService::post::<ApReconciliation, serde_json::Value>(
+            &format!("/ap-reconciliations/{}/confirm", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     /// 提出争议
-    pub async fn dispute_reconciliation(id: i32, reason: String) -> Result<ApReconciliation, String> {
+    pub async fn dispute_reconciliation(
+        id: i32,
+        reason: String,
+    ) -> Result<ApReconciliation, String> {
         let req = DisputeRequest { reason };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post(&format!("/ap-reconciliations/{}/dispute", id), &payload).await
@@ -85,7 +99,9 @@ impl ApReconciliationService {
 
     /// 获取供应商应付汇总
     #[allow(dead_code)]
-    pub async fn get_supplier_summary(supplier_id: Option<i32>) -> Result<Vec<SupplierSummary>, String> {
+    pub async fn get_supplier_summary(
+        supplier_id: Option<i32>,
+    ) -> Result<Vec<SupplierSummary>, String> {
         let query_string = if let Some(sid) = supplier_id {
             format!("?supplier_id={}", sid)
         } else {

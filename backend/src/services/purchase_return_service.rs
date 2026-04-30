@@ -2,13 +2,14 @@
 //!
 //! 采购退货服务层，负责采购退货的核心业务逻辑
 
-use crate::models::{purchase_return, purchase_return_item, product};
+use crate::models::{product, purchase_return, purchase_return_item};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -174,7 +175,7 @@ impl PurchaseReturnService {
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.status = Set("APPROVED".to_string());
-        
+
         let return_order = return_active.update(&txn).await?;
 
         // 1. 扣减库存
@@ -182,9 +183,10 @@ impl PurchaseReturnService {
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .all(&txn)
             .await?;
-            
-        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
-        
+
+        let stock_service =
+            crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+
         for item in items {
             // 查询库存记录
             use sea_orm::QuerySelect;
@@ -206,25 +208,31 @@ impl PurchaseReturnService {
                     ..Default::default()
                 };
                 stock_update.update(&txn).await?;
-                
+
                 // 记录库存交易
-                stock_service.record_transaction(
-                    "PURCHASE_RETURN".to_string(),
-                    item.product_id,
-                    s.warehouse_id,
-                    s.batch_no.clone(),
-                    s.color_no.clone(),
-                    Some(s.batch_no.clone()),
-                    s.grade.clone(),
-                    -item.quantity, // 扣减用负数
-                    -item.quantity_alt,
-                    Some("PURCHASE_RETURN".to_string()),
-                    Some(return_order.return_no.clone()),
-                    Some(return_order.id),
-                    None, None, None, None,
-                    Some("采购退货扣减库存".to_string()),
-                    Some(user_id),
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                stock_service
+                    .record_transaction(
+                        "PURCHASE_RETURN".to_string(),
+                        item.product_id,
+                        s.warehouse_id,
+                        s.batch_no.clone(),
+                        s.color_no.clone(),
+                        Some(s.batch_no.clone()),
+                        s.grade.clone(),
+                        -item.quantity, // 扣减用负数
+                        -item.quantity_alt,
+                        Some("PURCHASE_RETURN".to_string()),
+                        Some(return_order.return_no.clone()),
+                        Some(return_order.id),
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some("采购退货扣减库存".to_string()),
+                        Some(user_id),
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             } else {
                 return Err(AppError::BusinessError(format!(
                     "产品 {} 没有库存记录，无法退货",
@@ -232,14 +240,22 @@ impl PurchaseReturnService {
                 )));
             }
         }
-        
+
         // 2. 自动生成应付红字账单（冲销）
         // 提交当前事务，因为 auto_generate_from_return 内部会自己开启事务
         txn.commit().await?;
-        
-        let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
-        if let Err(e) = ap_service.auto_generate_from_return(return_id, user_id).await {
-            tracing::error!("自动生成应付账单失败 (退货单 {}): {}", return_order.return_no, e);
+
+        let ap_service =
+            crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
+        if let Err(e) = ap_service
+            .auto_generate_from_return(return_id, user_id)
+            .await
+        {
+            tracing::error!(
+                "自动生成应付账单失败 (退货单 {}): {}",
+                return_order.return_no,
+                e
+            );
         } else {
             tracing::info!("成功自动生成应付账单 (退货单 {})", return_order.return_no);
         }
@@ -402,14 +418,17 @@ pub struct PurchaseReturnItemDto {
 impl PurchaseReturnService {
     /// 获取退货单明细列表
     pub async fn list_items(&self, return_id: i32) -> Result<Vec<PurchaseReturnItemDto>, AppError> {
-        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let items = purchase_return_item::Entity::find()
             .column_as(product::Column::Code, "material_code")
             .column_as(product::Column::Name, "material_name")
             .column_as(purchase_return_item::Column::ProductId, "material_id")
             .column_as(purchase_return_item::Column::Quantity, "quantity_returned")
             .column_as(purchase_return_item::Column::TaxPercent, "tax_rate")
-            .join(JoinType::LeftJoin, purchase_return_item::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                purchase_return_item::Relation::Product.def(),
+            )
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .order_by_asc(purchase_return_item::Column::LineNo)
             .into_model::<PurchaseReturnItemDto>()
@@ -420,7 +439,11 @@ impl PurchaseReturnService {
     }
 
     /// 添加退货单明细
-    pub async fn create_item(&self, return_id: i32, req: CreateReturnItemRequest) -> Result<purchase_return_item::Model, AppError> {
+    pub async fn create_item(
+        &self,
+        return_id: i32,
+        req: CreateReturnItemRequest,
+    ) -> Result<purchase_return_item::Model, AppError> {
         let txn = self.db.begin().await?;
 
         // 验证主表状态（只有草稿可以修改明细，实际业务可能放宽，这里简化）
@@ -430,7 +453,9 @@ impl PurchaseReturnService {
             .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
 
         if return_record.status != "DRAFT" {
-            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
         }
 
         let quantity = req.quantity_returned;
@@ -473,7 +498,11 @@ impl PurchaseReturnService {
     }
 
     /// 更新退货单明细
-    pub async fn update_item(&self, item_id: i32, req: UpdateReturnItemRequest) -> Result<purchase_return_item::Model, AppError> {
+    pub async fn update_item(
+        &self,
+        item_id: i32,
+        req: UpdateReturnItemRequest,
+    ) -> Result<purchase_return_item::Model, AppError> {
         let txn = self.db.begin().await?;
 
         let item = purchase_return_item::Entity::find_by_id(item_id)
@@ -484,17 +513,26 @@ impl PurchaseReturnService {
         let return_record = purchase_return::Entity::find_by_id(item.return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
+            .ok_or(AppError::ResourceNotFound(format!(
+                "退货单 {}",
+                item.return_id
+            )))?;
 
         if return_record.status != "DRAFT" {
-            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
         }
 
         let mut active_item: purchase_return_item::ActiveModel = item.clone().into();
 
-        if let Some(line_no) = req.line_no { active_item.line_no = Set(line_no); }
-        if let Some(material_id) = req.material_id { active_item.product_id = Set(material_id); }
-        
+        if let Some(line_no) = req.line_no {
+            active_item.line_no = Set(line_no);
+        }
+        if let Some(material_id) = req.material_id {
+            active_item.product_id = Set(material_id);
+        }
+
         let quantity = req.quantity_returned.unwrap_or(item.quantity);
         let unit_price = req.unit_price.unwrap_or(item.unit_price);
         let discount_percent = req.discount_percent.unwrap_or(item.discount_percent);
@@ -517,13 +555,16 @@ impl PurchaseReturnService {
         active_item.tax_amount = Set(tax_amount);
         active_item.total_amount = Set(total_amount);
 
-        if let Some(notes) = req.notes { active_item.notes = Set(Some(notes)); }
-        
+        if let Some(notes) = req.notes {
+            active_item.notes = Set(Some(notes));
+        }
+
         active_item.updated_at = Set(Utc::now());
 
         let updated_item = active_item.update(&txn).await?;
 
-        self.update_return_totals(updated_item.return_id, &txn).await?;
+        self.update_return_totals(updated_item.return_id, &txn)
+            .await?;
         txn.commit().await?;
 
         Ok(updated_item)
@@ -541,14 +582,21 @@ impl PurchaseReturnService {
         let return_record = purchase_return::Entity::find_by_id(item.return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
+            .ok_or(AppError::ResourceNotFound(format!(
+                "退货单 {}",
+                item.return_id
+            )))?;
 
         if return_record.status != "DRAFT" {
-            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
         }
 
-        purchase_return_item::Entity::delete_by_id(item_id).exec(&txn).await?;
-        
+        purchase_return_item::Entity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+
         self.update_return_totals(item.return_id, &txn).await?;
         txn.commit().await?;
 
@@ -556,7 +604,11 @@ impl PurchaseReturnService {
     }
 
     /// 更新主单合计金额和数量
-    async fn update_return_totals(&self, return_id: i32, txn: &sea_orm::DatabaseTransaction) -> Result<(), AppError> {
+    async fn update_return_totals(
+        &self,
+        return_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .all(txn)

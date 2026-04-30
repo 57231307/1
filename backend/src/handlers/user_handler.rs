@@ -1,15 +1,15 @@
+use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
-use crate::services::user_service::UserService;
 use crate::services::role_permission_service::RolePermissionService;
+use crate::services::user_service::UserService;
+use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use crate::middleware::auth_context::AuthContext;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateUserRequest {
@@ -72,7 +72,10 @@ pub async fn get_user(
             is_active: user.is_active,
             created_at: user.created_at,
         }))),
-        Err(e) => Err((StatusCode::NOT_FOUND, Json(ApiResponse::error(e.to_string())))),
+        Err(e) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }
 
@@ -82,8 +85,12 @@ pub async fn create_user(
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(state.db.clone());
 
-    let password_hash = AuthService::hash_password(&payload.password)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
+    let password_hash = AuthService::hash_password(&payload.password).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )
+    })?;
 
     match user_service
         .create_user(
@@ -106,7 +113,10 @@ pub async fn create_user(
             is_active: user.is_active,
             created_at: user.created_at,
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }
 
@@ -142,7 +152,10 @@ pub async fn list_users(
                 page_size: params.page_size.unwrap_or(20),
             })))
         }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }
 
@@ -183,7 +196,10 @@ pub async fn update_user(
             is_active: user.is_active,
             created_at: user.created_at,
         }))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string())))),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }
 
@@ -197,28 +213,35 @@ pub async fn delete_user(
     if auth.user_id != id {
         // 非自己账户需要权限检查
         let role_permission_service = RolePermissionService::new(state.db.clone());
-        
+
         // 检查是否有权限删除用户
         let has_permission = role_permission_service
-            .check_permission(
-                auth.role_id.unwrap_or(0),
-                "user",
-                "delete",
-                Some(id)
-            )
+            .check_permission(auth.role_id.unwrap_or(0), "user", "delete", Some(id))
             .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
-        
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::error(e.to_string())),
+                )
+            })?;
+
         if !has_permission {
-            return Err((StatusCode::FORBIDDEN, Json(ApiResponse::error("没有删除用户的权限".to_string()))));
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(ApiResponse::error("没有删除用户的权限".to_string())),
+            ));
         }
     }
 
     let user_service = UserService::new(state.db.clone());
 
     // 检查用户是否存在
-    user_service.find_by_id(id).await
-        .map_err(|e| (StatusCode::NOT_FOUND, Json(ApiResponse::error(e.to_string()))))?;
+    user_service.find_by_id(id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::error(e.to_string())),
+        )
+    })?;
 
     // 这里可以添加更多禁止删除的逻辑，例如：
     // 1. 系统管理员不允许删除
@@ -226,7 +249,12 @@ pub async fn delete_user(
     // 3. 正在使用中的用户不允许删除
 
     match user_service.delete_user(id).await {
-        Ok(_) => Ok(Json(ApiResponse::success(DeleteUserResponse { success: true }))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string())))),
+        Ok(_) => Ok(Json(ApiResponse::success(DeleteUserResponse {
+            success: true,
+        }))),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }

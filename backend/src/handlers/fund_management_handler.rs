@@ -1,6 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fund_management;
 use crate::services::fund_management_service::FundManagementService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
@@ -8,7 +9,6 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -230,5 +230,7 @@ pub async fn transfer(
     info!("用户 {} 正在发起资金调拨", auth.username);
     let service = FundManagementService::new(state.db.clone());
     let res = service.transfer_fund(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap_or_default())))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(res).unwrap_or_default(),
+    )))
 }

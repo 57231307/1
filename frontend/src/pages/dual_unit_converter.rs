@@ -1,10 +1,8 @@
 // 双计量单位转换器页面
 
-use yew::prelude::*;
-use crate::models::dual_unit_converter::{
-    ConvertUnitResponse, ValidateDualUnitResponse,
-};
+use crate::models::dual_unit_converter::{ConvertUnitResponse, ValidateDualUnitResponse};
 use crate::services::dual_unit_converter_service::DualUnitConverterService;
+use yew::prelude::*;
 
 /// 转换方向枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -66,10 +64,12 @@ pub fn dual_unit_converter_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 let result = match *direction {
                     ConversionDirection::MetersToKg => {
-                        DualUnitConverterService::meters_to_kg(&value, &gram_weight, &width_cm).await
+                        DualUnitConverterService::meters_to_kg(&value, &gram_weight, &width_cm)
+                            .await
                     }
                     ConversionDirection::KgToMeters => {
-                        DualUnitConverterService::kg_to_meters(&value, &gram_weight, &width_cm).await
+                        DualUnitConverterService::kg_to_meters(&value, &gram_weight, &width_cm)
+                            .await
                     }
                 };
 
@@ -124,7 +124,8 @@ pub fn dual_unit_converter_page() -> Html {
                     &validate_gram_weight,
                     &validate_width_cm,
                     tolerance_str,
-                ).await;
+                )
+                .await;
 
                 is_loading.set(false);
 

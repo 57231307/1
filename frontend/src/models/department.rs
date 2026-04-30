@@ -1,6 +1,5 @@
 //! 部门模型
 
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Department {
     pub id: i32,

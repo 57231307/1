@@ -38,6 +38,7 @@ pub mod business_trace_chain;
 pub mod business_trace_snapshot;
 pub mod business_trace_view;
 // 供应商管理模块
+pub mod product_supplier_mapping;
 pub mod supplier;
 pub mod supplier_blacklist;
 pub mod supplier_category;
@@ -45,10 +46,9 @@ pub mod supplier_contact;
 pub mod supplier_evaluation;
 pub mod supplier_evaluation_record;
 pub mod supplier_grade;
-pub mod supplier_qualification;
 pub mod supplier_product;
 pub mod supplier_product_color;
-pub mod product_supplier_mapping;
+pub mod supplier_qualification;
 // 采购管理模块
 pub mod purchase_order;
 pub mod purchase_order_item;
@@ -145,6 +145,6 @@ pub mod log_system;
 // 报表模块
 pub mod report_definition;
 // AR模块（应收账款模块）- 在第62行已定义
+pub mod logistics_waybill;
 pub mod sales_return;
 pub mod sales_return_item;
-pub mod logistics_waybill;

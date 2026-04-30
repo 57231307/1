@@ -1,6 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
@@ -9,7 +10,6 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -62,7 +62,6 @@ pub struct CreateBudgetPlanRequest {
 
 /// 预算执行请求 DTO
 #[derive(Debug, Deserialize)]
-
 #[allow(dead_code)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
@@ -74,7 +73,6 @@ pub struct BudgetExecuteRequest {
 
 /// 预算审批请求 DTO
 #[derive(Debug, Deserialize)]
-
 #[allow(dead_code)]
 pub struct BudgetApproveRequest {
     pub approval_comment: Option<String>,
@@ -410,57 +408,76 @@ pub async fn get_plan_executions(
     Ok(Json(ApiResponse::success(executions)))
 }
 
-
 /// 预算列表查询功能尚未实现
 pub async fn list_budgets(
-    Query(_params): Query<serde_json::Value>, State(_state): State<AppState>, auth: AuthContext,
+    Query(_params): Query<serde_json::Value>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在预算列表查询功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算列表查询功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "预算列表查询功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 预算创建功能尚未实现
 pub async fn create_budget(
-    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    Json(_req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在预算创建功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算创建功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "预算创建功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 预算更新功能尚未实现
 pub async fn update_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在预算更新功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算更新功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "预算更新功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 预算删除功能尚未实现
 pub async fn delete_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在预算删除功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算删除功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "预算删除功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 预算获取功能尚未实现
 pub async fn get_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在预算获取功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算获取功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "预算获取功能尚未实现".to_string(),
+    ))
 }
 
 /// 预算审批功能尚未实现
 pub async fn approve_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在预算审批功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算审批功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "预算审批功能尚未实现".to_string(),
+    ))
 }
 
 pub async fn adjust_budget(
@@ -471,5 +488,7 @@ pub async fn adjust_budget(
     info!("用户 {} 正在发起预算调整", auth.username);
     let service = BudgetManagementService::new(state.db.clone());
     let res = service.adjust_budget(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap_or_default())))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(res).unwrap_or_default(),
+    )))
 }

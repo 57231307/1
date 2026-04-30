@@ -1,13 +1,13 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
 use crate::services::sales_price_service::{CreateSalesPriceInput, SalesPriceService};
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 

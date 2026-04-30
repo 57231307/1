@@ -20,7 +20,10 @@ impl DepartmentService {
         ApiService::post("/departments", &payload).await
     }
 
-    pub async fn update_department(id: i32, req: UpdateDepartmentRequest) -> Result<Department, String> {
+    pub async fn update_department(
+        id: i32,
+        req: UpdateDepartmentRequest,
+    ) -> Result<Department, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/departments/{}", id), &payload).await
     }

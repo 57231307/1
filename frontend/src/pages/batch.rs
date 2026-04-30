@@ -1,12 +1,10 @@
 // 批次管理页面
 
-use yew::prelude::*;
+use crate::models::batch::{Batch, BatchQuery};
+use crate::services::batch_service::BatchService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::batch::{
-    Batch, BatchQuery,
-};
-use crate::services::batch_service::BatchService;
+use yew::prelude::*;
 
 pub struct BatchPage {
     batches: Vec<Batch>,
@@ -69,9 +67,21 @@ impl Component for BatchPage {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
                     product_id: None,
-                    batch_no: if self.filter_batch_no.is_empty() { None } else { Some(self.filter_batch_no.clone()) },
-                    color_no: if self.filter_color_no.is_empty() { None } else { Some(self.filter_color_no.clone()) },
-                    grade: if self.filter_grade == "全部" { None } else { Some(self.filter_grade.clone()) },
+                    batch_no: if self.filter_batch_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_batch_no.clone())
+                    },
+                    color_no: if self.filter_color_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_color_no.clone())
+                    },
+                    grade: if self.filter_grade == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_grade.clone())
+                    },
                     warehouse_id: None,
                     start_date: None,
                     end_date: None,
@@ -130,17 +140,29 @@ impl Component for BatchPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_batch_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetFilterBatchNo(target.value())
         });
 
         let on_color_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetFilterColorNo(target.value())
         });
 
         let on_grade_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterGrade(target.value())
         });
 

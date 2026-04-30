@@ -3,14 +3,14 @@ use gloo_dialogs;
 //
 // 应付发票（AP Invoice）管理功能，包含账龄分析和余额汇总
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
+use crate::components::main_layout::MainLayout;
 use crate::models::ap_invoice::{
-    ApInvoice, ApInvoiceQueryParams, AgingAnalysisItem, BalanceSummaryItem,
+    AgingAnalysisItem, ApInvoice, ApInvoiceQueryParams, BalanceSummaryItem,
 };
 use crate::services::ap_invoice_service::ApInvoiceService;
-use crate::components::main_layout::MainLayout;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 应付发票管理页面状态
 pub struct ApInvoicePage {
@@ -33,7 +33,8 @@ pub struct ApInvoicePage {
     // 筛选供应商ID
     filter_supplier_id: Option<i32>,
 
-    viewing_item: Option<ApInvoice>,}
+    viewing_item: Option<ApInvoice>,
+}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -64,7 +65,8 @@ pub enum Msg {
     LoadBalanceSummary,
     BalanceSummaryLoaded(Vec<BalanceSummaryItem>),
 
-    CloseDetailModal,}
+    CloseDetailModal,
+}
 
 impl Component for ApInvoicePage {
     type Message = Msg;
@@ -106,8 +108,16 @@ impl Component for ApInvoicePage {
                 self.loading = true;
                 let params = ApInvoiceQueryParams {
                     supplier_id: self.filter_supplier_id,
-                    invoice_status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    invoice_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
+                    invoice_status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    invoice_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -116,7 +126,9 @@ impl Component for ApInvoicePage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match ApInvoiceService::list_invoices(params).await {
-                        Ok(response) => link.send_message(Msg::InvoicesLoaded(response.data, response.total)),
+                        Ok(response) => {
+                            link.send_message(Msg::InvoicesLoaded(response.data, response.total))
+                        }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -239,12 +251,20 @@ impl Component for ApInvoicePage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 

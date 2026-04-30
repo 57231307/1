@@ -1,4 +1,4 @@
-use crate::models::user::{User, CreateUserRequest, UserListResponse};
+use crate::models::user::{CreateUserRequest, User, UserListResponse};
 use crate::services::api::ApiService;
 
 /// 用户服务
@@ -30,7 +30,11 @@ impl UserService {
         ApiService::put(&format!("/users/{}", id), user).await
     }
 
-    pub async fn change_password(&self, id: i32, payload: &serde_json::Value) -> Result<(), String> {
+    pub async fn change_password(
+        &self,
+        id: i32,
+        payload: &serde_json::Value,
+    ) -> Result<(), String> {
         ApiService::post(&format!("/users/{}/password", id), payload).await
     }
 

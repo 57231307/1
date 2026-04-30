@@ -3,13 +3,13 @@ use crate::models::purchase_contract;
 use crate::services::purchase_contract_service::{
     CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -190,7 +190,9 @@ pub async fn update_contract(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在更新采购合同", auth.user_id);
-    Err(AppError::ValidationError("合同更新功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "合同更新功能尚未实现".to_string(),
+    ))
 }
 
 /// 删除合同
@@ -200,5 +202,7 @@ pub async fn delete_contract(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在删除采购合同", auth.user_id);
-    Err(AppError::ValidationError("合同删除功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "合同删除功能尚未实现".to_string(),
+    ))
 }

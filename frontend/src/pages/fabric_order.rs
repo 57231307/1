@@ -1,13 +1,12 @@
 // 面料订单管理页面
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::fabric_order::{
-    FabricOrder, FabricOrderQuery,
-    CreateFabricOrderRequest, UpdateFabricOrderRequest,
+    CreateFabricOrderRequest, FabricOrder, FabricOrderQuery, UpdateFabricOrderRequest,
 };
 use crate::services::fabric_order_service::FabricOrderService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct FabricOrderPage {
     orders: Vec<FabricOrder>,
@@ -75,7 +74,11 @@ impl Component for FabricOrderPage {
                     page_size: Some(self.page_size),
                     customer_id: None,
                     order_no: None,
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     batch_no: None,
                     color_no: None,
                 };
@@ -182,7 +185,11 @@ impl Component for FabricOrderPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_filter_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
@@ -329,7 +336,7 @@ impl FabricOrderPage {
         if !self.show_modal {
             return html! {};
         }
-        
+
         let title = match self.modal_mode {
             ModalMode::Create => "新建面料订单",
             ModalMode::Edit => "编辑面料订单",

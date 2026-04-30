@@ -13,16 +13,15 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 // 导入后端的路由创建函数
+use bingxi_backend::middleware::auth::auth_middleware;
 use bingxi_backend::routes::create_router;
 use bingxi_backend::utils::app_state::AppState;
-use bingxi_backend::middleware::auth::auth_middleware;
 
 /// 设置测试应用
 async fn setup_app() -> Router {
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let state = AppState::new(Arc::new(db), "test_secret".to_string());
-    create_router(state.clone())
-        .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
+    create_router(state.clone()).layer(axum::middleware::from_fn_with_state(state, auth_middleware))
 }
 
 // ===================== 采购合同测试 =====================

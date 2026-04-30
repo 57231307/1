@@ -4,9 +4,9 @@ use axum::Router;
 use bingxi_backend::routes::create_router;
 use bingxi_backend::services::auth_service::AuthService;
 use bingxi_backend::services::user_service::UserService;
+use bingxi_backend::utils::app_state::AppState;
 use sea_orm::Database;
 use std::sync::Arc;
-use bingxi_backend::utils::app_state::AppState;
 
 #[allow(dead_code)]
 async fn setup_app() -> Router {

@@ -9,8 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -275,7 +274,10 @@ pub async fn delete_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match greige_fabric::Entity::delete_by_id(id).exec(&*state.db).await {
+    match greige_fabric::Entity::delete_by_id(id)
+        .exec(&*state.db)
+        .await
+    {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "坯布删除成功")),
@@ -367,7 +369,8 @@ pub async fn stock_out(
 
     if let Some(out_weight) = req.weight_kg {
         let current_weight = fabric.weight_kg.unwrap_or(Decimal::ZERO);
-        let new_weight = current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
+        let new_weight =
+            current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
         if new_weight < Decimal::ZERO {
             return (
                 StatusCode::BAD_REQUEST,
@@ -380,7 +383,8 @@ pub async fn stock_out(
 
     if let Some(out_length) = req.length_m {
         let current_length = fabric.length_m.unwrap_or(Decimal::ZERO);
-        let new_length = current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
+        let new_length =
+            current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
         if new_length < Decimal::ZERO {
             return (
                 StatusCode::BAD_REQUEST,

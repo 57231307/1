@@ -2,13 +2,14 @@
 //
 // 应付核销（AP Verification）管理功能
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::ap_verification::{
-    ApVerification, ApVerificationQueryParams, ManualVerifyRequest, UnverifiedInvoiceItem, UnverifiedPaymentItem,
+    ApVerification, ApVerificationQueryParams, ManualVerifyRequest, UnverifiedInvoiceItem,
+    UnverifiedPaymentItem,
 };
 use crate::services::ap_verification_service::ApVerificationService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 应付核销管理页面状态
 pub struct ApVerificationPage {
@@ -100,7 +101,11 @@ impl Component for ApVerificationPage {
                 self.loading = true;
                 let params = ApVerificationQueryParams {
                     supplier_id: self.selected_supplier_id,
-                    verification_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
+                    verification_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -109,7 +114,8 @@ impl Component for ApVerificationPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match ApVerificationService::list_verifications(params).await {
-                        Ok(response) => link.send_message(Msg::VerificationsLoaded(response.items, response.total)),
+                        Ok(response) => link
+                            .send_message(Msg::VerificationsLoaded(response.items, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -247,7 +253,11 @@ impl Component for ApVerificationPage {
                         invoice_ids: self.selected_invoice_ids.clone(),
                         payment_ids: self.selected_payment_ids.clone(),
                         verification_amount: self.manual_verify_amount.clone(),
-                        remarks: if self.manual_verify_remarks.is_empty() { None } else { Some(self.manual_verify_remarks.clone()) },
+                        remarks: if self.manual_verify_remarks.is_empty() {
+                            None
+                        } else {
+                            Some(self.manual_verify_remarks.clone())
+                        },
                     };
                     let link = ctx.link().clone();
                     spawn_local(async move {
@@ -277,7 +287,11 @@ impl Component for ApVerificationPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 

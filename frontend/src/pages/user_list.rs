@@ -1,11 +1,11 @@
+use crate::app::Route;
+use crate::components::main_layout::MainLayout;
+use crate::models::user::User;
+use crate::services::user_service::UserService;
+use crate::utils::storage::Storage;
+use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 use yew_router::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use crate::app::Route;
-use crate::services::user_service::UserService;
-use crate::models::user::User;
-use crate::utils::storage::Storage;
-use crate::components::main_layout::MainLayout;
 
 pub struct UserListPage {
     users: Vec<User>,
@@ -40,7 +40,7 @@ impl Component for UserListPage {
             error_message: None,
             user_service: UserService::new(),
         };
-        
+
         // 检查是否已登录
         if Storage::get_token().is_none() {
             if let Some(navigator) = ctx.link().navigator() {
@@ -59,12 +59,12 @@ impl Component for UserListPage {
             Msg::LoadUsers => {
                 self.is_loading = true;
                 self.error_message = None;
-                
+
                 let service = self.user_service.clone();
                 let page = self.page;
                 let page_size = self.page_size;
                 let link = ctx.link().clone();
-                
+
                 spawn_local(async move {
                     match service.list_users(page, page_size).await {
                         Ok(response) => {
@@ -109,14 +109,10 @@ impl Component for UserListPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
-        
-        let on_prev = link.callback(move |_: MouseEvent| {
-            Msg::PageChanged(0)
-        });
 
-        let on_next = link.callback(move |_: MouseEvent| {
-            Msg::PageChanged(0)
-        });
+        let on_prev = link.callback(move |_: MouseEvent| Msg::PageChanged(0));
+
+        let on_next = link.callback(move |_: MouseEvent| Msg::PageChanged(0));
 
         let _on_logout = link.callback(|_: MouseEvent| Msg::Logout);
 

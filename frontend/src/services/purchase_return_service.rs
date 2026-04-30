@@ -3,7 +3,7 @@
 
 use crate::models::api_response::ApiResponse;
 use crate::models::purchase_return::{
-    CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest, PaginatedReturns, PurchaseReturn,
+    CreatePurchaseReturnItemRequest, CreatePurchaseReturnRequest, PaginatedReturns, PurchaseReturn,
     PurchaseReturnItem, PurchaseReturnQuery, RejectReturnRequest, UpdatePurchaseReturnRequest,
     UpdateReturnItemRequest,
 };
@@ -54,7 +54,10 @@ impl PurchaseReturnService {
     }
 
     /// 更新退货单
-    pub async fn update(id: i32, req: UpdatePurchaseReturnRequest) -> Result<PurchaseReturn, String> {
+    pub async fn update(
+        id: i32,
+        req: UpdatePurchaseReturnRequest,
+    ) -> Result<PurchaseReturn, String> {
         let response: ApiResponse<PurchaseReturn> =
             ApiService::put(&format!("/purchases/returns/{}", id), &req).await?;
         response.into_result()
@@ -62,22 +65,31 @@ impl PurchaseReturnService {
 
     /// 提交退货单
     pub async fn submit(id: i32) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post(&format!("/purchases/returns/{}/submit", id), &serde_json::json!({})).await?;
+        let response: ApiResponse<PurchaseReturn> = ApiService::post(
+            &format!("/purchases/returns/{}/submit", id),
+            &serde_json::json!({}),
+        )
+        .await?;
         response.into_result()
     }
 
     /// 审批退货单
     pub async fn approve(id: i32) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post(&format!("/purchases/returns/{}/approve", id), &serde_json::json!({})).await?;
+        let response: ApiResponse<PurchaseReturn> = ApiService::post(
+            &format!("/purchases/returns/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await?;
         response.into_result()
     }
 
     /// 拒绝退货单
     pub async fn reject(id: i32, reason: String) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post(&format!("/purchases/returns/{}/reject", id), &RejectReturnRequest { reason }).await?;
+        let response: ApiResponse<PurchaseReturn> = ApiService::post(
+            &format!("/purchases/returns/{}/reject", id),
+            &RejectReturnRequest { reason },
+        )
+        .await?;
         response.into_result()
     }
 
@@ -89,21 +101,35 @@ impl PurchaseReturnService {
     }
 
     /// 添加退货明细
-    pub async fn create_item(return_id: i32, req: CreatePurchaseReturnItemRequest) -> Result<PurchaseReturnItem, String> {
+    pub async fn create_item(
+        return_id: i32,
+        req: CreatePurchaseReturnItemRequest,
+    ) -> Result<PurchaseReturnItem, String> {
         let response: ApiResponse<PurchaseReturnItem> =
             ApiService::post(&format!("/purchases/returns/{}/items", return_id), &req).await?;
         response.into_result()
     }
 
     /// 更新退货明细
-    pub async fn update_item(return_id: i32, item_id: i32, req: UpdateReturnItemRequest) -> Result<PurchaseReturnItem, String> {
-        let response: ApiResponse<PurchaseReturnItem> =
-            ApiService::put(&format!("/purchases/returns/{}/items/{}", return_id, item_id), &req).await?;
+    pub async fn update_item(
+        return_id: i32,
+        item_id: i32,
+        req: UpdateReturnItemRequest,
+    ) -> Result<PurchaseReturnItem, String> {
+        let response: ApiResponse<PurchaseReturnItem> = ApiService::put(
+            &format!("/purchases/returns/{}/items/{}", return_id, item_id),
+            &req,
+        )
+        .await?;
         response.into_result()
     }
 
     /// 删除退货明细
     pub async fn delete_item(return_id: i32, item_id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/purchases/returns/{}/items/{}", return_id, item_id)).await
+        ApiService::delete(&format!(
+            "/purchases/returns/{}/items/{}",
+            return_id, item_id
+        ))
+        .await
     }
 }

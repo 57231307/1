@@ -1,13 +1,11 @@
 use gloo_dialogs;
 // 采购收货单管理页面
 
-use yew::prelude::*;
+use crate::models::purchase_receipt::{PurchaseReceipt, PurchaseReceiptItem, PurchaseReceiptQuery};
+use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::purchase_receipt::{
-    PurchaseReceipt, PurchaseReceiptQuery, PurchaseReceiptItem
-};
-use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use yew::prelude::*;
 
 /// 采购收货单页面状态
 pub struct PurchaseReceiptPage {
@@ -20,7 +18,8 @@ pub struct PurchaseReceiptPage {
     printing_receipt: Option<(PurchaseReceipt, Vec<PurchaseReceiptItem>)>,
     print_trigger: bool,
 
-    viewing_item: Option<PurchaseReceipt>,}
+    viewing_item: Option<PurchaseReceipt>,
+}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -42,7 +41,8 @@ pub enum Msg {
     PrintReady(PurchaseReceipt, Vec<PurchaseReceiptItem>),
     ClearPrint,
 
-    CloseDetailModal,}
+    CloseDetailModal,
+}
 
 impl Component for PurchaseReceiptPage {
     type Message = Msg;
@@ -85,7 +85,11 @@ impl Component for PurchaseReceiptPage {
                 let query = PurchaseReceiptQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     supplier_id: None,
                     order_id: None,
                 };
@@ -162,7 +166,11 @@ impl Component for PurchaseReceiptPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 

@@ -51,34 +51,58 @@ impl PurchaseOrderService {
     }
 
     pub async fn submit(id: i32) -> Result<PurchaseOrder, String> {
-        ApiService::post(&format!("/purchases/orders/{}/submit", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/purchases/orders/{}/submit", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     pub async fn approve(id: i32) -> Result<PurchaseOrder, String> {
-        ApiService::post(&format!("/purchases/orders/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/purchases/orders/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     pub async fn reject(id: i32, reason: String) -> Result<PurchaseOrder, String> {
-        let body = serde_json::to_value(&RejectOrderRequest { reason }).map_err(|e| format!("序列化失败：{}", e))?;
+        let body = serde_json::to_value(&RejectOrderRequest { reason })
+            .map_err(|e| format!("序列化失败：{}", e))?;
         ApiService::post(&format!("/purchases/orders/{}/reject", id), &body).await
     }
 
     pub async fn close(id: i32) -> Result<PurchaseOrder, String> {
-        ApiService::post(&format!("/purchases/orders/{}/close", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/purchases/orders/{}/close", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     pub async fn list_items(order_id: i32) -> Result<Vec<PurchaseOrderItem>, String> {
         ApiService::get(&format!("/purchases/orders/{}/items", order_id)).await
     }
 
-    pub async fn create_item(order_id: i32, req: CreateOrderItemRequest) -> Result<PurchaseOrderItem, String> {
+    pub async fn create_item(
+        order_id: i32,
+        req: CreateOrderItemRequest,
+    ) -> Result<PurchaseOrderItem, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
         ApiService::post(&format!("/purchases/orders/{}/items", order_id), &body).await
     }
 
-    pub async fn update_item(order_id: i32, item_id: i32, req: UpdateOrderItemRequest) -> Result<PurchaseOrderItem, String> {
+    pub async fn update_item(
+        order_id: i32,
+        item_id: i32,
+        req: UpdateOrderItemRequest,
+    ) -> Result<PurchaseOrderItem, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::put(&format!("/purchases/orders/{}/items/{}", order_id, item_id), &body).await
+        ApiService::put(
+            &format!("/purchases/orders/{}/items/{}", order_id, item_id),
+            &body,
+        )
+        .await
     }
 
     pub async fn delete_item(order_id: i32, item_id: i32) -> Result<(), String> {

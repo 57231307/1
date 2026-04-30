@@ -1,10 +1,10 @@
 pub mod account_subject_handler;
-pub mod crm_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;
 pub mod batch_handler;
 pub mod batch_new_handler;
 pub mod business_trace_handler;
+pub mod crm_handler;
 pub mod customer_handler;
 pub mod dashboard_handler;
 pub mod department_handler;
@@ -61,12 +61,12 @@ pub mod sales_analysis_handler;
 pub mod sales_price_handler;
 pub mod supplier_evaluation_handler;
 // 面料行业核心模块
+pub mod barcode_scanner_handler;
+pub mod bpm_handler;
 pub mod dye_batch_handler;
 pub mod dye_recipe_handler;
 pub mod greige_fabric_handler;
-pub mod system_update_handler;
-pub mod sales_return_handler;
-pub mod bpm_handler;
 pub mod logistics_handler;
-pub mod barcode_scanner_handler;
 pub mod piece_split_handler;
+pub mod sales_return_handler;
+pub mod system_update_handler;

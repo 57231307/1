@@ -63,7 +63,10 @@ impl FinanceInvoiceService {
 
     /// 更新财务发票
     #[allow(dead_code)]
-    pub async fn update_invoice(id: i32, req: UpdateInvoiceRequest) -> Result<FinanceInvoice, String> {
+    pub async fn update_invoice(
+        id: i32,
+        req: UpdateInvoiceRequest,
+    ) -> Result<FinanceInvoice, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/finance-invoices/{}", id), &payload).await
     }
@@ -75,7 +78,11 @@ impl FinanceInvoiceService {
 
     /// 审核财务发票
     pub async fn approve_invoice(id: i32) -> Result<FinanceInvoice, String> {
-        ApiService::post::<FinanceInvoice, serde_json::Value>(&format!("/finance-invoices/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post::<FinanceInvoice, serde_json::Value>(
+            &format!("/finance-invoices/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     /// 核销财务发票

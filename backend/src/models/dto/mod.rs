@@ -4,9 +4,9 @@
 //! 提供通用的 API 响应和分页请求结构
 
 pub mod bpm_dto;
+pub mod budget_dto;
 pub mod crm_dto;
 pub mod fund_dto;
-pub mod budget_dto;
 
 use axum::{
     http::StatusCode,

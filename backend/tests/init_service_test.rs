@@ -14,9 +14,12 @@ async fn test_database_config_to_connection_string() {
         username: "test_user".to_string(),
         password: "test_pass".to_string(),
     };
-    
+
     let conn_str = config.to_connection_string();
-    assert_eq!(conn_str, "postgres://test_user:test_pass@localhost:5432/test_db?sslmode=disable");
+    assert_eq!(
+        conn_str,
+        "postgres://test_user:test_pass@localhost:5432/test_db?sslmode=disable"
+    );
 }
 
 /// 测试初始化服务的基本功能
@@ -26,9 +29,9 @@ async fn test_init_service_basic() {
     // 使用内存数据库进行测试
     let db = Database::connect("sqlite::memory:").await.unwrap();
     let db = Arc::new(db);
-    
+
     let init_service = InitService::new(db);
-    
+
     // 检查初始化状态
     let (initialized, message) = init_service.check_initialized().await;
     assert!(!initialized);
@@ -39,7 +42,7 @@ async fn test_init_service_basic() {
 #[tokio::test]
 async fn test_password_hashing() {
     use bingxi_backend::services::auth_service::AuthService;
-    
+
     let password = "test_password_123";
     let hash_result = AuthService::hash_password(password);
     assert!(hash_result.is_ok());
@@ -56,4 +59,3 @@ async fn test_execute_unprepared_with_dollar_quotes() {
     let res = db.execute_unprepared(sql).await;
     assert!(res.is_ok(), "execute_unprepared failed: {:?}", res.err());
 }
-

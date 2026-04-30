@@ -3,15 +3,16 @@
 //! 采购退货 HTTP 接口层
 
 use crate::services::purchase_return_service::{
-    CreatePurchaseReturnRequest, PurchaseReturnService, UpdatePurchaseReturnRequest, CreateReturnItemRequest, UpdateReturnItemRequest
+    CreatePurchaseReturnRequest, CreateReturnItemRequest, PurchaseReturnService,
+    UpdatePurchaseReturnRequest, UpdateReturnItemRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -160,12 +161,14 @@ pub struct RejectReturnRequest {
     pub reason: String,
 }
 
-
 pub async fn list_items(
     State(state): State<AppState>,
     _auth: crate::middleware::auth_context::AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>,
+    AppError,
+> {
     let service = PurchaseReturnService::new(state.db.clone());
     let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(items)))

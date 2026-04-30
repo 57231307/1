@@ -43,18 +43,29 @@ impl InventoryCountService {
         ApiService::post("/inventory/counts", &body).await
     }
 
-    pub async fn update(id: i32, req: UpdateInventoryCountRequest) -> Result<InventoryCountDetail, String> {
+    pub async fn update(
+        id: i32,
+        req: UpdateInventoryCountRequest,
+    ) -> Result<InventoryCountDetail, String> {
         let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
         ApiService::put(&format!("/inventory/counts/{}", id), &body).await
     }
 
-    pub async fn approve(id: i32, approved: bool, notes: Option<String>) -> Result<InventoryCountDetail, String> {
+    pub async fn approve(
+        id: i32,
+        approved: bool,
+        notes: Option<String>,
+    ) -> Result<InventoryCountDetail, String> {
         let body = serde_json::to_value(&ApproveCountRequest { approved, notes })
             .map_err(|e| format!("序列化失败：{}", e))?;
         ApiService::post(&format!("/inventory/counts/{}/approve", id), &body).await
     }
 
     pub async fn complete(id: i32) -> Result<InventoryCountDetail, String> {
-        ApiService::post(&format!("/inventory/counts/{}/complete", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/inventory/counts/{}/complete", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 }

@@ -3,13 +3,11 @@ use gloo_dialogs;
 //
 // 付款申请（AP Payment Request）管理功能
 
-use yew::prelude::*;
+use crate::models::ap_payment_request::{ApPaymentRequest, ApPaymentRequestQueryParams};
+use crate::services::ap_payment_request_service::ApPaymentRequestService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::ap_payment_request::{
-    ApPaymentRequest, ApPaymentRequestQueryParams,
-};
-use crate::services::ap_payment_request_service::ApPaymentRequestService;
+use yew::prelude::*;
 
 /// 付款申请管理页面状态
 pub struct ApPaymentRequestPage {
@@ -22,7 +20,8 @@ pub struct ApPaymentRequestPage {
     page_size: u64,
     total: u64,
 
-    viewing_item: Option<ApPaymentRequest>,}
+    viewing_item: Option<ApPaymentRequest>,
+}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -46,7 +45,8 @@ pub enum Msg {
     ChangePage(u64),
     Refresh,
 
-    CloseDetailModal,}
+    CloseDetailModal,
+}
 
 impl Component for ApPaymentRequestPage {
     type Message = Msg;
@@ -82,8 +82,16 @@ impl Component for ApPaymentRequestPage {
                 self.loading = true;
                 let params = ApPaymentRequestQueryParams {
                     supplier_id: None,
-                    approval_status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    payment_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
+                    approval_status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    payment_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -92,7 +100,9 @@ impl Component for ApPaymentRequestPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match ApPaymentRequestService::list_requests(params).await {
-                        Ok(response) => link.send_message(Msg::RequestsLoaded(response.items, response.total)),
+                        Ok(response) => {
+                            link.send_message(Msg::RequestsLoaded(response.items, response.total))
+                        }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -179,12 +189,20 @@ impl Component for ApPaymentRequestPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 

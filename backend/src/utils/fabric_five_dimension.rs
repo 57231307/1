@@ -81,17 +81,19 @@ impl FabricFiveDimension {
             .ok_or_else(|| format!("无效的色号：{}", parts[2]))?;
 
         // 解析缸号
-        let dye_lot_no =
-            if parts[3] == "DN" || parts[3] == "N" || parts[3].strip_prefix('D').is_some_and(|s| s.is_empty()) {
-                None
-            } else {
-                Some(
-                    parts[3]
-                        .strip_prefix('D')
-                        .map(|s| s.to_string())
-                        .ok_or_else(|| format!("无效的缸号：{}", parts[3]))?,
-                )
-            };
+        let dye_lot_no = if parts[3] == "DN"
+            || parts[3] == "N"
+            || parts[3].strip_prefix('D').is_some_and(|s| s.is_empty())
+        {
+            None
+        } else {
+            Some(
+                parts[3]
+                    .strip_prefix('D')
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("无效的缸号：{}", parts[3]))?,
+            )
+        };
 
         // 解析等级
         let grade = parts[4]

@@ -12,7 +12,9 @@ use crate::services::api::ApiService;
 pub struct SupplierService;
 
 impl SupplierService {
-    pub async fn list(query: SupplierQuery) -> Result<crate::models::supplier::SupplierListResponse, String> {
+    pub async fn list(
+        query: SupplierQuery,
+    ) -> Result<crate::models::supplier::SupplierListResponse, String> {
         let mut params = Vec::new();
         if let Some(page) = query.page {
             params.push(format!("page={}", page));
@@ -60,8 +62,7 @@ impl SupplierService {
     }
 
     pub async fn create(req: CreateSupplierRequest) -> Result<Supplier, String> {
-        let response: ApiResponse<Supplier> =
-            ApiService::post("/suppliers", &req).await?;
+        let response: ApiResponse<Supplier> = ApiService::post("/suppliers", &req).await?;
         response.into_result()
     }
 
@@ -76,8 +77,11 @@ impl SupplierService {
     }
 
     pub async fn toggle_status(id: i32, enable: bool) -> Result<Supplier, String> {
-        let response: ApiResponse<Supplier> =
-            ApiService::post(&format!("/suppliers/{}/toggle-status", id), &serde_json::json!({ "enable": enable })).await?;
+        let response: ApiResponse<Supplier> = ApiService::post(
+            &format!("/suppliers/{}/toggle-status", id),
+            &serde_json::json!({ "enable": enable }),
+        )
+        .await?;
         response.into_result()
     }
 
@@ -87,29 +91,48 @@ impl SupplierService {
         response.into_result()
     }
 
-    pub async fn create_contact(supplier_id: i32, req: CreateContactRequest) -> Result<SupplierContact, String> {
+    pub async fn create_contact(
+        supplier_id: i32,
+        req: CreateContactRequest,
+    ) -> Result<SupplierContact, String> {
         let response: ApiResponse<SupplierContact> =
             ApiService::post(&format!("/suppliers/{}/contacts", supplier_id), &req).await?;
         response.into_result()
     }
 
-    pub async fn update_contact(supplier_id: i32, contact_id: i32, req: UpdateContactRequest) -> Result<SupplierContact, String> {
-        let response: ApiResponse<SupplierContact> =
-            ApiService::put(&format!("/suppliers/{}/contacts/{}", supplier_id, contact_id), &req).await?;
+    pub async fn update_contact(
+        supplier_id: i32,
+        contact_id: i32,
+        req: UpdateContactRequest,
+    ) -> Result<SupplierContact, String> {
+        let response: ApiResponse<SupplierContact> = ApiService::put(
+            &format!("/suppliers/{}/contacts/{}", supplier_id, contact_id),
+            &req,
+        )
+        .await?;
         response.into_result()
     }
 
     pub async fn delete_contact(supplier_id: i32, contact_id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/suppliers/{}/contacts/{}", supplier_id, contact_id)).await
+        ApiService::delete(&format!(
+            "/suppliers/{}/contacts/{}",
+            supplier_id, contact_id
+        ))
+        .await
     }
 
-    pub async fn list_qualifications(supplier_id: i32) -> Result<Vec<SupplierQualification>, String> {
+    pub async fn list_qualifications(
+        supplier_id: i32,
+    ) -> Result<Vec<SupplierQualification>, String> {
         let response: ApiResponse<Vec<SupplierQualification>> =
             ApiService::get(&format!("/suppliers/{}/qualifications", supplier_id)).await?;
         response.into_result()
     }
 
-    pub async fn create_qualification(supplier_id: i32, req: CreateQualificationRequest) -> Result<SupplierQualification, String> {
+    pub async fn create_qualification(
+        supplier_id: i32,
+        req: CreateQualificationRequest,
+    ) -> Result<SupplierQualification, String> {
         let response: ApiResponse<SupplierQualification> =
             ApiService::post(&format!("/suppliers/{}/qualifications", supplier_id), &req).await?;
         response.into_result()

@@ -1,12 +1,12 @@
-use gloo_dialogs;
-/// 采购合同管理页面
-
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
 use crate::models::purchase_contract::{
-    PurchaseContract, PurchaseContractQueryParams, CreatePurchaseContractRequest, ExecutePurchaseContractRequest,
+    CreatePurchaseContractRequest, ExecutePurchaseContractRequest, PurchaseContract,
+    PurchaseContractQueryParams,
 };
 use crate::services::purchase_contract_service::PurchaseContractService;
+use gloo_dialogs;
+use wasm_bindgen::JsCast;
+/// 采购合同管理页面
+use yew::prelude::*;
 
 /// 采购合同状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -160,7 +160,11 @@ impl Component for PurchaseContractPage {
                 self.state.loading = true;
                 self.state.error = None;
                 let params = PurchaseContractQueryParams {
-                    keyword: if self.state.keyword.is_empty() { None } else { Some(self.state.keyword.clone()) },
+                    keyword: if self.state.keyword.is_empty() {
+                        None
+                    } else {
+                        Some(self.state.keyword.clone())
+                    },
                     status: self.state.status_filter.clone(),
                     supplier_id: None,
                     page: Some(self.state.page),
@@ -584,7 +588,11 @@ impl Component for CreateContractModal {
                     total_amount: self.state.total_amount.clone(),
                     payment_terms: Some(self.state.payment_terms.clone()),
                     delivery_date: self.state.delivery_date.clone(),
-                    remark: if self.state.remark.is_empty() { None } else { Some(self.state.remark.clone()) },
+                    remark: if self.state.remark.is_empty() {
+                        None
+                    } else {
+                        Some(self.state.remark.clone())
+                    },
                 };
                 ctx.props().on_submit.emit(req);
                 false
@@ -594,7 +602,7 @@ impl Component for CreateContractModal {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let props = ctx.props();
-        
+
         let on_input = |msg: fn(String) -> CreateContractMsg| {
             ctx.link().callback(move |e: InputEvent| {
                 let target = e.target().unwrap();

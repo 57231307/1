@@ -3,13 +3,13 @@ use crate::models::customer_credit;
 use crate::services::customer_credit_service::{
     CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCreditService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -220,29 +220,38 @@ pub async fn deactivate_credit(
     Ok(Json(ApiResponse::success(message)))
 }
 
-
 /// 客户信用创建功能尚未实现
 pub async fn create_credit(
-    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    Json(_req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在客户信用创建功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("客户信用创建功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "客户信用创建功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 客户信用更新功能尚未实现
 pub async fn update_credit(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在客户信用更新功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("客户信用更新功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "客户信用更新功能尚未实现".to_string(),
+    ))
 }
-
 
 /// 客户信用删除功能尚未实现
 pub async fn delete_credit(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
+    Path(_id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在客户信用删除功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("客户信用删除功能尚未实现".to_string()))
+    Err(AppError::ValidationError(
+        "客户信用删除功能尚未实现".to_string(),
+    ))
 }

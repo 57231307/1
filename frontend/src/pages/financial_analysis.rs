@@ -1,10 +1,10 @@
 // 财务分析页面
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::financial_analysis::{DupontAnalysis, FinancialRatio};
 use crate::services::financial_analysis_service::FinancialAnalysisService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct FinancialAnalysisPage {
     loading: bool,

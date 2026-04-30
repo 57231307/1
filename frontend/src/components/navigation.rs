@@ -1,6 +1,6 @@
+use crate::app::Route;
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::app::Route;
 
 #[derive(Properties, PartialEq)]
 pub struct NavigationProps {
@@ -25,21 +25,21 @@ pub fn navigation(props: &NavigationProps) -> Html {
     let l2_basic_product = use_state(|| false);
     let l2_basic_contact = use_state(|| false);
     let l2_basic_wh = use_state(|| false);
-    
+
     let l2_supply_sales = use_state(|| false);
     let l2_supply_purchase = use_state(|| false);
     let l2_supply_price = use_state(|| false);
-    
+
     let l2_inv_ops = use_state(|| false);
     let l2_inv_qa = use_state(|| false);
-    
+
     let l2_fin_acc = use_state(|| false);
     let l2_fin_ar_ap = use_state(|| false);
     let l2_fin_cost = use_state(|| false);
-    
+
     let l2_fab_prod = use_state(|| false);
     let l2_fab_tools = use_state(|| false);
-    
+
     let l2_sys_report = use_state(|| false);
     let l2_sys_admin = use_state(|| false);
 
@@ -56,7 +56,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
     }
 
     let on_dashboard = nav_cb!(Route::Dashboard);
-    
+
     // 基础数据
     let on_users = nav_cb!(Route::Users);
     let on_roles = nav_cb!(Route::Roles);
@@ -72,12 +72,12 @@ pub fn navigation(props: &NavigationProps) -> Html {
     let on_fabric_orders = nav_cb!(Route::FabricOrders);
     let on_sales_contracts = nav_cb!(Route::SalesContracts);
     let on_sales_returns = nav_cb!(Route::SalesReturns);
-    
+
     let on_po = nav_cb!(Route::PurchaseOrders);
     let on_pc = nav_cb!(Route::PurchaseContracts);
     let on_pr = nav_cb!(Route::PurchaseReceipts);
     let on_pret = nav_cb!(Route::PurchaseReturns);
-    
+
     let on_sales_prices = nav_cb!(Route::SalesPrices);
     let on_purchase_prices = nav_cb!(Route::PurchasePrices);
 
@@ -86,7 +86,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
     let on_inv_transfer = nav_cb!(Route::Transfers);
     let on_inv_count = nav_cb!(Route::Counts);
     let on_inv_adj = nav_cb!(Route::InventoryAdjustments);
-    
+
     let on_qa_insp = nav_cb!(Route::QualityInspection);
     let on_qa_po = nav_cb!(Route::PurchaseInspections);
     let on_qa_supp = nav_cb!(Route::SupplierEvaluation);
@@ -96,13 +96,13 @@ pub fn navigation(props: &NavigationProps) -> Html {
     let on_fin_asset = nav_cb!(Route::FixedAssets);
     let on_fin_subj = nav_cb!(Route::AccountSubjects);
     let on_fin_voucher = nav_cb!(Route::Vouchers);
-    
+
     let on_fin_ar_inv = nav_cb!(Route::ArInvoices);
     let on_fin_ap_inv = nav_cb!(Route::ApInvoices);
     let on_fin_ap_req = nav_cb!(Route::ApPaymentRequests);
     let on_fin_ap_pay = nav_cb!(Route::ApPayments);
     let on_fin_credit = nav_cb!(Route::CustomerCredits);
-    
+
     let on_fin_cost = nav_cb!(Route::CostCollections);
     let on_fin_assist = nav_cb!(Route::AssistAccounting);
 
@@ -111,7 +111,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
     let on_fab_dye = nav_cb!(Route::DyeBatches);
     let on_fab_recipe = nav_cb!(Route::DyeRecipes);
     let on_fab_greige = nav_cb!(Route::GreigeFabrics);
-    
+
     let on_fab_dual = nav_cb!(Route::DualUnitConverter);
     let on_fab_five = nav_cb!(Route::FiveDimensions);
     let on_fab_trace = nav_cb!(Route::BusinessTrace);
@@ -181,7 +181,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                 {"秉羲面料管理"}
             </div>
             <div class="nav-menu flex-1 px-3 py-4 space-y-1">
-                
+
                 {render_l1_group("工作台", l1_dashboard, html! {
                     {render_item("首页", "dashboard", on_dashboard)}
                 })}
@@ -321,7 +321,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
                         })}
                     </>
                 })}
-                
+
             </div>
         </nav>
     }

@@ -79,11 +79,12 @@ pub async fn logout(
             Json(ApiResponse::error("缺少认证令牌")),
         ))?;
 
-    let _claims = AuthService::validate_token_static(token, &state.jwt_secret)
-        .map_err(|_| (
+    let _claims = AuthService::validate_token_static(token, &state.jwt_secret).map_err(|_| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ApiResponse::error("无效的令牌")),
-        ))?;
+        )
+    })?;
 
     let _user_service = UserService::new(state.db.clone());
 
@@ -109,11 +110,12 @@ pub async fn refresh_token(
             Json(ApiResponse::error("缺少认证令牌")),
         ))?;
 
-    let claims = AuthService::validate_token_static(token, &state.jwt_secret)
-        .map_err(|_| (
+    let claims = AuthService::validate_token_static(token, &state.jwt_secret).map_err(|_| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ApiResponse::error("无效的令牌")),
-        ))?;
+        )
+    })?;
 
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
     let new_token = auth_service

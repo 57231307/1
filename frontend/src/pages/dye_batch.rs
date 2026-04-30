@@ -1,12 +1,12 @@
 // 缸号管理页面（染色批次管理）
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::dye_batch::{
-    DyeBatch, DyeBatchQuery, CreateDyeBatchRequest, CompleteDyeBatchRequest,
+    CompleteDyeBatchRequest, CreateDyeBatchRequest, DyeBatch, DyeBatchQuery,
 };
 use crate::services::dye_batch_service::DyeBatchService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct DyeBatchPage {
     batches: Vec<DyeBatch>,
@@ -70,9 +70,21 @@ impl Component for DyeBatchPage {
                 let query = DyeBatchQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    batch_no: if self.filter_batch_no.is_empty() { None } else { Some(self.filter_batch_no.clone()) },
-                    color_code: if self.filter_color_code.is_empty() { None } else { Some(self.filter_color_code.clone()) },
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    batch_no: if self.filter_batch_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_batch_no.clone())
+                    },
+                    color_code: if self.filter_color_code.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_color_code.clone())
+                    },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     ..Default::default()
                 };
                 let link = ctx.link().clone();
@@ -168,17 +180,29 @@ impl Component for DyeBatchPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_batch_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetFilterBatchNo(target.value())
         });
 
         let on_color_code_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetFilterColorCode(target.value())
         });
 
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 

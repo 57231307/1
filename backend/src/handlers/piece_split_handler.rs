@@ -4,9 +4,7 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::models::inventory_piece;
@@ -47,7 +45,9 @@ pub async fn split_fabric_piece(
 
     // 状态检查
     if parent.status == "SHIPPED" || parent.status == "UNAVAILABLE" {
-        return Err(AppError::BadRequest("当前布卷已发货或不可用，无法进行剪裁拆分".to_string()));
+        return Err(AppError::BadRequest(
+            "当前布卷已发货或不可用，无法进行剪裁拆分".to_string(),
+        ));
     }
 
     // 长度校验
@@ -62,21 +62,29 @@ pub async fn split_fabric_piece(
     let mut active_parent: inventory_piece::ActiveModel = parent.clone().into();
     let remaining_length = parent.length - req.cut_length;
     active_parent.length = Set(remaining_length);
-    
+
     // 如果母卷原本有重量，且输入了剪裁重量，则按比例或直接扣减
     if let (Some(pw), Some(cw)) = (parent.weight, req.cut_weight) {
         if pw >= cw {
             active_parent.weight = Set(Some(pw - cw));
         } else {
-            return Err(AppError::BadRequest("剪裁重量不能大于母卷总重量".to_string()));
+            return Err(AppError::BadRequest(
+                "剪裁重量不能大于母卷总重量".to_string(),
+            ));
         }
     }
     active_parent.updated_at = Set(Utc::now());
     let updated_parent = active_parent.update(&txn).await?;
 
     // 3. 生成新布卷 (子卷)
-    let new_piece_no = req.new_barcode.unwrap_or_else(|| format!("{}-CUT-{}", parent.piece_no, Utc::now().timestamp_subsec_millis()));
-    
+    let new_piece_no = req.new_barcode.unwrap_or_else(|| {
+        format!(
+            "{}-CUT-{}",
+            parent.piece_no,
+            Utc::now().timestamp_subsec_millis()
+        )
+    });
+
     let new_piece = inventory_piece::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         batch_no: Set(parent.batch_no.clone()),

@@ -1,12 +1,12 @@
 // 系统初始化页面
 // 包含数据库配置和管理员账号创建两个步骤
 
-use yew::prelude::*;
-use yew_router::prelude::*;
-use wasm_bindgen_futures::spawn_local;
 use crate::app::Route;
 use crate::services::init_service::InitService;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{HtmlInputElement, InputEvent};
+use yew::prelude::*;
+use yew_router::prelude::*;
 
 /// 初始化步骤
 #[derive(Clone, PartialEq)]
@@ -259,7 +259,13 @@ impl Component for InitPage {
                 });
 
                 spawn_local(async move {
-                    match InitService::initialize_with_db(&db_config, &admin_username, &admin_password).await {
+                    match InitService::initialize_with_db(
+                        &db_config,
+                        &admin_username,
+                        &admin_password,
+                    )
+                    .await
+                    {
                         Ok(result) => {
                             link.send_message(Msg::InitializeProgress(100));
                             link.send_message(Msg::InitializeSuccess(result.message));
@@ -290,7 +296,8 @@ impl Component for InitPage {
                     let navigator = navigator.clone();
                     gloo_timers::callback::Timeout::new(2000, move || {
                         navigator.push(&Route::Login);
-                    }).forget();
+                    })
+                    .forget();
                 }
                 true
             }
@@ -310,7 +317,6 @@ impl Component for InitPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-
         let on_test_db = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::TestDbConnection
@@ -421,7 +427,7 @@ impl Component for InitPage {
                                     </div>
                                     <h2 class="welcome-title">{"欢迎使用秉羲面料管理"}</h2>
                                     <p class="welcome-text">{"让我们花几分钟时间来配置您的系统，开始您的数字化转型之旅。"}</p>
-                                    
+
                                     <div class="feature-list">
                                         <div class="feature-item">
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2">
@@ -470,7 +476,7 @@ impl Component for InitPage {
                                     </div>
                                     <h2 class="completed-title">{"系统已就绪！"}</h2>
                                     <p class="completed-text">{"秉羲面料管理已成功配置，您现在可以开始使用了。"}</p>
-                                    
+
                                     <div class="completed-info">
                                         <div class="info-item">
                                             <span class="info-label">{"系统版本"}</span>
@@ -745,7 +751,7 @@ impl Component for InitPage {
                                     </div>
                                     <h2 class="step-title">{"正在初始化系统..."}</h2>
                                     <p class="step-description">{"请稍候，系统正在配置数据库和创建管理员账号。"}</p>
-                                    
+
                                     <div class="progress-container">
                                         <div class="progress-bar">
                                             <div class="progress-fill" style={format!("width: {}%", self.init_progress)}></div>

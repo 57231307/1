@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::services::api::ApiService;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CrmLead {
@@ -46,7 +46,14 @@ impl CrmService {
         ApiService::get(&format!("/crm/leads?page={}&page_size={}", page, page_size)).await
     }
 
-    pub async fn list_opportunities(page: u64, page_size: u64) -> Result<PageResponse<CrmOpportunity>, String> {
-        ApiService::get(&format!("/crm/opportunities?page={}&page_size={}", page, page_size)).await
+    pub async fn list_opportunities(
+        page: u64,
+        page_size: u64,
+    ) -> Result<PageResponse<CrmOpportunity>, String> {
+        ApiService::get(&format!(
+            "/crm/opportunities?page={}&page_size={}",
+            page, page_size
+        ))
+        .await
     }
 }

@@ -59,8 +59,7 @@ impl SalesPriceService {
 
     /// 创建销售价格
     pub async fn create(req: CreateSalesPriceRequest) -> Result<SalesPrice, String> {
-        let response: ApiResponse<SalesPrice> =
-            ApiService::post("/sales/prices", &req).await?;
+        let response: ApiResponse<SalesPrice> = ApiService::post("/sales/prices", &req).await?;
         response.into_result()
     }
 

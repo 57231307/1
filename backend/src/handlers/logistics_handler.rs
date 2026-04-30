@@ -40,8 +40,10 @@ pub async fn create_waybill(
         .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?;
 
     // Create waybill
-    let freight = req.freight_fee.map(|f| Decimal::from_f64_retain(f).unwrap_or(Decimal::ZERO));
-    
+    let freight = req
+        .freight_fee
+        .map(|f| Decimal::from_f64_retain(f).unwrap_or(Decimal::ZERO));
+
     let new_waybill = logistics_waybill::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         order_id: Set(req.order_id),
@@ -100,11 +102,11 @@ pub async fn update_waybill_status(
 
     let mut active_waybill: logistics_waybill::ActiveModel = waybill.into();
     active_waybill.status = Set(Some(req.status.clone()));
-    
+
     if req.status == "DELIVERED" {
         active_waybill.actual_arrival = Set(Some(Utc::now()));
     }
-    
+
     active_waybill.updated_at = Set(Utc::now());
     let updated = active_waybill.update(&*state.db).await?;
 

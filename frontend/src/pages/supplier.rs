@@ -1,12 +1,12 @@
 // 供应商管理页面
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::supplier::{
-    Supplier, SupplierQuery, CreateSupplierRequest, UpdateSupplierRequest,
+    CreateSupplierRequest, Supplier, SupplierQuery, UpdateSupplierRequest,
 };
 use crate::services::supplier_service::SupplierService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct SupplierPage {
     suppliers: Vec<Supplier>,
@@ -78,9 +78,21 @@ impl Component for SupplierPage {
                 let query = SupplierQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    supplier_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
-                    keyword: if self.keyword.is_empty() { None } else { Some(self.keyword.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    supplier_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
+                    keyword: if self.keyword.is_empty() {
+                        None
+                    } else {
+                        Some(self.keyword.clone())
+                    },
                     grade: None,
                     sort_by: None,
                     sort_order: None,
@@ -183,17 +195,29 @@ impl Component for SupplierPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 
         let on_keyword_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
             Msg::SetKeyword(target.value())
         });
 
@@ -244,8 +268,6 @@ impl Component for SupplierPage {
 }
 
 impl SupplierPage {
-    
-    
     fn render_modal(&self, ctx: &Context<Self>) -> Html {
         if !self.show_modal {
             return html! {};
@@ -259,34 +281,122 @@ impl SupplierPage {
 
         let is_readonly = self.modal_mode == ModalMode::View;
 
-        let name = self.current_supplier.as_ref().map(|s| s.supplier_name.clone()).unwrap_or_default();
-        let short_name = self.current_supplier.as_ref().map(|s| s.supplier_short_name.clone()).unwrap_or_default();
-        let credit_code = self.current_supplier.as_ref().map(|s| s.credit_code.clone()).unwrap_or_default();
-        let reg_address = self.current_supplier.as_ref().map(|s| s.registered_address.clone()).unwrap_or_default();
-        let legal_rep = self.current_supplier.as_ref().map(|s| s.legal_representative.clone()).unwrap_or_default();
-        let reg_cap = self.current_supplier.as_ref().map(|s| s.registered_capital.clone()).unwrap_or_default();
-        let est_date = self.current_supplier.as_ref().map(|s| s.establishment_date.clone()).unwrap_or_default();
-        let tax_type = self.current_supplier.as_ref().map(|s| s.taxpayer_type.clone()).unwrap_or_default();
-        let bank_name = self.current_supplier.as_ref().map(|s| s.bank_name.clone()).unwrap_or_default();
-        let bank_account = self.current_supplier.as_ref().map(|s| s.bank_account.clone()).unwrap_or_default();
-        let contact_phone = self.current_supplier.as_ref().map(|s| s.contact_phone.clone()).unwrap_or_default();
+        let name = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.supplier_name.clone())
+            .unwrap_or_default();
+        let short_name = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.supplier_short_name.clone())
+            .unwrap_or_default();
+        let credit_code = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.credit_code.clone())
+            .unwrap_or_default();
+        let reg_address = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.registered_address.clone())
+            .unwrap_or_default();
+        let legal_rep = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.legal_representative.clone())
+            .unwrap_or_default();
+        let reg_cap = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.registered_capital.clone())
+            .unwrap_or_default();
+        let est_date = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.establishment_date.clone())
+            .unwrap_or_default();
+        let tax_type = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.taxpayer_type.clone())
+            .unwrap_or_default();
+        let bank_name = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.bank_name.clone())
+            .unwrap_or_default();
+        let bank_account = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.bank_account.clone())
+            .unwrap_or_default();
+        let contact_phone = self
+            .current_supplier
+            .as_ref()
+            .map(|s| s.contact_phone.clone())
+            .unwrap_or_default();
 
         let onsubmit = ctx.link().callback(move |e: SubmitEvent| {
             e.prevent_default();
             let form = e.target_unchecked_into::<web_sys::HtmlFormElement>();
-            
-            let name_input = form.elements().named_item("supplier_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let short_name_input = form.elements().named_item("supplier_short_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let credit_input = form.elements().named_item("credit_code").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let reg_addr_input = form.elements().named_item("registered_address").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let legal_input = form.elements().named_item("legal_representative").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let reg_cap_input = form.elements().named_item("registered_capital").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let est_date_input = form.elements().named_item("establishment_date").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let tax_type_input = form.elements().named_item("taxpayer_type").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let bank_name_input = form.elements().named_item("bank_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let bank_account_input = form.elements().named_item("bank_account").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let contact_phone_input = form.elements().named_item("contact_phone").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            
+
+            let name_input = form
+                .elements()
+                .named_item("supplier_name")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let short_name_input = form
+                .elements()
+                .named_item("supplier_short_name")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let credit_input = form
+                .elements()
+                .named_item("credit_code")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let reg_addr_input = form
+                .elements()
+                .named_item("registered_address")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let legal_input = form
+                .elements()
+                .named_item("legal_representative")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let reg_cap_input = form
+                .elements()
+                .named_item("registered_capital")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let est_date_input = form
+                .elements()
+                .named_item("establishment_date")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let tax_type_input = form
+                .elements()
+                .named_item("taxpayer_type")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let bank_name_input = form
+                .elements()
+                .named_item("bank_name")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let bank_account_input = form
+                .elements()
+                .named_item("bank_account")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+            let contact_phone_input = form
+                .elements()
+                .named_item("contact_phone")
+                .unwrap()
+                .unchecked_into::<web_sys::HtmlInputElement>();
+
             let req = CreateSupplierRequest {
                 supplier_name: name_input.value(),
                 supplier_short_name: short_name_input.value(),
@@ -336,7 +446,7 @@ impl SupplierPage {
                                     <label class="block text-gray-700 text-sm font-bold mb-2">{"统一信用代码 *"}</label>
                                     <input name="credit_code" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={credit_code} readonly={is_readonly} required=true />
                                 </div>
-                                
+
                                 <div class="col-span-2">
                                     <label class="block text-gray-700 text-sm font-bold mb-2">{"注册地址 *"}</label>
                                     <input name="registered_address" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={reg_address} readonly={is_readonly} required=true />
@@ -345,7 +455,7 @@ impl SupplierPage {
                                     <label class="block text-gray-700 text-sm font-bold mb-2">{"法人代表 *"}</label>
                                     <input name="legal_representative" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={legal_rep} readonly={is_readonly} required=true />
                                 </div>
-                                
+
                                 <div class="col-span-1">
                                     <label class="block text-gray-700 text-sm font-bold mb-2">{"注册资本 *"}</label>
                                     <input name="registered_capital" type="text" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" value={reg_cap} readonly={is_readonly} required=true />

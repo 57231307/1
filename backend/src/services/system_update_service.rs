@@ -1,12 +1,12 @@
 #![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 系统更新服务
 
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 const GITHUB_REPO: &str = "57231307/1";
@@ -121,20 +121,21 @@ impl SystemUpdateService {
 
     fn get_releases_dir(&self) -> PathBuf {
         let mut releases_dir = self.app_dir.clone();
-        
+
         if releases_dir.ends_with("backend") || releases_dir.ends_with("backend/target/release") {
-            releases_dir = releases_dir.ancestors()
+            releases_dir = releases_dir
+                .ancestors()
                 .find(|p| p.join("releases").exists() || p.join("backend").exists())
                 .unwrap_or(&releases_dir)
                 .to_path_buf();
         }
-        
+
         releases_dir.join("releases")
     }
 
     pub fn list_local_releases(&self) -> Result<Vec<LocalRelease>, UpdateError> {
         let releases_dir = self.get_releases_dir();
-        
+
         if !releases_dir.exists() {
             return Ok(Vec::new());
         }
@@ -144,14 +145,15 @@ impl SystemUpdateService {
         for entry in fs::read_dir(&releases_dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
                     if file_name.ends_with(".zip") && file_name.starts_with("bingxi-erp-") {
                         if let Some(version) = self.extract_version_from_filename(file_name) {
                             let metadata = fs::metadata(&path)?;
-                            let created_at: chrono::DateTime<chrono::Utc> = metadata.created()?.into();
-                            
+                            let created_at: chrono::DateTime<chrono::Utc> =
+                                metadata.created()?.into();
+
                             releases.push(LocalRelease {
                                 version,
                                 file_name: file_name.to_string(),
@@ -187,8 +189,9 @@ impl SystemUpdateService {
         match self.list_local_releases() {
             Ok(releases) => {
                 if let Some(latest_release) = releases.first() {
-                    let has_update = self.compare_versions(&current_version, &latest_release.version);
-                    
+                    let has_update =
+                        self.compare_versions(&current_version, &latest_release.version);
+
                     LocalUpdateCheckResult {
                         has_update,
                         current_version,
@@ -206,15 +209,13 @@ impl SystemUpdateService {
                     }
                 }
             }
-            Err(e) => {
-                LocalUpdateCheckResult {
-                    has_update: false,
-                    current_version: current_version.clone(),
-                    latest_version: current_version,
-                    local_release: None,
-                    error: Some(e.to_string()),
-                }
-            }
+            Err(e) => LocalUpdateCheckResult {
+                has_update: false,
+                current_version: current_version.clone(),
+                latest_version: current_version,
+                local_release: None,
+                error: Some(e.to_string()),
+            },
         }
     }
 
@@ -283,13 +284,17 @@ impl SystemUpdateService {
     }
 
     pub async fn apply_update(&self, update_file: &Path) -> Result<String, UpdateError> {
-        if self.is_updating.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        if self
+            .is_updating
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
             return Err(UpdateError::AlreadyUpdating);
         }
 
         let result = self.do_update(update_file).await;
 
-        self.is_updating.store(false, std::sync::atomic::Ordering::SeqCst);
+        self.is_updating
+            .store(false, std::sync::atomic::Ordering::SeqCst);
 
         result
     }
@@ -316,7 +321,10 @@ impl SystemUpdateService {
         if let Err(e) = self.apply_files(&extract_dir) {
             self.log_update(&format!("应用更新文件失败: {}，正在回滚", e));
             let _ = self.rollback(&backup_path); // 尽量回滚
-            return Err(UpdateError::ValidationError(format!("应用文件失败并已回滚: {}", e)));
+            return Err(UpdateError::ValidationError(format!(
+                "应用文件失败并已回滚: {}",
+                e
+            )));
         }
         self.log_update("文件已更新");
 
@@ -324,7 +332,9 @@ impl SystemUpdateService {
         if !self.verify_update() {
             self.log_update("更新验证失败，正在回滚");
             self.rollback(&backup_path)?;
-            return Err(UpdateError::ValidationError("更新验证失败，已回滚".to_string()));
+            return Err(UpdateError::ValidationError(
+                "更新验证失败，已回滚".to_string(),
+            ));
         }
 
         self.log_update(&format!("更新成功，新版本: {}", new_version));
@@ -390,11 +400,13 @@ impl SystemUpdateService {
         fs::create_dir_all(&extract_dir)?;
 
         let file = fs::File::open(update_file)?;
-        let mut archive = zip::ZipArchive::new(file)
-            .map_err(|e| UpdateError::UnzipError(e.to_string()))?;
+        let mut archive =
+            zip::ZipArchive::new(file).map_err(|e| UpdateError::UnzipError(e.to_string()))?;
 
         for i in 0..archive.len() {
-            let mut file = archive.by_index(i).map_err(|e| UpdateError::UnzipError(e.to_string()))?;
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| UpdateError::UnzipError(e.to_string()))?;
             let outpath = match file.enclosed_name() {
                 Some(path) => extract_dir.join(path),
                 None => continue,
@@ -431,12 +443,16 @@ impl SystemUpdateService {
     fn validate_update_package(&self, extract_dir: &Path) -> Result<(), UpdateError> {
         let version_file = extract_dir.join("VERSION");
         if !version_file.exists() {
-            return Err(UpdateError::ValidationError("更新包缺少 VERSION 文件".to_string()));
+            return Err(UpdateError::ValidationError(
+                "更新包缺少 VERSION 文件".to_string(),
+            ));
         }
 
         let manifest_file = extract_dir.join("UPDATE_MANIFEST.json");
         if !manifest_file.exists() {
-            return Err(UpdateError::ValidationError("更新包缺少 UPDATE_MANIFEST.json 文件".to_string()));
+            return Err(UpdateError::ValidationError(
+                "更新包缺少 UPDATE_MANIFEST.json 文件".to_string(),
+            ));
         }
 
         Ok(())
@@ -563,12 +579,12 @@ impl SystemUpdateService {
 
     pub async fn check_for_updates(&self) -> UpdateCheckResult {
         let current_version = self.get_current_version();
-        
+
         match self.fetch_latest_release().await {
             Ok(release) => {
                 let latest_version = release.tag_name.trim_start_matches('v').to_string();
                 let has_update = self.compare_versions(&current_version, &latest_version);
-                
+
                 UpdateCheckResult {
                     has_update,
                     current_version,
@@ -577,156 +593,154 @@ impl SystemUpdateService {
                     error: None,
                 }
             }
-            Err(e) => {
-                UpdateCheckResult {
-                    has_update: false,
-                    current_version: current_version.clone(),
-                    latest_version: current_version,
-                    release_info: None,
-                    error: Some(e.to_string()),
-                }
-            }
+            Err(e) => UpdateCheckResult {
+                has_update: false,
+                current_version: current_version.clone(),
+                latest_version: current_version,
+                release_info: None,
+                error: Some(e.to_string()),
+            },
         }
     }
 
     async fn fetch_latest_release(&self) -> Result<GitHubRelease, UpdateError> {
         let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, GITHUB_REPO);
-        
+
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")
             .build()
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
-        
+
         let response = client
             .get(&url)
             .send()
             .await
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
-        
+
         if !response.status().is_success() {
             return Err(UpdateError::NetworkError(format!(
                 "GitHub API返回错误状态: {}",
                 response.status()
             )));
         }
-        
+
         let release: GitHubRelease = response
             .json()
             .await
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
-        
+
         Ok(release)
     }
 
     fn compare_versions(&self, current: &str, latest: &str) -> bool {
-        let parse_version = |v: &str| -> Vec<u32> {
-            v.split('.')
-                .filter_map(|s| s.parse().ok())
-                .collect()
-        };
-        
+        let parse_version =
+            |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
+
         let current_parts = parse_version(current);
         let latest_parts = parse_version(latest);
-        
+
         for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
             let current_val = current_parts.get(i).unwrap_or(&0);
             let latest_val = latest_parts.get(i).unwrap_or(&0);
-            
+
             if latest_val > current_val {
                 return true;
             } else if latest_val < current_val {
                 return false;
             }
         }
-        
+
         false
     }
 
     fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
-        let parse_version = |v: &str| -> Vec<u32> {
-            v.split('.')
-                .filter_map(|s| s.parse().ok())
-                .collect()
-        };
-        
+        let parse_version =
+            |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
+
         let a_parts = parse_version(a);
         let b_parts = parse_version(b);
-        
+
         for i in 0..std::cmp::max(a_parts.len(), b_parts.len()) {
             let a_val = a_parts.get(i).unwrap_or(&0);
             let b_val = b_parts.get(i).unwrap_or(&0);
-            
+
             match b_val.cmp(a_val) {
                 std::cmp::Ordering::Equal => continue,
                 ord => return ord,
             }
         }
-        
+
         std::cmp::Ordering::Equal
     }
 
     pub async fn download_update(&self, asset_name: Option<&str>) -> Result<PathBuf, UpdateError> {
         let check_result = self.check_for_updates().await;
-        
+
         if !check_result.has_update {
             return Err(UpdateError::VersionError("当前已是最新版本".to_string()));
         }
-        
-        let release = check_result.release_info.ok_or_else(|| {
-            UpdateError::NetworkError("无法获取发布信息".to_string())
-        })?;
-        
+
+        let release = check_result
+            .release_info
+            .ok_or_else(|| UpdateError::NetworkError("无法获取发布信息".to_string()))?;
+
         let asset = if let Some(name) = asset_name {
-            release.assets.iter()
+            release
+                .assets
+                .iter()
                 .find(|a| a.name.contains(name))
                 .ok_or_else(|| UpdateError::NetworkError(format!("找不到资源: {}", name)))?
         } else {
-            release.assets.iter()
+            release
+                .assets
+                .iter()
                 .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
                 .ok_or_else(|| UpdateError::NetworkError("找不到更新包".to_string()))?
         };
-        
+
         self.log_update(&format!("开始下载更新包: {}", asset.name));
-        
+
         let download_dir = self.app_dir.join("downloads");
         if !download_dir.exists() {
             fs::create_dir_all(&download_dir)?;
         }
-        
+
         let download_path = download_dir.join(&asset.name);
-        
+
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")
             .build()
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
-        
+
         let mut response = client
             .get(&asset.browser_download_url)
             .send()
             .await
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
-        
+
         let mut file = fs::File::create(&download_path)?;
-        
-        while let Some(chunk) = response.chunk().await.map_err(|e| {
-            UpdateError::NetworkError(e.to_string())
-        })? {
+
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?
+        {
             io::copy(&mut chunk.as_ref(), &mut file)?;
         }
-        
+
         self.log_update(&format!("更新包下载完成: {:?}", download_path));
-        
+
         Ok(download_path)
     }
 
     pub async fn download_and_update(&self) -> Result<String, UpdateError> {
         let download_path = self.download_update(None).await?;
         let result = self.apply_update(&download_path).await?;
-        
+
         if let Err(e) = fs::remove_file(&download_path) {
             self.log_update(&format!("清理下载文件失败: {}", e));
         }
-        
+
         Ok(result)
     }
 }

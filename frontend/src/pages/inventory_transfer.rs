@@ -1,15 +1,15 @@
 // 库存调拨管理页面
 // 提供库存调拨单的列表、创建、审核、发出、接收等功能
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
+use crate::components::navigation::Navigation;
 use crate::models::inventory_transfer::{
-    InventoryTransfer, InventoryTransferDetail,
-    InventoryTransferQuery, CreateInventoryTransferRequest, UpdateInventoryTransferRequest,
+    CreateInventoryTransferRequest, InventoryTransfer, InventoryTransferDetail,
+    InventoryTransferQuery, UpdateInventoryTransferRequest,
 };
 use crate::services::inventory_transfer_service::InventoryTransferService;
-use crate::components::navigation::Navigation;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 pub struct InventoryTransferPage {
     transfers: Vec<InventoryTransfer>,
@@ -100,10 +100,18 @@ impl Component for InventoryTransferPage {
                 let query = InventoryTransferQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "ALL" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "ALL" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     from_warehouse_id: self.filter_from_warehouse,
                     to_warehouse_id: self.filter_to_warehouse,
-                    transfer_no: if self.filter_transfer_no.is_empty() { None } else { Some(self.filter_transfer_no.clone()) },
+                    transfer_no: if self.filter_transfer_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_transfer_no.clone())
+                    },
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
@@ -131,13 +139,21 @@ impl Component for InventoryTransferPage {
                 false
             }
             Msg::SetFilterFromWarehouse(warehouse_id) => {
-                self.filter_from_warehouse = if warehouse_id == 0 { None } else { Some(warehouse_id) };
+                self.filter_from_warehouse = if warehouse_id == 0 {
+                    None
+                } else {
+                    Some(warehouse_id)
+                };
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadTransfers);
                 false
             }
             Msg::SetFilterToWarehouse(warehouse_id) => {
-                self.filter_to_warehouse = if warehouse_id == 0 { None } else { Some(warehouse_id) };
+                self.filter_to_warehouse = if warehouse_id == 0 {
+                    None
+                } else {
+                    Some(warehouse_id)
+                };
                 self.page = 1;
                 ctx.link().send_message(Msg::LoadTransfers);
                 false
@@ -209,11 +225,13 @@ impl Component for InventoryTransferPage {
             }
             Msg::CreateTransfer => {
                 if self.form_from_warehouse_id == 0 || self.form_to_warehouse_id == 0 {
-                    ctx.link().send_message(Msg::LoadError("请选择仓库".to_string()));
+                    ctx.link()
+                        .send_message(Msg::LoadError("请选择仓库".to_string()));
                     return false;
                 }
                 if self.form_from_warehouse_id == self.form_to_warehouse_id {
-                    ctx.link().send_message(Msg::LoadError("源仓库和目标仓库不能相同".to_string()));
+                    ctx.link()
+                        .send_message(Msg::LoadError("源仓库和目标仓库不能相同".to_string()));
                     return false;
                 }
                 let req = CreateInventoryTransferRequest {
@@ -221,7 +239,11 @@ impl Component for InventoryTransferPage {
                     to_warehouse_id: self.form_to_warehouse_id,
                     transfer_date: None,
                     status: "pending".to_string(),
-                    notes: if self.form_notes.is_empty() { None } else { Some(self.form_notes.clone()) },
+                    notes: if self.form_notes.is_empty() {
+                        None
+                    } else {
+                        Some(self.form_notes.clone())
+                    },
                     items: vec![],
                 };
                 let link = ctx.link().clone();
@@ -239,7 +261,11 @@ impl Component for InventoryTransferPage {
             Msg::UpdateTransfer(id) => {
                 let req = UpdateInventoryTransferRequest {
                     status: None,
-                    notes: if self.form_notes.is_empty() { None } else { Some(self.form_notes.clone()) },
+                    notes: if self.form_notes.is_empty() {
+                        None
+                    } else {
+                        Some(self.form_notes.clone())
+                    },
                     items: None,
                 };
                 let link = ctx.link().clone();

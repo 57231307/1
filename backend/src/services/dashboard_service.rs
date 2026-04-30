@@ -102,9 +102,14 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<DashboardOverview, sea_orm::DbErr> {
         // 生成缓存键
-        let cache_key = format!("dashboard:overview:{}-{}", 
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+        let cache_key = format!(
+            "dashboard:overview:{}-{}",
+            start_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string()),
+            end_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string())
         );
 
         // 尝试从缓存获取
@@ -155,7 +160,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(overview_json) = serde_json::to_value(overview.clone()) {
-            self.cache.get_dashboard_cache().set(cache_key, overview_json, Some(Duration::from_secs(300)));
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                overview_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(overview)
@@ -168,9 +177,14 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<SalesStatistics, sea_orm::DbErr> {
         // 生成缓存键
-        let cache_key = format!("dashboard:sales:{}-{}", 
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+        let cache_key = format!(
+            "dashboard:sales:{}-{}",
+            start_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string()),
+            end_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string())
         );
 
         // 尝试从缓存获取
@@ -240,7 +254,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
-            self.cache.get_dashboard_cache().set(cache_key, statistics_json, Some(Duration::from_secs(300)));
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                statistics_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(statistics)
@@ -331,7 +349,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
-            self.cache.get_dashboard_cache().set(cache_key, statistics_json, Some(Duration::from_secs(300)));
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                statistics_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(statistics)
@@ -386,7 +408,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(alerts_json) = serde_json::to_value(alerts.clone()) {
-            self.cache.get_inventory_cache().set(cache_key, alerts_json, Some(Duration::from_secs(300)));
+            self.cache.get_inventory_cache().set(
+                cache_key,
+                alerts_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(alerts)

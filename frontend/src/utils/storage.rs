@@ -24,16 +24,12 @@ impl Storage {
 
     pub fn get_token() -> Option<String> {
         let storage = Self::get_local_storage();
-        storage
-            .get_item("auth_token")
-            .expect("无法读取 token")
+        storage.get_item("auth_token").expect("无法读取 token")
     }
 
     pub fn remove_token() {
         let storage = Self::get_local_storage();
-        storage
-            .remove_item("auth_token")
-            .expect("无法删除 token");
+        storage.remove_item("auth_token").expect("无法删除 token");
     }
 
     #[allow(dead_code)]
@@ -47,16 +43,12 @@ impl Storage {
     #[allow(dead_code)]
     pub fn get_user_info() -> Option<String> {
         let storage = Self::get_local_storage();
-        storage
-            .get_item("user_info")
-            .expect("无法读取用户信息")
+        storage.get_item("user_info").expect("无法读取用户信息")
     }
 
     pub fn remove_user_info() {
         let storage = Self::get_local_storage();
-        storage
-            .remove_item("user_info")
-            .expect("无法删除用户信息");
+        storage.remove_item("user_info").expect("无法删除用户信息");
     }
 
     pub fn clear_all() {

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::services::api::ApiService;
+use serde::{Deserialize, Serialize};
 
 /// 仪表板概览数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,7 +84,10 @@ pub struct DashboardService;
 
 impl DashboardService {
     /// 获取仪表板概览数据
-    pub async fn get_overview(start_date: &str, end_date: &str) -> Result<DashboardOverview, String> {
+    pub async fn get_overview(
+        start_date: &str,
+        end_date: &str,
+    ) -> Result<DashboardOverview, String> {
         let url = format!(
             "/dashboard/overview?start_date={}&end_date={}",
             start_date, end_date
@@ -93,7 +96,10 @@ impl DashboardService {
     }
 
     /// 获取销售统计
-    pub async fn get_sales_statistics(start_date: &str, end_date: &str) -> Result<SalesStatistics, String> {
+    pub async fn get_sales_statistics(
+        start_date: &str,
+        end_date: &str,
+    ) -> Result<SalesStatistics, String> {
         let url = format!(
             "/dashboard/sales-stats?start_date={}&end_date={}",
             start_date, end_date

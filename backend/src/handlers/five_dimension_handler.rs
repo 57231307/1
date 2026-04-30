@@ -1,3 +1,4 @@
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -5,7 +6,6 @@ use axum::{
 };
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::fabric_five_dimension::FabricFiveDimension;

@@ -1,18 +1,26 @@
 // 资金管理页面
 
-use yew::prelude::*;
 use crate::services::fund_management_service::FundManagementService;
+use yew::prelude::*;
 
 #[function_component(FundManagementPage)]
 pub fn fund_management_page() -> Html {
     let transfer_result = use_state(|| String::new());
-    
+
     let on_transfer = {
         let transfer_result = transfer_result.clone();
         Callback::from(move |_| {
             let transfer_result = transfer_result.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                match FundManagementService::transfer_fund(1, 2, "100.0".to_string(), None, Some("test transfer".to_string())).await {
+                match FundManagementService::transfer_fund(
+                    1,
+                    2,
+                    "100.0".to_string(),
+                    None,
+                    Some("test transfer".to_string()),
+                )
+                .await
+                {
                     Ok(_) => transfer_result.set("转账成功!".to_string()),
                     Err(e) => transfer_result.set(format!("转账失败: {}", e)),
                 }

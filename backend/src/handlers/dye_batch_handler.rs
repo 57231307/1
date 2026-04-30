@@ -9,8 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -165,23 +164,24 @@ pub async fn update_dye_batch(
     Path(id): Path<i32>,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("缸号不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut batch: dye_batch::ActiveModel =
+        match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(b)) => b.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("缸号不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     if let Some(color_code) = req.color_code {
         batch.color_code = Set(color_code);
@@ -247,23 +247,24 @@ pub async fn complete_dye_batch(
     Path(id): Path<i32>,
     Json(req): Json<CompleteDyeBatchRequest>,
 ) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("缸号不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut batch: dye_batch::ActiveModel =
+        match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(b)) => b.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("缸号不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     batch.status = Set("已完成".to_string());
     batch.completion_date = Set(Some(Utc::now()));

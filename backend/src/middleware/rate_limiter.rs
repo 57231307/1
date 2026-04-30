@@ -4,8 +4,8 @@
 
 use axum::{
     body::Body,
-    extract::{State},
-    http::{Request, StatusCode, header},
+    extract::State,
+    http::{header, Request, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -126,10 +126,12 @@ pub async fn rate_limiter_middleware(
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("Retry-After", retry_after.to_string())
                 .header("X-RateLimit-Limit", state.config.max_requests.to_string())
-                .header("X-RateLimit-Window", state.config.window_size_secs.to_string())
+                .header(
+                    "X-RateLimit-Window",
+                    state.config.window_size_secs.to_string(),
+                )
                 .body(Body::from(
-                    r#"{"success":false,"error":"请求过于频繁","retry_after":"#
-                        .to_string()
+                    r#"{"success":false,"error":"请求过于频繁","retry_after":"#.to_string()
                         + &retry_after.to_string()
                         + r#"}"#,
                 ))
@@ -307,7 +309,9 @@ mod tests {
         let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
         req.headers_mut().insert(
             "X-Forwarded-For",
-            "203.0.113.195, 70.41.3.18, 150.172.238.178".parse().unwrap(),
+            "203.0.113.195, 70.41.3.18, 150.172.238.178"
+                .parse()
+                .unwrap(),
         );
 
         let ip = extract_client_ip(&req);

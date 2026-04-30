@@ -1,7 +1,20 @@
+use crate::pages::{
+    crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage, AccountSubjectPage, ApInvoicePage,
+    ApPaymentPage, ApPaymentRequestPage, ApReconciliationPage, ApReportPage, ApVerificationPage,
+    ArInvoicePage, AssistAccountingPage, BatchPage, BusinessTracePage, CostCollectionPage,
+    CustomerCreditPage, CustomerPage, DashboardPage, DepartmentListPage, DualUnitConverterPage,
+    DyeBatchPage, DyeRecipePage, FabricOrderPage, FinanceInvoicePage, FinancePaymentPage,
+    FinancialAnalysisPage, FiveDimensionPage, FixedAssetPage, FundManagementPage, GreigeFabricPage,
+    InitPage, InventoryAdjustmentPage, InventoryCountPage, InventoryStockPage,
+    InventoryTransferPage, LoginPage, ProductCategoryPage, ProductListPage, PurchaseContractPage,
+    PurchaseInspectionPage, PurchaseOrderPage, PurchasePricePage, PurchaseReceiptPage,
+    PurchaseReturnPage, QualityInspectionPage, RoleListPage, SalesAnalysisPage, SalesContractPage,
+    SalesOrderPage, SalesPricePage, SalesReturnPage, SupplierEvaluationPage, SupplierPage,
+    SystemSettingsPage, UserListPage, VoucherPage, WarehouseListPage,
+};
+use crate::utils::storage::Storage;
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::pages::{SystemSettingsPage, LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesReturnPage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage, crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage};
-use crate::utils::storage::Storage;
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {
@@ -158,7 +171,7 @@ fn switch(route: Route) -> Html {
         Route::Login => html! { <LoginPage /> },
         Route::Dashboard => protected_route(|| html! { <DashboardPage /> }),
         Route::Users => protected_route(|| html! { <UserListPage /> }),
-            Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }),
+        Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }),
         Route::Roles => protected_route(|| html! { <RoleListPage /> }),
         Route::Products => protected_route(|| html! { <ProductListPage /> }),
         Route::ProductCategories => protected_route(|| html! { <ProductCategoryPage /> }),

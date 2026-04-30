@@ -2,7 +2,10 @@
 //!
 //! 提供会计科目相关的API调用
 
-use crate::models::account_subject::{AccountSubject, AccountSubjectListResponse, CreateSubjectRequest, SubjectQueryParams, SubjectTreeNode, UpdateSubjectRequest};
+use crate::models::account_subject::{
+    AccountSubject, AccountSubjectListResponse, CreateSubjectRequest, SubjectQueryParams,
+    SubjectTreeNode, UpdateSubjectRequest,
+};
 use crate::services::api::ApiService;
 
 /// 会计科目服务
@@ -15,19 +18,35 @@ impl AccountSubjectService {
         let mut has_param = false;
 
         if let Some(level) = params.level {
-            query_string.push_str(&format!("{}level={}", if has_param { "&" } else { "?" }, level));
+            query_string.push_str(&format!(
+                "{}level={}",
+                if has_param { "&" } else { "?" },
+                level
+            ));
             has_param = true;
         }
         if let Some(parent_id) = params.parent_id {
-            query_string.push_str(&format!("{}parent_id={}", if has_param { "&" } else { "?" }, parent_id));
+            query_string.push_str(&format!(
+                "{}parent_id={}",
+                if has_param { "&" } else { "?" },
+                parent_id
+            ));
             has_param = true;
         }
         if let Some(status) = &params.status {
-            query_string.push_str(&format!("{}status={}", if has_param { "&" } else { "?" }, status));
+            query_string.push_str(&format!(
+                "{}status={}",
+                if has_param { "&" } else { "?" },
+                status
+            ));
             has_param = true;
         }
         if let Some(keyword) = &params.keyword {
-            query_string.push_str(&format!("{}keyword={}", if has_param { "&" } else { "?" }, keyword));
+            query_string.push_str(&format!(
+                "{}keyword={}",
+                if has_param { "&" } else { "?" },
+                keyword
+            ));
         }
 
         ApiService::get::<AccountSubjectListResponse>(&query_string)
@@ -52,7 +71,10 @@ impl AccountSubjectService {
     }
 
     /// 更新科目
-    pub async fn update_subject(id: i32, req: UpdateSubjectRequest) -> Result<AccountSubject, String> {
+    pub async fn update_subject(
+        id: i32,
+        req: UpdateSubjectRequest,
+    ) -> Result<AccountSubject, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::put(&format!("/account-subjects/{}", id), &payload).await
     }

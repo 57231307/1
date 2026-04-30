@@ -3,9 +3,8 @@
 //! 与后端应付发票API交互
 
 use crate::models::ap_invoice::{
-    AgingAnalysisItem, ApInvoice, ApInvoiceListResponse,
-    ApInvoiceQueryParams, AutoGenerateRequest, BalanceSummaryItem, CancelInvoiceRequest,
-    CreateApInvoiceRequest, UpdateApInvoiceRequest,
+    AgingAnalysisItem, ApInvoice, ApInvoiceListResponse, ApInvoiceQueryParams, AutoGenerateRequest,
+    BalanceSummaryItem, CancelInvoiceRequest, CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };
 use crate::services::api::ApiService;
 
@@ -14,7 +13,9 @@ pub struct ApInvoiceService;
 
 impl ApInvoiceService {
     /// 查询应付发票列表
-    pub async fn list_invoices(params: ApInvoiceQueryParams) -> Result<ApInvoiceListResponse, String> {
+    pub async fn list_invoices(
+        params: ApInvoiceQueryParams,
+    ) -> Result<ApInvoiceListResponse, String> {
         let mut query_parts = vec![];
 
         if let Some(sid) = params.supplier_id {
@@ -76,7 +77,11 @@ impl ApInvoiceService {
 
     /// 审核应付发票
     pub async fn approve_invoice(id: i32) -> Result<serde_json::Value, String> {
-        ApiService::post(&format!("/ap/invoices/{}/approve", id), &serde_json::json!({})).await
+        ApiService::post(
+            &format!("/ap/invoices/{}/approve", id),
+            &serde_json::json!({}),
+        )
+        .await
     }
 
     /// 取消应付发票
@@ -95,7 +100,9 @@ impl ApInvoiceService {
 
     /// 获取账龄分析
     #[allow(dead_code)]
-    pub async fn get_aging_analysis(supplier_id: Option<i32>) -> Result<Vec<AgingAnalysisItem>, String> {
+    pub async fn get_aging_analysis(
+        supplier_id: Option<i32>,
+    ) -> Result<Vec<AgingAnalysisItem>, String> {
         let query_string = if let Some(sid) = supplier_id {
             format!("?supplier_id={}", sid)
         } else {
@@ -107,7 +114,9 @@ impl ApInvoiceService {
 
     /// 获取应付余额汇总
     #[allow(dead_code)]
-    pub async fn get_balance_summary(supplier_id: Option<i32>) -> Result<Vec<BalanceSummaryItem>, String> {
+    pub async fn get_balance_summary(
+        supplier_id: Option<i32>,
+    ) -> Result<Vec<BalanceSummaryItem>, String> {
         let query_string = if let Some(sid) = supplier_id {
             format!("?supplier_id={}", sid)
         } else {

@@ -3,13 +3,11 @@ use gloo_dialogs;
 //
 // 财务发票（Finance Invoice）管理功能
 
-use yew::prelude::*;
+use crate::models::finance_invoice::{FinanceInvoice, InvoiceQueryParams};
+use crate::services::finance_invoice_service::FinanceInvoiceService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::finance_invoice::{
-    FinanceInvoice, InvoiceQueryParams,
-};
-use crate::services::finance_invoice_service::FinanceInvoiceService;
+use yew::prelude::*;
 
 /// 财务发票管理页面状态
 pub struct FinanceInvoicePage {
@@ -24,7 +22,8 @@ pub struct FinanceInvoicePage {
     page_size: u64,
     total: u64,
 
-    viewing_item: Option<FinanceInvoice>,}
+    viewing_item: Option<FinanceInvoice>,
+}
 
 /// 消息枚举
 pub enum Msg {
@@ -40,7 +39,8 @@ pub enum Msg {
     ChangePage(u64),
     Refresh,
 
-    CloseDetailModal,}
+    CloseDetailModal,
+}
 
 impl Component for FinanceInvoicePage {
     type Message = Msg;
@@ -78,8 +78,16 @@ impl Component for FinanceInvoicePage {
                 self.loading = true;
                 let params = InvoiceQueryParams {
                     customer_id: None,
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    invoice_type: if self.filter_type == "全部" { None } else { Some(self.filter_type.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
+                    invoice_type: if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.clone())
+                    },
                     start_date: None,
                     end_date: None,
                     page: Some(self.page),
@@ -88,7 +96,8 @@ impl Component for FinanceInvoicePage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match FinanceInvoiceService::list_invoices(params).await {
-                        Ok(response) => link.send_message(Msg::InvoicesLoaded(response.invoices, response.total)),
+                        Ok(response) => link
+                            .send_message(Msg::InvoicesLoaded(response.invoices, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
@@ -165,12 +174,20 @@ impl Component for FinanceInvoicePage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
         let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterType(target.value())
         });
 
@@ -217,7 +234,6 @@ impl Component for FinanceInvoicePage {
 }
 
 impl FinanceInvoicePage {
-    
     fn render_print_view(&self) -> Html {
         if let Some(invoice) = &self.printing_invoice {
             html! {
@@ -231,7 +247,7 @@ impl FinanceInvoicePage {
                         <div><strong>{"订单 ID："}</strong> {invoice.order_id.unwrap_or(0)}</div>
                         <div><strong>{"客户/供应商 ID："}</strong> {invoice.customer_id.unwrap_or(0)}</div>
                         <div><strong>{"总金额："}</strong> {&invoice.total_amount}</div>
-                        
+
                         <div><strong>{"状态："}</strong> {&invoice.status}</div>
                     </div>
                     <table class="print-table">

@@ -1,13 +1,14 @@
 use gloo_dialogs;
 // 采购退货管理页面
 
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
-use crate::models::purchase_return::{CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest, 
-    PurchaseReturn, PurchaseReturnQuery,
+use crate::models::purchase_return::{
+    CreatePurchaseReturnItemRequest, CreatePurchaseReturnRequest, PurchaseReturn,
+    PurchaseReturnQuery,
 };
 use crate::services::purchase_return_service::PurchaseReturnService;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 采购退货页面状态管理
 pub struct PurchaseReturnPage {
@@ -26,7 +27,8 @@ pub struct PurchaseReturnPage {
     page: u64,
     page_size: u64,
 
-    viewing_item: Option<PurchaseReturn>,}
+    viewing_item: Option<PurchaseReturn>,
+}
 
 /// 消息枚举
 pub enum Msg {
@@ -45,7 +47,8 @@ pub enum Msg {
     UpdateInput(String, String),
     SubmitCreate,
 
-    CloseDetailModal,}
+    CloseDetailModal,
+}
 
 impl Component for PurchaseReturnPage {
     type Message = Msg;
@@ -88,7 +91,11 @@ impl Component for PurchaseReturnPage {
                 let query = PurchaseReturnQuery {
                     page: Some(self.page),
                     page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    status: if self.filter_status == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_status.clone())
+                    },
                     supplier_id: None,
                 };
                 let link = ctx.link().clone();
@@ -185,13 +192,18 @@ impl Component for PurchaseReturnPage {
                     remarks: None,
                     items: vec![CreatePurchaseReturnItemRequest {
                         product_id: i32::from_str(&self.new_product_id).unwrap_or(0),
-                        quantity: rust_decimal::Decimal::from_str(&self.new_quantity).unwrap_or_default(),
+                        quantity: rust_decimal::Decimal::from_str(&self.new_quantity)
+                            .unwrap_or_default(),
                         unit_price: None,
                     }],
                 };
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    let _ = crate::services::purchase_return_service::PurchaseReturnService::create(req).await;
+                    let _ =
+                        crate::services::purchase_return_service::PurchaseReturnService::create(
+                            req,
+                        )
+                        .await;
                     link.send_message(Msg::LoadReturns);
                     link.send_message(Msg::CloseModal);
                 });
@@ -207,7 +219,11 @@ impl Component for PurchaseReturnPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
+            let target = e
+                .target()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlSelectElement>()
+                .unwrap();
             Msg::SetFilterStatus(target.value())
         });
 
@@ -243,9 +259,10 @@ impl Component for PurchaseReturnPage {
 }
 
 impl PurchaseReturnPage {
-    
     fn render_modal(&self, ctx: &Context<Self>) -> Html {
-        if !self.show_modal { return html! {}; }
+        if !self.show_modal {
+            return html! {};
+        }
         let on_input = |field: &'static str| {
             ctx.link().callback(move |e: InputEvent| {
                 let input = e.target_unchecked_into::<web_sys::HtmlInputElement>();
@@ -275,7 +292,6 @@ impl PurchaseReturnPage {
         }
     }
 
-    
     fn render_print_view(&self) -> Html {
         if let Some(ret) = &self.printing_return {
             html! {

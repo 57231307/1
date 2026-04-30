@@ -1,13 +1,13 @@
 // 成本归集页面
 // 提供成本归集数据的查询、创建和管理功能
 
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
+use crate::components::main_layout::MainLayout;
 use crate::models::cost_collection::{
     CostCollection, CostCollectionQuery, CreateCostCollectionRequest,
 };
 use crate::services::cost_collection_service::CostCollectionService;
-use crate::components::main_layout::MainLayout;
+use wasm_bindgen_futures::spawn_local;
+use yew::prelude::*;
 
 /// 成本归集页面状态
 pub struct CostCollectionPage {
@@ -166,11 +166,19 @@ impl Component for CostCollectionPage {
                 true
             }
             Msg::UpdateBatchNo(batch_no) => {
-                self.query_params.batch_no = if batch_no.is_empty() { None } else { Some(batch_no) };
+                self.query_params.batch_no = if batch_no.is_empty() {
+                    None
+                } else {
+                    Some(batch_no)
+                };
                 false
             }
             Msg::UpdateColorNo(color_no) => {
-                self.query_params.color_no = if color_no.is_empty() { None } else { Some(color_no) };
+                self.query_params.color_no = if color_no.is_empty() {
+                    None
+                } else {
+                    Some(color_no)
+                };
                 false
             }
             Msg::QueryCollections => {
@@ -255,19 +263,47 @@ impl Component for CostCollectionPage {
                 let link = _ctx.link().clone();
                 let req = CreateCostCollectionRequest {
                     collection_date: self.create_form.collection_date.clone(),
-                    cost_object_type: if self.create_form.cost_object_type.is_empty() { None } else { Some(self.create_form.cost_object_type.clone()) },
+                    cost_object_type: if self.create_form.cost_object_type.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.cost_object_type.clone())
+                    },
                     cost_object_id: self.create_form.cost_object_id.parse().ok(),
-                    cost_object_no: if self.create_form.cost_object_no.is_empty() { None } else { Some(self.create_form.cost_object_no.clone()) },
-                    batch_no: if self.create_form.batch_no.is_empty() { None } else { Some(self.create_form.batch_no.clone()) },
-                    color_no: if self.create_form.color_no.is_empty() { None } else { Some(self.create_form.color_no.clone()) },
-                    workshop: if self.create_form.workshop.is_empty() { None } else { Some(self.create_form.workshop.clone()) },
+                    cost_object_no: if self.create_form.cost_object_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.cost_object_no.clone())
+                    },
+                    batch_no: if self.create_form.batch_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.batch_no.clone())
+                    },
+                    color_no: if self.create_form.color_no.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.color_no.clone())
+                    },
+                    workshop: if self.create_form.workshop.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.workshop.clone())
+                    },
                     direct_material: self.create_form.direct_material.clone(),
                     direct_labor: self.create_form.direct_labor.clone(),
                     manufacturing_overhead: self.create_form.manufacturing_overhead.clone(),
                     processing_fee: self.create_form.processing_fee.clone(),
                     dyeing_fee: self.create_form.dyeing_fee.clone(),
-                    output_quantity_meters: if self.create_form.output_quantity_meters.is_empty() { None } else { Some(self.create_form.output_quantity_meters.clone()) },
-                    output_quantity_kg: if self.create_form.output_quantity_kg.is_empty() { None } else { Some(self.create_form.output_quantity_kg.clone()) },
+                    output_quantity_meters: if self.create_form.output_quantity_meters.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.output_quantity_meters.clone())
+                    },
+                    output_quantity_kg: if self.create_form.output_quantity_kg.is_empty() {
+                        None
+                    } else {
+                        Some(self.create_form.output_quantity_kg.clone())
+                    },
                 };
                 spawn_local(async move {
                     let result = CostCollectionService::create(req).await;
@@ -279,7 +315,8 @@ impl Component for CostCollectionPage {
                 self.creating = false;
                 match result {
                     Ok(collection) => {
-                        self.create_success = Some(format!("成本归集创建成功：{}", collection.collection_no));
+                        self.create_success =
+                            Some(format!("成本归集创建成功：{}", collection.collection_no));
                         self.collections.insert(0, collection);
                         // 3秒后关闭弹窗
                         let link = _ctx.link().clone();

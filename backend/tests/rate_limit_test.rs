@@ -16,7 +16,10 @@ async fn test_rate_limiter_basic_operations() {
     }
 
     // 第11个请求应该被拒绝
-    assert!(!rate_limiter.check(key), "Request 10 should be rate limited");
+    assert!(
+        !rate_limiter.check(key),
+        "Request 10 should be rate limited"
+    );
 }
 
 /// 测试速率限制器过期功能
@@ -31,13 +34,19 @@ async fn test_rate_limiter_expiration() {
     assert!(rate_limiter.check(key), "Second request should pass");
 
     // 第3个请求应该被拒绝
-    assert!(!rate_limiter.check(key), "Third request should be rate limited");
+    assert!(
+        !rate_limiter.check(key),
+        "Third request should be rate limited"
+    );
 
     // 等待300毫秒让限制过期
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     // 新的请求应该通过
-    assert!(rate_limiter.check(key), "Request after expiration should pass");
+    assert!(
+        rate_limiter.check(key),
+        "Request after expiration should pass"
+    );
 }
 
 /// 测试不同IP的速率限制隔离
@@ -49,13 +58,19 @@ async fn test_rate_limiter_ip_isolation() {
     let key1 = "ip_1";
     assert!(rate_limiter.check(key1), "IP1 first request should pass");
     assert!(rate_limiter.check(key1), "IP1 second request should pass");
-    assert!(!rate_limiter.check(key1), "IP1 third request should be rate limited");
+    assert!(
+        !rate_limiter.check(key1),
+        "IP1 third request should be rate limited"
+    );
 
     // 测试IP2应该不受IP1限制影响
     let key2 = "ip_2";
     assert!(rate_limiter.check(key2), "IP2 first request should pass");
     assert!(rate_limiter.check(key2), "IP2 second request should pass");
-    assert!(!rate_limiter.check(key2), "IP2 third request should be rate limited");
+    assert!(
+        !rate_limiter.check(key2),
+        "IP2 third request should be rate limited"
+    );
 }
 
 /// 测试速率限制器清理功能

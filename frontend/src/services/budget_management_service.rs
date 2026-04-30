@@ -90,14 +90,22 @@ impl BudgetManagementService {
     }
 
     /// 预算调整
-    pub async fn adjust_budget(item_id: i32, adjust_amount: String, reason: Option<String>) -> Result<serde_json::Value, String> {
+    pub async fn adjust_budget(
+        item_id: i32,
+        adjust_amount: String,
+        reason: Option<String>,
+    ) -> Result<serde_json::Value, String> {
         #[derive(Debug, Clone, serde::Serialize)]
         struct AdjustRequest {
             item_id: i32,
             adjust_amount: String,
             reason: Option<String>,
         }
-        let req = AdjustRequest { item_id, adjust_amount, reason };
+        let req = AdjustRequest {
+            item_id,
+            adjust_amount,
+            reason,
+        };
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         ApiService::post("/budgets/adjust", &payload).await
     }
