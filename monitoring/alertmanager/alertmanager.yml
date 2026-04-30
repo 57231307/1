@@ -1,0 +1,217 @@
+# ========================================
+# 秉羲 ERP 系统 - Alertmanager 告警通知配置
+# ========================================
+# 此配置文件用于配置告警通知方式
+# 包括：邮件、企业微信、钉钉、短信等
+# ========================================
+
+global:
+  # 全局配置
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alert@bingxi.com'
+  smtp_auth_username: 'alert@bingxi.com'
+  smtp_auth_password: 'your_password'
+  smtp_require_tls: true
+
+# 告警模板
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# 接收者配置
+receivers:
+  # 默认接收者（用于测试）
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'admin@bingxi.com'
+        send_resolved: true
+        headers:
+          Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+          From: 'BingXi Alert <alert@bingxi.com>'
+          To: 'admin@bingxi.com'
+        html: |
+          <html>
+          <body>
+            <h2>告警通知</h2>
+            <p><strong>告警状态:</strong> {{ .Status | toUpper }}</p>
+            <p><strong>告警名称:</strong> {{ .CommonLabels.alertname }}</p>
+            <p><strong>告警级别:</strong> {{ .CommonLabels.severity }}</p>
+            <p><strong>告警服务:</strong> {{ .CommonLabels.service }}</p>
+            <p><strong>告警时间:</strong> {{ .StartAt | date "2006-01-02 15:04:05" }}</p>
+            <p><strong>告警详情:</strong> {{ .CommonAnnotations.description }}</p>
+            <hr>
+            <p style="color: #999;">此邮件由秉羲 ERP 监控系统自动发送</p>
+          </body>
+          </html>
+
+  # 严重告警接收者（Critical）
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'ops-team@bingxi.com'
+        send_resolved: true
+        require_tls: true
+    # 企业微信 webhook（可选）
+    # webhook_configs:
+    #   - url: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY'
+    #     send_resolved: true
+    # 钉钉 webhook（可选）
+    # webhook_configs:
+    #   - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
+    #     send_resolved: true
+
+  # 警告告警接收者（Warning）
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'dev-team@bingxi.com'
+        send_resolved: true
+
+  # 信息告警接收者（Info）
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'monitor@bingxi.com'
+        send_resolved: true
+
+# 路由配置
+route:
+  # 默认接收者
+  receiver: 'default-receiver'
+  
+  # 分组配置
+  group_by: ['alertname', 'severity', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  
+  # 子路由（根据告警级别分发）
+  routes:
+    # 严重告警 - 立即通知
+    - match:
+        severity: 'critical'
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 1h
+      
+    # 警告告警 - 正常通知
+    - match:
+        severity: 'warning'
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 4h
+      
+    # 信息告警 - 延迟通知
+    - match:
+        severity: 'info'
+      receiver: 'info-alerts'
+      group_wait: 5m
+      repeat_interval: 12h
+      
+    # 系统资源告警
+    - match:
+        service: 'system'
+      receiver: 'warning-alerts'
+      continue: true
+      
+    # 数据库告警
+    - match:
+        service: 'database'
+      receiver: 'critical-alerts'
+      continue: true
+      
+    # HTTP 服务告警
+    - match:
+        service: 'http'
+      receiver: 'warning-alerts'
+      continue: true
+
+# 抑制规则（避免告警风暴）
+inhibit_rules:
+  # 如果服务宕机，抑制其他告警
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      alertname: '.+'
+    equal: ['service']
+    
+  # 如果磁盘空间严重不足，抑制磁盘使用率告警
+  - source_match:
+      alertname: 'DiskSpaceLow'
+    target_match:
+      alertname: 'HighDiskUsage'
+    equal: ['instance']
+    
+  # 如果 CPU 使用率过高，抑制系统负载告警
+  - source_match:
+      alertname: 'HighCPUUsage'
+    target_match:
+      alertname: 'HighSystemLoad'
+    equal: ['instance']
+
+# ========================================
+# 企业微信配置说明：
+# 
+# 1. 登录企业微信管理后台
+# 2. 创建群聊机器人
+# 3. 获取 webhook 地址
+# 4. 配置 webhook_configs
+#
+# 消息格式示例：
+# {
+#   "msgtype": "markdown",
+#   "markdown": {
+#     "content": "## 告警通知\n- **告警名称**: {{ .CommonLabels.alertname }}\n- **告警级别**: {{ .CommonLabels.severity }}\n- **告警详情**: {{ .CommonAnnotations.description }}"
+#   }
+# }
+# ========================================
+
+# ========================================
+# 钉钉配置说明：
+# 
+# 1. 登录钉钉管理后台
+# 2. 创建群机器人
+# 3. 获取 access_token
+# 4. 配置 webhook_configs
+#
+# 消息格式示例：
+# {
+#   "msgtype": "markdown",
+#   "markdown": {
+#     "title": "秉羲 ERP 告警通知",
+#     "text": "## 告警通知\n- **告警名称**: {{ .CommonLabels.alertname }}\n- **告警级别**: {{ .CommonLabels.severity }}\n- **告警详情**: {{ .CommonAnnotations.description }}"
+#   },
+#   "at": {
+#     "isAtAll": true
+#   }
+# }
+# ========================================
+
+# ========================================
+# 短信通知配置（需要第三方服务）：
+# 
+# 可使用以下服务：
+# - 阿里云短信
+# - 腾讯云短信
+# - 华为云短信
+# 
+# 配置示例（以阿里云为例）：
+# receivers:
+#   - name: 'sms-alerts'
+#     webhook_configs:
+#       - url: 'https://dysmsapi.aliyuncs.com/'
+#         send_resolved: true
+# ========================================
+
+# ========================================
+# 使用说明：
+# 
+# 1. 修改 global 中的 SMTP 配置
+# 2. 配置接收者邮箱地址
+# 3. 根据需要配置 webhook（企业微信/钉钉）
+# 4. 调整路由规则
+# 5. 重启 Alertmanager
+# 
+# 启动 Alertmanager:
+# alertmanager --config.file=alertmanager.yml
+# 
+# 访问 Alertmanager:
+# http://localhost:9093
+# ========================================

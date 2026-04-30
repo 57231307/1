@@ -1,0 +1,45 @@
+[Unit]
+# 秉羲ERP系统 - 后端服务单元配置
+Description=Bingxi ERP Backend Service (Axum)
+Documentation=https://github.com/bingxi-erp/backend
+After=network.target postgresql.service
+
+[Service]
+# 服务类型
+Type=simple
+
+# 工作目录
+WorkingDirectory=/opt/bingxi-erp/backend
+
+# 可执行文件路径
+ExecStart=/opt/bingxi-erp/backend/server
+
+# 环境配置文件
+EnvironmentFile=/etc/bingxi/.env
+
+# 重启策略（服务失败时自动重启）
+Restart=always
+RestartSec=5
+
+# 启动延迟（等待数据库完全就绪）
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+# 安全配置 - 以非root用户运行（如果创建了专用用户）
+# User=bingxi
+# Group=bingxi
+
+# 限制文件描述符数量
+LimitNOFILE=65535
+
+# 日志配置 - 使用systemd日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bingxi-backend
+
+# 健康检查
+# ExecStartPre=/bin/bash -c 'curl -f http://127.0.0.1:8080/health || exit 1'
+
+[Install]
+# 开机自启
+WantedBy=multi-user.target

@@ -1,0 +1,266 @@
+# ========================================
+# 秉羲 ERP 系统 - Prometheus 告警规则配置
+# ========================================
+
+groups:
+  # ========================================
+  # 1. HTTP 服务告警规则
+  # ========================================
+  - name: http_alerts
+    interval: 30s
+    rules:
+      # HTTP 错误率过高
+      - alert: HighHTTPErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) 
+          / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: http
+        annotations:
+          summary: "HTTP 错误率过高"
+          description: "过去 5 分钟内 HTTP 5xx 错误率超过 5% (当前值：{{ $value | humanizePercentage }})"
+          
+      # HTTP 请求量突降
+      - alert: HTTPRequestDrop
+        expr: |
+          sum(rate(http_requests_total[5m])) < 10
+        for: 5m
+        labels:
+          severity: warning
+          service: http
+        annotations:
+          summary: "HTTP 请求量异常下降"
+          description: "当前请求速率仅为 {{ $value }} 请求/秒，可能服务异常"
+          
+      # HTTP 响应时间过长
+      - alert: HighHTTPLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: http
+        annotations:
+          summary: "HTTP 响应时间过长"
+          description: "95% 的请求响应时间超过 2 秒 (当前值：{{ $value | humanizeDuration }})"
+          
+      # HTTP 请求处理中数量过多
+      - alert: TooManyInFlightRequests
+        expr: |
+          http_requests_in_flight > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: http
+        annotations:
+          summary: "并发请求数过多"
+          description: "当前有 {{ $value }} 个请求正在处理，可能系统过载"
+
+  # ========================================
+  # 2. 数据库告警规则
+  # ========================================
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # 数据库查询时间过长
+      - alert: SlowDatabaseQuery
+        expr: |
+          histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "数据库查询时间过长"
+          description: "95% 的数据库查询耗时超过 1 秒 (当前值：{{ $value | humanizeDuration }})"
+          
+      # 数据库连接数过多
+      - alert: HighDatabaseConnections
+        expr: |
+          db_connections > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "数据库连接数过高"
+          description: "当前数据库连接数为 {{ $value }}，可能接近连接池上限"
+          
+      # 数据库连接数过少
+      - alert: LowDatabaseConnections
+        expr: |
+          db_connections < 5
+        for: 10m
+        labels:
+          severity: info
+          service: database
+        annotations:
+          summary: "数据库连接数过低"
+          description: "当前数据库连接数仅为 {{ $value }}，可能数据库服务异常"
+
+  # ========================================
+  # 3. 业务操作告警规则
+  # ========================================
+  - name: business_alerts
+    interval: 30s
+    rules:
+      # 业务操作错误率过高
+      - alert: HighBusinessErrorRate
+        expr: |
+          sum(rate(errors_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: business
+        annotations:
+          summary: "业务操作错误率过高"
+          description: "过去 5 分钟内错误总数达到 {{ $value | humanize }} 个"
+          
+      # 业务操作量突降
+      - alert: BusinessOperationDrop
+        expr: |
+          sum(rate(business_operations_total[1h])) < 1
+        for: 1h
+        labels:
+          severity: info
+          service: business
+        annotations:
+          summary: "业务操作量异常"
+          description: "过去 1 小时内业务操作量极少，可能系统使用异常"
+
+  # ========================================
+  # 4. 系统资源告警规则
+  # ========================================
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # CPU 使用率过高
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "CPU 使用率过高"
+          description: "实例 {{ $labels.instance }} 的 CPU 使用率超过 80% (当前值：{{ $value | humanizePercentage }})"
+          
+      # 内存使用率过高
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "内存使用率过高"
+          description: "实例 {{ $labels.instance }} 的内存使用率超过 85% (当前值：{{ $value | humanizePercentage }})"
+          
+      # 磁盘使用率过高
+      - alert: HighDiskUsage
+        expr: |
+          100 - ((node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "磁盘使用率过高"
+          description: "实例 {{ $labels.instance }} 的根分区磁盘使用率超过 85% (当前值：{{ $value | humanizePercentage }})"
+          
+      # 磁盘空间不足
+      - alert: DiskSpaceLow
+        expr: |
+          100 - ((node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100) > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "磁盘空间严重不足"
+          description: "实例 {{ $labels.instance }} 的根分区磁盘使用率超过 90%，请立即处理！(当前值：{{ $value | humanizePercentage }})"
+          
+      # 系统负载过高
+      - alert: HighSystemLoad
+        expr: |
+          node_load1 > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "系统负载过高"
+          description: "实例 {{ $labels.instance }} 的 1 分钟负载超过 10 (当前值：{{ $value }})"
+
+  # ========================================
+  # 5. 应用健康告警规则
+  # ========================================
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # 服务宕机
+      - alert: ServiceDown
+        expr: |
+          up{job="bingxi-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: application
+        annotations:
+          summary: "服务宕机"
+          description: "秉羲 ERP 后端服务已宕机，请立即检查！"
+          
+      # Prometheus 目标抓取失败
+      - alert: TargetDown
+        expr: |
+          up == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "监控目标宕机"
+          description: "监控目标 {{ $labels.instance }} ({{ $labels.job }}) 已宕机超过 5 分钟"
+          
+      # 限流触发频繁
+      - alert: FrequentRateLimiting
+        expr: |
+          sum(rate(http_requests_total{status="429"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "频繁触发 API 限流"
+          description: "过去 5 分钟内有 {{ $value | humanize }} 个请求被限流，可能存在恶意攻击"
+
+  # ========================================
+  # 6. 日志告警规则
+  # ========================================
+  - name: logging_alerts
+    interval: 30s
+    rules:
+      # 错误日志数量过多
+      - alert: HighErrorLogRate
+        expr: |
+          sum(rate(operation_logs_total{status="failure"}[5m])) > 20
+        for: 5m
+        labels:
+          severity: warning
+          service: logging
+        annotations:
+          summary: "错误日志数量过多"
+          description: "过去 5 分钟内失败的操作日志达到 {{ $value | humanize }} 条"
+
+# ========================================
+# 告警级别说明：
+# - critical: 严重告警，需要立即处理（电话通知）
+# - warning: 警告告警，需要尽快处理（邮件/短信通知）
+# - info: 信息告警，需要关注（邮件通知）
+#
+# 告警接收配置请在 alertmanager.yml 中配置
+# ========================================

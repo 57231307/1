@@ -1,0 +1,37 @@
+# 秉羲面料管理 - 本地开发配置文件
+
+server:
+  host: "127.0.0.1"
+  port: "8082"
+
+database:
+  connection_string: "postgres://postgres:postgres@localhost:5432/bingxi_erp"
+  host: "localhost"
+  port: 5432
+  name: "bingxi_erp"
+  username: "postgres"
+  password: "postgres"
+  max_connections: 10
+  ssl_mode: "disable"
+  ssl_ca: null
+
+auth:
+  jwt_secret: "local-dev-secret-key-change-in-production"
+  token_expiry_hours: 24
+
+grpc:
+  host: "127.0.0.1"
+  port: 50051
+
+log:
+  level: "debug"
+  dir: "./logs"
+
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+    - "http://localhost:8080"
+    - "http://127.0.0.1:8080"
+
+env: "development"

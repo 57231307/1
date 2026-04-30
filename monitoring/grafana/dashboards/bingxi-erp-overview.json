@@ -1,0 +1,289 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "bingxi-erp-overview",
+    "title": "秉羲 ERP 系统监控总览",
+    "tags": ["bingxi", "erp", "rust"],
+    "timezone": "Asia/Shanghai",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "type": "singlestat",
+        "title": "HTTP 请求总数",
+        "targets": [
+          {
+            "expr": "sum(http_requests_total)",
+            "legendFormat": "总请求数"
+          }
+        ],
+        "format": "none",
+        "valueName": "current",
+        "valueFontSize": "200%",
+        "colorBackground": false,
+        "colors": ["#299c46", "#7eb26d", "#d44a3a"]
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "type": "singlestat",
+        "title": "当前活跃请求",
+        "targets": [
+          {
+            "expr": "http_requests_in_flight",
+            "legendFormat": "活跃请求"
+          }
+        ],
+        "format": "none",
+        "valueName": "current",
+        "valueFontSize": "200%",
+        "colorBackground": true,
+        "colors": ["#299c46", "#FFA500", "#d44a3a"],
+        "thresholds": "50,100"
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "type": "singlestat",
+        "title": "错误总数",
+        "targets": [
+          {
+            "expr": "sum(errors_total)",
+            "legendFormat": "错误数"
+          }
+        ],
+        "format": "none",
+        "valueName": "current",
+        "valueFontSize": "200%",
+        "colorBackground": true,
+        "colors": ["#299c46", "#FFA500", "#d44a3a"],
+        "thresholds": "10,50"
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "type": "singlestat",
+        "title": "业务操作总数",
+        "targets": [
+          {
+            "expr": "sum(business_operations_total)",
+            "legendFormat": "操作数"
+          }
+        ],
+        "format": "none",
+        "valueName": "current",
+        "valueFontSize": "200%",
+        "colorBackground": false,
+        "colors": ["#299c46", "#7eb26d", "#d44a3a"]
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "type": "graph",
+        "title": "HTTP 请求速率",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[1m])",
+            "legendFormat": "请求速率 (req/s)"
+          }
+        ],
+        "yaxes": [
+          {"label": "请求数/秒", "show": true},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "pointradius": 2,
+        "points": false,
+        "bars": false,
+        "stack": false,
+        "percentage": false,
+        "legend": {"show": true, "values": true, "min": true, "max": true, "current": true, "total": false, "avg": false}
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "type": "graph",
+        "title": "HTTP 响应时间（95 分位）",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+            "legendFormat": "P95 响应时间"
+          }
+        ],
+        "yaxes": [
+          {"label": "秒", "show": true, "format": "s"},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "alert": {
+          "name": "HTTP 响应时间过长",
+          "conditions": [
+            {
+              "evaluator": {"params": [2], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "message": "HTTP 响应时间超过 2 秒",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "type": "graph",
+        "title": "数据库查询耗时（95 分位）",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[1m])) by (le))",
+            "legendFormat": "P95 查询时间"
+          }
+        ],
+        "yaxes": [
+          {"label": "秒", "show": true, "format": "s"},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "type": "graph",
+        "title": "数据库连接数",
+        "targets": [
+          {
+            "expr": "db_connections",
+            "legendFormat": "连接数"
+          }
+        ],
+        "yaxes": [
+          {"label": "连接数", "show": true},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "alert": {
+          "name": "数据库连接数过高",
+          "conditions": [
+            {
+              "evaluator": {"params": [50], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "message": "数据库连接数超过 50",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 9,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "type": "graph",
+        "title": "错误率趋势",
+        "targets": [
+          {
+            "expr": "sum(rate(errors_total[1m]))",
+            "legendFormat": "错误数/秒"
+          }
+        ],
+        "yaxes": [
+          {"label": "错误数/秒", "show": true},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "color": "#d44a3a"
+      },
+      {
+        "id": 10,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "type": "graph",
+        "title": "业务操作速率",
+        "targets": [
+          {
+            "expr": "rate(business_operations_total[1m])",
+            "legendFormat": "操作数/秒"
+          }
+        ],
+        "yaxes": [
+          {"label": "操作数/秒", "show": true},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 11,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 28},
+        "type": "table",
+        "title": "告警列表",
+        "targets": [
+          {
+            "expr": "ALERTS{alertstate=\"firing\"}",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "styles": [
+          {
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "告警名称",
+            "pattern": "alertname",
+            "type": "string"
+          },
+          {
+            "alias": "告警级别",
+            "pattern": "severity",
+            "type": "string",
+            "colorMode": "cell",
+            "colors": ["rgba(50, 172, 45, 0.97)", "rgba(237, 129, 40, 0.89)", "rgba(245, 54, 54, 0.9)"],
+            "thresholds": ["warning", "critical"]
+          },
+          {
+            "alias": "告警服务",
+            "pattern": "service",
+            "type": "string"
+          },
+          {
+            "alias": "告警描述",
+            "pattern": "description",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  }
+}
