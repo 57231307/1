@@ -20,8 +20,8 @@
 
 ### 核心特性
 
-- **完整的ERP功能：从采购到销售，从库存到财务，从生产到分析
-- **面料行业特色功能：批次管理、双计量单位、缸号管理、色号管理、坯布管理
+- **完整的ERP功能：从采购到销售，从库存到财务，从生产到分析**
+- **面料行业特色功能：批次管理、双计量单位、缸号管理、色号管理、坯布管理**
 - **高性能：基于Rust语言开发，性能优异**
 - **高安全性：JWT认证、权限管理、请求验证、CORS配置**
 - **高可扩展性：模块化设计，易于添加新功能**
@@ -94,10 +94,10 @@
 |------|------|------|---------|
 | Rust | 2021 | 后端开发语言 | [backend/Cargo.toml](file:///workspace/backend/Cargo.toml) |
 | Axum | 0.7 | Web框架 | [backend/src/main.rs](file:///workspace/backend/src/main.rs) |
-| SeaORM | - | 数据库ORM | [backend/src/database/mod.rs](file:///workspace/backend/src/database/mod.rs) |
+| SeaORM | 1.0 | 数据库ORM | [backend/src/database/mod.rs](file:///workspace/backend/src/database/mod.rs) |
 | PostgreSQL | 14+ | 关系型数据库 | [backend/.env.example](file:///workspace/backend/.env.example) |
-| Tonic | - | gRPC框架 | [backend/proto/bingxi.proto](file:///workspace/backend/proto/bingxi.proto) |
-| JWT | - | 身份认证 | [backend/src/services/auth_service.rs](file:///workspace/backend/src/services/auth_service.rs) |
+| Tonic | 0.12 | gRPC框架 | [backend/proto/bingxi.proto](file:///workspace/backend/proto/bingxi.proto) |
+| JWT | 9.x | 身份认证 | [backend/src/services/auth_service.rs](file:///workspace/backend/src/services/auth_service.rs) |
 | Tracing | - | 日志追踪 | [backend/src/middleware/logger_middleware.rs](file:///workspace/backend/src/middleware/logger_middleware.rs) |
 | Prometheus | - | 指标收集 | [backend/src/middleware/metrics.rs](file:///workspace/backend/src/middleware/metrics.rs) |
 
@@ -110,7 +110,7 @@
 | Yew Router | - | 路由管理 | [frontend/src/app/mod.rs](file:///workspace/frontend/src/app/mod.rs) |
 | Gloo Net | - | HTTP客户端 | [frontend/src/services/api.rs](file:///workspace/frontend/src/services/api.rs) |
 | Trunk | - | 构建工具 | [frontend/Trunk.toml](file:///workspace/frontend/Trunk.toml) |
-| Utoo | - | 统一前端工具链 | [frontend/.utoo.toml](file:///workspace/frontend/.utoo.toml) |
+| Tailwind CSS | CDN | UI样式（当前通过 CDN 引入） | [frontend/index.html](file:///workspace/frontend/index.html) |
 
 ### 部署与监控技术栈
 
@@ -1198,51 +1198,32 @@
 
 ### 数据库迁移文件
 
-系统使用数据库迁移文件来管理数据库结构，所有迁移文件位于 [backend/database/migration/](file:///workspace/backend/database/migration/) 目录。
+系统通过 SQL 脚本初始化数据库结构，脚本目录为 [backend/database/migration/](file:///workspace/backend/database/migration/)。
 
-主要迁移文件包括：
-- [001_init.sql](file:///workspace/backend/database/migration/001_init.sql) - 初始数据库结构
-- [002_inventory_reservation.sql](file:///workspace/backend/database/migration/002_inventory_reservation.sql) - 库存预留
-- [004_customers.sql](file:///workspace/backend/database/migration/004_customers.sql) - 客户管理
-- [005_fabric_industry_adaptation.sql](file:///workspace/backend/database/migration/005_fabric_industry_adaptation.sql) - 面料行业适配
-- [006_gl_module.sql](file:///workspace/backend/database/migration/006_gl_module.sql) - 总账模块
-- [007_dual_unit_optimization.sql](file:///workspace/backend/database/migration/007_dual_unit_optimization.sql) - 双计量单位优化
-- [008_five_dimension_optimization.sql](file:///workspace/backend/database/migration/008_five_dimension_optimization.sql) - 五维度优化
-- [009_business_trace_optimization.sql](file:///workspace/backend/database/migration/009_business_trace_optimization.sql) - 业务追溯优化
-- [010_supplier_management.sql](file:///workspace/backend/database/migration/010_supplier_management.sql) - 供应商管理
-- [011_purchase_management.sql](file:///workspace/backend/database/migration/011_purchase_management.sql) - 采购管理
-- [012_accounts_payable.sql](file:///workspace/backend/database/migration/012_accounts_payable.sql) - 应付账款
-- [013_inventory_transfer.sql](file:///workspace/backend/database/migration/013_inventory_transfer.sql) - 库存调拨
-- [014_inventory_count.sql](file:///workspace/backend/database/migration/014_inventory_count.sql) - 库存盘点
-- [015_inventory_count_items.sql](file:///workspace/backend/database/migration/015_inventory_count_items.sql) - 库存盘点明细
-- [020_general_ledger.sql](file:///workspace/backend/database/migration/020_general_ledger.sql) - 总账
-- [021_accounts_receivable.sql](file:///workspace/backend/database/migration/021_accounts_receivable.sql) - 应收账款
-- [022_cost_management.sql](file:///workspace/backend/database/migration/022_cost_management.sql) - 成本管理
-- [030_fixed_assets.sql](file:///workspace/backend/database/migration/030_fixed_assets.sql) - 固定资产
-- [031_purchase_contract.sql](file:///workspace/backend/database/migration/031_purchase_contract.sql) - 采购合同
-- [032_sales_contract.sql](file:///workspace/backend/database/migration/032_sales_contract.sql) - 销售合同
-- [033_customer_credit.sql](file:///workspace/backend/database/migration/033_customer_credit.sql) - 客户信用
-- [034_financial_analysis.sql](file:///workspace/backend/database/migration/034_financial_analysis.sql) - 财务分析
-- [035_supplier_evaluation.sql](file:///workspace/backend/database/migration/035_supplier_evaluation.sql) - 供应商评估
-- [036_fund_management.sql](file:///workspace/backend/database/migration/036_fund_management.sql) - 资金管理
-- [037_budget_management.sql](file:///workspace/backend/database/migration/037_budget_management.sql) - 预算管理
-- [038_purchase_price.sql](file:///workspace/backend/database/migration/038_purchase_price.sql) - 采购价格
-- [039_sales_price.sql](file:///workspace/backend/database/migration/039_sales_price.sql) - 销售价格
-- [040_sales_analysis.sql](file:///workspace/backend/database/migration/040_sales_analysis.sql) - 销售分析
-- [041_quality_inspection.sql](file:///workspace/backend/database/migration/041_quality_inspection.sql) - 质量检验
-- [042_quality_standard.sql](file:///workspace/backend/database/migration/042_quality_standard.sql) - 质量标准
-- [050_four_level_batch_management.sql](file:///workspace/backend/database/migration/050_four_level_batch_management.sql) - 四级批次管理
-- [051_extend_existing_tables.sql](file:///workspace/backend/database/migration/051_extend_existing_tables.sql) - 扩展现有表
-- [052_bpm_process_engine.sql](file:///workspace/backend/database/migration/052_bpm_process_engine.sql) - BPM流程引擎
-- [053_bpm_extension.sql](file:///workspace/backend/database/migration/053_bpm_extension.sql) - BPM扩展
-- [054_log_management.sql](file:///workspace/backend/database/migration/054_log_management.sql) - 日志管理
-- [055_crm_extension.sql](file:///workspace/backend/database/migration/055_crm_extension.sql) - CRM扩展
-- [056_oa_collaboration.sql](file:///workspace/backend/database/migration/056_oa_collaboration.sql) - OA协作
-- [057_data_visualization.sql](file:///workspace/backend/database/migration/057_data_visualization.sql) - 数据可视化
-- [058_test_data.sql](file:///workspace/backend/database/migration/058_test_data.sql) - 测试数据
-- [060_assist_accounting.sql](file:///workspace/backend/database/migration/060_assist_accounting.sql) - 辅助核算
-- [060_performance_optimization.sql](file:///workspace/backend/database/migration/060_performance_optimization.sql) - 性能优化
-- [061_supplier_product_mapping.sql](file:///workspace/backend/database/migration/061_supplier_product_mapping.sql) - 供应商产品映射
+当前仓库中使用 1 份整合后的迁移脚本：
+- [001_consolidated_schema.sql](file:///workspace/backend/database/migration/001_consolidated_schema.sql) - 全量建表、视图、索引、触发器与基础数据初始化
+
+**自动执行机制（初始化向导）**：
+- 后端初始化服务会在启动初始化流程时，按文件名排序执行该目录下所有 `.sql` 文件，执行逻辑见 [run_migrations](file:///workspace/backend/src/services/init_service.rs#L164-L228)。
+- 初始化服务会尝试在以下路径查找迁移目录：`database/migration`、`../database/migration`、`/opt/bingxi-erp/database/migration`、`/opt/bingxi/database/migration`（用于开发/部署环境差异）。
+
+**手动执行（可选）**：
+```bash
+psql "postgres://<user>:<password>@<host>:<port>/<db>" -f backend/database/migration/001_consolidated_schema.sql
+```
+
+### 版本号管理
+
+为避免发布时版本号不一致，建议将版本号的“真实来源”收敛到少数几个位置，并保持同步：
+
+- **应用版本（构建时）**：后端与前端各自的 `Cargo.toml` 中 `package.version`
+  - [backend/Cargo.toml](file:///workspace/backend/Cargo.toml)
+  - [frontend/Cargo.toml](file:///workspace/frontend/Cargo.toml)
+- **发布包版本（运行时）**：根目录 [VERSION](file:///workspace/VERSION)，并在部署目录中以 `VERSION` 文件形式存在；系统更新服务读取逻辑见 [get_current_version](file:///workspace/backend/src/services/system_update_service.rs)。
+- **界面/API文档展示**：目前仓库中存在硬编码版本号的展示位置，发布前需要同步更新（避免界面显示与实际版本不一致）：
+  - [init.rs](file:///workspace/frontend/src/pages/init.rs)
+  - [login.rs](file:///workspace/frontend/src/pages/login.rs)
+  - [openapi.rs](file:///workspace/backend/src/openapi.rs)
 
 ---
 
@@ -1448,7 +1429,7 @@
 在您的 Linux 服务器（推荐 Ubuntu/Debian/CentOS）上，直接运行以下命令即可完成全自动安装：
 
 ```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install
+curl -fsSL --http1.1 --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s install
 ```
 
 ### 2. 一键管理工具 (bingxi)
@@ -1497,8 +1478,10 @@ cargo build
 
 **前端依赖**：
 ```bash
+rustup target add wasm32-unknown-unknown
+cargo install trunk
 cd frontend
-cargo build
+trunk build
 ```
 
 #### 1.2 配置开发环境
