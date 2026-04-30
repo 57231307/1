@@ -262,16 +262,24 @@ impl FundManagementService {
             return Err(AppError::ValidationError("Insufficient balance".into()));
         }
         let mut from_active: crate::models::fund_management::ActiveModel = from_acc.into();
-        from_active.balance = sea_orm::Set(from_active.balance.unwrap() - total_deduct);
-        from_active.available_balance = sea_orm::Set(from_active.available_balance.unwrap() - total_deduct);
+        
+        let from_balance = from_active.balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing from_account balance".into()))?;
+        let from_available_balance = from_active.available_balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing from_account available_balance".into()))?;
+        
+        from_active.balance = sea_orm::Set(from_balance - total_deduct);
+        from_active.available_balance = sea_orm::Set(from_available_balance - total_deduct);
         let from_acc = from_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 2. 增加转入账户
         let to_acc = crate::models::fund_management::Entity::find_by_id(req.to_account_id)
             .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("To account not found".into()))?;
         let mut to_active: crate::models::fund_management::ActiveModel = to_acc.into();
-        to_active.balance = sea_orm::Set(to_active.balance.unwrap() + req.amount);
-        to_active.available_balance = sea_orm::Set(to_active.available_balance.unwrap() + req.amount);
+        
+        let to_balance = to_active.balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing to_account balance".into()))?;
+        let to_available_balance = to_active.available_balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing to_account available_balance".into()))?;
+        
+        to_active.balance = sea_orm::Set(to_balance + req.amount);
+        to_active.available_balance = sea_orm::Set(to_available_balance + req.amount);
         to_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 3. 记录 Transfer

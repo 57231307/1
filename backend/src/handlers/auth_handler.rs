@@ -8,10 +8,13 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
+    #[validate(length(min = 3, max = 50, message = "用户名长度必须在3到50个字符之间"))]
     pub username: String,
+    #[validate(length(min = 6, message = "密码长度不能少于6个字符"))]
     pub password: String,
 }
 
@@ -33,6 +36,22 @@ pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
+    if let Err(errors) = payload.validate() {
+        let error_msgs: Vec<String> = errors
+            .field_errors()
+            .iter()
+            .map(|(field, errs)| {
+                let msgs: Vec<String> = errs.iter().filter_map(|e| e.message.as_ref().map(|m| m.to_string())).collect();
+                format!("{}: {}", field, msgs.join(", "))
+            })
+            .collect();
+            
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::error(format!("输入验证失败: {}", error_msgs.join("; ")))),
+        ));
+    }
+
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
 
     match auth_service
