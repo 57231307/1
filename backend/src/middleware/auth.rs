@@ -55,6 +55,13 @@ pub async fn auth_middleware(
                 return Err(StatusCode::UNAUTHORIZED);
             }
 
+            // 检查 Token 是否在黑名单中
+            let is_blacklisted = state.cache.get_token_blacklist().get(token).await.is_some();
+            if is_blacklisted {
+                warn!("Token is blacklisted");
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+
             let claims = AuthService::validate_token_static(token, &state.jwt_secret);
             match claims {
                 Ok(claims) => {

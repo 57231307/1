@@ -27,10 +27,11 @@ impl AppState {
 
 impl Default for AppState {
     fn default() -> Self {
+        // 在 default 初始化中强制使用 32 字节的安全测试密钥，避免 panic
         let metrics = MetricsService::new().expect("Failed to create metrics service");
         Self {
             db: Arc::new(DatabaseConnection::Disconnected),
-            jwt_secret: "default-secret".to_string(),
+            jwt_secret: "default-secret-key-for-test-environments-only-32-bytes".to_string(),
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
         }

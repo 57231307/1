@@ -70,22 +70,33 @@ pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ApiResponse<LogoutResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let token = headers
+    // 提取 Token
+    let auth_header = headers
         .get("Authorization")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .ok_or((
-            StatusCode::UNAUTHORIZED,
-            Json(ApiResponse::error("缺少认证令牌")),
-        ))?;
+        .and_then(|h| h.to_str().ok())
+        .filter(|h| h.starts_with("Bearer "));
 
-    let _claims = AuthService::validate_token_static(token, &state.jwt_secret)
-        .map_err(|_| (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiResponse::error("无效的令牌")),
-        ))?;
+    if let Some(auth_header) = auth_header {
+        let token = &auth_header[7..];
 
-    let _user_service = UserService::new(state.db.clone());
+        // 验证 Token 是否有效
+        match AuthService::validate_token_static(token, &state.jwt_secret) {
+            Ok(claims) => {
+                let now = chrono::Utc::now().timestamp() as usize;
+                let exp = claims.exp;
+                
+                if exp > now {
+                    let ttl = std::time::Duration::from_secs((exp - now) as u64);
+                    // 将 Token 加入黑名单
+                    state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl)).await;
+                    tracing::info!("Token blacklisted for user {}", claims.username);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Logout attempted with invalid token: {:?}", e);
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success(LogoutResponse { success: true })))
 }

@@ -174,6 +174,7 @@ pub struct AppCache {
     pub customer_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub supplier_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub warehouse_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    pub token_blacklist: Arc<MemoryCache<String, bool>>,
 }
 
 impl AppCache {
@@ -187,6 +188,7 @@ impl AppCache {
             customer_cache: MemoryCache::arc(),
             supplier_cache: MemoryCache::arc(),
             warehouse_cache: MemoryCache::arc(),
+            token_blacklist: MemoryCache::arc(),
         }
     }
 
@@ -233,6 +235,11 @@ impl AppCache {
     pub fn get_warehouse_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
         self.warehouse_cache.clone()
     }
+
+    /// 获取 Token 黑名单缓存
+    pub fn get_token_blacklist(&self) -> Arc<MemoryCache<String, bool>> {
+        self.token_blacklist.clone()
+    }
     
     /// 清除所有缓存
     pub fn clear_all(&self) {
@@ -244,5 +251,6 @@ impl AppCache {
         self.customer_cache.clear();
         self.supplier_cache.clear();
         self.warehouse_cache.clear();
+        // Do not clear token blacklist on general clear_all
     }
 }

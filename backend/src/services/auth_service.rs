@@ -46,15 +46,17 @@ impl AuthService {
             .find_by_username(username)
             .await?;
 
-        if !self.verify_password(password, &user.password_hash) {
-            return Err(AuthError::InvalidCredentials);
+        let is_valid = Self::verify_password(password, &user.password_hash)?;
+        if !is_valid {
+            return Err(AuthError::InvalidPassword);
         }
 
         if !user.is_active {
             return Err(AuthError::UserInactive);
         }
 
-        let token = self.generate_token(user.id, &user.username, user.role_id)?;
+        let token = self.generate_token(user.id, &user.username, user.role_id)
+            .map_err(|e| AuthError::TokenGenerationError(e.to_string()))?;
 
         Ok((token, user))
     }
@@ -66,6 +68,7 @@ impl AuthService {
         role_id: Option<i32>,
     ) -> Result<String, AuthError> {
         let now = Utc::now();
+        // Token expires in 24 hours
         let exp = now + Duration::hours(24);
 
         let claims = AppClaims {
@@ -77,7 +80,7 @@ impl AuthService {
         };
 
         encode(&Header::default(), &claims, &self.encoding_key)
-            .map_err(|e| AuthError::JwtError(e.to_string()))
+            .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
     }
 
     /// 静态方法：验证JWT令牌（不依赖AuthService实例）
@@ -88,7 +91,7 @@ impl AuthService {
         validation.leeway = 60;
 
         let token_data = decode::<AppClaims>(token, &decoding_key, &validation)
-            .map_err(|e| AuthError::JwtError(e.to_string()))?;
+            .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
 
         Ok(token_data.claims)
     }
@@ -99,35 +102,35 @@ impl AuthService {
         validation.leeway = 60;
 
         let token_data = decode::<AppClaims>(token, &self.decoding_key, &validation)
-            .map_err(|e| AuthError::JwtError(e.to_string()))?;
+            .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
 
         Ok(token_data.claims)
     }
 
-    pub fn verify_password(&self, password: &str, hash: &str) -> bool {
-        let parsed_hash = match PasswordHash::new(hash) {
-            Ok(h) => h,
-            Err(_) => return false,
-        };
-
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash)
-            .is_ok()
+    pub fn verify_password(password: &str, hash: &str) -> Result<bool, AuthError> {
+        let parsed_hash = PasswordHash::new(hash).map_err(|e| AuthError::HashingError(e.to_string()))?;
+        
+        let argon2 = Argon2::default();
+        match argon2.verify_password(password.as_bytes(), &parsed_hash) {
+            Ok(_) => Ok(true),
+            Err(argon2::password_hash::Error::Password) => Ok(false),
+            Err(e) => Err(AuthError::HashingError(e.to_string())),
+        }
     }
 
     pub fn hash_password(password: &str) -> Result<String, AuthError> {
         let salt = SaltString::generate(&mut OsRng);
-        // 使用更安全的Argon2参数配置
+        // 使用更安全的Argon2参数配置: 64MB内存，3次迭代，4并发度
         let argon2 = Argon2::new(
             argon2::Algorithm::Argon2id,
             argon2::Version::V0x13,
-            argon2::Params::new(19456, 2, 1, None).unwrap(),
+            argon2::Params::new(65536, 3, 4, None).unwrap(),
         );
-        let hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(|_| AuthError::HashError)?;
 
-        Ok(hash.to_string())
+        argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map(|hash| hash.to_string())
+            .map_err(|e| AuthError::HashingError(e.to_string()))
     }
 }
 
@@ -142,8 +145,16 @@ pub enum AuthError {
     DatabaseError(#[from] sea_orm::DbErr),
     #[error("JWT 错误：{0}")]
     JwtError(String),
-    #[error("密码哈希错误")]
-    HashError,
+    #[error("密码哈希错误: {0}")]
+    HashingError(String),
     #[error("用户不存在")]
     UserNotFound,
+    #[error("无效的密码")]
+    InvalidPassword,
+    #[error("Token 生成失败: {0}")]
+    TokenGenerationError(String),
+    #[error("无效的 Token: {0}")]
+    InvalidToken(String),
+    #[error("Token 已被撤销")]
+    TokenRevoked,
 }

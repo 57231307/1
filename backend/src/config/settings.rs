@@ -65,52 +65,40 @@ pub struct CorsConfig {
 
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
-        let settings = Config::builder()
+        let config_builder = Config::builder()
             .add_source(File::with_name("config").required(false))
             .add_source(File::with_name(".env").required(false))
-            .add_source(config::Environment::default().separator("__"))
-            .build()?;
+            .add_source(config::Environment::default().separator("__"));
 
-        // 尝试反序列化，如果失败则使用默认值
-        let mut app_settings = match settings.try_deserialize::<AppSettings>() {
-            Ok(settings) => settings,
-            Err(_) => {
-                // 使用默认值
-                AppSettings {
-                    server: ServerConfig {
-                        host: "0.0.0.0".to_string(),
-                        port: "8080".to_string(),
-                    },
-                    database: DatabaseConfig {
-                        connection_string: "".to_string(),
-                        host: "localhost".to_string(),
-                        port: 5432,
-                        name: "bingxi".to_string(),
-                        username: "postgres".to_string(),
-                        password: "".to_string(),
-                        max_connections: 10,
-                        ssl_mode: "prefer".to_string(),
-                        ssl_ca: None,
-                    },
-                    auth: AuthConfig {
-                        jwt_secret: "your-secret-key-change-in-production".to_string(),
-                        token_expiry_hours: 24,
-                    },
-                    grpc: GrpcConfig {
-                        host: "0.0.0.0".to_string(),
-                        port: 50051,
-                    },
-                    log: LogConfig {
-                        level: "info".to_string(),
-                        dir: "./logs".to_string(),
-                    },
-                    cors: CorsConfig {
-                        allowed_origins: vec!["http://localhost:3000".to_string()],
-                    },
-                    env: "development".to_string(),
+        let settings = match config_builder.build() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("警告: 无法加载配置文件: {}", e);
+                eprintln!("将尝试从环境变量加载配置");
+                // 尝试仅从环境变量构建
+                match Config::builder()
+                    .add_source(config::Environment::default().separator("__"))
+                    .build()
+                {
+                    Ok(c) => c,
+                    Err(_) => {
+                        panic!("无法加载配置，系统启动失败");
+                    }
                 }
             }
         };
+
+        let mut app_settings: AppSettings = match settings.try_deserialize() {
+            Ok(s) => s,
+            Err(e) => {
+                panic!("配置解析失败: {}", e);
+            }
+        };
+
+        // 强制检查 JWT 密钥强度
+        if app_settings.auth.jwt_secret.len() < 32 || app_settings.auth.jwt_secret.contains("change-in-production") || app_settings.auth.jwt_secret.contains("change-this") {
+            panic!("致命错误: JWT 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥。");
+        }
 
         // 处理 CORS 允许来源的环境变量（逗号分隔列表）
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {
