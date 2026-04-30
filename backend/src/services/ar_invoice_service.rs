@@ -130,7 +130,7 @@ impl ArInvoiceService {
         let year_month = format!("{:04}{:02}", invoice_date.year(), invoice_date.month());
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .as_millis();
 
         Ok(format!("AR{}{:04}", year_month, timestamp % 10000))

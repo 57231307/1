@@ -285,8 +285,8 @@ mod tests {
         let state = Arc::new(RateLimiterState::new(config));
 
         // 添加一些请求
-        state.check_rate_limit("192.168.1.1").unwrap();
-        state.check_rate_limit("192.168.1.1").unwrap();
+        state.check_rate_limit("192.168.1.1").expect("rate limit check failed");
+        state.check_rate_limit("192.168.1.1").expect("rate limit check failed");
 
         // 立即清理，应该没有变化
         state.cleanup_expired();
@@ -304,10 +304,12 @@ mod tests {
     fn test_extract_client_ip_from_forwarded() {
         use axum::http::Request;
 
-        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let mut req = Request::builder().uri("/").body(Body::empty()).expect("valid request");
         req.headers_mut().insert(
             "X-Forwarded-For",
-            "203.0.113.195, 70.41.3.18, 150.172.238.178".parse().unwrap(),
+            "203.0.113.195, 70.41.3.18, 150.172.238.178"
+                .parse()
+                .expect("valid forwarded-for header"),
         );
 
         let ip = extract_client_ip(&req);
@@ -318,9 +320,9 @@ mod tests {
     fn test_extract_client_ip_from_real_ip() {
         use axum::http::Request;
 
-        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let mut req = Request::builder().uri("/").body(Body::empty()).expect("valid request");
         req.headers_mut()
-            .insert("X-Real-IP", "192.168.1.100".parse().unwrap());
+            .insert("X-Real-IP", "192.168.1.100".parse().expect("valid real-ip header"));
 
         let ip = extract_client_ip(&req);
         assert_eq!(ip, "192.168.1.100");
@@ -330,7 +332,7 @@ mod tests {
     fn test_extract_client_ip_default() {
         use axum::http::Request;
 
-        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let req = Request::builder().uri("/").body(Body::empty()).expect("valid request");
         let ip = extract_client_ip(&req);
         assert_eq!(ip, "unknown");
     }

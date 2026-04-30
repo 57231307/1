@@ -132,14 +132,14 @@ pub async fn request_id_middleware(
 
     // 注入到请求头
     req.headers_mut()
-        .insert("X-Request-ID", request_id.parse().unwrap());
+        .insert("X-Request-ID", request_id.parse().expect("valid header value"));
 
     let mut response = next.run(req).await;
 
     // 在响应中也添加请求 ID
     response
         .headers_mut()
-        .insert("X-Request-ID", request_id.parse().unwrap());
+        .insert("X-Request-ID", request_id.parse().expect("valid header value"));
 
     Ok(response)
 }

@@ -182,7 +182,7 @@ impl ApPaymentService {
         }
 
         // 3. 检查必要字段
-        if payment.transaction_no.is_none() || payment.transaction_no.as_ref().unwrap().is_empty() {
+        if payment.transaction_no.as_deref().map_or(true, |t| t.is_empty()) {
             return Err(AppError::BusinessError(
                 "付款单必须填写交易流水号才能确认".to_string(),
             ));

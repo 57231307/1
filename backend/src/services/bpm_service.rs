@@ -104,10 +104,10 @@ impl BpmService {
         task_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 简化版：直接更新流程实例状态为结束（实际应解析 JSON 查找下一个节点）
-        let instance = bpm_process_instance::Entity::find_by_id(process_instance_id)
+        let instance = bpm_process_instance::Entity::find_by_id(task.process_instance_id)
             .one(&txn).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .unwrap();
+            .ok_or_else(|| AppError::NotFound("Process instance not found".into()))?;
             
         let mut instance_active: bpm_process_instance::ActiveModel = instance.into();
         instance_active.status = Set(if req.action == "approve" { "COMPLETED".to_string() } else { "TERMINATED".to_string() });

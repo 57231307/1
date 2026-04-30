@@ -284,7 +284,7 @@ mod tests {
     async fn setup_test_db() -> DatabaseConnection {
         let db_url =
             std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url).await.unwrap()
+        Database::connect(&db_url).await.expect("Failed to connect to db")
     }
 
     #[tokio::test]
@@ -360,7 +360,10 @@ mod tests {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
 
-        let (adjustments, total) = service.list_adjustments(0, 20).await.unwrap();
+        let (adjustments, total) = service
+            .list_adjustments(0, 20)
+            .await
+            .expect("list_adjustments should succeed");
 
         assert!(adjustments.is_empty());
         assert_eq!(total, 0);

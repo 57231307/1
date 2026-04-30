@@ -167,7 +167,7 @@ impl CostCollectionService {
         );
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .as_millis();
 
         Ok(format!("COST{}{:04}", year_month, timestamp % 10000))

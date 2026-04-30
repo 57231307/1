@@ -684,22 +684,23 @@ mod tests {
         }
         "#;
 
-        let req: CreateStockFabricRequest = serde_json::from_str(json).unwrap();
+        let req: CreateStockFabricRequest =
+            serde_json::from_str(json).expect("request json should deserialize");
         assert_eq!(req.warehouse_id, 1);
         assert_eq!(req.product_id, 100);
         assert_eq!(req.batch_no, "B20240101");
         assert_eq!(req.color_no, "C001");
         assert_eq!(
             req.quantity_meters,
-            rust_decimal::Decimal::from_str("100.00").unwrap()
+            rust_decimal::Decimal::from_str("100.00").expect("decimal should parse")
         );
         assert_eq!(
             req.gram_weight,
-            Some(rust_decimal::Decimal::from_str("180.00").unwrap())
+            Some(rust_decimal::Decimal::from_str("180.00").expect("decimal should parse"))
         );
         assert_eq!(
             req.width,
-            Some(rust_decimal::Decimal::from_str("180.00").unwrap())
+            Some(rust_decimal::Decimal::from_str("180.00").expect("decimal should parse"))
         );
     }
 }

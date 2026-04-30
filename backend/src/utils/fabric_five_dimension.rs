@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_from_unique_id() {
         let unique_id = "P100|B20240101|C001|D20240101001|G一等品";
-        let dim = FabricFiveDimension::from_unique_id(unique_id).unwrap();
+        let dim = FabricFiveDimension::from_unique_id(unique_id).expect("valid id");
 
         assert_eq!(dim.product_id, 100);
         assert_eq!(dim.batch_no, "20240101");
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn test_from_unique_id_without_dye_lot() {
         let unique_id = "P100|B20240101|C001|DN|G一等品";
-        let dim = FabricFiveDimension::from_unique_id(unique_id).unwrap();
+        let dim = FabricFiveDimension::from_unique_id(unique_id).expect("valid id");
 
         assert_eq!(dim.product_id, 100);
         assert_eq!(dim.dye_lot_no, None);

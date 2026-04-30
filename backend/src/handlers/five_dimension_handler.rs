@@ -138,13 +138,13 @@ pub async fn get_five_dimension_stats(
                 warehouse_id: 1,
                 warehouse_name: "主仓库".to_string(),
                 quantity_meters: Decimal::from(600),
-                quantity_kg: Decimal::from_f64(19.2).unwrap(),
+                quantity_kg: Decimal::new(192, 1),
             },
             WarehouseDistribution {
                 warehouse_id: 2,
                 warehouse_name: "次仓库".to_string(),
                 quantity_meters: Decimal::from(400),
-                quantity_kg: Decimal::from_f64(12.8).unwrap(),
+                quantity_kg: Decimal::new(128, 1),
             },
         ],
     };
@@ -319,7 +319,7 @@ mod tests {
             five_dimension_id: "P1|B20240101|C001|D20240101001|G 一等品".to_string(),
         };
 
-        let json = serde_json::to_string(&item).unwrap();
+        let json = serde_json::to_string(&item).expect("item should serialize");
         assert!(json.contains("测试面料"));
         assert!(json.contains("B20240101"));
     }

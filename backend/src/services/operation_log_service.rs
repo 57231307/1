@@ -195,7 +195,7 @@ mod tests {
     async fn setup_test_db() -> DatabaseConnection {
         let db_url = std::env::var("TEST_DATABASE_URL")
             .unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url).await.unwrap()
+        Database::connect(&db_url).await.expect("Failed to connect to db")
     }
 
     #[tokio::test]
@@ -281,7 +281,10 @@ mod tests {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
         
-        let (logs, total) = service.list_logs(0, 20).await.unwrap();
+        let (logs, total) = service
+            .list_logs(0, 20)
+            .await
+            .expect("list_logs should succeed");
         
         assert!(logs.is_empty());
         assert_eq!(total, 0);
@@ -293,7 +296,10 @@ mod tests {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
         
-        let (logs, total) = service.list_logs_by_module("user", 0, 20).await.unwrap();
+        let (logs, total) = service
+            .list_logs_by_module("user", 0, 20)
+            .await
+            .expect("list_logs_by_module should succeed");
         
         assert!(logs.is_empty());
         assert_eq!(total, 0);
@@ -305,7 +311,10 @@ mod tests {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
         
-        let (logs, total) = service.list_logs_by_user(1, 0, 20).await.unwrap();
+        let (logs, total) = service
+            .list_logs_by_user(1, 0, 20)
+            .await
+            .expect("list_logs_by_user should succeed");
         
         assert!(logs.is_empty());
         assert_eq!(total, 0);

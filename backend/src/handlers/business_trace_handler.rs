@@ -97,12 +97,14 @@ pub async fn get_trace_by_five_dimension(
         .await
     {
         Ok(traces) => {
-            if traces.is_empty() {
-                return Err((StatusCode::NOT_FOUND, "未找到追溯链".to_string()));
-            }
-
-            let first_trace = traces.first().unwrap();
-            let last_trace = traces.last().unwrap();
+            let first_trace = match traces.first() {
+                Some(trace) => trace,
+                None => return Err((StatusCode::NOT_FOUND, "未找到追溯链".to_string())),
+            };
+            let last_trace = match traces.last() {
+                Some(trace) => trace,
+                None => return Err((StatusCode::NOT_FOUND, "未找到追溯链".to_string())),
+            };
             let total_stages = traces.len();
 
             // 克隆需要的字段，避免借用冲突

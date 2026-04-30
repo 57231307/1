@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_record_http_request() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let metrics = Metrics::new(&registry).expect("metrics should initialize");
         
         let initial_count = metrics.http_requests_total.get();
         metrics.record_http_request(0.5);
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn test_start_end_request() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let metrics = Metrics::new(&registry).expect("metrics should initialize");
         
         let initial = metrics.http_requests_in_flight.get();
         metrics.start_request();
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn test_record_db_query() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let metrics = Metrics::new(&registry).expect("metrics should initialize");
         
         metrics.record_db_query(0.1);
         // 直方图指标不容易直接验证，但不抛出异常即成功
@@ -253,7 +253,7 @@ mod tests {
     #[test]
     fn test_record_business_operation() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let metrics = Metrics::new(&registry).expect("metrics should initialize");
         
         let initial = metrics.business_operations_total.get();
         metrics.record_business_operation();
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn test_record_error() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let metrics = Metrics::new(&registry).expect("metrics should initialize");
         
         let initial = metrics.errors_total.get();
         metrics.record_error();
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_set_db_connections() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let metrics = Metrics::new(&registry).expect("metrics should initialize");
         
         metrics.set_db_connections(10);
         assert_eq!(metrics.db_connections.get(), 10);
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_gather_metrics() {
-        let metrics_service = MetricsService::new().unwrap();
+        let metrics_service = MetricsService::new().expect("metrics service should initialize");
         
         metrics_service.metrics.record_http_request(0.5);
         metrics_service.metrics.record_error();
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_metrics_clone() {
-        let metrics_service = MetricsService::new().unwrap();
+        let metrics_service = MetricsService::new().expect("metrics service should initialize");
         let cloned = metrics_service.clone();
         
         assert_eq!(
@@ -314,26 +314,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_handler() {
-        let metrics_service = Arc::new(MetricsService::new().unwrap());
+        let metrics_service = Arc::new(
+            MetricsService::new().expect("metrics service should initialize"),
+        );
         
         let response = metrics_handler(State(metrics_service)).await;
         
         assert!(response.is_ok());
-        let response = response.unwrap();
+        let response = response.expect("metrics handler should succeed");
         assert_eq!(response.status(), 200);
         
         let headers = response.headers();
         assert!(headers.get("Content-Type").is_some());
-        assert!(headers.get("Content-Type")
-            .unwrap()
+        let content_type = headers
+            .get("Content-Type")
+            .expect("content-type header should exist")
             .to_str()
-            .unwrap()
-            .contains("text/plain"));
+            .expect("content-type should be valid ascii");
+        assert!(content_type.contains("text/plain"));
     }
 
     #[test]
     fn test_create_metrics_router() {
-        let metrics_service = Arc::new(MetricsService::new().unwrap());
+        let metrics_service = Arc::new(
+            MetricsService::new().expect("metrics service should initialize"),
+        );
         let _router = create_metrics_router(metrics_service.clone());
         
         // 验证路由创建成功

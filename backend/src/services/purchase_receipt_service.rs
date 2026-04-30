@@ -523,8 +523,8 @@ impl PurchaseReceiptService {
                     .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", order_item_id)))?;
 
                 let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
-                let current_received = active_order_item.received_quantity.clone().unwrap();
-                let current_received_alt = active_order_item.received_quantity_alt.clone().unwrap();
+                let current_received = active_order_item.received_quantity.clone().unwrap_or_default();
+                let current_received_alt = active_order_item.received_quantity_alt.clone().unwrap_or_default();
                 
                 active_order_item.received_quantity = Set(current_received + item.quantity);
                 active_order_item.received_quantity_alt = Set(current_received_alt + item.quantity_alt.unwrap_or_default());

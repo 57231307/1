@@ -236,14 +236,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_alert_service_creation() {
-        let metrics_service = Arc::new(MetricsService::new().unwrap());
+        let metrics_service = Arc::new(
+            MetricsService::new().expect("metrics service should initialize"),
+        );
         let alert_service = AlertService::new(metrics_service, None);
         assert_eq!(alert_service.config.http_error_rate_threshold, 5.0);
     }
 
     #[tokio::test]
     async fn test_alert_generation() {
-        let metrics_service = Arc::new(MetricsService::new().unwrap());
+        let metrics_service = Arc::new(
+            MetricsService::new().expect("metrics service should initialize"),
+        );
         let alert_service = AlertService::new(metrics_service, None);
 
         let alert = Alert {
@@ -263,7 +267,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_recent_alerts() {
-        let metrics_service = Arc::new(MetricsService::new().unwrap());
+        let metrics_service = Arc::new(
+            MetricsService::new().expect("metrics service should initialize"),
+        );
         let alert_service = AlertService::new(metrics_service, None);
 
         // 添加多个告警
@@ -285,7 +291,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_config() {
-        let metrics_service = Arc::new(MetricsService::new().unwrap());
+        let metrics_service = Arc::new(
+            MetricsService::new().expect("metrics service should initialize"),
+        );
         let mut alert_service = AlertService::new(metrics_service, None);
 
         let new_config = AlertConfig {

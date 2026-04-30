@@ -206,19 +206,20 @@ mod tests {
         }
         "#;
 
-        let req: ConvertUnitRequest = serde_json::from_str(json).unwrap();
+        let req: ConvertUnitRequest =
+            serde_json::from_str(json).expect("request json should deserialize");
         assert_eq!(
             req.value,
-            rust_decimal::Decimal::from_str("100.000").unwrap()
+            rust_decimal::Decimal::from_str("100.000").expect("decimal should parse")
         );
         assert_eq!(req.from_unit, "meters");
         assert_eq!(
             req.gram_weight,
-            rust_decimal::Decimal::from_str("180.00").unwrap()
+            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
         );
         assert_eq!(
             req.width_cm,
-            rust_decimal::Decimal::from_str("180.00").unwrap()
+            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
         );
     }
 
@@ -234,26 +235,27 @@ mod tests {
         }
         "#;
 
-        let req: ValidateDualUnitRequest = serde_json::from_str(json).unwrap();
+        let req: ValidateDualUnitRequest =
+            serde_json::from_str(json).expect("request json should deserialize");
         assert_eq!(
             req.quantity_meters,
-            rust_decimal::Decimal::from_str("100.000").unwrap()
+            rust_decimal::Decimal::from_str("100.000").expect("decimal should parse")
         );
         assert_eq!(
             req.quantity_kg,
-            rust_decimal::Decimal::from_str("3.240").unwrap()
+            rust_decimal::Decimal::from_str("3.240").expect("decimal should parse")
         );
         assert_eq!(
             req.gram_weight,
-            rust_decimal::Decimal::from_str("180.00").unwrap()
+            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
         );
         assert_eq!(
             req.width_cm,
-            rust_decimal::Decimal::from_str("180.00").unwrap()
+            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
         );
         assert_eq!(
             req.tolerance,
-            Some(rust_decimal::Decimal::from_str("0.005").unwrap())
+            Some(rust_decimal::Decimal::from_str("0.005").expect("decimal should parse"))
         );
     }
 }

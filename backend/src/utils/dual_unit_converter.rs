@@ -219,50 +219,59 @@ mod tests {
 
     #[test]
     fn test_meters_to_kg_basic() {
-        let quantity = Decimal::from_f64_retain(1000.0).unwrap(); // 1000 米
-        let gram_weight = Decimal::from_f64_retain(170.0).unwrap(); // 170g/m²
-        let width = Decimal::from_f64_retain(180.0).unwrap(); // 180cm
+        let quantity = Decimal::from_f64_retain(1000.0).expect("decimal should parse"); // 1000 米
+        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse"); // 170g/m²
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse"); // 180cm
 
-        let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width).unwrap();
+        let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width)
+            .expect("conversion should succeed");
 
         // 预期：1000 × 170 × 1.8 ÷ 1000 = 306 公斤
-        assert_eq!(result, Decimal::from_f64_retain(306.0).unwrap());
+        assert_eq!(
+            result,
+            Decimal::from_f64_retain(306.0).expect("decimal should parse")
+        );
     }
 
     #[test]
     fn test_kg_to_meters_basic() {
-        let quantity = Decimal::from_f64_retain(306.0).unwrap(); // 306 公斤
-        let gram_weight = Decimal::from_f64_retain(170.0).unwrap(); // 170g/m²
-        let width = Decimal::from_f64_retain(180.0).unwrap(); // 180cm
+        let quantity = Decimal::from_f64_retain(306.0).expect("decimal should parse"); // 306 公斤
+        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse"); // 170g/m²
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse"); // 180cm
 
-        let result = DualUnitConverter::kg_to_meters(quantity, gram_weight, width).unwrap();
+        let result = DualUnitConverter::kg_to_meters(quantity, gram_weight, width)
+            .expect("conversion should succeed");
 
         // 预期：306 × 1000 ÷ 170 ÷ 1.8 = 1000 米
-        assert_eq!(result, Decimal::from_f64_retain(1000.0).unwrap());
+        assert_eq!(
+            result,
+            Decimal::from_f64_retain(1000.0).expect("decimal should parse")
+        );
     }
 
     #[test]
     fn test_auto_convert_meters_to_kg() {
-        let quantity = Decimal::from_f64_retain(5000.0).unwrap();
-        let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
-        let width = Decimal::from_f64_retain(180.0).unwrap();
+        let quantity = Decimal::from_f64_retain(5000.0).expect("decimal should parse");
+        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse");
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse");
 
-        let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width).unwrap();
+        let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width)
+            .expect("conversion should succeed");
 
         assert_eq!(result.converted_unit, "公斤");
         // 5000 × 170 × 1.8 ÷ 1000 = 1530 公斤
         assert_eq!(
             result.converted_quantity,
-            Decimal::from_f64_retain(1530.0).unwrap()
+            Decimal::from_f64_retain(1530.0).expect("decimal should parse")
         );
     }
 
     #[test]
     fn test_validate_dual_unit_valid() {
-        let quantity_meters = Decimal::from_f64_retain(1000.0).unwrap();
-        let quantity_kg = Decimal::from_f64_retain(306.0).unwrap();
-        let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
-        let width = Decimal::from_f64_retain(180.0).unwrap();
+        let quantity_meters = Decimal::from_f64_retain(1000.0).expect("decimal should parse");
+        let quantity_kg = Decimal::from_f64_retain(306.0).expect("decimal should parse");
+        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse");
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse");
 
         let is_valid = DualUnitConverter::validate_dual_unit(
             quantity_meters,
@@ -271,17 +280,17 @@ mod tests {
             width,
             None,
         )
-        .unwrap();
+        .expect("validation should succeed");
 
         assert!(is_valid);
     }
 
     #[test]
     fn test_validate_dual_unit_invalid() {
-        let quantity_meters = Decimal::from_f64_retain(1000.0).unwrap();
-        let quantity_kg = Decimal::from_f64_retain(350.0).unwrap(); // 错误的公斤数
-        let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
-        let width = Decimal::from_f64_retain(180.0).unwrap();
+        let quantity_meters = Decimal::from_f64_retain(1000.0).expect("decimal should parse");
+        let quantity_kg = Decimal::from_f64_retain(350.0).expect("decimal should parse"); // 错误的公斤数
+        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse");
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse");
 
         let is_valid = DualUnitConverter::validate_dual_unit(
             quantity_meters,
@@ -290,16 +299,16 @@ mod tests {
             width,
             None,
         )
-        .unwrap();
+        .expect("validation should succeed");
 
         assert!(!is_valid);
     }
 
     #[test]
     fn test_negative_quantity_should_fail() {
-        let quantity = Decimal::from_f64_retain(-100.0).unwrap();
-        let gram_weight = Decimal::from_f64_retain(170.0).unwrap();
-        let width = Decimal::from_f64_retain(180.0).unwrap();
+        let quantity = Decimal::from_f64_retain(-100.0).expect("decimal should parse");
+        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse");
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse");
 
         let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width);
         assert!(result.is_err());
@@ -308,9 +317,9 @@ mod tests {
 
     #[test]
     fn test_zero_gram_weight_should_fail() {
-        let quantity = Decimal::from_f64_retain(1000.0).unwrap();
-        let gram_weight = Decimal::from_f64_retain(0.0).unwrap();
-        let width = Decimal::from_f64_retain(180.0).unwrap();
+        let quantity = Decimal::from_f64_retain(1000.0).expect("decimal should parse");
+        let gram_weight = Decimal::from_f64_retain(0.0).expect("decimal should parse");
+        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse");
 
         let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width);
         assert!(result.is_err());

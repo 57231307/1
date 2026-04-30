@@ -124,7 +124,7 @@ impl AuthService {
         let argon2 = Argon2::new(
             argon2::Algorithm::Argon2id,
             argon2::Version::V0x13,
-            argon2::Params::new(65536, 3, 4, None).unwrap(),
+            argon2::Params::new(65536, 3, 4, None).map_err(|e| AuthError::HashingError(e.to_string()))?,
         );
 
         argon2
