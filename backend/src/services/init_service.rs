@@ -158,7 +158,10 @@ impl InitService {
             }
         }
 
-        Err(InitError::DatabaseError(format!("数据库连接失败: {}", last_error.unwrap())))
+        Err(InitError::DatabaseError(format!(
+            "数据库连接失败: {}",
+            last_error.map(|e| e.to_string()).unwrap_or_else(|| "未知错误".to_string())
+        )))
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
@@ -201,7 +204,8 @@ impl InitService {
         for entry in entries {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("sql") {
-                info!("准备执行数据库迁移脚本: {:?}", path.file_name().unwrap());
+                let file_name = path.file_name().unwrap_or_default();
+                info!("准备执行数据库迁移脚本: {:?}", file_name);
                 let sql = std::fs::read_to_string(&path)
                     .map_err(|e| InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e)))?;
                 
@@ -217,9 +221,9 @@ impl InitService {
                 // This supports multiple statements separated by semicolons and correctly handles PL/pgSQL functions with $$ quotes.
                 self.db.execute_unprepared(&sql)
                     .await
-                    .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", path.file_name().unwrap(), e)))?;
+                    .map_err(|e| InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", file_name, e)))?;
 
-                info!("成功执行脚本: {:?}", path.file_name().unwrap());
+                info!("成功执行脚本: {:?}", file_name);
             }
         }
 

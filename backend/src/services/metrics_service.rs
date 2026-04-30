@@ -183,11 +183,11 @@ pub async fn metrics_handler(
     let output = String::from_utf8(buffer)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    Ok(Response::builder()
+    Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/plain; version=0.0.4")
         .body(output)
-        .unwrap())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// 创建监控路由
