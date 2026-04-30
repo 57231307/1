@@ -9,7 +9,6 @@ use axum::{
 };
 use sea_orm::Database;
 use serde_json::json;
-use std::sync::Arc;
 use bingxi_backend::utils::app_state::AppState;
 use tower::ServiceExt;
 
@@ -17,6 +16,7 @@ use tower::ServiceExt;
 use bingxi_backend::routes::create_router;
 
 use bingxi_backend::middleware::auth::auth_middleware;
+use bingxi_backend::middleware::request_validator::request_validator_middleware;
 
 /// 设置测试应用
 async fn setup_app() -> Router {
@@ -24,6 +24,14 @@ async fn setup_app() -> Router {
     let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
     create_router(state.clone())
         .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
+}
+
+async fn setup_app_with_request_validator() -> Router {
+    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
+    create_router(state.clone())
+        .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
+        .layer(axum::middleware::from_fn(request_validator_middleware))
 }
 
 /// 测试健康检查
@@ -141,6 +149,24 @@ async fn test_get_payments_unauthorized() {
             Request::builder()
                 .method(Method::GET)
                 .uri("/api/v1/erp/finance/payments")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_dashboard_requires_auth() {
+    let app = setup_app_with_request_validator().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/api/v1/erp/dashboard/overview")
+                .header("X-Requested-With", "XMLHttpRequest")
                 .body(Body::empty())
                 .unwrap(),
         )

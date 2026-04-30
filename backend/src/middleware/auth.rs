@@ -29,7 +29,6 @@ pub async fn auth_middleware(
         "/api/v1/erp/auth/login",
         "/api/v1/erp/auth/refresh",
         "/api/v1/erp/auth/logout",
-        "/api/v1/erp/dashboard",
     ];
 
     if public_paths.iter().any(|p| path.starts_with(p)) {
