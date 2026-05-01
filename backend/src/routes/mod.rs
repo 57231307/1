@@ -132,29 +132,20 @@ pub fn create_router(state: AppState) -> Router {
 
     // 产品类别管理路由
     let product_category_routes = Router::new()
-        .route("/", get(product_category_handler::list_product_categories))
-        .route("/", post(product_category_handler::create_product_category))
-        .route("/:id", get(product_category_handler::get_product_category))
-        .route(
-            "/:id",
-            put(product_category_handler::update_product_category),
-        )
-        .route(
-            "/:id",
-            delete(product_category_handler::delete_product_category),
-        )
-        .route(
-            "/tree",
-            get(product_category_handler::get_product_category_tree),
-        );
+        .route("/", get(product_category_handler::list))
+        .route("/", post(product_category_handler::create))
+        .route("/:id", get(product_category_handler::get))
+        .route("/:id", put(product_category_handler::update))
+        .route("/:id", delete(product_category_handler::delete))
+        .route("/tree", get(product_category_handler::get_product_category_tree));
 
     // 仓库管理路由
     let warehouse_routes = Router::new()
-        .route("/", get(warehouse_handler::list_warehouses))
-        .route("/", post(warehouse_handler::create_warehouse))
-        .route("/:id", get(warehouse_handler::get_warehouse))
-        .route("/:id", put(warehouse_handler::update_warehouse))
-        .route("/:id", delete(warehouse_handler::delete_warehouse))
+        .route("/", get(warehouse_handler::list))
+        .route("/", post(warehouse_handler::create))
+        .route("/:id", get(warehouse_handler::get))
+        .route("/:id", put(warehouse_handler::update))
+        .route("/:id", delete(warehouse_handler::delete))
         // 库位管理路由
         .route("/locations", get(warehouse_handler::list_locations))
         .route("/locations", post(warehouse_handler::create_location))
@@ -164,11 +155,11 @@ pub fn create_router(state: AppState) -> Router {
 
     // 部门管理路由
     let department_routes = Router::new()
-        .route("/", get(department_handler::list_departments))
-        .route("/", post(department_handler::create_department))
-        .route("/:id", get(department_handler::get_department))
-        .route("/:id", put(department_handler::update_department))
-        .route("/:id", delete(department_handler::delete_department))
+        .route("/", get(department_handler::list))
+        .route("/", post(department_handler::create))
+        .route("/:id", get(department_handler::get))
+        .route("/:id", put(department_handler::update))
+        .route("/:id", delete(department_handler::delete))
         .route("/tree", get(department_handler::get_department_tree));
 
     // 仪表板统计路由

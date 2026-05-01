@@ -30,23 +30,19 @@ impl DepartmentService {
     }
 
     /// 获取部门列表（支持分页和过滤）
-    #[allow(unused_variables)]
-    pub async fn list_departments(
+    pub async fn list(
         &self,
-        page: u64,
-        page_size: u64,
-        parent_id: Option<i32>,
-        search: Option<String>,
-    ) -> Result<(Vec<department::Model>, u64), sea_orm::DbErr> {
-        let mut query = DepartmentEntity::find();
+        query: crate::handlers::department_handler::DepartmentListQuery,
+    ) -> Result<crate::utils::response::PaginatedResponse<department::Model>, sea_orm::DbErr> {
+        let mut q = DepartmentEntity::find();
 
         // 应用过滤条件
-        if let Some(pid) = parent_id {
-            query = query.filter(department::Column::ParentId.eq(pid));
+        if let Some(pid) = query.parent_id {
+            q = q.filter(department::Column::ParentId.eq(pid));
         }
 
-        if let Some(keyword) = search {
-            query = query.filter(
+        if let Some(keyword) = query.search {
+            q = q.filter(
                 department::Column::Name
                     .like(format!("%{}%", keyword))
                     .or(department::Column::Description.like(format!("%{}%", keyword))),
@@ -54,20 +50,25 @@ impl DepartmentService {
         }
 
         // 获取总数
-        let total = query.clone().count(&*self.db).await?;
+        let total = q.clone().count(&*self.db).await?;
+        
+        let page = query.page.unwrap_or(1);
+        let page_size = query.page_size.unwrap_or(10);
 
         // 应用分页和排序
-        let departments = query
+        let departments = q
             .order_by(department::Column::Name, Order::Asc)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
             .into_model::<department::Model>()
             .all(&*self.db)
             .await?;
 
-        Ok((departments, total))
+        Ok(crate::utils::response::PaginatedResponse::new(departments, total, page, page_size))
     }
 
     /// 获取部门详情
-    pub async fn get_department(&self, id: i32) -> Result<department::Model, sea_orm::DbErr> {
+    pub async fn get(&self, id: i32) -> Result<department::Model, sea_orm::DbErr> {
         DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -75,14 +76,12 @@ impl DepartmentService {
     }
 
     /// 创建部门
-    pub async fn create_department(
+    pub async fn create(
         &self,
-        name: String,
-        description: Option<String>,
-        parent_id: Option<i32>,
+        req: crate::handlers::department_handler::CreateDepartmentRequest,
     ) -> Result<department::Model, sea_orm::DbErr> {
         // 检查父部门是否存在（如果提供了 parent_id）
-        if let Some(pid) = parent_id {
+        if let Some(pid) = req.parent_id {
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
@@ -93,11 +92,11 @@ impl DepartmentService {
 
         let active_model = department::ActiveModel {
             id: NotSet,
-            code: Set(name.chars().take(10).collect()),
-            name: Set(name),
-            parent_id: Set(parent_id),
+            code: Set(req.name.chars().take(10).collect()),
+            name: Set(req.name),
+            parent_id: Set(req.parent_id),
             manager_id: Set(None),
-            description: Set(description),
+            description: Set(req.description),
             sort_order: Set(0),
             is_active: Set(true),
             created_at: Set(Utc::now()),
@@ -109,12 +108,10 @@ impl DepartmentService {
     }
 
     /// 更新部门
-    pub async fn update_department(
+    pub async fn update(
         &self,
         id: i32,
-        name: Option<String>,
-        description: Option<String>,
-        parent_id: Option<i32>,
+        req: crate::handlers::department_handler::UpdateDepartmentRequest,
     ) -> Result<department::Model, sea_orm::DbErr> {
         let mut dept: department::ActiveModel = DepartmentEntity::find_by_id(id)
             .one(&*self.db)
@@ -122,7 +119,7 @@ impl DepartmentService {
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("部门 ID {} 不存在", id)))?
             .into();
 
-        if let Some(n) = name {
+        if let Some(n) = req.name {
             // 检查部门名称是否已存在
             let existing = DepartmentEntity::find()
                 .filter(department::Column::Name.eq(&n))
@@ -136,11 +133,11 @@ impl DepartmentService {
             dept.name = Set(n);
         }
 
-        if let Some(d) = description {
+        if let Some(d) = req.description {
             dept.description = Set(Some(d));
         }
 
-        if let Some(pid) = parent_id {
+        if let Some(pid) = req.parent_id {
             // 检查父部门是否存在
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
@@ -158,7 +155,7 @@ impl DepartmentService {
     }
 
     /// 删除部门
-    pub async fn delete_department(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete(&self, id: i32) -> Result<(), sea_orm::DbErr> {
         // 检查是否有子部门
         let children_count = DepartmentEntity::find()
             .filter(department::Column::ParentId.eq(id))

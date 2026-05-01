@@ -19,40 +19,41 @@ impl ProductCategoryService {
     }
 
     /// 获取产品类别列表（支持分页和过滤）
-    #[allow(unused_variables)]
-    pub async fn list_categories(
+    pub async fn list(
         &self,
-        page: u64,
-        page_size: u64,
-        parent_id: Option<i32>,
-        search: Option<String>,
-    ) -> Result<(Vec<product_category::Model>, u64), sea_orm::DbErr> {
-        let mut query = ProductCategoryEntity::find();
+        query: crate::handlers::product_category_handler::ProductCategoryListQuery,
+    ) -> Result<crate::utils::response::PaginatedResponse<product_category::Model>, sea_orm::DbErr> {
+        let mut q = ProductCategoryEntity::find();
 
         // 应用过滤条件
-        if let Some(pid) = parent_id {
-            query = query.filter(product_category::Column::ParentId.eq(pid));
+        if let Some(pid) = query.parent_id {
+            q = q.filter(product_category::Column::ParentId.eq(pid));
         }
 
-        if let Some(keyword) = search {
-            query = query.filter(product_category::Column::Name.like(format!("%{}%", keyword)));
+        if let Some(keyword) = query.search {
+            q = q.filter(product_category::Column::Name.like(format!("%{}%", keyword)));
         }
 
         // 获取总数
-        let total = query.clone().count(&*self.db).await?;
+        let total = q.clone().count(&*self.db).await?;
+        
+        let page = query.page.unwrap_or(1);
+        let page_size = query.page_size.unwrap_or(10);
 
         // 应用分页和排序
-        let categories = query
+        let categories = q
             .order_by(product_category::Column::Name, Order::Asc)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
             .into_model::<product_category::Model>()
             .all(&*self.db)
             .await?;
 
-        Ok((categories, total))
+        Ok(crate::utils::response::PaginatedResponse::new(categories, total, page, page_size))
     }
 
     /// 获取产品类别详情
-    pub async fn get_category(&self, id: i32) -> Result<product_category::Model, sea_orm::DbErr> {
+    pub async fn get(&self, id: i32) -> Result<product_category::Model, sea_orm::DbErr> {
         ProductCategoryEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -60,14 +61,12 @@ impl ProductCategoryService {
     }
 
     /// 创建产品类别
-    pub async fn create_category(
+    pub async fn create(
         &self,
-        name: String,
-        parent_id: Option<i32>,
-        description: Option<String>,
+        req: crate::handlers::product_category_handler::CreateProductCategoryRequest,
     ) -> Result<product_category::Model, sea_orm::DbErr> {
         // 检查父类别是否存在（如果提供了 parent_id）
-        if let Some(pid) = parent_id {
+        if let Some(pid) = req.parent_id {
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
@@ -78,10 +77,10 @@ impl ProductCategoryService {
 
         let active_model = product_category::ActiveModel {
             id: NotSet,
-            category_code: Set(name.chars().take(10).collect()),
-            name: Set(name),
-            parent_id: Set(parent_id),
-            description: Set(description),
+            category_code: Set(req.name.chars().take(10).collect()),
+            name: Set(req.name),
+            parent_id: Set(req.parent_id),
+            description: Set(req.description),
             sort_order: Set(0),
             is_active: Set(true),
             created_at: Set(Utc::now()),
@@ -93,12 +92,10 @@ impl ProductCategoryService {
     }
 
     /// 更新产品类别
-    pub async fn update_category(
+    pub async fn update(
         &self,
         id: i32,
-        name: Option<String>,
-        parent_id: Option<i32>,
-        description: Option<String>,
+        req: crate::handlers::product_category_handler::UpdateProductCategoryRequest,
     ) -> Result<product_category::Model, sea_orm::DbErr> {
         let mut category: product_category::ActiveModel = ProductCategoryEntity::find_by_id(id)
             .one(&*self.db)
@@ -106,7 +103,7 @@ impl ProductCategoryService {
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品类别 ID {} 不存在", id)))?
             .into();
 
-        if let Some(n) = name {
+        if let Some(n) = req.name {
             // 检查类别名称是否已存在
             let existing = ProductCategoryEntity::find()
                 .filter(product_category::Column::Name.eq(&n))
@@ -120,7 +117,7 @@ impl ProductCategoryService {
             category.name = Set(n);
         }
 
-        if let Some(pid) = parent_id {
+        if let Some(pid) = req.parent_id {
             // 检查父类别是否存在
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
@@ -131,7 +128,7 @@ impl ProductCategoryService {
             category.parent_id = Set(Some(pid));
         }
 
-        if let Some(d) = description {
+        if let Some(d) = req.description {
             category.description = Set(Some(d));
         }
 
@@ -142,7 +139,7 @@ impl ProductCategoryService {
     }
 
     /// 删除产品类别
-    pub async fn delete_category(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete(&self, id: i32) -> Result<(), sea_orm::DbErr> {
         // 检查是否有子类别
         let children_count = ProductCategoryEntity::find()
             .filter(product_category::Column::ParentId.eq(id))

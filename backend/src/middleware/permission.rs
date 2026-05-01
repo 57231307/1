@@ -48,10 +48,6 @@ pub async fn permission_middleware(
         }
     };
 
-    if auth.user_id == 1 {
-        return Ok(next.run(request).await);
-    }
-
     let (resource_type, resource_id) = extract_resource_info(path);
 
     let has_permission = check_permission(

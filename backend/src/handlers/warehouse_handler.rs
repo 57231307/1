@@ -6,6 +6,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::models::location::Entity as LocationEntity;
 use crate::models::location::{self as location_model};
@@ -15,7 +16,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 仓库列表
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct WarehouseListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -24,9 +25,11 @@ pub struct WarehouseListQuery {
 }
 
 /// 创建仓库请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateWarehouseRequest {
+    #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
     pub name: String,
+    #[validate(length(min = 1, max = 50, message = "仓库编码不能为空"))]
     pub code: String,
     pub address: Option<String>,
     pub manager: Option<String>,
@@ -37,8 +40,9 @@ pub struct CreateWarehouseRequest {
 }
 
 /// 更新仓库请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateWarehouseRequest {
+    #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
     pub name: Option<String>,
     pub address: Option<String>,
     pub manager: Option<String>,
@@ -46,6 +50,14 @@ pub struct UpdateWarehouseRequest {
     pub capacity: Option<i32>,
     pub status: Option<String>,
 }
+
+crate::define_crud_handlers!(
+    WarehouseService,
+    CreateWarehouseRequest,
+    UpdateWarehouseRequest,
+    WarehouseListQuery,
+    i32
+);
 
 /// 查询参数 - 库位列表
 #[derive(Debug, Deserialize)]
@@ -82,100 +94,6 @@ pub struct UpdateLocationRequest {
     pub capacity: Option<f64>,
     #[allow(dead_code)]
     pub status: Option<String>,
-}
-
-/// 获取仓库列表
-pub async fn list_warehouses(
-    State(state): State<AppState>,
-    Query(query): Query<WarehouseListQuery>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(10);
-
-    let warehouse_service = WarehouseService::new(state.db.clone());
-    let warehouses = warehouse_service
-        .list_warehouses(page, page_size, query.status, query.search)
-        .await?;
-
-    let (warehouses_vec, total) = warehouses;
-    let warehouses_json: Vec<serde_json::Value> = warehouses_vec
-        .into_iter()
-        .map(|w| serde_json::to_value(w).unwrap_or_default())
-        .collect();
-
-    Ok(Json(
-        PaginatedResponse::new(warehouses_json, total, page, page_size).into(),
-    ))
-}
-
-/// 获取仓库详情
-pub async fn get_warehouse(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let warehouse_service = WarehouseService::new(state.db.clone());
-    let warehouse = warehouse_service.get_warehouse(id).await?;
-    let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();
-    Ok(Json(ApiResponse::success(warehouse_json)))
-}
-
-/// 创建仓库
-pub async fn create_warehouse(
-    State(state): State<AppState>,
-    Json(req): Json<CreateWarehouseRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let warehouse_service = WarehouseService::new(state.db.clone());
-    let warehouse = warehouse_service
-        .create_warehouse(
-            req.name,
-            req.code,
-            req.address,
-            req.manager,
-            req.phone,
-            req.capacity,
-            "active".to_string(),
-        )
-        .await?;
-    let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(
-        warehouse_json,
-        "仓库创建成功",
-    )))
-}
-
-/// 更新仓库
-pub async fn update_warehouse(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-    Json(req): Json<UpdateWarehouseRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let warehouse_service = WarehouseService::new(state.db.clone());
-    let warehouse = warehouse_service
-        .update_warehouse(
-            id,
-            req.name,
-            req.address,
-            req.manager,
-            req.phone,
-            req.capacity,
-            req.status,
-        )
-        .await?;
-    let warehouse_json = serde_json::to_value(warehouse).unwrap_or_default();
-    Ok(Json(ApiResponse::success_with_msg(
-        warehouse_json,
-        "仓库更新成功",
-    )))
-}
-
-/// 删除仓库
-pub async fn delete_warehouse(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
-    let warehouse_service = WarehouseService::new(state.db.clone());
-    warehouse_service.delete_warehouse(id).await?;
-    Ok(Json(ApiResponse::success_with_msg((), "仓库删除成功")))
 }
 
 /// 获取库位列表

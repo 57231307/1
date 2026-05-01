@@ -7,3 +7,4 @@ pub mod response;
 
 pub use response::ApiResponse;
 pub use response::PaginatedResponse;
+pub mod crud_macro;

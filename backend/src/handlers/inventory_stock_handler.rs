@@ -216,6 +216,10 @@ pub async fn list_stock(
     State(state): State<AppState>,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<StockListResponse>, (StatusCode, String)> {
+    if let Err(e) = params.validate() {
+        return Err((StatusCode::BAD_REQUEST, e.to_string()));
+    }
+
     let service = InventoryStockService::new(state.db.clone());
 
     match service
@@ -290,11 +294,17 @@ pub async fn check_low_stock(
     }
 }
 
-#[derive(Debug, Deserialize)]
+use validator::Validate;
+
+#[derive(Debug, Deserialize, Validate)]
 pub struct ListStockParams {
+    #[validate(range(min = 0, message = "页码不能为负数"))]
     pub page: Option<u64>,
+    #[validate(range(min = 1, max = 100, message = "每页数量必须在1-100之间"))]
     pub page_size: Option<u64>,
+    #[validate(range(min = 1, message = "仓库ID必须大于0"))]
     pub warehouse_id: Option<i32>,
+    #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: Option<i32>,
 }
 

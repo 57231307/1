@@ -10,20 +10,27 @@ use axum::{
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
+use validator::Validate;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateUserRequest {
+    #[validate(length(min = 3, max = 50, message = "用户名长度必须在3-50之间"))]
     pub username: String,
+    #[validate(length(min = 8, message = "密码长度至少8位"))]
     pub password: String,
+    #[validate(email(message = "邮箱格式不正确"))]
     pub email: Option<String>,
+    #[validate(length(min = 1, message = "电话号码不能为空"))]
     pub phone: Option<String>,
     pub role_id: Option<i32>,
     pub department_id: Option<i32>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateUserRequest {
+    #[validate(email(message = "邮箱格式不正确"))]
     pub email: Option<String>,
+    #[validate(length(min = 1, message = "电话号码不能为空"))]
     pub phone: Option<String>,
     pub role_id: Option<i32>,
     pub department_id: Option<i32>,
@@ -80,6 +87,10 @@ pub async fn create_user(
     State(state): State<AppState>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
+    if let Err(e) = payload.validate() {
+        return Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string()))));
+    }
+
     let user_service = UserService::new(state.db.clone());
 
     let password_hash = AuthService::hash_password(&payload.password)
@@ -160,6 +171,10 @@ pub async fn update_user(
     Path(id): Path<i32>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
+    if let Err(e) = req.validate() {
+        return Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string()))));
+    }
+
     let user_service = UserService::new(state.db.clone());
 
     match user_service

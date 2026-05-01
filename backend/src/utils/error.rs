@@ -90,8 +90,8 @@ impl IntoResponse for AppError {
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
-        tracing::error!("数据库错误：{}", err);
-        AppError::DatabaseError(err.to_string())
+        tracing::error!("数据库错误：{:?}", err);
+        AppError::DatabaseError("数据库操作失败，请联系管理员".to_string())
     }
 }
 
