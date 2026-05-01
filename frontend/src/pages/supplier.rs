@@ -182,19 +182,19 @@ impl Component for SupplierPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterStatus(target.value())
+        let on_status_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterStatus(target.value()))
         });
 
-        let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterType(target.value())
+        let on_type_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterType(target.value()))
         });
 
-        let on_keyword_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetKeyword(target.value())
+        let on_keyword_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetKeyword(target.value()))
         });
 
         html! {
@@ -271,21 +271,21 @@ impl SupplierPage {
         let bank_account = self.current_supplier.as_ref().map(|s| s.bank_account.clone()).unwrap_or_default();
         let contact_phone = self.current_supplier.as_ref().map(|s| s.contact_phone.clone()).unwrap_or_default();
 
-        let onsubmit = ctx.link().callback(move |e: SubmitEvent| {
+        let onsubmit = ctx.link().batch_callback(move |e: SubmitEvent| {
             e.prevent_default();
             let form = e.target_unchecked_into::<web_sys::HtmlFormElement>();
             
-            let name_input = form.elements().named_item("supplier_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let short_name_input = form.elements().named_item("supplier_short_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let credit_input = form.elements().named_item("credit_code").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let reg_addr_input = form.elements().named_item("registered_address").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let legal_input = form.elements().named_item("legal_representative").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let reg_cap_input = form.elements().named_item("registered_capital").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let est_date_input = form.elements().named_item("establishment_date").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let tax_type_input = form.elements().named_item("taxpayer_type").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let bank_name_input = form.elements().named_item("bank_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let bank_account_input = form.elements().named_item("bank_account").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let contact_phone_input = form.elements().named_item("contact_phone").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let name_input = form.elements().named_item("supplier_name")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let short_name_input = form.elements().named_item("supplier_short_name")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let credit_input = form.elements().named_item("credit_code")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let reg_addr_input = form.elements().named_item("registered_address")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let legal_input = form.elements().named_item("legal_representative")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let reg_cap_input = form.elements().named_item("registered_capital")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let est_date_input = form.elements().named_item("establishment_date")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let tax_type_input = form.elements().named_item("taxpayer_type")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let bank_name_input = form.elements().named_item("bank_name")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let bank_account_input = form.elements().named_item("bank_account")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let contact_phone_input = form.elements().named_item("contact_phone")?.unchecked_into::<web_sys::HtmlInputElement>();
             
             let req = CreateSupplierRequest {
                 supplier_name: name_input.value(),
@@ -313,7 +313,7 @@ impl SupplierPage {
                 contacts: vec![],
                 qualifications: vec![],
             };
-            Msg::CreateSupplier(req)
+            Some(Msg::CreateSupplier(req))
         });
 
         html! {

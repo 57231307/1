@@ -172,19 +172,19 @@ impl Component for CustomerPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterStatus(target.value())
+        let on_status_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterStatus(target.value()))
         });
 
-        let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterType(target.value())
+        let on_type_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterType(target.value()))
         });
 
-        let on_keyword_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetKeyword(target.value())
+        let on_keyword_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetKeyword(target.value()))
         });
 
         html! {
@@ -252,14 +252,14 @@ impl CustomerPage {
         let contact = self.current_customer.as_ref().and_then(|c| c.contact_person.clone()).unwrap_or_default();
         let phone = self.current_customer.as_ref().and_then(|c| c.contact_phone.clone()).unwrap_or_default();
 
-        let onsubmit = ctx.link().callback(move |e: SubmitEvent| {
+        let onsubmit = ctx.link().batch_callback(move |e: SubmitEvent| {
             e.prevent_default();
             let form = e.target_unchecked_into::<web_sys::HtmlFormElement>();
             
-            let code_input = form.elements().named_item("customer_code").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let name_input = form.elements().named_item("customer_name").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let contact_input = form.elements().named_item("contact_person").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
-            let phone_input = form.elements().named_item("contact_phone").unwrap().unchecked_into::<web_sys::HtmlInputElement>();
+            let code_input = form.elements().named_item("customer_code")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let name_input = form.elements().named_item("customer_name")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let contact_input = form.elements().named_item("contact_person")?.unchecked_into::<web_sys::HtmlInputElement>();
+            let phone_input = form.elements().named_item("contact_phone")?.unchecked_into::<web_sys::HtmlInputElement>();
             
             let req = CreateCustomerRequest {
                 customer_code: code_input.value(),
@@ -279,7 +279,7 @@ impl CustomerPage {
                 customer_type: Some("普通".to_string()),
                 notes: None,
             };
-            Msg::CreateCustomer(req)
+            Some(Msg::CreateCustomer(req))
         });
 
         html! {

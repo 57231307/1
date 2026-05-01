@@ -11,7 +11,7 @@ impl SalesService {
         let empty_body: Option<serde_json::Value> = None;
         let response: ApiResponse<SalesOrder> = ApiService::post(&url, &empty_body).await?;
         if response.success {
-            Ok(response.data.unwrap())
+            response.data.ok_or_else(|| "提交成功但未返回数据".to_string())
         } else {
             Err(response.error.unwrap_or_else(|| "提交失败".to_string()))
         }

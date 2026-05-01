@@ -276,9 +276,9 @@ impl Component for ApVerificationPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_type_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterType(target.value())
+        let on_type_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterType(target.value()))
         });
 
         html! {
@@ -535,9 +535,9 @@ impl ApVerificationPage {
                                 <label>{"核销金额："}</label>
                                 <input type="text"
                                     value={self.manual_verify_amount.clone()}
-                                    oninput={ctx.link().callback(|e: InputEvent| {
-                                        let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                        Msg::SetManualVerifyAmount(target.value())
+                                    oninput={ctx.link().batch_callback(|e: InputEvent| {
+                                        let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                        Some(Msg::SetManualVerifyAmount(target.value()))
                                     })}
                                     placeholder="请输入核销金额"
                                 />
@@ -546,9 +546,9 @@ impl ApVerificationPage {
                                 <label>{"备注："}</label>
                                 <textarea
                                     value={self.manual_verify_remarks.clone()}
-                                    oninput={ctx.link().callback(|e: InputEvent| {
-                                        let target = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                                        Msg::SetManualVerifyRemarks(target.value())
+                                    oninput={ctx.link().batch_callback(|e: InputEvent| {
+                                        let target = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
+                                        Some(Msg::SetManualVerifyRemarks(target.value()))
                                     })}
                                     placeholder="请输入备注信息"
                                 />

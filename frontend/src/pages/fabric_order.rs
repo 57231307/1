@@ -181,9 +181,9 @@ impl Component for FabricOrderPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_filter_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterStatus(target.value())
+        let on_filter_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterStatus(target.value()))
         });
 
         html! {

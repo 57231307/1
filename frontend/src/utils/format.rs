@@ -3,14 +3,26 @@
 #[allow(dead_code)]
 /// 格式化数字为带千分位的字符串
 pub fn format_number(num: i64) -> String {
-    num.to_string()
-        .as_bytes()
-        .rchunks(3)
-        .rev()
-        .map(std::str::from_utf8)
-        .collect::<Result<Vec<&str>, _>>()
-        .unwrap()
-        .join(",")
+    let s = num.to_string();
+    let is_negative = s.starts_with('-');
+    let start_idx = if is_negative { 1 } else { 0 };
+    
+    let int_part = &s[start_idx..];
+    
+    let mut result = String::new();
+    if is_negative {
+        result.push('-');
+    }
+    
+    let len = int_part.len();
+    for (i, c) in int_part.chars().enumerate() {
+        if i > 0 && (len - i) % 3 == 0 {
+            result.push(',');
+        }
+        result.push(c);
+    }
+    
+    result
 }
 
 /// 格式化数字为带千分位的字符串（f64）

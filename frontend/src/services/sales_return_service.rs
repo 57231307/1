@@ -9,7 +9,7 @@ impl SalesReturnService {
         let url = "/sales-returns";
         let response: ApiResponse<SalesReturn> = ApiService::post(url, &req).await?;
         if response.success {
-            Ok(response.data.unwrap())
+            response.data.ok_or_else(|| "创建成功但未返回数据".to_string())
         } else {
             Err(response.error.unwrap_or_else(|| "创建失败".to_string()))
         }
@@ -59,7 +59,7 @@ impl SalesReturnService {
         let empty_body: Option<serde_json::Value> = None;
         let response: ApiResponse<SalesReturn> = ApiService::post(&url, &empty_body).await?;
         if response.success {
-            Ok(response.data.unwrap())
+            response.data.ok_or_else(|| "提交成功但未返回数据".to_string())
         } else {
             Err(response.error.unwrap_or_else(|| "提交失败".to_string()))
         }
@@ -70,7 +70,7 @@ impl SalesReturnService {
         let empty_body: Option<serde_json::Value> = None;
         let response: ApiResponse<SalesReturn> = ApiService::post(&url, &empty_body).await?;
         if response.success {
-            Ok(response.data.unwrap())
+            response.data.ok_or_else(|| "审批成功但未返回数据".to_string())
         } else {
             Err(response.error.unwrap_or_else(|| "审批失败".to_string()))
         }

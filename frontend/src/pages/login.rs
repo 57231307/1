@@ -128,14 +128,14 @@ impl Component for LoginPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let onusername = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-            Msg::UsernameChanged(target.value())
+        let onusername = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
+            Some(Msg::UsernameChanged(target.value()))
         });
 
-        let onpassword = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
-            Msg::PasswordChanged(target.value())
+        let onpassword = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
+            Some(Msg::PasswordChanged(target.value()))
         });
 
         let onsubmit = ctx.link().callback(|e: SubmitEvent| {

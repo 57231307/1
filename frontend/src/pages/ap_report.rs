@@ -288,9 +288,9 @@ impl ApReportPage {
                             <input
                                 type="date"
                                 value={self.start_date.clone()}
-                                onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                    Msg::SetStartDate(target.value())
+                                onchange={ctx.link().batch_callback(|e: Event| {
+                                    let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                    Some(Msg::SetStartDate(target.value()))
                                 })}
                             />
                         </div>
@@ -299,9 +299,9 @@ impl ApReportPage {
                             <input
                                 type="date"
                                 value={self.end_date.clone()}
-                                onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                    Msg::SetEndDate(target.value())
+                                onchange={ctx.link().batch_callback(|e: Event| {
+                                    let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                    Some(Msg::SetEndDate(target.value()))
                                 })}
                             />
                         </div>
@@ -315,9 +315,9 @@ impl ApReportPage {
                         <input
                             type="date"
                             value={self.report_date.clone()}
-                            onchange={ctx.link().callback(|e: Event| {
-                                let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                Msg::SetReportDate(target.value())
+                            onchange={ctx.link().batch_callback(|e: Event| {
+                                let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                Some(Msg::SetReportDate(target.value()))
                             })}
                         />
                     </div>
@@ -331,9 +331,9 @@ impl ApReportPage {
                             <input
                                 type="number"
                                 value={self.year.to_string()}
-                                onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                    Msg::SetYear(target.value().parse().unwrap_or(2024))
+                                onchange={ctx.link().batch_callback(|e: Event| {
+                                    let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                    Some(Msg::SetYear(target.value().parse().unwrap_or(2024)))
                                 })}
                             />
                         </div>
@@ -344,9 +344,9 @@ impl ApReportPage {
                                 min="1"
                                 max="12"
                                 value={self.month.to_string()}
-                                onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                    Msg::SetMonth(target.value().parse().unwrap_or(1))
+                                onchange={ctx.link().batch_callback(|e: Event| {
+                                    let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                    Some(Msg::SetMonth(target.value().parse().unwrap_or(1)))
                                 })}
                             />
                         </div>

@@ -206,10 +206,10 @@ impl SalesReturnPage {
                     <select 
                         class="form-control"
                         value={self.filter_status.clone()}
-                        onchange={link.callback(|e: Event| {
+                        onchange={link.batch_callback(|e: Event| {
                             use wasm_bindgen::JsCast;
-                            let select = e.target().unwrap().unchecked_into::<web_sys::HtmlSelectElement>();
-                            Msg::SetFilterStatus(select.value())
+                            let select = e.target()?.unchecked_into::<web_sys::HtmlSelectElement>();
+                            Some(Msg::SetFilterStatus(select.value()))
                         })}
                     >
                         { for statuses.iter().map(|s| html! { <option value={*s}>{ s }</option> }) }

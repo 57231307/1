@@ -188,9 +188,9 @@ impl Component for ApReconciliationPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterStatus(target.value())
+        let on_status_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterStatus(target.value()))
         });
 
         html! {
@@ -363,9 +363,9 @@ impl ApReconciliationPage {
     }
 
     fn render_dispute_modal(&self, ctx: &Context<Self>) -> Html {
-        let on_dispute_reason_change = ctx.link().callback(|e: InputEvent| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetDisputeReason(target.value())
+        let on_dispute_reason_change = ctx.link().batch_callback(|e: InputEvent| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetDisputeReason(target.value()))
         });
 
         html! {

@@ -288,9 +288,9 @@ impl Component for InventoryCountPage {
                                 type="text"
                                 placeholder="请输入盘点单号"
                                 value={self.filter_count_no.clone()}
-                                oninput={ctx.link().callback(|e: InputEvent| {
-                                    let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                    Msg::SetFilterCountNo(input.value())
+                                oninput={ctx.link().batch_callback(|e: InputEvent| {
+                                    let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                    Some(Msg::SetFilterCountNo(input.value()))
                                 })}
                             />
                         </div>
@@ -298,9 +298,9 @@ impl Component for InventoryCountPage {
                             <label>{"状态："}</label>
                             <select
                                 value={self.filter_status.clone()}
-                                onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-                                    Msg::SetFilterStatus(target.value())
+                                onchange={ctx.link().batch_callback(|e: Event| {
+                                    let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+                                    Some(Msg::SetFilterStatus(target.value()))
                                 })}
                             >
                                 <option value="全部">{"全部"}</option>
@@ -530,9 +530,9 @@ impl InventoryCountPage {
                     <input
                         type="number"
                         value={self.form_warehouse_id.to_string()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                            Msg::FormWarehouseChanged(input.value().parse().unwrap_or(0))
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                            Some(Msg::FormWarehouseChanged(input.value().parse().unwrap_or(0)))
                         })}
                     />
                 </div>
@@ -540,9 +540,9 @@ impl InventoryCountPage {
                     <label>{"备注："}</label>
                     <textarea
                         value={self.form_notes.clone()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                            Msg::FormNotesChanged(input.value())
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
+                            Some(Msg::FormNotesChanged(input.value()))
                         })}
                         placeholder="请输入备注信息"
                     />
@@ -566,9 +566,9 @@ impl InventoryCountPage {
                     <label>{"备注："}</label>
                     <textarea
                         value={self.form_notes.clone()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                            Msg::FormNotesChanged(input.value())
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
+                            Some(Msg::FormNotesChanged(input.value()))
                         })}
                         placeholder="请输入备注信息"
                     />

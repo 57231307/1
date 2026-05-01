@@ -149,19 +149,19 @@ impl Component for DyeRecipePage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_recipe_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetFilterRecipeNo(target.value())
+        let on_recipe_no_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetFilterRecipeNo(target.value()))
         });
 
-        let on_color_code_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetFilterColorCode(target.value())
+        let on_color_code_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetFilterColorCode(target.value()))
         });
 
-        let on_status_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterStatus(target.value())
+        let on_status_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterStatus(target.value()))
         });
 
         html! {

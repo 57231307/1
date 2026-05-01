@@ -331,22 +331,22 @@ impl Component for PurchaseContractPage {
                         type="text"
                         placeholder="搜索合同编号或名称..."
                         value={self.state.keyword.clone()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let target = e.target().unwrap();
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let target = e.target()?;
                             if let Ok(input) = target.dyn_into::<web_sys::HtmlInputElement>() {
                                 Msg::SearchKeyword(input.value())
                             } else {
-                                Msg::SearchKeyword(String::new())
+                                Some(Msg::SearchKeyword(String::new()))
                             }
                         })}
                     />
                     <select
                         value={self.state.status_filter.clone().unwrap_or_default()}
-                        onchange={ctx.link().callback(|e: Event| {
-                            let target = e.target().unwrap();
+                        onchange={ctx.link().batch_callback(|e: Event| {
+                            let target = e.target()?;
                             if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
                                 let value = select.value();
-                                Msg::FilterStatus(if value.is_empty() { None } else { Some(value) })
+                                Some(Msg::FilterStatus(if value.is_empty() { None } else { Some(value))})
                             } else {
                                 Msg::FilterStatus(None)
                             }
@@ -442,8 +442,8 @@ impl Component for PurchaseContractPage {
                     </button>
                     <select
                         value={self.state.page_size.to_string()}
-                        onchange={ctx.link().callback(move |e: Event| {
-                            let target = e.target().unwrap();
+                        onchange={ctx.link().batch_callback(move |e: Event| {
+                            let target = e.target()?;
                             if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
                                 if let Ok(size) = select.value().parse::<i64>() {
                                     Msg::ChangePageSize(size)
@@ -451,7 +451,7 @@ impl Component for PurchaseContractPage {
                                     Msg::ChangePageSize(10)
                                 }
                             } else {
-                                Msg::ChangePageSize(10)
+                                Some(Msg::ChangePageSize(10))
                             }
                         })}
                     >
@@ -596,8 +596,8 @@ impl Component for CreateContractModal {
         let props = ctx.props();
         
         let on_input = |msg: fn(String) -> CreateContractMsg| {
-            ctx.link().callback(move |e: InputEvent| {
-                let target = e.target().unwrap();
+            ctx.link().batch_callback(move |e: InputEvent| {
+                let target = e.target()?;
                 let input = target.unchecked_into::<web_sys::HtmlInputElement>();
                 msg(input.value())
             })

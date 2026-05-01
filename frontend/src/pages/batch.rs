@@ -129,19 +129,19 @@ impl Component for BatchPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_batch_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetFilterBatchNo(target.value())
+        let on_batch_no_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetFilterBatchNo(target.value()))
         });
 
-        let on_color_no_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-            Msg::SetFilterColorNo(target.value())
+        let on_color_no_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+            Some(Msg::SetFilterColorNo(target.value()))
         });
 
-        let on_grade_change = ctx.link().callback(|e: Event| {
-            let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-            Msg::SetFilterGrade(target.value())
+        let on_grade_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterGrade(target.value()))
         });
 
         html! {

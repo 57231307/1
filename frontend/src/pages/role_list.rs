@@ -182,52 +182,53 @@ impl Component for RoleListPage {
                 true
             }
             Msg::UpdateRole => {
-                let role_id = self.editing_role.as_ref().unwrap().id;
-                let name = self.name.clone();
-                let code = self.code.clone();
-                let description = if self.description.is_empty() {
-                    None
-                } else {
-                    Some(self.description.clone())
-                };
-                let is_system = self.is_system;
+                if let Some(role) = self.editing_role.as_ref() {
+                    let role_id = role.id;
+                    let name = self.name.clone();
+                    let code = self.code.clone();
+                    let description = if self.description.is_empty() {
+                        None
+                    } else {
+                        Some(self.description.clone())
+                    };
+                    let is_system = self.is_system;
 
-                let link = ctx.link().clone();
+                    let link = ctx.link().clone();
 
-                spawn_local(async move {
-                    let payload = serde_json::json!({
-                        "name": name,
-                        "code": code,
-                        "description": description,
-                        "is_system": is_system
+                    spawn_local(async move {
+                        let payload = serde_json::json!({
+                            "name": name,
+                            "code": code,
+                            "description": description,
+                            "is_system": is_system
+                        });
+
+                        match ApiService::put::<serde_json::Value, serde_json::Value>(&format!("/roles/{}", role_id), &payload).await {
+                            Ok(_) => {
+                                link.send_message(Msg::CloseEditModal);
+                                link.send_message(Msg::LoadRoles);
+                            }
+                            Err(error) => {
+                                link.send_message(Msg::LoadError(error));
+                            }
+                        }
                     });
-
-                    match ApiService::put::<serde_json::Value, serde_json::Value>(&format!("/roles/{}", role_id), &payload).await {
-                        Ok(_) => {
-                            link.send_message(Msg::CloseEditModal);
-                            link.send_message(Msg::LoadRoles);
-                        }
-                        Err(error) => {
-                            link.send_message(Msg::LoadError(error));
-                        }
-                    }
-                });
+                }
                 true
             }
             Msg::DeleteRole(id) => {
                 let link = ctx.link().clone();
 
                 spawn_local(async move {
-                    if web_sys::window().unwrap()
-                        .confirm_with_message("确定要删除这个角色吗？")
-                        .unwrap_or(false)
-                    {
-                        match ApiService::delete(&format!("/roles/{}", id)).await {
-                            Ok(_) => {
-                                link.send_message(Msg::LoadRoles);
-                            }
-                            Err(error) => {
-                                link.send_message(Msg::LoadError(error));
+                    if let Some(win) = web_sys::window() {
+                        if win.confirm_with_message("确定要删除这个角色吗？").unwrap_or(false) {
+                            match ApiService::delete(&format!("/roles/{}", id)).await {
+                                Ok(_) => {
+                                    link.send_message(Msg::LoadRoles);
+                                }
+                                Err(error) => {
+                                    link.send_message(Msg::LoadError(error));
+                                }
                             }
                         }
                     }
@@ -355,7 +356,7 @@ impl Component for RoleListPage {
                                         type="text"
                                         value={self.name.clone()}
                                         onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
                                             Msg::NameChanged(input.value())
                                         })}
                                         placeholder="请输入角色名称"
@@ -367,7 +368,7 @@ impl Component for RoleListPage {
                                         type="text"
                                         value={self.code.clone()}
                                         onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
                                             Msg::CodeChanged(input.value())
                                         })}
                                         placeholder="请输入角色编码"
@@ -378,7 +379,7 @@ impl Component for RoleListPage {
                                     <textarea
                                         value={self.description.clone()}
                                         onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
+                                            let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
                                             Msg::DescriptionChanged(input.value())
                                         })}
                                         placeholder="请输入角色描述"
@@ -390,7 +391,7 @@ impl Component for RoleListPage {
                                             type="checkbox"
                                             checked={self.is_system}
                                             onchange={link.callback(|e: Event| {
-                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
                                                 Msg::IsSystemChanged(input.checked())
                                             })}
                                         />
@@ -420,7 +421,7 @@ impl Component for RoleListPage {
                                         type="text"
                                         value={self.name.clone()}
                                         onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
                                             Msg::NameChanged(input.value())
                                         })}
                                         placeholder="请输入角色名称"
@@ -432,7 +433,7 @@ impl Component for RoleListPage {
                                         type="text"
                                         value={self.code.clone()}
                                         onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
                                             Msg::CodeChanged(input.value())
                                         })}
                                         placeholder="请输入角色编码"
@@ -443,7 +444,7 @@ impl Component for RoleListPage {
                                     <textarea
                                         value={self.description.clone()}
                                         onchange={link.callback(|e: Event| {
-                                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
+                                            let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
                                             Msg::DescriptionChanged(input.value())
                                         })}
                                         placeholder="请输入角色描述"
@@ -455,7 +456,7 @@ impl Component for RoleListPage {
                                             type="checkbox"
                                             checked={self.is_system}
                                             onchange={link.callback(|e: Event| {
-                                                let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                                                let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
                                                 Msg::IsSystemChanged(input.checked())
                                             })}
                                         />

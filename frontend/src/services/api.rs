@@ -66,7 +66,10 @@ impl ApiService {
                                 if let Some(data) = api_response.data {
                                     return Ok(data);
                                 } else if method == "DELETE" {
-                                    return Ok(serde_json::from_value(serde_json::json!(null)).unwrap());
+                                    return serde_json::from_value(serde_json::json!(null))
+                                        .map_err(|e| format!("无法为 DELETE 请求构造空响应: {}", e));
+                                } else {
+                                    return Err("请求成功，但未返回数据".to_string());
                                 }
                             } else {
                                 let error_msg = api_response.error

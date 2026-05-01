@@ -243,7 +243,7 @@ Msg::CloseShipModal => {
                             order_item_id: item.order_item_id,
                             product_id: item.product_id,
                             quantity: quantity_dec,
-                            warehouse_id: item.warehouse_id.unwrap(),
+                            warehouse_id: item.warehouse_id.unwrap_or(0),
                             batch_no: item.batch_no.clone(),
                         });
                     }
@@ -271,10 +271,7 @@ Msg::CloseShipModal => {
             }
             Msg::ShipError(e) => {
                 self.submitting_ship = false;
-                web_sys::window()
-                    .unwrap()
-                    .alert_with_message(&e)
-                    .unwrap();
+                if let Some(win) = web_sys::window() { win.alert_with_message(&e).ok(); }
                 true
             }
             _ => false,
@@ -390,12 +387,12 @@ impl SalesOrderPage {
                                             class="form-control" 
                                             placeholder="如：顺丰、跨越速运"
                                             value={self.logistics_carrier.clone()}
-                                            oninput={ctx.link().callback(|e: InputEvent| {
+                                            oninput={ctx.link().batch_callback(|e: InputEvent| {
                                                 use wasm_bindgen::JsCast;
                                                 use web_sys::HtmlInputElement;
-                                                let target = e.target().unwrap();
+                                                let target = e.target()?;
                                                 let input = target.unchecked_into::<HtmlInputElement>();
-                                                Msg::UpdateLogisticsCarrier(input.value())
+                                                Some(Msg::UpdateLogisticsCarrier(input.value()))
                                             })}
                                         />
                                     </div>
@@ -406,12 +403,12 @@ impl SalesOrderPage {
                                             class="form-control" 
                                             placeholder="请扫码或输入运单号"
                                             value={self.tracking_number.clone()}
-                                            oninput={ctx.link().callback(|e: InputEvent| {
+                                            oninput={ctx.link().batch_callback(|e: InputEvent| {
                                                 use wasm_bindgen::JsCast;
                                                 use web_sys::HtmlInputElement;
-                                                let target = e.target().unwrap();
+                                                let target = e.target()?;
                                                 let input = target.unchecked_into::<HtmlInputElement>();
-                                                Msg::UpdateTrackingNumber(input.value())
+                                                Some(Msg::UpdateTrackingNumber(input.value()))
                                             })}
                                         />
                                     </div>
@@ -425,12 +422,12 @@ impl SalesOrderPage {
                                                 class="form-control" 
                                                 placeholder="请用 PDA 扫码枪扫描布卷条码..."
                                                 value={self.barcode_input.clone()}
-                                                oninput={ctx.link().callback(|e: InputEvent| {
+                                                oninput={ctx.link().batch_callback(|e: InputEvent| {
                                                     use wasm_bindgen::JsCast;
                                                     use web_sys::HtmlInputElement;
-                                                    let target = e.target().unwrap();
+                                                    let target = e.target()?;
                                                     let input = target.unchecked_into::<HtmlInputElement>();
-                                                    Msg::UpdateBarcodeInput(input.value())
+                                                    Some(Msg::UpdateBarcodeInput(input.value()))
                                                 })}
                                                 onkeyup={ctx.link().callback(|e: KeyboardEvent| {
                                                     if e.key() == "Enter" {
@@ -459,24 +456,24 @@ impl SalesOrderPage {
                                 </thead>
                                 <tbody>
                                     {for self.ship_items.iter().enumerate().map(|(idx, item)| {
-                                        let on_warehouse_change = ctx.link().callback(move |e: Event| {
+                                        let on_warehouse_change = ctx.link().batch_callback(move |e: Event| {
                                             use wasm_bindgen::JsCast;
                                             use web_sys::HtmlSelectElement;
-                                            let target = e.target().unwrap();
+                                            let target = e.target()?;
                                             let select = target.unchecked_into::<HtmlSelectElement>();
                                             if let Ok(wid) = select.value().parse::<i32>() {
                                                 Msg::UpdateShipItemWarehouse(idx, wid)
                                             } else {
-                                                Msg::UpdateShipItemWarehouse(idx, 0)
+                                                Some(Msg::UpdateShipItemWarehouse(idx, 0))
                                             }
                                         });
                                         
-                                        let on_batch_change = ctx.link().callback(move |e: Event| {
+                                        let on_batch_change = ctx.link().batch_callback(move |e: Event| {
                                             use wasm_bindgen::JsCast;
                                             use web_sys::HtmlInputElement;
-                                            let target = e.target().unwrap();
+                                            let target = e.target()?;
                                             let input = target.unchecked_into::<HtmlInputElement>();
-                                            Msg::UpdateShipItemBatch(idx, input.value())
+                                            Some(Msg::UpdateShipItemBatch(idx, input.value()))
                                         });
 
                                         html! {

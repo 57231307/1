@@ -332,9 +332,9 @@ impl Component for InventoryTransferPage {
                                 type="text"
                                 placeholder="输入调拨单号"
                                 value={self.filter_transfer_no.clone()}
-                                oninput={ctx.link().callback(|e: InputEvent| {
-                                    let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                                    Msg::SetFilterTransferNo(input.value())
+                                oninput={ctx.link().batch_callback(|e: InputEvent| {
+                                    let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                                    Some(Msg::SetFilterTransferNo(input.value()))
                                 })}
                             />
                         </div>
@@ -342,9 +342,9 @@ impl Component for InventoryTransferPage {
                             <label>{"状态:"}</label>
                             <select
                                 value={self.filter_status.clone()}
-                                onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target().unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap();
-                                    Msg::SetFilterStatus(target.value())
+                                onchange={ctx.link().batch_callback(|e: Event| {
+                                    let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+                                    Some(Msg::SetFilterStatus(target.value()))
                                 })}
                             >
                                 <option value="ALL">{"全部"}</option>
@@ -581,9 +581,9 @@ impl InventoryTransferPage {
                     <input
                         type="number"
                         value={self.form_from_warehouse_id.to_string()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                            Msg::FormFromWarehouseChanged(input.value().parse().unwrap_or(0))
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                            Some(Msg::FormFromWarehouseChanged(input.value().parse().unwrap_or(0)))
                         })}
                     />
                 </div>
@@ -592,9 +592,9 @@ impl InventoryTransferPage {
                     <input
                         type="number"
                         value={self.form_to_warehouse_id.to_string()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
-                            Msg::FormToWarehouseChanged(input.value().parse().unwrap_or(0))
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
+                            Some(Msg::FormToWarehouseChanged(input.value().parse().unwrap_or(0)))
                         })}
                     />
                 </div>
@@ -602,9 +602,9 @@ impl InventoryTransferPage {
                     <label>{"备注:"}</label>
                     <textarea
                         value={self.form_notes.clone()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                            Msg::FormNotesChanged(input.value())
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
+                            Some(Msg::FormNotesChanged(input.value()))
                         })}
                         placeholder="输入备注"
                     />
@@ -628,9 +628,9 @@ impl InventoryTransferPage {
                     <label>{"备注:"}</label>
                     <textarea
                         value={self.form_notes.clone()}
-                        oninput={ctx.link().callback(|e: InputEvent| {
-                            let input = e.target().unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().unwrap();
-                            Msg::FormNotesChanged(input.value())
+                        oninput={ctx.link().batch_callback(|e: InputEvent| {
+                            let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
+                            Some(Msg::FormNotesChanged(input.value()))
                         })}
                         placeholder="输入备注"
                     />
