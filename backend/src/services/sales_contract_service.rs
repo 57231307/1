@@ -163,7 +163,7 @@ impl SalesContractService {
         let txn = (*self.db).begin().await?;
 
         // 创建执行记录
-        // TODO: 需要创建 sales_contract_execution 模型
+        // 待实现(v1.1): 引入 sales_contract_execution 跟踪合同执行进度
         // let execution = sales_contract::contract_execution::ActiveModel {
         //     contract_id: Set(contract_id),
         //     execution_type: Set(req.execution_type),

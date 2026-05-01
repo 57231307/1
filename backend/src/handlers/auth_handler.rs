@@ -14,7 +14,6 @@ use validator::Validate;
 pub struct LoginRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3到50个字符之间"))]
     pub username: String,
-    #[validate(length(min = 6, message = "密码长度不能少于6个字符"))]
     pub password: String,
 }
 

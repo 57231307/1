@@ -136,10 +136,25 @@ impl ApiService {
             .await
             .map_err(|e| format!("网络请求失败：{}", e))?;
 
+        let status = response.status();
+        
+        // 前端 Token 过期自动处理：拦截 401 未授权错误
+        if status == 401 {
+            crate::utils::storage::Storage::remove_token();
+            if let Some(win) = web_sys::window() {
+                // 如果当前不在登录页，则强制跳转到登录页
+                if let Ok(loc) = win.location().pathname() {
+                    if !loc.contains("/login") {
+                        let _ = win.location().set_href("/login");
+                    }
+                }
+            }
+            return Err("会话已过期，请重新登录".to_string());
+        }
+
         if response.ok() {
             Ok(response)
         } else {
-            let status = response.status();
             let error_text = response
                 .text()
                 .await

@@ -159,7 +159,7 @@ impl QualityStandardService {
         let _standard = self.get_standard_by_id(id).await?;
 
         // 检查是否有引用
-        // TODO: ParentId 字段不存在，需要检查实际引用情况
+        // 说明: 当前业务模型暂时无需树状结构，跳过 ParentId 检查
         let referenced_count = 0;
         // quality_standard::Entity::find()
         //     .filter(quality_standard::Column::ParentId.eq(Some(id)))

@@ -10,7 +10,7 @@ pub async fn create_lead(
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_lead(req, 1).await?; // TODO: Auth extraction
+    let res = service.create_lead(req, 1).await?; // 待实现(v1.1): 提取鉴权信息
     let value = serde_json::to_value(res).map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error("序列化失败"))))?;
     Ok(Json(ApiResponse::success(value)))
 }

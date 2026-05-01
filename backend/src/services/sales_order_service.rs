@@ -40,6 +40,19 @@ impl SalesOrderService {
         notes: Option<String>,
         created_by: Option<i32>,
     ) -> Result<sales_order::Model, sea_orm::DbErr> {
+        // 业务逻辑验证：检查客户是否存在
+        let customer_exists = crate::models::customer::Entity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await?;
+            
+        if customer_exists.is_none() {
+            return Err(sea_orm::DbErr::Custom(format!("创建销售订单失败: 客户 ID {} 不存在", customer_id)));
+        }
+        
+        // 业务逻辑验证：日期合理性检查
+        if required_date < order_date {
+            return Err(sea_orm::DbErr::Custom("创建销售订单失败: 交付日期不能早于订单日期".to_string()));
+        }
         let active_order = sales_order::ActiveModel {
             id: Set(0),
             order_no: Set(order_no),

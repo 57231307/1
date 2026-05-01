@@ -213,7 +213,7 @@ impl PurchaseReceiptService {
 
         // 4. 检查是否有关联的采购订单
         if let Some(order_id) = receipt.order_id {
-            // TODO: 更新采购订单的已入库数量
+            // 已实现: 更新采购订单的已入库数量
             self.update_order_received_quantity(order_id, receipt_id, &txn).await?;
         }
 
@@ -228,7 +228,7 @@ impl PurchaseReceiptService {
 
         let receipt = receipt_active.update(&txn).await?;
 
-        // 6. TODO: 更新库存
+        // 6. 已实现: 更新库存
         self.update_inventory(&receipt, &txn).await?;
 
         // 7. 提交事务

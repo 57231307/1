@@ -120,6 +120,21 @@ impl PurchaseOrderService {
     ) -> Result<purchase_order::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        // 业务验证：检查供应商是否存在
+        let supplier_exists = supplier::Entity::find_by_id(req.supplier_id).one(&txn).await?;
+        if supplier_exists.is_none() {
+            txn.rollback().await.ok();
+            return Err(AppError::BadRequest(format!("供应商 ID {} 不存在", req.supplier_id)));
+        }
+
+        // 业务验证：日期合理性检查
+        if let Some(expected_date) = req.expected_delivery_date {
+            if expected_date < req.order_date {
+                txn.rollback().await.ok();
+                return Err(AppError::BadRequest("预计交货日期不能早于订单日期".to_string()));
+            }
+        }
+
         // 1. 生成订单号
         let order_no = self.generate_order_no().await?;
 

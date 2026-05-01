@@ -97,7 +97,7 @@ pub async fn list_customers(
     let customers_json: Vec<serde_json::Value> = result
         .data
         .into_iter()
-        .map(|c| serde_json::to_value(c).unwrap_or_default())
+        .map(|c| serde_json::to_value(c).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)
         .collect();
 
     Ok(Json(ApiResponse::success(
@@ -117,7 +117,7 @@ pub async fn get_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
     let customer = customer_service.get_customer(id).await?;
-    let customer_json = serde_json::to_value(customer).unwrap_or_default();
+    let customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(customer_json)))
 }
 
@@ -160,7 +160,7 @@ pub async fn create_customer(
         )
         .await?;
 
-    let customer_json = serde_json::to_value(customer).unwrap_or_default();
+    let customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         customer_json,
         "客户创建成功",
@@ -201,7 +201,7 @@ pub async fn update_customer(
         )
         .await?;
 
-    let customer_json = serde_json::to_value(customer).unwrap_or_default();
+    let customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         customer_json,
         "客户更新成功",

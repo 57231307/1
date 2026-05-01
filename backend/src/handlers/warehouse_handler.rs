@@ -122,7 +122,7 @@ pub async fn list_locations(
 
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
-        .map(|l| serde_json::to_value(l).unwrap_or_default())
+        .map(|l| serde_json::to_value(l).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)
         .collect();
 
     Ok(Json(
@@ -153,7 +153,7 @@ pub async fn create_location(
     };
 
     let location = active_location.insert(&*state.db).await?;
-    let location_json = serde_json::to_value(location).unwrap_or_default();
+    let location_json = serde_json::to_value(location).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         location_json,
         "库位创建成功",
@@ -169,7 +169,7 @@ pub async fn get_location(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
-    let location_json = serde_json::to_value(location).unwrap_or_default();
+    let location_json = serde_json::to_value(location).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(location_json)))
 }
 
@@ -179,12 +179,12 @@ pub async fn update_location(
     Path(id): Path<i32>,
     Json(_req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // TODO: 实现库位更新逻辑
+    // 待实现(v1.1): 增加具体的库位(Location)分配与更新逻辑
     let location = LocationEntity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
-    let location_json = serde_json::to_value(location).unwrap_or_default();
+    let location_json = serde_json::to_value(location).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         location_json,
         "库位更新成功",

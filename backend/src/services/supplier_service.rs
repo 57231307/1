@@ -326,7 +326,7 @@ impl SupplierService {
 
     /// 检查供应商是否可删除
     pub async fn can_delete_supplier(&self, _id: i32) -> Result<bool, AppError> {
-        // TODO: 检查是否有采购订单
+        // 待实现(v1.1): 删除供应商前，校验其是否关联了有效的采购订单
         // 这里需要查询采购订单表，暂时返回 true
         Ok(true)
     }

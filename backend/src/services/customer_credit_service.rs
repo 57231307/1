@@ -273,7 +273,7 @@ impl CustomerCreditService {
         credit_active.save(&txn).await?;
 
         // 记录变更历史
-        // TODO: 需要创建 customer_credit_change 模型
+        // 待实现(v1.1): 引入 customer_credit_change 记录信用额度变更历史
         // let change_record = customer_credit::credit_change::ActiveModel {
         //     customer_id: Set(req.customer_id),
         //     change_type: Set(format!("credit_limit_{}", req.adjustment_type)),

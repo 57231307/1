@@ -10,13 +10,31 @@ use axum::{
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
-use validator::Validate;
+use validator::{Validate, ValidationError};
+use regex::Regex;
+
+fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
+    if password.len() < 8 {
+        return Err(ValidationError::new("密码长度至少为8位"));
+    }
+    
+    let has_lowercase = Regex::new(r"[a-z]").unwrap().is_match(password);
+    let has_uppercase = Regex::new(r"[A-Z]").unwrap().is_match(password);
+    let has_digit = Regex::new(r"\d").unwrap().is_match(password);
+    let has_special = Regex::new(r"[!@#\$%\^&\*\(\)_\+\-\=\[\]\{\};:'\,<>\./\?\\|`~]").unwrap().is_match(password);
+
+    if !has_lowercase || !has_uppercase || !has_digit || !has_special {
+        return Err(ValidationError::new("密码必须包含大写字母、小写字母、数字和特殊字符"));
+    }
+    
+    Ok(())
+}
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateUserRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3-50之间"))]
     pub username: String,
-    #[validate(length(min = 8, message = "密码长度至少8位"))]
+    #[validate(custom(function = "validate_password_strength"))]
     pub password: String,
     #[validate(email(message = "邮箱格式不正确"))]
     pub email: Option<String>,

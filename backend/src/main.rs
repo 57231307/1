@@ -7,6 +7,7 @@ mod models;
 mod routes;
 mod services;
 mod utils;
+mod docs;
 
 use axum::http::{Request, HeaderValue, Method};
 use axum::{routing::{get, post}, Router, Json};

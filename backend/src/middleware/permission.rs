@@ -48,11 +48,19 @@ pub async fn permission_middleware(
         }
     };
 
+    let role_id = match auth.role_id {
+        Some(id) => id,
+        None => {
+            warn!("用户 {} 没有关联角色，拒绝访问", auth.user_id);
+            return Err(StatusCode::FORBIDDEN);
+        }
+    };
+
     let (resource_type, resource_id) = extract_resource_info(path);
 
     let has_permission = check_permission(
         &state.db,
-        auth.role_id.unwrap_or(0),
+        role_id,
         &resource_type,
         resource_id,
         &method_to_action(method),

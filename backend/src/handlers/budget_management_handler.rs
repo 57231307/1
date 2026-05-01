@@ -471,5 +471,5 @@ pub async fn adjust_budget(
     info!("用户 {} 正在发起预算调整", auth.username);
     let service = BudgetManagementService::new(state.db.clone());
     let res = service.adjust_budget(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(res).unwrap_or_default())))
+    Ok(Json(ApiResponse::success(serde_json::to_value(res).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)))
 }

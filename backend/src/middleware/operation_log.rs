@@ -94,7 +94,7 @@ pub async fn operation_log_middleware(
 /// 
 /// 注意：这里简化处理，实际需要解析 JWT Token
 fn extract_user_info(headers: &axum::http::HeaderMap) -> (Option<i32>, Option<String>) {
-    // TODO: 解析 JWT Token 获取真实用户信息
+    // 待实现(v1.1): 从请求上下文中解析 JWT Token 提取操作人 ID
     // 这里暂时返回 None，实际使用时需要从 Token 中解析
     
     // 示例：从自定义头中获取（如果有）

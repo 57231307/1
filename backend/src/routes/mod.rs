@@ -5,6 +5,8 @@ use axum::{
 };
 use crate::utils::app_state::AppState;
 use crate::middleware::rate_limit;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::handlers::{
     account_subject_handler,
@@ -795,6 +797,8 @@ pub fn create_router(state: AppState) -> Router {
             .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
         )
         .nest("/api/v1/erp/init", init_routes)
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
+        .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))
         .with_state(state)
 }

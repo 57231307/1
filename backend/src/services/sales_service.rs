@@ -248,14 +248,19 @@ impl SalesService {
         &self,
         request: CreateSalesOrderRequest,
     ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
-        // 开启事务
         let txn = (*self.db).begin().await?;
 
-        // 客户信用风控拦截
+        // 业务逻辑验证：检查客户是否存在
         let customer = crate::models::customer::Entity::find_by_id(request.customer_id)
             .one(&txn)
             .await?
             .ok_or(sea_orm::DbErr::Custom(format!("客户 {} 不存在", request.customer_id)))?;
+            
+        // 业务逻辑验证：日期合理性检查
+        if request.required_date < request.order_date {
+            txn.rollback().await.ok();
+            return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于订单日期".to_string()));
+        }
             
         let credit_limit = customer.credit_limit;
         

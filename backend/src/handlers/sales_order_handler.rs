@@ -38,7 +38,7 @@ pub async fn list_orders(
         .list_orders(page_req, query.status, query.customer_id, query.order_no)
         .await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(orders).unwrap_or_default())))
+    Ok(Json(ApiResponse::success(serde_json::to_value(orders).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)))
 }
 
 /// 获取销售订单详情
@@ -49,7 +49,7 @@ pub async fn get_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.get_order_detail(id).await?;
-    let order_json = serde_json::to_value(order).unwrap_or_default();
+    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(order_json)))
 }
 
@@ -61,7 +61,7 @@ pub async fn create_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.create_order(request).await?;
-    let order_json = serde_json::to_value(order).unwrap_or_default();
+    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单创建成功",
@@ -77,7 +77,7 @@ pub async fn update_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.update_order(id, request).await?;
-    let order_json = serde_json::to_value(order).unwrap_or_default();
+    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单更新成功",
@@ -103,7 +103,7 @@ pub async fn approve_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.approve_order(id).await?;
-    let order_json = serde_json::to_value(order).unwrap_or_default();
+    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单审核成功",
@@ -119,7 +119,7 @@ pub async fn ship_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.ship_order(id, payload).await?;
-    let order_json = serde_json::to_value(order).unwrap_or_default();
+    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单发货成功",
@@ -134,7 +134,7 @@ pub async fn complete_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.complete_order(id).await?;
-    let order_json = serde_json::to_value(order).unwrap_or_default();
+    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单完成成功",

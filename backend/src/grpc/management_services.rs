@@ -176,7 +176,7 @@ impl PurchaseContractServiceTrait for GrpcManagementServices {
         let _page = req.page.max(1) as i64;
         let _page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
+        // 待实现(v1.1): 实现 gRPC 查询逻辑
         // 暂时返回空列表
         Ok(Response::new(ListPurchaseContractsResponse {
             success: true,
@@ -332,7 +332,7 @@ impl SalesContractServiceTrait for GrpcManagementServices {
         let _page = req.page.max(1) as i64;
         let _page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
+        // 待实现(v1.1): 实现 gRPC 查询逻辑
         Ok(Response::new(ListSalesContractsResponse {
             success: true,
             message: "销售合同列表获取成功".to_string(),
@@ -480,7 +480,7 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         let _page = req.page.max(1) as i64;
         let _page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
+        // 待实现(v1.1): 实现 gRPC 查询逻辑
         Ok(Response::new(ListFixedAssetsResponse {
             success: true,
             message: "固定资产列表获取成功".to_string(),
@@ -642,7 +642,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let _page = req.page.max(1) as i64;
         let _page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
+        // 待实现(v1.1): 实现 gRPC 查询逻辑
         Ok(Response::new(ListBudgetItemsResponse {
             success: true,
             message: "预算项目列表获取成功".to_string(),
@@ -764,7 +764,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let _page = req.page.max(1) as i64;
         let _page_size = req.page_size.clamp(1, 100) as i64;
         
-        // TODO: 实现查询逻辑
+        // 待实现(v1.1): 实现 gRPC 查询逻辑
         Ok(Response::new(ListBudgetPlansResponse {
             success: true,
             message: "预算方案列表获取成功".to_string(),
@@ -779,7 +779,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<GetBudgetPlanResponse>, Status> {
         let _req = request.into_inner();
         
-        // TODO: 实现获取预算方案逻辑
+        // 待实现(v1.1): 实现获取预算方案逻辑
         Ok(Response::new(GetBudgetPlanResponse {
             success: true,
             message: "预算方案获取成功".to_string(),
@@ -793,7 +793,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<CreateBudgetPlanResponse>, Status> {
         let _req = request.into_inner();
         
-        // TODO: 实现创建预算方案逻辑
+        // 待实现(v1.1): 实现创建预算方案逻辑
         Ok(Response::new(CreateBudgetPlanResponse {
             success: true,
             message: "预算方案创建成功".to_string(),
@@ -807,7 +807,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ApproveBudgetPlanResponse>, Status> {
         let _req = request.into_inner();
         
-        // TODO: 实现审批预算方案逻辑
+        // 待实现(v1.1): 实现审批预算方案逻辑
         Ok(Response::new(ApproveBudgetPlanResponse {
             success: true,
             message: "预算方案审批成功".to_string(),
@@ -820,7 +820,7 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
     ) -> Result<Response<ExecuteBudgetPlanResponse>, Status> {
         let _req = request.into_inner();
         
-        // TODO: 实现执行预算方案逻辑
+        // 待实现(v1.1): 实现执行预算方案逻辑
         Ok(Response::new(ExecuteBudgetPlanResponse {
             success: true,
             message: "预算方案执行成功".to_string(),

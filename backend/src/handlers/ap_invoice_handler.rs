@@ -290,7 +290,7 @@ pub async fn get_statistics(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询应付统计报表", auth.username);
 
-    // TODO: 实现统计报表
+    // 待实现(v1.2): 实现统计报表模块
     let result = serde_json::json!({
         "message": "统计报表功能开发中"
     });

@@ -108,7 +108,7 @@ pub async fn get_five_dimension_stats(
     State(_state): State<AppState>,
     Query(params): Query<FiveDimensionStatsParams>,
 ) -> Result<Json<FiveDimensionStatsResponse>, (StatusCode, String)> {
-    // TODO: 实现数据库查询逻辑
+    // 待实现(v1.1): 连接真实数据库并执行五维聚合查询
     // 这里先返回示例数据
 
     let dimension = FabricFiveDimension::new(
@@ -172,7 +172,7 @@ pub async fn get_stats_by_five_dimension_id(
 
     let five_dimension_id = dimension.generate_unique_id();
 
-    // TODO: 实现数据库查询逻辑
+    // 待实现(v1.1): 连接真实数据库并执行五维聚合查询
     let response = FiveDimensionStatsResponse {
         dimension: FiveDimensionItem {
             product_id: dimension.product_id,
@@ -238,7 +238,7 @@ pub async fn search_five_dimension(
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    // TODO: 实现数据库搜索逻辑
+    // 待实现(v1.1): 连接真实数据库并执行五维搜索逻辑
     // 这里返回示例数据
 
     let items = vec![
@@ -278,7 +278,7 @@ pub async fn list_five_dimension_stats(
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    // TODO: 实现数据库查询逻辑
+    // 待实现(v1.1): 连接真实数据库并执行五维聚合查询
     let items = vec![FiveDimensionStatsResponse {
         dimension: FiveDimensionItem {
             product_id: 1,
