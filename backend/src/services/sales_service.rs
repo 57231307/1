@@ -811,7 +811,10 @@ impl SalesService {
                 .await?;
             if let Some(oi) = order_item {
                 let mut oi_update: sales_order_item::ActiveModel = oi.into();
-                let current_shipped = oi_update.shipped_quantity.clone().unwrap_or_default();
+                let current_shipped = match oi_update.shipped_quantity.clone() {
+                    sea_orm::ActiveValue::Set(v) => v,
+                    _ => rust_decimal::Decimal::new(0, 0),
+                };
                 oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
                 oi_update.update(txn).await?;
             }

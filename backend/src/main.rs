@@ -341,7 +341,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("系统启动完成，等待请求...");
     info!("===========================================");
 
-    axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app)
+    axum::serve(
+        tokio::net::TcpListener::bind(http_addr).await?,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
         .with_graceful_shutdown(async { shutdown_signal().await; })
         .await?;
 

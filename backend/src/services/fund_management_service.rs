@@ -263,8 +263,18 @@ impl FundManagementService {
         }
         let mut from_active: crate::models::fund_management::ActiveModel = from_acc.into();
         
-        let from_balance = from_active.balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing from_account balance".into()))?;
-        let from_available_balance = from_active.available_balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing from_account available_balance".into()))?;
+        let from_balance = match from_active.balance.clone() {
+            sea_orm::ActiveValue::Set(v) => v,
+            _ => return Err(AppError::ValidationError("Missing from_account balance".into())),
+        };
+        let from_available_balance = match from_active.available_balance.clone() {
+            sea_orm::ActiveValue::Set(v) => v,
+            _ => {
+                return Err(AppError::ValidationError(
+                    "Missing from_account available_balance".into(),
+                ))
+            }
+        };
         
         from_active.balance = sea_orm::Set(from_balance - total_deduct);
         from_active.available_balance = sea_orm::Set(from_available_balance - total_deduct);
@@ -275,8 +285,18 @@ impl FundManagementService {
             .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("To account not found".into()))?;
         let mut to_active: crate::models::fund_management::ActiveModel = to_acc.into();
         
-        let to_balance = to_active.balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing to_account balance".into()))?;
-        let to_available_balance = to_active.available_balance.as_ref().copied().ok_or_else(|| AppError::ValidationError("Missing to_account available_balance".into()))?;
+        let to_balance = match to_active.balance.clone() {
+            sea_orm::ActiveValue::Set(v) => v,
+            _ => return Err(AppError::ValidationError("Missing to_account balance".into())),
+        };
+        let to_available_balance = match to_active.available_balance.clone() {
+            sea_orm::ActiveValue::Set(v) => v,
+            _ => {
+                return Err(AppError::ValidationError(
+                    "Missing to_account available_balance".into(),
+                ))
+            }
+        };
         
         to_active.balance = sea_orm::Set(to_balance + req.amount);
         to_active.available_balance = sea_orm::Set(to_available_balance + req.amount);

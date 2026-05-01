@@ -48,15 +48,18 @@ pub async fn permission_middleware(
         }
     };
 
-    if auth.user_id == 1 {
-        return Ok(next.run(request).await);
-    }
-
     let (resource_type, resource_id) = extract_resource_info(path);
+    let role_id = match auth.role_id {
+        Some(role_id) => role_id,
+        None => {
+            warn!("用户 {} 缺少角色信息，拒绝访问 {} {}", auth.user_id, method, path);
+            return Err(StatusCode::FORBIDDEN);
+        }
+    };
 
     let has_permission = check_permission(
         &state.db,
-        auth.role_id.unwrap_or(0),
+        role_id,
         &resource_type,
         resource_id,
         &method_to_action(method),

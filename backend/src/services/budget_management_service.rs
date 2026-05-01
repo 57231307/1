@@ -488,7 +488,10 @@ impl BudgetManagementService {
 
         // 简化：直接批准，更新 plan 金额
         let mut plan_active: crate::models::budget_plan::ActiveModel = plan.into();
-        let current_amount = plan_active.total_amount.as_ref().copied().unwrap_or_default();
+        let current_amount = match plan_active.total_amount.clone() {
+            sea_orm::ActiveValue::Set(v) => v,
+            _ => Decimal::new(0, 0),
+        };
         plan_active.total_amount = sea_orm::Set(current_amount + req.adjust_amount);
         let _ = plan_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
