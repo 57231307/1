@@ -1,6 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use axum::{
     body::Body,
     extract::State,
@@ -56,7 +57,12 @@ pub async fn auth_middleware(
             }
 
             // 检查 Token 是否在黑名单中
-            let is_blacklisted = state.cache.get_token_blacklist().get(token).await.is_some();
+            let token_key = token.to_string();
+            let is_blacklisted = state
+                .cache
+                .get_token_blacklist()
+                .get(&token_key)
+                .is_some();
             if is_blacklisted {
                 warn!("Token is blacklisted");
                 return Err(StatusCode::UNAUTHORIZED);
