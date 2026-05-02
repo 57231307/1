@@ -53,12 +53,7 @@ pub async fn list_verifications(
 
     info!("用户 {} 查询核销成功，共 {} 条记录", auth.username, total);
 
-    let result = serde_json::json!({
-        "items": verifications,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(verifications, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }

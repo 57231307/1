@@ -115,8 +115,8 @@ pub async fn list_locations(
 
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
-        .map(|l| serde_json::to_value(l).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)
-        .collect();
+        .map(|l| serde_json::to_value(l).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(
         PaginatedResponse::new(locations_json, total, page, page_size).into(),

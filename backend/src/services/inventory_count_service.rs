@@ -511,7 +511,7 @@ impl InventoryCountService {
     /// 生成盘点单号
     async fn generate_count_no(&self) -> Result<String, sea_orm::DbErr> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "IC",
             inventory_count::Entity,
             inventory_count::Column::CountNo,

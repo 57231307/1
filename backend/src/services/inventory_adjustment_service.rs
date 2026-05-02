@@ -254,7 +254,7 @@ impl InventoryAdjustmentService {
     /// 生成调整单号
     async fn generate_adjustment_no(&self) -> Result<String, DbErr> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "ADJ",
             inventory_adjustment::Entity,
             inventory_adjustment::Column::AdjustmentNo,

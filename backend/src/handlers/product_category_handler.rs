@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::State,
     Json,
 };
 use crate::utils::app_state::AppState;
@@ -9,7 +9,7 @@ use validator::Validate;
 use crate::models::product_category;
 use crate::services::product_category_service::ProductCategoryService;
 use crate::utils::error::AppError;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::response::ApiResponse;
 
 /// 查询参数 - 产品类别列表
 #[derive(Debug, Deserialize, Validate)]

@@ -5,7 +5,7 @@ use axum::{
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, EntityTrait, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 

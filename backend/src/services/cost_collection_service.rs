@@ -1,8 +1,8 @@
-//! 成本归集 Service
-//!
-//! 成本核算业务逻辑层
+use chrono::NaiveDate;
+// 成本归集 Service
+//
+// 成本核算业务逻辑层
 
-use chrono::Datelike;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect,
@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::cost_collection;
+use sea_orm::ActiveValue::Set;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
@@ -27,6 +28,8 @@ pub struct UpdateCostCollectionRequest {
     pub output_quantity_meters: Option<Decimal>,
     pub output_quantity_kg: Option<Decimal>,
 }
+
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCostCollectionRequest {
@@ -170,7 +173,7 @@ impl CostCollectionService {
     /// 生成成本归集单编号
     async fn generate_collection_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "COST",
             cost_collection::Entity,
             cost_collection::Column::CollectionNo,
@@ -185,7 +188,7 @@ impl CostCollectionService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("成本归集记录不存在".to_string()))?;
 
-        let mut active_collection: cost_collection::ActiveModel = collection.into();
+        let mut active_collection: cost_collection::ActiveModel = collection.clone().into();
         
         if let Some(date) = req.collection_date { active_collection.collection_date = Set(date); }
         if let Some(amt) = req.direct_material { active_collection.direct_material = Set(amt); }
@@ -197,27 +200,29 @@ impl CostCollectionService {
         if let Some(amt) = req.output_quantity_kg { active_collection.output_quantity_kg = Set(Some(amt)); }
         
         // Recalculate total cost
-        let dm = req.direct_material.unwrap_or(*active_collection.direct_material.as_ref());
-        let dl = req.direct_labor.unwrap_or(*active_collection.direct_labor.as_ref());
-        let mo = req.manufacturing_overhead.unwrap_or(*active_collection.manufacturing_overhead.as_ref());
-        let pf = req.processing_fee.unwrap_or(*active_collection.processing_fee.as_ref());
-        let df = req.dyeing_fee.unwrap_or(*active_collection.dyeing_fee.as_ref());
-        active_collection.total_cost = Set(dm + dl + mo + pf + df);
+        let dm = req.direct_material.unwrap_or(collection.direct_material);
+        let dl = req.direct_labor.unwrap_or(collection.direct_labor);
+        let mo = req.manufacturing_overhead.unwrap_or(collection.manufacturing_overhead);
+        let pf = req.processing_fee.unwrap_or(collection.processing_fee);
+        let df = req.dyeing_fee.unwrap_or(collection.dyeing_fee);
+        let total = dm + dl + mo + pf + df;
+        active_collection.total_cost = Set(total);
 
         // Recalculate unit costs
-        let total = active_collection.total_cost.as_ref();
-        if let Some(Some(meters)) = active_collection.output_quantity_meters.as_ref() {
-            if *meters > Decimal::ZERO {
-                active_collection.unit_cost_meters = Set(Some(total / meters));
+        let meters = req.output_quantity_meters.or(collection.output_quantity_meters);
+        if let Some(m) = meters {
+            if m > Decimal::ZERO {
+                active_collection.unit_cost_meters = Set(Some(total / m));
             }
         }
-        if let Some(Some(kg)) = active_collection.output_quantity_kg.as_ref() {
-            if *kg > Decimal::ZERO {
-                active_collection.unit_cost_kg = Set(Some(total / kg));
+        let kg = req.output_quantity_kg.or(collection.output_quantity_kg);
+        if let Some(k) = kg {
+            if k > Decimal::ZERO {
+                active_collection.unit_cost_kg = Set(Some(total / k));
             }
         }
 
-        active_collection.updated_at = Set(Utc::now());
+        active_collection.updated_at = Set(chrono::Utc::now());
 
         let result = active_collection.update(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -226,7 +231,7 @@ impl CostCollectionService {
     }
 
     pub async fn delete(&self, id: i32, _user_id: i32) -> Result<(), AppError> {
-        let collection = cost_collection::Entity::find_by_id(id)
+        let _collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?

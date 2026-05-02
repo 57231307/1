@@ -6,7 +6,7 @@
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -31,7 +31,7 @@ impl ApPaymentService {
     /// 格式：PAY + 年月日 + 三位序号（PAY20260315001）
     pub async fn generate_payment_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "PAY",
             ap_payment::Entity,
             ap_payment::Column::PaymentNo,
@@ -180,7 +180,7 @@ impl ApPaymentService {
         }
 
         // 3. 检查必要字段
-        if payment.transaction_no.as_deref().map_or(true, |t| t.is_empty()) {
+        if payment.transaction_no.as_deref().is_none_or(|t| t.is_empty()) {
             return Err(AppError::BusinessError(
                 "付款单必须填写交易流水号才能确认".to_string(),
             ));

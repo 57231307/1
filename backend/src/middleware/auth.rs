@@ -2,6 +2,7 @@ use crate::middleware::public_routes::is_public_path;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use axum::{
     body::Body,
     extract::State,
@@ -9,7 +10,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use axum_extra::extract::{CookieJar, cookie::Key};
+use axum_extra::extract::cookie::{PrivateCookieJar, Key};
 use tracing::warn;
 
 pub async fn auth_middleware(
@@ -24,9 +25,9 @@ pub async fn auth_middleware(
     }
 
     // 优先从 HttpOnly Cookie 中提取 jwt，兼容 Authorization Header
-    let cookie_jar = CookieJar::from_headers(request.headers());
     let key = Key::derive_from(state.cookie_secret.as_bytes());
-    let token_from_cookie = cookie_jar.private(&key).get("jwt").map(|c| c.value().to_string());
+    let cookie_jar = PrivateCookieJar::from_headers(request.headers(), key);
+    let token_from_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
     
     let auth_header = request
         .headers()
@@ -52,7 +53,7 @@ pub async fn auth_middleware(
     }
 
     // 检查 Token 是否在黑名单中
-    let is_blacklisted = state.cache.get_token_blacklist().get(&token).await.is_some();
+    let is_blacklisted = state.cache.get_token_blacklist().get(&token).is_some();
     if is_blacklisted {
         warn!("Token is blacklisted");
         return Err(StatusCode::UNAUTHORIZED);

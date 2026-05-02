@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::services::sales_return_service::{CreateSalesReturnRequest, SalesReturnService, UpdateSalesReturnRequest};
 use crate::utils::app_state::AppState;

@@ -97,8 +97,8 @@ pub async fn list_customers(
     let customers_json: Vec<serde_json::Value> = result
         .data
         .into_iter()
-        .map(|c| serde_json::to_value(c).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)
-        .collect();
+        .map(|c| serde_json::to_value(c).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(ApiResponse::success(
         crate::utils::response::PaginatedResponse::new(

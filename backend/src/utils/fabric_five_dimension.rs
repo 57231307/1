@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
+
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

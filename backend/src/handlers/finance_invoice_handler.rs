@@ -75,7 +75,7 @@ pub struct UpdateInvoicePayload {
 }
 
 /// 获取发票列表
-pub async fn list_invoices(
+pub async fn list_finance_invoices(
     State(state): State<AppState>,
 ) -> Result<Json<InvoiceListResponse>, (StatusCode, String)> {
     let service = FinanceInvoiceService::new(state.db.clone());
@@ -117,7 +117,7 @@ pub async fn list_invoices(
 }
 
 /// 获取发票详情
-pub async fn get_invoice(
+pub async fn get_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
@@ -148,7 +148,7 @@ pub async fn get_invoice(
 }
 
 /// 创建发票
-pub async fn create_invoice(
+pub async fn create_finance_invoice(
     State(state): State<AppState>,
     Json(payload): Json<CreateInvoicePayload>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
@@ -195,7 +195,7 @@ pub async fn create_invoice(
 }
 
 /// 更新发票
-pub async fn update_invoice(
+pub async fn update_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateInvoicePayload>,
@@ -244,7 +244,7 @@ pub async fn update_invoice(
 }
 
 /// 删除发票
-pub async fn delete_invoice(
+pub async fn delete_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -257,7 +257,7 @@ pub async fn delete_invoice(
 }
 
 /// 审核发票
-pub async fn approve_invoice(
+pub async fn approve_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {

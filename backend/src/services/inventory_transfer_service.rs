@@ -653,7 +653,7 @@ impl InventoryTransferService {
     /// 生成调拨单号
     async fn generate_transfer_no(&self) -> Result<String, sea_orm::DbErr> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "TRF",
             inventory_transfer::Entity,
             inventory_transfer::Column::TransferNo,

@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};

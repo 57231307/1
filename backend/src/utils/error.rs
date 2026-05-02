@@ -113,3 +113,9 @@ impl From<(StatusCode, String)> for AppError {
         }
     }
 }
+
+impl From<validator::ValidationErrors> for AppError {
+    fn from(err: validator::ValidationErrors) -> Self {
+        AppError::ValidationError(err.to_string())
+    }
+}

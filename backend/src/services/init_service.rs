@@ -83,12 +83,12 @@ impl InitService {
                     v.as_ref().map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
                 }).map(|opt| opt.unwrap_or(0));
 
-                return query_result.map(|_| ()).map_err(|e| {
+                query_result.map(|_| ()).map_err(|e| {
                     InitError::DatabaseError(format!("数据库测试查询失败: {}", e))
-                });
+                })
             }
             Err(e) => {
-                return Err(InitError::DatabaseError(format!("数据库连接失败: {}", e)));
+                Err(InitError::DatabaseError(format!("数据库连接失败: {}", e)))
             }
         }
     }
@@ -165,7 +165,7 @@ impl InitService {
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
-        use sea_orm::{ConnectionTrait, Statement, DatabaseBackend};
+        use sea_orm::ConnectionTrait;
         use std::path::PathBuf;
         use tracing::{info, warn};
         
@@ -214,7 +214,7 @@ impl InitService {
                     continue;
                 }
 
-                let backend = self.db.get_database_backend();
+                let _backend = self.db.get_database_backend();
 
                 // sqlx/sea-orm backend with prepared statements doesn't support multiple commands in one query
                 // but we can use execute_unprepared which sends the raw SQL query to the database.

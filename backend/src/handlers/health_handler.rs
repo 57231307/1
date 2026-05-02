@@ -14,6 +14,7 @@ pub struct HealthStatus {
     /// 服务名称
     pub service: String,
     /// 当前时间
+    #[schema(value_type = String, format = DateTime)]
     pub timestamp: chrono::DateTime<Utc>,
     /// 版本号
     pub version: String,

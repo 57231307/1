@@ -125,8 +125,8 @@ pub async fn list_fabric_orders(
 
     let orders_json: Vec<serde_json::Value> = orders
         .into_iter()
-        .map(|o| serde_json::to_value(o).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)
-        .collect();
+        .map(|o| serde_json::to_value(o).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(
         PaginatedResponse::new(orders_json, total, page, page_size).into(),

@@ -1,16 +1,16 @@
 use crate::services::auth_service::AuthService;
-use crate::services::user_service::UserService;
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use crate::utils::response::ApiResponse;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{State, Extension},
-    http::{HeaderMap, StatusCode, header::SET_COOKIE},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
-use axum_extra::extract::cookie::{Cookie, SameSite, Key, CookieJar};
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use utoipa::ToSchema;
@@ -43,7 +43,7 @@ pub struct UserInfo {
     path = "/api/v1/erp/auth/login",
     request_body = LoginRequest,
     responses(
-        (status = 200, description = "登录成功", body = LoginApiResponse),
+        (status = 200, description = "登录成功", body = ApiResponse<LoginResponse>),
         (status = 400, description = "请求参数错误"),
         (status = 401, description = "未授权或密码错误")
     ),
@@ -51,6 +51,7 @@ pub struct UserInfo {
 )]
 pub async fn login(
     State(state): State<AppState>,
+    jar: axum_extra::extract::PrivateCookieJar,
     Json(payload): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<()>>)> {
     if let Err(errors) = payload.validate() {
@@ -111,21 +112,9 @@ pub async fn login(
                 .max_age(time::Duration::hours(24))
                 .build();
 
-            let key = Key::derive_from(state.cookie_secret.as_bytes());
-            let mut jar = CookieJar::new();
-            jar = jar.private(&key).add(cookie).into_inner();
+            let jar = jar.add(cookie);
 
-            let mut resp = Json(ApiResponse::success(response)).into_response();
-            for cookie in jar.delta() {
-                resp.headers_mut().append(
-                    SET_COOKIE,
-                    cookie.to_string().parse().map_err(|_| {
-                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error("设置 Cookie 失败".to_string())))
-                    })?,
-                );
-            }
-
-            Ok(resp)
+            Ok((jar, Json(ApiResponse::success(response))).into_response())
         }
         Err(e) => {
             let error_response = ApiResponse::<()>::error(e.to_string());
@@ -141,6 +130,7 @@ pub struct LogoutResponse {
 
 pub async fn logout(
     State(state): State<AppState>,
+    jar: axum_extra::extract::PrivateCookieJar,
     headers: HeaderMap,
 ) -> Result<axum::response::Response, (StatusCode, Json<ApiResponse<()>>)> {
     // 提取 Token
@@ -156,12 +146,12 @@ pub async fn logout(
         match AuthService::validate_token_static(token, &state.jwt_secret) {
             Ok(claims) => {
                 let now = chrono::Utc::now().timestamp() as usize;
-                let exp = claims.exp;
+                let exp = claims.exp.timestamp() as usize;
                 
                 if exp > now {
                     let ttl = std::time::Duration::from_secs((exp - now) as u64);
                     // 将 Token 加入黑名单
-                    state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl)).await;
+                    state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl));
                     tracing::info!("Token blacklisted for user {}", claims.username);
                 }
             }
@@ -171,45 +161,17 @@ pub async fn logout(
         }
     }
 
-    let mut jar = axum_extra::extract::cookie::CookieJar::new();
-    let key = axum_extra::extract::cookie::Key::derive_from(state.cookie_secret.as_bytes());
-    
-    // Clear the cookie by setting it to empty with max_age=0
-    let mut cookie = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
-        .path("/")
-        .http_only(true)
-        .secure(true)
-        .same_site(axum_extra::extract::cookie::SameSite::Strict);
-    let cookie = cookie.build();
-    
-    // Actually axum_extra CookieJar has a remove method. Wait, we need to send Set-Cookie to client.
-    // In axum_extra, to remove a private cookie, we don't necessarily need private encryption for removal, but let's just send an expired cookie.
-    
-    let mut resp = axum::response::IntoResponse::into_response(
-        axum::Json(ApiResponse::success(LogoutResponse { success: true }))
-    );
-    
-    // Set max_age to 0 to delete
     let removal_cookie = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
         .path("/")
         .http_only(true)
         .secure(true)
         .same_site(axum_extra::extract::cookie::SameSite::Strict)
-        .max_age(axum_extra::extract::cookie::cookie::time::Duration::ZERO)
+        .max_age(time::Duration::ZERO)
         .build();
         
-    resp.headers_mut().append(
-        axum::http::header::SET_COOKIE,
-        removal_cookie.to_string().parse().map_err(|e| {
-            tracing::error!("清理 Cookie 失败: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(ApiResponse::error("Cookie 删除失败"))
-            )
-        })?
-    );
+    let jar = jar.add(removal_cookie);
 
-    Ok(resp)
+    Ok((jar, axum::Json(ApiResponse::success(LogoutResponse { success: true }))).into_response())
 }
 
 #[derive(Debug, Serialize)]

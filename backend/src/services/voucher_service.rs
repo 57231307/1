@@ -1,7 +1,7 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
-//! 凭证管理 Service
-//!
-//! 凭证业务逻辑层（核心）
+use crate::utils::number_generator::DocumentNumberGenerator;
+// 凭证管理 Service
+//
+// 凭证业务逻辑层（核心）
 
 use chrono::Datelike;
 use sea_orm::{
@@ -617,7 +617,7 @@ impl VoucherService {
         };
 
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             prefix,
             voucher::Entity,
             voucher::Column::VoucherNo,

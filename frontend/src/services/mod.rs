@@ -55,3 +55,5 @@ pub mod dye_batch_service;
 pub mod dye_recipe_service;
 pub mod greige_fabric_service;
 pub mod sales_return_service;
+
+pub mod product_category_service;

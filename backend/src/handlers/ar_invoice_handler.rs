@@ -19,7 +19,6 @@ use rust_decimal::Decimal;
 
 /// 查询参数
 #[derive(Debug, Deserialize)]
-#[derive(Debug, Deserialize)]
 pub struct CancelReason {
     pub reason: String,
 }
@@ -51,7 +50,7 @@ pub struct CreateArInvoiceRequestDto {
 }
 
 /// 查询应收单列表
-pub async fn list_invoices(
+pub async fn list_ar_invoices(
     Query(params): Query<ArInvoiceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -75,7 +74,7 @@ pub async fn list_invoices(
 
 /// 创建应收单
 #[axum::debug_handler]
-pub async fn create_invoice(
+pub async fn create_ar_invoice(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateArInvoiceRequestDto>,
@@ -127,10 +126,10 @@ use serde_json::Value as JsonValue;
 use crate::services::ar_invoice_service::UpdateArInvoiceRequest;
 
 /// 获取应收发票详情
-pub async fn get_invoice(
+pub async fn get_ar_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.get_by_id(id).await?;
@@ -138,7 +137,7 @@ pub async fn get_invoice(
 }
 
 /// 更新应收发票
-pub async fn update_invoice(
+pub async fn update_ar_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -153,7 +152,7 @@ pub async fn update_invoice(
 }
 
 /// 删除应收发票
-pub async fn delete_invoice(
+pub async fn delete_ar_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -164,7 +163,7 @@ pub async fn delete_invoice(
 }
 
 /// 审批应收发票
-pub async fn approve_invoice(
+pub async fn approve_ar_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -178,7 +177,7 @@ pub async fn approve_invoice(
 }
 
 /// 取消应收发票
-pub async fn cancel_invoice(
+pub async fn cancel_ar_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,

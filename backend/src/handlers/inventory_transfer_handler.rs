@@ -55,8 +55,8 @@ pub async fn list_transfers(
     let transfers_json: Vec<serde_json::Value> = transfers
         .data
         .into_iter()
-        .map(|t| serde_json::to_value(t).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)
-        .collect();
+        .map(|t| serde_json::to_value(t).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(ApiResponse::success(transfers_json)))
 }

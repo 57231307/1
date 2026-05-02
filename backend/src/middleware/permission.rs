@@ -82,11 +82,11 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
 }
 
 fn method_to_action(method: &Method) -> String {
-    match method {
-        &Method::GET => "read",
-        &Method::POST => "create",
-        &Method::PUT => "update",
-        &Method::DELETE => "delete",
+    match *method {
+        Method::GET => "read",
+        Method::POST => "create",
+        Method::PUT => "update",
+        Method::DELETE => "delete",
         _ => "read",
     }
     .to_string()

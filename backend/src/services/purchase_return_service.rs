@@ -8,7 +8,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, JoinType, RelationTrait
+    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, RelationTrait
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -30,7 +30,7 @@ impl PurchaseReturnService {
     /// 格式：RT + 年月日 + 三位序号（RT20260315001）
     pub async fn generate_return_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "RT",
             purchase_return::Entity,
             purchase_return::Column::ReturnNo,

@@ -39,10 +39,10 @@ impl RateLimiter {
             if now >= entry.reset_at {
                 entry.count = 1;
                 entry.reset_at = now + self.window;
-                return true;
+                true
             } else {
                 entry.count += 1;
-                return entry.count <= self.max_requests;
+                entry.count <= self.max_requests
             }
         } else {
             self.storage.insert(
@@ -52,7 +52,7 @@ impl RateLimiter {
                     reset_at: now + self.window,
                 },
             );
-            return true;
+            true
         }
     }
 }

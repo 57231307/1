@@ -31,7 +31,7 @@ impl ApInvoiceService {
     /// 格式：AP + 年月日 + 三位序号（AP20260315001）
     pub async fn generate_invoice_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "API",
             ap_invoice::Entity,
             ap_invoice::Column::InvoiceNo,

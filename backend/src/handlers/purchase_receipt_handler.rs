@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 采购入库 Handler
 //!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
@@ -35,18 +34,13 @@ pub async fn list_receipts(
         )
         .await?;
 
-    let result = serde_json::json!({
-        "items": receipts,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(receipts, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }
 
 /// 获取采购入库单详情
-pub async fn get_receipt(auth: AuthContext, 
+pub async fn get_receipt(_auth: AuthContext, 
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -63,8 +57,7 @@ pub async fn create_receipt(auth: AuthContext,
     Json(req): Json<CreatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;
@@ -112,7 +105,7 @@ pub async fn confirm_receipt(auth: AuthContext,
 }
 
 /// 获取入库明细列表
-pub async fn list_receipt_items(auth: AuthContext, 
+pub async fn list_receipt_items(_auth: AuthContext, 
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -130,8 +123,7 @@ pub async fn create_receipt_item(auth: AuthContext,
     Json(req): Json<CreateReceiptItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;

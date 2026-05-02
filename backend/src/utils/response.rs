@@ -8,9 +8,6 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
-#[aliases(
-    LoginApiResponse = ApiResponse<crate::handlers::auth_handler::LoginResponse>
-)]
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
@@ -19,6 +16,8 @@ pub struct ApiResponse<T> {
     #[serde(skip)]
     pub status_code: Option<StatusCode>,
 }
+
+pub type LoginApiResponse = ApiResponse<crate::handlers::auth_handler::LoginResponse>;
 
 impl<T> Default for ApiResponse<T> {
     fn default() -> Self {
@@ -256,4 +255,18 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
         });
         (status_code, Json(self)).into_response()
     }
+}
+
+pub fn build_paginated_response<T: serde::Serialize>(
+    items: Vec<T>,
+    total: u64,
+    page: u64,
+    page_size: u64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    })
 }

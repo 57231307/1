@@ -31,7 +31,7 @@ impl ApVerificationService {
     /// 格式：VER + 年月日 + 三位序号（VER20260315001）
     pub async fn generate_verification_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "VER",
             ap_verification::Entity,
             ap_verification::Column::VerificationNo,

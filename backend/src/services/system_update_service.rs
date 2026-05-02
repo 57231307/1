@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 系统更新服务
 
 use std::fs;

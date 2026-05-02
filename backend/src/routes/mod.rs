@@ -9,6 +9,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::handlers::{
+    logistics_handler,
     account_subject_handler,
     ap_invoice_handler,
     ap_payment_handler,
@@ -26,7 +27,6 @@ use crate::handlers::{
     budget_management_handler,
     business_trace_handler,
     cost_collection_handler,
-    crm_handler,
     customer_credit_handler,
     customer_handler,
     dashboard_handler,
@@ -78,7 +78,7 @@ use crate::services::metrics_service::create_metrics_router;
 /// 所有接口路径统一为 /api/v1/erp/* 格式
 pub fn create_router(state: AppState) -> Router {
     // 挂载 Prometheus 监控路由
-    let metrics_routes = create_metrics_router(state.metrics.clone());
+    let metrics_routes = create_metrics_router();
 
     // 认证路由 - 添加防暴力攻击中间件
     let auth_routes = Router::new()
@@ -115,9 +115,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(product_handler::get_product))
         .route("/:id", put(product_handler::update_product))
         .route("/:id", delete(product_handler::delete_product))
-        .route("/batch/create", post(batch_handler::batch_create_products))
-        .route("/batch/update", post(batch_handler::batch_update_products))
-        .route("/batch/delete", post(batch_handler::batch_delete_products))
+        .route("/batch/create", post(bulk_product_handler::batch_create_products))
+        .route("/batch/update", post(bulk_product_handler::batch_update_products))
+        .route("/batch/delete", post(bulk_product_handler::batch_delete_products))
         // 色号管理路由
         .route(
             "/:product_id/colors",
@@ -190,20 +190,20 @@ pub fn create_router(state: AppState) -> Router {
         .route("/payments", get(finance_payment_handler::list_payments))
         .route("/payments", post(finance_payment_handler::create_payment))
         .route("/payments/:id", get(finance_payment_handler::get_payment))
-        .route("/invoices", get(finance_invoice_handler::list_invoices))
-        .route("/invoices", post(finance_invoice_handler::create_invoice))
-        .route("/invoices/:id", get(finance_invoice_handler::get_invoice))
+        .route("/invoices", get(finance_invoice_handler::list_finance_invoices))
+        .route("/invoices", post(finance_invoice_handler::create_finance_invoice))
+        .route("/invoices/:id", get(finance_invoice_handler::get_finance_invoice))
         .route(
             "/invoices/:id",
-            put(finance_invoice_handler::update_invoice),
+            put(finance_invoice_handler::update_finance_invoice),
         )
         .route(
             "/invoices/:id",
-            delete(finance_invoice_handler::delete_invoice),
+            delete(finance_invoice_handler::delete_finance_invoice),
         )
         .route(
             "/invoices/:id/approve",
-            post(finance_invoice_handler::approve_invoice),
+            post(finance_invoice_handler::approve_finance_invoice),
         )
         .route(
             "/invoices/:id/verify",
@@ -678,13 +678,13 @@ pub fn create_router(state: AppState) -> Router {
 
     // 应付账款路由
     let ap_routes = Router::new()
-        .route("/invoices", get(ap_invoice_handler::list_invoices))
-        .route("/invoices", post(ap_invoice_handler::create_invoice))
-        .route("/invoices/:id", get(ap_invoice_handler::get_invoice))
-        .route("/invoices/:id", put(ap_invoice_handler::update_invoice))
-        .route("/invoices/:id", delete(ap_invoice_handler::delete_invoice))
-        .route("/invoices/:id/approve", post(ap_invoice_handler::approve_invoice))
-        .route("/invoices/:id/cancel", post(ap_invoice_handler::cancel_invoice))
+        .route("/invoices", get(ap_invoice_handler::list_ap_invoices))
+        .route("/invoices", post(ap_invoice_handler::create_ap_invoice))
+        .route("/invoices/:id", get(ap_invoice_handler::get_ap_invoice))
+        .route("/invoices/:id", put(ap_invoice_handler::update_ap_invoice))
+        .route("/invoices/:id", delete(ap_invoice_handler::delete_ap_invoice))
+        .route("/invoices/:id/approve", post(ap_invoice_handler::approve_ap_invoice))
+        .route("/invoices/:id/cancel", post(ap_invoice_handler::cancel_ap_invoice))
         .route("/invoices/auto-generate", post(ap_invoice_handler::auto_generate))
         .route("/invoices/aging", get(ap_invoice_handler::get_aging_analysis))
         .route("/payments", get(ap_payment_handler::list_payments))
@@ -720,13 +720,13 @@ pub fn create_router(state: AppState) -> Router {
 
     // 应收账款路由
     let ar_routes = Router::new()
-        .route("/invoices", get(ar_invoice_handler::list_invoices))
-        .route("/invoices", post(ar_invoice_handler::create_invoice))
-        .route("/invoices/:id", get(ar_invoice_handler::get_invoice))
-        .route("/invoices/:id", put(ar_invoice_handler::update_invoice))
-        .route("/invoices/:id", delete(ar_invoice_handler::delete_invoice))
-        .route("/invoices/:id/approve", post(ar_invoice_handler::approve_invoice))
-        .route("/invoices/:id/cancel", post(ar_invoice_handler::cancel_invoice));
+        .route("/invoices", get(ar_invoice_handler::list_ar_invoices))
+        .route("/invoices", post(ar_invoice_handler::create_ar_invoice))
+        .route("/invoices/:id", get(ar_invoice_handler::get_ar_invoice))
+        .route("/invoices/:id", put(ar_invoice_handler::update_ar_invoice))
+        .route("/invoices/:id", delete(ar_invoice_handler::delete_ar_invoice))
+        .route("/invoices/:id/approve", post(ar_invoice_handler::approve_ar_invoice))
+        .route("/invoices/:id/cancel", post(ar_invoice_handler::cancel_ar_invoice));
 
     // 系统更新路由
     let system_update_routes = Router::new()
@@ -824,7 +824,7 @@ pub fn create_router(state: AppState) -> Router {
             .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
         )
         .nest("/api/v1/erp/init", init_routes)
-        .merge(metrics_routes)
+        .nest("/", metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))

@@ -31,7 +31,7 @@ pub struct ApInvoiceQueryParams {
 }
 
 /// 查询应付单列表
-pub async fn list_invoices(
+pub async fn list_ap_invoices(
     Query(params): Query<ApInvoiceQueryParams>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -56,18 +56,13 @@ pub async fn list_invoices(
 
     info!("查询成功，共 {} 条记录", total);
 
-    let result = serde_json::json!({
-        "items": invoices,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(invoices, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }
 
 /// 获取应付单详情
-pub async fn get_invoice(
+pub async fn get_ap_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -84,7 +79,7 @@ pub async fn get_invoice(
 
 /// 创建应付单
 #[axum::debug_handler]
-pub async fn create_invoice(
+pub async fn create_ap_invoice(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateApInvoiceRequest>,
@@ -116,7 +111,7 @@ pub async fn create_invoice(
 
 /// 更新应付单
 #[axum::debug_handler]
-pub async fn update_invoice(
+pub async fn update_ap_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -139,7 +134,7 @@ pub async fn update_invoice(
 }
 
 /// 删除应付单
-pub async fn delete_invoice(
+pub async fn delete_ap_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -158,7 +153,7 @@ pub async fn delete_invoice(
 }
 
 /// 审核应付单
-pub async fn approve_invoice(
+pub async fn approve_ap_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -185,7 +180,7 @@ pub struct CancelInvoiceRequest {
     pub reason: String,
 }
 
-pub async fn cancel_invoice(
+pub async fn cancel_ap_invoice(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,

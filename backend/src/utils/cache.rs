@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
+
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -25,6 +25,16 @@ where
     V: Clone,
 {
     storage: DashMap<K, CachedValue<V>>,
+}
+
+impl<K, V> Default for MemoryCache<K, V>
+where
+    K: Eq + std::hash::Hash + Clone,
+    V: Clone,
+ {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<K, V> MemoryCache<K, V>
@@ -175,6 +185,12 @@ pub struct AppCache {
     pub supplier_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub warehouse_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub token_blacklist: Arc<MemoryCache<String, bool>>,
+}
+
+impl Default for AppCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AppCache {

@@ -1,16 +1,15 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::State,
     Json,
 };
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::models::department;
 use crate::services::department_service::DepartmentService;
 use crate::services::department_service::DepartmentTreeNode;
 use crate::utils::error::AppError;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::response::ApiResponse;
 
 /// 查询参数 - 部门列表
 #[derive(Debug, Deserialize, Validate)]

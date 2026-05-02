@@ -1,8 +1,8 @@
-//! 应收单 Service
-//!
-//! 应收账款业务逻辑层
+use chrono::NaiveDate;
+// 应收单 Service
+//
+// 应收账款业务逻辑层
 
-use chrono::Datelike;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect,
@@ -14,9 +14,13 @@ use crate::models::ar_invoice;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
+use chrono::Utc;
+use sea_orm::ActiveValue::Set;
 
-/// 创建应收单请求
-#[derive(Debug, Clone)]
+use serde::Deserialize;
+
+/// 更新应收发票请求
+#[derive(Debug, Deserialize)]
 pub struct UpdateArInvoiceRequest {
     pub invoice_date: Option<NaiveDate>,
     pub due_date: Option<NaiveDate>,
@@ -135,7 +139,7 @@ impl ArInvoiceService {
     /// 生成应收单编号
     async fn generate_invoice_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "AR",
             ar_invoice::Entity,
             ar_invoice::Column::InvoiceNo,
@@ -143,7 +147,7 @@ impl ArInvoiceService {
         .await
     }
 
-    pub async fn update(&self, id: i32, req: UpdateArInvoiceRequest, user_id: i32) -> Result<ar_invoice::Model, AppError> {
+    pub async fn update(&self, id: i32, req: UpdateArInvoiceRequest, _user_id: i32) -> Result<ar_invoice::Model, AppError> {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -154,20 +158,20 @@ impl ArInvoiceService {
             return Err(AppError::BadRequest("非草稿状态的应收单无法修改".to_string()));
         }
 
-        let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
+        let mut active_invoice: ar_invoice::ActiveModel = invoice.clone().into();
         
         if let Some(date) = req.invoice_date {
-            active_invoice.invoice_date = Set(date);
+            active_invoice.invoice_date = sea_orm::ActiveValue::Set(date);
         }
         if let Some(date) = req.due_date {
-            active_invoice.due_date = Set(date);
+            active_invoice.due_date = sea_orm::ActiveValue::Set(date);
         }
         if let Some(amt) = req.invoice_amount {
-            active_invoice.invoice_amount = Set(amt);
-            active_invoice.unpaid_amount = Set(amt - active_invoice.received_amount.unwrap_or(Decimal::from(0)));
+            active_invoice.invoice_amount = sea_orm::ActiveValue::Set(amt);
+            active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(amt - invoice.received_amount);
         }
         
-        active_invoice.updated_at = Set(Utc::now());
+        active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = active_invoice.update(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -206,11 +210,11 @@ impl ArInvoiceService {
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
-        active_invoice.status = Set("APPROVED".to_string());
-        active_invoice.approval_status = Set("APPROVED".to_string());
-        active_invoice.reviewed_by = Set(Some(user_id));
-        active_invoice.reviewed_at = Set(Some(Utc::now()));
-        active_invoice.updated_at = Set(Utc::now());
+        active_invoice.status = sea_orm::ActiveValue::Set("APPROVED".to_string());
+        active_invoice.approval_status = sea_orm::ActiveValue::Set("APPROVED".to_string());
+        active_invoice.reviewed_by = sea_orm::ActiveValue::Set(Some(user_id));
+        active_invoice.reviewed_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
+        active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = active_invoice.update(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;

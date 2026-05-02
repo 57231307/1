@@ -31,12 +31,7 @@ pub async fn list_inspections(
         )
         .await?;
 
-    let result = serde_json::json!({
-        "items": inspections,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(inspections, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -60,8 +55,7 @@ pub async fn create_inspection(
     State(state): State<AppState>,
     Json(req): Json<CreatePurchaseInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseInspectionService::new(state.db.clone());
     let user_id = 1;
@@ -99,8 +93,7 @@ pub async fn complete_inspection(
     State(state): State<AppState>,
     Json(req): Json<CompleteInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseInspectionService::new(state.db.clone());
     let user_id = 1;

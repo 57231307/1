@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;

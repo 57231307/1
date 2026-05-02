@@ -16,7 +16,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::classify::ServerErrorsFailureClass;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::{info, warn, Level, Span};

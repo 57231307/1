@@ -4,14 +4,14 @@
 //! 包含订单创建、审批、执行、退货等全流程管理
 
 use crate::models::{
-    department, inventory_stock, product, purchase_order, purchase_order_item, purchase_receipt, supplier, warehouse,
+    department, product, purchase_order, purchase_order_item, purchase_receipt, supplier, warehouse,
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -86,7 +86,7 @@ impl PurchaseOrderService {
     /// 格式：PO + 年月日 + 三位序号（PO20260315001）
     pub async fn generate_order_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "PO",
             purchase_order::Entity,
             purchase_order::Column::OrderNo,
@@ -98,7 +98,7 @@ impl PurchaseOrderService {
     /// 格式：PR + 年月日 + 三位序号（PR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "PR",
             purchase_receipt::Entity,
             purchase_receipt::Column::ReceiptNo,

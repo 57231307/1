@@ -30,7 +30,7 @@ impl PurchaseInspectionService {
     /// 格式：IQ + 年月日 + 三位序号（IQ20260315001）
     pub async fn generate_inspection_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "PI",
             purchase_inspection::Entity,
             purchase_inspection::Column::InspectionNo,

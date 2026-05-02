@@ -47,8 +47,7 @@ pub async fn create_supplier(
     State(state): State<AppState>,
     Json(req): Json<CreateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = SupplierService::new(state.db.clone());
     let user_id = 1;
@@ -151,8 +150,7 @@ pub async fn create_supplier_contact(
     State(state): State<AppState>,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = SupplierService::new(state.db.clone());
     let user_id = 1;
@@ -220,8 +218,7 @@ pub async fn create_supplier_qualification(
     State(_state): State<AppState>,
     Json(req): Json<CreateQualificationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"supplier_id": supplier_id, "qualification": req}),

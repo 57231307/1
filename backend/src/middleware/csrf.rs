@@ -9,7 +9,7 @@ use crate::utils::app_state::AppState;
 use tracing::warn;
 
 pub async fn csrf_middleware(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {

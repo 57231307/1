@@ -126,7 +126,7 @@ use crate::services::cost_collection_service::UpdateCostCollectionRequest;
 pub async fn get_collection(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = CostCollectionService::new(state.db.clone());
     let collection = service.get_by_id(id).await?;

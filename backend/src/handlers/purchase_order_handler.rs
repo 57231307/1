@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 采购订单 Handler
 //!
 //! 采购订单 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
@@ -33,12 +32,7 @@ pub async fn list_orders(
         )
         .await?;
 
-    let result = serde_json::json!({
-        "items": orders,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(orders, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -47,7 +41,7 @@ pub async fn list_orders(
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let order = service.get_order(id).await?;
@@ -63,8 +57,7 @@ pub async fn create_order(
     Json(req): Json<CreatePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
@@ -176,7 +169,7 @@ pub async fn close_order(auth: AuthContext,
 }
 
 /// 获取订单明细列表
-pub async fn list_order_items(auth: AuthContext, 
+pub async fn list_order_items(_auth: AuthContext, 
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -194,8 +187,7 @@ pub async fn create_order_item(auth: AuthContext,
     Json(req): Json<CreateOrderItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 验证请求
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;

@@ -51,3 +51,5 @@ pub mod quality_inspection;
 pub mod sales_analysis;
 pub mod supplier_evaluation;
 pub mod sales_return;
+
+pub mod product_category;

@@ -30,12 +30,7 @@ pub async fn list_returns(
         )
         .await?;
 
-    let result = serde_json::json!({
-        "items": returns,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(returns, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -59,8 +54,7 @@ pub async fn create_return(
     State(state): State<AppState>,
     Json(req): Json<CreatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    req.validate()?;
 
     let service = PurchaseReturnService::new(state.db.clone());
     let user_id = 1;

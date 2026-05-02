@@ -4,6 +4,9 @@ use std::sync::Arc;
 use crate::services::metrics_service::MetricsService;
 use crate::utils::cache::AppCache;
 
+use axum::extract::FromRef;
+use axum_extra::extract::cookie::Key;
+
 /// 应用全局状态
 #[derive(Clone)]
 pub struct AppState {
@@ -13,6 +16,13 @@ pub struct AppState {
     pub cookie_secret: String,
     pub cache: Arc<AppCache>,
     pub metrics: Arc<MetricsService>,
+    pub cookie_key: Key,
+}
+
+impl FromRef<AppState> for Key {
+    fn from_ref(state: &AppState) -> Self {
+        state.cookie_key.clone()
+    }
 }
 
 impl AppState {
@@ -31,6 +41,7 @@ impl AppState {
         }
         
         let metrics = MetricsService::new().expect("Failed to create metrics service");
+        let cookie_key = Key::derive_from(final_cookie_secret.as_bytes());
         Self {
             db,
             jwt_secret,
@@ -38,6 +49,7 @@ impl AppState {
             cookie_secret: final_cookie_secret,
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
+            cookie_key,
         }
     }
 }
@@ -46,13 +58,16 @@ impl Default for AppState {
     fn default() -> Self {
         // 在 default 初始化中强制使用 32 字节的安全测试密钥，避免 panic
         let metrics = MetricsService::new().expect("Failed to create metrics service");
+        let default_cookie_secret = "default-cookie-secret-key-for-test-environments-only-32-bytes".to_string();
+        let cookie_key = Key::derive_from(default_cookie_secret.as_bytes());
         Self {
             db: Arc::new(DatabaseConnection::Disconnected),
             jwt_secret: "default-secret-key-for-test-environments-only-32-bytes".to_string(),
             previous_jwt_secret: None,
-            cookie_secret: "default-cookie-secret-key-for-test-environments-only-32-bytes".to_string(),
+            cookie_secret: default_cookie_secret,
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
+            cookie_key,
         }
     }
 }

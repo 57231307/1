@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! 销售退货 Service
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑
@@ -59,7 +58,7 @@ impl SalesReturnService {
         return_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        use sea_orm::{QuerySelect, ColumnTrait};
+        use sea_orm::ColumnTrait;
         let items = crate::models::sales_return_item::Entity::find()
             .filter(crate::models::sales_return_item::Column::ReturnId.eq(return_id))
             .all(txn)
@@ -91,7 +90,7 @@ impl SalesReturnService {
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
     pub async fn generate_return_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "SR",
             sales_return::Entity,
             sales_return::Column::ReturnNo,
@@ -264,7 +263,7 @@ impl SalesReturnService {
 
         for item in &items {
             // 获取商品信息
-            let product_info = product::Entity::find_by_id(item.product_id)
+            let _product_info = product::Entity::find_by_id(item.product_id)
                 .one(&txn)
                 .await?
                 .ok_or(AppError::ResourceNotFound(format!(

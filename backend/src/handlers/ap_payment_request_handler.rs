@@ -60,12 +60,7 @@ pub async fn list_requests(
         auth.username, total
     );
 
-    let result = serde_json::json!({
-        "items": requests,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(requests, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }

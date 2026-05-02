@@ -257,16 +257,16 @@ impl SalesService {
             .ok_or(sea_orm::DbErr::Custom(format!("客户 {} 不存在", request.customer_id)))?;
             
         // 业务逻辑验证：日期合理性检查
-        if request.required_date < request.order_date {
-            tracing::error!("Transaction rolled back: 交付日期不能早于订单日期");
+        if request.required_date < chrono::Utc::now() {
+            tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
             txn.rollback().await.ok();
-            return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于订单日期".to_string()));
+            return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
         }
             
         let credit_limit = customer.credit_limit;
         
         // 计算当前未付应收账款总额 (AR invoices that are not 'paid')
-        use sea_orm::{QuerySelect, QueryFilter, ColumnTrait};
+        use sea_orm::{QueryFilter, ColumnTrait};
         let unpaid_invoices = crate::models::finance_invoice::Entity::find()
             .filter(crate::models::finance_invoice::Column::CustomerId.eq(request.customer_id))
             .filter(crate::models::finance_invoice::Column::InvoiceType.eq("AR"))
@@ -645,7 +645,7 @@ impl SalesService {
     /// 生成订单号
     async fn generate_order_no(&self) -> Result<String, sea_orm::DbErr> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "SO",
             SalesOrderEntity,
             sales_order::Column::OrderNo,
@@ -804,8 +804,8 @@ impl SalesService {
                 .one(txn)
                 .await?;
             if let Some(oi) = order_item {
+                let current_shipped = oi.shipped_quantity;
                 let mut oi_update: sales_order_item::ActiveModel = oi.into();
-                let current_shipped = oi_update.shipped_quantity.clone().unwrap_or_default();
                 oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
                 oi_update.update(txn).await?;
             }

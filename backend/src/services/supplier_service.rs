@@ -1,3 +1,4 @@
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
@@ -24,7 +25,7 @@ impl SupplierService {
     /// 生成供应商编码
     pub async fn generate_supplier_code(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "SUP",
             supplier::Entity,
             supplier::Column::SupplierCode,

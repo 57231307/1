@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 use crate::models::operation_log;
 use sea_orm::{EntityTrait, Set, ActiveModelTrait, DbErr, Order, PaginatorTrait};
 use std::sync::Arc;
@@ -51,7 +50,7 @@ impl OperationLogService {
             status: Set(request.status),
             error_message: Set(request.error_message),
             duration_ms: Set(request.duration_ms),
-            extra_data: Set(request.extra_data.map(|data| data.into())),
+            extra_data: Set(request.extra_data),
             created_at: Set(Utc::now()),
         };
 

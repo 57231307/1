@@ -57,12 +57,7 @@ pub async fn list_payments(
 
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
 
-    let result = serde_json::json!({
-        "items": payments,
-        "total": total,
-        "page": params.page.unwrap_or(1),
-        "page_size": params.page_size.unwrap_or(20),
-    });
+    let result = crate::utils::response::build_paginated_response(payments, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
 
     Ok(Json(ApiResponse::success(result)))
 }

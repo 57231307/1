@@ -31,7 +31,7 @@ impl ApReconciliationService {
     /// 格式：REC + 年月日 + 三位序号（REC20260315001）
     pub async fn generate_reconciliation_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "REC",
             ap_reconciliation::Entity,
             ap_reconciliation::Column::ReconciliationNo,

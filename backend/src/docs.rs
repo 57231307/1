@@ -14,7 +14,6 @@ use utoipa::OpenApi;
             crate::handlers::auth_handler::LoginRequest,
             crate::handlers::auth_handler::LoginResponse,
             crate::handlers::auth_handler::UserInfo,
-            crate::utils::response::ApiResponse<()>,
             crate::utils::response::LoginApiResponse,
         )
     ),

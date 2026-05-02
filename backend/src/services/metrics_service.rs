@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 //! Prometheus 监控服务
 //! 提供系统指标收集和导出功能
 
@@ -171,10 +170,10 @@ impl MetricsService {
 
 /// 导出 Prometheus 格式的指标
 pub async fn metrics_handler(
-    State(metrics_service): State<Arc<MetricsService>>,
+    State(state): State<crate::utils::app_state::AppState>,
 ) -> Result<Response<String>, StatusCode> {
     let encoder = TextEncoder::new();
-    let metric_families = metrics_service.gather();
+    let metric_families = state.metrics.gather();
     
     let mut buffer = Vec::new();
     encoder.encode(&metric_families, &mut buffer)
@@ -191,10 +190,9 @@ pub async fn metrics_handler(
 }
 
 /// 创建监控路由
-pub fn create_metrics_router(metrics_service: Arc<MetricsService>) -> Router<Arc<MetricsService>> {
+pub fn create_metrics_router() -> Router<crate::utils::app_state::AppState> {
     Router::new()
         .route("/metrics", get(metrics_handler))
-        .with_state(metrics_service)
 }
 
 #[cfg(test)]

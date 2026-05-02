@@ -6,7 +6,6 @@
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
-use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -31,7 +30,7 @@ impl PurchaseReceiptService {
     /// 格式：GR + 年月日 + 三位序号（GR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &self.db,
             "PR",
             purchase_receipt::Entity,
             purchase_receipt::Column::ReceiptNo,
@@ -518,12 +517,12 @@ impl PurchaseReceiptService {
                     .await?
                     .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", order_item_id)))?;
 
+                let current_received = order_item.received_quantity;
+                let current_received_alt = order_item.received_quantity_alt;
                 let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
-                let current_received = active_order_item.received_quantity.clone().unwrap_or_default();
-                let current_received_alt = active_order_item.received_quantity_alt.clone().unwrap_or_default();
                 
-                active_order_item.received_quantity = Set(current_received + item.quantity);
-                active_order_item.received_quantity_alt = Set(current_received_alt + item.quantity_alt.unwrap_or_default());
+                active_order_item.received_quantity = sea_orm::ActiveValue::Set(current_received + item.quantity);
+                active_order_item.received_quantity_alt = sea_orm::ActiveValue::Set(current_received_alt + item.quantity_alt.unwrap_or_default());
                 active_order_item.update(txn).await?;
             }
         }
@@ -585,7 +584,7 @@ impl PurchaseReceiptService {
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
             
-                        let stock_model = stock_service.create_stock_fabric(
+                        let _stock_model = stock_service.create_stock_fabric(
                 receipt.warehouse_id,
                 item.product_id,
                 batch_no.clone(),
