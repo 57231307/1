@@ -81,7 +81,7 @@ impl Component for FabricOrderPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match FabricOrderService::list(query).await {
+                    match FabricOrderService::list_with_query(&query).await {
                         Ok(orders) => link.send_message(Msg::OrdersLoaded(orders)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

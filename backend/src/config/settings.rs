@@ -21,28 +21,21 @@ pub struct ServerConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
     pub connection_string: String,
-    #[allow(dead_code)]
     pub host: String,
-    #[allow(dead_code)]
     pub port: u16,
-    #[allow(dead_code)]
     pub name: String,
-    #[allow(dead_code)]
     pub username: String,
-    #[allow(dead_code)]
     pub password: String,
-    #[allow(dead_code)]
     pub max_connections: u32,
-    #[allow(dead_code)]
     pub ssl_mode: String,
-    #[allow(dead_code)]
     pub ssl_ca: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AuthConfig {
     pub jwt_secret: String,
-    #[allow(dead_code)]
+    pub previous_jwt_secret: Option<String>,
+    pub cookie_secret: Option<String>,
     pub token_expiry_hours: i64,
 }
 

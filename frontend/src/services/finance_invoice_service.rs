@@ -7,9 +7,22 @@ use crate::models::finance_invoice::{
     UpdateInvoiceRequest, VerifyInvoiceRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 财务发票服务
 pub struct FinanceInvoiceService;
+
+impl CrudService for FinanceInvoiceService {
+    type Model = FinanceInvoice;
+    type ListResponse = InvoiceListResponse;
+    type CreateRequest = CreateInvoiceRequest;
+    type UpdateRequest = UpdateInvoiceRequest;
+
+    fn base_path() -> &'static str {
+        "/finance-invoices"
+    }
+}
+
 
 impl FinanceInvoiceService {
     /// 查询财务发票列表

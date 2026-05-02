@@ -19,8 +19,8 @@ use crate::handlers::{
     ar_invoice_handler,
     assist_accounting_handler,
     auth_handler,
-    batch_handler,
-    batch_new_handler,
+    bulk_product_handler,
+    inventory_batch_handler,
     bpm_handler,
     budget_management_handler,
     business_trace_handler,
@@ -71,14 +71,21 @@ use crate::handlers::{
     init_handler,
 };
 
+use crate::services::metrics_service::create_metrics_router;
+
 /// 创建路由配置
 /// 所有接口路径统一为 /api/v1/erp/* 格式
 pub fn create_router(state: AppState) -> Router {
+    // 挂载 Prometheus 监控路由
+    let metrics_routes = create_metrics_router(state.metrics.clone());
+
     // 认证路由 - 添加防暴力攻击中间件
     let auth_routes = Router::new()
         .route("/login", post(auth_handler::login))
         .route("/logout", post(auth_handler::logout))
         .route("/refresh", post(auth_handler::refresh_token))
+        .route("/totp/setup", get(auth_handler::setup_totp))
+        .route("/totp/enable", post(auth_handler::enable_totp))
         .layer(middleware::from_fn(rate_limit::anti_brute_force));
 
     // 用户管理路由
@@ -334,12 +341,12 @@ pub fn create_router(state: AppState) -> Router {
 
     // 批次管理路由（面料行业核心）
     let batch_routes = Router::new()
-        .route("/", get(batch_new_handler::list_batches))
-        .route("/", post(batch_new_handler::create_batch))
-        .route("/:id", get(batch_new_handler::get_batch))
-        .route("/:id", put(batch_new_handler::update_batch))
-        .route("/:id", delete(batch_new_handler::delete_batch))
-        .route("/:id/transfer", post(batch_new_handler::transfer_batch));
+        .route("/", get(inventory_batch_handler::list_batches))
+        .route("/", post(inventory_batch_handler::create_batch))
+        .route("/:id", get(inventory_batch_handler::get_batch))
+        .route("/:id", put(inventory_batch_handler::update_batch))
+        .route("/:id", delete(inventory_batch_handler::delete_batch))
+        .route("/:id/transfer", post(inventory_batch_handler::transfer_batch));
 
     // 缸号管理路由（染色批次管理）
     let dye_batch_routes = Router::new()
@@ -797,6 +804,7 @@ pub fn create_router(state: AppState) -> Router {
             .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
         )
         .nest("/api/v1/erp/init", init_routes)
+        .merge(metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))

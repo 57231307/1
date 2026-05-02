@@ -83,7 +83,7 @@ impl Component for PurchaseOrderPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match PurchaseOrderService::list(query).await {
+                    match PurchaseOrderService::list_with_query(&query).await {
                         Ok(orders) => link.send_message(Msg::OrdersLoaded(orders)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

@@ -4,6 +4,7 @@
 //! 包含付款单创建、确认、付款计划等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -29,16 +30,13 @@ impl ApPaymentService {
     /// 生成付款单号
     /// 格式：PAY + 年月日 + 三位序号（PAY20260315001）
     pub async fn generate_payment_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("PAY{}", today);
-
-        // 查询今日付款单数量
-        let count = ap_payment::Entity::find()
-            .filter(ap_payment::Column::PaymentNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PAY",
+            ap_payment::Entity,
+            ap_payment::Column::PaymentNo,
+        )
+        .await
     }
 
     /// 创建付款单（从审批通过的付款申请）

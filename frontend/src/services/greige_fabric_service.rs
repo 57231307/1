@@ -6,8 +6,21 @@ use crate::models::greige_fabric::{
     StockInRequest, StockOutRequest, UpdateGreigeFabricRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct GreigeFabricService;
+
+impl CrudService for GreigeFabricService {
+    type Model = GreigeFabric;
+    type ListResponse = GreigeFabricListResponse;
+    type CreateRequest = CreateGreigeFabricRequest;
+    type UpdateRequest = UpdateGreigeFabricRequest;
+
+    fn base_path() -> &'static str {
+        "/greige-fabric"
+    }
+}
+
 
 impl GreigeFabricService {
     pub async fn list(query: GreigeFabricQuery) -> Result<GreigeFabricListResponse, String> {
@@ -44,25 +57,6 @@ impl GreigeFabricService {
         };
         let response: ApiResponse<GreigeFabricListResponse> = ApiService::get(&url).await?;
         response.into_result()
-    }
-
-    pub async fn get(id: i32) -> Result<GreigeFabric, String> {
-        let response: ApiResponse<GreigeFabric> = ApiService::get(&format!("/greige-fabric/{}", id)).await?;
-        response.into_result()
-    }
-
-    pub async fn create(req: CreateGreigeFabricRequest) -> Result<GreigeFabric, String> {
-        let response: ApiResponse<GreigeFabric> = ApiService::post("/greige-fabric", &req).await?;
-        response.into_result()
-    }
-
-    pub async fn update(id: i32, req: UpdateGreigeFabricRequest) -> Result<GreigeFabric, String> {
-        let response: ApiResponse<GreigeFabric> = ApiService::put(&format!("/greige-fabric/{}", id), &req).await?;
-        response.into_result()
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/greige-fabric/{}", id)).await
     }
 
     pub async fn stock_in(id: i32, req: StockInRequest) -> Result<GreigeFabric, String> {

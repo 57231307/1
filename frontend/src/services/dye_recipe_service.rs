@@ -6,8 +6,21 @@ use crate::models::dye_recipe::{
     DyeRecipeListResponse, DyeRecipeQuery, UpdateDyeRecipeRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct DyeRecipeService;
+
+impl CrudService for DyeRecipeService {
+    type Model = DyeRecipe;
+    type ListResponse = DyeRecipeListResponse;
+    type CreateRequest = CreateDyeRecipeRequest;
+    type UpdateRequest = UpdateDyeRecipeRequest;
+
+    fn base_path() -> &'static str {
+        "/dye-recipe"
+    }
+}
+
 
 impl DyeRecipeService {
     pub async fn list(query: DyeRecipeQuery) -> Result<DyeRecipeListResponse, String> {
@@ -41,25 +54,6 @@ impl DyeRecipeService {
         };
         let response: ApiResponse<DyeRecipeListResponse> = ApiService::get(&url).await?;
         response.into_result()
-    }
-
-    pub async fn get(id: i32) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::get(&format!("/dye-recipe/{}", id)).await?;
-        response.into_result()
-    }
-
-    pub async fn create(req: CreateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::post("/dye-recipe", &req).await?;
-        response.into_result()
-    }
-
-    pub async fn update(id: i32, req: UpdateDyeRecipeRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::put(&format!("/dye-recipe/{}", id), &req).await?;
-        response.into_result()
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/dye-recipe/{}", id)).await
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {

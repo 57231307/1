@@ -88,7 +88,7 @@ impl Component for SupplierPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SupplierService::list(query).await {
+                    match SupplierService::list_with_query(&query).await {
                         Ok(suppliers) => link.send_message(Msg::SuppliersLoaded(suppliers)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

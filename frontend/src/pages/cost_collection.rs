@@ -139,7 +139,7 @@ impl Component for CostCollectionPage {
                 let link = _ctx.link().clone();
                 let params = self.query_params.clone();
                 spawn_local(async move {
-                    let result = CostCollectionService::list(params).await;
+                    let result = CostCollectionService::list_with_query(&params).await;
                     link.send_message(Msg::CollectionsLoaded(result));
                 });
                 false
@@ -178,7 +178,7 @@ impl Component for CostCollectionPage {
                 let link = _ctx.link().clone();
                 let params = self.query_params.clone();
                 spawn_local(async move {
-                    let result = CostCollectionService::list(params).await;
+                    let result = CostCollectionService::list_with_query(&params).await;
                     link.send_message(Msg::CollectionsLoaded(result));
                 });
                 false

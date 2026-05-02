@@ -64,7 +64,6 @@ pub struct UpdateVoucherRequest {
 
 /// 凭证查询参数
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct VoucherQueryParams {
     pub voucher_type: Option<String>,
     pub status: Option<String>,
@@ -110,7 +109,7 @@ impl VoucherService {
         }
 
         // 生成凭证编号
-        let voucher_no = self.generate_voucher_no(&req.voucher_type, req.voucher_date)?;
+        let voucher_no = self.generate_voucher_no(&req.voucher_type, req.voucher_date).await?;
 
         // 创建凭证主表
         let active_model = voucher::ActiveModel {
@@ -299,7 +298,6 @@ impl VoucherService {
     }
 
     /// 删除凭证
-    #[allow(dead_code)]
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         info!("删除凭证 ID: {}", id);
 
@@ -605,12 +603,11 @@ impl VoucherService {
     }
 
     /// 生成凭证编号
-    fn generate_voucher_no(
+    async fn generate_voucher_no(
         &self,
         voucher_type: &str,
-        voucher_date: chrono::NaiveDate,
+        _voucher_date: chrono::NaiveDate,
     ) -> Result<String, AppError> {
-        // 简化实现：使用时间戳
         let prefix = match voucher_type {
             "记" => "JZ",
             "收" => "SK",
@@ -619,19 +616,17 @@ impl VoucherService {
             _ => "JZ",
         };
 
-        let year_month = format!("{:04}-{:02}", voucher_date.year(), voucher_date.month());
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("系统时间早于UNIX纪元")
-            .as_millis();
-
-        Ok(format!("{}{}-{:04}", prefix, year_month, timestamp % 10000))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            prefix,
+            voucher::Entity,
+            voucher::Column::VoucherNo,
+        ).await
     }
 }
 
 /// 凭证详情（包含分录）
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct VoucherDetail {
     pub voucher: voucher::Model,
     pub items: Vec<voucher_item::Model>,

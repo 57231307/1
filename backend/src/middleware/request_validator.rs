@@ -1,3 +1,4 @@
+use crate::middleware::public_routes::is_public_path;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -11,21 +12,7 @@ pub async fn request_validator_middleware(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
 
-    let public_paths = [
-        "/health",
-        "/ready",
-        "/live",
-        "/init",
-        "/api/v1/erp/health",
-        "/api/v1/erp/ready",
-        "/api/v1/erp/live",
-        "/api/v1/erp/init",
-        "/api/v1/erp/auth/login",
-        "/api/v1/erp/auth/refresh",
-        "/api/v1/erp/auth/logout",
-    ];
-
-    if public_paths.iter().any(|p| path.starts_with(p)) {
+    if is_public_path(path) {
         return Ok(next.run(request).await);
     }
 

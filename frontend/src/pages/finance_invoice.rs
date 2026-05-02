@@ -87,7 +87,7 @@ impl Component for FinanceInvoicePage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match FinanceInvoiceService::list_invoices(params).await {
+                    match FinanceInvoiceService::list_with_query(&params).await {
                         Ok(response) => link.send_message(Msg::InvoicesLoaded(response.invoices, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -124,7 +124,7 @@ impl Component for FinanceInvoicePage {
             Msg::DeleteInvoice(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match FinanceInvoiceService::delete_invoice(id).await {
+                    match FinanceInvoiceService::delete(id).await {
                         Ok(_) => link.send_message(Msg::LoadInvoices),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

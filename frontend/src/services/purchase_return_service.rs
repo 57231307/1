@@ -8,8 +8,21 @@ use crate::models::purchase_return::{
     UpdateReturnItemRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct PurchaseReturnService;
+
+impl CrudService for PurchaseReturnService {
+    type Model = PurchaseReturn;
+    type ListResponse = PaginatedReturns;
+    type CreateRequest = CreatePurchaseReturnRequest;
+    type UpdateRequest = UpdatePurchaseReturnRequest;
+
+    fn base_path() -> &'static str {
+        "/purchases/returns"
+    }
+}
+
 
 impl PurchaseReturnService {
     /// 获取退货单列表
@@ -40,25 +53,10 @@ impl PurchaseReturnService {
     }
 
     /// 获取退货单详情
-    pub async fn get(id: i32) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::get(&format!("/purchases/returns/{}", id)).await?;
-        response.into_result()
-    }
 
     /// 创建退货单
-    pub async fn create(req: CreatePurchaseReturnRequest) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post("/purchases/returns", &req).await?;
-        response.into_result()
-    }
 
     /// 更新退货单
-    pub async fn update(id: i32, req: UpdatePurchaseReturnRequest) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::put(&format!("/purchases/returns/{}", id), &req).await?;
-        response.into_result()
-    }
 
     /// 提交退货单
     pub async fn submit(id: i32) -> Result<PurchaseReturn, String> {

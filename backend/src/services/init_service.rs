@@ -385,6 +385,8 @@ impl InitService {
             role_id: Set(Some(role_id)),
             department_id: Set(Some(department_id)),
             is_active: Set(true),
+            totp_secret: Set(None),
+            is_totp_enabled: Set(false),
             last_login_at: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),

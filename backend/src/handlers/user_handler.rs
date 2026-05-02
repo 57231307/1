@@ -12,16 +12,24 @@ use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 use validator::{Validate, ValidationError};
 use regex::Regex;
+use once_cell::sync::Lazy;
+
+static RE_LOWERCASE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[a-z]").unwrap());
+static RE_UPPERCASE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[A-Z]").unwrap());
+static RE_DIGIT: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d").unwrap());
+static RE_SPECIAL: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"[!@#\$%\^&\*\(\)_\+\-\=\[\]\{\};:'\,<>\./\?\\|`~]").unwrap()
+});
 
 fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
     if password.len() < 8 {
         return Err(ValidationError::new("密码长度至少为8位"));
     }
     
-    let has_lowercase = Regex::new(r"[a-z]").unwrap().is_match(password);
-    let has_uppercase = Regex::new(r"[A-Z]").unwrap().is_match(password);
-    let has_digit = Regex::new(r"\d").unwrap().is_match(password);
-    let has_special = Regex::new(r"[!@#\$%\^&\*\(\)_\+\-\=\[\]\{\};:'\,<>\./\?\\|`~]").unwrap().is_match(password);
+    let has_lowercase = RE_LOWERCASE.is_match(password);
+    let has_uppercase = RE_UPPERCASE.is_match(password);
+    let has_digit = RE_DIGIT.is_match(password);
+    let has_special = RE_SPECIAL.is_match(password);
 
     if !has_lowercase || !has_uppercase || !has_digit || !has_special {
         return Err(ValidationError::new("密码必须包含大写字母、小写字母、数字和特殊字符"));

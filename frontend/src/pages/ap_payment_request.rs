@@ -91,7 +91,7 @@ impl Component for ApPaymentRequestPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ApPaymentRequestService::list_requests(params).await {
+                    match ApPaymentRequestService::list_with_query(&params).await {
                         Ok(response) => link.send_message(Msg::RequestsLoaded(response.items, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -128,7 +128,7 @@ impl Component for ApPaymentRequestPage {
             Msg::DeleteRequest(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ApPaymentRequestService::delete_request(id).await {
+                    match ApPaymentRequestService::delete(id).await {
                         Ok(_) => link.send_message(Msg::LoadRequests),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

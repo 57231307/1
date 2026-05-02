@@ -63,7 +63,6 @@ pub struct CreateBudgetPlanRequest {
 /// 预算执行请求 DTO
 #[derive(Debug, Deserialize)]
 
-#[allow(dead_code)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
     pub actual_amount: Decimal,
@@ -75,7 +74,6 @@ pub struct BudgetExecuteRequest {
 /// 预算审批请求 DTO
 #[derive(Debug, Deserialize)]
 
-#[allow(dead_code)]
 pub struct BudgetApproveRequest {
     pub approval_comment: Option<String>,
 }
@@ -278,7 +276,6 @@ pub async fn get_plan(
 }
 
 /// 预算方案审批
-#[allow(dead_code)]
 pub async fn approve_plan(
     State(state): State<AppState>,
     auth: AuthContext,

@@ -46,6 +46,8 @@ impl UserService {
             role_id: Set(role_id),
             department_id: Set(department_id),
             is_active: Set(true),
+            totp_secret: Set(None),
+            is_totp_enabled: Set(false),
             last_login_at: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
@@ -54,7 +56,6 @@ impl UserService {
         active_user.insert(self.db.as_ref()).await
     }
 
-    #[allow(dead_code)]
     pub async fn update_last_login(&self, user_id: i32) -> Result<(), sea_orm::DbErr> {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())

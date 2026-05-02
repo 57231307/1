@@ -19,7 +19,6 @@ pub struct QualityStandardQueryParams {
 
 /// 创建质量标准请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateQualityStandardRequest {
     pub standard_code: String,
     pub standard_name: String,
@@ -33,7 +32,6 @@ pub struct CreateQualityStandardRequest {
 
 /// 更新质量标准请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct UpdateQualityStandardRequest {
     pub standard_name: Option<String>,
     pub standard_type: Option<String>,
@@ -44,7 +42,6 @@ pub struct UpdateQualityStandardRequest {
 
 /// 创建版本历史请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateVersionHistoryRequest {
     pub standard_id: i32,
     pub version: String,
@@ -198,7 +195,6 @@ impl QualityStandardService {
     }
 
     /// 创建版本历史（版本升级）
-    #[allow(dead_code)]
     pub async fn create_version_history(
         &self,
         req: CreateVersionHistoryRequest,
@@ -261,7 +257,6 @@ impl QualityStandardService {
     }
 
     /// 质量标准发布
-    #[allow(dead_code)]
     pub async fn publish_standard(&self, standard_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在发布质量标准：{}", user_id, standard_id);
 

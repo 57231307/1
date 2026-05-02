@@ -23,16 +23,12 @@ impl SupplierService {
 
     /// 生成供应商编码
     pub async fn generate_supplier_code(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("SUP{}", today);
-
-        // 查询今日已有数量
-        let count = supplier::Entity::find()
-            .filter(supplier::Column::SupplierCode.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "SUP",
+            supplier::Entity,
+            supplier::Column::SupplierCode,
+        ).await
     }
 
     /// 创建供应商（含联系人和资质）

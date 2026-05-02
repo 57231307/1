@@ -5,6 +5,7 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
 use crate::models::inventory_count_item::{self, Entity as InventoryCountItemEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
@@ -72,7 +73,6 @@ pub struct InventoryCountItemRequest {
 
 /// 更新库存盘点请求
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct UpdateInventoryCountRequest {
     pub status: Option<String>,
     pub notes: Option<String>,
@@ -226,6 +226,7 @@ impl InventoryCountService {
             .await?;
 
         if existing_count.is_some() {
+            tracing::error!("Transaction rolled back: 盘点单号 {} 已存在", count_no);
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom("盘点单号已存在，请重试".to_string()));
         }
@@ -509,27 +510,13 @@ impl InventoryCountService {
 
     /// 生成盘点单号
     async fn generate_count_no(&self) -> Result<String, sea_orm::DbErr> {
-        let now = chrono::Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-
-        // 获取当天最大盘点单号
-        let max_count = InventoryCountEntity::find()
-            .filter(inventory_count::Column::CountNo.like(format!("IC{}%", date_str)))
-            .order_by(inventory_count::Column::CountNo, Order::Desc)
-            .one(&*self.db)
-            .await?;
-
-        let seq = match max_count {
-            Some(count) => {
-                // 提取序号部分并加 1
-                let seq_str = count
-                    .count_no
-                    .trim_start_matches(&format!("IC{}", date_str));
-                seq_str.parse::<u32>().unwrap_or(0) + 1
-            }
-            None => 1,
-        };
-
-        Ok(format!("IC{}{:04}", date_str, seq))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "IC",
+            inventory_count::Entity,
+            inventory_count::Column::CountNo,
+        )
+        .await
+        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))
     }
 }

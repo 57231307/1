@@ -36,7 +36,6 @@ pub struct BudgetItemQueryParams {
 
 /// 创建预算科目请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateBudgetItemRequest {
     pub item_code: String,
     pub item_name: String,
@@ -49,7 +48,6 @@ pub struct CreateBudgetItemRequest {
 
 /// 更新预算科目请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct UpdateBudgetItemRequest {
     pub item_name: Option<String>,
     pub item_type: Option<String>,
@@ -60,7 +58,6 @@ pub struct UpdateBudgetItemRequest {
 
 /// 创建预算方案请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateBudgetPlanRequest {
     pub plan_no: String,
     pub plan_name: String,
@@ -74,7 +71,6 @@ pub struct CreateBudgetPlanRequest {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct BudgetPlanItemRequest {
     pub item_id: i32,
     pub planned_amount: Decimal,
@@ -82,7 +78,6 @@ pub struct BudgetPlanItemRequest {
 
 /// 预算执行请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
     pub actual_amount: Decimal,
@@ -287,7 +282,6 @@ impl BudgetManagementService {
     }
 
     /// 预算方案审批
-    #[allow(dead_code)]
     pub async fn approve_plan(
         &self,
         plan_id: i32,

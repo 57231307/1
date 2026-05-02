@@ -1,4 +1,3 @@
-#![allow(warnings)]
 mod config;
 mod grpc;
 mod handlers;
@@ -184,15 +183,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("gRPC 地址：{}:{}", settings.grpc.host, settings.grpc.port);
     info!("日志目录：{}", settings.log.dir);
 
-    let allowed_origins: Vec<HeaderValue> = settings
-        .cors
-        .allowed_origins
-        .iter()
-        .filter_map(|origin| HeaderValue::from_str(origin).ok())
-        .collect();
-
+    let allowed_origins = settings.cors.allowed_origins.clone();
     let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::list(allowed_origins))
+        .allow_origin(tower_http::cors::AllowOrigin::predicate(move |origin: &HeaderValue, _request_parts: &axum::http::request::Parts| {
+            // 动态验证 Origin 是否在白名单中
+            let origin_str = origin.to_str().unwrap_or("");
+            
+            // 拒绝通配符，仅允许精确匹配
+            allowed_origins.iter().any(|allowed| allowed == origin_str)
+        }))
         .allow_methods([
             Method::GET,
             Method::POST,
@@ -206,7 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::ACCEPT,
             axum::http::header::HeaderName::from_static("x-requested-with"),
         ])
-        .allow_credentials(false)
+        .allow_credentials(true) // 因为改成了 Cookie 鉴权，必须设置为 true
         .max_age(Duration::from_secs(86400)); // 24小时
 
     let db_result = Database::connect(&settings.database.connection_string).await;
@@ -215,10 +214,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
             
+            // 执行 SeaORM Migration 增加 TOTP 字段
+            use sea_orm::ConnectionTrait;
+            let sql = "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255); ALTER TABLE users ADD COLUMN IF NOT EXISTS is_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;";
+            if let Err(e) = db.execute_unprepared(sql).await {
+                warn!("执行 TOTP 字段 Migration 失败: {}", e);
+            } else {
+                info!("成功执行 TOTP 字段 Migration");
+            }
+            
             std::io::stdout().flush().ok();
             std::io::stderr().flush().ok();
 
-            let app_state = crate::utils::app_state::AppState::new(Arc::new(db), settings.auth.jwt_secret.clone());
+            let cookie_secret = settings.auth.cookie_secret.clone().unwrap_or_else(|| {
+                tracing::warn!("警告: 未配置 auth.cookie_secret，系统正在使用降级的 jwt_secret 作为替代（这存在安全风险）");
+                settings.auth.jwt_secret.clone()
+            });
+            
+            if cookie_secret.len() < 32 {
+                tracing::warn!("配置警告: 用于 Cookie 加密的密钥长度不足 32 字节。系统将自动进行补齐以启动服务，但请在生产环境中配置至少 32 字节的强密钥！");
+            }
+            let app_state = crate::utils::app_state::AppState::with_secrets(
+                Arc::new(db), 
+                settings.auth.jwt_secret.clone(), 
+                settings.auth.previous_jwt_secret.clone(),
+                cookie_secret
+            );
             let app_state_clone = app_state.clone();
             create_router(app_state)
                 .layer(
@@ -263,7 +284,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self';"),
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::STRICT_TRANSPORT_SECURITY,
@@ -317,7 +338,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"),
+                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"),
                 ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::STRICT_TRANSPORT_SECURITY,

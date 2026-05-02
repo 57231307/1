@@ -20,7 +20,6 @@ pub struct EvaluationIndicatorQueryParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateEvaluationIndicatorRequest {
     pub indicator_name: String,
     pub indicator_code: String,
@@ -31,7 +30,6 @@ pub struct CreateEvaluationIndicatorRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct SupplierEvaluationRequest {
     pub supplier_id: i32,
     pub evaluation_period: String,
@@ -90,7 +88,6 @@ impl SupplierEvaluationService {
         Ok((indicators, total))
     }
 
-    #[allow(dead_code)]
     pub async fn create_indicator(
         &self,
         req: CreateEvaluationIndicatorRequest,
@@ -114,7 +111,6 @@ impl SupplierEvaluationService {
         Ok(indicator)
     }
 
-    #[allow(dead_code)]
     pub async fn create_evaluation_record(
         &self,
         req: SupplierEvaluationRequest,
@@ -160,7 +156,6 @@ impl SupplierEvaluationService {
         Ok(record)
     }
 
-    #[allow(dead_code)]
     pub async fn get_supplier_score(
         &self,
         supplier_id: i32,
@@ -234,7 +229,6 @@ impl SupplierEvaluationService {
         })
     }
 
-    #[allow(dead_code)]
     pub async fn list_ratings(&self) -> Result<Vec<supplier_evaluation::Model>, AppError> {
         info!("查询供应商评级列表");
         let ratings = supplier_evaluation::Entity::find()
@@ -244,7 +238,6 @@ impl SupplierEvaluationService {
         Ok(ratings)
     }
 
-    #[allow(dead_code)]
     pub async fn get_supplier_rankings(
         &self,
         limit: i64,

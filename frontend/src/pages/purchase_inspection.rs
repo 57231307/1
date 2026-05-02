@@ -106,7 +106,7 @@ impl Component for PurchaseInspectionPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match PurchaseInspectionService::list(query).await {
+                    match PurchaseInspectionService::list_with_query(&query).await {
                         Ok(inspections) => link.send_message(Msg::InspectionsLoaded(inspections.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

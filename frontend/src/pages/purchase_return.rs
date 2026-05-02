@@ -93,7 +93,7 @@ impl Component for PurchaseReturnPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match PurchaseReturnService::list(query).await {
+                    match PurchaseReturnService::list_with_query(&query).await {
                         Ok(returns) => link.send_message(Msg::ReturnsLoaded(returns.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

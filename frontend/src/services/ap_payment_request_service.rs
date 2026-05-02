@@ -7,9 +7,22 @@ use crate::models::ap_payment_request::{
     UpdateApPaymentRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 付款申请服务
 pub struct ApPaymentRequestService;
+
+impl CrudService for ApPaymentRequestService {
+    type Model = ApPaymentRequest;
+    type ListResponse = ApPaymentRequestListResponse;
+    type CreateRequest = CreateApPaymentRequest;
+    type UpdateRequest = UpdateApPaymentRequest;
+
+    fn base_path() -> &'static str {
+        "/ap-payment-requests"
+    }
+}
+
 
 impl ApPaymentRequestService {
     /// 查询付款申请列表

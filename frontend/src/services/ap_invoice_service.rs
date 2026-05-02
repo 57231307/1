@@ -8,9 +8,22 @@ use crate::models::ap_invoice::{
     CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 应付发票服务
 pub struct ApInvoiceService;
+
+impl CrudService for ApInvoiceService {
+    type Model = ApInvoice;
+    type ListResponse = ApInvoiceListResponse;
+    type CreateRequest = CreateApInvoiceRequest;
+    type UpdateRequest = UpdateApInvoiceRequest;
+
+    fn base_path() -> &'static str {
+        "/ap/invoices"
+    }
+}
+
 
 impl ApInvoiceService {
     /// 查询应付发票列表

@@ -21,7 +21,6 @@ pub struct ContractQueryParams {
 
 /// 创建采购合同请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateContractRequest {
     pub contract_no: String,
     pub contract_name: String,
@@ -34,7 +33,6 @@ pub struct CreateContractRequest {
 
 /// 合同执行请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ExecuteContractRequest {
     pub execution_type: String,
     pub execution_amount: Decimal,

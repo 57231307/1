@@ -4,8 +4,21 @@
 
 use crate::models::purchase_order::*;
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct PurchaseOrderService;
+
+impl CrudService for PurchaseOrderService {
+    type Model = PurchaseOrder;
+    type ListResponse = Vec<PurchaseOrder>;
+    type CreateRequest = CreatePurchaseOrderRequest;
+    type UpdateRequest = UpdatePurchaseOrderRequest;
+
+    fn base_path() -> &'static str {
+        "/purchases/orders"
+    }
+}
+
 
 impl PurchaseOrderService {
     pub async fn list(query: PurchaseOrderQuery) -> Result<Vec<PurchaseOrder>, String> {
@@ -30,24 +43,6 @@ impl PurchaseOrderService {
         };
 
         ApiService::get(&format!("/purchases/orders{}", query_string)).await
-    }
-
-    pub async fn get(id: i32) -> Result<PurchaseOrder, String> {
-        ApiService::get(&format!("/purchases/orders/{}", id)).await
-    }
-
-    pub async fn create(req: CreatePurchaseOrderRequest) -> Result<PurchaseOrder, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::post("/purchases/orders", &body).await
-    }
-
-    pub async fn update(id: i32, req: UpdatePurchaseOrderRequest) -> Result<PurchaseOrder, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::put(&format!("/purchases/orders/{}", id), &body).await
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/purchases/orders/{}", id)).await
     }
 
     pub async fn submit(id: i32) -> Result<PurchaseOrder, String> {

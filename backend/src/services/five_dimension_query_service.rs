@@ -7,7 +7,6 @@ use sea_orm::{ColumnTrait, QueryFilter};
 /// 五维查询服务
 /// 提供统一的五维查询接口，支持精确查询、模糊查询和统计查询
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct FiveDimensionQueryService;
 
 impl Default for FiveDimensionQueryService {
@@ -16,7 +15,6 @@ impl Default for FiveDimensionQueryService {
     }
 }
 
-#[allow(dead_code)]
 impl FiveDimensionQueryService {
     /// 创建查询构建器
     pub fn new() -> Self {

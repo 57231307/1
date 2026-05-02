@@ -135,7 +135,6 @@ impl AuthService {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
 pub enum AuthError {
     #[error("用户名或密码错误")]
     InvalidCredentials,

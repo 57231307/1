@@ -48,7 +48,6 @@ impl<T> ApiResponse<T> {
     }
 
     /// 创建成功响应（无数据）
-    #[allow(dead_code)]
     pub fn success_no_data() -> Self {
         Self {
             code: 0,
@@ -85,7 +84,6 @@ impl<T> ApiResponse<T> {
     }
 
     /// 创建带错误码的响应
-    #[allow(dead_code)]
     pub fn error_with_code(code: i32, message: &str) -> Self {
         Self {
             code,
@@ -126,19 +124,16 @@ impl Default for PageRequest {
 
 impl PageRequest {
     /// 创建分页请求
-    #[allow(dead_code)]
     pub fn new(page: u64, page_size: u64) -> Self {
         Self { page, page_size }
     }
 
     /// 获取偏移量
-    #[allow(dead_code)]
     pub fn offset(&self) -> u64 {
         (self.page.saturating_sub(1)) * self.page_size
     }
 
     /// 获取每页数量（限制最大 100）
-    #[allow(dead_code)]
     pub fn limit(&self) -> u64 {
         self.page_size.min(100)
     }
@@ -161,7 +156,6 @@ pub struct PageResponse<T> {
 
 impl<T> PageResponse<T> {
     /// 创建分页响应
-    #[allow(dead_code)]
     pub fn new(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
         let total_pages = if total == 0 {
             0

@@ -107,7 +107,7 @@ impl Component for InventoryTransferPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match InventoryTransferService::list(query).await {
+                    match InventoryTransferService::list_with_query(&query).await {
                         Ok(transfers) => link.send_message(Msg::TransfersLoaded(transfers)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

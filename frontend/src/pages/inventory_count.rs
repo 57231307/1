@@ -99,7 +99,7 @@ impl Component for InventoryCountPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match InventoryCountService::list(query).await {
+                    match InventoryCountService::list_with_query(&query).await {
                         Ok(counts) => link.send_message(Msg::CountsLoaded(counts)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

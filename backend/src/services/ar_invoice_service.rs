@@ -12,6 +12,7 @@ use tracing::info;
 
 use crate::models::ar_invoice;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 
 /// 创建应收单请求
@@ -52,7 +53,7 @@ impl ArInvoiceService {
         );
 
         // 生成应收单编号
-        let invoice_no = self.generate_invoice_no(req.invoice_date)?;
+        let invoice_no = self.generate_invoice_no().await?;
 
         let active_model = ar_invoice::ActiveModel {
             invoice_no: sea_orm::Set(invoice_no),
@@ -113,7 +114,6 @@ impl ArInvoiceService {
     }
 
     /// 查询应收单详情
-    #[allow(dead_code)]
     pub async fn get_by_id(&self, id: i32) -> Result<ar_invoice::Model, AppError> {
         info!("查询应收单详情 ID: {}", id);
 
@@ -126,13 +126,13 @@ impl ArInvoiceService {
     }
 
     /// 生成应收单编号
-    fn generate_invoice_no(&self, invoice_date: chrono::NaiveDate) -> Result<String, AppError> {
-        let year_month = format!("{:04}{:02}", invoice_date.year(), invoice_date.month());
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .as_millis();
-
-        Ok(format!("AR{}{:04}", year_month, timestamp % 10000))
+    async fn generate_invoice_no(&self) -> Result<String, AppError> {
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "AR",
+            ar_invoice::Entity,
+            ar_invoice::Column::InvoiceNo,
+        )
+        .await
     }
 }

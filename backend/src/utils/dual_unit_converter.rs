@@ -10,7 +10,6 @@ pub struct DualUnitConverter;
 
 /// 换算结果
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ConversionResult {
     pub original_quantity: Decimal,
     pub original_unit: String,
@@ -104,7 +103,6 @@ impl DualUnitConverter {
     /// # Returns
     /// * `Ok(ConversionResult)` - 换算结果
     /// * `Err(String)` - 错误信息
-    #[allow(dead_code)]
     pub fn auto_convert(
         quantity: Decimal,
         unit: &str,
@@ -207,7 +205,6 @@ impl DualUnitConverter {
 }
 
 /// 辅助函数：将幅宽从 cm 转换为 m 并格式化为字符串
-#[allow(dead_code)]
 fn width_m_str(width_cm: &Decimal) -> String {
     let width_m = width_cm / Decimal::from(100);
     width_m.to_string()

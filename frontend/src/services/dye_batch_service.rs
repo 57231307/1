@@ -6,8 +6,21 @@ use crate::models::dye_batch::{
     UpdateDyeBatchRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct DyeBatchService;
+
+impl CrudService for DyeBatchService {
+    type Model = DyeBatch;
+    type ListResponse = DyeBatchListResponse;
+    type CreateRequest = CreateDyeBatchRequest;
+    type UpdateRequest = UpdateDyeBatchRequest;
+
+    fn base_path() -> &'static str {
+        "/dye-batch"
+    }
+}
+
 
 impl DyeBatchService {
     pub async fn list(query: DyeBatchQuery) -> Result<DyeBatchListResponse, String> {
@@ -38,25 +51,6 @@ impl DyeBatchService {
         };
         let response: ApiResponse<DyeBatchListResponse> = ApiService::get(&url).await?;
         response.into_result()
-    }
-
-    pub async fn get(id: i32) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::get(&format!("/dye-batch/{}", id)).await?;
-        response.into_result()
-    }
-
-    pub async fn create(req: CreateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::post("/dye-batch", &req).await?;
-        response.into_result()
-    }
-
-    pub async fn update(id: i32, req: UpdateDyeBatchRequest) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::put(&format!("/dye-batch/{}", id), &req).await?;
-        response.into_result()
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/dye-batch/{}", id)).await
     }
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {

@@ -1,3 +1,4 @@
+use crate::middleware::public_routes::is_public_path;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::role_permission;
 use crate::utils::app_state::AppState;
@@ -20,22 +21,7 @@ pub async fn permission_middleware(
     let uri = request.uri();
     let path = uri.path();
 
-    let public_paths = [
-        "/health",
-        "/ready",
-        "/live",
-        "/init",
-        "/api/v1/erp/health",
-        "/api/v1/erp/ready",
-        "/api/v1/erp/live",
-        "/api/v1/erp/init",
-        "/api/v1/erp/auth/login",
-        "/api/v1/erp/auth/refresh",
-        "/api/v1/erp/auth/logout",
-        "/api/v1/erp/dashboard",
-    ];
-
-    if public_paths.iter().any(|p| path.starts_with(p)) {
+    if is_public_path(path) {
         return Ok(next.run(request).await);
     }
 

@@ -7,9 +7,22 @@ use crate::models::finance_payment::{
     UpdatePaymentRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 财务付款服务
 pub struct FinancePaymentService;
+
+impl CrudService for FinancePaymentService {
+    type Model = FinancePayment;
+    type ListResponse = PaymentListResponse;
+    type CreateRequest = CreatePaymentRequest;
+    type UpdateRequest = UpdatePaymentRequest;
+
+    fn base_path() -> &'static str {
+        "/finance-payments"
+    }
+}
+
 
 impl FinancePaymentService {
     /// 查询财务付款列表

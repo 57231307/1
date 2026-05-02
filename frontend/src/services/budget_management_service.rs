@@ -4,9 +4,22 @@ use crate::models::budget_management::{
     CreateBudgetPlanRequest, UpdateBudgetItemRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 预算管理服务
 pub struct BudgetManagementService;
+
+impl CrudService for BudgetManagementService {
+    type Model = BudgetItem;
+    type ListResponse = BudgetItemListResponse;
+    type CreateRequest = CreateBudgetItemRequest;
+    type UpdateRequest = UpdateBudgetItemRequest;
+
+    fn base_path() -> &'static str {
+        "/budgets/items"
+    }
+}
+
 
 impl BudgetManagementService {
     /// 获取预算科目列表

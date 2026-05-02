@@ -35,7 +35,6 @@ pub struct CreateWarehouseRequest {
     pub manager: Option<String>,
     pub phone: Option<String>,
     pub capacity: Option<i32>,
-    #[allow(dead_code)]
     pub description: Option<String>,
 }
 
@@ -65,7 +64,6 @@ pub struct LocationListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub warehouse_id: Option<i32>,
-    #[allow(dead_code)]
     pub search: Option<String>,
 }
 
@@ -84,15 +82,10 @@ pub struct CreateLocationRequest {
 /// 更新库位请求
 #[derive(Debug, Deserialize)]
 pub struct UpdateLocationRequest {
-    #[allow(dead_code)]
     pub location_name: Option<String>,
-    #[allow(dead_code)]
     pub location_type: Option<String>,
-    #[allow(dead_code)]
     pub zone: Option<String>,
-    #[allow(dead_code)]
     pub capacity: Option<f64>,
-    #[allow(dead_code)]
     pub status: Option<String>,
 }
 

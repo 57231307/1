@@ -86,7 +86,7 @@ impl Component for ArInvoicePage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ArInvoiceService::list_invoices(params).await {
+                    match ArInvoiceService::list_with_query(&params).await {
                         Ok(response) => link.send_message(Msg::InvoicesLoaded(response.data, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -117,7 +117,7 @@ impl Component for ArInvoicePage {
             Msg::DeleteInvoice(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ArInvoiceService::delete_invoice(id).await {
+                    match ArInvoiceService::delete(id).await {
                         Ok(_) => link.send_message(Msg::LoadInvoices),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

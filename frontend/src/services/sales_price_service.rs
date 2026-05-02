@@ -6,8 +6,21 @@ use crate::models::sales_price::{
     ApprovePriceRequest, CreateSalesPriceRequest, SalesPrice, UpdateSalesPriceRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct SalesPriceService;
+
+impl CrudService for SalesPriceService {
+    type Model = SalesPrice;
+    type ListResponse = Vec<SalesPrice>;
+    type CreateRequest = CreateSalesPriceRequest;
+    type UpdateRequest = UpdateSalesPriceRequest;
+
+    fn base_path() -> &'static str {
+        "/sales/prices"
+    }
+}
+
 
 impl SalesPriceService {
     /// 查询销售价格列表
@@ -51,30 +64,12 @@ impl SalesPriceService {
     }
 
     /// 获取销售价格详情
-    pub async fn get(id: i32) -> Result<SalesPrice, String> {
-        let response: ApiResponse<SalesPrice> =
-            ApiService::get(&format!("/sales/prices/{}", id)).await?;
-        response.into_result()
-    }
 
     /// 创建销售价格
-    pub async fn create(req: CreateSalesPriceRequest) -> Result<SalesPrice, String> {
-        let response: ApiResponse<SalesPrice> =
-            ApiService::post("/sales/prices", &req).await?;
-        response.into_result()
-    }
 
     /// 更新销售价格
-    pub async fn update(id: i32, req: UpdateSalesPriceRequest) -> Result<SalesPrice, String> {
-        let response: ApiResponse<SalesPrice> =
-            ApiService::put(&format!("/sales/prices/{}", id), &req).await?;
-        response.into_result()
-    }
 
     /// 删除销售价格
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/sales/prices/{}", id)).await
-    }
 
     /// 审批销售价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<SalesPrice, String> {

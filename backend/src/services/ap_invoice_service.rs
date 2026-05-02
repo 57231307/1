@@ -4,6 +4,7 @@
 //! 包含应付单自动生成、手工创建、审核、核销等全流程管理
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -29,16 +30,13 @@ impl ApInvoiceService {
     /// 生成应付单号
     /// 格式：AP + 年月日 + 三位序号（AP20260315001）
     pub async fn generate_invoice_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("AP{}", today);
-
-        // 查询今日应付单数量
-        let count = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::InvoiceNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "API",
+            ap_invoice::Entity,
+            ap_invoice::Column::InvoiceNo,
+        )
+        .await
     }
 
     /// 从采购入库单自动生成应付单
@@ -114,7 +112,6 @@ impl ApInvoiceService {
     }
 
     /// 从采购退货单自动生成应付单（红字）
-    #[allow(dead_code)]
     pub async fn auto_generate_from_return(
         &self,
         return_id: i32,

@@ -310,6 +310,5 @@ pub async fn get_assist_summary(
 #[derive(Debug, Deserialize)]
 pub struct AssistSummaryQueryParams {
     pub accounting_period: String,
-    #[allow(dead_code)]
     pub dimension_code: Option<String>,
 }

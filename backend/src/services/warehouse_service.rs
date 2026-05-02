@@ -138,7 +138,6 @@ impl WarehouseService {
     }
 
     /// 根据仓库编码查询仓库
-    #[allow(dead_code)]
     pub async fn find_by_code(&self, code: &str) -> Result<warehouse::Model, sea_orm::DbErr> {
         warehouse::Entity::find()
             .filter(warehouse::Column::WarehouseCode.eq(code))

@@ -3,8 +3,21 @@
 
 use crate::models::fabric_order::*;
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct FabricOrderService;
+
+impl CrudService for FabricOrderService {
+    type Model = FabricOrder;
+    type ListResponse = Vec<FabricOrder>;
+    type CreateRequest = CreateFabricOrderRequest;
+    type UpdateRequest = UpdateFabricOrderRequest;
+
+    fn base_path() -> &'static str {
+        "/sales/fabric-orders"
+    }
+}
+
 
 impl FabricOrderService {
     pub async fn list(query: FabricOrderQuery) -> Result<Vec<FabricOrder>, String> {
@@ -38,24 +51,6 @@ impl FabricOrderService {
         };
 
         ApiService::get(&format!("/sales/fabric-orders{}", query_string)).await
-    }
-
-    pub async fn get(id: i32) -> Result<FabricOrder, String> {
-        ApiService::get(&format!("/sales/fabric-orders/{}", id)).await
-    }
-
-    pub async fn create(req: CreateFabricOrderRequest) -> Result<FabricOrder, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::post("/sales/fabric-orders", &body).await
-    }
-
-    pub async fn update(id: i32, req: UpdateFabricOrderRequest) -> Result<FabricOrder, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::put(&format!("/sales/fabric-orders/{}", id), &body).await
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/sales/fabric-orders/{}", id)).await
     }
 
     pub async fn approve(id: i32) -> Result<FabricOrder, String> {

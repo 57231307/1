@@ -1,9 +1,22 @@
 use crate::models::api_response::ApiResponse;
 use crate::models::sales::{CreateSalesOrderRequest, SalesOrder, SalesOrderListResponse, UpdateSalesOrderRequest};
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 销售服务
 pub struct SalesService;
+
+impl CrudService for SalesService {
+    type Model = SalesOrder;
+    type ListResponse = SalesOrderListResponse;
+    type CreateRequest = CreateSalesOrderRequest;
+    type UpdateRequest = UpdateSalesOrderRequest;
+
+    fn base_path() -> &'static str {
+        "/sales/orders"
+    }
+}
+
 
 impl SalesService {
     pub async fn submit_order(id: i32) -> Result<SalesOrder, String> {

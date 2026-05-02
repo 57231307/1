@@ -4,12 +4,18 @@ use utoipa::OpenApi;
 #[openapi(
     paths(
         crate::handlers::health_handler::health_check,
+        crate::handlers::auth_handler::login,
     ),
     components(
         schemas(
             crate::handlers::health_handler::HealthStatus,
             crate::handlers::health_handler::HealthChecks,
             crate::handlers::health_handler::HealthCheckItem,
+            crate::handlers::auth_handler::LoginRequest,
+            crate::handlers::auth_handler::LoginResponse,
+            crate::handlers::auth_handler::UserInfo,
+            crate::utils::response::ApiResponse<()>,
+            crate::utils::response::LoginApiResponse,
         )
     ),
     tags(

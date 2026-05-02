@@ -4,6 +4,7 @@
 //! 包含自动核销、手工核销、取消核销等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_verification, ap_verification_item};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -29,16 +30,13 @@ impl ApVerificationService {
     /// 生成核销单号
     /// 格式：VER + 年月日 + 三位序号（VER20260315001）
     pub async fn generate_verification_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("VER{}", today);
-
-        // 查询今日核销单数量
-        let count = ap_verification::Entity::find()
-            .filter(ap_verification::Column::VerificationNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "VER",
+            ap_verification::Entity,
+            ap_verification::Column::VerificationNo,
+        )
+        .await
     }
 
     /// 自动核销（按到期日优先匹配）

@@ -4,6 +4,7 @@
 //! 包含生成对账单、确认对账、争议处理等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -29,16 +30,13 @@ impl ApReconciliationService {
     /// 生成对账单号
     /// 格式：REC + 年月日 + 三位序号（REC20260315001）
     pub async fn generate_reconciliation_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("REC{}", today);
-
-        // 查询今日对账单数量
-        let count = ap_reconciliation::Entity::find()
-            .filter(ap_reconciliation::Column::ReconciliationNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "REC",
+            ap_reconciliation::Entity,
+            ap_reconciliation::Column::ReconciliationNo,
+        )
+        .await
     }
 
     /// 生成供应商对账单

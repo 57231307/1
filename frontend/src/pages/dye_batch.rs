@@ -77,7 +77,7 @@ impl Component for DyeBatchPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match DyeBatchService::list(query).await {
+                    match DyeBatchService::list_with_query(&query).await {
                         Ok(batches) => link.send_message(Msg::BatchesLoaded(batches.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

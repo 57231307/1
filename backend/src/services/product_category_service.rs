@@ -165,7 +165,6 @@ impl ProductCategoryService {
     }
 
     /// 根据名称查询产品类别
-    #[allow(dead_code)]
     pub async fn find_by_name(
         &self,
         name: &str,

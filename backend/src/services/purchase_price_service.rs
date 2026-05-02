@@ -21,7 +21,6 @@ pub struct PurchasePriceQueryParams {
 
 /// 创建采购价格请求
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct CreatePurchasePriceInput {
     pub product_id: i32,
     pub supplier_id: i32,
@@ -73,7 +72,6 @@ impl PurchasePriceService {
     }
 
     /// 创建采购价格
-    #[allow(dead_code)]
     pub async fn create_price(
         &self,
         req: CreatePurchasePriceInput,
@@ -106,7 +104,6 @@ impl PurchasePriceService {
     }
 
     /// 获取采购价格
-    #[allow(dead_code)]
     pub async fn get_price(&self, id: i32) -> Result<purchase_price::Model, AppError> {
         info!("查询采购价格，ID: {}", id);
 
@@ -119,7 +116,6 @@ impl PurchasePriceService {
     }
 
     /// 批准采购价格
-    #[allow(dead_code)]
     pub async fn approve_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在批准采购价格，ID: {}", user_id, id);
 
@@ -138,7 +134,6 @@ impl PurchasePriceService {
     }
 
     /// 获取价格历史
-    #[allow(dead_code)]
     pub async fn get_price_history(
         &self,
         material_id: i32,
@@ -154,7 +149,6 @@ impl PurchasePriceService {
         Ok(history)
     }
 
-    #[allow(dead_code)]
     pub async fn update_price(
         &self,
         id: i32,
@@ -186,7 +180,6 @@ impl PurchasePriceService {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn delete_price(&self, id: i32) -> Result<(), AppError> {
         info!("删除采购价格，ID: {}", id);
 

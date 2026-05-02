@@ -115,7 +115,7 @@ impl Component for ApInvoicePage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ApInvoiceService::list_invoices(params).await {
+                    match ApInvoiceService::list_with_query(&params).await {
                         Ok(response) => link.send_message(Msg::InvoicesLoaded(response.data, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -152,7 +152,7 @@ impl Component for ApInvoicePage {
             Msg::DeleteInvoice(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match ApInvoiceService::delete_invoice(id).await {
+                    match ApInvoiceService::delete(id).await {
                         Ok(_) => link.send_message(Msg::LoadInvoices),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

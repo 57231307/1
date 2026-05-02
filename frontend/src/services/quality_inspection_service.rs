@@ -3,8 +3,21 @@ use crate::models::quality_inspection::{
     HandleDefectRequest, InspectionRecord, InspectionStandard, QualityDefect, QualityStatistics,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct QualityInspectionService;
+
+impl CrudService for QualityInspectionService {
+    type Model = InspectionStandard;
+    type ListResponse = Vec<InspectionStandard>;
+    type CreateRequest = CreateInspectionStandardRequest;
+    type UpdateRequest = CreateInspectionStandardRequest;
+
+    fn base_path() -> &'static str {
+        "/quality-standards"
+    }
+}
+
 
 impl QualityInspectionService {
     pub async fn list_standards(

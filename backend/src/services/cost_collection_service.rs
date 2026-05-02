@@ -12,6 +12,7 @@ use tracing::info;
 
 use crate::models::cost_collection;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 
 /// 创建成本归集请求
@@ -55,7 +56,7 @@ impl CostCollectionService {
         );
 
         // 生成成本归集单编号
-        let collection_no = self.generate_collection_no(req.collection_date)?;
+        let collection_no = self.generate_collection_no().await?;
 
         // 计算总成本
         let total_cost = req.direct_material
@@ -143,7 +144,6 @@ impl CostCollectionService {
     }
 
     /// 查询成本归集详情
-    #[allow(dead_code)]
     pub async fn get_by_id(&self, id: i32) -> Result<cost_collection::Model, AppError> {
         info!("查询成本归集详情 ID: {}", id);
 
@@ -156,20 +156,13 @@ impl CostCollectionService {
     }
 
     /// 生成成本归集单编号
-    fn generate_collection_no(
-        &self,
-        collection_date: chrono::NaiveDate,
-    ) -> Result<String, AppError> {
-        let year_month = format!(
-            "{:04}{:02}",
-            collection_date.year(),
-            collection_date.month()
-        );
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .as_millis();
-
-        Ok(format!("COST{}{:04}", year_month, timestamp % 10000))
+    async fn generate_collection_no(&self) -> Result<String, AppError> {
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "COST",
+            cost_collection::Entity,
+            cost_collection::Column::CollectionNo,
+        )
+        .await
     }
 }

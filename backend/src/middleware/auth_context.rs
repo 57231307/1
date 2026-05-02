@@ -95,7 +95,6 @@ pub struct OptionalAuthContext {
 }
 
 impl OptionalAuthContext {
-    #[allow(dead_code)]
     pub fn from_claims(claims: AppClaims) -> Self {
         Self {
             user_id: Some(claims.sub),
@@ -105,7 +104,6 @@ impl OptionalAuthContext {
     }
 
     /// 创建空的 OptionalAuthContext
-    #[allow(dead_code)]
     pub fn empty() -> Self {
         Self {
             user_id: None,
@@ -116,9 +114,7 @@ impl OptionalAuthContext {
 }
 
 /// 认证上下文提取器类型别名（使用 Extension）
-#[allow(dead_code)]
 pub type Auth = axum::extract::Extension<AuthContext>;
 
 /// 可选认证上下文提取器类型别名（使用 Extension）
-#[allow(dead_code)]
 pub type OptionalAuth = axum::extract::Extension<OptionalAuthContext>;

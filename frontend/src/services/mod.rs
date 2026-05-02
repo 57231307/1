@@ -2,6 +2,7 @@
 pub mod api;
 pub mod crm_service;
 pub mod auth;
+pub mod crud_service;
 pub mod init_service;
 pub mod dashboard_service;
 pub mod department_service;

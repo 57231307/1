@@ -49,7 +49,6 @@ pub struct UpdateQualityStandardRequest {
 /// 创建版本历史请求 DTO
 #[derive(Debug, Deserialize)]
 
-#[allow(dead_code)]
 pub struct CreateVersionHistoryRequest {
     pub standard_id: i32,
     pub version: String,
@@ -239,7 +238,6 @@ pub async fn publish_standard(
 }
 
 /// 创建版本历史（版本升级）
-#[allow(dead_code)]
 pub async fn create_version_history(
     State(state): State<AppState>,
     auth: AuthContext,

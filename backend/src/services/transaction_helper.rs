@@ -17,6 +17,7 @@ where
             Ok(result)
         }
         Err(e) => {
+            tracing::error!("Transaction rolled back due to error: {}", e);
             txn.rollback().await.ok();
             Err(e)
         }

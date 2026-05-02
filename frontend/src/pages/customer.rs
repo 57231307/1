@@ -84,7 +84,7 @@ impl Component for CustomerPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerService::list(query).await {
+                    match CustomerService::list_with_query(&query).await {
                         Ok(customers) => link.send_message(Msg::CustomersLoaded(customers)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

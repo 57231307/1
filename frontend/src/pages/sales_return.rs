@@ -85,7 +85,7 @@ impl Component for SalesReturnPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SalesReturnService::list(query).await {
+                    match SalesReturnService::list_with_query(&query).await {
                         Ok(returns) => link.send_message(Msg::ReturnsLoaded(returns.data)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

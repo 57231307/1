@@ -4,9 +4,22 @@
 
 use crate::models::account_subject::{AccountSubject, AccountSubjectListResponse, CreateSubjectRequest, SubjectQueryParams, SubjectTreeNode, UpdateSubjectRequest};
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 会计科目服务
 pub struct AccountSubjectService;
+
+impl CrudService for AccountSubjectService {
+    type Model = AccountSubject;
+    type ListResponse = Vec<AccountSubject>;
+    type CreateRequest = CreateSubjectRequest;
+    type UpdateRequest = UpdateSubjectRequest;
+
+    fn base_path() -> &'static str {
+        "/account-subjects"
+    }
+}
+
 
 impl AccountSubjectService {
     /// 查询科目列表

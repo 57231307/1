@@ -3,8 +3,21 @@ use crate::models::supplier_evaluation::{
     UpdateEvaluationRequest, UpdateIndicatorRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct SupplierEvaluationService;
+
+impl CrudService for SupplierEvaluationService {
+    type Model = SupplierEvaluation;
+    type ListResponse = Vec<SupplierEvaluation>;
+    type CreateRequest = CreateEvaluationRequest;
+    type UpdateRequest = UpdateEvaluationRequest;
+
+    fn base_path() -> &'static str {
+        "/supplier-evaluation/evaluations"
+    }
+}
+
 
 impl SupplierEvaluationService {
     pub async fn list_evaluations(

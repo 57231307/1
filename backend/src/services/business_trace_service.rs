@@ -20,7 +20,6 @@ impl BusinessTraceService {
     }
 
     /// 创建追溯链起点（采购收货）
-    #[allow(dead_code)]
     pub async fn create_trace_start(
         &self,
         five_dimension: &FabricFiveDimension,
@@ -67,7 +66,6 @@ impl BusinessTraceService {
     }
 
     /// 添加追溯环节
-    #[allow(dead_code)]
     pub async fn add_trace_stage(
         &self,
         previous_trace_id: i32,
@@ -270,7 +268,6 @@ impl BusinessTraceService {
     }
 
     /// 生成追溯链 ID
-    #[allow(dead_code)]
     fn generate_trace_chain_id(
         &self,
         five_dimension: &FabricFiveDimension,

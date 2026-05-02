@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 /// 库存汇总项（用于返回汇总数据）
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct InventorySummaryItem {
     pub product_id: i32,
     pub product_name: String,
@@ -46,7 +45,6 @@ impl InventoryStockService {
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
-    #[allow(dead_code)]
     pub async fn find_by_product_and_warehouse(
         &self,
         product_id: i32,
@@ -110,7 +108,6 @@ impl InventoryStockService {
         active_stock.insert(&*self.db).await
     }
 
-    #[allow(dead_code)]
     pub async fn update_stock_quantity(
         &self,
         id: i32,
@@ -187,7 +184,6 @@ impl InventoryStockService {
         query.all(&*self.db).await
     }
 
-    #[allow(dead_code)]
     pub async fn delete_stock(&self, id: i32) -> Result<(), sea_orm::DbErr> {
         inventory_stock::Entity::delete_many()
             .filter(inventory_stock::Column::Id.eq(id))
@@ -217,7 +213,6 @@ impl InventoryStockService {
     }
 
     /// 查询库存（支持批次、色号、等级过滤）
-    #[allow(dead_code)]
     pub async fn list_stock_fabric(
         &self,
         page: u64,
@@ -344,7 +339,6 @@ impl InventoryStockService {
 
     /// 记录库存流水（面料行业）
     #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)]
     pub async fn record_transaction(
         &self,
         transaction_type: String,

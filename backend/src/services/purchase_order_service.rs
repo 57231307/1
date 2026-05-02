@@ -4,9 +4,10 @@
 //! 包含订单创建、审批、执行、退货等全流程管理
 
 use crate::models::{
-    department, inventory_stock, product, purchase_order, purchase_order_item, supplier, warehouse,
+    department, inventory_stock, product, purchase_order, purchase_order_item, purchase_receipt, supplier, warehouse,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -84,32 +85,25 @@ impl PurchaseOrderService {
     /// 生成采购订单号
     /// 格式：PO + 年月日 + 三位序号（PO20260315001）
     pub async fn generate_order_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("PO{}", today);
-
-        // 查询今日订单数量
-        let count = purchase_order::Entity::find()
-            .filter(purchase_order::Column::OrderNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PO",
+            purchase_order::Entity,
+            purchase_order::Column::OrderNo,
+        )
+        .await
     }
 
     /// 生成入库单号
-    /// 格式：GR + 年月日 + 三位序号（GR20260315001）
-    #[allow(dead_code)]
+    /// 格式：PR + 年月日 + 三位序号（PR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("GR{}", today);
-
-        // 查询今日入库单数量
-        let count = purchase_order::Entity::find()
-            .filter(purchase_order::Column::OrderNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PR",
+            purchase_receipt::Entity,
+            purchase_receipt::Column::ReceiptNo,
+        )
+        .await
     }
 
     /// 创建采购订单（含明细）
@@ -123,6 +117,7 @@ impl PurchaseOrderService {
         // 业务验证：检查供应商是否存在
         let supplier_exists = supplier::Entity::find_by_id(req.supplier_id).one(&txn).await?;
         if supplier_exists.is_none() {
+            tracing::error!("Transaction rolled back: 供应商 ID {} 不存在", req.supplier_id);
             txn.rollback().await.ok();
             return Err(AppError::BadRequest(format!("供应商 ID {} 不存在", req.supplier_id)));
         }
@@ -130,6 +125,7 @@ impl PurchaseOrderService {
         // 业务验证：日期合理性检查
         if let Some(expected_date) = req.expected_delivery_date {
             if expected_date < req.order_date {
+                tracing::error!("Transaction rolled back: 预计交货日期不能早于订单日期");
                 txn.rollback().await.ok();
                 return Err(AppError::BadRequest("预计交货日期不能早于订单日期".to_string()));
             }
@@ -887,7 +883,6 @@ pub struct CreateOrderItemRequest {
 
 /// 更新订单明细请求
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
 pub struct UpdateOrderItemRequest {
     pub line_no: Option<i32>,
     pub material_id: Option<i32>,

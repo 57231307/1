@@ -5,12 +5,10 @@ use std::sync::Arc;
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 
 /// 库存预留服务
-#[allow(dead_code)]
 pub struct InventoryReservationService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)]
 impl InventoryReservationService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

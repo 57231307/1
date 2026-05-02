@@ -21,7 +21,6 @@ pub struct AssetQueryParams {
 
 /// 创建资产请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateAssetRequest {
     pub asset_no: String,
     pub asset_name: String,

@@ -17,6 +17,7 @@ database:
 
 auth:
   jwt_secret: "local-dev-secret-key-change-in-production"
+  cookie_secret: "local-dev-cookie-secret-key-must-be-at-least-32-bytes-long"
   token_expiry_hours: 24
 
 grpc:

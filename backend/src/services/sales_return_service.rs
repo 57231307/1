@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use super::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use super::inventory_stock_service::InventoryStockService;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 /// 创建销售退货请求
 #[derive(Deserialize)]
@@ -89,15 +90,13 @@ impl SalesReturnService {
     /// 生成退货单号
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
     pub async fn generate_return_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("SR{}", today);
-
-        let count: u64 = sales_return::Entity::find()
-            .filter(sales_return::Column::ReturnNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "SR",
+            sales_return::Entity,
+            sales_return::Column::ReturnNo,
+        )
+        .await
     }
 
     /// 创建销售退货单

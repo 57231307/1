@@ -3,8 +3,21 @@
 
 use crate::models::batch::*;
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct BatchService;
+
+impl CrudService for BatchService {
+    type Model = Batch;
+    type ListResponse = Vec<Batch>;
+    type CreateRequest = CreateBatchRequest;
+    type UpdateRequest = UpdateBatchRequest;
+
+    fn base_path() -> &'static str {
+        "/batches"
+    }
+}
+
 
 impl BatchService {
     pub async fn list(query: BatchQuery) -> Result<Vec<Batch>, String> {
@@ -44,24 +57,6 @@ impl BatchService {
         };
 
         ApiService::get(&format!("/batches{}", query_string)).await
-    }
-
-    pub async fn get(id: i32) -> Result<Batch, String> {
-        ApiService::get(&format!("/batches/{}", id)).await
-    }
-
-    pub async fn create(req: CreateBatchRequest) -> Result<Batch, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::post("/batches", &body).await
-    }
-
-    pub async fn update(id: i32, req: UpdateBatchRequest) -> Result<Batch, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::put(&format!("/batches/{}", id), &body).await
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/batches/{}", id)).await
     }
 
     pub async fn transfer(id: i32, req: TransferBatchRequest) -> Result<Batch, String> {

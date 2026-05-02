@@ -84,7 +84,7 @@ impl Component for FinancePaymentPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match FinancePaymentService::list_payments(params).await {
+                    match FinancePaymentService::list_with_query(&params).await {
                         Ok(response) => link.send_message(Msg::PaymentsLoaded(response.payments, response.total)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -121,7 +121,7 @@ impl Component for FinancePaymentPage {
             Msg::DeletePayment(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match FinancePaymentService::delete_payment(id).await {
+                    match FinancePaymentService::delete(id).await {
                         Ok(_) => link.send_message(Msg::LoadPayments),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

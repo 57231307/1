@@ -20,19 +20,12 @@ use crate::utils::response::{ApiResponse, PaginatedResponse};
 pub struct BatchListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    #[allow(dead_code)]
     pub product_id: Option<i32>,
-    #[allow(dead_code)]
     pub batch_no: Option<String>,
-    #[allow(dead_code)]
     pub color_no: Option<String>,
-    #[allow(dead_code)]
     pub grade: Option<String>,
-    #[allow(dead_code)]
     pub warehouse_id: Option<i32>,
-    #[allow(dead_code)]
     pub start_date: Option<DateTime<Utc>>,
-    #[allow(dead_code)]
     pub end_date: Option<DateTime<Utc>>,
 }
 
@@ -43,7 +36,6 @@ pub struct CreateBatchRequest {
     pub product_id: i32,
     pub warehouse_id: i32,
     pub color_no: String,
-    #[allow(dead_code)]
     pub color_name: Option<String>,
     pub dye_lot_no: Option<String>,
     pub grade: String,
@@ -53,11 +45,8 @@ pub struct CreateBatchRequest {
     pub width: Option<f64>,
     pub production_date: Option<DateTime<Utc>>,
     pub expiry_date: Option<DateTime<Utc>>,
-    #[allow(dead_code)]
     pub supplier_id: Option<i32>,
-    #[allow(dead_code)]
     pub purchase_order_no: Option<String>,
-    #[allow(dead_code)]
     pub remarks: Option<String>,
 }
 
@@ -78,12 +67,10 @@ pub struct UpdateBatchRequest {
 /// 批次转移请求
 #[derive(Debug, Deserialize)]
 pub struct TransferBatchRequest {
-    #[allow(dead_code)]
     pub from_warehouse_id: i32,
     pub to_warehouse_id: i32,
     pub quantity_meters: f64,
     pub quantity_kg: f64,
-    #[allow(dead_code)]
     pub remarks: Option<String>,
 }
 

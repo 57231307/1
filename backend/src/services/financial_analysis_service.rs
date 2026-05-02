@@ -21,7 +21,6 @@ pub struct IndicatorQueryParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateIndicatorRequest {
     pub indicator_name: String,
     pub indicator_code: String,
@@ -32,7 +31,6 @@ pub struct CreateIndicatorRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct FinancialAnalysisRequest {
     pub analysis_type: String,
     pub period: String,
@@ -76,7 +74,6 @@ impl FinancialAnalysisService {
         Ok((indicators, total))
     }
 
-    #[allow(dead_code)]
     pub async fn create_indicator(
         &self,
         req: CreateIndicatorRequest,
@@ -100,7 +97,6 @@ impl FinancialAnalysisService {
         Ok(indicator)
     }
 
-    #[allow(dead_code)]
     pub async fn create_analysis_result(
         &self,
         req: FinancialAnalysisRequest,
@@ -155,7 +151,6 @@ impl FinancialAnalysisService {
         Ok(result)
     }
 
-    #[allow(dead_code)]
     pub async fn get_trends(
         &self,
         indicator_id: i32,

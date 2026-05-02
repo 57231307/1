@@ -5,7 +5,12 @@ use axum::{
 };
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+use utoipa::ToSchema;
+
+#[derive(Debug, Serialize, ToSchema)]
+#[aliases(
+    LoginApiResponse = ApiResponse<crate::handlers::auth_handler::LoginResponse>
+)]
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
@@ -60,7 +65,6 @@ impl<T: Clone> PaginatedResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn from_data(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
         Self {
             data: data.clone(),
@@ -109,7 +113,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     /// 创建分页成功响应
     pub fn success_paginated(
         data: Vec<T>,
@@ -126,7 +129,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn success_opt(data: T, message: Option<String>) -> Self {
         Self {
             success: true,
@@ -137,7 +139,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn ok(data: T) -> Self {
         Self {
             success: true,
@@ -158,7 +159,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn success_with_msg(data: T, message: &str) -> Self {
         Self {
             success: true,
@@ -169,7 +169,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn success_with_data(data: T) -> Self {
         Self {
             success: true,
@@ -190,7 +189,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn error_msg(message: &str) -> Self {
         Self {
             success: false,
@@ -201,7 +199,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn error_with_status(status: StatusCode, message: impl Into<String>) -> Self {
         Self {
             success: false,
@@ -212,7 +209,6 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    #[allow(dead_code)]
     /// 创建错误响应（泛型版本，用于与成功响应配对）
     pub fn error_response(message: impl Into<String>) -> Self {
         Self {

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub totp_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,4 +20,10 @@ pub struct UserInfo {
     pub username: String,
     pub email: Option<String>,
     pub role_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TotpSetupResponse {
+    pub secret: String,
+    pub qr_code: String,
 }

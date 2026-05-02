@@ -22,9 +22,7 @@ pub struct FabricOrderQuery {
     pub customer_id: Option<i32>,
     pub order_no: Option<String>,
     pub status: Option<String>,
-    #[allow(dead_code)]
     pub batch_no: Option<String>,
-    #[allow(dead_code)]
     pub color_no: Option<String>,
 }
 
@@ -37,30 +35,20 @@ pub struct CreateFabricOrderRequest {
     pub items: Vec<FabricOrderItemRequest>,
     pub shipping_address: Option<String>,
     pub delivery_address: Option<String>,
-    #[allow(dead_code)]
     pub payment_terms: Option<String>,
-    #[allow(dead_code)]
     pub remarks: Option<String>,
-    #[allow(dead_code)]
     pub batch_no: Option<String>,
-    #[allow(dead_code)]
     pub color_no: Option<String>,
-    #[allow(dead_code)]
     pub dye_lot_no: Option<String>,
-    #[allow(dead_code)]
     pub grade: Option<String>,
-    #[allow(dead_code)]
     pub packaging_requirement: Option<String>,
-    #[allow(dead_code)]
     pub quality_standard: Option<String>,
 }
 
 /// 销售订单明细请求（面料行业版）
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct FabricOrderItemRequest {
     pub product_id: i32,
-    #[allow(dead_code)]
     pub product_name: Option<String>,
     pub quantity_meters: f64,
     pub quantity_kg: f64,
@@ -68,9 +56,7 @@ pub struct FabricOrderItemRequest {
     pub gram_weight: Option<f64>,
     pub width: Option<f64>,
     pub color_no: String,
-    #[allow(dead_code)]
     pub batch_no: Option<String>,
-    #[allow(dead_code)]
     pub dye_lot_no: Option<String>,
     pub grade: Option<String>,
     pub remarks: Option<String>,
@@ -93,19 +79,12 @@ pub struct UpdateFabricOrderRequest {
     pub status: Option<String>,
     pub shipping_address: Option<String>,
     pub delivery_address: Option<String>,
-    #[allow(dead_code)]
     pub payment_terms: Option<String>,
-    #[allow(dead_code)]
     pub remarks: Option<String>,
-    #[allow(dead_code)]
     pub items: Option<Vec<FabricOrderItemRequest>>,
-    #[allow(dead_code)]
     pub batch_no: Option<String>,
-    #[allow(dead_code)]
     pub color_no: Option<String>,
-    #[allow(dead_code)]
     pub packaging_requirement: Option<String>,
-    #[allow(dead_code)]
     pub quality_standard: Option<String>,
 }
 

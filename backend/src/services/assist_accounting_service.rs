@@ -23,7 +23,6 @@ impl AssistAccountingService {
     }
 
     /// 初始化 8 个辅助核算维度
-    #[allow(dead_code)]
     pub async fn initialize_dimensions(&self) -> Result<(), sea_orm::DbErr> {
         let dimensions = [("BATCH", "批次核算", "按生产批次进行辅助核算"),
             ("COLOR", "色号核算", "按产品色号进行辅助核算"),
@@ -62,7 +61,6 @@ impl AssistAccountingService {
 
     /// 创建辅助核算记录
     #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)]
     pub async fn create_assist_record(
         &self,
         business_type: String,
@@ -141,7 +139,6 @@ impl AssistAccountingService {
     }
 
     /// 按会计期间和维度查询汇总
-    #[allow(dead_code)]
     pub async fn find_summary_by_period_and_dimension(
         &self,
         accounting_period: &str,
@@ -384,7 +381,6 @@ impl AssistAccountingService {
     }
 
     /// 删除辅助核算记录（通常用于冲销）
-    #[allow(dead_code)]
     pub async fn delete_assist_record(&self, id: i32) -> Result<(), sea_orm::DbErr> {
         assist_accounting_record::Entity::delete_many()
             .filter(assist_accounting_record::Column::Id.eq(id))

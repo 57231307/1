@@ -139,7 +139,6 @@ impl FabricFiveDimension {
     }
 
     /// 生成五维描述文本
-    #[allow(dead_code)]
     pub fn to_description(&self) -> String {
         let dye_lot_desc = self
             .dye_lot_no
@@ -154,7 +153,6 @@ impl FabricFiveDimension {
     }
 
     /// 比较两个五维对象是否相同（忽略缸号）
-    #[allow(dead_code)]
     pub fn equals_ignore_dye_lot(&self, other: &Self) -> bool {
         self.product_id == other.product_id
             && self.batch_no == other.batch_no
@@ -163,7 +161,6 @@ impl FabricFiveDimension {
     }
 
     /// 生成五维键（用于缓存或哈希表）
-    #[allow(dead_code)]
     pub fn generate_key(&self) -> String {
         let dye_lot = self.dye_lot_no.as_deref().unwrap_or("*");
         format!(
@@ -175,7 +172,6 @@ impl FabricFiveDimension {
 
 /// 五维查询条件构建器
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub struct FiveDimensionQueryBuilder {
     product_id: Option<i32>,
     batch_no: Option<String>,
@@ -184,7 +180,6 @@ pub struct FiveDimensionQueryBuilder {
     grade: Option<String>,
 }
 
-#[allow(dead_code)]
 impl FiveDimensionQueryBuilder {
     pub fn new() -> Self {
         Self::default()

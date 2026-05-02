@@ -1,7 +1,11 @@
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use chrono::{Datelike, Timelike};
+use wasm_bindgen::JsCast;
+use web_sys::HtmlInputElement;
 use crate::services::dashboard_service::{DashboardService, DashboardOverview, LowStockAlert, SalesStatistics, InventoryStatistics};
+use crate::services::auth::AuthService;
+use crate::models::auth::TotpSetupResponse;
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,
@@ -11,6 +15,13 @@ pub struct DashboardPage {
     loading: bool,
     error: Option<String>,
     auto_refresh: bool,
+    
+    // 2FA state
+    show_2fa_modal: bool,
+    totp_setup_data: Option<TotpSetupResponse>,
+    totp_verify_code: String,
+    totp_error: Option<String>,
+    totp_success: bool,
 }
 
 pub enum Msg {
@@ -24,6 +35,15 @@ pub enum Msg {
     Error(String),
     ToggleAutoRefresh,
     RefreshData,
+    
+    // 2FA messages
+    Open2FAModal,
+    Close2FAModal,
+    TotpSetupDataLoaded(TotpSetupResponse),
+    TotpVerifyCodeChanged(String),
+    VerifyAndEnable2FA,
+    TotpEnabledSuccess,
+    TotpError(String),
 }
 
 impl Component for DashboardPage {
@@ -40,6 +60,11 @@ impl Component for DashboardPage {
             loading: true,
             error: None,
             auto_refresh: false,
+            show_2fa_modal: false,
+            totp_setup_data: None,
+            totp_verify_code: String::new(),
+            totp_error: None,
+            totp_success: false,
         }
     }
 
@@ -94,10 +119,70 @@ impl Component for DashboardPage {
                 self.auto_refresh = !self.auto_refresh;
                 true
             }
+            Msg::Open2FAModal => {
+                self.show_2fa_modal = true;
+                self.totp_error = None;
+                self.totp_success = false;
+                self.totp_verify_code = String::new();
+                
+                let link = _ctx.link().clone();
+                spawn_local(async move {
+                    let auth_service = AuthService::new();
+                    match auth_service.setup_totp().await {
+                        Ok(data) => link.send_message(Msg::TotpSetupDataLoaded(data)),
+                        Err(e) => link.send_message(Msg::TotpError(e)),
+                    }
+                });
+                true
+            }
+            Msg::Close2FAModal => {
+                self.show_2fa_modal = false;
+                true
+            }
+            Msg::TotpSetupDataLoaded(data) => {
+                self.totp_setup_data = Some(data);
+                true
+            }
+            Msg::TotpVerifyCodeChanged(code) => {
+                self.totp_verify_code = code;
+                self.totp_error = None;
+                true
+            }
+            Msg::VerifyAndEnable2FA => {
+                if self.totp_verify_code.len() != 6 {
+                    self.totp_error = Some("请输入6位验证码".to_string());
+                    return true;
+                }
+                
+                let link = _ctx.link().clone();
+                let code = self.totp_verify_code.clone();
+                spawn_local(async move {
+                    let auth_service = AuthService::new();
+                    match auth_service.enable_totp(&code).await {
+                        Ok(_) => link.send_message(Msg::TotpEnabledSuccess),
+                        Err(e) => link.send_message(Msg::TotpError(e)),
+                    }
+                });
+                true
+            }
+            Msg::TotpEnabledSuccess => {
+                self.totp_success = true;
+                self.totp_error = None;
+                true
+            }
+            Msg::TotpError(e) => {
+                self.totp_error = Some(e);
+                true
+            }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let on_totp_code_change = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
+            Some(Msg::TotpVerifyCodeChanged(target.value()))
+        });
+
         html! {
             <div class="dashboard-page">
                 <div class="dashboard-header">
@@ -106,6 +191,9 @@ impl Component for DashboardPage {
                         <p class="subtitle">{"欢迎使用秉羲面料管理"}</p>
                     </div>
                     <div class="header-right">
+                        <button class="btn-primary" style="margin-right: 10px;" onclick={ctx.link().callback(|_| Msg::Open2FAModal)}>
+                            {"🔐 开启两步验证"}
+                        </button>
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::RefreshData)}>
                             {"🔄 刷新数据"}
                         </button>
@@ -122,6 +210,65 @@ impl Component for DashboardPage {
                 </div>
 
                 {self.render_content(ctx)}
+
+                if self.show_2fa_modal {
+                    <div class="modal-overlay">
+                        <div class="modal-content" style="max-width: 500px;">
+                            <div class="modal-header">
+                                <h2>{"开启两步验证 (2FA)"}</h2>
+                                <button class="close-btn" onclick={ctx.link().callback(|_| Msg::Close2FAModal)}>{"×"}</button>
+                            </div>
+                            <div class="modal-body">
+                                if self.totp_success {
+                                    <div class="success-message" style="color: green; text-align: center; padding: 20px;">
+                                        <h3>{"🎉 设置成功！"}</h3>
+                                        <p>{"您的账户已开启两步验证。下次登录时需要输入验证码。"}</p>
+                                    </div>
+                                    <div class="form-actions" style="justify-content: center;">
+                                        <button type="button" class="btn-primary" onclick={ctx.link().callback(|_| Msg::Close2FAModal)}>{"完成"}</button>
+                                    </div>
+                                } else {
+                                    if let Some(data) = &self.totp_setup_data {
+                                        <div class="totp-setup-container" style="text-align: center;">
+                                            <p>{"1. 请使用 Google Authenticator 或兼容应用扫描下方二维码："}</p>
+                                            <img src={data.qr_code.clone()} alt="TOTP QR Code" style="margin: 20px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; width: 200px;" />
+                                            
+                                            <p style="margin-bottom: 20px;">{"如果无法扫描，请手动输入密钥："}<br/><code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px; user-select: all;">{data.secret.clone()}</code></p>
+                                            
+                                            <p>{"2. 输入应用中显示的 6 位验证码以完成设置："}</p>
+                                            <input 
+                                                type="text" 
+                                                value={self.totp_verify_code.clone()} 
+                                                onchange={on_totp_code_change}
+                                                placeholder="输入 6 位验证码" 
+                                                maxlength="6"
+                                                style="padding: 10px; font-size: 16px; width: 200px; text-align: center; margin-bottom: 10px;"
+                                            />
+                                            
+                                            if let Some(err) = &self.totp_error {
+                                                <div style="color: red; margin-bottom: 10px;">{err}</div>
+                                            }
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="btn-secondary" onclick={ctx.link().callback(|_| Msg::Close2FAModal)}>{"取消"}</button>
+                                            <button type="button" class="btn-primary" onclick={ctx.link().callback(|_| Msg::VerifyAndEnable2FA)}>{"验证并开启"}</button>
+                                        </div>
+                                    } else if let Some(err) = &self.totp_error {
+                                        <div style="color: red; padding: 20px; text-align: center;">
+                                            <p>{"获取两步验证信息失败："}</p>
+                                            <p>{err}</p>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="btn-secondary" onclick={ctx.link().callback(|_| Msg::Close2FAModal)}>{"关闭"}</button>
+                                        </div>
+                                    } else {
+                                        <div style="padding: 40px; text-align: center;">{"加载中..."}</div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         }
     }

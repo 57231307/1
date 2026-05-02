@@ -4,6 +4,7 @@
 //! 包含入库单创建、确认、更新等全流程管理
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -29,17 +30,13 @@ impl PurchaseReceiptService {
     /// 生成入库单号
     /// 格式：GR + 年月日 + 三位序号（GR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("GR{}", today);
-
-        // 查询今日入库单数量
-        let count = purchase_receipt::Entity::find()
-            .filter(purchase_receipt::Column::ReceiptNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(format!("查询入库单数量失败：{}", e)))?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PR",
+            purchase_receipt::Entity,
+            purchase_receipt::Column::ReceiptNo,
+        )
+        .await
     }
 
     /// 创建采购入库单（含明细）
@@ -503,7 +500,6 @@ impl PurchaseReceiptService {
     }
 
     /// 更新库存（待实现）
-    #[allow(dead_code)]
     async fn update_order_received_quantity(
         &self,
         order_id: i32,
@@ -741,7 +737,6 @@ pub struct CreateReceiptItemRequest {
 
 /// 更新入库明细请求
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
 pub struct UpdateReceiptItemRequest {
     pub line_no: Option<i32>,
     pub material_id: Option<i32>,

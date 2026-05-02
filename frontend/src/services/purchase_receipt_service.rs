@@ -8,8 +8,21 @@ use crate::models::purchase_receipt::{
     UpdateReceiptItemRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct PurchaseReceiptService;
+
+impl CrudService for PurchaseReceiptService {
+    type Model = PurchaseReceipt;
+    type ListResponse = PaginatedReceipts;
+    type CreateRequest = CreatePurchaseReceiptRequest;
+    type UpdateRequest = UpdatePurchaseReceiptRequest;
+
+    fn base_path() -> &'static str {
+        "/purchases/receipts"
+    }
+}
+
 
 impl PurchaseReceiptService {
     /// 获取收货单列表
@@ -43,25 +56,10 @@ impl PurchaseReceiptService {
     }
 
     /// 获取收货单详情
-    pub async fn get(id: i32) -> Result<PurchaseReceipt, String> {
-        let response: ApiResponse<PurchaseReceipt> =
-            ApiService::get(&format!("/purchases/receipts/{}", id)).await?;
-        response.into_result()
-    }
 
     /// 创建收货单
-    pub async fn create(req: CreatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
-        let response: ApiResponse<PurchaseReceipt> =
-            ApiService::post("/purchases/receipts", &req).await?;
-        response.into_result()
-    }
 
     /// 更新收货单
-    pub async fn update(id: i32, req: UpdatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
-        let response: ApiResponse<PurchaseReceipt> =
-            ApiService::put(&format!("/purchases/receipts/{}", id), &req).await?;
-        response.into_result()
-    }
 
     /// 确认收货单
     pub async fn confirm(id: i32) -> Result<PurchaseReceipt, String> {

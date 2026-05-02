@@ -3,8 +3,21 @@ use crate::models::financial_analysis::{
     FinancialIndicator, FinancialRatio, UpdateIndicatorRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct FinancialAnalysisService;
+
+impl CrudService for FinancialAnalysisService {
+    type Model = FinancialIndicator;
+    type ListResponse = Vec<FinancialIndicator>;
+    type CreateRequest = CreateIndicatorRequest;
+    type UpdateRequest = UpdateIndicatorRequest;
+
+    fn base_path() -> &'static str {
+        "/financial-analysis/ratios"
+    }
+}
+
 
 impl FinancialAnalysisService {
     pub async fn analyze_ratios(period: &str) -> Result<Vec<FinancialRatio>, String> {

@@ -3,8 +3,21 @@ use crate::models::sales_analysis::{
     SalesTrendAnalysis, UpdateSalesTargetRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct SalesAnalysisService;
+
+impl CrudService for SalesAnalysisService {
+    type Model = SalesTrendAnalysis;
+    type ListResponse = Vec<SalesTarget>;
+    type CreateRequest = CreateSalesTargetRequest;
+    type UpdateRequest = UpdateSalesTargetRequest;
+
+    fn base_path() -> &'static str {
+        "/sales-analysis/trend"
+    }
+}
+
 
 impl SalesAnalysisService {
     pub async fn get_trend_analysis(

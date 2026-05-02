@@ -102,7 +102,7 @@ impl Component for CustomerCreditPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerCreditService::list_credits(params).await {
+                    match CustomerCreditService::list_with_query(&params).await {
                         Ok(response) => link.send_message(Msg::CreditsLoaded(response.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

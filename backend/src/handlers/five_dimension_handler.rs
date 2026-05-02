@@ -18,7 +18,6 @@ pub struct FiveDimensionStatsParams {
     pub color_no: Option<String>,
     pub dye_lot_no: Option<String>,
     pub grade: Option<String>,
-    #[allow(dead_code)]
     pub warehouse_id: Option<i32>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -86,9 +85,7 @@ pub struct FiveDimensionIdParseResponse {
 /// 五维搜索参数
 #[derive(Debug, Deserialize)]
 pub struct FiveDimensionSearchParams {
-    #[allow(dead_code)]
     pub keyword: String,
-    #[allow(dead_code)]
     pub search_type: String, // product, batch, color, dye_lot, grade
     pub page: Option<u64>,
     pub page_size: Option<u64>,

@@ -78,7 +78,7 @@ impl Component for BatchPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match BatchService::list(query).await {
+                    match BatchService::list_with_query(&query).await {
                         Ok(batches) => link.send_message(Msg::BatchesLoaded(batches)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

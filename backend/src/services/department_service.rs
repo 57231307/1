@@ -222,7 +222,6 @@ impl DepartmentService {
     }
 
     /// 根据名称查询部门
-    #[allow(dead_code)]
     pub async fn find_by_name(&self, name: &str) -> Result<department::Model, sea_orm::DbErr> {
         DepartmentEntity::find()
             .filter(department::Column::Name.eq(name))

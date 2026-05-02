@@ -75,7 +75,7 @@ impl Component for DyeRecipePage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match DyeRecipeService::list(query).await {
+                    match DyeRecipeService::list_with_query(&query).await {
                         Ok(recipes) => link.send_message(Msg::RecipesLoaded(recipes.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

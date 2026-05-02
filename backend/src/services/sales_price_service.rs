@@ -19,7 +19,6 @@ pub struct SalesPriceQueryParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateSalesPriceInput {
     pub product_id: i32,
     pub customer_id: Option<i32>,
@@ -70,7 +69,6 @@ impl SalesPriceService {
         Ok((prices, total))
     }
 
-    #[allow(dead_code)]
     pub async fn create_price(
         &self,
         req: CreateSalesPriceInput,
@@ -103,7 +101,6 @@ impl SalesPriceService {
         Ok(price)
     }
 
-    #[allow(dead_code)]
     pub async fn get_price(&self, id: i32) -> Result<sales_price::Model, AppError> {
         info!("查询销售价格，ID: {}", id);
 
@@ -115,7 +112,6 @@ impl SalesPriceService {
         Ok(price)
     }
 
-    #[allow(dead_code)]
     pub async fn approve_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在批准销售价格，ID: {}", user_id, id);
 
@@ -133,7 +129,6 @@ impl SalesPriceService {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn get_price_history(
         &self,
         product_id: i32,
@@ -149,7 +144,6 @@ impl SalesPriceService {
         Ok(history)
     }
 
-    #[allow(dead_code)]
     pub async fn list_strategies(&self) -> Result<Vec<sales_price::Model>, AppError> {
         info!("查询销售价格策略列表");
 

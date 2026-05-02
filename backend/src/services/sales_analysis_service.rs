@@ -18,7 +18,6 @@ pub struct SalesStatisticQueryParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateSalesTargetInput {
     pub target_type: String,
     pub target_id: i32,
@@ -63,7 +62,6 @@ impl SalesAnalysisService {
         Ok((statistics, total))
     }
 
-    #[allow(dead_code)]
     pub async fn get_trends(&self, period: &str) -> Result<Vec<sales_analysis::Model>, AppError> {
         info!("查询销售趋势，周期：{}", period);
 
@@ -76,7 +74,6 @@ impl SalesAnalysisService {
         Ok(trends)
     }
 
-    #[allow(dead_code)]
     pub async fn get_rankings(
         &self,
         period: Option<&str>,
@@ -99,7 +96,6 @@ impl SalesAnalysisService {
         Ok(rankings)
     }
 
-    #[allow(dead_code)]
     pub async fn get_targets(
         &self,
         page: i64,
@@ -122,7 +118,6 @@ impl SalesAnalysisService {
         Ok((targets, total))
     }
 
-    #[allow(dead_code)]
     pub async fn create_target(
         &self,
         req: CreateSalesTargetInput,

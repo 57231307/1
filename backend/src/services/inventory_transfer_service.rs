@@ -5,6 +5,7 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
@@ -221,6 +222,7 @@ impl InventoryTransferService {
             .await?;
 
         if existing_transfer.is_some() {
+            tracing::error!("Transaction rolled back: 调拨单号 {} 已存在", transfer_no);
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom("调拨单号已存在，请重试".to_string()));
         }
@@ -460,6 +462,7 @@ impl InventoryTransferService {
             if let Some(stock_model) = stock {
                 // 检查库存是否充足
                 if stock_model.quantity_on_hand < item.quantity {
+                    tracing::error!("Transaction rolled back: 产品 {} 库存不足", item.product_id);
                     txn.rollback().await?;
                     return Err(sea_orm::DbErr::Custom(format!(
                         "产品 {} 库存不足",
@@ -489,6 +492,7 @@ impl InventoryTransferService {
                 item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 item_update.update(&txn).await?;
             } else {
+                tracing::error!("Transaction rolled back: 产品 {} 在源仓库无库存记录", item.product_id);
                 txn.rollback().await?;
                 return Err(sea_orm::DbErr::Custom(format!(
                     "产品 {} 在源仓库无库存记录",
@@ -648,28 +652,14 @@ impl InventoryTransferService {
 
     /// 生成调拨单号
     async fn generate_transfer_no(&self) -> Result<String, sea_orm::DbErr> {
-        let now = chrono::Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-
-        // 获取当天最大调拨单号
-        let max_transfer = InventoryTransferEntity::find()
-            .filter(inventory_transfer::Column::TransferNo.like(format!("IT{}%", date_str)))
-            .order_by(inventory_transfer::Column::TransferNo, Order::Desc)
-            .one(&*self.db)
-            .await?;
-
-        let seq = match max_transfer {
-            Some(transfer) => {
-                // 提取序号部分并加 1
-                let seq_str = transfer
-                    .transfer_no
-                    .trim_start_matches(&format!("IT{}", date_str));
-                seq_str.parse::<u32>().unwrap_or(0) + 1
-            }
-            None => 1,
-        };
-
-        Ok(format!("IT{}{:04}", date_str, seq))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "TRF",
+            inventory_transfer::Entity,
+            inventory_transfer::Column::TransferNo,
+        )
+        .await
+        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))
     }
 
     /// 检查调出仓库库存是否充足

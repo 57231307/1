@@ -111,7 +111,7 @@ impl Component for SalesOrderPage {
                 self.loading = true;
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SalesService::list_orders().await {
+                    match SalesService::list_with_query(&).await {
                         Ok(res) => link.send_message(Msg::OrdersLoaded(res.orders)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -131,7 +131,7 @@ impl Component for SalesOrderPage {
             Msg::PreparePrint(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SalesService::get_order(id).await {
+                    match SalesService::get(id).await {
                         Ok(order) => {
                             link.send_message(Msg::PrintReady(order));
                         }
@@ -150,7 +150,7 @@ impl Component for SalesOrderPage {
             Msg::LoadWarehouses => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    if let Ok(res) = WarehouseService::list_warehouses().await {
+                    if let Ok(res) = WarehouseService::list().await {
                         link.send_message(Msg::WarehousesLoaded(res.warehouses));
                     }
                 });
@@ -163,7 +163,7 @@ impl Component for SalesOrderPage {
             Msg::PrepareShip(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SalesService::get_order(id).await {
+                    match SalesService::get(id).await {
                         Ok(order) => {
                             link.send_message(Msg::ShipReady(order));
                         }

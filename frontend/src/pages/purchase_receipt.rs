@@ -91,7 +91,7 @@ impl Component for PurchaseReceiptPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match PurchaseReceiptService::list(query).await {
+                    match PurchaseReceiptService::list_with_query(&query).await {
                         Ok(receipts) => link.send_message(Msg::ReceiptsLoaded(receipts.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

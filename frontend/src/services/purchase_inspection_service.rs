@@ -7,8 +7,21 @@ use crate::models::purchase_inspection::{
     PurchaseInspection, PurchaseInspectionQuery, UpdatePurchaseInspectionRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct PurchaseInspectionService;
+
+impl CrudService for PurchaseInspectionService {
+    type Model = PurchaseInspection;
+    type ListResponse = InspectionListResponse;
+    type CreateRequest = CreatePurchaseInspectionRequest;
+    type UpdateRequest = UpdatePurchaseInspectionRequest;
+
+    fn base_path() -> &'static str {
+        "/purchase-inspections"
+    }
+}
+
 
 impl PurchaseInspectionService {
     /// 获取检验单列表
@@ -39,26 +52,11 @@ impl PurchaseInspectionService {
     }
 
     /// 获取检验单详情
-    pub async fn get(id: i32) -> Result<PurchaseInspection, String> {
-        let response: ApiResponse<PurchaseInspection> =
-            ApiService::get(&format!("/purchase-inspections/{}", id)).await?;
-        response.into_result()
-    }
 
     /// 创建采购检验单
-    pub async fn create(req: CreatePurchaseInspectionRequest) -> Result<PurchaseInspection, String> {
-        let response: ApiResponse<PurchaseInspection> =
-            ApiService::post("/purchase-inspections", &req).await?;
-        response.into_result()
-    }
 
     /// 更新采购检验单
     #[allow(dead_code)]
-    pub async fn update(id: i32, req: UpdatePurchaseInspectionRequest) -> Result<PurchaseInspection, String> {
-        let response: ApiResponse<PurchaseInspection> =
-            ApiService::put(&format!("/purchase-inspections/{}", id), &req).await?;
-        response.into_result()
-    }
 
     /// 完成采购检验单
     pub async fn complete(id: i32, req: CompleteInspectionRequest) -> Result<PurchaseInspection, String> {

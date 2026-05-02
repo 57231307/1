@@ -7,9 +7,22 @@ use crate::models::ar_invoice::{
     UpdateArInvoiceRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 应收发票服务
 pub struct ArInvoiceService;
+
+impl CrudService for ArInvoiceService {
+    type Model = ArInvoice;
+    type ListResponse = ArInvoiceListResponse;
+    type CreateRequest = CreateArInvoiceRequest;
+    type UpdateRequest = UpdateArInvoiceRequest;
+
+    fn base_path() -> &'static str {
+        "/ar-invoices"
+    }
+}
+
 
 impl ArInvoiceService {
     /// 查询应收发票列表

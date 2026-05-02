@@ -1,4 +1,5 @@
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -252,26 +253,14 @@ impl InventoryAdjustmentService {
 
     /// 生成调整单号
     async fn generate_adjustment_no(&self) -> Result<String, DbErr> {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-
-        // 查询当天最大单号
-        let max_no = inventory_adjustment::Entity::find()
-            .filter(inventory_adjustment::Column::AdjustmentNo.like(format!("ADJ{}%", date_str)))
-            .order_by(inventory_adjustment::Column::AdjustmentNo, Order::Desc)
-            .one(&*self.db)
-            .await?;
-
-        let seq = match max_no {
-            Some(model) => {
-                // 提取序号部分
-                let no_str = model.adjustment_no.replace(&format!("ADJ{}", date_str), "");
-                no_str.parse::<u32>().unwrap_or(0) + 1
-            }
-            None => 1,
-        };
-
-        Ok(format!("ADJ{}{:04}", date_str, seq))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "ADJ",
+            inventory_adjustment::Entity,
+            inventory_adjustment::Column::AdjustmentNo,
+        )
+        .await
+        .map_err(|e| DbErr::Custom(e.to_string()))
     }
 }
 

@@ -21,10 +21,11 @@ impl AuthService {
     /// # 返回
     /// * `Ok(LoginResponse)` - 登录成功，返回包含 Token 的响应
     /// * `Err(String)` - 登录失败，返回错误信息
-    pub async fn login(&self, username: &str, password: &str) -> Result<LoginResponse, String> {
+    pub async fn login(&self, username: &str, password: &str, totp_token: Option<String>) -> Result<LoginResponse, String> {
         let login_req = LoginRequest {
             username: username.to_string(),
             password: password.to_string(),
+            totp_token,
         };
 
         let payload = serde_json::to_value(&login_req).map_err(|e| e.to_string())?;
@@ -57,5 +58,14 @@ impl AuthService {
     /// * `false` - 未认证
     pub fn is_authenticated(&self) -> bool {
         crate::utils::storage::Storage::get_token().is_some()
+    }
+
+    pub async fn setup_totp(&self) -> Result<crate::models::auth::TotpSetupResponse, String> {
+        ApiService::post("/auth/totp/setup", &serde_json::json!({})).await
+    }
+
+    pub async fn enable_totp(&self, token: &str) -> Result<(), String> {
+        let _ = ApiService::post::<bool, serde_json::Value>("/auth/totp/enable", &serde_json::json!({ "token": token })).await?;
+        Ok(())
     }
 }

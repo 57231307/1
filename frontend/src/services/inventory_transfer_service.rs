@@ -3,8 +3,21 @@
 
 use crate::models::inventory_transfer::*;
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct InventoryTransferService;
+
+impl CrudService for InventoryTransferService {
+    type Model = InventoryTransferDetail;
+    type ListResponse = Vec<InventoryTransfer>;
+    type CreateRequest = CreateInventoryTransferRequest;
+    type UpdateRequest = UpdateInventoryTransferRequest;
+
+    fn base_path() -> &'static str {
+        "/inventory/transfers"
+    }
+}
+
 
 impl InventoryTransferService {
     pub async fn list(query: InventoryTransferQuery) -> Result<Vec<InventoryTransfer>, String> {
@@ -37,20 +50,6 @@ impl InventoryTransferService {
         ApiService::get(&format!("/inventory/transfers{}", query_string)).await
     }
 
-    pub async fn get(id: i32) -> Result<InventoryTransferDetail, String> {
-        ApiService::get(&format!("/inventory/transfers/{}", id)).await
-    }
-
-    pub async fn create(req: CreateInventoryTransferRequest) -> Result<InventoryTransferDetail, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::post("/inventory/transfers", &body).await
-    }
-
-    pub async fn update(id: i32, req: UpdateInventoryTransferRequest) -> Result<InventoryTransferDetail, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::put(&format!("/inventory/transfers/{}", id), &body).await
-    }
-
     pub async fn approve(id: i32, approved: bool, notes: Option<String>) -> Result<InventoryTransferDetail, String> {
         let body = serde_json::to_value(&ApproveTransferRequest { approved, notes })
             .map_err(|e| format!("序列化失败：{}", e))?;
@@ -63,9 +62,5 @@ impl InventoryTransferService {
 
     pub async fn receive(id: i32) -> Result<InventoryTransferDetail, String> {
         ApiService::post(&format!("/inventory/transfers/{}/receive", id), &serde_json::json!({})).await
-    }
-
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/inventory/transfers/{}", id)).await
     }
 }

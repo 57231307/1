@@ -11,6 +11,8 @@ use web_sys::HtmlInputElement;
 pub struct LoginPage {
     username: String,
     password: String,
+    totp_token: String,
+    show_totp_input: bool,
     error_message: Option<String>,
     is_loading: bool,
     auth_service: AuthService,
@@ -20,6 +22,7 @@ pub struct LoginPage {
 pub enum Msg {
     UsernameChanged(String),
     PasswordChanged(String),
+    TotpTokenChanged(String),
     LoginStarted,
     LoginSuccess(String),
     LoginFailure(String),
@@ -37,6 +40,8 @@ impl Component for LoginPage {
         Self {
             username: String::new(),
             password: String::new(),
+            totp_token: String::new(),
+            show_totp_input: false,
             error_message: None,
             is_loading: false,
             auth_service: AuthService::new(),
@@ -79,6 +84,11 @@ impl Component for LoginPage {
                 self.error_message = None;
                 true
             }
+            Msg::TotpTokenChanged(value) => {
+                self.totp_token = value;
+                self.error_message = None;
+                true
+            }
             Msg::LoginStarted => {
                 self.is_loading = true;
                 self.error_message = None;
@@ -86,10 +96,15 @@ impl Component for LoginPage {
                 let auth_service = self.auth_service.clone();
                 let username = self.username.clone();
                 let password = self.password.clone();
+                let totp_token = if self.show_totp_input && !self.totp_token.is_empty() {
+                    Some(self.totp_token.clone())
+                } else {
+                    None
+                };
                 let link = _ctx.link().clone();
 
                 spawn_local(async move {
-                    match auth_service.login(&username, &password).await {
+                    match auth_service.login(&username, &password, totp_token).await {
                         Ok(response) => {
                             link.send_message(Msg::LoginSuccess(response.token));
                         }
@@ -117,7 +132,12 @@ impl Component for LoginPage {
             }
             Msg::LoginFailure(error) => {
                 self.is_loading = false;
-                self.error_message = Some(error);
+                if error.contains("需要提供两步验证码") {
+                    self.show_totp_input = true;
+                    self.error_message = Some("此账号开启了两步验证，请输入验证码".to_string());
+                } else {
+                    self.error_message = Some(error);
+                }
                 true
             }
             Msg::LoadingChanged(loading) => {
@@ -136,6 +156,11 @@ impl Component for LoginPage {
         let onpassword = ctx.link().batch_callback(|e: Event| {
             let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
             Some(Msg::PasswordChanged(target.value()))
+        });
+
+        let ontotp = ctx.link().batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
+            Some(Msg::TotpTokenChanged(target.value()))
         });
 
         let onsubmit = ctx.link().callback(|e: SubmitEvent| {
@@ -178,10 +203,25 @@ impl Component for LoginPage {
                             />
                         </div>
 
+                        if self.show_totp_input {
+                            <div class="form-group">
+                                <label for="totp">{"两步验证码"}</label>
+                                <input
+                                    type="text"
+                                    id="totp"
+                                    value={self.totp_token.clone()}
+                                    onchange={ontotp}
+                                    placeholder="请输入 6 位验证码"
+                                    disabled={self.is_loading}
+                                    maxlength="6"
+                                />
+                            </div>
+                        }
+
                         <button
                             type="submit"
                             class="login-button"
-                            disabled={self.is_loading || self.username.is_empty() || self.password.is_empty()}
+                            disabled={self.is_loading || self.username.is_empty() || self.password.is_empty() || (self.show_totp_input && self.totp_token.len() != 6)}
                         >
                             if self.is_loading {
                                 {"登录中..."}

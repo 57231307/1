@@ -171,7 +171,7 @@ impl Component for SalesContractPage {
                 };
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::list_contracts(params).await {
+                    match SalesContractService::list_with_query(&params).await {
                         Ok(response) => {
                             link.send_message(Msg::SetContracts(response.items, response.total));
                         }
@@ -232,7 +232,7 @@ impl Component for SalesContractPage {
                 self.state.loading = true;
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::create_contract(req).await {
+                    match SalesContractService::create(req).await {
                         Ok(_) => {
                             link.send_message(Msg::HideCreateModal);
                             link.send_message(Msg::LoadContracts);

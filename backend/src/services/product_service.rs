@@ -372,7 +372,6 @@ impl ProductService {
     }
 
     /// 根据色号查询产品色号
-    #[allow(dead_code)]
     pub async fn find_color_by_product_and_color_no(
         &self,
         product_id: i32,

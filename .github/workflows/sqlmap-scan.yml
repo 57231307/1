@@ -1,0 +1,74 @@
+name: SQLMap Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # 每天凌晨 2 点执行
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  sqlmap-scan:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip sqlmap]')"
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Start Database
+        run: |
+          docker run -d --name bingxi-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=bingxi_erp -p 5432:5432 postgres:15-alpine
+          echo "Waiting for database to start..."
+          sleep 10
+
+      - name: Build and Start Backend
+        working-directory: backend
+        run: |
+          # 复制测试环境变量
+          cp .env.example .env
+          sed -i 's/AUTH__JWT_SECRET=.*/AUTH__JWT_SECRET=test-secret-must-be-32-bytes-long-12345/' .env
+          # 后台运行服务器
+          cargo run --release &
+          echo $! > server.pid
+          echo "Waiting for backend to start..."
+          sleep 15
+          curl -s http://localhost:8000/api/v1/erp/init/health || exit 1
+
+      - name: Setup SQLMap
+        run: |
+          git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git sqlmap-dev
+          
+      - name: Run SQLMap Automated Scan
+        run: |
+          echo "Running SQLMap scan against critical endpoints..."
+          # 这里仅扫描列表接口作为示例，实际项目中可以通过获取 swagger json 自动生成 URL 列表
+          python3 sqlmap-dev/sqlmap.py -u "http://localhost:8000/api/v1/erp/users" \
+            --batch \
+            --level=2 \
+            --risk=2 \
+            --forms \
+            --crawl=1 \
+            --output-dir=./sqlmap-reports \
+            --fail-on-error
+            
+          python3 sqlmap-dev/sqlmap.py -u "http://localhost:8000/api/v1/erp/sales/orders" \
+            --batch \
+            --level=2 \
+            --risk=2 \
+            --output-dir=./sqlmap-reports \
+            --fail-on-error
+            
+      - name: Stop Backend
+        if: always()
+        run: |
+          kill $(cat backend/server.pid) || true
+
+      - name: Upload SQLMap Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlmap-reports
+          path: ./sqlmap-reports/
+          retention-days: 7

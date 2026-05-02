@@ -3,6 +3,7 @@
 //! 采购质检服务层，负责采购质检的核心业务逻辑
 
 use crate::models::purchase_inspection;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -28,15 +29,13 @@ impl PurchaseInspectionService {
     /// 生质检单号
     /// 格式：IQ + 年月日 + 三位序号（IQ20260315001）
     pub async fn generate_inspection_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("IQ{}", today);
-
-        let count = purchase_inspection::Entity::find()
-            .filter(purchase_inspection::Column::InspectionNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PI",
+            purchase_inspection::Entity,
+            purchase_inspection::Column::InspectionNo,
+        )
+        .await
     }
 
     /// 创建采购质检单
@@ -219,7 +218,6 @@ impl PurchaseInspectionService {
 
 /// 创建采购质检单请求
 #[derive(Debug, Validate, Deserialize)]
-#[allow(dead_code)]
 pub struct CreatePurchaseInspectionRequest {
     /// 入库单 ID
     pub receipt_id: i32,
@@ -237,7 +235,6 @@ pub struct CreatePurchaseInspectionRequest {
     pub inspector_id: Option<i32>,
 
     /// 质检类型
-    #[allow(dead_code)]
     pub inspection_type: Option<String>,
 
     /// 备注
@@ -246,7 +243,6 @@ pub struct CreatePurchaseInspectionRequest {
 
 /// 更新采购质检单请求
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
 pub struct UpdatePurchaseInspectionRequest {
     pub sample_size: Option<i32>,
     pub defect_description: Option<String>,

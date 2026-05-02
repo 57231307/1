@@ -19,8 +19,9 @@ pub struct PurchaseReturnService {
     db: Arc<DatabaseConnection>,
 }
 
+use crate::utils::number_generator::DocumentNumberGenerator;
+
 impl PurchaseReturnService {
-    /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
@@ -28,15 +29,13 @@ impl PurchaseReturnService {
     /// 生成退货单号
     /// 格式：RT + 年月日 + 三位序号（RT20260315001）
     pub async fn generate_return_no(&self) -> Result<String, AppError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let prefix = format!("RT{}", today);
-
-        let count: u64 = purchase_return::Entity::find()
-            .filter(purchase_return::Column::ReturnNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-
-        Ok(format!("{}{:03}", prefix, count + 1))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "RT",
+            purchase_return::Entity,
+            purchase_return::Column::ReturnNo,
+        )
+        .await
     }
 
     /// 创建采购退货单

@@ -240,7 +240,6 @@ impl CustomerService {
     }
 
     /// 检查客户编码是否已存在
-    #[allow(dead_code)]
     pub async fn check_customer_code_exists(
         &self,
         customer_code: &str,

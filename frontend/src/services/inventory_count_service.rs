@@ -3,8 +3,21 @@
 
 use crate::models::inventory_count::*;
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct InventoryCountService;
+
+impl CrudService for InventoryCountService {
+    type Model = InventoryCountDetail;
+    type ListResponse = Vec<InventoryCount>;
+    type CreateRequest = CreateInventoryCountRequest;
+    type UpdateRequest = UpdateInventoryCountRequest;
+
+    fn base_path() -> &'static str {
+        "/inventory/counts"
+    }
+}
+
 
 impl InventoryCountService {
     pub async fn list(query: InventoryCountQuery) -> Result<Vec<InventoryCount>, String> {
@@ -32,20 +45,6 @@ impl InventoryCountService {
         };
 
         ApiService::get(&format!("/inventory/counts{}", query_string)).await
-    }
-
-    pub async fn get(id: i32) -> Result<InventoryCountDetail, String> {
-        ApiService::get(&format!("/inventory/counts/{}", id)).await
-    }
-
-    pub async fn create(req: CreateInventoryCountRequest) -> Result<InventoryCountDetail, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::post("/inventory/counts", &body).await
-    }
-
-    pub async fn update(id: i32, req: UpdateInventoryCountRequest) -> Result<InventoryCountDetail, String> {
-        let body = serde_json::to_value(&req).map_err(|e| format!("序列化失败：{}", e))?;
-        ApiService::put(&format!("/inventory/counts/{}", id), &body).await
     }
 
     pub async fn approve(id: i32, approved: bool, notes: Option<String>) -> Result<InventoryCountDetail, String> {

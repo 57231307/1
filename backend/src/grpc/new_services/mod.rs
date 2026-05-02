@@ -23,7 +23,6 @@ use crate::services::financial_analysis_service::FinancialAnalysisService;
 pub struct GrpcNewServices {
     assist_accounting_service: Arc<AssistAccountingService>,
     supplier_evaluation_service: Arc<SupplierEvaluationService>,
-    #[allow(dead_code)]
     five_dimension_query_service: Arc<FiveDimensionQueryService>,
     inventory_reservation_service: Arc<InventoryReservationService>,
     financial_analysis_service: Arc<FinancialAnalysisService>,

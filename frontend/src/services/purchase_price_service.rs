@@ -7,8 +7,21 @@ use crate::models::purchase_price::{
     UpdatePurchasePriceRequest,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 pub struct PurchasePriceService;
+
+impl CrudService for PurchasePriceService {
+    type Model = PurchasePrice;
+    type ListResponse = Vec<PurchasePrice>;
+    type CreateRequest = CreatePurchasePriceRequest;
+    type UpdateRequest = UpdatePurchasePriceRequest;
+
+    fn base_path() -> &'static str {
+        "/purchases/prices"
+    }
+}
+
 
 impl PurchasePriceService {
     /// 查询采购价格列表
@@ -48,30 +61,12 @@ impl PurchasePriceService {
     }
 
     /// 获取采购价格详情
-    pub async fn get(id: i32) -> Result<PurchasePrice, String> {
-        let response: ApiResponse<PurchasePrice> =
-            ApiService::get(&format!("/purchases/prices/{}", id)).await?;
-        response.into_result()
-    }
 
     /// 创建采购价格
-    pub async fn create(req: CreatePurchasePriceRequest) -> Result<PurchasePrice, String> {
-        let response: ApiResponse<PurchasePrice> =
-            ApiService::post("/purchases/prices", &req).await?;
-        response.into_result()
-    }
 
     /// 更新采购价格
-    pub async fn update(id: i32, req: UpdatePurchasePriceRequest) -> Result<PurchasePrice, String> {
-        let response: ApiResponse<PurchasePrice> =
-            ApiService::put(&format!("/purchases/prices/{}", id), &req).await?;
-        response.into_result()
-    }
 
     /// 删除采购价格
-    pub async fn delete(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/purchases/prices/{}", id)).await
-    }
 
     /// 审批采购价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<PurchasePrice, String> {

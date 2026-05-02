@@ -14,7 +14,6 @@ pub struct UserListPage {
     page_size: u64,
     is_loading: bool,
     error_message: Option<String>,
-    user_service: UserService,
 }
 
 pub enum Msg {
@@ -38,7 +37,6 @@ impl Component for UserListPage {
             page_size: 20,
             is_loading: false,
             error_message: None,
-            user_service: UserService::new(),
         };
         
         // 检查是否已登录
@@ -60,13 +58,12 @@ impl Component for UserListPage {
                 self.is_loading = true;
                 self.error_message = None;
                 
-                let service = self.user_service.clone();
-                let page = self.page;
+                                let page = self.page;
                 let page_size = self.page_size;
                 let link = ctx.link().clone();
                 
                 spawn_local(async move {
-                    match service.list_users(page, page_size).await {
+                    match UserService::list_with_query(&crate::services::user_service::UserQuery { page, page_size }).await {
                         Ok(response) => {
                             link.send_message(Msg::UsersLoaded(response.users, response.total));
                         }

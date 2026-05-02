@@ -115,10 +115,13 @@ impl ApiService {
             _ => return Err(format!("不支持的 HTTP 方法：{}", method)),
         };
 
+        // 加入 credentials 以支持携带 HttpOnly Cookie
         let mut request_with_headers = request_builder
+            .credentials(web_sys::RequestCredentials::Include)
             .header("Content-Type", "application/json")
             .header("X-Requested-With", "XMLHttpRequest");
 
+        // 兼容过渡期：如果 localStorage 还有旧的 Token 也一并带上
         if !token.is_empty() {
             let auth_header = format!("Bearer {}", token);
             request_with_headers = request_with_headers.header("Authorization", auth_header.as_str());

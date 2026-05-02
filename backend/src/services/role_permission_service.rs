@@ -385,7 +385,6 @@ impl RolePermissionService {
     }
 
     /// 检查权限
-    #[allow(dead_code)]
     pub async fn check_permission(
         &self,
         role_id: i32,

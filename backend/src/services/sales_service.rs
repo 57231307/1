@@ -8,6 +8,7 @@ use crate::models::inventory_reservation::{self, Entity as InventoryReservationE
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 use sea_orm::{FromQueryResult, JoinType, RelationTrait};
@@ -84,7 +85,6 @@ pub struct SalesOrderItemDetail {
 
 /// 创建销售订单请求
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateSalesOrderRequest {
     pub customer_id: i32,
     pub required_date: chrono::DateTime<chrono::Utc>,
@@ -258,6 +258,7 @@ impl SalesService {
             
         // 业务逻辑验证：日期合理性检查
         if request.required_date < request.order_date {
+            tracing::error!("Transaction rolled back: 交付日期不能早于订单日期");
             txn.rollback().await.ok();
             return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于订单日期".to_string()));
         }
@@ -300,6 +301,7 @@ impl SalesService {
         
         // 判断是否超额
         if credit_limit > rust_decimal::Decimal::new(0, 0) && (total_unpaid + order_amount) > credit_limit {
+            tracing::error!("Transaction rolled back: 信用风控拦截，客户未付金额与本单金额超额");
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom(format!(
                 "信用风控拦截：客户当前未付账款 {} + 本单金额 {} = {}，超出了信用额度 {}",
@@ -317,6 +319,7 @@ impl SalesService {
             .await?;
 
         if existing_order.is_some() {
+            tracing::error!("Transaction rolled back: 订单号 {} 已存在", order_no);
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom("订单号已存在，请重试".to_string()));
         }
@@ -641,28 +644,14 @@ impl SalesService {
 
     /// 生成订单号
     async fn generate_order_no(&self) -> Result<String, sea_orm::DbErr> {
-        let now = chrono::Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-
-        // 获取当天最大订单号
-        let max_order = SalesOrderEntity::find()
-            .filter(sales_order::Column::OrderNo.like(format!("SO{}%", date_str)))
-            .order_by(sales_order::Column::OrderNo, Order::Desc)
-            .one(&*self.db)
-            .await?;
-
-        let seq = match max_order {
-            Some(order) => {
-                // 提取序号部分并加 1
-                let seq_str = order
-                    .order_no
-                    .trim_start_matches(&format!("SO{}", date_str));
-                seq_str.parse::<u32>().unwrap_or(0) + 1
-            }
-            None => 1,
-        };
-
-        Ok(format!("SO{}{:04}", date_str, seq))
+        DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "SO",
+            SalesOrderEntity,
+            sales_order::Column::OrderNo,
+        )
+        .await
+        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))
     }
 
     /// 检查库存是否充足

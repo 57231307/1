@@ -20,7 +20,6 @@ pub struct CreditQueryParams {
 
 /// 创建/更新信用评级请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreditRatingRequest {
     pub customer_id: i32,
     pub credit_level: String,
@@ -32,7 +31,6 @@ pub struct CreditRatingRequest {
 
 /// 信用额度调整请求
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreditLimitAdjustmentRequest {
     pub customer_id: i32,
     pub adjustment_type: String,
