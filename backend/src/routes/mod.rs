@@ -16,6 +16,7 @@ use crate::handlers::{
     ap_reconciliation_handler,
     ap_report_handler,
     ap_verification_handler,
+    barcode_scanner_handler,
     ar_invoice_handler,
     assist_accounting_handler,
     auth_handler,
@@ -742,6 +743,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/tasks", get(bpm_handler::query_tasks));
 
     // 健康检查路由
+    // 扫码出库路由
+    let scanner_routes = Router::new()
+        .route("/scan-to-ship", post(barcode_scanner_handler::scan_to_ship));
+
     // 物流管理路由
     let logistics_routes = Router::new()
         .route("/", get(logistics_handler::list_waybills))
@@ -771,6 +776,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)
         .nest("/api/v1/erp/logistics", logistics_routes)
+        .nest("/api/v1/erp/scanner", scanner_routes)
         .nest("/api/v1/erp/roles", role_routes)
         .nest("/api/v1/erp/products", product_routes)
         .nest("/api/v1/erp/product-categories", product_category_routes)
