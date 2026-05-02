@@ -720,7 +720,12 @@ pub fn create_router(state: AppState) -> Router {
     // 应收账款路由
     let ar_routes = Router::new()
         .route("/invoices", get(ar_invoice_handler::list_invoices))
-        .route("/invoices", post(ar_invoice_handler::create_invoice));
+        .route("/invoices", post(ar_invoice_handler::create_invoice))
+        .route("/invoices/:id", get(ar_invoice_handler::get_invoice))
+        .route("/invoices/:id", put(ar_invoice_handler::update_invoice))
+        .route("/invoices/:id", delete(ar_invoice_handler::delete_invoice))
+        .route("/invoices/:id/approve", post(ar_invoice_handler::approve_invoice))
+        .route("/invoices/:id/cancel", post(ar_invoice_handler::cancel_invoice));
 
     // 系统更新路由
     let system_update_routes = Router::new()
@@ -737,6 +742,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/tasks", get(bpm_handler::query_tasks));
 
     // 健康检查路由
+    // 物流管理路由
+    let logistics_routes = Router::new()
+        .route("/", get(logistics_handler::list_waybills))
+        .route("/", post(logistics_handler::create_waybill))
+        .route("/:id", get(logistics_handler::get_waybill))
+        .route("/:id", put(logistics_handler::update_waybill_status))
+        .route("/:id", delete(logistics_handler::delete_waybill));
+
     let health_routes = Router::new()
         .route("/", get(health_handler::health_check))
         .route("/readiness", get(health_handler::readiness_check))
@@ -757,6 +770,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)
         .nest("/api/v1/erp/users", user_routes)
+        .nest("/api/v1/erp/logistics", logistics_routes)
         .nest("/api/v1/erp/roles", role_routes)
         .nest("/api/v1/erp/products", product_routes)
         .nest("/api/v1/erp/product-categories", product_category_routes)
