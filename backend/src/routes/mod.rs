@@ -517,6 +517,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
+        .route("/receipts/:id", put(purchase_receipt_handler::update_receipt))
         .route("/inspections", get(purchase_inspection_handler::list_inspections))
         .route("/inspections", post(purchase_inspection_handler::create_inspection))
         .route("/inspections/:id", get(purchase_inspection_handler::get_inspection))
