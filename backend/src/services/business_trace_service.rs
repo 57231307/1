@@ -205,7 +205,7 @@ impl BusinessTraceService {
         }
 
         let first_trace = &traces[0];
-        let last_trace = traces.last().ok_or_else(|| AppError::NotFound("No trace found".into()))?;
+        let last_trace = traces.last().unwrap();
 
         // 获取追溯链中的供应商ID和客户ID（第一个环节有供应商，最后一个环节有客户）
         let supplier_id = first_trace.supplier_id;

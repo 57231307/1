@@ -161,8 +161,7 @@ mod tests {
     #[test]
     fn test_parse_five_dimension_id() {
         let id = "P100|B20240101|C001|D20240101001|G一等品";
-        let dim = FiveDimensionQueryService::parse_five_dimension_id(id)
-            .ok_or_else(|| AppError::ValidationError("无效的五维ID".into()))?;
+        let dim = FiveDimensionQueryService::parse_five_dimension_id(id).expect("无效的五维ID");
 
         assert_eq!(dim.product_id, 100);
         assert_eq!(dim.batch_no, "20240101");

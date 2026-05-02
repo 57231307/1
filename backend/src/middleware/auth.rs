@@ -1,6 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use axum::{
     body::Body,
     extract::State,
@@ -29,7 +30,6 @@ pub async fn auth_middleware(
         "/api/v1/erp/auth/login",
         "/api/v1/erp/auth/refresh",
         "/api/v1/erp/auth/logout",
-        "/api/v1/erp/dashboard",
     ];
 
     if public_paths.iter().any(|p| path.starts_with(p)) {
@@ -56,7 +56,11 @@ pub async fn auth_middleware(
             }
 
             // 检查 Token 是否在黑名单中
-            let is_blacklisted = state.cache.get_token_blacklist().get(token).await.is_some();
+            let is_blacklisted = state
+                .cache
+                .get_token_blacklist()
+                .get(&token.to_string())
+                .is_some();
             if is_blacklisted {
                 warn!("Token is blacklisted");
                 return Err(StatusCode::UNAUTHORIZED);
