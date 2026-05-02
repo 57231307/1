@@ -59,12 +59,12 @@ async fn test_password_hash_and_verify() {
 
     // 验证密码
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    let auth_service = AuthService::new(Arc::new(db), "test_secret".to_string());
+    let _auth_service = AuthService::new(Arc::new(db), "test_secret".to_string());
 
-    let verify_result = auth_service.verify_password(password, &hash);
+    let verify_result = AuthService::verify_password(password, &hash).unwrap();
     assert!(verify_result);
 
     // 验证错误密码
-    let wrong_verify_result = auth_service.verify_password("wrong_password", &hash);
+    let wrong_verify_result = AuthService::verify_password("wrong_password", &hash).unwrap();
     assert!(!wrong_verify_result);
 }

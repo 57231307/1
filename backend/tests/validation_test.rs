@@ -1,5 +1,5 @@
-use bingxi_erp_backend::handlers::user_handler::CreateUserRequest;
-use bingxi_erp_backend::handlers::warehouse_handler::CreateWarehouseRequest;
+use bingxi_backend::handlers::user_handler::CreateUserRequest;
+use bingxi_backend::handlers::warehouse_handler::CreateWarehouseRequest;
 use validator::Validate;
 
 #[test]

@@ -124,3 +124,45 @@ async fn check_permission(
 
     permission.is_some()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_resource_info_valid_with_id() {
+        let (resource_type, resource_id) = extract_resource_info("/api/v1/erp/users/123");
+        assert_eq!(resource_type, "users");
+        assert_eq!(resource_id, Some(123));
+    }
+
+    #[test]
+    fn test_extract_resource_info_valid_without_id() {
+        let (resource_type, resource_id) = extract_resource_info("/api/v1/erp/users");
+        assert_eq!(resource_type, "users");
+        assert_eq!(resource_id, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_non_numeric_id() {
+        let (resource_type, resource_id) = extract_resource_info("/api/v1/erp/users/abc");
+        assert_eq!(resource_type, "users");
+        assert_eq!(resource_id, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_unknown_path() {
+        let (resource_type, resource_id) = extract_resource_info("/v1/erp/users/1");
+        assert_eq!(resource_type, "unknown");
+        assert_eq!(resource_id, None);
+    }
+
+    #[test]
+    fn test_method_to_action_mapping() {
+        assert_eq!(method_to_action(&Method::GET), "read");
+        assert_eq!(method_to_action(&Method::POST), "create");
+        assert_eq!(method_to_action(&Method::PUT), "update");
+        assert_eq!(method_to_action(&Method::DELETE), "delete");
+        assert_eq!(method_to_action(&Method::PATCH), "read");
+    }
+}

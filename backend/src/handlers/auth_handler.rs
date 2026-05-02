@@ -1,6 +1,7 @@
 use crate::services::auth_service::AuthService;
 use crate::services::user_service::UserService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::State,
@@ -101,13 +102,15 @@ pub async fn logout(
         // 验证 Token 是否有效
         match AuthService::validate_token_static(token, &state.jwt_secret) {
             Ok(claims) => {
-                let now = chrono::Utc::now().timestamp() as usize;
-                let exp = claims.exp;
-                
-                if exp > now {
-                    let ttl = std::time::Duration::from_secs((exp - now) as u64);
+                let now = chrono::Utc::now();
+
+                if claims.exp > now {
+                    let ttl = (claims.exp - now).to_std().unwrap_or_default();
                     // 将 Token 加入黑名单
-                    state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl)).await;
+                    state
+                        .cache
+                        .get_token_blacklist()
+                        .set(token.to_string(), true, Some(ttl));
                     tracing::info!("Token blacklisted for user {}", claims.username);
                 }
             }
