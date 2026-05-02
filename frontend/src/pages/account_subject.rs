@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::services::account_subject_service::AccountSubjectService;
+use crate::services::crud_service::CrudService;
 use crate::models::account_subject::{SubjectTreeNode, SubjectQueryParams};
 
 #[function_component(AccountSubjectPage)]
@@ -101,7 +102,7 @@ fn render_tree_node(node: &SubjectTreeNode, depth: usize, on_delete: Callback<i3
                 <td style="padding: 10px;">{ node.level }</td>
                 <td style="padding: 10px;">
                     <button class="btn btn-sm" style="margin-right: 5px;">{"编辑"}</button>
-                    <button class="btn btn-sm btn-danger" onclick={on_delete.reform(move |_| node.id)}>{"删除"}</button>
+                    <button class="btn btn-sm btn-danger" onclick={{ let id = node.id; on_delete.reform(move |_| id) }}>{"删除"}</button>
                 </td>
             </tr>
             { for node.children.iter().map(|child| render_tree_node(child, depth + 1, on_delete.clone())) }

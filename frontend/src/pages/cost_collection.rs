@@ -7,6 +7,7 @@ use crate::models::cost_collection::{
     CostCollection, CostCollectionQuery, CreateCostCollectionRequest,
 };
 use crate::services::cost_collection_service::CostCollectionService;
+use crate::services::crud_service::CrudService;
 use crate::components::main_layout::MainLayout;
 
 /// 成本归集页面状态
@@ -139,7 +140,7 @@ impl Component for CostCollectionPage {
                 let link = _ctx.link().clone();
                 let params = self.query_params.clone();
                 spawn_local(async move {
-                    let result = CostCollectionService::list_with_query(&params).await;
+                    let result = CostCollectionService::list(params).await;
                     link.send_message(Msg::CollectionsLoaded(result));
                 });
                 false
@@ -178,7 +179,7 @@ impl Component for CostCollectionPage {
                 let link = _ctx.link().clone();
                 let params = self.query_params.clone();
                 spawn_local(async move {
-                    let result = CostCollectionService::list_with_query(&params).await;
+                    let result = CostCollectionService::list(params).await;
                     link.send_message(Msg::CollectionsLoaded(result));
                 });
                 false

@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::services::inventory_service::InventoryService;
+use crate::services::crud_service::CrudService;
 use crate::models::inventory::{StockFabricResponse, InventorySummaryResponse};
 
 #[function_component(InventoryStockPage)]
@@ -33,9 +34,12 @@ pub fn inventory_stock_page() -> Html {
             let c = if (*color).is_empty() { None } else { Some((*color).as_str()) };
 
             loading.set(true);
+            let b_loading = loading.clone();
+            let b_owned = b.map(|s| s.to_string());
+            let c_owned = c.map(|s| s.to_string());
             wasm_bindgen_futures::spawn_local(async move {
                 // 加载面料库存
-                match InventoryService::list_stock_fabric(1, 50, b, c).await {
+                match InventoryService::list_stock_fabric(1, 50, b_owned.as_deref(), c_owned.as_deref()).await {
                     Ok(resp) => {
                         stocks.set(resp.stock);
                         total.set(resp.total);
@@ -44,12 +48,12 @@ pub fn inventory_stock_page() -> Html {
                 }
                 
                 // 顺便加载汇总数据
-                if b.is_none() && c.is_none() {
+                if b_owned.is_none() && c_owned.is_none() {
                     if let Ok(sum) = InventoryService::get_inventory_summary().await {
                         summary.set(Some(sum));
                     }
                 }
-                loading.set(false);
+                b_loading.set(false);
             });
         })
     };
@@ -83,7 +87,7 @@ pub fn inventory_stock_page() -> Html {
         <div class="inventory-stock-page">
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"面料库存查询"}</h1>
-                <button class="btn btn-primary" onclick={load_data.clone()}>{"刷新数据"}</button>
+                <button class="btn btn-primary" onclick={load_data.reform(|_| ())}>{"刷新数据"}</button>
             </div>
             
             if let Some(sum) = (*summary).clone() {
@@ -106,7 +110,7 @@ pub fn inventory_stock_page() -> Html {
             <div class="filters" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
                 <input type="text" placeholder="按批号搜索" value={(*batch_filter).clone()} oninput={on_batch_change} style="margin-right: 10px; padding: 5px;" />
                 <input type="text" placeholder="按色号搜索" value={(*color_filter).clone()} oninput={on_color_change} style="margin-right: 10px; padding: 5px;" />
-                <button class="btn" onclick={load_data.clone()}>{"搜索"}</button>
+                <button class="btn" onclick={load_data.reform(|_| ())}>{"搜索"}</button>
             </div>
             
             if *loading {

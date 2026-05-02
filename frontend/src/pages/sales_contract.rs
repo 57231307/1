@@ -7,6 +7,7 @@ use crate::models::sales_contract::{
     SalesContract, SalesContractQueryParams, CreateSalesContractRequest, ExecuteSalesContractRequest,
 };
 use crate::services::sales_contract_service::SalesContractService;
+use crate::services::crud_service::CrudService;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContractStatus {
@@ -171,7 +172,7 @@ impl Component for SalesContractPage {
                 };
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::list_with_query(&params).await {
+                    match SalesContractService::list_contracts(params).await {
                         Ok(response) => {
                             link.send_message(Msg::SetContracts(response.items, response.total));
                         }
@@ -232,7 +233,7 @@ impl Component for SalesContractPage {
                 self.state.loading = true;
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::create(req).await {
+                    match SalesContractService::create_contract(req).await {
                         Ok(_) => {
                             link.send_message(Msg::HideCreateModal);
                             link.send_message(Msg::LoadContracts);
@@ -333,7 +334,7 @@ impl Component for SalesContractPage {
                         oninput={ctx.link().batch_callback(|e: InputEvent| {
                             let target = e.target()?;
                             if let Ok(input) = target.dyn_into::<web_sys::HtmlInputElement>() {
-                                Msg::SearchKeyword(input.value())
+                                Some(Msg::SearchKeyword(input.value()))
                             } else {
                                 Some(Msg::SearchKeyword(String::new()))
                             }
@@ -345,9 +346,9 @@ impl Component for SalesContractPage {
                             let target = e.target()?;
                             if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
                                 let value = select.value();
-                                Some(Msg::FilterStatus(if value.is_empty() { None } else { Some(value))})
+                                Some(Msg::FilterStatus(if value.is_empty() { None } else { Some(value) }))
                             } else {
-                                Msg::FilterStatus(None)
+                                Some(Msg::FilterStatus(None))
                             }
                         })}
                     >
@@ -447,9 +448,9 @@ impl Component for SalesContractPage {
                             let target = e.target()?;
                             if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
                                 if let Ok(size) = select.value().parse::<i64>() {
-                                    Msg::ChangePageSize(size)
+                                    Some(Msg::ChangePageSize(size))
                                 } else {
-                                    Msg::ChangePageSize(10)
+                                    Some(Msg::ChangePageSize(10))
                                 }
                             } else {
                                 Some(Msg::ChangePageSize(10))
@@ -601,7 +602,7 @@ impl Component for CreateContractModal {
             ctx.link().batch_callback(move |e: InputEvent| {
                 let target = e.target()?;
                 let input = target.unchecked_into::<web_sys::HtmlInputElement>();
-                msg(input.value())
+                Some(msg(input.value()))
             })
         };
 
@@ -796,6 +797,8 @@ pub enum CancelMsg {
     UpdateReason(String),
     Submit,
 }
+
+pub struct CancelContractModal { pub reason: String }
 
 impl Component for CancelContractModal {
     type Message = CancelMsg;

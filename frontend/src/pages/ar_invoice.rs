@@ -10,6 +10,7 @@ use crate::models::ar_invoice::{
     ArInvoice, ArInvoiceQueryParams,
 };
 use crate::services::ar_invoice_service::ArInvoiceService;
+use crate::services::crud_service::CrudService;
 
 /// 应收发票管理页面状态
 pub struct ArInvoicePage {

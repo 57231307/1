@@ -28,14 +28,14 @@ pub struct SalesReturnQueryParams {
 /// 路由注册
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_returns).post(create_return))
-        .route("/:id", put(update_return))
-        .route("/:id/submit", post(submit_return))
-        .route("/:id/approve", post(approve_return))
+        .route("/", get(list_sales_returns).post(create_sales_return))
+        .route("/:id", put(update_sales_return))
+        .route("/:id/submit", post(submit_sales_return))
+        .route("/:id/approve", post(approve_sales_return))
 }
 
 /// 获取销售退货单列表
-pub async fn list_returns(
+pub async fn list_sales_returns(
     State(state): State<AppState>,
     Query(params): Query<SalesReturnQueryParams>,
     _auth: AuthContext,
@@ -58,7 +58,7 @@ pub async fn list_returns(
 }
 
 /// 创建销售退货单
-pub async fn create_return(
+pub async fn create_sales_return(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateSalesReturnRequest>,
@@ -70,7 +70,7 @@ pub async fn create_return(
 }
 
 /// 更新销售退货单
-pub async fn update_return(
+pub async fn update_sales_return(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
@@ -83,7 +83,7 @@ pub async fn update_return(
 }
 
 /// 提交销售退货单
-pub async fn submit_return(
+pub async fn submit_sales_return(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
@@ -95,7 +95,7 @@ pub async fn submit_return(
 }
 
 /// 审批销售退货单
-pub async fn approve_return(
+pub async fn approve_sales_return(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,

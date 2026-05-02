@@ -5,6 +5,7 @@ use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::sales_return::{CreateSalesReturnRequest, CreateSalesReturnItemRequest, SalesReturn, SalesReturnQuery};
 use crate::services::sales_return_service::SalesReturnService;
+use crate::services::crud_service::CrudService;
 
 /// 销售退货页面状态管理
 pub struct SalesReturnPage {
@@ -36,6 +37,10 @@ pub enum Msg {
     ApproveReturn(i32),
     ChangePage(u64),
     CloseDetailModal,
+    OpenCreateModal,
+    CloseCreateModal,
+    UpdateInput(String, String),
+    CreateReturn,
 }
 
 impl Component for SalesReturnPage {
@@ -74,6 +79,54 @@ impl Component for SalesReturnPage {
                 self.viewing_item = None;
                 true
             }
+            Msg::OpenCreateModal => {
+                self.show_modal = true;
+                true
+            }
+            Msg::CloseCreateModal => {
+                self.show_modal = false;
+                true
+            }
+            Msg::UpdateInput(field, value) => {
+                match field.as_str() {
+                    "return_no" => self.new_return_no = value,
+                    "customer_id" => self.new_customer_id = value,
+                    "product_id" => self.new_product_id = value,
+                    "quantity" => self.new_quantity = value,
+                    "reason" => self.new_reason = value,
+                    _ => {}
+                }
+                true
+            }
+            Msg::CreateReturn => {
+                let req = CreateSalesReturnRequest {
+                    return_no: self.new_return_no.clone(),
+                    sales_order_id: None,
+                    customer_id: self.new_customer_id.parse().unwrap_or(0),
+                    return_date: Some(chrono::Utc::now().format("%Y-%m-%d").to_string()),
+                    warehouse_id: 1, // Default warehouse
+                    reason: self.new_reason.clone(),
+                    remarks: None,
+                    items: vec![
+                        CreateSalesReturnItemRequest {
+                            product_id: self.new_product_id.parse().unwrap_or(0),
+                            quantity: self.new_quantity.parse().unwrap_or_default(),
+                            unit_price: None,
+                        }
+                    ],
+                };
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    match SalesReturnService::create(req).await {
+                        Ok(_) => {
+                            link.send_message(Msg::LoadReturns);
+                            link.send_message(Msg::CloseCreateModal);
+                        }
+                        Err(e) => link.send_message(Msg::LoadError(e)),
+                    }
+                });
+                false
+            }
             Msg::LoadReturns => {
                 self.loading = true;
                 let query = SalesReturnQuery {
@@ -85,7 +138,7 @@ impl Component for SalesReturnPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SalesReturnService::list_with_query(&query).await {
+                    match SalesReturnService::list(query).await {
                         Ok(returns) => link.send_message(Msg::ReturnsLoaded(returns.data)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -149,9 +202,7 @@ impl Component for SalesReturnPage {
                 <div class="page-header">
                     <h2>{ "销售退货管理" }</h2>
                     <div class="header-actions">
-                        <button class="btn btn-primary" onclick={Callback::from(|_| {
-                            gloo_dialogs::alert("新建退货单功能开发中...");
-                        })}>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::OpenCreateModal)}>
                             <i class="fas fa-plus"></i> { "新建退货单" }
                         </button>
                     </div>
@@ -159,6 +210,7 @@ impl Component for SalesReturnPage {
 
                 { self.render_filters(ctx) }
                 { self.render_detail_modal(ctx) }
+                { self.render_create_modal(ctx) }
                 
                 if let Some(ref err) = self.error {
                     <div class="alert alert-danger">{ err }</div>
@@ -251,6 +303,59 @@ impl SalesReturnPage {
                     }
                 </td>
             </tr>
+        }
+    }
+
+
+    fn render_create_modal(&self, ctx: &Context<Self>) -> Html {
+        if !self.show_modal {
+            return html! {};
+        }
+        let link = ctx.link();
+        
+        let on_input = |field: &'static str| {
+            link.batch_callback(move |e: Event| {
+                use wasm_bindgen::JsCast;
+                let target = e.target()?.unchecked_into::<web_sys::HtmlInputElement>();
+                Some(Msg::UpdateInput(field.to_string(), target.value()))
+            })
+        };
+
+        html! {
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>{"新建退货单"}</h2>
+                        <button class="close-btn" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>{"退货单号"}</label>
+                            <input type="text" value={self.new_return_no.clone()} onchange={on_input("return_no")} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"客户 ID"}</label>
+                            <input type="number" value={self.new_customer_id.clone()} onchange={on_input("customer_id")} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"产品 ID"}</label>
+                            <input type="number" value={self.new_product_id.clone()} onchange={on_input("product_id")} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"退货数量"}</label>
+                            <input type="number" value={self.new_quantity.clone()} onchange={on_input("quantity")} />
+                        </div>
+                        <div class="form-group">
+                            <label>{"退货原因"}</label>
+                            <input type="text" value={self.new_reason.clone()} onchange={on_input("reason")} />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"取消"}</button>
+                        <button class="btn-primary" onclick={link.callback(|_| Msg::CreateReturn)}>{"保存"}</button>
+                    </div>
+                </div>
+            </div>
         }
     }
 

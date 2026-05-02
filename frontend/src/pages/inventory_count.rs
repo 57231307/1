@@ -9,6 +9,7 @@ use crate::models::inventory_count::{
     InventoryCountQuery, CreateInventoryCountRequest, UpdateInventoryCountRequest,
 };
 use crate::services::inventory_count_service::InventoryCountService;
+use crate::services::crud_service::CrudService;
 use crate::components::navigation::Navigation;
 
 pub struct InventoryCountPage {

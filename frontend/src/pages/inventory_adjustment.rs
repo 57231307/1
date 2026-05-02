@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::services::inventory_adjustment_service::InventoryAdjustmentService;
+use crate::services::crud_service::CrudService;
 use crate::models::inventory_adjustment::AdjustmentSummary;
 
 #[function_component(InventoryAdjustmentPage)]
@@ -47,7 +48,7 @@ pub fn inventory_adjustment_page() -> Html {
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"库存调整单管理"}</h1>
                 <div>
-                    <button class="btn btn-primary" onclick={load_data.clone()} style="margin-right: 10px;">{"刷新数据"}</button>
+                    <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
                     <button class="btn btn-success">{"新建调整单"}</button>
                 </div>
             </div>

@@ -4,6 +4,7 @@ use wasm_bindgen_futures::spawn_local;
 use wasm_bindgen::JsCast;
 use crate::app::Route;
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 use crate::utils::storage::Storage;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -355,9 +356,9 @@ impl Component for RoleListPage {
                                     <input
                                         type="text"
                                         value={self.name.clone()}
-                                        onchange={link.callback(|e: Event| {
+                                        onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                             let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
-                                            Msg::NameChanged(input.value())
+                                            Some(Msg::NameChanged(input.value()))
                                         })}
                                         placeholder="请输入角色名称"
                                     />
@@ -367,9 +368,9 @@ impl Component for RoleListPage {
                                     <input
                                         type="text"
                                         value={self.code.clone()}
-                                        onchange={link.callback(|e: Event| {
+                                        onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                             let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
-                                            Msg::CodeChanged(input.value())
+                                            Some(Msg::CodeChanged(input.value()))
                                         })}
                                         placeholder="请输入角色编码"
                                     />
@@ -378,9 +379,9 @@ impl Component for RoleListPage {
                                     <label>{"描述"}</label>
                                     <textarea
                                         value={self.description.clone()}
-                                        onchange={link.callback(|e: Event| {
+                                        onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                             let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
-                                            Msg::DescriptionChanged(input.value())
+                                            Some(Msg::DescriptionChanged(input.value()))
                                         })}
                                         placeholder="请输入角色描述"
                                     />
@@ -390,9 +391,9 @@ impl Component for RoleListPage {
                                         <input
                                             type="checkbox"
                                             checked={self.is_system}
-                                            onchange={link.callback(|e: Event| {
+                                            onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                                 let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
-                                                Msg::IsSystemChanged(input.checked())
+                                                Some(Msg::IsSystemChanged(input.checked()))
                                             })}
                                         />
                                         <span>{"系统角色"}</span>
@@ -420,9 +421,9 @@ impl Component for RoleListPage {
                                     <input
                                         type="text"
                                         value={self.name.clone()}
-                                        onchange={link.callback(|e: Event| {
+                                        onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                             let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
-                                            Msg::NameChanged(input.value())
+                                            Some(Msg::NameChanged(input.value()))
                                         })}
                                         placeholder="请输入角色名称"
                                     />
@@ -432,9 +433,9 @@ impl Component for RoleListPage {
                                     <input
                                         type="text"
                                         value={self.code.clone()}
-                                        onchange={link.callback(|e: Event| {
+                                        onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                             let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
-                                            Msg::CodeChanged(input.value())
+                                            Some(Msg::CodeChanged(input.value()))
                                         })}
                                         placeholder="请输入角色编码"
                                     />
@@ -443,9 +444,9 @@ impl Component for RoleListPage {
                                     <label>{"描述"}</label>
                                     <textarea
                                         value={self.description.clone()}
-                                        onchange={link.callback(|e: Event| {
+                                        onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                             let input = e.target()?.dyn_into::<web_sys::HtmlTextAreaElement>().ok()?;
-                                            Msg::DescriptionChanged(input.value())
+                                            Some(Msg::DescriptionChanged(input.value()))
                                         })}
                                         placeholder="请输入角色描述"
                                     />
@@ -455,9 +456,9 @@ impl Component for RoleListPage {
                                         <input
                                             type="checkbox"
                                             checked={self.is_system}
-                                            onchange={link.callback(|e: Event| {
+                                            onchange={link.batch_callback(|e: Event| -> Option<crate::pages::role_list::Msg> {
                                                 let input = e.target()?.dyn_into::<web_sys::HtmlInputElement>().ok()?;
-                                                Msg::IsSystemChanged(input.checked())
+                                                Some(Msg::IsSystemChanged(input.checked()))
                                             })}
                                         />
                                         <span>{"系统角色"}</span>

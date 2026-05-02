@@ -1,6 +1,7 @@
 // 采购检验页面
 
 use yew::prelude::*;
+use crate::services::crud_service::CrudService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::purchase_inspection::{
@@ -150,8 +151,8 @@ impl Component for PurchaseInspectionPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseInspectionService::get(id).await {
-                        Ok(_inspection) => {
-                            link.send_message(Msg::LoadError("功能开发中".to_string()));
+                        Ok(inspection) => {
+                            link.send_message(Msg::ShowModalWithData(ModalMode::Complete, inspection));
                         }
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -233,6 +234,10 @@ impl Component for PurchaseInspectionPage {
                 </div>
 
                 {self.render_content(ctx)}
+                
+                if self.show_modal {
+                    {self.render_modal(ctx)}
+                }
             </div>
         }
     }
@@ -326,6 +331,123 @@ impl PurchaseInspectionPage {
                     </tbody>
                 </table>
             </div>
+        }
+    }
+
+    /// 渲染模态框
+    fn render_modal(&self, ctx: &Context<PurchaseInspectionPage>) -> Html {
+        let on_close = ctx.link().callback(|_| Msg::CloseModal);
+        
+        match self.modal_mode {
+            ModalMode::Create => html! {
+                <div class="modal-overlay">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>{"新建采购检验单"}</h2>
+                            <button class="close-btn" onclick={on_close.clone()}>{"×"}</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>{"入库单 ID"}</label>
+                                <input type="number" id="create-receipt-id" />
+                            </div>
+                            <div class="form-group">
+                                <label>{"供应商 ID"}</label>
+                                <input type="number" id="create-supplier-id" />
+                            </div>
+                            <div class="form-group">
+                                <label>{"检验日期"}</label>
+                                <input type="date" id="create-date" />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick={on_close.clone()}>{"取消"}</button>
+                            <button class="btn-primary" onclick={ctx.link().callback(|_| {
+                                let receipt_id = web_sys::window().unwrap().document().unwrap().get_element_by_id("create-receipt-id").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value().parse().unwrap_or(0);
+                                let supplier_id = web_sys::window().unwrap().document().unwrap().get_element_by_id("create-supplier-id").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value().parse().unwrap_or(0);
+                                let date = web_sys::window().unwrap().document().unwrap().get_element_by_id("create-date").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value();
+                                
+                                Msg::CreateInspection(CreatePurchaseInspectionRequest {
+                                    receipt_id,
+                                    order_id: None,
+                                    supplier_id,
+                                    inspection_date: if date.is_empty() { "2023-01-01".to_string() } else { date },
+                                    inspector_id: None,
+                                    inspection_type: None,
+                                    notes: None,
+                                })
+                            })}>{"保存"}</button>
+                        </div>
+                    </div>
+                </div>
+            },
+            ModalMode::Complete => {
+                let id = self.selected_inspection.as_ref().map(|i| i.id).unwrap_or(0);
+                html! {
+                    <div class="modal-overlay">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2>{"完成检验"}</h2>
+                                <button class="close-btn" onclick={on_close.clone()}>{"×"}</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="form-group">
+                                    <label>{"合格数量"}</label>
+                                    <input type="number" id="complete-pass-qty" />
+                                </div>
+                                <div class="form-group">
+                                    <label>{"不合格数量"}</label>
+                                    <input type="number" id="complete-reject-qty" />
+                                </div>
+                                <div class="form-group">
+                                    <label>{"检验结果"}</label>
+                                    <select id="complete-result">
+                                        <option value="PASSED">{"合格"}</option>
+                                        <option value="FAILED">{"不合格"}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn-secondary" onclick={on_close.clone()}>{"取消"}</button>
+                                <button class="btn-primary" onclick={ctx.link().callback(move |_| {
+                                    let pass_qty = web_sys::window().unwrap().document().unwrap().get_element_by_id("complete-pass-qty").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value();
+                                    let reject_qty = web_sys::window().unwrap().document().unwrap().get_element_by_id("complete-reject-qty").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value();
+                                    let result = web_sys::window().unwrap().document().unwrap().get_element_by_id("complete-result").unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap().value();
+                                    
+                                    Msg::CompleteInspection(CompleteInspectionRequest {
+                                        pass_quantity: if pass_qty.is_empty() { "0".to_string() } else { pass_qty },
+                                        reject_quantity: if reject_qty.is_empty() { "0".to_string() } else { reject_qty },
+                                        inspection_result: result,
+                                    })
+                                })}>{"确认完成"}</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            },
+            ModalMode::View => {
+                let inspection = self.selected_inspection.as_ref().unwrap();
+                html! {
+                    <div class="modal-overlay">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2>{"检验单详情"}</h2>
+                                <button class="close-btn" onclick={on_close.clone()}>{"×"}</button>
+                            </div>
+                            <div class="modal-body">
+                                <p><strong>{"检验单号: "}</strong>{&inspection.inspection_no}</p>
+                                <p><strong>{"状态: "}</strong>{&inspection.result}</p>
+                                <p><strong>{"合格数量: "}</strong>{&inspection.qualified_quantity}</p>
+                                <p><strong>{"不合格数量: "}</strong>{&inspection.unqualified_quantity}</p>
+                                <p><strong>{"备注: "}</strong>{inspection.remarks.as_deref().unwrap_or("-")}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn-primary" onclick={on_close}>{"关闭"}</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
         }
     }
 }

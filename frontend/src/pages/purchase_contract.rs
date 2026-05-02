@@ -7,6 +7,7 @@ use crate::models::purchase_contract::{
     PurchaseContract, PurchaseContractQueryParams, CreatePurchaseContractRequest, ExecutePurchaseContractRequest,
 };
 use crate::services::purchase_contract_service::PurchaseContractService;
+use crate::services::crud_service::CrudService;
 
 /// 采购合同状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -168,7 +169,7 @@ impl Component for PurchaseContractPage {
                 };
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match PurchaseContractService::list_with_query(&params).await {
+                    match PurchaseContractService::list_contracts(params).await {
                         Ok(response) => {
                             link.send_message(Msg::SetContracts(response.items, response.total));
                         }
@@ -229,7 +230,7 @@ impl Component for PurchaseContractPage {
                 self.state.loading = true;
                 let link = ctx.link().clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match PurchaseContractService::create(req).await {
+                    match PurchaseContractService::create_contract(req).await {
                         Ok(_) => {
                             link.send_message(Msg::HideCreateModal);
                             link.send_message(Msg::LoadContracts);
@@ -334,7 +335,7 @@ impl Component for PurchaseContractPage {
                         oninput={ctx.link().batch_callback(|e: InputEvent| {
                             let target = e.target()?;
                             if let Ok(input) = target.dyn_into::<web_sys::HtmlInputElement>() {
-                                Msg::SearchKeyword(input.value())
+                                Some(Msg::SearchKeyword(input.value()))
                             } else {
                                 Some(Msg::SearchKeyword(String::new()))
                             }
@@ -346,9 +347,9 @@ impl Component for PurchaseContractPage {
                             let target = e.target()?;
                             if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
                                 let value = select.value();
-                                Some(Msg::FilterStatus(if value.is_empty() { None } else { Some(value))})
+                                Some(Msg::FilterStatus(if value.is_empty() { None } else { Some(value) }))
                             } else {
-                                Msg::FilterStatus(None)
+                                Some(Msg::FilterStatus(None))
                             }
                         })}
                     >
@@ -446,9 +447,9 @@ impl Component for PurchaseContractPage {
                             let target = e.target()?;
                             if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
                                 if let Ok(size) = select.value().parse::<i64>() {
-                                    Msg::ChangePageSize(size)
+                                    Some(Msg::ChangePageSize(size))
                                 } else {
-                                    Msg::ChangePageSize(10)
+                                    Some(Msg::ChangePageSize(10))
                                 }
                             } else {
                                 Some(Msg::ChangePageSize(10))
@@ -599,7 +600,7 @@ impl Component for CreateContractModal {
             ctx.link().batch_callback(move |e: InputEvent| {
                 let target = e.target()?;
                 let input = target.unchecked_into::<web_sys::HtmlInputElement>();
-                msg(input.value())
+                Some(msg(input.value()))
             })
         };
 
@@ -701,7 +702,7 @@ impl Component for ExecuteContractModal {
             ExecuteMsg::UpdateRemark(val) => self.remark = val,
             ExecuteMsg::Submit => {
                 use std::str::FromStr;
-                let req = ExecuteContractRequest {
+                let req = crate::models::purchase_contract::ExecutePurchaseContractRequest {
                     execution_type: self.execution_type.clone(),
                     execution_amount: self.execution_amount.clone(),
                     related_bill_type: if self.related_bill_type.is_empty() { None } else { Some(self.related_bill_type.clone()) },
@@ -794,6 +795,8 @@ pub enum CancelMsg {
     UpdateReason(String),
     Submit,
 }
+
+pub struct CancelContractModal { pub reason: String }
 
 impl Component for CancelContractModal {
     type Message = CancelMsg;

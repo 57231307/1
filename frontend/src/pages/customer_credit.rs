@@ -6,6 +6,7 @@ use crate::models::customer_credit::{
     CustomerCredit, CreditQueryParams, CreditRatingRequest, CreditLimitAdjustmentRequest,
 };
 use crate::services::customer_credit_service::CustomerCreditService;
+use crate::services::crud_service::CrudService;
 
 pub struct CustomerCreditPage {
     credits: Vec<CustomerCredit>,
@@ -102,7 +103,7 @@ impl Component for CustomerCreditPage {
                 };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match CustomerCreditService::list_with_query(&params).await {
+                    match CustomerCreditService::list_credits(params).await {
                         Ok(response) => link.send_message(Msg::CreditsLoaded(response.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }

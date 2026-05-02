@@ -2,46 +2,38 @@ use crate::models::fund_management::{
     CreateFundAccountRequest, FundAccount, FundAccountListResponse, FundAccountQueryParams,
 };
 use crate::services::api::ApiService;
+use crate::services::crud_service::CrudService;
 
 /// 资金账户服务
 pub struct FundManagementService;
 
+impl CrudService for FundManagementService {
+    type Model = FundAccount;
+    type ListResponse = FundAccountListResponse;
+    type CreateRequest = CreateFundAccountRequest;
+    type UpdateRequest = ();
+
+    fn base_path() -> &'static str {
+        "/fund-accounts"
+    }
+}
+
+
 impl FundManagementService {
     /// 获取资金账户列表
     pub async fn list_accounts(params: FundAccountQueryParams) -> Result<Vec<FundAccount>, String> {
-        let mut url = "/fund-accounts".to_string();
-        let mut query_parts: Vec<String> = Vec::new();
-
-        if let Some(account_type) = &params.account_type {
-            query_parts.push(format!("account_type={}", account_type));
-        }
-        if let Some(status) = &params.status {
-            query_parts.push(format!("status={}", status));
-        }
-        if let Some(page) = params.page {
-            query_parts.push(format!("page={}", page));
-        }
-        if let Some(page_size) = params.page_size {
-            query_parts.push(format!("page_size={}", page_size));
-        }
-
-        if !query_parts.is_empty() {
-            url.push_str(&format!("?{}", query_parts.join("&")));
-        }
-
-        let response: FundAccountListResponse = ApiService::get(&url).await?;
-        Ok(response.data)
+        let resp = <Self as CrudService>::list_with_query(&params).await?;
+        Ok(resp.data)
     }
 
     /// 获取资金账户详情
     pub async fn get_account(id: i32) -> Result<FundAccount, String> {
-        ApiService::get::<FundAccount>(&format!("/fund-accounts/{}", id)).await
+        <Self as CrudService>::get(id).await
     }
 
     /// 创建资金账户
     pub async fn create_account(req: CreateFundAccountRequest) -> Result<FundAccount, String> {
-        let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/fund-accounts", &payload).await
+        <Self as CrudService>::create(req).await
     }
 
     /// 账户存款

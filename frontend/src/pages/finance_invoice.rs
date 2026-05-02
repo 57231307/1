@@ -10,6 +10,7 @@ use crate::models::finance_invoice::{
     FinanceInvoice, InvoiceQueryParams,
 };
 use crate::services::finance_invoice_service::FinanceInvoiceService;
+use crate::services::crud_service::CrudService;
 
 /// 财务发票管理页面状态
 pub struct FinanceInvoicePage {

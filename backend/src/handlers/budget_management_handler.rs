@@ -92,7 +92,7 @@ pub struct CreateBudgetExecutionRequest {
 }
 
 /// 获取预算科目列表
-pub async fn list_items(
+pub async fn list_budget_items(
     Query(params): Query<BudgetItemQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -115,7 +115,7 @@ pub async fn list_items(
 
 /// 创建预算科目
 #[axum::debug_handler]
-pub async fn create_item(
+pub async fn create_budget_item(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateBudgetItemRequest>,
@@ -143,7 +143,7 @@ pub async fn create_item(
 }
 
 /// 获取预算科目详情
-pub async fn get_item(
+pub async fn get_budget_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -159,7 +159,7 @@ pub async fn get_item(
 
 /// 更新预算科目
 #[axum::debug_handler]
-pub async fn update_item(
+pub async fn update_budget_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
@@ -187,7 +187,7 @@ pub async fn update_item(
 }
 
 /// 删除预算科目
-pub async fn delete_item(
+pub async fn delete_budget_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,

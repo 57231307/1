@@ -4,6 +4,7 @@ use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::sales::{SalesOrder, ShipOrderRequest, ShipOrderItemRequest};
 use crate::services::sales_service::SalesService;
+use crate::services::crud_service::CrudService;
 use crate::models::warehouse::Warehouse;
 use crate::services::warehouse_service::WarehouseService;
 use std::str::FromStr;
@@ -25,6 +26,7 @@ pub struct SalesOrderPage {
     error: Option<String>,
     page: u64,
     page_size: u64,
+    filter_status: String,
     printing_order: Option<SalesOrder>,
     print_trigger: bool,
     
@@ -79,6 +81,7 @@ impl Component for SalesOrderPage {
             error: None,
             page: 1,
             page_size: 20,
+            filter_status: String::from("全部"),
             printing_order: None,
             print_trigger: false,
             warehouses: Vec::new(),
@@ -109,9 +112,22 @@ impl Component for SalesOrderPage {
         match msg {
             Msg::LoadOrders => {
                 self.loading = true;
+                #[derive(serde::Serialize)]
+                struct SalesOrderQuery {
+                    page: Option<u64>,
+                    page_size: Option<u64>,
+                    status: Option<String>,
+                    customer_id: Option<i32>,
+                }
+                let query = SalesOrderQuery {
+                    page: Some(self.page),
+                    page_size: Some(self.page_size),
+                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
+                    customer_id: None,
+                };
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match SalesService::list_with_query(&).await {
+                    match SalesService::list_with_query(&query).await {
                         Ok(res) => link.send_message(Msg::OrdersLoaded(res.orders)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
@@ -462,7 +478,7 @@ impl SalesOrderPage {
                                             let target = e.target()?;
                                             let select = target.unchecked_into::<HtmlSelectElement>();
                                             if let Ok(wid) = select.value().parse::<i32>() {
-                                                Msg::UpdateShipItemWarehouse(idx, wid)
+                                                Some(Msg::UpdateShipItemWarehouse(idx, wid))
                                             } else {
                                                 Some(Msg::UpdateShipItemWarehouse(idx, 0))
                                             }

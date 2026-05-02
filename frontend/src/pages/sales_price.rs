@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::services::sales_price_service::SalesPriceService;
+use crate::services::crud_service::CrudService;
 use crate::models::sales_price::SalesPrice;
 
 #[function_component(SalesPricePage)]
@@ -47,7 +48,7 @@ pub fn sales_price_page() -> Html {
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"销售价格管理"}</h1>
                 <div>
-                    <button class="btn btn-primary" onclick={load_data.clone()} style="margin-right: 10px;">{"刷新数据"}</button>
+                    <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
                     <button class="btn btn-success">{"新增定价"}</button>
                 </div>
             </div>

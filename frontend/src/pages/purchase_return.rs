@@ -8,6 +8,7 @@ use crate::models::purchase_return::{CreatePurchaseReturnRequest, CreatePurchase
     PurchaseReturn, PurchaseReturnQuery,
 };
 use crate::services::purchase_return_service::PurchaseReturnService;
+use crate::services::crud_service::CrudService;
 
 /// 采购退货页面状态管理
 pub struct PurchaseReturnPage {

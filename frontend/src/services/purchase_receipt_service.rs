@@ -27,39 +27,28 @@ impl CrudService for PurchaseReceiptService {
 impl PurchaseReceiptService {
     /// 获取收货单列表
     pub async fn list(query: PurchaseReceiptQuery) -> Result<PaginatedReceipts, String> {
-        let mut params = Vec::new();
-        if let Some(page) = query.page {
-            params.push(format!("page={}", page));
-        }
-        if let Some(page_size) = query.page_size {
-            params.push(format!("page_size={}", page_size));
-        }
-        if let Some(ref status) = query.status {
-            params.push(format!("status={}", status));
-        }
-        if let Some(supplier_id) = query.supplier_id {
-            params.push(format!("supplier_id={}", supplier_id));
-        }
-        if let Some(order_id) = query.order_id {
-            params.push(format!("order_id={}", order_id));
-        }
-
-        let query_string = if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
-        };
-
-        let response: ApiResponse<PaginatedReceipts> =
-            ApiService::get(&format!("/purchases/receipts{}", query_string)).await?;
-        response.into_result()
+        <Self as CrudService>::list_with_query(&query).await
     }
 
     /// 获取收货单详情
+    pub async fn get(id: i32) -> Result<PurchaseReceipt, String> {
+        <Self as CrudService>::get(id).await
+    }
 
     /// 创建收货单
+    pub async fn create(req: CreatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
+        <Self as CrudService>::create(req).await
+    }
 
     /// 更新收货单
+    pub async fn update(id: i32, req: UpdatePurchaseReceiptRequest) -> Result<PurchaseReceipt, String> {
+        <Self as CrudService>::update(id, req).await
+    }
+
+    /// 删除收货单
+    pub async fn delete(id: i32) -> Result<(), String> {
+        <Self as CrudService>::delete(id).await
+    }
 
     /// 确认收货单
     pub async fn confirm(id: i32) -> Result<PurchaseReceipt, String> {

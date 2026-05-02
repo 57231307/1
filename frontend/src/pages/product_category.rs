@@ -48,7 +48,7 @@ pub fn product_category_page() -> Html {
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"产品类别管理"}</h1>
                 <div>
-                    <button class="btn btn-primary" onclick={load_data.clone()} style="margin-right: 10px;">{"刷新数据"}</button>
+                    <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
                     <button class="btn btn-success">{"新增类别"}</button>
                 </div>
             </div>

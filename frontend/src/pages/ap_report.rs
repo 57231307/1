@@ -9,6 +9,7 @@ use crate::models::ap_report::{
     ApStatisticsResponse, ApDailyResponse, ApMonthlyResponse, ApAgingResponse,
 };
 use crate::services::ap_report_service::ApReportService;
+use crate::services::crud_service::CrudService;
 
 /// 报表类型枚举
 #[derive(Clone, PartialEq)]

@@ -6,6 +6,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
 use crate::services::purchase_order_service::PurchaseOrderService;
+use crate::services::crud_service::CrudService;
 
 pub struct PurchaseOrderPage {
     printing_order: Option<crate::models::purchase_order::PurchaseOrder>,

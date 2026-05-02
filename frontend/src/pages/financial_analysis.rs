@@ -5,6 +5,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::financial_analysis::{DupontAnalysis, FinancialRatio};
 use crate::services::financial_analysis_service::FinancialAnalysisService;
+use crate::services::crud_service::CrudService;
 
 pub struct FinancialAnalysisPage {
     loading: bool,

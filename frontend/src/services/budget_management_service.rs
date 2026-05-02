@@ -24,42 +24,27 @@ impl CrudService for BudgetManagementService {
 impl BudgetManagementService {
     /// 获取预算科目列表
     pub async fn list_items(query: BudgetItemQuery) -> Result<BudgetItemListResponse, String> {
-        let mut url = String::from("/budgets/items?");
-        if let Some(item_type) = &query.item_type {
-            url.push_str(&format!("item_type={}&", item_type));
-        }
-        if let Some(status) = &query.status {
-            url.push_str(&format!("status={}&", status));
-        }
-        if let Some(page) = query.page {
-            url.push_str(&format!("page={}&", page));
-        }
-        if let Some(page_size) = query.page_size {
-            url.push_str(&format!("page_size={}", page_size));
-        }
-        ApiService::get::<BudgetItemListResponse>(&url).await
+        <Self as CrudService>::list_with_query(&query).await
     }
 
     /// 获取预算科目详情
     pub async fn get_item(id: i32) -> Result<BudgetItem, String> {
-        ApiService::get::<BudgetItem>(&format!("/budgets/items/{}", id)).await
+        <Self as CrudService>::get(id).await
     }
 
     /// 创建预算科目
     pub async fn create_item(req: CreateBudgetItemRequest) -> Result<BudgetItem, String> {
-        let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/budgets/items", &payload).await
+        <Self as CrudService>::create(req).await
     }
 
     /// 更新预算科目
     pub async fn update_item(id: i32, req: UpdateBudgetItemRequest) -> Result<BudgetItem, String> {
-        let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::put(&format!("/budgets/items/{}", id), &payload).await
+        <Self as CrudService>::update(id, req).await
     }
 
     /// 删除预算科目
     pub async fn delete_item(id: i32) -> Result<(), String> {
-        ApiService::delete(&format!("/budgets/items/{}", id)).await
+        <Self as CrudService>::delete(id).await
     }
 
     /// 获取预算方案列表

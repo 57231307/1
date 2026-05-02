@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::services::quality_inspection_service::QualityInspectionService;
+use crate::services::crud_service::CrudService;
 use crate::models::quality_inspection::InspectionRecord;
 
 #[function_component(QualityInspectionPage)]
@@ -47,7 +48,7 @@ pub fn quality_inspection_page() -> Html {
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"质量检验记录"}</h1>
                 <div>
-                    <button class="btn btn-primary" onclick={load_data.clone()} style="margin-right: 10px;">{"刷新数据"}</button>
+                    <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
                     <button class="btn btn-success">{"新建检验记录"}</button>
                 </div>
             </div>

@@ -7,6 +7,7 @@ use crate::models::batch::{
     Batch, BatchQuery,
 };
 use crate::services::batch_service::BatchService;
+use crate::services::crud_service::CrudService;
 
 pub struct BatchPage {
     batches: Vec<Batch>,

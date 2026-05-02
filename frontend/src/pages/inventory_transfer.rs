@@ -9,6 +9,7 @@ use crate::models::inventory_transfer::{
     InventoryTransferQuery, CreateInventoryTransferRequest, UpdateInventoryTransferRequest,
 };
 use crate::services::inventory_transfer_service::InventoryTransferService;
+use crate::services::crud_service::CrudService;
 use crate::components::navigation::Navigation;
 
 pub struct InventoryTransferPage {

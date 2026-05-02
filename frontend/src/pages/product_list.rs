@@ -18,7 +18,7 @@ pub fn product_list_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 match ProductService::list().await {
                     Ok(data) => {
-                        products.set(data);
+                        products.set(data.products);
                         loading.set(false);
                     }
                     Err(e) => {
@@ -41,7 +41,7 @@ pub fn product_list_page() -> Html {
                 match ProductService::delete(id).await {
                     Ok(_) => {
                         if let Ok(data) = ProductService::list().await {
-                            products.set(data);
+                            products.set(data.products);
                         }
                     }
                     Err(e) => {
@@ -88,7 +88,7 @@ pub fn product_list_page() -> Html {
                                     <td style="padding: 10px;">{ p.price.clone().unwrap_or_default() }</td>
                                     <td style="padding: 10px;">
                                         <button class="btn btn-sm" style="margin-right: 5px;">{"编辑"}</button>
-                                        <button class="btn btn-sm btn-danger" onclick={on_delete.reform(move |_| p.id)}>{"删除"}</button>
+                                        <button class="btn btn-sm btn-danger" onclick={{ let id = p.id; on_delete.reform(move |_| id) }}>{"删除"}</button>
                                     </td>
                                 </tr>
                             }

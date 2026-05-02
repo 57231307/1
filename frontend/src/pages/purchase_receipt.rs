@@ -8,6 +8,7 @@ use crate::models::purchase_receipt::{
     PurchaseReceipt, PurchaseReceiptQuery, PurchaseReceiptItem
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::services::crud_service::CrudService;
 
 /// 采购收货单页面状态
 pub struct PurchaseReceiptPage {

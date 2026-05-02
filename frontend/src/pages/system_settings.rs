@@ -5,6 +5,8 @@ use yew::prelude::*;
 #[function_component(SystemSettingsPage)]
 pub fn system_settings_page() -> Html {
     let active_tab = use_state(|| "company".to_string());
+    let allow_negative_stock = use_state(|| true);
+    let enable_credit_risk = use_state(|| true);
 
     let render_company_settings = || html! {
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
@@ -35,9 +37,7 @@ pub fn system_settings_page() -> Html {
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-medium text-gray-900">{"数据字典配置"}</h3>
-                <button onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50">
-                    {"+ 新增字典"}
-                </button>
+                
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -57,8 +57,7 @@ pub fn system_settings_page() -> Html {
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{"启用"}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
-                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-red-600 hover:text-red-900">{"停用"}</a>
+                                <span>{"- "}</span>
                             </td>
                         </tr>
                         <tr>
@@ -68,8 +67,7 @@ pub fn system_settings_page() -> Html {
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{"启用"}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-indigo-600 hover:text-indigo-900 mr-3">{"编辑"}</a>
-                                <a href="javascript:void(0);" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))} class="text-red-600 hover:text-red-900">{"停用"}</a>
+                                <span>{"- "}</span>
                             </td>
                         </tr>
                     </tbody>
@@ -87,8 +85,11 @@ pub fn system_settings_page() -> Html {
                         <h4 class="text-sm font-medium text-gray-900">{"允许负库存发货"}</h4>
                         <p class="text-xs text-gray-500">{"开启后，在面料二批扫码发货时若无库存将自动生成负库存记录"}</p>
                     </div>
-                    <button onclick={Callback::from(|_| gloo_dialogs::alert("风控功能开发中..."))} class="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        <span class="translate-x-5 pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
+                                        <button onclick={{
+                        let allow_negative_stock = allow_negative_stock.clone();
+                        Callback::from(move |_| allow_negative_stock.set(!*allow_negative_stock))
+                    }} class={format!("{} relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500", if *allow_negative_stock { "bg-indigo-600" } else { "bg-gray-200" })}>
+                        <span class={format!("{} pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200", if *allow_negative_stock { "translate-x-5" } else { "translate-x-0" })}></span>
                     </button>
                 </div>
                 <div class="flex items-center justify-between pt-4 border-t border-gray-200">
@@ -96,8 +97,11 @@ pub fn system_settings_page() -> Html {
                         <h4 class="text-sm font-medium text-gray-900">{"开启客户信用风控"}</h4>
                         <p class="text-xs text-gray-500">{"开单时若订单金额超过客户信用额度，将强制拦截"}</p>
                     </div>
-                    <button onclick={Callback::from(|_| gloo_dialogs::alert("风控功能开发中..."))} class="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        <span class="translate-x-5 pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
+                                        <button onclick={{
+                        let enable_credit_risk = enable_credit_risk.clone();
+                        Callback::from(move |_| enable_credit_risk.set(!*enable_credit_risk))
+                    }} class={format!("{} relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500", if *enable_credit_risk { "bg-indigo-600" } else { "bg-gray-200" })}>
+                        <span class={format!("{} pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200", if *enable_credit_risk { "translate-x-5" } else { "translate-x-0" })}></span>
                     </button>
                 </div>
             </div>

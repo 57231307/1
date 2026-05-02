@@ -1,6 +1,7 @@
 use gloo_dialogs;
 use yew::prelude::*;
 use crate::services::crm_service::{CrmService, CrmOpportunity};
+use crate::services::crud_service::CrudService;
 
 #[function_component(CrmOpportunityPage)]
 pub fn crm_opportunity_page() -> Html {

@@ -3,6 +3,7 @@ use yew_router::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::app::Route;
 use crate::services::user_service::UserService;
+use crate::services::crud_service::CrudService;
 use crate::models::user::User;
 use crate::utils::storage::Storage;
 use crate::components::main_layout::MainLayout;

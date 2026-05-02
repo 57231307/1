@@ -18,7 +18,7 @@ pub fn department_list_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 match DepartmentService::list().await {
                     Ok(data) => {
-                        departments.set(data);
+                        departments.set(data.departments);
                         loading.set(false);
                     }
                     Err(e) => {
@@ -41,7 +41,7 @@ pub fn department_list_page() -> Html {
                 match DepartmentService::delete(id).await {
                     Ok(_) => {
                         if let Ok(data) = DepartmentService::list().await {
-                            departments.set(data);
+                            departments.set(data.departments);
                         }
                     }
                     Err(e) => {
@@ -88,7 +88,7 @@ pub fn department_list_page() -> Html {
                                     <td style="padding: 10px;">{ d.parent_id.map(|id| id.to_string()).unwrap_or_default() }</td>
                                     <td style="padding: 10px;">
                                         <button class="btn btn-sm" style="margin-right: 5px;">{"编辑"}</button>
-                                        <button class="btn btn-sm btn-danger" onclick={on_delete.reform(move |_| d.id)}>{"删除"}</button>
+                                        <button class="btn btn-sm btn-danger" onclick={{ let id = d.id; on_delete.reform(move |_| id) }}>{"删除"}</button>
                                     </td>
                                 </tr>
                             }

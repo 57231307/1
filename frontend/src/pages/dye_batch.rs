@@ -7,6 +7,7 @@ use crate::models::dye_batch::{
     DyeBatch, DyeBatchQuery, CreateDyeBatchRequest, CompleteDyeBatchRequest,
 };
 use crate::services::dye_batch_service::DyeBatchService;
+use crate::services::crud_service::CrudService;
 
 pub struct DyeBatchPage {
     batches: Vec<DyeBatch>,

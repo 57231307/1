@@ -4,6 +4,7 @@ use wasm_bindgen_futures::spawn_local;
 use wasm_bindgen::JsCast;
 use crate::app::Route;
 use crate::services::auth::AuthService;
+use crate::services::crud_service::CrudService;
 use crate::services::init_service::InitService;
 use crate::utils::storage::Storage;
 use web_sys::HtmlInputElement;

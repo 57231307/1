@@ -4,6 +4,7 @@ use chrono::{Datelike, Timelike};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 use crate::services::dashboard_service::{DashboardService, DashboardOverview, LowStockAlert, SalesStatistics, InventoryStatistics};
+use crate::services::crud_service::CrudService;
 use crate::services::auth::AuthService;
 use crate::models::auth::TotpSetupResponse;
 

@@ -4,6 +4,7 @@ use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::services::customer_service::CustomerService;
+use crate::services::crud_service::CrudService;
 use crate::models::customer::{
     Customer, CustomerQuery, CustomerListResponse,
     CreateCustomerRequest, UpdateCustomerRequest,

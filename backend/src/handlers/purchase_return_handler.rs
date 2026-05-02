@@ -16,7 +16,7 @@ use serde::Deserialize;
 use validator::Validate;
 
 /// 查询采购退货单列表
-pub async fn list_returns(
+pub async fn list_purchase_returns(
     Query(params): Query<ReturnQueryParams>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -36,7 +36,7 @@ pub async fn list_returns(
 }
 
 /// 获取采购退货单详情
-pub async fn get_return(
+pub async fn get_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -50,7 +50,7 @@ pub async fn get_return(
 
 /// 创建采购退货单
 #[axum::debug_handler]
-pub async fn create_return(
+pub async fn create_purchase_return(
     State(state): State<AppState>,
     Json(req): Json<CreatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -69,7 +69,7 @@ pub async fn create_return(
 
 /// 更新采购退货单
 #[axum::debug_handler]
-pub async fn update_return(
+pub async fn update_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReturnRequest>,
@@ -86,7 +86,7 @@ pub async fn update_return(
 }
 
 /// 提交采购退货单
-pub async fn submit_return(
+pub async fn submit_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -102,7 +102,7 @@ pub async fn submit_return(
 }
 
 /// 审批采购退货单
-pub async fn approve_return(
+pub async fn approve_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -119,7 +119,7 @@ pub async fn approve_return(
 
 /// 拒绝采购退货单
 #[axum::debug_handler]
-pub async fn reject_return(
+pub async fn reject_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<RejectReturnRequest>,
@@ -155,7 +155,7 @@ pub struct RejectReturnRequest {
 }
 
 
-pub async fn list_items(
+pub async fn list_purchase_return_items(
     State(state): State<AppState>,
     _auth: crate::middleware::auth_context::AuthContext,
     Path(id): Path<i32>,
@@ -165,7 +165,7 @@ pub async fn list_items(
     Ok(Json(ApiResponse::success(items)))
 }
 
-pub async fn create_item(
+pub async fn create_purchase_return_item(
     State(state): State<AppState>,
     _auth: crate::middleware::auth_context::AuthContext,
     Path(id): Path<i32>,
@@ -176,7 +176,7 @@ pub async fn create_item(
     Ok(Json(ApiResponse::success(item)))
 }
 
-pub async fn update_item(
+pub async fn update_purchase_return_item(
     State(state): State<AppState>,
     _auth: crate::middleware::auth_context::AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,
@@ -187,7 +187,7 @@ pub async fn update_item(
     Ok(Json(ApiResponse::success(item)))
 }
 
-pub async fn delete_item(
+pub async fn delete_purchase_return_item(
     State(state): State<AppState>,
     _auth: crate::middleware::auth_context::AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,

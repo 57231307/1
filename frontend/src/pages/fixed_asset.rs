@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::services::fixed_asset_service::FixedAssetService;
+use crate::services::crud_service::CrudService;
 use crate::models::fixed_asset::{AssetQueryParams};
 
 #[function_component(FixedAssetPage)]

@@ -7,6 +7,7 @@ use crate::models::five_dimension::{
     FiveDimensionStatsParams, FiveDimensionItem, FiveDimensionStatsResponse, FiveDimensionListResponse, FiveDimensionSearchParams,
 };
 use crate::services::five_dimension_service::FiveDimensionService;
+use crate::services::crud_service::CrudService;
 use crate::components::main_layout::MainLayout;
 
 pub struct FiveDimensionPage {

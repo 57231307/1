@@ -18,7 +18,7 @@ pub fn warehouse_list_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 match WarehouseService::list().await {
                     Ok(data) => {
-                        warehouses.set(data);
+                        warehouses.set(data.warehouses);
                         loading.set(false);
                     }
                     Err(e) => {
@@ -41,7 +41,7 @@ pub fn warehouse_list_page() -> Html {
                 match WarehouseService::delete(id).await {
                     Ok(_) => {
                         if let Ok(data) = WarehouseService::list().await {
-                            warehouses.set(data);
+                            warehouses.set(data.warehouses);
                         }
                     }
                     Err(e) => {
@@ -88,7 +88,7 @@ pub fn warehouse_list_page() -> Html {
                                     <td style="padding: 10px;">{ w.address.clone().unwrap_or_default() }</td>
                                     <td style="padding: 10px;">
                                         <button class="btn btn-sm" style="margin-right: 5px;">{"编辑"}</button>
-                                        <button class="btn btn-sm btn-danger" onclick={on_delete.reform(move |_| w.id)}>{"删除"}</button>
+                                        <button class="btn btn-sm btn-danger" onclick={{ let id = w.id; on_delete.reform(move |_| id) }}>{"删除"}</button>
                                     </td>
                                 </tr>
                             }
