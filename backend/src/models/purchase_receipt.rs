@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 采购入库 Model
 //!
 //! 采购入库模块包含以下实体：
@@ -76,6 +77,7 @@ pub struct Model {
     pub created_by: i32,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新人 ID

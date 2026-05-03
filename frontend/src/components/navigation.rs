@@ -55,6 +55,7 @@ pub fn navigation(props: &NavigationProps) -> Html {
         }};
     }
 
+    let on_my_tasks = nav_cb!(Route::MyTasks);
     let on_dashboard = nav_cb!(Route::Dashboard);
     
     // 基础数据
@@ -183,7 +184,10 @@ pub fn navigation(props: &NavigationProps) -> Html {
             <div class="nav-menu flex-1 px-3 py-4 space-y-1">
                 
                 {render_l1_group("工作台", l1_dashboard, html! {
-                    {render_item("首页", "dashboard", on_dashboard)}
+                    <>
+                        {render_item("首页", "dashboard", on_dashboard)}
+                        {render_item("我的待办", "my-tasks", on_my_tasks)}
+                    </>
                 })}
 
                 {render_l1_group("基础数据", l1_basic, html! {

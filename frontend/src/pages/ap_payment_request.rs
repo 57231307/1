@@ -1,9 +1,11 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 // 付款申请管理页面
 //
 // 付款申请（AP Payment Request）管理功能
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::ap_payment_request::{
@@ -332,17 +334,23 @@ impl ApPaymentRequestPage {
                                                     {"查看"}
                                                 </button>
                                                 if request.approval_status == "DRAFT" {
-                                                    <button class="btn-action btn-primary" onclick={ctx.link().callback(move |_| Msg::SubmitRequest(request_id))}>
+                                                    <PermissionGuard resource="ap_payment_request" action="create">
+<button class="btn-action btn-primary" onclick={ctx.link().callback(move |_| Msg::SubmitRequest(request_id))}>
                                                         {"提交"}
                                                     </button>
-                                                    <button class="btn-action btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteRequest(request_id))}>
+</PermissionGuard>
+                                                    <PermissionGuard resource="ap_payment_request" action="delete">
+<button class="btn-action btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteRequest(request_id))}>
                                                         {"删除"}
                                                     </button>
+</PermissionGuard>
                                                 }
                                                 if request.approval_status == "APPROVING" {
-                                                    <button class="btn-action btn-success" onclick={ctx.link().callback(move |_| Msg::ApproveRequest(request_id))}>
+                                                    <PermissionGuard resource="ap_payment_request" action="approve">
+<button class="btn-action btn-success" onclick={ctx.link().callback(move |_| Msg::ApproveRequest(request_id))}>
                                                         {"审批"}
                                                     </button>
+</PermissionGuard>
                                                 }
                                             </div>
                                         </td>

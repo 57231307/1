@@ -37,6 +37,7 @@ impl InventoryReservationService {
             created_by: sea_orm::ActiveValue::Set(created_by),
             created_at: sea_orm::ActiveValue::Set(Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         reservation.insert(&*self.db).await

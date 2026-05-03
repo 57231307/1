@@ -1,9 +1,11 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 // 付款管理页面
 //
 // 付款（AP Payment）管理功能
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::ap_payment::{
@@ -312,9 +314,11 @@ impl ApPaymentPage {
                                                     <button class="btn-action btn-success" onclick={ctx.link().callback(move |_| Msg::ConfirmPayment(payment_id))}>
                                                         {"确认"}
                                                     </button>
-                                                    <button class="btn-action btn-danger" onclick={ctx.link().callback(move |_| Msg::DeletePayment(payment_id))}>
+                                                    <PermissionGuard resource="ap_payment" action="delete">
+<button class="btn-action btn-danger" onclick={ctx.link().callback(move |_| Msg::DeletePayment(payment_id))}>
                                                         {"删除"}
                                                     </button>
+</PermissionGuard>
                                                 }
                                             </div>
                                         </td>

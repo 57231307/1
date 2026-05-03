@@ -1,6 +1,8 @@
 // 销售订单管理页面
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
+use crate::utils::permissions;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::sales::{SalesOrder, ShipOrderRequest, ShipOrderItemRequest};
 use crate::services::sales_service::SalesService;
@@ -364,12 +366,21 @@ impl SalesOrderPage {
                                     <td>{&order.status}</td>
                                     <td>{&order.created_at}</td>
                                     <td>
-                                        <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>
-                                            {"打印"}
-                                        </button>
-                                        <button class="btn-primary" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::PrepareShip(id))}>
-                                            {"发货"}
-                                        </button>
+                                        if permissions::has_permission("sales_order", "read") {
+                                            <button class="btn-secondary" onclick={ctx.link().callback(move |_| Msg::PreparePrint(id))}>
+                                                {"打印"}
+                                            </button>
+                                        }
+                                        if (order.status == "draft" || order.status == "rejected") && permissions::has_permission("sales_order", "update") {
+                                            <button class="btn-primary" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(id))}>
+                                                {"提交审批"}
+                                            </button>
+                                        }
+                                        if order.status == "approved" && permissions::has_permission("sales_order", "update") {
+                                            <button class="btn-primary" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::PrepareShip(id))}>
+                                                {"发货"}
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -527,7 +538,8 @@ impl SalesOrderPage {
                             <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseShipModal)}>
                                 {"取消"}
                             </button>
-                            <button 
+                            <PermissionGuard resource="sales_order" action="create">
+<button 
                                 class="btn-primary" 
                                 onclick={ctx.link().callback(|_| Msg::SubmitShip)}
                                 disabled={self.submitting_ship}
@@ -538,6 +550,7 @@ impl SalesOrderPage {
                                     {"确认发货"}
                                 }
                             </button>
+</PermissionGuard>
                         </div>
                     </div>
                 </div>

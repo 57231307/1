@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 缸号管理模型（染色批次管理）
 
 use sea_orm::entity::prelude::*;
@@ -20,6 +21,7 @@ pub struct Model {
     pub quality_grade: Option<String>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
+    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

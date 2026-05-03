@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! API 访问日志 Model
 //!
 //! API 访问日志模块
@@ -52,6 +53,7 @@ pub struct Model {
     pub error_message: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

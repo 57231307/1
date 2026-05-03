@@ -1,7 +1,10 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 /// 染色配方管理页面
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
+use crate::utils::dom_helper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::dye_recipe::{
@@ -370,15 +373,19 @@ impl DyeRecipePage {
                                             </button>
                                         }
                                         if is_draft {
-                                            <button class="btn-small btn-success"
+                                            <PermissionGuard resource="dye_recipe" action="approve">
+<button class="btn-small btn-success"
                                                 onclick={ctx.link().callback(move |_| Msg::ApproveRecipe(recipe_id))}>
                                                 {"审核"}
                                             </button>
+</PermissionGuard>
                                         }
-                                        <button class="btn-small btn-danger"
+                                        <PermissionGuard resource="dye_recipe" action="delete">
+<button class="btn-small btn-danger"
                                             onclick={ctx.link().callback(move |_| Msg::DeleteRecipe(recipe_id))}>
                                             {"删除"}
                                         </button>
+</PermissionGuard>
                                     </td>
                                 </tr>
                             }
@@ -546,16 +553,8 @@ impl DyeRecipePage {
                     <div class="modal-footer">
                         <button class="btn-secondary" onclick={on_close.clone()}>{"取消"}</button>
                         <button class="btn-primary" onclick={ctx.link().callback(move |_| {
-                            let get_val = |id: &str| -> String {
-                                web_sys::window().unwrap().document().unwrap().get_element_by_id(id).unwrap()
-                                    .dyn_into::<web_sys::HtmlInputElement>().map(|e| e.value())
-                                    .or_else(|_| web_sys::window().unwrap().document().unwrap().get_element_by_id(id).unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().map(|e| e.value()))
-                                    .unwrap_or_default()
-                            };
-                            let get_opt = |id: &str| -> Option<String> {
-                                let v = get_val(id);
-                                if v.is_empty() { None } else { Some(v) }
-                            };
+                            let get_val = |id: &str| -> String { dom_helper::get_input_value(id).or_else(|| dom_helper::get_textarea_value(id)).unwrap_or_default() };
+                            let get_opt = |id: &str| -> Option<String> { let v = get_val(id); if v.is_empty() { None } else { Some(v) } };
                             
                             if is_edit {
                                 Msg::UpdateRecipe(recipe.id, UpdateDyeRecipeRequest {

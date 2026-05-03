@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 业务追溯链模型
 
 use chrono::{DateTime, Utc};
@@ -6,7 +7,8 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
 /// 业务追溯链 Model
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "business_trace_chain")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -78,6 +80,7 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 创建人 ID

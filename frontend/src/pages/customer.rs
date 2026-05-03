@@ -1,6 +1,8 @@
 // 客户管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::services::customer_service::CustomerService;
@@ -405,9 +407,11 @@ impl CustomerPage {
                                             <button class="btn-sm btn-info" onclick={ctx.link().callback(move |_| Msg::OpenModal(ModalMode::View, Some(customer_clone.clone())))}>
                                                 {"查看"}
                                             </button>
-                                            <button class="btn-sm btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteCustomer(customer_id))}>
+                                            <PermissionGuard resource="customer" action="delete">
+<button class="btn-sm btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteCustomer(customer_id))}>
                                                 {"删除"}
                                             </button>
+</PermissionGuard>
                                         </div>
                                     </td>
                                 </tr>

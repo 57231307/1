@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -16,6 +17,7 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub extra_cost: Decimal,
     pub is_enabled: bool,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub remarks: Option<String>,

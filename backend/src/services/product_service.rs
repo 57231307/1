@@ -138,6 +138,7 @@ impl ProductService {
             lead_time: Set(lead_time),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -243,7 +244,7 @@ impl ProductService {
 
         product.updated_at = Set(Utc::now());
 
-        let result = product.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", product, Some(0)).await?;
         Ok(result)
     }
 
@@ -285,6 +286,7 @@ impl ProductService {
             is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -355,7 +357,7 @@ impl ProductService {
 
         color.updated_at = Set(Utc::now());
 
-        let result = color.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", color, Some(0)).await?;
         Ok(result)
     }
 

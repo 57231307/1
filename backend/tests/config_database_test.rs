@@ -9,7 +9,7 @@ async fn test_config_loading() {
     // 测试默认配置加载
     let settings = AppSettings::new();
     assert!(settings.is_ok());
-    let settings = settings.unwrap();
+    let settings = settings.expect("操作应该成功");
     
     // 验证默认值
     assert!(!settings.server.host.is_empty());
@@ -25,7 +25,7 @@ async fn test_config_loading() {
 async fn test_database_pool_initialization() {
     // 注意：这个测试需要一个可用的PostgreSQL数据库
     // 这里我们测试配置加载和连接池创建过程，不实际连接数据库
-    let settings = AppSettings::new().unwrap();
+    let settings = AppSettings::new().expect("操作应该成功");
     
     // 验证数据库连接字符串是否正确生成
     assert!(!settings.database.connection_string.is_empty());
@@ -35,7 +35,7 @@ async fn test_database_pool_initialization() {
 /// 测试CORS配置
 #[tokio::test]
 async fn test_cors_config() {
-    let settings = AppSettings::new().unwrap();
+    let settings = AppSettings::new().expect("操作应该成功");
     
     // 验证默认CORS配置
     assert!(!settings.cors.allowed_origins.is_empty());

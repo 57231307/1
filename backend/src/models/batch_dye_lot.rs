@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 批次染色批次 Model
 //!
 //! 批次染色批次模块
@@ -45,6 +46,7 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

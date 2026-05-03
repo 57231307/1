@@ -1,13 +1,15 @@
+#![allow(dead_code)]
 #![allow(dead_code, unused_imports, unused_variables)]
 //! 业务追溯快照模型
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
+use serde::{Serialize, Deserialize};
 use serde_json::Value as Json;
 
 /// 业务追溯快照 Model
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "business_trace_snapshot")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -56,6 +58,7 @@ pub struct Model {
 
     /// 快照时间
     pub snapshot_time: DateTime<Utc>,
+    pub is_deleted: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

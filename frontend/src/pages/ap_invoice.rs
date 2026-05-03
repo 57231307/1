@@ -1,9 +1,10 @@
-use gloo_dialogs;
+use crate::utils::toast_helper;
 // 应付发票管理页面
 //
 // 应付发票（AP Invoice）管理功能，包含账龄分析和余额汇总
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::ap_invoice::{
@@ -12,6 +13,7 @@ use crate::models::ap_invoice::{
 use crate::services::ap_invoice_service::ApInvoiceService;
 use crate::services::crud_service::CrudService;
 use crate::components::main_layout::MainLayout;
+use crate::utils::permissions;
 
 /// 应付发票管理页面状态
 pub struct ApInvoicePage {
@@ -34,7 +36,9 @@ pub struct ApInvoicePage {
     // 筛选供应商ID
     filter_supplier_id: Option<i32>,
 
-    viewing_item: Option<ApInvoice>,}
+    viewing_item: Option<ApInvoice>,
+    printing_invoice: Option<ApInvoice>,
+    print_trigger: bool,}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -55,6 +59,8 @@ pub enum Msg {
     ApproveInvoice(i32),
     CancelInvoice(i32, String),
     ChangePage(u64),
+    PrintInvoice(crate::models::ap_invoice::ApInvoice),
+    ClearPrint,
     Refresh,
     // 标签页切换
     SetActiveTab(String),
@@ -74,6 +80,8 @@ impl Component for ApInvoicePage {
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
             viewing_item: None,
+            printing_invoice: None,
+            print_trigger: false,
             invoices: Vec::new(),
             loading: true,
             error: None,
@@ -94,8 +102,23 @@ impl Component for ApInvoicePage {
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             ctx.link().send_message(Msg::LoadInvoices);
+            if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+                ctx.link().send_message(Msg::ClearPrint);
+            }
         }
     }
+        if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+                ctx.link().send_message(Msg::ClearPrint);
+            }
+        }
+    }
+
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
@@ -184,6 +207,16 @@ impl Component for ApInvoicePage {
                 self.page = page;
                 ctx.link().send_message(Msg::LoadInvoices);
                 false
+            }
+
+            Msg::PrintInvoice(i) => {
+                self.printing_invoice = Some(i);
+                self.print_trigger = true;
+                true
+            }
+            Msg::ClearPrint => {
+                self.printing_invoice = None;
+                true
             }
             Msg::Refresh => {
                 ctx.link().send_message(Msg::LoadInvoices);
@@ -376,6 +409,7 @@ impl ApInvoicePage {
                                 <th>{"已付金额"}</th>
                                 <th>{"未付金额"}</th>
                                 <th>{"来源单据"}</th>
+                                <th>{"操作"}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -389,6 +423,8 @@ impl ApInvoicePage {
                                     "已取消" => "status-cancelled",
                                     _ => "",
                                 };
+                                let status_check = status.clone();
+                                let invoice_id = invoice.id;
                                 html! {
                                     <tr>
                                         <td>{&invoice.invoice_no}</td>
@@ -403,6 +439,24 @@ impl ApInvoicePage {
                                         <td class="numeric">{invoice.paid_amount.as_deref().unwrap_or("0.00")}</td>
                                         <td class="numeric">{invoice.outstanding_amount.as_deref().unwrap_or("0.00")}</td>
                                         <td>{invoice.source_bill_no.as_deref().unwrap_or("-")}</td>
+                                        <td>
+                                            if permissions::has_permission("ap_invoice", "read") {
+                                                <button class="btn-secondary" onclick={let i = invoice.clone(); ctx.link().callback(move |_| Msg::PrintInvoice(i.clone()))}>{"打印"}</button>
+                                            }
+                                            if status_check == "待审核" {
+                                                if permissions::has_permission("ap_invoice", "approve") {
+                                                    <PermissionGuard resource="ap_invoice" action="approve">
+<button class="btn-primary" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::ApproveInvoice(invoice_id))}>{"审核"}</button>
+</PermissionGuard>
+                                                    <button class="btn-danger" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::CancelInvoice(invoice_id, "手动取消".to_string()))}>{"取消"}</button>
+                                                }
+                                            }
+                                            if permissions::has_permission("ap_invoice", "delete") {
+                                                <PermissionGuard resource="ap_invoice" action="delete">
+<button class="btn-danger" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::DeleteInvoice(invoice_id))}>{"删除"}</button>
+</PermissionGuard>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             })}

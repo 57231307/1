@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 成本归集 Entity
 //!
 //! 对应数据库表：cost_collections
@@ -47,6 +48,7 @@ pub struct Model {
     pub status: String,
 
     pub created_by: i32,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

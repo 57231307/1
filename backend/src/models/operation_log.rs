@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 操作日志模型
 //! 用于记录用户的关键操作，便于审计追踪
 
@@ -54,6 +55,7 @@ pub struct Model {
     pub extra_data: Option<Json>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

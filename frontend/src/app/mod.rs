@@ -2,6 +2,7 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 use crate::pages::{SystemSettingsPage, LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesReturnPage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage, crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage};
 use crate::utils::storage::Storage;
+use crate::utils::permissions;
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {
@@ -117,6 +118,8 @@ pub enum Route {
     CrmLeads,
     #[at("/crm/opportunities")]
     CrmOpportunities,
+    #[at("/my-tasks")]
+    MyTasks,
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -141,6 +144,26 @@ impl Component for App {
     }
 }
 
+fn protected_route_with_permission<F>(component: F, resource: &str, action: &str) -> Html
+where
+    F: FnOnce() -> Html,
+{
+    if Storage::get_token().is_some() {
+        if permissions::has_permission(resource, action) {
+            component()
+        } else {
+            html! {
+                <div class="error-page" style="padding: 20px; text-align: center;">
+                    <h1>{"无权访问"}</h1>
+                    <p>{"您没有权限访问此页面"}</p>
+                </div>
+            }
+        }
+    } else {
+        html! { <Redirect<Route> to={Route::Login}/> }
+    }
+}
+
 fn protected_route<F>(component: F) -> Html
 where
     F: FnOnce() -> Html,
@@ -157,15 +180,15 @@ fn switch(route: Route) -> Html {
         Route::Init => html! { <InitPage /> },
         Route::Login => html! { <LoginPage /> },
         Route::Dashboard => protected_route(|| html! { <DashboardPage /> }),
-        Route::Users => protected_route(|| html! { <UserListPage /> }),
+        Route::Users => protected_route_with_permission(|| html! { <UserListPage /> }, "user", "read"),
             Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }),
         Route::Roles => protected_route(|| html! { <RoleListPage /> }),
         Route::Products => protected_route(|| html! { <ProductListPage /> }),
         Route::ProductCategories => protected_route(|| html! { <ProductCategoryPage /> }),
         Route::Warehouses => protected_route(|| html! { <WarehouseListPage /> }),
         Route::Departments => protected_route(|| html! { <DepartmentListPage /> }),
-        Route::Inventory => protected_route(|| html! { <InventoryStockPage /> }),
-        Route::Sales => protected_route(|| html! { <SalesOrderPage /> }),
+        Route::Inventory => protected_route_with_permission(|| html! { <InventoryStockPage /> }, "inventory_stock", "read"),
+        Route::Sales => protected_route_with_permission(|| html! { <SalesOrderPage /> }, "sales_order", "read"),
         Route::FabricOrders => protected_route(|| html! { <FabricOrderPage /> }),
         Route::SalesContracts => protected_route(|| html! { <SalesContractPage /> }),
         Route::Transfers => protected_route(|| html! { <InventoryTransferPage /> }),
@@ -181,7 +204,7 @@ fn switch(route: Route) -> Html {
         Route::SupplierEvaluation => protected_route(|| html! { <SupplierEvaluationPage /> }),
         Route::Customers => protected_route(|| html! { <CustomerPage /> }),
         Route::Batches => protected_route(|| html! { <BatchPage /> }),
-        Route::PurchaseOrders => protected_route(|| html! { <PurchaseOrderPage /> }),
+        Route::PurchaseOrders => protected_route_with_permission(|| html! { <PurchaseOrderPage /> }, "purchase_order", "read"),
         Route::PurchaseReceipts => protected_route(|| html! { <PurchaseReceiptPage /> }),
         Route::PurchaseReturns => protected_route(|| html! { <PurchaseReturnPage /> }),
         Route::Suppliers => protected_route(|| html! { <SupplierPage /> }),
@@ -194,7 +217,7 @@ fn switch(route: Route) -> Html {
         Route::DualUnitConverter => protected_route(|| html! { <DualUnitConverterPage /> }),
         Route::FiveDimensions => protected_route(|| html! { <FiveDimensionPage /> }),
         Route::BusinessTrace => protected_route(|| html! { <BusinessTracePage /> }),
-        Route::ApInvoices => protected_route(|| html! { <ApInvoicePage /> }),
+        Route::ApInvoices => protected_route_with_permission(|| html! { <ApInvoicePage /> }, "ap_invoice", "read"),
         Route::ApPaymentRequests => protected_route(|| html! { <ApPaymentRequestPage /> }),
         Route::ApPayments => protected_route(|| html! { <ApPaymentPage /> }),
         Route::ApReconciliations => protected_route(|| html! { <ApReconciliationPage /> }),
@@ -210,6 +233,7 @@ fn switch(route: Route) -> Html {
         Route::GreigeFabrics => protected_route(|| html! { <GreigeFabricPage /> }),
         Route::CrmLeads => protected_route(|| html! { <CrmLeadPage /> }),
         Route::CrmOpportunities => protected_route(|| html! { <CrmOpportunityPage /> }),
+        Route::MyTasks => protected_route(|| html! { <crate::pages::my_tasks::MyTasksPage /> }),
         Route::NotFound => html! { <div>{"页面未找到"}</div> },
     }
 }

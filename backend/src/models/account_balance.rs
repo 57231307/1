@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 账户余额 Model
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -38,6 +39,7 @@ pub struct Model {
 
     /// 创建时间
     #[sea_orm(column_type = "Timestamp")]
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

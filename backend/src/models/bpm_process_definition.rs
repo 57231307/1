@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! BPM 流程定义 Model
 //!
 //! BPM 流程定义模块
@@ -37,6 +38,7 @@ pub struct Model {
     pub status: String,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

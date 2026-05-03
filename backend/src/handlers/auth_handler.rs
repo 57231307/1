@@ -4,6 +4,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::response::ApiResponse;
 use crate::middleware::auth_context::AuthContext;
+use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 use axum::{
     extract::{State, Extension},
     http::{HeaderMap, StatusCode},
@@ -24,10 +25,19 @@ pub struct LoginRequest {
     pub totp_token: Option<String>,
 }
 
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UserPermissionDto {
+    pub resource: String,
+    pub action: String,
+    pub resource_id: Option<i32>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
     pub token: String,
     pub user: UserInfo,
+    pub permissions: Vec<UserPermissionDto>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -91,6 +101,22 @@ pub async fn login(
                 }
             }
 
+            let mut permissions = vec![];
+            if let Some(role_id) = user.role_id {
+                let role_perms = crate::models::role_permission::Entity::find()
+                    .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
+                    .filter(crate::models::role_permission::Column::Allowed.eq(true))
+                    .all(state.db.as_ref())
+                    .await
+                    .unwrap_or_default();
+                    
+                permissions = role_perms.into_iter().map(|p| UserPermissionDto {
+                    resource: p.resource_type,
+                    action: p.action,
+                    resource_id: p.resource_id,
+                }).collect();
+            }
+
             let user_info = UserInfo {
                 id: user.id,
                 username: user.username.clone(),
@@ -101,6 +127,7 @@ pub async fn login(
             let response = LoginResponse {
                 token: token.clone(),
                 user: user_info,
+                permissions,
             };
 
             // 创建 HttpOnly Cookie

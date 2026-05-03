@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 #![allow(dead_code, unused_imports, unused_variables)]
 //! 批次追溯日志 Model
 //!
@@ -47,6 +48,7 @@ pub struct Model {
 
     /// 操作时间
     pub operated_at: DateTime<Utc>,
+    pub is_deleted: bool,
 }
 
 /// 批次追溯日志关联关系

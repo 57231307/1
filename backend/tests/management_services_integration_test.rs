@@ -19,7 +19,7 @@ use bingxi_backend::middleware::auth::auth_middleware;
 
 /// 设置测试应用
 async fn setup_app() -> Router {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let state = AppState::new(Arc::new(db), "test_secret".to_string());
     create_router(state.clone())
         .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
@@ -38,10 +38,10 @@ async fn test_get_purchase_contracts_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/purchase-contracts")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -67,10 +67,10 @@ async fn test_create_purchase_contract_unauthorized() {
                     })
                     .to_string(),
                 ))
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -86,10 +86,10 @@ async fn test_get_purchase_contract_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/purchase-contracts/1")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -107,10 +107,10 @@ async fn test_get_sales_contracts_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/sales-contracts")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -136,10 +136,10 @@ async fn test_create_sales_contract_unauthorized() {
                     })
                     .to_string(),
                 ))
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -155,10 +155,10 @@ async fn test_get_sales_contract_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/sales-contracts/1")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -176,10 +176,10 @@ async fn test_get_fixed_assets_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/fixed-assets")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -208,10 +208,10 @@ async fn test_create_fixed_asset_unauthorized() {
                     })
                     .to_string(),
                 ))
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -227,10 +227,10 @@ async fn test_get_fixed_asset_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/fixed-assets/1")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -248,10 +248,10 @@ async fn test_get_budget_items_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/budgets")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -276,10 +276,10 @@ async fn test_create_budget_item_unauthorized() {
                     })
                     .to_string(),
                 ))
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -295,10 +295,10 @@ async fn test_get_budget_item_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/budgets/1")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -316,10 +316,10 @@ async fn test_purchase_contract_404() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/purchase-contracts/nonexistent")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -335,10 +335,10 @@ async fn test_sales_contract_404() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/sales-contracts/nonexistent")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -354,10 +354,10 @@ async fn test_fixed_asset_404() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/fixed-assets/nonexistent")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -373,10 +373,10 @@ async fn test_budget_management_404() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/budgets/nonexistent")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

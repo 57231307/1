@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -22,6 +23,7 @@ pub struct Model {
     pub min_order_quantity: Option<Decimal>,
     pub lead_time: Option<i32>,
     pub is_enabled: bool,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub created_by: Option<i32>,

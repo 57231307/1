@@ -1,4 +1,6 @@
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use yew_router::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use wasm_bindgen::JsCast;
@@ -402,7 +404,9 @@ impl Component for RoleListPage {
                             </div>
                             <div class="modal-footer">
                                 <button class="cancel-btn" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"取消"}</button>
-                                <button class="confirm-btn" onclick={link.callback(|_| Msg::CreateRole)}>{"确定"}</button>
+                                <PermissionGuard resource="role_list" action="create">
+<button class="confirm-btn" onclick={link.callback(|_| Msg::CreateRole)}>{"确定"}</button>
+</PermissionGuard>
                             </div>
                         </div>
                     </div>
@@ -467,7 +471,9 @@ impl Component for RoleListPage {
                             </div>
                             <div class="modal-footer">
                                 <button class="cancel-btn" onclick={link.callback(|_| Msg::CloseEditModal)}>{"取消"}</button>
-                                <button class="confirm-btn" onclick={link.callback(|_| Msg::UpdateRole)}>{"确定"}</button>
+                                <PermissionGuard resource="role_list" action="update">
+<button class="confirm-btn" onclick={link.callback(|_| Msg::UpdateRole)}>{"确定"}</button>
+</PermissionGuard>
                             </div>
                         </div>
                     </div>

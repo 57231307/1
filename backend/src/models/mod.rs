@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 pub mod customer;
 pub mod department;
 pub mod dto;
@@ -148,3 +149,7 @@ pub mod report_definition;
 pub mod sales_return;
 pub mod sales_return_item;
 pub mod logistics_waybill;
+pub mod audit_log;
+pub mod omni_audit_log;
+pub mod audit_alert_rule;
+pub mod approval_template; pub mod approval_node; pub mod approval_instance; pub mod approval_log;

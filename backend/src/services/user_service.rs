@@ -51,6 +51,7 @@ impl UserService {
             last_login_at: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_user.insert(self.db.as_ref()).await

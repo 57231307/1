@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 辅助核算汇总 Model
 //!
 //! 按维度汇总数据
@@ -8,7 +9,8 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
 /// 辅助核算汇总 Entity
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "assist_accounting_summary")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -49,6 +51,7 @@ pub struct Model {
     pub record_count: i64,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

@@ -2,6 +2,26 @@ use web_sys::Window;
 
 pub struct Storage;
 
+impl Storage {
+    pub fn get_item(key: &str) -> Option<String> {
+        if let Some(window) = web_sys::window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                return storage.get_item(key).ok().flatten();
+            }
+        }
+        None
+    }
+
+    pub fn set_item(key: &str, value: &str) {
+        if let Some(window) = web_sys::window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                let _ = storage.set_item(key, value);
+            }
+        }
+    }
+}
+
+
 #[deprecated(since = "2.0.0", note = "请使用 HttpOnly Cookie，不再使用 localStorage")]
 impl Storage {
     fn get_window() -> Option<Window> {

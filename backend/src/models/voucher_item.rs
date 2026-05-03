@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 凭证分录 Entity
 //!
 //! 对应数据库表：voucher_items
@@ -42,6 +43,8 @@ pub struct Model {
     pub quantity_meters: Option<Decimal>,
     pub quantity_kg: Option<Decimal>,
     pub unit_price: Option<Decimal>,
+
+    pub is_deleted: bool,
 
     pub created_at: DateTime<Utc>,
 }

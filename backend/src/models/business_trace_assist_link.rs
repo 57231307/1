@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 业务追溯辅助关联 Model
 //!
 //! 业务追溯辅助关联模块
@@ -34,6 +35,7 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

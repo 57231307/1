@@ -12,6 +12,7 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub token: String,
     pub user: UserInfo,
+    pub permissions: Option<Vec<crate::utils::permissions::UserPermission>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

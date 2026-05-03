@@ -119,7 +119,7 @@ impl CustomerCreditService {
                 credit_active.credit_limit = Set(req.credit_limit);
                 credit_active.credit_days = Set(Some(req.credit_days));
                 credit_active.available_credit = Set(req.credit_limit - used_credit);
-                credit_active.update(&*self.db).await?
+                crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", credit_active, Some(0)).await?
             }
             None => {
                 // 创建新评级

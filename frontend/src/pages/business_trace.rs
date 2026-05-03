@@ -1,7 +1,9 @@
 // 业务追溯页面
 // 提供面料业务的正向追溯和反向追溯功能
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::business_trace::{
     TraceChain, FullTraceChainResponse, TraceStageDetail,
@@ -486,12 +488,14 @@ impl BusinessTracePage {
             <div class="trace-chain-detail">
                 <div class="chain-header">
                     <h3>{"追溯链详情"}</h3>
-                    <button
+                    <PermissionGuard resource="business_trace" action="create">
+<button
                         class="btn-secondary"
                         onclick={ctx.link().callback(move |_| Msg::CreateSnapshot(chain_id.clone()))}
                     >
                         {"创建快照"}
                     </button>
+</PermissionGuard>
                 </div>
 
                 // 基本信息

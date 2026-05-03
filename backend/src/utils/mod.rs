@@ -9,3 +9,4 @@ pub use response::ApiResponse;
 pub use response::PaginatedResponse;
 pub mod crud_macro;
 pub mod number_generator;
+pub mod field_mask;

@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 应付核销 Model
 //!
 //! 应付管理模块的应付核销实体
@@ -49,6 +50,7 @@ pub struct Model {
 
     /// 创建时间
     #[sea_orm(auto_time_on_create = true)]
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 取消人 ID

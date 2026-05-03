@@ -1,4 +1,5 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 // 应收发票管理页面
 //
 // 应收发票（AR Invoice）管理功能
@@ -23,7 +24,9 @@ pub struct ArInvoicePage {
     page_size: u64,
     total: u64,
 
-    viewing_item: Option<ArInvoice>,}
+    viewing_item: Option<ArInvoice>,
+    printing_invoice: Option<ArInvoice>,
+    print_trigger: bool,}
 
 /// 模态框模式
 #[derive(Clone, PartialEq)]
@@ -43,6 +46,8 @@ pub enum Msg {
     ApproveInvoice(i32),
     CancelInvoice(i32, String),
     ChangePage(u64),
+    PrintInvoice(crate::models::ar_invoice::ArInvoice),
+    ClearPrint,
     Refresh,
 
     CloseDetailModal,}
@@ -54,6 +59,8 @@ impl Component for ArInvoicePage {
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
             viewing_item: None,
+            printing_invoice: None,
+            print_trigger: false,
             invoices: Vec::new(),
             loading: true,
             error: None,
@@ -68,8 +75,23 @@ impl Component for ArInvoicePage {
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             ctx.link().send_message(Msg::LoadInvoices);
+            if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+                ctx.link().send_message(Msg::ClearPrint);
+            }
         }
     }
+        if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+                ctx.link().send_message(Msg::ClearPrint);
+            }
+        }
+    }
+
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
@@ -150,6 +172,16 @@ impl Component for ArInvoicePage {
                 ctx.link().send_message(Msg::LoadInvoices);
                 false
             }
+
+            Msg::PrintInvoice(i) => {
+                self.printing_invoice = Some(i);
+                self.print_trigger = true;
+                true
+            }
+            Msg::ClearPrint => {
+                self.printing_invoice = None;
+                true
+            }
             Msg::Refresh => {
                 ctx.link().send_message(Msg::LoadInvoices);
                 false
@@ -165,6 +197,27 @@ impl Component for ArInvoicePage {
 
         html! {
             <div class="ar-invoice-page">
+            <style>
+                {r#"
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    .modal-content, .modal-content * {
+                        visibility: visible;
+                    }
+                    .modal-content {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                    }
+                    .modal-footer {
+                        display: none !important;
+                    }
+                }
+                "#}
+            </style>
                 <div class="page-header">
                     <h1>{"应收发票管理"}</h1>
                 </div>

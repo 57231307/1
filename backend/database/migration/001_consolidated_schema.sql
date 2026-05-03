@@ -23,11 +23,16 @@ $$ LANGUAGE plpgsql;
 -- ==================== 部门表 ====================
 CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
     parent_id INTEGER REFERENCES departments(id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    manager_id INTEGER,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE departments IS '部门信息表';
@@ -41,11 +46,14 @@ CREATE INDEX IF NOT EXISTS idx_departments_parent_id ON departments(parent_id);
 -- ==================== 角色表 ====================
 CREATE TABLE IF NOT EXISTS roles (
     id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
-    permissions JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    permissions TEXT,
+    is_system BOOLEAN NOT NULL DEFAULT false,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE roles IS '角色信息表';
@@ -63,9 +71,12 @@ CREATE TABLE IF NOT EXISTS users (
     role_id INTEGER REFERENCES roles(id),
     department_id INTEGER REFERENCES departments(id),
     is_active BOOLEAN NOT NULL DEFAULT true,
-    last_login_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    totp_secret VARCHAR(255),
+    is_totp_enabled BOOLEAN NOT NULL DEFAULT false,
+    last_login_at TIMESTAMPTZ,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE users IS '用户信息表';
@@ -98,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role
 -- ==================== 产品类别表 ====================
 CREATE TABLE IF NOT EXISTS product_categories (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(100) NOT NULL UNIQUE,
     parent_id INTEGER REFERENCES product_categories(id),
     description TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -382,20 +393,20 @@ CREATE INDEX IF NOT EXISTS idx_operation_logs_status ON operation_logs(status);
 -- ========================================
 
 -- 插入默认角色
-INSERT INTO roles (name, description, permissions) VALUES
-('admin', '系统管理员', '["*"]'::jsonb),
-('manager', '部门经理', '["user:view", "product:*", "inventory:*", "sales:*"]'::jsonb),
-('operator', '操作员', '["product:view", "inventory:view", "sales:view"]'::jsonb)
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO roles (code, name, description, permissions) VALUES
+('admin', 'admin', '系统管理员', '["*"]'),
+('manager', 'manager', '部门经理', '["user:view", "product:*", "inventory:*", "sales:*"]'),
+('operator', 'operator', '操作员', '["product:view", "inventory:view", "sales:view"]')
+ON CONFLICT (code) DO NOTHING;
 
 -- 插入默认部门
-INSERT INTO departments (name, description) VALUES
-('总经办', '公司管理层'),
-('财务部', '财务管理'),
-('销售部', '销售业务'),
-('仓储部', '库存管理'),
-('生产部', '生产管理')
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO departments (code, name, description) VALUES
+('GM', '总经办', '公司管理层'),
+('FIN', '财务部', '财务管理'),
+('SALES', '销售部', '销售业务'),
+('WAREHOUSE', '仓储部', '库存管理'),
+('PROD', '生产部', '生产管理')
+ON CONFLICT (code) DO NOTHING;
 
 -- 插入默认仓库
 INSERT INTO warehouses (code, name, status) VALUES
@@ -406,11 +417,7 @@ ON CONFLICT (code) DO NOTHING;
 
 -- 插入默认管理员用户（密码：admin123，使用 bcrypt 加密）
 -- 注意：实际密码哈希值需要在应用层生成
-INSERT INTO users (username, password_hash, email, role_id, department_id, is_active)
-SELECT 'admin', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin@example.com', r.id, d.id, true
-FROM roles r, departments d
-WHERE r.name = 'admin' AND d.name = '总经办'
-ON CONFLICT (username) DO NOTHING;
+
 
 -- ========================================
 -- 9. 视图和函数（可选）
@@ -487,7 +494,7 @@ COMMENT ON COLUMN inventory_reservations.updated_at IS '更新时间';
 CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
     customer_code VARCHAR(50) NOT NULL UNIQUE,
-    customer_name VARCHAR(100) NOT NULL,
+    customer_name VARCHAR(100) NOT NULL UNIQUE,
     contact_person VARCHAR(50),
     contact_phone VARCHAR(20),
     contact_email VARCHAR(100),
@@ -582,7 +589,7 @@ CREATE TABLE IF NOT EXISTS product_colors (
     id SERIAL PRIMARY KEY,
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     color_no VARCHAR(50) NOT NULL,
-    color_name VARCHAR(100) NOT NULL,
+    color_name VARCHAR(100) NOT NULL UNIQUE,
     pantone_code VARCHAR(50),
     color_type VARCHAR(20) DEFAULT '常规色',
     dye_formula TEXT,                     -- 染色配方（保密）
@@ -877,7 +884,7 @@ UPDATE inventory_stocks
 SET 
     quantity_meters = quantity,
     quantity_kg = quantity * COALESCE(gram_weight, 150) / 1000,
-    batch_no = COALESCE(batch_no, 'B' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || LPAD(id::text, 4, '0')),
+    batch_no = COALESCE(batch_no, 'B' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || LPAD(id::varchar, 4, '0')),
     color_no = COALESCE(color_no, 'C001'),
     grade = '一等品'
 WHERE quantity_meters = 0;
@@ -987,7 +994,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
     id SERIAL PRIMARY KEY,
     supplier_code VARCHAR(50) NOT NULL,                    -- 供应商编码
     supplier_name VARCHAR(200) NOT NULL,                   -- 供应商名称
-    supplier_short_name VARCHAR(100) NOT NULL,             -- 供应商简称
+    supplier_short_name VARCHAR(100) NOT NULL UNIQUE,             -- 供应商简称
     supplier_type VARCHAR(50) NOT NULL,                    -- 供应商类型
     credit_code VARCHAR(50) NOT NULL,                      -- 统一社会信用代码
     registered_address VARCHAR(500) NOT NULL,              -- 注册地址
@@ -998,7 +1005,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
     business_term VARCHAR(100),                            -- 营业期限
     business_scope TEXT,                                   -- 经营范围
     taxpayer_type VARCHAR(50) NOT NULL,                    -- 纳税人类型
-    bank_name VARCHAR(100) NOT NULL,                       -- 开户银行
+    bank_name VARCHAR(100) NOT NULL UNIQUE,                       -- 开户银行
     bank_account VARCHAR(50) NOT NULL,                     -- 银行账号
     contact_phone VARCHAR(50) NOT NULL,                    -- 联系电话
     fax VARCHAR(50),                                       -- 传真
@@ -1061,7 +1068,7 @@ CREATE INDEX IF NOT EXISTS idx_suppliers_created_at ON suppliers(created_at DESC
 CREATE TABLE IF NOT EXISTS supplier_contacts (
     id SERIAL PRIMARY KEY,
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
-    contact_name VARCHAR(50) NOT NULL,                 -- 联系人姓名
+    contact_name VARCHAR(50) NOT NULL UNIQUE,                 -- 联系人姓名
     department VARCHAR(50),                            -- 所属部门
     position VARCHAR(50),                              -- 职位
     mobile_phone VARCHAR(20) NOT NULL,                 -- 手机号码
@@ -1090,7 +1097,7 @@ CREATE INDEX IF NOT EXISTS idx_supplier_contacts_mobile ON supplier_contacts(mob
 CREATE TABLE IF NOT EXISTS supplier_categories (
     id SERIAL PRIMARY KEY,
     category_code VARCHAR(50) NOT NULL,                -- 分类编码
-    category_name VARCHAR(100) NOT NULL,               -- 分类名称
+    category_name VARCHAR(100) NOT NULL UNIQUE,               -- 分类名称
     parent_id INTEGER REFERENCES supplier_categories(id), -- 父级分类 ID
     level INTEGER NOT NULL DEFAULT 1,                  -- 层级
     sort_order INTEGER NOT NULL DEFAULT 0,             -- 排序
@@ -1117,7 +1124,7 @@ CREATE INDEX IF NOT EXISTS idx_supplier_categories_level ON supplier_categories(
 CREATE TABLE IF NOT EXISTS supplier_grades (
     id SERIAL PRIMARY KEY,
     grade_code VARCHAR(10) NOT NULL,                   -- 等级编码（A/B/C/D）
-    grade_name VARCHAR(50) NOT NULL,                   -- 等级名称
+    grade_name VARCHAR(50) NOT NULL UNIQUE,                   -- 等级名称
     min_score DECIMAL(5,2) NOT NULL,                   -- 最低分数
     max_score DECIMAL(5,2) NOT NULL,                   -- 最高分数
     color_code VARCHAR(20),                            -- 颜色标识
@@ -1763,7 +1770,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE purchase_order_status (
     id SERIAL PRIMARY KEY,
     status_code VARCHAR(20) NOT NULL UNIQUE,            -- 状态编码
-    status_name VARCHAR(50) NOT NULL,                   -- 状态名称
+    status_name VARCHAR(50) NOT NULL UNIQUE,                   -- 状态名称
     description TEXT,                                   -- 状态描述
     sort_order INTEGER DEFAULT 0,                       -- 排序顺序
     is_enabled BOOLEAN DEFAULT TRUE,                    -- 是否启用
@@ -1787,7 +1794,7 @@ INSERT INTO purchase_order_status (status_code, status_name, description, sort_o
 CREATE TABLE purchase_receipt_status (
     id SERIAL PRIMARY KEY,
     status_code VARCHAR(20) NOT NULL UNIQUE,            -- 状态编码
-    status_name VARCHAR(50) NOT NULL,                   -- 状态名称
+    status_name VARCHAR(50) NOT NULL UNIQUE,                   -- 状态名称
     description TEXT,                                   -- 状态描述
     sort_order INTEGER DEFAULT 0,                       -- 排序顺序
     is_enabled BOOLEAN DEFAULT TRUE,                    -- 是否启用
@@ -1807,7 +1814,7 @@ INSERT INTO purchase_receipt_status (status_code, status_name, description, sort
 CREATE TABLE purchase_return_reason (
     id SERIAL PRIMARY KEY,
     reason_code VARCHAR(20) NOT NULL UNIQUE,            -- 原因编码
-    reason_name VARCHAR(100) NOT NULL,                  -- 原因名称
+    reason_name VARCHAR(100) NOT NULL UNIQUE,                  -- 原因名称
     description TEXT,                                   -- 原因描述
     sort_order INTEGER DEFAULT 0,                       -- 排序顺序
     is_enabled BOOLEAN DEFAULT TRUE,                    -- 是否启用
@@ -2756,7 +2763,7 @@ INSERT INTO account_subjects (code, name, level, parent_id, full_code, balance_d
 ('6401.02', '主营业务成本 - 成品布销售成本', 2, (SELECT id FROM account_subjects WHERE code = '6401'), '6401.02', '借', 'active'),
 ('6601', '销售费用', 1, NULL, '6601', '借', 'active'),
 ('6602', '管理费用', 1, NULL, '6602', '借', 'active'),
-  ('6603', '财务费用', 1, NULL, '6603', '借', 'active');
+  ('6603', '财务费用', 1, NULL, '6603', '借', 'active') ON CONFLICT (code) DO NOTHING;
 
 -- COMMENT ON INSERT: '插入基础会计科目（面料行业预设科目）';
 
@@ -3750,7 +3757,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_credit_changes_customer ON customer_cred
 -- 财务指标表
 CREATE TABLE financial_indicators (
     id SERIAL PRIMARY KEY,
-    indicator_name VARCHAR(100) NOT NULL,
+    indicator_name VARCHAR(100) NOT NULL UNIQUE,
     indicator_code VARCHAR(50) NOT NULL UNIQUE,
     indicator_type VARCHAR(20) NOT NULL,
     formula TEXT,
@@ -3793,7 +3800,7 @@ CREATE TABLE financial_trends (
 -- 财务报表配置表
 CREATE TABLE financial_report_configs (
     id SERIAL PRIMARY KEY,
-    report_name VARCHAR(100) NOT NULL,
+    report_name VARCHAR(100) NOT NULL UNIQUE,
     report_type VARCHAR(20) NOT NULL,
     period_type VARCHAR(20) DEFAULT 'monthly',
     template_config JSONB,
@@ -3839,7 +3846,7 @@ COMMENT ON COLUMN financial_report_configs.period_type IS '期间类型（月/�
 -- 供应商评估指标表
 CREATE TABLE supplier_evaluation_indicators (
     id SERIAL PRIMARY KEY,
-    indicator_name VARCHAR(100) NOT NULL,
+    indicator_name VARCHAR(100) NOT NULL UNIQUE,
     indicator_code VARCHAR(50) NOT NULL UNIQUE,
     category VARCHAR(20) NOT NULL,
     weight DECIMAL(5,2) NOT NULL,
@@ -3887,7 +3894,7 @@ CREATE TABLE supplier_overall_scores (
 CREATE TABLE supplier_levels (
     id SERIAL PRIMARY KEY,
     level_code VARCHAR(10) NOT NULL UNIQUE,
-    level_name VARCHAR(50) NOT NULL,
+    level_name VARCHAR(50) NOT NULL UNIQUE,
     min_score INTEGER NOT NULL,
     max_score INTEGER NOT NULL,
     benefits TEXT,
@@ -3933,7 +3940,7 @@ COMMENT ON COLUMN supplier_levels.benefits IS '等级权益';
 -- 资金账户表
 CREATE TABLE fund_accounts (
     id SERIAL PRIMARY KEY,
-    account_name VARCHAR(100) NOT NULL,
+    account_name VARCHAR(100) NOT NULL UNIQUE,
     account_no VARCHAR(50) NOT NULL UNIQUE,
     account_type VARCHAR(20) NOT NULL,
     bank_name VARCHAR(100),
@@ -4063,7 +4070,7 @@ COMMENT ON COLUMN fund_monitoring.alert_status IS '预警状态（正常/预警/
 CREATE TABLE budget_items (
     id SERIAL PRIMARY KEY,
     item_code VARCHAR(50) NOT NULL UNIQUE,
-    item_name VARCHAR(100) NOT NULL,
+    item_name VARCHAR(100) NOT NULL UNIQUE,
     parent_id INTEGER REFERENCES budget_items(id),
     item_type VARCHAR(20) NOT NULL,
     level INTEGER DEFAULT 1,
@@ -4329,7 +4336,7 @@ CREATE TABLE sales_price_history (
 -- 价格策略表
 CREATE TABLE price_strategies (
     id SERIAL PRIMARY KEY,
-    strategy_name VARCHAR(100) NOT NULL,
+    strategy_name VARCHAR(100) NOT NULL UNIQUE,
     strategy_type VARCHAR(20) NOT NULL,
     customer_type VARCHAR(20),
     product_category_id INTEGER REFERENCES product_categories(id),
@@ -4469,7 +4476,7 @@ COMMENT ON COLUMN sales_targets.target_period IS '目标期间';
 -- 质量检验标准表
 CREATE TABLE quality_inspection_standards (
     id SERIAL PRIMARY KEY,
-    standard_name VARCHAR(100) NOT NULL,
+    standard_name VARCHAR(100) NOT NULL UNIQUE,
     standard_code VARCHAR(50) NOT NULL UNIQUE,
     product_id INTEGER REFERENCES products(id),
     product_category_id INTEGER REFERENCES product_categories(id),
@@ -4587,7 +4594,7 @@ COMMENT ON COLUMN quality_statistics.unqualified_reasons IS '不合格原因统�
 -- 质量标准表
 CREATE TABLE quality_standards (
     id SERIAL PRIMARY KEY,
-    standard_name VARCHAR(100) NOT NULL,
+    standard_name VARCHAR(100) NOT NULL UNIQUE,
     standard_code VARCHAR(50) NOT NULL UNIQUE,
     standard_type VARCHAR(20) NOT NULL,
     product_id INTEGER REFERENCES products(id),
@@ -5121,10 +5128,10 @@ CREATE SEQUENCE IF NOT EXISTS batch_trace_log_trace_no_seq
 
 -- 添加供应商相关字段
 ALTER TABLE products 
-ADD COLUMN supplier_product_code VARCHAR(100),           -- 供应商成品编码
-ADD COLUMN supplier_id INTEGER,                          -- 供应商 ID
-ADD COLUMN is_batch_managed BOOLEAN DEFAULT TRUE,        -- 是否启用批次管理
-ADD COLUMN batch_level VARCHAR(20) DEFAULT 'four_level', -- 批次级别（two_level/three_level/four_level）
+ADD COLUMN IF NOT EXISTS supplier_product_code VARCHAR(100),           -- 供应商成品编码
+ADD COLUMN IF NOT EXISTS supplier_id INTEGER,                          -- 供应商 ID
+ADD COLUMN IF NOT EXISTS is_batch_managed BOOLEAN DEFAULT TRUE,        -- 是否启用批次管理
+ADD COLUMN IF NOT EXISTS batch_level VARCHAR(20) DEFAULT 'four_level', -- 批次级别（two_level/three_level/four_level）
 ADD CONSTRAINT fk_products_supplier
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
 
@@ -5144,9 +5151,9 @@ CREATE INDEX IF NOT EXISTS idx_products_batch_managed ON products(is_batch_manag
 
 -- 添加供应商色号相关字段
 ALTER TABLE product_colors
-ADD COLUMN supplier_color_code VARCHAR(100),             -- 供应商色号
-ADD COLUMN color_difference_notes TEXT,                  -- 色差说明
-ADD COLUMN is_active BOOLEAN DEFAULT TRUE;               -- 是否启用
+ADD COLUMN IF NOT EXISTS supplier_color_code VARCHAR(100),             -- 供应商色号
+ADD COLUMN IF NOT EXISTS color_difference_notes TEXT,                  -- 色差说明
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;               -- 是否启用
 
 -- 添加注释
 COMMENT ON COLUMN product_colors.supplier_color_code IS '供应商色号';
@@ -5167,10 +5174,10 @@ CREATE INDEX IF NOT EXISTS idx_product_colors_active ON product_colors(is_active
 
 -- 添加批次管理字段（销售订单只需要到色号级别）
 ALTER TABLE sales_order_items
-ADD COLUMN batch_required BOOLEAN DEFAULT FALSE,         -- 是否需要批次管理
-ADD COLUMN allocated_dye_lot_ids INTEGER[],              -- 已分配的缸号 ID 列表（用于预留）
-ADD COLUMN allocated_piece_ids INTEGER[],                -- 已分配的匹号 ID 列表（用于预留）
-ADD COLUMN delivery_batch_info JSONB;                    -- 发货批次信息（JSON 格式，发货时填充）
+ADD COLUMN IF NOT EXISTS batch_required BOOLEAN DEFAULT FALSE,         -- 是否需要批次管理
+ADD COLUMN IF NOT EXISTS allocated_dye_lot_ids INTEGER[],              -- 已分配的缸号 ID 列表（用于预留）
+ADD COLUMN IF NOT EXISTS allocated_piece_ids INTEGER[],                -- 已分配的匹号 ID 列表（用于预留）
+ADD COLUMN IF NOT EXISTS delivery_batch_info JSONB;                    -- 发货批次信息（JSON 格式，发货时填充）
 
 -- 添加注释
 COMMENT ON COLUMN sales_order_items.batch_required IS '是否需要批次管理';
@@ -5187,9 +5194,9 @@ COMMENT ON COLUMN sales_order_items.delivery_batch_info IS '发货批次信息�
 
 -- 添加批次管理字段（采购订单只需要到色号级别）
 ALTER TABLE purchase_order_item
-ADD COLUMN batch_required BOOLEAN DEFAULT FALSE,         -- 是否需要批次管理
-ADD COLUMN expected_dye_lot_info TEXT,                   -- 预计缸号信息（仅供参考）
-ADD COLUMN receipt_batch_info JSONB;                     -- 收货批次信息（JSON 格式，收货时填充）
+ADD COLUMN IF NOT EXISTS batch_required BOOLEAN DEFAULT FALSE,         -- 是否需要批次管理
+ADD COLUMN IF NOT EXISTS expected_dye_lot_info TEXT,                   -- 预计缸号信息（仅供参考）
+ADD COLUMN IF NOT EXISTS receipt_batch_info JSONB;                     -- 收货批次信息（JSON 格式，收货时填充）
 
 -- 添加注释
 COMMENT ON COLUMN purchase_order_item.batch_required IS '是否需要批次管理';
@@ -5309,8 +5316,8 @@ CREATE INDEX IF NOT EXISTS idx_sdi_piece_ids ON sales_delivery_item USING GIN (p
 
 -- 采购收货单主表已存在，这里添加批次相关字段
 ALTER TABLE purchase_receipt
-ADD COLUMN has_batch_info BOOLEAN DEFAULT FALSE,         -- 是否有批次信息
-ADD COLUMN batch_validation_status VARCHAR(20) DEFAULT 'pending'; -- 批次验证状态
+ADD COLUMN IF NOT EXISTS has_batch_info BOOLEAN DEFAULT FALSE,         -- 是否有批次信息
+ADD COLUMN IF NOT EXISTS batch_validation_status VARCHAR(20) DEFAULT 'pending'; -- 批次验证状态
 
 COMMENT ON COLUMN purchase_receipt.has_batch_info IS '是否有批次信息';
 COMMENT ON COLUMN purchase_receipt.batch_validation_status IS '批次验证状态（pending/validated/failed）';
@@ -5323,13 +5330,13 @@ CREATE INDEX IF NOT EXISTS idx_pr_has_batch ON purchase_receipt(has_batch_info);
 
 -- 采购收货明细表已存在，添加四级批次字段
 ALTER TABLE purchase_receipt_item
-ADD COLUMN internal_dye_lot_id INTEGER,                  -- 内部缸号 ID
-ADD COLUMN internal_dye_lot_no VARCHAR(100),             -- 内部缸号
-ADD COLUMN internal_piece_ids INTEGER[],                 -- 内部匹号 ID 列表
-ADD COLUMN internal_piece_nos VARCHAR(100)[],            -- 内部匹号列表
-ADD COLUMN supplier_dye_lot_no VARCHAR(100),             -- 供应商缸号
-ADD COLUMN supplier_piece_nos VARCHAR(100)[],            -- 供应商匹号列表
-ADD COLUMN batch_conversion_log_id INTEGER;              -- 批次转换日志 ID
+ADD COLUMN IF NOT EXISTS internal_dye_lot_id INTEGER,                  -- 内部缸号 ID
+ADD COLUMN IF NOT EXISTS internal_dye_lot_no VARCHAR(100),             -- 内部缸号
+ADD COLUMN IF NOT EXISTS internal_piece_ids INTEGER[],                 -- 内部匹号 ID 列表
+ADD COLUMN IF NOT EXISTS internal_piece_nos VARCHAR(100)[],            -- 内部匹号列表
+ADD COLUMN IF NOT EXISTS supplier_dye_lot_no VARCHAR(100),             -- 供应商缸号
+ADD COLUMN IF NOT EXISTS supplier_piece_nos VARCHAR(100)[],            -- 供应商匹号列表
+ADD COLUMN IF NOT EXISTS batch_conversion_log_id INTEGER;              -- 批次转换日志 ID
 
 -- 添加注释
 COMMENT ON COLUMN purchase_receipt_item.internal_dye_lot_id IS '内部缸号 ID';
@@ -5470,7 +5477,7 @@ CREATE TABLE bpm_process_instance (
     
     -- 人员信息
     initiator_id INTEGER NOT NULL,                       -- 发起人 ID
-    initiator_name VARCHAR(100) NOT NULL,                -- 发起人姓名
+    initiator_name VARCHAR(100) NOT NULL UNIQUE,                -- 发起人姓名
     initiator_department_id INTEGER,                     -- 发起人部门 ID
     current_handler_ids INTEGER[],                       -- 当前处理人 ID 列表
     current_handler_names VARCHAR(100)[],                -- 当前处理人姓名列表
@@ -5607,7 +5614,7 @@ CREATE TABLE bpm_operation_log (
     operation_type VARCHAR(50) NOT NULL,                 -- 操作类型（start/approve/reject/withdraw/terminate/delegate/assign 等）
     operation_desc VARCHAR(500) NOT NULL,                -- 操作描述
     operator_id INTEGER NOT NULL,                        -- 操作人 ID
-    operator_name VARCHAR(100) NOT NULL,                 -- 操作人姓名
+    operator_name VARCHAR(100) NOT NULL UNIQUE,                 -- 操作人姓名
     operator_department_id INTEGER,                      -- 操作人部门 ID
     
     -- 操作详情
@@ -5796,7 +5803,7 @@ CREATE TABLE bpm_task_urge (
     
     -- 催办信息
     urger_id INTEGER NOT NULL,                           -- 催办人 ID
-    urger_name VARCHAR(100) NOT NULL,                    -- 催办人姓名
+    urger_name VARCHAR(100) NOT NULL UNIQUE,                    -- 催办人姓名
     urge_reason TEXT,                                    -- 催办原因
     urge_type VARCHAR(20) DEFAULT 'system',              -- 催办类型（system/manual）
     
@@ -6696,7 +6703,7 @@ CREATE TABLE crm_customer_sea (
     -- 时间信息
     released_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 释放时间
     released_by INTEGER NOT NULL,                        -- 释放人 ID
-    released_by_name VARCHAR(100) NOT NULL,              -- 释放人姓名
+    released_by_name VARCHAR(100) NOT NULL UNIQUE,              -- 释放人姓名
     
     -- 领取信息
     claimed_at TIMESTAMP,                                -- 领取时间
@@ -6839,7 +6846,7 @@ CREATE TABLE oa_announcement (
     
     -- 发布信息
     publisher_id INTEGER NOT NULL,                       -- 发布人 ID
-    publisher_name VARCHAR(100) NOT NULL,                -- 发布人姓名
+    publisher_name VARCHAR(100) NOT NULL UNIQUE,                -- 发布人姓名
     publisher_department_id INTEGER,                     -- 发布人部门 ID
     publish_date DATE NOT NULL,                          -- 发布日期
     publish_time TIME,                                   -- 发布时间
@@ -7406,6 +7413,36 @@ INSERT INTO report_dashboard (dashboard_name, dashboard_code, description, is_de
 -- ========================================
 
 -- 供应商成品编码映射
+-- 补全前置数据
+INSERT INTO roles (id, code, name) VALUES (100, 'TEST_ROLE', '测试角色') ON CONFLICT (code) DO NOTHING;
+INSERT INTO departments (id, code, name) VALUES (100, 'D001', '测试部门') ON CONFLICT (code) DO NOTHING;
+INSERT INTO users (id, username, password_hash, role_id, department_id, is_active) VALUES 
+(1, '测试用户1', 'hash1', 100, 100, true),
+(2, '测试用户2', 'hash2', 100, 100, true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (id, name, code, unit, status) VALUES 
+(1, '测试成品1', 'PROD001', '件', 'active'),
+(2, '测试成品2', 'PROD002', '件', 'active')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_colors (id, product_id, color_no, color_name, pantone_code, color_type, extra_cost) VALUES 
+(1, 1, 'C001', '藏青色', '19-4052', '常规色', 0),
+(2, 1, 'C002', '大红色', '18-1664', '常规色', 0),
+(3, 2, 'C001', '藏青色', '19-4052', '常规色', 0)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO suppliers (id, supplier_code, supplier_name, supplier_short_name, supplier_type, credit_code, registered_address, legal_representative, registered_capital, establishment_date, taxpayer_type, bank_name, bank_account, contact_phone) VALUES 
+(1, 'SUP001', '测试供应商1', '测供1', 'fabric', 'C001', 'addr1', 'leg1', 100, '2020-01-01', 'general', 'bank1', 'acc1', '13800000001'),
+(2, 'SUP002', '测试供应商2', '测供2', 'fabric', 'C002', 'addr2', 'leg2', 100, '2020-01-01', 'general', 'bank2', 'acc2', '13800000002')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO customers (id, customer_code, customer_name) VALUES 
+(1, 'CUS001', '测试客户1'),
+(2, 'CUS002', '测试客户2'),
+(3, 'CUS003', '测试客户3')
+ON CONFLICT DO NOTHING;
+
 INSERT INTO product_code_mapping (internal_product_code, supplier_product_code, supplier_id, mapping_date, validation_status) VALUES
 ('PROD001', 'SPROD001', 1, CURRENT_DATE, 'validated'),
 ('PROD002', 'SPROD002', 1, CURRENT_DATE, 'validated'),
@@ -7533,9 +7570,9 @@ INSERT INTO log_operation (module, operation_type, business_type, business_id, u
 ('inventory', 'approve', 'inventory_transfer', 1, 3, 'user2', '审批库存调拨单', '192.168.1.102');
 
 -- 登录日志示例
-INSERT INTO log_login (username, login_status, login_type, ip_address, browser, os) VALUES
-('admin', 'success', 'password', '192.168.1.100', 'Chrome 120', 'Windows 10'),
-('user1', 'success', 'password', '192.168.1.101', 'Firefox 121', 'Windows 11'),
+INSERT INTO log_login (username, login_status, login_type, ip_address, browser, os, failure_reason) VALUES
+('admin', 'success', 'password', '192.168.1.100', 'Chrome 120', 'Windows 10', NULL),
+('user1', 'success', 'password', '192.168.1.101', 'Firefox 121', 'Windows 11', NULL),
 ('user2', 'failed', 'password', '192.168.1.102', 'Chrome 120', 'macOS', '密码错误');
 
 -- ========================================
@@ -7802,7 +7839,7 @@ CREATE TABLE IF NOT EXISTS supplier_product_colors (
     id SERIAL PRIMARY KEY,
     supplier_product_id INTEGER NOT NULL REFERENCES supplier_products(id) ON DELETE CASCADE,
     color_no VARCHAR(50) NOT NULL,                         -- 供应商色号编码
-    color_name VARCHAR(100) NOT NULL,                      -- 供应商颜色名称
+    color_name VARCHAR(100) NOT NULL UNIQUE,                      -- 供应商颜色名称
     pantone_code VARCHAR(50),                               -- 潘通色号
     extra_cost DECIMAL(10,2) DEFAULT 0.00,                 -- 特殊色号加价
     is_enabled BOOLEAN DEFAULT TRUE,                        -- 是否启用
@@ -7910,6 +7947,7 @@ CREATE TRIGGER trg_product_supplier_mappings_updated_at
 
 -- 1. 库存表添加计算字段
 ALTER TABLE inventory_stocks 
+ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
@@ -7918,6 +7956,7 @@ COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（�
 
 -- 2. 采购入库明细表添加计算字段
 ALTER TABLE purchase_receipt_item 
+ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
@@ -7926,6 +7965,7 @@ COMMENT ON COLUMN purchase_receipt_item.unit_conversion_rate IS '单位换算率
 
 -- 3. 采购订单明细表添加计算字段
 ALTER TABLE purchase_order_item 
+ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
@@ -7937,7 +7977,8 @@ DO $$
 BEGIN 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
         ALTER TABLE sales_delivery_item 
-        ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
+        ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
+ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
         ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
         
         COMMENT ON COLUMN sales_delivery_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
@@ -7952,14 +7993,14 @@ BEGIN
     -- 只有当米数、克重、幅宽都存在时才计算
     IF NEW.quantity_meters IS NOT NULL 
        AND NEW.gram_weight IS NOT NULL 
-       AND NEW.width_cm IS NOT NULL 
+       AND NEW.width IS NOT NULL 
        AND NEW.quantity_meters > 0
        AND NEW.gram_weight > 0
-       AND NEW.width_cm > 0 THEN
+       AND NEW.width > 0 THEN
         
         -- 计算公斤数：米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
         NEW.quantity_kg := ROUND(
-            NEW.quantity_meters * NEW.gram_weight * (NEW.width_cm / 100.0) / 1000.0,
+            NEW.quantity_meters * NEW.gram_weight * (NEW.width / 100.0) / 1000.0,
             3
         );
         NEW.calculated_quantity_kg := NEW.quantity_kg;
@@ -8017,58 +8058,58 @@ END $$;
 -- 10. 更新现有数据（一次性操作）
 UPDATE inventory_stocks
 SET 
-    quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    quantity_kg = ROUND(quantity_meters * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_meters, 0),
+        ROUND(quantity_meters * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity_meters, 0),
         6
     )
 WHERE quantity_meters IS NOT NULL 
   AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
+  AND width IS NOT NULL
   AND quantity_meters > 0
   AND gram_weight > 0
-  AND width_cm > 0;
+  AND width > 0;
 
 UPDATE purchase_receipt_item
 SET 
-    quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    quantity_kg = ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_received, 0),
+        ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity, 0),
         6
     )
-WHERE quantity_received IS NOT NULL 
+WHERE quantity IS NOT NULL 
   AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
-  AND quantity_received > 0
+  AND width IS NOT NULL
+  AND quantity > 0
   AND gram_weight > 0
-  AND width_cm > 0;
+  AND width > 0;
 
 UPDATE purchase_order_item
 SET 
-    quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    quantity_kg = ROUND(quantity_ordered * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_ordered * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_ordered, 0),
+        ROUND(quantity_ordered * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity_ordered, 0),
         6
     )
 WHERE quantity_ordered IS NOT NULL 
   AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
+  AND width IS NOT NULL
   AND quantity_ordered > 0
   AND gram_weight > 0
-  AND width_cm > 0;
+  AND width > 0;
 
 -- 11. 创建索引优化查询性能
 CREATE INDEX IF NOT EXISTS idx_inventory_dual_unit 
-ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width_cm);
+ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width);
 
 CREATE INDEX IF NOT EXISTS idx_receipt_dual_unit 
-ON purchase_receipt_item(quantity_received, quantity_kg, gram_weight, width_cm);
+ON purchase_receipt_item(quantity, quantity_kg, gram_weight, width);
 
 CREATE INDEX IF NOT EXISTS idx_order_dual_unit 
-ON purchase_order_item(quantity_ordered, quantity_kg, gram_weight, width_cm);
+ON purchase_order_item(quantity_ordered, quantity_kg, gram_weight, width);
 
 -- 12. 创建视图方便双计量单位查询
 CREATE OR REPLACE VIEW v_inventory_dual_unit AS
@@ -8084,7 +8125,7 @@ SELECT
     calculated_quantity_kg,
     unit_conversion_rate,
     gram_weight,
-    width_cm,
+    width,
     warehouse_id,
     stock_status,
     quality_status,
@@ -8121,13 +8162,11 @@ ON inventory_stocks(product_id, batch_no, color_no, grade);
 ALTER TABLE inventory_stocks 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 3. 为五维 ID 添加索引，加速精确查询
@@ -8136,19 +8175,17 @@ ON inventory_stocks(five_dimension_id);
 
 -- 4. 为 purchase_receipt_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
-ON purchase_receipt_item(product_id, batch_no, color_no, grade);
+ON purchase_receipt_item(product_id, batch_no, color_code, grade);
 
 -- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
 ALTER TABLE purchase_receipt_item 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_code, 'N') || '|' ||
+    'D' || COALESCE(lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 6. 为 purchase_receipt_item 的五维 ID 添加索引
@@ -8157,19 +8194,17 @@ ON purchase_receipt_item(five_dimension_id);
 
 -- 7. 为 sales_delivery_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
-ON sales_delivery_item(product_id, batch_no, color_no, grade);
+ON sales_delivery_item(product_id, color_no, dye_lot_no);
 
 -- 8. 为 sales_delivery_item 表添加五维 ID 计算列
 ALTER TABLE sales_delivery_item 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || 'N' || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || 'N'
 ) STORED;
 
 -- 9. 为 sales_delivery_item 的五维 ID 添加索引
@@ -8181,16 +8216,14 @@ CREATE INDEX IF NOT EXISTS idx_inventory_transaction_five_dim
 ON inventory_transactions(product_id, batch_no, color_no, grade);
 
 -- 11. 为 inventory_transactions 表添加五维 ID 计算列
-ALTER TABLE inventory_transactionss
+ALTER TABLE inventory_transactions
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', COALESCE(product_id::text, '0'), '|',
-        'B', COALESCE(batch_no, 'N'), '|',
-        'C', COALESCE(color_no, 'N'), '|',
-        'D', 'N', '|',
-        'G', COALESCE(grade, 'N')
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 12. 为 inventory_transactions 的五维 ID 添加索引
@@ -8479,6 +8512,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_trace_status ON business_trace_chain;
 CREATE TRIGGER trg_update_trace_status
     BEFORE INSERT OR UPDATE ON business_trace_chain
     FOR EACH ROW
@@ -8505,25 +8539,23 @@ CREATE TRIGGER trg_update_trace_status
 -- - 供应商/客户索引：加速正向/反向追溯
 -- - 快照表：定期保存状态，避免长链查询
 -- ============================================================
-ALTER TABLE sales_order_items ADD COLUMN paper_tube_weight DECIMAL(10,2);
-ALTER TABLE sales_order_items ADD COLUMN is_net_weight BOOLEAN;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS paper_tube_weight DECIMAL(10,2);
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS is_net_weight BOOLEAN;
 
 
 -- 4. 为 purchase_receipt_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
-ON purchase_receipt_item(product_id, batch_no, color_no, grade);
+ON purchase_receipt_item(product_id, batch_no, color_code, grade);
 
 -- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
 ALTER TABLE purchase_receipt_item
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_code, 'N') || '|' ||
+    'D' || COALESCE(lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 6. 为 purchase_receipt_item 的五维 ID 添加索引
@@ -8532,19 +8564,17 @@ ON purchase_receipt_item(five_dimension_id);
 
 -- 7. 为 sales_delivery_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
-ON sales_delivery_item(product_id, batch_no, color_no, grade);
+ON sales_delivery_item(product_id, color_no, dye_lot_no);
 
 -- 8. 为 sales_delivery_item 表添加五维 ID 计算列
 ALTER TABLE sales_delivery_item
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || 'N' || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || 'N'
 ) STORED;
 
 -- 9. 为 sales_delivery_item 的五维 ID 添加索引
@@ -8560,13 +8590,11 @@ ON inventory_transactions(product_id, batch_no, color_no, grade);
 ALTER TABLE inventory_transactions
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255)
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- ====== MOVED ORPHAN BLOCKS ======
@@ -8658,7 +8686,7 @@ CREATE TABLE IF NOT EXISTS accounting_periods (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL,
     period INTEGER NOT NULL,
-    period_name VARCHAR(50) NOT NULL,
+    period_name VARCHAR(50) NOT NULL UNIQUE,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     status VARCHAR(20) DEFAULT 'OPEN',
@@ -8684,23 +8712,26 @@ INSERT INTO account_subjects (code, name, level, balance_direction, status) VALU
 ('2221', '应交税费', 1, '贷', 'active'),
 ('5001', '生产成本', 1, '借', 'active'),
 ('6001', '主营业务收入', 1, '贷', 'active'),
-('6401', '主营业务成本', 1, '借', 'active');
+('6401', '主营业务成本', 1, '借', 'active') ON CONFLICT (code) DO NOTHING;
 
 -- 插入二级科目（示例）
 INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
 SELECT 
     '1002.01', '工商银行', 2, id, '借', 'active'
-FROM account_subjects WHERE code = '1002';
+FROM account_subjects WHERE code = '1002'
+ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status)
 SELECT 
     '1405.01', '坯布', 2, id, '借', 'active'
-FROM account_subjects WHERE code = '1405';
+FROM account_subjects WHERE code = '1405'
+ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO account_subjects (code, name, level, parent_id, balance_direction, status, assist_batch, assist_color_no, enable_dual_unit)
 SELECT 
     '1405.02', '成品布', 2, id, '借', 'active', true, true, true
-FROM account_subjects WHERE code = '1405';
+FROM account_subjects WHERE code = '1405'
+ON CONFLICT (code) DO NOTHING;
 
 -- ========================================
 -- 6. 创建视图
@@ -8751,6 +8782,7 @@ END $$;
 
 -- 1. 库存表添加计算字段
 ALTER TABLE inventory_stocks 
+ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
@@ -8759,6 +8791,7 @@ COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（�
 
 -- 2. 采购入库明细表添加计算字段
 ALTER TABLE purchase_receipt_item 
+ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
@@ -8767,6 +8800,7 @@ COMMENT ON COLUMN purchase_receipt_item.unit_conversion_rate IS '单位换算率
 
 -- 3. 采购订单明细表添加计算字段
 ALTER TABLE purchase_order_item 
+ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
@@ -8778,7 +8812,8 @@ DO $$
 BEGIN 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery_item') THEN
         ALTER TABLE sales_delivery_item 
-        ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
+        ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
+ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
         ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
         
         COMMENT ON COLUMN sales_delivery_item.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
@@ -8793,14 +8828,14 @@ BEGIN
     -- 只有当米数、克重、幅宽都存在时才计算
     IF NEW.quantity_meters IS NOT NULL 
        AND NEW.gram_weight IS NOT NULL 
-       AND NEW.width_cm IS NOT NULL 
+       AND NEW.width IS NOT NULL 
        AND NEW.quantity_meters > 0
        AND NEW.gram_weight > 0
-       AND NEW.width_cm > 0 THEN
+       AND NEW.width > 0 THEN
         
         -- 计算公斤数：米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
         NEW.quantity_kg := ROUND(
-            NEW.quantity_meters * NEW.gram_weight * (NEW.width_cm / 100.0) / 1000.0,
+            NEW.quantity_meters * NEW.gram_weight * (NEW.width / 100.0) / 1000.0,
             3
         );
         NEW.calculated_quantity_kg := NEW.quantity_kg;
@@ -8858,58 +8893,58 @@ END $$;
 -- 10. 更新现有数据（一次性操作）
 UPDATE inventory_stocks
 SET 
-    quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    quantity_kg = ROUND(quantity_meters * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_meters * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_meters * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_meters, 0),
+        ROUND(quantity_meters * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity_meters, 0),
         6
     )
 WHERE quantity_meters IS NOT NULL 
   AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
+  AND width IS NOT NULL
   AND quantity_meters > 0
   AND gram_weight > 0
-  AND width_cm > 0;
+  AND width > 0;
 
 UPDATE purchase_receipt_item
 SET 
-    quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    quantity_kg = ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_received * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_received, 0),
+        ROUND(quantity * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity, 0),
         6
     )
-WHERE quantity_received IS NOT NULL 
+WHERE quantity IS NOT NULL 
   AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
-  AND quantity_received > 0
+  AND width IS NOT NULL
+  AND quantity > 0
   AND gram_weight > 0
-  AND width_cm > 0;
+  AND width > 0;
 
 UPDATE purchase_order_item
 SET 
-    quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
-    calculated_quantity_kg = ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3),
+    quantity_kg = ROUND(quantity_ordered * gram_weight * (width / 100.0) / 1000.0, 3),
+    calculated_quantity_kg = ROUND(quantity_ordered * gram_weight * (width / 100.0) / 1000.0, 3),
     unit_conversion_rate = ROUND(
-        ROUND(quantity_ordered * gram_weight * (width_cm / 100.0) / 1000.0, 3) / NULLIF(quantity_ordered, 0),
+        ROUND(quantity_ordered * gram_weight * (width / 100.0) / 1000.0, 3) / NULLIF(quantity_ordered, 0),
         6
     )
 WHERE quantity_ordered IS NOT NULL 
   AND gram_weight IS NOT NULL 
-  AND width_cm IS NOT NULL
+  AND width IS NOT NULL
   AND quantity_ordered > 0
   AND gram_weight > 0
-  AND width_cm > 0;
+  AND width > 0;
 
 -- 11. 创建索引优化查询性能
 CREATE INDEX IF NOT EXISTS idx_inventory_dual_unit 
-ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width_cm);
+ON inventory_stocks(quantity_meters, quantity_kg, gram_weight, width);
 
 CREATE INDEX IF NOT EXISTS idx_receipt_dual_unit 
-ON purchase_receipt_item(quantity_received, quantity_kg, gram_weight, width_cm);
+ON purchase_receipt_item(quantity, quantity_kg, gram_weight, width);
 
 CREATE INDEX IF NOT EXISTS idx_order_dual_unit 
-ON purchase_order_item(quantity_ordered, quantity_kg, gram_weight, width_cm);
+ON purchase_order_item(quantity_ordered, quantity_kg, gram_weight, width);
 
 -- 12. 创建视图方便双计量单位查询
 CREATE OR REPLACE VIEW v_inventory_dual_unit AS
@@ -8925,7 +8960,7 @@ SELECT
     calculated_quantity_kg,
     unit_conversion_rate,
     gram_weight,
-    width_cm,
+    width,
     warehouse_id,
     stock_status,
     quality_status,
@@ -8962,13 +8997,11 @@ ON inventory_stocks(product_id, batch_no, color_no, grade);
 ALTER TABLE inventory_stocks 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 3. 为五维 ID 添加索引，加速精确查询
@@ -8977,19 +9010,17 @@ ON inventory_stocks(five_dimension_id);
 
 -- 4. 为 purchase_receipt_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_five_dim
-ON purchase_receipt_item(product_id, batch_no, color_no, grade);
+ON purchase_receipt_item(product_id, batch_no, color_code, grade);
 
 -- 5. 为 purchase_receipt_item 表添加五维 ID 计算列
 ALTER TABLE purchase_receipt_item 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_code, 'N') || '|' ||
+    'D' || COALESCE(lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 6. 为 purchase_receipt_item 的五维 ID 添加索引
@@ -8998,19 +9029,17 @@ ON purchase_receipt_item(five_dimension_id);
 
 -- 7. 为 sales_delivery_item 表添加五维组合索引
 CREATE INDEX IF NOT EXISTS idx_sales_delivery_five_dim
-ON sales_delivery_item(product_id, batch_no, color_no, grade);
+ON sales_delivery_item(product_id, color_no, dye_lot_no);
 
 -- 8. 为 sales_delivery_item 表添加五维 ID 计算列
 ALTER TABLE sales_delivery_item 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || 'N' || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || 'N'
 ) STORED;
 
 -- 9. 为 sales_delivery_item 的五维 ID 添加索引
@@ -9025,13 +9054,11 @@ ON inventory_transactions(product_id, batch_no, color_no, grade);
 ALTER TABLE inventory_transactions 
 ADD COLUMN IF NOT EXISTS five_dimension_id VARCHAR(255) 
 GENERATED ALWAYS AS (
-    CONCAT(
-        'P', product_id, '|',
-        'B', batch_no, '|',
-        'C', color_no, '|',
-        'D', COALESCE(dye_lot_no, 'N'), '|',
-        'G', grade
-    )
+    'P' || COALESCE(product_id::varchar, '0') || '|' ||
+    'B' || COALESCE(batch_no, 'N') || '|' ||
+    'C' || COALESCE(color_no, 'N') || '|' ||
+    'D' || COALESCE(dye_lot_no, 'N') || '|' ||
+    'G' || COALESCE(grade, 'N')
 ) STORED;
 
 -- 12. 为 inventory_transaction 的五维 ID 添加索引
@@ -9274,6 +9301,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_trace_status ON business_trace_chain;
 CREATE TRIGGER trg_update_trace_status
     BEFORE INSERT OR UPDATE ON business_trace_chain
     FOR EACH ROW
@@ -9309,21 +9337,6 @@ CREATE INDEX IF NOT EXISTS idx_count_items_count_id ON inventory_count_items(cou
 CREATE INDEX IF NOT EXISTS idx_count_items_product_id ON inventory_count_items(product_id);
 
 -- 添加表注释
-COMMENT ON TABLE inventory_count_items IS '库存盘点明细表';
-COMMENT ON COLUMN inventory_count_items.id IS '明细 ID';
-COMMENT ON COLUMN inventory_count_items.count_id IS '盘点单 ID';
-COMMENT ON COLUMN inventory_count_items.product_id IS '产品 ID';
-COMMENT ON COLUMN inventory_count_items.bin_location IS '库位';
-COMMENT ON COLUMN inventory_count_items.quantity_book IS '账面数量';
-COMMENT ON COLUMN inventory_count_items.quantity_actual IS '实际数量';
-COMMENT ON COLUMN inventory_count_items.quantity_variance IS '差异数量';
-COMMENT ON COLUMN inventory_count_items.unit_cost IS '单位成本';
-COMMENT ON COLUMN inventory_count_items.variance_amount IS '差异金额';
-COMMENT ON COLUMN inventory_count_items.notes IS '备注';
-COMMENT ON COLUMN inventory_count_items.counted_by IS '盘点人';
-COMMENT ON COLUMN inventory_count_items.counted_at IS '盘点时间';
-COMMENT ON COLUMN inventory_count_items.created_at IS '创建时间';
-COMMENT ON COLUMN inventory_count_items.updated_at IS '更新时间';
 
 -- ==================== 触发器：自动更新时间 ====================
 -- 为 inventory_counts 表创建触发器

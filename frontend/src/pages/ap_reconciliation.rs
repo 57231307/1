@@ -1,9 +1,11 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 // 应付对账管理页面
 //
 // 应付对账（AP Reconciliation）管理功能
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::ap_reconciliation::{
@@ -391,9 +393,11 @@ impl ApReconciliationPage {
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDisputeModal)}>
                             {"取消"}
                         </button>
-                        <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::SubmitDispute)}>
+                        <PermissionGuard resource="ap_reconciliation" action="create">
+<button class="btn-primary" onclick={ctx.link().callback(|_| Msg::SubmitDispute)}>
                             {"提交"}
                         </button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>

@@ -113,7 +113,7 @@ impl PurchaseReturnService {
             return_active.remarks = Set(Some(notes));
         }
 
-        let return_order = return_active.update(&*self.db).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
 
         Ok(return_order)
     }
@@ -142,7 +142,7 @@ impl PurchaseReturnService {
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.status = Set("SUBMITTED".to_string());
 
-        let return_order = return_active.update(&*self.db).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
 
         Ok(return_order)
     }
@@ -174,7 +174,7 @@ impl PurchaseReturnService {
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.status = Set("APPROVED".to_string());
         
-        let return_order = return_active.update(&txn).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", return_active, Some(0)).await?;
 
         // 1. 扣减库存
         let items = purchase_return_item::Entity::find()
@@ -204,7 +204,7 @@ impl PurchaseReturnService {
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     ..Default::default()
                 };
-                stock_update.update(&txn).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
                 
                 // 记录库存交易
                 stock_service.record_transaction(
@@ -272,7 +272,7 @@ impl PurchaseReturnService {
         return_active.status = Set("REJECTED".to_string());
         return_active.reason = Set(reason);
 
-        let return_order = return_active.update(&*self.db).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
 
         Ok(return_order)
     }
@@ -461,6 +461,7 @@ impl PurchaseReturnService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         }
         .insert(&txn)
         .await?;
@@ -520,7 +521,7 @@ impl PurchaseReturnService {
         
         active_item.updated_at = Set(Utc::now());
 
-        let updated_item = active_item.update(&txn).await?;
+        let updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_item, Some(0)).await?;
 
         self.update_return_totals(updated_item.return_id, &txn).await?;
         txn.commit().await?;
@@ -554,6 +555,25 @@ impl PurchaseReturnService {
         Ok(())
     }
 
+    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+        let txn = self.db.begin().await?;
+        
+        let ret = purchase_return::Entity::find_by_id(id).one(&txn).await?.ok_or(AppError::ResourceNotFound("Return not found".to_string()))?;
+        if ret.status != "DRAFT" {
+            return Err(AppError::BusinessError("Only DRAFT returns can be deleted".to_string()));
+        }
+        
+        purchase_return_item::Entity::delete_many()
+            .filter(purchase_return_item::Column::ReturnId.eq(id))
+            .exec(&txn)
+            .await?;
+            
+        purchase_return::Entity::delete_by_id(id).exec(&txn).await?;
+        
+        txn.commit().await?;
+        Ok(())
+    }
+
     /// 更新主单合计金额和数量
     async fn update_return_totals(&self, return_id: i32, txn: &sea_orm::DatabaseTransaction) -> Result<(), AppError> {
         let items = purchase_return_item::Entity::find()
@@ -580,7 +600,7 @@ impl PurchaseReturnService {
         active_return.total_amount = Set(total_amount);
         active_return.updated_at = Set(Utc::now());
 
-        active_return.update(txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_return, Some(0)).await?;
 
         Ok(())
     }

@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
 //! 数据传输对象（DTO）模块
 //!
 //! 提供通用的 API 响应和分页请求结构

@@ -204,6 +204,7 @@ pub async fn create_fabric_order(
         approved_at: Set(None),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     let created_order = order
@@ -264,6 +265,7 @@ pub async fn create_fabric_order(
             shipped_quantity_kg: Set(Decimal::ZERO),
             paper_tube_weight: Set(item.paper_tube_weight),
             is_net_weight: Set(item.is_net_weight),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         order_item

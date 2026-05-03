@@ -5,18 +5,18 @@ server:
   port: "8082"
 
 database:
-  connection_string: "postgres://postgres:postgres@localhost:5432/bingxi_erp"
-  host: "localhost"
+  connection_string: "postgres://bingxi:d5eb610ccf1a701dac02d5.dbcba8f5f546a@39.99.34.194:5432/bingxi"
+  host: "39.99.34.194"
   port: 5432
-  name: "bingxi_erp"
-  username: "postgres"
-  password: "postgres"
+  name: "bingxi"
+  username: "bingxi"
+  password: "d5eb610ccf1a701dac02d5.dbcba8f5f546a"
   max_connections: 10
   ssl_mode: "disable"
   ssl_ca: null
 
 auth:
-  jwt_secret: "local-dev-secret-key-change-in-production"
+  jwt_secret: "local-dev-secret-key-for-test-environments-only-32-bytes"
   cookie_secret: "local-dev-cookie-secret-key-must-be-at-least-32-bytes-long"
   token_expiry_hours: 24
 

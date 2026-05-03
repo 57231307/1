@@ -302,7 +302,7 @@ impl SupplierService {
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
 
-        let updated = supplier_active.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", supplier_active, Some(0)).await?;
         Ok(updated)
     }
 
@@ -347,7 +347,7 @@ impl SupplierService {
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
 
-        let updated = supplier_active.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", supplier_active, Some(0)).await?;
         Ok(updated)
     }
 
@@ -446,7 +446,7 @@ impl SupplierService {
             contact_active.remarks = Set(Some(remarks));
         }
 
-        let updated = contact_active.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", contact_active, Some(0)).await?;
         Ok(updated)
     }
 
@@ -478,7 +478,7 @@ impl SupplierService {
         for contact in contacts {
             let mut contact_active: supplier_contact::ActiveModel = contact.into();
             contact_active.is_primary = Set(false);
-            contact_active.update(&*self.db).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", contact_active, Some(0)).await?;
         }
 
         Ok(())

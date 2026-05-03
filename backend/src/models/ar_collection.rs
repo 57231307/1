@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 收款单 Entity
 //!
 //! 对应数据库表：ar_collections
@@ -37,6 +38,7 @@ pub struct Model {
     pub confirmed_at: Option<DateTime<Utc>>,
 
     pub created_by: i32,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

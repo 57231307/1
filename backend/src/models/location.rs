@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 库位 Model
 //!
 //! 仓库库位管理模块
@@ -44,6 +45,7 @@ pub struct Model {
     pub is_active: bool,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

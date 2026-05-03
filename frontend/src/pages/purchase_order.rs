@@ -1,12 +1,15 @@
-use gloo_dialogs;
+use crate::utils::toast_helper;
 // 采购订单管理页面
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
 use crate::services::purchase_order_service::PurchaseOrderService;
 use crate::services::crud_service::CrudService;
+use crate::utils::permissions;
+use crate::components::print_header::PrintHeader;
 
 pub struct PurchaseOrderPage {
     printing_order: Option<crate::models::purchase_order::PurchaseOrder>,
@@ -37,6 +40,7 @@ pub enum Msg {
     SubmitOrder(i32),
     PrintOrder(crate::models::purchase_order::PurchaseOrder),
     ClearPrint,
+    ExportPdf(crate::models::purchase_order::PurchaseOrder),
     ApproveOrder(i32),
     RejectOrder(i32),
     CloseOrder(i32),
@@ -65,6 +69,12 @@ impl Component for PurchaseOrderPage {
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             ctx.link().send_message(Msg::LoadOrders);
+        }
+        if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+            }
         }
     }
 
@@ -124,6 +134,11 @@ impl Component for PurchaseOrderPage {
             Msg::PrintOrder(order) => {
                 self.printing_order = Some(order);
                 self.print_trigger = true;
+                true
+            }
+
+            Msg::ExportPdf(o) => {
+                crate::utils::pdf_export::export_to_pdf("pdf-export-content", &format!("purchase_order_{}.pdf", o.order_no));
                 true
             }
             Msg::ClearPrint => {
@@ -219,9 +234,36 @@ impl PurchaseOrderPage {
         if let Some(order) = &self.printing_order {
             html! {
                 <div class="print-view" style="display: none;">
-                    <div class="print-header">
-                        <h2>{"秉羲面料管理 - 采购订单"}</h2>
-                    </div>
+                    <style>
+                    {r#"
+                    @media print {
+                        body * {
+                            visibility: hidden;
+                        }
+                        .print-view, .print-view * {
+                            visibility: visible;
+                        }
+                        .print-view {
+                            position: absolute;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                            display: block !important;
+                            padding: 20px;
+                        }
+                        .no-print { display: none !important; }
+                        .print-header { display: block !important; }
+                        body { font-size: 11pt; }
+                        table { border-collapse: collapse; width: 100%; }
+                        th, td { border: 1px solid #333; padding: 6px; }
+                    }
+                    "#}
+                    </style>
+                    <PrintHeader 
+                        title="秉羲面料管理 - 采购订单" 
+                        doc_no={order.order_no.clone()} 
+                        date={order.order_date.to_string()} 
+                    />
                     <div class="print-info-grid">
                         <div><strong>{"订单编号："}</strong> {&order.order_no}</div>
                         <div><strong>{"订单日期："}</strong> {&order.order_date}</div>
@@ -325,23 +367,37 @@ impl PurchaseOrderPage {
                                     <td>
                                         {if status_check == "REJECTED" || status_check == "DRAFT" {
                                             html! {
-                                                <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
+                                                if permissions::has_permission("purchase_order", "update") {
+                                                    <PermissionGuard resource="purchase_order" action="create">
+<button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
+</PermissionGuard>
+                                                }
                                             }
-                                        } else if status_check == "PENDING" {
+                                        } else if status_check == "PENDING_APPROVAL" || status_check == "SUBMITTED" {
                                             html! {
-                                                <>
-                                                    <button class="px-3 py-1 bg-green-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::ApproveOrder(order_id))}>{"审批通过"}</button>
-                                                    <button class="px-3 py-1 bg-red-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::RejectOrder(order_id))}>{"驳回"}</button>
-                                                </>
+                                                if permissions::has_permission("purchase_order", "approve") {
+                                                    <>
+                                                        <PermissionGuard resource="purchase_order" action="approve">
+<button class="px-3 py-1 bg-green-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::ApproveOrder(order_id))}>{"审批通过"}</button>
+</PermissionGuard>
+                                                        <PermissionGuard resource="purchase_order" action="approve">
+<button class="px-3 py-1 bg-red-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::RejectOrder(order_id))}>{"驳回"}</button>
+</PermissionGuard>
+                                                    </>
+                                                }
                                             }
                                         } else if status_check == "APPROVED" {
                                             html! {
-                                                <button class="px-3 py-1 bg-yellow-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::CloseOrder(order_id))}>{"关闭订单"}</button>
+                                                if permissions::has_permission("purchase_order", "update") {
+                                                    <button class="px-3 py-1 bg-yellow-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::CloseOrder(order_id))}>{"关闭订单"}</button>
+                                                }
                                             }
                                         } else {
                                             html! {}
                                         }}
-                                        <button class="px-3 py-1 bg-gray-500 text-white rounded text-xs ml-2" onclick={let order_print = order.clone(); ctx.link().callback(move |_| Msg::PrintOrder(order_print.clone()))}>{"打印"}</button>
+                                        if permissions::has_permission("purchase_order", "read") {
+                                            <button class="px-3 py-1 bg-gray-500 text-white rounded text-xs ml-2" onclick={let order_print = order.clone(); ctx.link().callback(move |_| Msg::PrintOrder(order_print.clone()))}>{"打印"}</button>
+                                        }
                                     </td>
                                 </tr>
                             }

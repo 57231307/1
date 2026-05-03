@@ -175,7 +175,7 @@ impl ApVerificationService {
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.into();
-            invoice_active.update(&txn).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
         }
 
         txn.commit().await?;
@@ -277,7 +277,7 @@ impl ApVerificationService {
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.into();
-            invoice_active.update(&txn).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
         }
 
         txn.commit().await?;
@@ -329,7 +329,7 @@ impl ApVerificationService {
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.into();
-            invoice_active.update(&txn).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
         }
 
         // 5. 取消核销单
@@ -340,7 +340,7 @@ impl ApVerificationService {
         verification_active.cancelled_at = Set(Some(now));
         verification_active.cancelled_reason = Set(Some(reason));
 
-        let verification = verification_active.update(&txn).await?;
+        let verification = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", verification_active, Some(0)).await?;
 
         txn.commit().await?;
 

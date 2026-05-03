@@ -1,7 +1,9 @@
 // 库存调拨管理页面
 // 提供库存调拨单的列表、创建、审核、发出、接收等功能
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::inventory_transfer::{
@@ -462,9 +464,11 @@ impl InventoryTransferPage {
                                                         <button class="btn-link" onclick={ctx.link().callback(move |_| Msg::OpenEditModal(transfer_id))}>
                                                             {"编辑"}
                                                         </button>
-                                                        <button class="btn-link btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteTransfer(transfer_id))}>
+                                                        <PermissionGuard resource="inventory_transfer" action="delete">
+<button class="btn-link btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteTransfer(transfer_id))}>
                                                             {"删除"}
                                                         </button>
+</PermissionGuard>
                                                     </>
                                                 }
                                             } else if transfer.status == "approved" {
@@ -614,9 +618,11 @@ impl InventoryTransferPage {
                     <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>
                         {"取消"}
                     </button>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateTransfer)}>
+                    <PermissionGuard resource="inventory_transfer" action="create">
+<button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateTransfer)}>
                         {"创建"}
                     </button>
+</PermissionGuard>
                 </div>
             </div>
         }
@@ -643,9 +649,11 @@ impl InventoryTransferPage {
                     {if let Some(ref detail) = self.selected_transfer {
                         let detail_id = detail.id;
                         html! {
-                            <button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::UpdateTransfer(detail_id))}>
+                            <PermissionGuard resource="inventory_transfer" action="update">
+<button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::UpdateTransfer(detail_id))}>
                                 {"保存"}
                             </button>
+</PermissionGuard>
                         }
                     } else {
                         html! {}
@@ -666,12 +674,16 @@ impl InventoryTransferPage {
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>
                             {"取消"}
                         </button>
-                        <button class="btn-danger" onclick={ctx.link().callback(move |_| Msg::ApproveTransfer(detail_id, false))}>
+                        <PermissionGuard resource="inventory_transfer" action="approve">
+<button class="btn-danger" onclick={ctx.link().callback(move |_| Msg::ApproveTransfer(detail_id, false))}>
                             {"拒绝"}
                         </button>
-                        <button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::ApproveTransfer(detail_id, true))}>
+</PermissionGuard>
+                        <PermissionGuard resource="inventory_transfer" action="approve">
+<button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::ApproveTransfer(detail_id, true))}>
                             {"审核通过"}
                         </button>
+</PermissionGuard>
                     </div>
                 </div>
             }

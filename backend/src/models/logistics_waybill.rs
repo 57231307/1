@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -18,6 +19,7 @@ pub struct Model {
     pub expected_arrival: Option<DateTime<Utc>>,
     pub actual_arrival: Option<DateTime<Utc>>,
     pub notes: Option<String>,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

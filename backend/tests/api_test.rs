@@ -20,7 +20,7 @@ use bingxi_backend::middleware::auth::auth_middleware;
 
 /// 设置测试应用
 async fn setup_app() -> Router {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
     create_router(state.clone())
         .layer(axum::middleware::from_fn_with_state(state, auth_middleware))
@@ -37,10 +37,10 @@ async fn test_health_check() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/health")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     // 注意：当前可能还没有健康检查端点，这个测试会失败
     // 这是预期的行为
@@ -65,10 +65,10 @@ async fn test_login_user_not_found() {
                     })
                     .to_string(),
                 ))
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -84,10 +84,10 @@ async fn test_get_users_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/users")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     // 应该返回 401 未授权
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -104,10 +104,10 @@ async fn test_get_inventory_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/inventory/stock")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -123,10 +123,10 @@ async fn test_get_orders_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/sales/orders")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -142,10 +142,10 @@ async fn test_get_payments_unauthorized() {
                 .method(Method::GET)
                 .uri("/api/v1/erp/finance/payments")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -161,10 +161,10 @@ async fn test_404_route() {
                 .method(Method::GET)
                 .uri("/health/nonexistent")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

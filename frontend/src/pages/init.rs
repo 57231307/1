@@ -1,6 +1,7 @@
 // 系统初始化页面
 // 包含数据库配置和管理员账号创建两个步骤
 
+use crate::utils::permissions;
 use yew::prelude::*;
 use yew_router::prelude::*;
 use wasm_bindgen_futures::spawn_local;

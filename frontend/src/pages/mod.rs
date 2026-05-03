@@ -114,3 +114,4 @@ pub mod sales_return;
 pub use sales_return::SalesReturnPage;
 pub mod system_settings;
 pub use system_settings::SystemSettingsPage;
+pub mod my_tasks;

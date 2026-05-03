@@ -92,6 +92,7 @@ pub async fn split_fabric_piece(
         remarks: Set(Some(format!("从布卷 {} 剪裁拆分而来", parent.piece_no))),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     let inserted_piece = new_piece.insert(&txn).await?;

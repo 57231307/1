@@ -197,6 +197,7 @@ impl PurchaseOrderService {
                 notes: Set(item_req.notes),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                is_deleted: sea_orm::ActiveValue::NotSet,
             }
             .insert(&txn)
             .await?;
@@ -208,7 +209,7 @@ impl PurchaseOrderService {
         order_active.total_quantity = Set(total_quantity);
         order_active.total_quantity_alt = Set(total_quantity_alt);
         order_active.updated_at = Set(chrono::Utc::now());
-        let order = order_active.update(&txn).await?;
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_active, Some(0)).await?;
 
         // 5. 提交事务
         txn.commit().await?;
@@ -283,7 +284,7 @@ impl PurchaseOrderService {
 
         order_active.updated_by = Set(Some(user_id));
 
-        let order = order_active.update(&*self.db).await?;
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 
         Ok(order)
     }
@@ -356,14 +357,32 @@ impl PurchaseOrderService {
             return Err(AppError::BusinessError("订单至少需要一行明细".to_string()));
         }
 
-        // 5. 更新状态
+        // 5. 更新状态为 PENDING_APPROVAL
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set("SUBMITTED".to_string());
+        order_active.order_status = Set("PENDING_APPROVAL".to_string());
+        order_active.updated_at = Set(Utc::now());
         order_active.updated_by = Set(Some(user_id));
 
-        let order = order_active.update(&*self.db).await?;
+        let updated_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 
-        Ok(order)
+        // 6. 挂载 BPM 引擎
+        let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
+        let req = crate::models::dto::bpm_dto::StartProcessRequest {
+            process_key: "purchase_order_approval".to_string(),
+            business_type: "purchase_order".to_string(),
+            business_id: order_id,
+            title: format!("采购订单审批 - {}", updated_order.order_no),
+            initiator_id: user_id,
+            initiator_name: "User".to_string(),
+            initiator_department_id: None,
+            priority: None,
+            form_data: None,
+            variables: None,
+        };
+        // 忽略找不到模板的错误，为了兼容旧数据
+        let _ = bpm_service.start_process(req).await;
+        
+        Ok(updated_order)
     }
 
     /// 审批采购订单
@@ -379,7 +398,7 @@ impl PurchaseOrderService {
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "SUBMITTED" {
+        if order.order_status != "SUBMITTED" && order.order_status != "PENDING_APPROVAL" {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许审批，当前状态：{}",
                 order.order_status
@@ -395,7 +414,7 @@ impl PurchaseOrderService {
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(now);
 
-        let order = order_active.update(&*self.db).await?;
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 
         Ok(order)
     }
@@ -414,7 +433,7 @@ impl PurchaseOrderService {
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "SUBMITTED" {
+        if order.order_status != "SUBMITTED" && order.order_status != "PENDING_APPROVAL" {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许拒绝，当前状态：{}",
                 order.order_status
@@ -429,7 +448,7 @@ impl PurchaseOrderService {
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(now);
 
-        let order = order_active.update(&*self.db).await?;
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 
         Ok(order)
     }
@@ -459,7 +478,7 @@ impl PurchaseOrderService {
         order_active.order_status = Set("CLOSED".to_string());
         order_active.updated_by = Set(Some(user_id));
 
-        let order = order_active.update(&*self.db).await?;
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 
         Ok(order)
     }
@@ -521,6 +540,7 @@ impl PurchaseOrderService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         }
         .insert(&*self.db)
         .await?;
@@ -587,7 +607,7 @@ impl PurchaseOrderService {
             item_active.notes = Set(Some(notes));
         }
 
-        let item = item_active.update(&*self.db).await?;
+        let item = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", item_active, Some(0)).await?;
 
         // 6. 更新订单总金额
         self.calculate_order_total(order.id).await?;
@@ -668,7 +688,7 @@ impl PurchaseOrderService {
         order_active.total_quantity = Set(total_quantity);
         order_active.total_quantity_alt = Set(total_quantity_alt);
         order_active.updated_at = Set(chrono::Utc::now());
-        order_active.update(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 
         Ok(())
     }

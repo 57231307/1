@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 凭证 Entity
 //!
 //! 对应数据库表：vouchers
@@ -44,6 +45,8 @@ pub struct Model {
     pub reviewed_at: Option<DateTime<Utc>>,
     pub posted_by: Option<i32>,
     pub posted_at: Option<DateTime<Utc>>,
+
+    pub is_deleted: bool,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

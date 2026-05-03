@@ -1,3 +1,4 @@
+use crate::utils::permissions;
 use yew::prelude::*;
 use crate::services::department_service::DepartmentService;
 use crate::services::crud_service::CrudService;

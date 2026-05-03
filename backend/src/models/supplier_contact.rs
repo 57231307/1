@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +32,7 @@ pub struct Model {
     /// 备注
     pub remarks: Option<String>,
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间
     pub updated_at: DateTimeWithTimeZone,

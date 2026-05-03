@@ -70,9 +70,14 @@ impl FinanceInvoiceService {
 
     /// 创建发票
     pub async fn create_invoice(&self, req: CreateInvoiceRequest) -> Result<InvoiceModel, DbErr> {
+        if let Some(date) = req.invoice_date {
+            let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+            period_svc.check_date_locked(date.date_naive()).await.map_err(|e| DbErr::Custom(e.to_string()))?;
+        }
+        
         let active_model = ActiveModel {
             id: NotSet,
-            invoice_no: Set(req.invoice_no),
+            invoice_no: Set(req.invoice_no.clone()),
             order_id: Set(req.order_id),
             customer_id: Set(req.customer_id),
             customer_name: Set(req.customer_name),
@@ -86,6 +91,7 @@ impl FinanceInvoiceService {
             paid_date: Set(None),
             payment_method: Set(req.payment_method),
             notes: Set(req.notes),
+            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
@@ -199,7 +205,7 @@ impl FinanceInvoiceService {
         invoice.payment_method = Set(Some(payment_method));
         invoice.updated_at = Set(Utc::now());
 
-        let result = invoice.update(&txn).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;

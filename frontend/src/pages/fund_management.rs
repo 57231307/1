@@ -1,6 +1,8 @@
 // 资金管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::services::fund_management_service::FundManagementService;
@@ -162,7 +164,9 @@ impl FundManagementPage {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{ &a.currency }</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{ &a.balance }</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button class="text-red-600 hover:text-red-900 ml-4" onclick={ctx.link().callback(move |_| Msg::DeleteAccount(id))}>{"删除"}</button>
+                                        <PermissionGuard resource="fund_management" action="delete">
+<button class="text-red-600 hover:text-red-900 ml-4" onclick={ctx.link().callback(move |_| Msg::DeleteAccount(id))}>{"删除"}</button>
+</PermissionGuard>
                                     </td>
                                 </tr>
                             }

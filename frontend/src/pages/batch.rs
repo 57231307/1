@@ -1,5 +1,6 @@
 // 批次管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;

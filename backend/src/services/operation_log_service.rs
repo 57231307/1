@@ -52,6 +52,7 @@ impl OperationLogService {
             duration_ms: Set(request.duration_ms),
             extra_data: Set(request.extra_data),
             created_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         log.insert(&*self.db).await

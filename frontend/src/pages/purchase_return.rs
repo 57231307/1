@@ -1,7 +1,8 @@
-use gloo_dialogs;
+use crate::utils::toast_helper;
 // 采购退货管理页面
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::purchase_return::{CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest, 
@@ -9,6 +10,7 @@ use crate::models::purchase_return::{CreatePurchaseReturnRequest, CreatePurchase
 };
 use crate::services::purchase_return_service::PurchaseReturnService;
 use crate::services::crud_service::CrudService;
+use crate::utils::permissions;
 
 /// 采购退货页面状态管理
 pub struct PurchaseReturnPage {
@@ -120,8 +122,24 @@ impl Component for PurchaseReturnPage {
                 self.viewing_item = self.returns.iter().find(|i| i.id == id).cloned();
                 true
             }
-            Msg::DeleteReturn(_id) => {
-                // 删除功能暂未实现
+            Msg::DeleteReturn(id) => {
+                if !toast_helper::confirm("确定要删除此退货单吗？") {
+                    return false;
+                }
+                
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    match PurchaseReturnService::delete(id).await {
+                        Ok(_) => {
+                            toast_helper::show_success("删除成功");
+                            link.send_message(Msg::LoadReturns);
+                        }
+                        Err(e) => {
+                            toast_helper::show_error(&format!("删除失败: {}", e));
+                            link.send_message(Msg::LoadError(e));
+                        }
+                    }
+                });
                 false
             }
             Msg::SubmitReturn(id) => {
@@ -268,7 +286,9 @@ impl PurchaseReturnPage {
                         </div>
                         <div class="flex justify-end gap-2">
                             <button class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"取消"}</button>
-                            <button class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>{"确认创建"}</button>
+                            <PermissionGuard resource="purchase_return" action="create">
+<button class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>{"确认创建"}</button>
+</PermissionGuard>
                         </div>
                     </div>
                 </div>
@@ -364,11 +384,14 @@ impl PurchaseReturnPage {
                             <th>{"退货数量"}</th>
                             <th>{"退货金额"}</th>
                             <th>{"仓库"}</th>
+                            <th>{"操作"}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {for self.returns.iter().map(|ret| {
                             let status = ret.status.clone();
+                            let ret_id = ret.id;
+                            let status_check = status.clone();
                             html! {
                                 <tr>
                                     <td>{&ret.return_no}</td>
@@ -379,6 +402,18 @@ impl PurchaseReturnPage {
                                     <td class="numeric">{&ret.total_quantity}</td>
                                     <td class="numeric">{&ret.total_amount}</td>
                                     <td>{ret.warehouse_name.as_deref().unwrap_or("-")}</td>
+                                    <td>
+                                        if status_check == "DRAFT" && permissions::has_permission("purchase_return", "delete") {
+                                            <PermissionGuard resource="purchase_return" action="delete">
+<button class="px-3 py-1 bg-red-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::DeleteReturn(ret_id))}>
+                                                {"删除"}
+                                            </button>
+</PermissionGuard>
+                                        }
+                                        <button class="px-3 py-1 bg-blue-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::ViewReturn(ret_id))}>
+                                            {"详情"}
+                                        </button>
+                                    </td>
                                 </tr>
                             }
                         })}

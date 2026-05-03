@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 系统版本信息模型
 
 use sea_orm::entity::prelude::*;
@@ -13,6 +14,7 @@ pub struct Model {
     pub release_date: DateTimeUtc,
     pub changelog: Option<String>,
     pub is_current: bool,
+    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

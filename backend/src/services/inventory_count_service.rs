@@ -250,6 +250,7 @@ impl InventoryCountService {
             completed_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let count_entity = count.insert(&txn).await?;
@@ -276,6 +277,7 @@ impl InventoryCountService {
                     notes: sea_orm::ActiveValue::Set(item_req.notes),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                    is_deleted: sea_orm::ActiveValue::NotSet,
                 };
 
                 item.insert(&txn).await?;
@@ -288,7 +290,7 @@ impl InventoryCountService {
         count_update.counted_items =
             sea_orm::ActiveValue::Set(if has_items { total_items } else { 0 });
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        count_update.update(&txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -330,7 +332,7 @@ impl InventoryCountService {
             count_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        count_update.update(&txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -377,7 +379,7 @@ impl InventoryCountService {
             count_update.notes = sea_orm::ActiveValue::Set(Some(n));
         }
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        count_update.update(&txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -438,7 +440,7 @@ impl InventoryCountService {
                 item_update.quantity_before = sea_orm::ActiveValue::Set(quantity_book);
                 item_update.quantity_difference = sea_orm::ActiveValue::Set(quantity_variance);
                 item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                let _updated_item = item_update.update(&txn).await?;
+                let _updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", item_update, Some(0)).await?;
 
                 // 统计差异项数量
                 if quantity_variance != rust_decimal::Decimal::ZERO {
@@ -453,7 +455,7 @@ impl InventoryCountService {
                         stock_model.quantity_meters + quantity_variance,
                     );
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                    stock_update.update(&txn).await?;
+                    crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
                 }
             } else {
                 // 如果库存记录不存在，创建新记录
@@ -488,6 +490,7 @@ impl InventoryCountService {
                     bin_location: sea_orm::ActiveValue::NotSet,
                     stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
                     quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
+                    is_deleted: sea_orm::ActiveValue::NotSet,
                 };
                 new_stock.insert(&txn).await?;
             }
@@ -499,7 +502,7 @@ impl InventoryCountService {
         count_update.variance_items = sea_orm::ActiveValue::Set(variance_count);
         count_update.completed_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        count_update.update(&txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;

@@ -102,7 +102,7 @@ impl PurchaseReceiptService {
         receipt_active.total_quantity = Set(total_quantity);
         receipt_active.total_quantity_alt = Set(total_quantity_alt);
         receipt_active.total_amount = Set(total_amount);
-        let receipt = receipt_active.update(&txn).await?;
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", receipt_active, Some(0)).await?;
 
         // 5. 提交事务
         txn.commit().await?;
@@ -165,7 +165,7 @@ impl PurchaseReceiptService {
 
         receipt_active.updated_by = Set(Some(user_id));
 
-        let receipt = receipt_active.update(&*self.db).await?;
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", receipt_active, Some(0)).await?;
 
         Ok(receipt)
     }
@@ -222,7 +222,7 @@ impl PurchaseReceiptService {
         receipt_active.updated_by = Set(Some(user_id));
         receipt_active.updated_at = Set(now);
 
-        let receipt = receipt_active.update(&txn).await?;
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", receipt_active, Some(0)).await?;
 
         // 6. 已实现: 更新库存
         self.update_inventory(&receipt, &txn).await?;
@@ -347,7 +347,7 @@ impl PurchaseReceiptService {
             item_active.notes = Set(Some(notes));
         }
 
-        let item = item_active.update(&*self.db).await?;
+        let item = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", item_active, Some(0)).await?;
 
         // 6. 更新入库单总金额
         self.calculate_receipt_total(receipt.id).await?;
@@ -431,7 +431,7 @@ impl PurchaseReceiptService {
         receipt_active.total_quantity_alt = Set(total_quantity_alt);
         receipt_active.total_amount = Set(total_amount);
         receipt_active.updated_at = Set(chrono::Utc::now());
-        receipt_active.update(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", receipt_active, Some(0)).await?;
 
         Ok(())
     }
@@ -523,7 +523,7 @@ impl PurchaseReceiptService {
                 
                 active_order_item.received_quantity = sea_orm::ActiveValue::Set(current_received + item.quantity);
                 active_order_item.received_quantity_alt = sea_orm::ActiveValue::Set(current_received_alt + item.quantity_alt.unwrap_or_default());
-                active_order_item.update(txn).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_order_item, Some(0)).await?;
             }
         }
         
@@ -562,7 +562,7 @@ impl PurchaseReceiptService {
             
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());
-        active_order.update(txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_order, Some(0)).await?;
 
         Ok(())
     }

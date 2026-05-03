@@ -1,6 +1,8 @@
 // 客户信用管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::customer_credit::{
     CustomerCredit, CreditQueryParams, CreditRatingRequest, CreditLimitAdjustmentRequest,
@@ -445,7 +447,9 @@ impl CustomerCreditPage {
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" onclick={link.callback(|_| Msg::ToggleRatingModal)}>{"取消"}</button>
-                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitRating)}>{"确定"}</button>
+                        <PermissionGuard resource="customer_credit" action="create">
+<button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitRating)}>{"确定"}</button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>
@@ -490,7 +494,9 @@ impl CustomerCreditPage {
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" onclick={link.callback(|_| Msg::ToggleAdjustModal)}>{"取消"}</button>
-                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitAdjustment)}>{"确定"}</button>
+                        <PermissionGuard resource="customer_credit" action="create">
+<button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitAdjustment)}>{"确定"}</button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>

@@ -1,9 +1,11 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "inventory_transfers")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -20,6 +22,7 @@ pub struct Model {
     pub approved_at: Option<DateTime<Utc>>,
     pub shipped_at: Option<DateTime<Utc>>,
     pub received_at: Option<DateTime<Utc>>,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

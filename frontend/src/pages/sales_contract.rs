@@ -1,7 +1,9 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 /// 销售合同管理页面
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use crate::models::sales_contract::{
     SalesContract, SalesContractQueryParams, CreateSalesContractRequest, ExecuteSalesContractRequest,
@@ -403,9 +405,11 @@ impl Component for SalesContractPage {
                                         <td>
                                             <div class="action-buttons">
                                                 if status == ContractStatus::Draft {
-                                                    <button onclick={ctx.link().callback(move |_| Msg::ApproveContract(contract_id))}>
+                                                    <PermissionGuard resource="sales_contract" action="approve">
+<button onclick={ctx.link().callback(move |_| Msg::ApproveContract(contract_id))}>
                                                         {"审核"}
                                                     </button>
+</PermissionGuard>
                                                 }
                                                 if status == ContractStatus::Approved || status == ContractStatus::Executing {
                                                     <button onclick={ctx.link().callback(move |_| Msg::ShowExecuteModal(contract_id2))}>
@@ -645,7 +649,9 @@ impl Component for CreateContractModal {
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
-                        <button class="btn-primary" onclick={ctx.link().callback(|_| CreateContractMsg::Submit)}>{"提交"}</button>
+                        <PermissionGuard resource="sales_contract" action="create">
+<button class="btn-primary" onclick={ctx.link().callback(|_| CreateContractMsg::Submit)}>{"提交"}</button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>
@@ -770,7 +776,9 @@ impl Component for ExecuteContractModal {
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
-                        <button class="primary" onclick={ctx.link().callback(|_| ExecuteMsg::Submit)}>{"确认执行"}</button>
+                        <PermissionGuard resource="sales_contract" action="create">
+<button class="primary" onclick={ctx.link().callback(|_| ExecuteMsg::Submit)}>{"确认执行"}</button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>
@@ -843,7 +851,9 @@ impl Component for CancelContractModal {
                     </div>
                     <div class="modal-footer">
                         <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
-                        <button class="danger" onclick={ctx.link().callback(|_| CancelMsg::Submit)}>{"确认取消"}</button>
+                        <PermissionGuard resource="sales_contract" action="create">
+<button class="danger" onclick={ctx.link().callback(|_| CancelMsg::Submit)}>{"确认取消"}</button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>

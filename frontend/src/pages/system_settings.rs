@@ -1,4 +1,5 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
 
@@ -25,7 +26,7 @@ pub fn system_settings_page() -> Html {
                     <textarea rows="3" placeholder="请输入公司详细地址" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                 </div>
                 <div class="pt-4">
-                    <button onclick={Callback::from(|_| gloo_dialogs::alert("保存成功"))} class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <button onclick={Callback::from(|_| toast_helper::show_success("保存成功"))} class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         {"保存设置"}
                     </button>
                 </div>

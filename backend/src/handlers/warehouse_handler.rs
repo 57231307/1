@@ -143,6 +143,7 @@ pub async fn create_location(
         is_active: sea_orm::ActiveValue::Set(true),
         created_at: Default::default(),
         updated_at: Default::default(),
+        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     let location = active_location.insert(&*state.db).await?;

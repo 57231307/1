@@ -269,7 +269,7 @@ impl ApInvoiceService {
 
         invoice_active.updated_by = Set(Some(user_id));
 
-        let invoice = invoice_active.update(&txn).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
 
         txn.commit().await?;
 
@@ -330,7 +330,7 @@ impl ApInvoiceService {
         invoice_active.approved_at = Set(Some(now));
         invoice_active.updated_at = Set(now);
 
-        let invoice = invoice_active.update(&txn).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
 
         txn.commit().await?;
 
@@ -376,7 +376,7 @@ impl ApInvoiceService {
         invoice_active.cancelled_reason = Set(Some(reason));
         invoice_active.updated_at = Set(now);
 
-        let invoice = invoice_active.update(&txn).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
 
         txn.commit().await?;
 

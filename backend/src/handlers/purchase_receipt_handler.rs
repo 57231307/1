@@ -15,6 +15,7 @@ use axum::{
     Json,
 };
 use crate::utils::app_state::AppState;
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -62,7 +63,18 @@ pub async fn create_receipt(auth: AuthContext,
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;
 
+
     let receipt = service.create_receipt(req, user_id).await?;
+    
+    // 发布采购收货完成事件
+    if let Some(order_id) = receipt.order_id {
+        EVENT_BUS.publish(BusinessEvent::PurchaseReceiptCompleted {
+            receipt_id: receipt.id,
+            order_id,
+            supplier_id: receipt.supplier_id,
+        });
+    }
+
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,

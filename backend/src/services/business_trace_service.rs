@@ -60,6 +60,7 @@ impl BusinessTraceService {
             remarks: Set(None),
             created_at: Set(Utc::now()),
             created_by: Set(created_by),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_trace.insert(&*self.db).await
@@ -112,6 +113,7 @@ impl BusinessTraceService {
             remarks: Set(None),
             created_at: Set(Utc::now()),
             created_by: Set(created_by),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let new_trace = active_trace.insert(&*self.db).await?;
@@ -125,7 +127,7 @@ impl BusinessTraceService {
             "ACTIVE".to_string()
         };
         previous_active.trace_status = Set(new_status);
-        previous_active.update(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", previous_active, Some(0)).await?;
 
         Ok(new_trace)
     }
@@ -262,6 +264,7 @@ impl BusinessTraceService {
             customer_name: Set(customer_name),
             trace_path: Set(trace_path),
             snapshot_time: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_snapshot.insert(&*self.db).await

@@ -1,4 +1,6 @@
 pub mod account_subject_handler;
+pub mod accounting_period_handler;
+pub mod omni_audit_handler;
 pub mod crm_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;
@@ -7,6 +9,7 @@ pub mod inventory_batch_handler;
 pub mod business_trace_handler;
 pub mod customer_handler;
 pub mod dashboard_handler;
+pub mod finance_report_handler;
 pub mod department_handler;
 pub mod dual_unit_converter_handler;
 pub mod finance_invoice_handler;

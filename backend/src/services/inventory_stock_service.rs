@@ -103,6 +103,7 @@ impl InventoryStockService {
             bin_location: Set(None),
             stock_status: Set(stock_status),
             quality_status: Set(quality_status),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_stock.insert(&*self.db).await
@@ -332,6 +333,7 @@ impl InventoryStockService {
             bin_location: Set(None),
             stock_status: Set("正常".to_string()),
             quality_status: Set("合格".to_string()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_stock.insert(&*self.db).await
@@ -381,6 +383,7 @@ impl InventoryStockService {
             notes: Set(notes),
             created_by: Set(created_by),
             created_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_transaction.insert(&*self.db).await

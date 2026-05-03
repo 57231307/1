@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 辅助核算记录 Model
 //!
 //! 记录每笔业务的辅助核算信息
@@ -8,7 +9,8 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
 /// 辅助核算记录 Entity
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "assist_accounting_record")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -76,6 +78,7 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 创建人 ID

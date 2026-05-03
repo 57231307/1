@@ -1,7 +1,9 @@
 // 库存盘点管理页面
 // 提供库存盘点单的列表、创建、审核、完成等功能
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::inventory_count::{
@@ -552,9 +554,11 @@ impl InventoryCountPage {
                     <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>
                         {"取消"}
                     </button>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateCount)}>
+                    <PermissionGuard resource="inventory_count" action="create">
+<button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateCount)}>
                         {"创建"}
                     </button>
+</PermissionGuard>
                 </div>
             </div>
         }
@@ -581,9 +585,11 @@ impl InventoryCountPage {
                     {if let Some(ref detail) = self.selected_count {
                         let detail_id = detail.id;
                         html! {
-                            <button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::UpdateCount(detail_id))}>
+                            <PermissionGuard resource="inventory_count" action="update">
+<button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::UpdateCount(detail_id))}>
                                 {"保存"}
                             </button>
+</PermissionGuard>
                         }
                     } else {
                         html! {}
@@ -604,12 +610,16 @@ impl InventoryCountPage {
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>
                             {"取消"}
                         </button>
-                        <button class="btn-danger" onclick={ctx.link().callback(move |_| Msg::ApproveCount(detail_id, false))}>
+                        <PermissionGuard resource="inventory_count" action="approve">
+<button class="btn-danger" onclick={ctx.link().callback(move |_| Msg::ApproveCount(detail_id, false))}>
                             {"驳回"}
                         </button>
-                        <button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::ApproveCount(detail_id, true))}>
+</PermissionGuard>
+                        <PermissionGuard resource="inventory_count" action="approve">
+<button class="btn-primary" onclick={ctx.link().callback(move |_| Msg::ApproveCount(detail_id, true))}>
                             {"通过"}
                         </button>
+</PermissionGuard>
                     </div>
                 </div>
             }

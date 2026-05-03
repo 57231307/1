@@ -81,7 +81,7 @@ impl SalesReturnService {
 
         let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
         return_active.total_amount = sea_orm::ActiveValue::Set(total);
-        return_active.update(txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", return_active, Some(0)).await?;
         Ok(())
     }
 
@@ -185,7 +185,7 @@ impl SalesReturnService {
         }
 
         active_model.updated_at = Set(Utc::now());
-        let return_order = active_model.update(&*self.db).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
 
         Ok(return_order)
     }
@@ -225,7 +225,7 @@ impl SalesReturnService {
         active_model.status = Set("SUBMITTED".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        let return_order = active_model.update(&*self.db).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
 
         Ok(return_order)
     }
@@ -292,7 +292,7 @@ impl SalesReturnService {
                 stock_update.quantity_on_hand = Set(new_qty);
                 stock_update.quantity_available = Set(new_avail);
                 stock_update.updated_at = Set(Utc::now());
-                stock_update.update(&txn).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
             } else {
                 // 创建新库存记录
                 let new_stock = inventory_stock::ActiveModel {
@@ -335,7 +335,7 @@ impl SalesReturnService {
         active_model.approved_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        let return_order = active_model.update(&txn).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(0)).await?;
 
         txn.commit().await?;
 

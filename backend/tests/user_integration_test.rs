@@ -10,7 +10,7 @@ use bingxi_backend::utils::app_state::AppState;
 
 #[allow(dead_code)]
 async fn setup_app() -> Router {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let state = AppState::new(std::sync::Arc::new(db), "test_secret".to_string());
     create_router(state)
 }
@@ -19,11 +19,11 @@ async fn setup_app() -> Router {
 #[tokio::test]
 #[ignore]
 async fn test_user_crud_flow() {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let user_service = UserService::new(Arc::new(db.clone()));
 
     // 1. 创建用户
-    let password_hash = AuthService::hash_password("password123").unwrap();
+    let password_hash = AuthService::hash_password("password123").expect("操作应该成功");
     let create_result = user_service
         .create_user(
             "test_user".to_string(),
@@ -36,26 +36,26 @@ async fn test_user_crud_flow() {
         .await;
 
     assert!(create_result.is_ok());
-    let user = create_result.unwrap();
+    let user = create_result.expect("操作应该成功");
     assert_eq!(user.username, "test_user");
 
     // 2. 根据 ID 查询用户
     let find_by_id_result = user_service.find_by_id(user.id).await;
     assert!(find_by_id_result.is_ok());
-    let found_user = find_by_id_result.unwrap();
+    let found_user = find_by_id_result.expect("操作应该成功");
     assert_eq!(found_user.id, user.id);
     assert_eq!(found_user.username, "test_user");
 
     // 3. 根据用户名查询用户
     let find_by_username_result = user_service.find_by_username("test_user").await;
     assert!(find_by_username_result.is_ok());
-    let found_user = find_by_username_result.unwrap();
+    let found_user = find_by_username_result.expect("操作应该成功");
     assert_eq!(found_user.username, "test_user");
 
     // 4. 获取用户列表
     let list_result = user_service.list_users(0, 20).await;
     assert!(list_result.is_ok());
-    let (users, total) = list_result.unwrap();
+    let (users, total) = list_result.expect("操作应该成功");
     assert!(total >= 1);
     assert!(!users.is_empty());
 }
@@ -64,10 +64,10 @@ async fn test_user_crud_flow() {
 #[tokio::test]
 #[ignore]
 async fn test_duplicate_username() {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let user_service = UserService::new(Arc::new(db.clone()));
 
-    let password_hash = AuthService::hash_password("password123").unwrap();
+    let password_hash = AuthService::hash_password("password123").expect("操作应该成功");
 
     // 1. 创建第一个用户
     let result1 = user_service

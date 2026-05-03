@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 缸号映射模型
 
 use sea_orm::entity::prelude::*;
@@ -11,6 +12,7 @@ pub struct Model {
     pub id: i32,
     pub dye_batch_id: i32,
     pub lot_no: String,
+    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
 }
 

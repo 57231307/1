@@ -54,6 +54,28 @@ impl ApiService {
         url: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<T, String> {
+        if let Some(window) = web_sys::window() {
+            if let Ok(event) = web_sys::Event::new("api_start_loading") {
+                let _ = window.dispatch_event(&event);
+            }
+        }
+
+        let result = Self::request_with_retry_inner::<T>(method, url, body).await;
+
+        if let Some(window) = web_sys::window() {
+            if let Ok(event) = web_sys::Event::new("api_stop_loading") {
+                let _ = window.dispatch_event(&event);
+            }
+        }
+
+        result
+    }
+
+    async fn request_with_retry_inner<T: DeserializeOwned>(
+        method: &str,
+        url: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<T, String> {
         let mut last_error = None;
         let full_url = format!("{}{}", Self::API_BASE, url);
 

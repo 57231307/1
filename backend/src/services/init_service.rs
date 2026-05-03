@@ -253,6 +253,7 @@ impl InitService {
             is_system: Set(true),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
         let admin_role = admin_role
             .insert(self.db.as_ref())
@@ -271,6 +272,7 @@ impl InitService {
             is_system: Set(true),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
         // 尝试创建，如果失败则记录但不中断初始化
         if let Err(e) = manager_role.insert(self.db.as_ref()).await {
@@ -289,6 +291,7 @@ impl InitService {
             is_system: Set(true),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
         // 尝试创建，如果失败则记录但不中断初始化
         if let Err(e) = operator_role.insert(self.db.as_ref()).await {
@@ -322,6 +325,7 @@ impl InitService {
             is_active: Set(true),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
         let dept = dept
             .insert(self.db.as_ref())
@@ -347,6 +351,7 @@ impl InitService {
                 is_active: Set(true),
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
+                is_deleted: sea_orm::ActiveValue::NotSet,
             };
             
             // 尝试创建，如果失败则记录但不中断初始化
@@ -390,6 +395,7 @@ impl InitService {
             last_login_at: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         user.insert(self.db.as_ref())

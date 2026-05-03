@@ -1,6 +1,9 @@
 // 采购检验页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
+use crate::utils::dom_helper;
 use crate::services::crud_service::CrudService;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
@@ -62,6 +65,7 @@ pub enum Msg {
     OpenCompleteModal(i32),
     /// 关闭模态框
     CloseModal,
+    ShowModalWithData(ModalMode, PurchaseInspection),
     /// 创建检验单
     CreateInspection(CreatePurchaseInspectionRequest),
     /// 完成检验
@@ -160,6 +164,13 @@ impl Component for PurchaseInspectionPage {
                 self.modal_mode = ModalMode::Complete;
                 self.show_modal = true;
                 false
+            }
+
+            Msg::ShowModalWithData(mode, inspection) => {
+                self.modal_mode = mode;
+                self.selected_inspection = Some(inspection);
+                self.show_modal = true;
+                true
             }
             Msg::CloseModal => {
                 self.show_modal = false;
@@ -362,10 +373,11 @@ impl PurchaseInspectionPage {
                         </div>
                         <div class="modal-footer">
                             <button class="btn-secondary" onclick={on_close.clone()}>{"取消"}</button>
-                            <button class="btn-primary" onclick={ctx.link().callback(|_| {
-                                let receipt_id = web_sys::window().unwrap().document().unwrap().get_element_by_id("create-receipt-id").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value().parse().unwrap_or(0);
-                                let supplier_id = web_sys::window().unwrap().document().unwrap().get_element_by_id("create-supplier-id").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value().parse().unwrap_or(0);
-                                let date = web_sys::window().unwrap().document().unwrap().get_element_by_id("create-date").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value();
+                            <PermissionGuard resource="purchase_inspection" action="create">
+<button class="btn-primary" onclick={ctx.link().callback(|_| {
+                                let receipt_id = dom_helper::get_numeric_value("create-receipt-id").unwrap_or(0.0) as i32;
+                                let supplier_id = dom_helper::get_numeric_value("create-supplier-id").unwrap_or(0.0) as i32;
+                                let date = dom_helper::get_input_value("create-date").unwrap_or_default();
                                 
                                 Msg::CreateInspection(CreatePurchaseInspectionRequest {
                                     receipt_id,
@@ -377,6 +389,7 @@ impl PurchaseInspectionPage {
                                     notes: None,
                                 })
                             })}>{"保存"}</button>
+</PermissionGuard>
                         </div>
                     </div>
                 </div>
@@ -410,9 +423,9 @@ impl PurchaseInspectionPage {
                             <div class="modal-footer">
                                 <button class="btn-secondary" onclick={on_close.clone()}>{"取消"}</button>
                                 <button class="btn-primary" onclick={ctx.link().callback(move |_| {
-                                    let pass_qty = web_sys::window().unwrap().document().unwrap().get_element_by_id("complete-pass-qty").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value();
-                                    let reject_qty = web_sys::window().unwrap().document().unwrap().get_element_by_id("complete-reject-qty").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap().value();
-                                    let result = web_sys::window().unwrap().document().unwrap().get_element_by_id("complete-result").unwrap().dyn_into::<web_sys::HtmlSelectElement>().unwrap().value();
+                                    let pass_qty = dom_helper::get_input_value("complete-pass-qty").unwrap_or_default();
+                                    let reject_qty = dom_helper::get_input_value("complete-reject-qty").unwrap_or_default();
+                                    let result = dom_helper::get_select_value("complete-result").unwrap_or_default();
                                     
                                     Msg::CompleteInspection(CompleteInspectionRequest {
                                         pass_quantity: if pass_qty.is_empty() { "0".to_string() } else { pass_qty },

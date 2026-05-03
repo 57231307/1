@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 核销明细 Model
 //!
 //! 应付管理模块的核销明细实体
@@ -36,6 +37,7 @@ pub struct Model {
 
     /// 创建时间
     #[sea_orm(auto_time_on_create = true)]
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

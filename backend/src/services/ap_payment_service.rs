@@ -154,7 +154,7 @@ impl ApPaymentService {
 
         payment_active.updated_by = Set(Some(user_id));
 
-        let payment = payment_active.update(&txn).await?;
+        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", payment_active, Some(0)).await?;
 
         txn.commit().await?;
 
@@ -194,7 +194,7 @@ impl ApPaymentService {
         payment_active.confirmed_at = Set(Some(now));
         payment_active.updated_at = Set(now);
 
-        let payment = payment_active.update(&txn).await?;
+        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", payment_active, Some(0)).await?;
 
         // 5. 更新关联的应付单已付金额
         if let Some(request_id) = payment.request_id {
@@ -231,7 +231,7 @@ impl ApPaymentService {
                         };
 
                         let invoice_active: ap_invoice::ActiveModel = inv.into();
-                        invoice_active.update(&txn).await?;
+                        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
                     }
                 }
             }

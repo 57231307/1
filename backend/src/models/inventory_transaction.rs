@@ -1,11 +1,13 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
 /// 库存流水实体模型（面料行业）
 /// 记录每一笔库存变动，支持批次、色号追溯
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "inventory_transactions")]
 pub struct Model {
     /// 流水 ID（主键）
@@ -58,6 +60,7 @@ pub struct Model {
     /// 创建人 ID
     pub created_by: Option<i32>,
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

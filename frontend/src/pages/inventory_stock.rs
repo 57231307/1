@@ -2,6 +2,7 @@ use yew::prelude::*;
 use crate::services::inventory_service::InventoryService;
 use crate::services::crud_service::CrudService;
 use crate::models::inventory::{StockFabricResponse, InventorySummaryResponse};
+use crate::utils::permissions;
 
 #[function_component(InventoryStockPage)]
 pub fn inventory_stock_page() -> Html {
@@ -87,7 +88,9 @@ pub fn inventory_stock_page() -> Html {
         <div class="inventory-stock-page">
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"面料库存查询"}</h1>
-                <button class="btn btn-primary" onclick={load_data.reform(|_| ())}>{"刷新数据"}</button>
+                if permissions::has_permission("inventory_stock", "read") {
+                    <button class="btn btn-primary" onclick={load_data.reform(|_| ())}>{"刷新数据"}</button>
+                }
             </div>
             
             if let Some(sum) = (*summary).clone() {
@@ -110,7 +113,9 @@ pub fn inventory_stock_page() -> Html {
             <div class="filters" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
                 <input type="text" placeholder="按批号搜索" value={(*batch_filter).clone()} oninput={on_batch_change} style="margin-right: 10px; padding: 5px;" />
                 <input type="text" placeholder="按色号搜索" value={(*color_filter).clone()} oninput={on_color_change} style="margin-right: 10px; padding: 5px;" />
-                <button class="btn" onclick={load_data.reform(|_| ())}>{"搜索"}</button>
+                if permissions::has_permission("inventory_stock", "read") {
+                    <button class="btn" onclick={load_data.reform(|_| ())}>{"搜索"}</button>
+                }
             </div>
             
             if *loading {

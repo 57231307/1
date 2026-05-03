@@ -1,3 +1,4 @@
+use crate::utils::permissions;
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use chrono::{Datelike, Timelike};
@@ -7,6 +8,16 @@ use crate::services::dashboard_service::{DashboardService, DashboardOverview, Lo
 use crate::services::crud_service::CrudService;
 use crate::services::auth::AuthService;
 use crate::models::auth::TotpSetupResponse;
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = renderSalesChart)]
+    fn render_sales_chart_js(id: &str, dates: js_sys::Array, amounts: js_sys::Array);
+
+    #[wasm_bindgen(js_name = renderInventoryChart)]
+    fn render_inventory_chart_js(id: &str, warehouses: js_sys::Array, quantities: js_sys::Array);
+}
 
 pub struct DashboardPage {
     overview: Option<DashboardOverview>,
@@ -174,6 +185,29 @@ impl Component for DashboardPage {
             Msg::TotpError(e) => {
                 self.totp_error = Some(e);
                 true
+            }
+        }
+    }
+
+    fn rendered(&mut self, _ctx: &Context<Self>, _first_render: bool) {
+        if !self.loading {
+            if let Some(sales) = &self.sales_trend {
+                let dates = js_sys::Array::new();
+                let amounts = js_sys::Array::new();
+                for d in &sales.daily_sales {
+                    dates.push(&JsValue::from_str(&d.date));
+                    amounts.push(&JsValue::from_str(&d.amount));
+                }
+                render_sales_chart_js("sales-chart", dates, amounts);
+            }
+            if let Some(inv) = &self.inventory_status {
+                let warehouses = js_sys::Array::new();
+                let quantities = js_sys::Array::new();
+                for w in &inv.by_warehouse {
+                    warehouses.push(&JsValue::from_str(&w.warehouse_name));
+                    quantities.push(&JsValue::from_str(&w.quantity));
+                }
+                render_inventory_chart_js("inventory-chart", warehouses, quantities);
             }
         }
     }
@@ -376,27 +410,10 @@ impl DashboardPage {
                 };
             }
 
-            // 生成销售趋势图表（这里使用简单的HTML表示，实际项目中可以使用Chart.js等库）
+            // 生成销售趋势图表
             html! {
-                <div class="chart-container">
-                    <div class="chart-content">
-                        <div class="sales-trend-chart">
-                            {for sales_data.daily_sales.iter().map(|trend| {
-                                html! {
-                                    <div class="chart-bar">
-                                        <div class="bar-label">{&trend.date}</div>
-                                        <div class="bar-container">
-                                            <div 
-                                                class="bar-fill" 
-                                                style={format!("width: {}%", trend.amount.parse::<f64>().unwrap_or(0.0) / 10000.0 * 100.0)}
-                                            ></div>
-                                        </div>
-                                        <div class="bar-value">{&trend.amount}</div>
-                                    </div>
-                                }
-                            })}
-                        </div>
-                    </div>
+                <div class="chart-container" style="width: 100%; height: 300px;">
+                    <div id="sales-chart" style="width: 100%; height: 100%;"></div>
                 </div>
             }
         } else {
@@ -422,23 +439,8 @@ impl DashboardPage {
 
             // 生成库存状态图表
             html! {
-                <div class="chart-container">
-                    <div class="inventory-status-chart">
-                        {for inventory_data.by_warehouse.iter().map(|warehouse| {
-                            html! {
-                                <div class="inventory-item">
-                                    <div class="inventory-label">{&warehouse.warehouse_name}</div>
-                                    <div class="inventory-progress">
-                                        <div 
-                                            class="inventory-progress-bar" 
-                                            style={format!("width: 50%")}
-                                        ></div>
-                                    </div>
-                                    <div class="inventory-value">{&warehouse.quantity}</div>
-                                </div>
-                            }
-                        })}
-                    </div>
+                <div class="chart-container" style="width: 100%; height: 300px;">
+                    <div id="inventory-chart" style="width: 100%; height: 100%;"></div>
                 </div>
             }
         } else {

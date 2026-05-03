@@ -163,6 +163,7 @@ impl RolePermissionService {
             is_system: sea_orm::ActiveValue::Set(request.is_system.unwrap_or(false)),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let role_entity = role.insert(&*self.db).await?;
@@ -215,7 +216,7 @@ impl RolePermissionService {
         }
         role_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
-        let role_entity = role_update.update(&*self.db).await?;
+        let role_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", role_update, Some(0)).await?;
 
         self.get_role_detail(role_entity.id).await
     }
@@ -287,7 +288,7 @@ impl RolePermissionService {
             let mut perm_update: role_permission::ActiveModel = perm.into();
             perm_update.allowed = sea_orm::ActiveValue::Set(request.allowed);
             perm_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            let perm_entity = perm_update.update(&*self.db).await?;
+            let perm_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", perm_update, Some(0)).await?;
 
             Ok(RolePermissionDetail {
                 id: perm_entity.id,
@@ -310,6 +311,7 @@ impl RolePermissionService {
                 allowed: sea_orm::ActiveValue::Set(request.allowed),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             let perm_entity = permission.insert(&*self.db).await?;

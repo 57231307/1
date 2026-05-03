@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +42,7 @@ pub struct Model {
     pub inspection_result: String,
     pub remark: Option<String>,
     #[sea_orm(column_name = "created_at")]
+    pub is_deleted: bool,
     pub created_at: chrono::NaiveDateTime,
     #[sea_orm(column_name = "updated_at")]
     pub updated_at: chrono::NaiveDateTime,

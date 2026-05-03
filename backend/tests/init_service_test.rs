@@ -24,7 +24,7 @@ async fn test_database_config_to_connection_string() {
 #[ignore]
 async fn test_init_service_basic() {
     // 使用内存数据库进行测试
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let db = Arc::new(db);
     
     let init_service = InitService::new(db);
@@ -43,14 +43,14 @@ async fn test_password_hashing() {
     let password = "test_password_123";
     let hash_result = AuthService::hash_password(password);
     assert!(hash_result.is_ok());
-    let hash = hash_result.unwrap();
+    let hash = hash_result.expect("操作应该成功");
     assert!(!hash.is_empty());
 }
 
 #[tokio::test]
 async fn test_execute_unprepared_with_dollar_quotes() {
     use sea_orm::ConnectionTrait;
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     // SQLite doesn't support $$ quotes natively like Postgres does, but we can test multiple statements
     let sql = "CREATE TABLE test (id INTEGER); INSERT INTO test VALUES (1);";
     let res = db.execute_unprepared(sql).await;

@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -22,6 +23,7 @@ pub struct Model {
     pub bin_location: Option<String>,
     pub last_count_date: Option<DateTime<Utc>>,
     pub last_movement_date: Option<DateTime<Utc>>,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 

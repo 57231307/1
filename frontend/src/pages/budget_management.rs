@@ -1,6 +1,8 @@
 // 预算管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::services::budget_management_service::BudgetManagementService;
@@ -166,7 +168,9 @@ impl BudgetManagementPage {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button class="text-red-600 hover:text-red-900 ml-4" onclick={ctx.link().callback(move |_| Msg::DeleteBudget(id))}>{"删除"}</button>
+                                        <PermissionGuard resource="budget_management" action="delete">
+<button class="text-red-600 hover:text-red-900 ml-4" onclick={ctx.link().callback(move |_| Msg::DeleteBudget(id))}>{"删除"}</button>
+</PermissionGuard>
                                     </td>
                                 </tr>
                             }

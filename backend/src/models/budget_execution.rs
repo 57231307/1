@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 预算执行明细 Entity
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -33,6 +34,7 @@ pub struct Model {
     pub created_by: Option<i32>,
     #[sea_orm(column_type = "Timestamp")]
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

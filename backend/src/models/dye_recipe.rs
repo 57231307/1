@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 染色配方管理模型
 
 use sea_orm::entity::prelude::*;
@@ -27,6 +28,7 @@ pub struct Model {
     pub approved_at: Option<DateTimeUtc>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
+    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

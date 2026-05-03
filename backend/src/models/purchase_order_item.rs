@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 采购订单明细 Model
 //! 用于记录采购订单的明细项
 
@@ -72,6 +73,7 @@ pub struct Model {
     pub notes: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

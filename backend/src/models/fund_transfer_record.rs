@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 资金转账记录 Model
 //!
 //! 资金转账记录模块
@@ -42,6 +43,7 @@ pub struct Model {
     pub created_by: i32,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

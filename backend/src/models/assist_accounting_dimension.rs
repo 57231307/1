@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 辅助核算维度 Model
 //!
 //! 8 个辅助核算维度：批次、色号、缸号、等级、车间、仓库、客户、供应商
@@ -7,7 +8,8 @@ use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 
 /// 辅助核算维度 Entity
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "assist_accounting_dimension")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -29,6 +31,7 @@ pub struct Model {
     pub sort_order: i32,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

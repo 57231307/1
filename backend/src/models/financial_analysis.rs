@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ pub struct Model {
     pub status: String,
     pub remark: Option<String>,
     #[sea_orm(column_type = "Timestamp")]
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,

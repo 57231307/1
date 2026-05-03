@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 销售交货明细 Model
 //!
 //! 销售交货明细模块
@@ -41,6 +42,7 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

@@ -1,7 +1,9 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "supplier_blacklists")]
 pub struct Model {
     /// 黑名单 ID
@@ -34,6 +36,7 @@ pub struct Model {
     /// 备注
     pub remarks: Option<String>,
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间
     pub updated_at: DateTimeWithTimeZone,

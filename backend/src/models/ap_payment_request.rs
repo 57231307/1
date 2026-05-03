@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 付款申请 Model
 //!
 //! 应付管理模块的付款申请实体
@@ -79,6 +80,7 @@ pub struct Model {
 
     /// 创建时间
     #[sea_orm(auto_time_on_create = true)]
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新人 ID

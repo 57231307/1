@@ -97,7 +97,7 @@ impl PurchaseInspectionService {
             inspection_active.unqualified_reason = Set(Some(notes_clone));
         }
 
-        let inspection = inspection_active.update(&*self.db).await?;
+        let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", inspection_active, Some(0)).await?;
 
         Ok(inspection)
     }
@@ -142,7 +142,7 @@ impl PurchaseInspectionService {
         inspection_active.result = Set(req.inspection_result);
         inspection_active.inspection_date = Set(now.date());
 
-        let inspection = inspection_active.update(&txn).await?;
+        let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", inspection_active, Some(0)).await?;
 
         txn.commit().await?;
 

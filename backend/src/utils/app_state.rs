@@ -2,6 +2,7 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::services::metrics_service::MetricsService;
+use crate::services::omni_audit_service::OmniAuditEngine;
 use crate::utils::cache::AppCache;
 
 use axum::extract::FromRef;
@@ -11,13 +12,14 @@ use axum_extra::extract::cookie::Key;
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<DatabaseConnection>,
+    pub omni_audit: Arc<OmniAuditEngine>,
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
     pub cookie_secret: String,
     pub cache: Arc<AppCache>,
     pub metrics: Arc<MetricsService>,
     pub cookie_key: Key,
-}
+    }
 
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
@@ -27,10 +29,11 @@ impl FromRef<AppState> for Key {
 
 impl AppState {
     pub fn new(db: Arc<DatabaseConnection>, jwt_secret: String) -> Self {
-        Self::with_secrets(db, jwt_secret.clone(), None, jwt_secret)
+        let omni_audit = Arc::new(OmniAuditEngine::new(db.clone()));
+        Self::with_secrets(db, omni_audit, jwt_secret.clone(), None, jwt_secret)
     }
 
-    pub fn with_secrets(db: Arc<DatabaseConnection>, jwt_secret: String, previous_jwt_secret: Option<String>, cookie_secret: String) -> Self {
+    pub fn with_secrets(db: Arc<DatabaseConnection>, omni_audit: Arc<OmniAuditEngine>, jwt_secret: String, previous_jwt_secret: Option<String>, cookie_secret: String) -> Self {
         let mut final_cookie_secret = cookie_secret;
         if final_cookie_secret.len() < 32 {
             tracing::warn!(
@@ -44,13 +47,14 @@ impl AppState {
         let cookie_key = Key::derive_from(final_cookie_secret.as_bytes());
         Self {
             db,
+            omni_audit,
             jwt_secret,
             previous_jwt_secret,
             cookie_secret: final_cookie_secret,
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
-        }
+                    }
     }
 }
 
@@ -60,14 +64,16 @@ impl Default for AppState {
         let metrics = MetricsService::new().expect("Failed to create metrics service");
         let default_cookie_secret = "default-cookie-secret-key-for-test-environments-only-32-bytes".to_string();
         let cookie_key = Key::derive_from(default_cookie_secret.as_bytes());
+        let db = Arc::new(DatabaseConnection::Disconnected);
         Self {
-            db: Arc::new(DatabaseConnection::Disconnected),
+            db: db.clone(),
+            omni_audit: Arc::new(OmniAuditEngine::new(db)),
             jwt_secret: "default-secret-key-for-test-environments-only-32-bytes".to_string(),
             previous_jwt_secret: None,
             cookie_secret: default_cookie_secret,
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
-        }
+                    }
     }
 }

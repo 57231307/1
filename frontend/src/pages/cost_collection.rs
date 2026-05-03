@@ -1,7 +1,9 @@
 // 成本归集页面
 // 提供成本归集数据的查询、创建和管理功能
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::cost_collection::{
     CostCollection, CostCollectionQuery, CreateCostCollectionRequest,
@@ -811,13 +813,15 @@ impl CostCollectionPage {
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseCreateModal)}>
                             {"取消"}
                         </button>
-                        <button
+                        <PermissionGuard resource="cost_collection" action="create">
+<button
                             class="btn-primary"
                             onclick={ctx.link().callback(|_| Msg::SubmitCreate)}
                             disabled={self.creating}
                         >
                             {if self.creating { "提交中..." } else { "创建" }}
                         </button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>

@@ -4,6 +4,7 @@ pub mod logger_middleware;
 pub mod metrics;
 pub mod operation_log;
 pub mod rate_limit;
+pub mod omni_audit;
 pub mod request_validator;
 pub mod permission;
 pub mod csrf;

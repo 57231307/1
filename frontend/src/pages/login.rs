@@ -25,7 +25,7 @@ pub enum Msg {
     PasswordChanged(String),
     TotpTokenChanged(String),
     LoginStarted,
-    LoginSuccess(String),
+    LoginSuccess(crate::models::auth::LoginResponse),
     LoginFailure(String),
     LoadingChanged(bool),
     CheckInitStatus,
@@ -107,7 +107,7 @@ impl Component for LoginPage {
                 spawn_local(async move {
                     match auth_service.login(&username, &password, totp_token).await {
                         Ok(response) => {
-                            link.send_message(Msg::LoginSuccess(response.token));
+                            link.send_message(Msg::LoginSuccess(response));
                         }
                         Err(error) => {
                             link.send_message(Msg::LoginFailure(error));
@@ -116,9 +116,14 @@ impl Component for LoginPage {
                 });
                 true
             }
-            Msg::LoginSuccess(token) => {
+            Msg::LoginSuccess(resp) => {
                 self.is_loading = false;
-                Storage::set_token(&token);
+                Storage::set_token(&resp.token);
+                if let Some(perms) = resp.permissions {
+                    if let Ok(json) = serde_json::to_string(&perms) {
+                        Storage::set_item("user_permissions", &json);
+                    }
+                }
 
                 // 登录成功后清除 just_initialized 标志
                 if let Some(Ok(Some(storage))) = web_sys::window().map(|w| w.session_storage()) {

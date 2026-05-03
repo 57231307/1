@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 成本分析 Entity
 //!
 //! 对应数据库表：cost_analyses
@@ -46,6 +47,7 @@ pub struct Model {
     pub conclusion: Option<String>,
 
     pub created_by: i32,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -82,6 +82,7 @@ impl InventoryAdjustmentService {
             status: Set("pending".to_string()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let adjustment_model = adjustment.insert(&txn).await?;
@@ -120,6 +121,7 @@ impl InventoryAdjustmentService {
                 notes: Set(item_req.notes),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             let item_model = item.insert(&txn).await?;
@@ -164,7 +166,7 @@ impl InventoryAdjustmentService {
         adjustment.approved_at = Set(Some(Utc::now()));
         adjustment.updated_at = Set(Utc::now());
 
-        let adjustment_model = adjustment.update(&txn).await?;
+        let adjustment_model = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", adjustment, Some(0)).await?;
 
         // 获取调整明细项
         let items = inventory_adjustment_item::Entity::find()
@@ -188,7 +190,7 @@ impl InventoryAdjustmentService {
             stock.quantity_available = Set(item.quantity_after);
             stock.quantity_meters = Set(item.quantity_after);
             stock.updated_at = Set(Utc::now());
-            stock.update(&txn).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock, Some(0)).await?;
         }
 
         // 提交事务

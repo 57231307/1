@@ -1,7 +1,9 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 // 销售退货管理页面
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::sales_return::{CreateSalesReturnRequest, CreateSalesReturnItemRequest, SalesReturn, SalesReturnQuery};
 use crate::services::sales_return_service::SalesReturnService;
@@ -35,6 +37,8 @@ pub enum Msg {
     ViewReturn(i32),
     SubmitReturn(i32),
     ApproveReturn(i32),
+    PrintReturn(crate::models::sales_return::SalesReturn),
+    ClearPrint,
     ChangePage(u64),
     CloseDetailModal,
     OpenCreateModal,
@@ -70,8 +74,23 @@ impl Component for SalesReturnPage {
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             ctx.link().send_message(Msg::LoadReturns);
+            if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+                ctx.link().send_message(Msg::ClearPrint);
+            }
         }
     }
+        if self.print_trigger {
+            self.print_trigger = false;
+            if let Some(window) = web_sys::window() {
+                let _ = window.print();
+                ctx.link().send_message(Msg::ClearPrint);
+            }
+        }
+    }
+
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
@@ -174,6 +193,16 @@ impl Component for SalesReturnPage {
                     }
                 });
                 false
+            }
+
+            Msg::PrintReturn(r) => {
+                self.printing_return = Some(r);
+                self.print_trigger = true;
+                true
+            }
+            Msg::ClearPrint => {
+                self.printing_return = None;
+                true
             }
             Msg::ApproveReturn(id) => {
                 let link = ctx.link().clone();
@@ -292,14 +321,18 @@ impl SalesReturnPage {
                         <i class="fas fa-eye"></i> { "查看" }
                     </button>
                     if return_order.status == "DRAFT" {
-                        <button class="btn btn-sm btn-primary" onclick={link.callback(move |_| Msg::SubmitReturn(id))}>
+                        <PermissionGuard resource="sales_return" action="create">
+<button class="btn btn-sm btn-primary" onclick={link.callback(move |_| Msg::SubmitReturn(id))}>
                             <i class="fas fa-paper-plane"></i> { "提交" }
                         </button>
+</PermissionGuard>
                     }
                     if return_order.status == "SUBMITTED" {
-                        <button class="btn btn-sm btn-success" onclick={link.callback(move |_| Msg::ApproveReturn(id))}>
+                        <PermissionGuard resource="sales_return" action="approve">
+<button class="btn btn-sm btn-success" onclick={link.callback(move |_| Msg::ApproveReturn(id))}>
                             <i class="fas fa-check"></i> { "审批" }
                         </button>
+</PermissionGuard>
                     }
                 </td>
             </tr>
@@ -352,7 +385,9 @@ impl SalesReturnPage {
                     </div>
                     <div class="modal-footer">
                         <button class="btn-secondary" onclick={link.callback(|_| Msg::CloseCreateModal)}>{"取消"}</button>
-                        <button class="btn-primary" onclick={link.callback(|_| Msg::CreateReturn)}>{"保存"}</button>
+                        <PermissionGuard resource="sales_return" action="create">
+<button class="btn-primary" onclick={link.callback(|_| Msg::CreateReturn)}>{"保存"}</button>
+</PermissionGuard>
                     </div>
                 </div>
             </div>

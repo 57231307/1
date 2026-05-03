@@ -214,13 +214,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
             
-            // 执行 SeaORM Migration 增加 TOTP 字段
+            // 执行 SeaORM Migration 增加 TOTP 字段及性能优化索引
             use sea_orm::ConnectionTrait;
-            let sql = "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255); ALTER TABLE users ADD COLUMN IF NOT EXISTS is_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;";
+            let sql = "
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255); 
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS is_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+                
+                -- 为常用查询添加索引
+                CREATE INDEX IF NOT EXISTS idx_sales_order_customer ON sales_orders(customer_id); 
+                CREATE INDEX IF NOT EXISTS idx_purchase_order_supplier ON purchase_orders(supplier_id); 
+                CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory_stocks(product_id, warehouse_id);
+            ";
             if let Err(e) = db.execute_unprepared(sql).await {
-                warn!("执行 TOTP 字段 Migration 失败: {}", e);
+                warn!("执行 Migration 失败: {}", e);
             } else {
-                info!("成功执行 TOTP 字段 Migration");
+                info!("成功执行 Migration (TOTP 字段及性能索引)");
             }
             
             std::io::stdout().flush().ok();
@@ -234,13 +242,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if cookie_secret.len() < 32 {
                 tracing::warn!("配置警告: 用于 Cookie 加密的密钥长度不足 32 字节。系统将自动进行补齐以启动服务，但请在生产环境中配置至少 32 字节的强密钥！");
             }
+            let db = Arc::new(db);
+            let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(db.clone()));
+            
             let app_state = crate::utils::app_state::AppState::with_secrets(
-                Arc::new(db), 
+                db, 
+                omni_audit,
                 settings.auth.jwt_secret.clone(), 
                 settings.auth.previous_jwt_secret.clone(),
                 cookie_secret
             );
             let app_state_clone = app_state.clone();
+            crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             create_router(app_state)
                 .layer(
                     TraceLayer::new_for_http()

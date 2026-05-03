@@ -1,10 +1,12 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// 会计期间实体模型
 /// 管理会计年度和期间
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "accounting_periods")]
 pub struct Model {
     /// 期间 ID（主键）
@@ -27,6 +29,7 @@ pub struct Model {
     /// 结账人 ID
     pub closed_by: Option<i32>,
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

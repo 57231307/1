@@ -5,6 +5,7 @@ pub mod batch_service;
 pub mod business_trace_service;
 pub mod customer_service;
 pub mod dashboard_service;
+pub mod finance_report_service;
 pub mod department_service;
 pub mod finance_invoice_service;
 pub mod finance_payment_service;
@@ -40,6 +41,7 @@ pub mod ap_verification_service;
 pub mod ar_invoice_service;
 // 总账管理模块
 pub mod account_subject_service;
+pub mod accounting_period_service;
 pub mod voucher_service;
 // 成本管理模块
 pub mod cost_collection_service;
@@ -64,3 +66,7 @@ pub mod sales_return_service;
 pub mod bpm_service;
 pub mod transaction_helper;
 pub mod totp_service;
+pub mod event_bus;
+pub mod audit_log_service;
+pub mod omni_audit_service;
+pub mod omni_audit_query_service;

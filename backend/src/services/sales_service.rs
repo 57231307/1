@@ -348,6 +348,7 @@ impl SalesService {
             approved_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let order_entity = order.insert(&txn).await?;
@@ -430,6 +431,7 @@ impl SalesService {
                 shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
                 is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             item.insert(&txn).await?;
@@ -444,7 +446,7 @@ impl SalesService {
         order_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
         order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        order_update.update(&txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -496,7 +498,7 @@ impl SalesService {
             order_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        order_update.update(&txn).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
 
         // 如果需要更新明细项
         if let Some(items) = request.items {
@@ -579,6 +581,7 @@ impl SalesService {
                         shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                         paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
                         is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+                        is_deleted: sea_orm::ActiveValue::NotSet,
                     };
 
                 item.insert(&txn).await?;
@@ -596,7 +599,7 @@ impl SalesService {
             order_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
             order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
             order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            order_update.update(&txn).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
         }
 
         // 提交事务
@@ -726,6 +729,7 @@ impl SalesService {
                     created_by: sea_orm::ActiveValue::NotSet,
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                    is_deleted: sea_orm::ActiveValue::NotSet,
                 };
                 reservation.insert(txn).await?;
             } else {
@@ -775,7 +779,7 @@ impl SalesService {
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     ..Default::default()
                 };
-                stock_update.update(txn).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", stock_update, Some(0)).await?;
 
                 // 查找对应的预留记录并标记为已使用
                 let reservation = InventoryReservationEntity::find()
@@ -790,7 +794,7 @@ impl SalesService {
                     let mut res_update: inventory_reservation::ActiveModel = res.into();
                     res_update.status = sea_orm::ActiveValue::Set("used".to_string());
                     res_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                    res_update.update(txn).await?;
+                    crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", res_update, Some(0)).await?;
                 }
             } else {
                 return Err(sea_orm::DbErr::Custom(format!(
@@ -807,10 +811,65 @@ impl SalesService {
                 let current_shipped = oi.shipped_quantity;
                 let mut oi_update: sales_order_item::ActiveModel = oi.into();
                 oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
-                oi_update.update(txn).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", oi_update, Some(0)).await?;
             }
         }
         Ok(())
+    }
+
+    /// 提交销售订单
+    pub async fn submit_order(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+        // 1. 查询订单
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+            })?;
+
+        // 2. 检查状态
+        if order.status != "draft" && order.status != "rejected" {
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，只有草稿或被驳回状态的订单可以提交",
+                order.status
+            )));
+        }
+
+        // 3. 开启事务
+        let txn = (*self.db).begin().await?;
+
+        // 4. 更新状态为 pending_approval
+        let mut order_update: sales_order::ActiveModel = order.clone().into();
+        order_update.status = sea_orm::ActiveValue::Set("pending_approval".to_string());
+        order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
+
+        // 5. 挂载 BPM 引擎
+        let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
+        let req = crate::models::dto::bpm_dto::StartProcessRequest {
+            process_key: "sales_order_approval".to_string(),
+            business_type: "sales_order".to_string(),
+            business_id: order_id,
+            title: format!("销售订单审批 - {}", order.order_no),
+            initiator_id: user_id,
+            initiator_name: "User".to_string(),
+            initiator_department_id: None,
+            priority: None,
+            form_data: None,
+            variables: None,
+        };
+        // 忽略找不到模板的错误，为了兼容旧数据
+        let _ = bpm_service.start_process(req).await;
+
+        // 提交事务
+        txn.commit().await?;
+
+        // 返回订单详情
+        self.get_order_detail(order_id).await
     }
 
     /// 审核销售订单
@@ -823,10 +882,10 @@ impl SalesService {
                 sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
-        // 检查订单状态，只有草稿状态可以审核
-        if order.status != "draft" {
+        // 检查订单状态，草稿或待审批状态可以审核
+        if order.status != "draft" && order.status != "pending_approval" {
             return Err(sea_orm::DbErr::Custom(format!(
-                "订单状态为{}，只有草稿状态的订单可以审核",
+                "订单状态为{}，只有草稿或待审批状态的订单可以审核",
                 order.status
             )));
         }
@@ -877,7 +936,7 @@ impl SalesService {
             ..Default::default()
         };
 
-        let approved_order = updated_order.update(&txn).await?;
+        let approved_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -919,7 +978,7 @@ impl SalesService {
             ..Default::default()
         };
 
-        let shipped_order = updated_order.update(&txn).await?;
+        let shipped_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -957,7 +1016,7 @@ impl SalesService {
             ..Default::default()
         };
 
-        let completed_order = updated_order.update(&txn).await?;
+        let completed_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;

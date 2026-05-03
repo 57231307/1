@@ -92,6 +92,21 @@ fn method_to_action(method: &Method) -> String {
     .to_string()
 }
 
+use dashmap::DashMap;
+use once_cell::sync::Lazy;
+
+// Cache: role_id -> Vec<role_permission::Model>
+static PERMISSION_CACHE: Lazy<DashMap<i32, Vec<role_permission::Model>>> =
+    Lazy::new(|| DashMap::new());
+
+pub fn clear_permission_cache(role_id: Option<i32>) {
+    if let Some(id) = role_id {
+        PERMISSION_CACHE.remove(&id);
+    } else {
+        PERMISSION_CACHE.clear();
+    }
+}
+
 async fn check_permission(
     db: &sea_orm::DatabaseConnection,
     role_id: i32,
@@ -99,22 +114,26 @@ async fn check_permission(
     resource_id: Option<i32>,
     action: &str,
 ) -> bool {
-    let permission = role_permission::Entity::find()
-        .filter(
-            <role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId
-                .is_in([role_id])
-        )
-        .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceType.eq(resource_type))
-        .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Action.eq(action))
-        .filter(
-            <role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceId
-                .eq(resource_id)
-                .or(<role_permission::Entity as sea_orm::EntityTrait>::Column::ResourceId.is_null()),
-        )
-        .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Allowed.eq(true))
-        .one(db)
-        .await
-        .unwrap_or(None);
+    // Attempt to load from cache
+    let permissions = if let Some(cached) = PERMISSION_CACHE.get(&role_id) {
+        cached.clone()
+    } else {
+        // Load from DB
+        let db_perms = role_permission::Entity::find()
+            .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId.eq(role_id))
+            .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Allowed.eq(true))
+            .all(db)
+            .await
+            .unwrap_or_default();
+            
+        PERMISSION_CACHE.insert(role_id, db_perms.clone());
+        db_perms
+    };
 
-    permission.is_some()
+    // Check if any permission matches
+    permissions.into_iter().any(|p| {
+        p.resource_type == resource_type &&
+        p.action == action &&
+        (p.resource_id == resource_id || p.resource_id.is_none())
+    })
 }

@@ -1,2 +1,3 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 成本管理模块 Models

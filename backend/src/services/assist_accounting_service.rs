@@ -43,6 +43,7 @@ impl AssistAccountingService {
                 sort_order: Set((i + 1) as i32),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             // 如果不存在则插入
@@ -107,6 +108,7 @@ impl AssistAccountingService {
             remarks: Set(remarks),
             created_at: Set(Utc::now()),
             created_by: Set(created_by),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_record.insert(&*self.db).await
@@ -259,7 +261,7 @@ impl AssistAccountingService {
                         active.total_quantity_kg = sea_orm::Set(new_kg);
                         active.record_count = sea_orm::Set(new_count);
                         active.updated_at = sea_orm::Set(chrono::Utc::now());
-                        active.update(&*self.db).await?;
+                        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active, Some(0)).await?;
                     } else {
                         let new_summary = assist_accounting_summary::ActiveModel {
                             id: sea_orm::Set(0),
@@ -281,6 +283,7 @@ impl AssistAccountingService {
                             record_count: sea_orm::Set(record_count),
                             created_at: sea_orm::Set(chrono::Utc::now()),
                             updated_at: sea_orm::Set(chrono::Utc::now()),
+                            is_deleted: sea_orm::ActiveValue::NotSet,
                         };
                         new_summary.insert(&*self.db).await?;
                     }

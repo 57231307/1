@@ -1,3 +1,4 @@
+use crate::utils::permissions;
 use yew::prelude::*;
 use crate::services::quality_inspection_service::QualityInspectionService;
 use crate::services::crud_service::CrudService;

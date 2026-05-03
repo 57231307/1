@@ -135,6 +135,16 @@ pub async fn reject_purchase_return(
     )))
 }
 
+/// 删除采购退货单
+pub async fn delete_purchase_return(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = PurchaseReturnService::new(state.db.clone());
+    service.delete(id).await?;
+    Ok(Json(ApiResponse::success_with_message((), "采购退货单已删除")))
+}
+
 // =====================================================
 // 请求 DTO
 // =====================================================

@@ -1,7 +1,9 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "supplier_categories")]
 pub struct Model {
     /// 分类 ID
@@ -20,6 +22,7 @@ pub struct Model {
     /// 是否启用
     pub is_enabled: bool,
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间
     pub updated_at: DateTimeWithTimeZone,

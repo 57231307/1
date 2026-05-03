@@ -1,7 +1,10 @@
-use gloo_dialogs;
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 /// 坯布管理页面（原料布匹管理）
 
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
+use crate::utils::dom_helper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::greige_fabric::{
@@ -48,6 +51,7 @@ pub enum Msg {
     CreateFabric(CreateGreigeFabricRequest),
     UpdateFabric(i32, UpdateGreigeFabricRequest),
     OperationSuccess(String),
+    StockOut(i32),
 }
 
 impl Component for GreigeFabricPage {
@@ -198,6 +202,23 @@ impl Component for GreigeFabricPage {
                 if let Some(win) = web_sys::window() { win.alert_with_message(&msg).ok(); }
                 false
             }
+            Msg::StockOut(id) => {
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    match GreigeFabricService::stock_out(id, crate::models::greige_fabric::StockOutRequest {
+                        weight_kg: None,
+                        length_m: None,
+                        remarks: Some("手动出库".to_string()),
+                    }).await {
+                        Ok(_) => {
+                            link.send_message(Msg::OperationSuccess("出库成功".to_string()));
+                            link.send_message(Msg::LoadFabrics);
+                        }
+                        Err(e) => link.send_message(Msg::LoadError(e)),
+                    }
+                });
+                false
+            }
         }
     }
 
@@ -330,7 +351,7 @@ impl GreigeFabricPage {
                                     <td>{fabric.quality_grade.as_deref().unwrap_or("-")}</td>
                                     <td class="actions">
                                         if status == "在库" {
-                                            <button class="btn-small btn-warning" onclick={Callback::from(|_| gloo_dialogs::alert("功能开发中..."))}>
+                                            <button class="btn-small btn-warning" onclick={ctx.link().callback(move |_| Msg::StockOut(fabric_id))}>
                                                 {"出库"}
                                             </button>
                                         }
@@ -338,10 +359,12 @@ impl GreigeFabricPage {
                                             onclick={ctx.link().callback(move |_| Msg::OpenEditModal(fabric_id))}>
                                             {"编辑"}
                                         </button>
-                                        <button class="btn-small btn-danger"
+                                        <PermissionGuard resource="greige_fabric" action="delete">
+<button class="btn-small btn-danger"
                                             onclick={ctx.link().callback(move |_| Msg::DeleteFabric(fabric_id))}>
                                             {"删除"}
                                         </button>
+</PermissionGuard>
                                     </td>
                                 </tr>
                             }
@@ -418,14 +441,8 @@ impl GreigeFabricPage {
                     <div class="modal-footer">
                         <button class="btn-secondary" onclick={on_close.clone()}>{"取消"}</button>
                         <button class="btn-primary" onclick={ctx.link().callback(move |_| {
-                            let get_val = |id: &str| -> String {
-                                web_sys::window().unwrap().document().unwrap().get_element_by_id(id).unwrap()
-                                    .dyn_into::<web_sys::HtmlInputElement>().unwrap().value()
-                            };
-                            let get_opt = |id: &str| -> Option<String> {
-                                let v = get_val(id);
-                                if v.is_empty() { None } else { Some(v) }
-                            };
+                            let get_val = |id: &str| -> String { dom_helper::get_input_value(id).or_else(|| dom_helper::get_textarea_value(id)).unwrap_or_default() };
+                            let get_opt = |id: &str| -> Option<String> { let v = get_val(id); if v.is_empty() { None } else { Some(v) } };
                             
                             if is_edit {
                                 Msg::UpdateFabric(fabric.id, UpdateGreigeFabricRequest {

@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 async fn setup_app() -> Router {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let app_state = bingxi_backend::utils::app_state::AppState::new(Arc::new(db), "test_secret".to_string());
     create_router(app_state.clone())
         .layer(axum::middleware::from_fn_with_state(app_state, auth_middleware))
@@ -39,10 +39,10 @@ async fn test_complete_login_flow() {
                     })
                     .to_string(),
                 ))
-                .unwrap(),
+                .expect("操作应该成功"),
         )
         .await
-        .unwrap();
+        .expect("操作应该成功");
 
     assert_eq!(login_response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -55,10 +55,10 @@ async fn test_password_hash_and_verify() {
     // 哈希密码
     let hash_result = AuthService::hash_password(password);
     assert!(hash_result.is_ok());
-    let hash = hash_result.unwrap();
+    let hash = hash_result.expect("操作应该成功");
 
     // 验证密码
-    let db = Database::connect("sqlite::memory:").await.unwrap();
+    let db = Database::connect("sqlite::memory:").await.expect("操作应该成功");
     let auth_service = AuthService::new(Arc::new(db), "test_secret".to_string());
 
     let verify_result = auth_service.verify_password(password, &hash);

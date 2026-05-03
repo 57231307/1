@@ -47,6 +47,9 @@ impl FinancePaymentService {
         notes: Option<String>,
         created_by: Option<i32>,
     ) -> Result<finance_payment::Model, sea_orm::DbErr> {
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        period_svc.check_date_locked(payment_date.date_naive()).await.map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
+
         let active_payment = finance_payment::ActiveModel {
             id: Set(0),
             payment_no: Set(payment_no),
@@ -66,6 +69,7 @@ impl FinancePaymentService {
             created_by: Set(created_by),
             approved_by: Set(None),
             approved_at: Set(None),
+            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };

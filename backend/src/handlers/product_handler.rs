@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
+    Extension,
     Json,
 };
 use crate::utils::app_state::AppState;
@@ -10,6 +11,7 @@ use crate::models::product_color;
 use crate::services::product_service::ProductService;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::middleware::auth_context::AuthContext;
 
 /// 查询参数 - 产品列表
 #[derive(Debug, Deserialize)]
@@ -100,10 +102,13 @@ pub struct BatchCreateColorsRequest {
 }
 
 /// 获取产品列表
+use crate::utils::field_mask::mask_sensitive_fields;
+
 pub async fn list_products(
+    Extension(auth): Extension<AuthContext>,
     State(state): State<AppState>,
     Query(query): Query<ProductListQuery>,
-) -> Result<Json<ApiResponse<Vec<product::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
@@ -119,8 +124,17 @@ pub async fn list_products(
         )
         .await?;
 
+    // Serialize each product model to Value and mask sensitive fields
+    let masked_products: Vec<serde_json::Value> = products
+        .into_iter()
+        .map(|p| {
+            let val = serde_json::to_value(p).unwrap();
+            mask_sensitive_fields(val, &auth)
+        })
+        .collect();
+
     Ok(Json(
-        PaginatedResponse::new(products, total, page, page_size).into(),
+        PaginatedResponse::new(masked_products, total, page, page_size).into(),
     ))
 }
 

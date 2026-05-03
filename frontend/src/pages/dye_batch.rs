@@ -1,6 +1,8 @@
 // 缸号管理页面（染色批次管理）
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::dye_batch::{
@@ -306,10 +308,12 @@ impl DyeBatchPage {
                                                 {"完成"}
                                             </button>
                                         }
-                                        <button class="btn-small btn-danger"
+                                        <PermissionGuard resource="dye_batch" action="delete">
+<button class="btn-small btn-danger"
                                             onclick={ctx.link().callback(move |_| Msg::DeleteBatch(batch_id))}>
                                             {"删除"}
                                         </button>
+</PermissionGuard>
                                     </td>
                                 </tr>
                             }

@@ -1,6 +1,7 @@
 // 五维查询页面
 // 提供面料五维数据的查询、搜索和管理功能
 
+use crate::utils::permissions;
 use yew::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::five_dimension::{

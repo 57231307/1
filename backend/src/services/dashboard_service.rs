@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, QueryOrder,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -14,61 +14,68 @@ use crate::utils::cache::{AppCache, Cache};
 /// 仪表板概览数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct DashboardOverview {
-    /// 总产品数
     pub total_products: i64,
-    /// 总仓库数
     pub total_warehouses: i64,
-    /// 总库存金额
-    pub total_inventory_value: Decimal,
-    /// 总订单数
     pub total_orders: i64,
-    /// 待处理订单数
+    pub total_sales: String,
+    pub low_stock_count: i64,
     pub pending_orders: i64,
-    /// 总用户数
-    pub total_users: i64,
-    /// 活跃用户数（最近 7 天登录）
-    pub active_users: i64,
+    pub monthly_sales: String,
 }
 
 /// 销售统计数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct SalesStatistics {
-    /// 销售总额
-    pub total_sales_amount: Decimal,
-    /// 订单总数
-    pub order_count: i64,
-    /// 平均每单金额
-    pub avg_order_amount: Decimal,
-    /// 已完成订单数
-    pub completed_orders: i64,
-    /// 待处理订单数
-    pub pending_orders: i64,
-    /// 已取消订单数
-    pub cancelled_orders: i64,
+    pub daily_sales: Vec<SalesDataPoint>,
+    pub weekly_sales: Vec<SalesDataPoint>,
+    pub monthly_sales: Vec<SalesDataPoint>,
+    pub by_customer: Vec<SalesByDimension>,
+    pub by_product: Vec<SalesByDimension>,
+    pub by_salesperson: Vec<SalesByDimension>,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct SalesDataPoint {
+    pub date: String,
+    pub amount: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct SalesByDimension {
+    pub name: String,
+    pub amount: String,
+    pub count: i64,
 }
 
 /// 库存统计数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct InventoryStatistics {
-    /// 总库存数量
-    pub total_quantity: Decimal,
-    /// 总库存金额
-    pub total_value: Decimal,
-    /// 低库存产品数
-    pub low_stock_count: i64,
-    /// 零库存产品数
-    pub zero_stock_count: i64,
-    /// 仓库分布统计
-    pub warehouse_distribution: Vec<WarehouseStockStat>,
+    pub total_inventory: String,
+    pub by_warehouse: Vec<InventoryByWarehouse>,
+    pub by_category: Vec<InventoryByCategory>,
+    pub turnover_rate: String,
+    pub aging_analysis: Vec<AgingData>,
 }
 
-/// 仓库库存统计
 #[derive(Debug, Serialize, Clone, Deserialize)]
-pub struct WarehouseStockStat {
-    pub warehouse_id: i32,
+pub struct InventoryByWarehouse {
     pub warehouse_name: String,
-    pub total_quantity: Decimal,
-    pub total_value: Decimal,
+    pub quantity: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct InventoryByCategory {
+    pub category_name: String,
+    pub quantity: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct AgingData {
+    pub age_range: String,
+    pub quantity: String,
+    pub percentage: f64,
 }
 
 /// 低库存预警项
@@ -76,12 +83,11 @@ pub struct WarehouseStockStat {
 pub struct LowStockAlert {
     pub product_id: i32,
     pub product_name: String,
-    pub product_code: String,
     pub warehouse_id: i32,
     pub warehouse_name: String,
-    pub current_quantity: Decimal,
-    pub min_stock: Decimal,
-    pub shortage: Decimal,
+    pub current_quantity: String,
+    pub min_stock: String,
+    pub shortage: String,
 }
 
 /// 仪表板服务
@@ -115,42 +121,60 @@ impl DashboardService {
         }
 
         // 缓存未命中，从数据库获取
-        // 总产品数
-        let total_products = product::Entity::find().count(&*self.db).await?;
+        let total_products = product::Entity::find().filter(product::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
+        let total_warehouses = warehouse::Entity::find().filter(warehouse::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
+        let total_orders = sales_order::Entity::find().filter(sales_order::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
 
-        // 总仓库数
-        let total_warehouses = warehouse::Entity::find().count(&*self.db).await?;
-
-        // 总库存金额 - 暂时跳过此字段
-        let total_inventory_value = Decimal::ZERO;
-
-        // 总订单数
-        let total_orders = sales_order::Entity::find().count(&*self.db).await?;
-
-        // 待处理订单数
         let pending_orders = sales_order::Entity::find()
+            .filter(sales_order::Column::IsDeleted.eq(false))
             .filter(sales_order::Column::Status.eq("pending"))
             .count(&*self.db)
-            .await?;
-
-        // 总用户数
-        let total_users = user::Entity::find().count(&*self.db).await?;
-
-        // 活跃用户数（最近 7 天登录）
-        let seven_days_ago = Utc::now() - chrono::Duration::days(7);
-        let active_users = user::Entity::find()
-            .filter(user::Column::LastLoginAt.gte(seven_days_ago))
-            .count(&*self.db)
-            .await?;
+            .await? as i64;
+            
+        let low_stock_count = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::IsDeleted.eq(false))
+            .filter(
+                Expr::col(inventory_stock::Column::QuantityMeters)
+                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
+            )
+            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .count(self.db.as_ref())
+            .await? as i64;
+            
+        // 本月销售额
+        let now = Utc::now();
+        use chrono::Datelike;
+        let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap();
+        let monthly_sales_dec = sales_order::Entity::find()
+            .filter(sales_order::Column::IsDeleted.eq(false))
+            .filter(sales_order::Column::OrderDate.gte(start_of_month))
+            .select_only()
+            .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
+            .into_tuple::<Option<Decimal>>()
+            .one(self.db.as_ref())
+            .await?
+            .flatten()
+            .unwrap_or(Decimal::ZERO);
+            
+        // 总销售额
+        let total_sales_dec = sales_order::Entity::find()
+            .filter(sales_order::Column::IsDeleted.eq(false))
+            .select_only()
+            .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
+            .into_tuple::<Option<Decimal>>()
+            .one(self.db.as_ref())
+            .await?
+            .flatten()
+            .unwrap_or(Decimal::ZERO);
 
         let overview = DashboardOverview {
-            total_products: total_products as i64,
-            total_warehouses: total_warehouses as i64,
-            total_inventory_value,
-            total_orders: total_orders as i64,
-            pending_orders: pending_orders as i64,
-            total_users: total_users as i64,
-            active_users: active_users as i64,
+            total_products,
+            total_warehouses,
+            total_orders,
+            total_sales: total_sales_dec.to_string(),
+            low_stock_count,
+            pending_orders,
+            monthly_sales: monthly_sales_dec.to_string(),
         };
 
         // 缓存结果，有效期5分钟
@@ -180,7 +204,7 @@ impl DashboardService {
             }
         }
 
-        let mut query = sales_order::Entity::find();
+        let mut query = sales_order::Entity::find().filter(sales_order::Column::IsDeleted.eq(false));
 
         // 应用日期范围过滤
         if let Some(start) = start_date {
@@ -190,52 +214,31 @@ impl DashboardService {
             query = query.filter(sales_order::Column::OrderDate.lte(end.date_naive()));
         }
 
-        // 销售总额
-        let total_sales_amount = query
+        // 生成 daily_sales 示例（实际需 GROUP BY）
+        // 简化起见，按日分组聚合金额
+        let daily_results = query
             .clone()
             .select_only()
-            .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
-
-        // 订单总数
-        let order_count = query.clone().count(self.db.as_ref()).await?;
-
-        // 平均每单金额
-        let avg_order_amount = if order_count > 0 {
-            total_sales_amount / Decimal::from(order_count as i32)
-        } else {
-            Decimal::ZERO
-        };
-
-        // 已完成订单数
-        let completed_orders = sales_order::Entity::find()
-            .filter(sales_order::Column::Status.eq("completed"))
-            .count(self.db.as_ref())
+            .column(sales_order::Column::OrderDate)
+            .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "amount")
+            .group_by(sales_order::Column::OrderDate)
+            .order_by_asc(sales_order::Column::OrderDate)
+            .into_tuple::<(chrono::NaiveDate, Option<Decimal>)>()
+            .all(self.db.as_ref())
             .await?;
 
-        // 待处理订单数
-        let pending_orders = sales_order::Entity::find()
-            .filter(sales_order::Column::Status.eq("pending"))
-            .count(self.db.as_ref())
-            .await?;
-
-        // 已取消订单数
-        let cancelled_orders = sales_order::Entity::find()
-            .filter(sales_order::Column::Status.eq("cancelled"))
-            .count(self.db.as_ref())
-            .await?;
+        let daily_sales = daily_results.into_iter().map(|(date, amt)| SalesDataPoint {
+            date: date.to_string(),
+            amount: amt.unwrap_or(Decimal::ZERO).to_string(),
+        }).collect();
 
         let statistics = SalesStatistics {
-            total_sales_amount,
-            order_count: order_count as i64,
-            avg_order_amount,
-            completed_orders: completed_orders as i64,
-            pending_orders: pending_orders as i64,
-            cancelled_orders: cancelled_orders as i64,
+            daily_sales,
+            weekly_sales: vec![],
+            monthly_sales: vec![],
+            by_customer: vec![],
+            by_product: vec![],
+            by_salesperson: vec![],
         };
 
         // 缓存结果，有效期5分钟
@@ -264,6 +267,8 @@ impl DashboardService {
 
         // 总库存数量 - 暂时使用简单查询
         let total_quantity = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::IsDeleted.eq(false))
+            .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
             .column_as(
                 Expr::col(inventory_stock::Column::QuantityMeters).sum(),
@@ -294,6 +299,8 @@ impl DashboardService {
 
         // 仓库分布统计 - 暂时简化处理
         let warehouse_distribution = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::IsDeleted.eq(false))
+            .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
             .column(inventory_stock::Column::WarehouseId)
             .column_as(
@@ -309,24 +316,24 @@ impl DashboardService {
         for (wh_id, qty) in warehouse_distribution {
             // 获取仓库名称
             let wh = warehouse::Entity::find_by_id(wh_id)
+                .filter(warehouse::Column::IsDeleted.eq(false))
                 .one(self.db.as_ref())
                 .await?;
             if let Some(warehouse_model) = wh {
-                warehouse_stats.push(WarehouseStockStat {
-                    warehouse_id: wh_id,
+                warehouse_stats.push(InventoryByWarehouse {
                     warehouse_name: warehouse_model.name,
-                    total_quantity: qty.unwrap_or(Decimal::ZERO),
-                    total_value: Decimal::ZERO,
+                    quantity: qty.unwrap_or(Decimal::ZERO).to_string(),
+                    value: "0.0".to_string(),
                 });
             }
         }
 
         let statistics = InventoryStatistics {
-            total_quantity,
-            total_value: Decimal::ZERO,
-            low_stock_count,
-            zero_stock_count,
-            warehouse_distribution: warehouse_stats,
+            total_inventory: total_quantity.to_string(),
+            turnover_rate: "0.0".to_string(),
+            by_warehouse: warehouse_stats,
+            by_category: vec![],
+            aging_analysis: vec![],
         };
 
         // 缓存结果，有效期5分钟
@@ -350,6 +357,7 @@ impl DashboardService {
         }
 
         let low_stock_items = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::IsDeleted.eq(false))
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
@@ -362,10 +370,12 @@ impl DashboardService {
         for item in low_stock_items {
             // 获取产品信息
             let product = product::Entity::find_by_id(item.product_id)
+                .filter(product::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await?;
             // 获取仓库信息
             let wh = warehouse::Entity::find_by_id(item.warehouse_id)
+                .filter(warehouse::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await?;
 
@@ -374,12 +384,11 @@ impl DashboardService {
                 alerts.push(LowStockAlert {
                     product_id: item.product_id,
                     product_name: p.name,
-                    product_code: p.code,
                     warehouse_id: item.warehouse_id,
                     warehouse_name: w.name,
-                    current_quantity: item.quantity_available,
-                    min_stock: item.reorder_point,
-                    shortage,
+                    current_quantity: item.quantity_available.to_string(),
+                    min_stock: item.reorder_point.to_string(),
+                    shortage: shortage.to_string(),
                 });
             }
         }

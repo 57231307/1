@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 库存调整明细模型
 //! 用于记录库存调整单的明细项
 
@@ -44,6 +45,7 @@ pub struct Model {
     pub notes: Option<String>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

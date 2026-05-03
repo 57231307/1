@@ -91,6 +91,10 @@ impl VoucherService {
         req: CreateVoucherRequest,
         user_id: i32,
     ) -> Result<voucher::Model, AppError> {
+        // 校验期间锁定
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        period_svc.check_date_locked(req.voucher_date).await?;
+
         info!(
             "创建凭证：type={}, date={}",
             req.voucher_type, req.voucher_date
@@ -281,6 +285,7 @@ impl VoucherService {
                     quantity_kg: sea_orm::Set(item_req.quantity_kg),
                     unit_price: sea_orm::Set(item_req.unit_price),
                     created_at: sea_orm::Set(chrono::Utc::now()),
+                    is_deleted: sea_orm::Set(false),
                 };
                 item_active
                     .insert(&txn)
@@ -335,7 +340,7 @@ impl VoucherService {
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
         active_model.status = sea_orm::Set("submitted".to_string());
-        let updated = active_model.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
 
         info!("凭证提交成功：no={}", updated.voucher_no);
         Ok(updated)
@@ -358,7 +363,7 @@ impl VoucherService {
         active_model.status = sea_orm::Set("reviewed".to_string());
         active_model.reviewed_by = sea_orm::Set(Some(user_id));
         active_model.reviewed_at = sea_orm::Set(Some(chrono::Utc::now()));
-        let updated = active_model.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
 
         info!("凭证审核成功：no={}", updated.voucher_no);
         Ok(updated)
@@ -388,7 +393,7 @@ impl VoucherService {
         active_model.status = sea_orm::Set("posted".to_string());
         active_model.posted_by = sea_orm::Set(Some(user_id));
         active_model.posted_at = sea_orm::Set(Some(chrono::Utc::now()));
-        let updated = active_model.update(&txn).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(0)).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -561,7 +566,7 @@ impl VoucherService {
                         sea_orm::Set(ending_credit.max(Decimal::ZERO));
                 }
 
-                active_model.update(txn).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_model, Some(0)).await?;
             } else {
                 // 创建新余额记录
                 // 根据余额方向设置期末余额

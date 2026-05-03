@@ -85,6 +85,7 @@ impl WarehouseService {
             notes: Set(None),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -121,7 +122,7 @@ impl WarehouseService {
 
         wh.updated_at = Set(Utc::now());
 
-        let result = wh.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", wh, Some(0)).await?;
         Ok(result)
     }
 

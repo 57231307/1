@@ -162,6 +162,7 @@ pub async fn create_dye_recipe(
         created_by: Set(req.created_by),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     match recipe.insert(&*state.db).await {
@@ -362,6 +363,7 @@ pub async fn create_new_version(
         created_by: Set(req.created_by),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     match new_recipe.insert(&*state.db).await {

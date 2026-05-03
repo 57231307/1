@@ -179,6 +179,7 @@ impl PurchaseContractService {
             created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         execution.insert(&txn).await?;

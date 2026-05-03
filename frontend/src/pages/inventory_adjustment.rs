@@ -1,3 +1,4 @@
+use crate::utils::permissions;
 use yew::prelude::*;
 use crate::services::inventory_adjustment_service::InventoryAdjustmentService;
 use crate::services::crud_service::CrudService;

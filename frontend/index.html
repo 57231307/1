@@ -18,6 +18,77 @@
             }
         }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script>
+        window.renderSalesChart = function(id, dates, amounts) {
+            var chartDom = document.getElementById(id);
+            if (!chartDom) return;
+            var myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
+            var option = {
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: dates },
+                yAxis: { type: 'value' },
+                series: [{ data: amounts, type: 'line', smooth: true, areaStyle: {}, itemStyle: { color: '#4F46E5' } }]
+            };
+            myChart.setOption(option);
+        };
+        
+        window.renderInventoryChart = function(id, warehouses, quantities) {
+            var chartDom = document.getElementById(id);
+            if (!chartDom) return;
+            var myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
+            var option = {
+                tooltip: { trigger: 'item' },
+                series: [{
+                    type: 'pie',
+                    radius: '70%',
+                    data: warehouses.map(function(w, i) { return {name: w, value: quantities[i]}; }),
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }]
+            };
+            myChart.setOption(option);
+        };
+
+        // OmniAudit UI Tracker
+        document.addEventListener('click', function(e) {
+            // Find closest button or a tag
+            let target = e.target.closest('button, a');
+            if (target) {
+                let action = target.innerText.trim() || target.getAttribute('aria-label') || 'click';
+                let resource = target.tagName.toLowerCase();
+                let className = target.className || '';
+                
+                // Track click event asynchronously
+                fetch('/api/v1/audit/track', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') // Fallback if using local storage
+                    },
+                    body: JSON.stringify({
+                        event_type: 'UI_CLICK',
+                        event_name: 'click_' + action,
+                        resource: resource + (className ? '.' + className.split(' ')[0] : ''),
+                        action: action,
+                        payload: {
+                            tagName: target.tagName,
+                            text: action,
+                            href: target.getAttribute('href')
+                        },
+                        duration_ms: 0,
+                        status: 'SUCCESS'
+                    })
+                }).catch(err => console.log('Audit tracking failed', err));
+            }
+        });
+    </script>
 </head>
 <body>
     <div id="app"></div>

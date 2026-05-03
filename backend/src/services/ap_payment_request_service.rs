@@ -178,7 +178,7 @@ impl ApPaymentRequestService {
 
         request_active.updated_by = Set(Some(user_id));
 
-        let request = request_active.update(&txn).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
 
         txn.commit().await?;
 
@@ -255,7 +255,7 @@ impl ApPaymentRequestService {
         request_active.submitted_at = Set(Some(now));
         request_active.updated_at = Set(now);
 
-        let request = request_active.update(&txn).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
 
         txn.commit().await?;
 
@@ -296,7 +296,7 @@ impl ApPaymentRequestService {
         request_active.approved_at = Set(Some(now));
         request_active.updated_at = Set(now);
 
-        let request = request_active.update(&txn).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
 
         txn.commit().await?;
 
@@ -335,7 +335,7 @@ impl ApPaymentRequestService {
         request_active.rejected_reason = Set(Some(reason));
         request_active.updated_at = Set(now);
 
-        let request = request_active.update(&txn).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
 
         txn.commit().await?;
 

@@ -2,6 +2,7 @@
 //
 // 应付报表（AP Report）展示页面，包含统计报表、日报、月报和账龄分析
 
+use crate::utils::permissions;
 use yew::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;

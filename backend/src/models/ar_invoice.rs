@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 应收单 Entity
 //!
 //! 对应数据库表：ar_invoices
@@ -52,6 +53,8 @@ pub struct Model {
     pub created_by: i32,
     pub reviewed_by: Option<i32>,
     pub reviewed_at: Option<DateTime<Utc>>,
+
+    pub is_deleted: bool,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

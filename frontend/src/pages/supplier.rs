@@ -1,6 +1,8 @@
 // 供应商管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::supplier::{
@@ -469,9 +471,11 @@ impl SupplierPage {
                                             <button class={format!("btn-sm {}", if is_enabled { "btn-warning" } else { "btn-success" })} onclick={ctx.link().callback(move |_| Msg::ToggleStatus(supplier_id, !is_enabled))}>
                                                 {if is_enabled { "禁用" } else { "启用" }}
                                             </button>
-                                            <button class="btn-sm btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteSupplier(supplier_id))}>
+                                            <PermissionGuard resource="supplier" action="delete">
+<button class="btn-sm btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteSupplier(supplier_id))}>
                                                 {"删除"}
                                             </button>
+</PermissionGuard>
                                         </div>
                                     </td>
                                 </tr>

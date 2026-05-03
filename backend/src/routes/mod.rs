@@ -36,6 +36,7 @@ use crate::handlers::{
     dye_recipe_handler,
     finance_invoice_handler,
     finance_payment_handler,
+    finance_report_handler,
     financial_analysis_handler,
     five_dimension_handler,
     fixed_asset_handler,
@@ -69,7 +70,7 @@ use crate::handlers::{
     system_update_handler,
     voucher_handler,
     warehouse_handler,
-    init_handler,
+    init_handler, accounting_period_handler, omni_audit_handler,
 };
 
 use crate::services::metrics_service::create_metrics_router;
@@ -208,7 +209,21 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/invoices/:id/verify",
             post(finance_invoice_handler::verify_invoice),
-        );
+        )
+        // Accounting Period Routes
+        .route("/finance/accounting-periods/current", get(accounting_period_handler::get_current_period))
+        .route("/finance/accounting-periods/init", post(accounting_period_handler::init_period))
+        .route("/finance/accounting-periods/:id/close", post(accounting_period_handler::close_period))
+        // Omni Audit Tracker & Queries
+        .route("/audit/track", post(omni_audit_handler::track_event))
+        .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))
+        .route("/audit/search", get(omni_audit_handler::search_logs))
+        .route("/reports/balance-sheet", get(finance_report_handler::get_balance_sheet))
+        .route("/reports/income-statement", get(finance_report_handler::get_income_statement))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::omni_audit::omni_audit_middleware,
+        ));
 
     // 销售管理路由
     let sales_routes = Router::new()
@@ -217,6 +232,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id", get(sales_order_handler::get_order))
         .route("/orders/:id", put(sales_order_handler::update_order))
         .route("/orders/:id", delete(sales_order_handler::delete_order))
+        .route("/orders/:id/submit", post(sales_order_handler::submit_order))
         .route("/orders/:id/approve", post(sales_order_handler::approve_order))
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
         .route("/orders/:id/complete", post(sales_order_handler::complete_order))
@@ -525,6 +541,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/returns", post(purchase_return_handler::create_purchase_return))
         .route("/returns/:id", get(purchase_return_handler::get_purchase_return))
         .route("/returns/:id", put(purchase_return_handler::update_purchase_return))
+        .route("/returns/:id", delete(purchase_return_handler::delete_purchase_return))
         .route("/returns/:id/submit", post(purchase_return_handler::submit_purchase_return))
         .route("/returns/:id/approve", post(purchase_return_handler::approve_purchase_return))
         .route("/returns/:id/reject", post(purchase_return_handler::reject_purchase_return))
@@ -763,13 +780,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // 添加 /init/status 路由，用于前端检测系统是否已初始化
     let init_routes = Router::new()
-        .route("/status", get(|| async {
-            axum::Json(serde_json::json!({
-                "initialized": true,
-                "message": "系统已初始化",
-                "mode": "normal"
-            }))
-        }))
+        .route("/status", get(init_handler::get_init_status))
         .route("/test-database", post(init_handler::test_database_connection))
         .route("/initialize-with-db", post(init_handler::initialize_system_with_db));
 

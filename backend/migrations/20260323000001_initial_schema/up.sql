@@ -15,6 +15,7 @@ CREATE TABLE "users" (
     "department_id" INTEGER,
     "is_active" BOOLEAN DEFAULT true,
     "last_login_at" TIMESTAMP,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -42,6 +43,7 @@ CREATE TABLE "roles" (
     "description" TEXT,
     "permissions" TEXT,
     "is_system" BOOLEAN DEFAULT false,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -64,6 +66,7 @@ CREATE TABLE "departments" (
     "description" TEXT,
     "sort_order" INTEGER DEFAULT 0,
     "is_active" BOOLEAN DEFAULT true,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -98,6 +101,7 @@ CREATE TABLE "products" (
     "warehouse_id" INTEGER,
     "supplier_id" INTEGER,
     "is_active" BOOLEAN DEFAULT true,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -129,6 +133,7 @@ CREATE TABLE "product_categories" (
     "description" TEXT,
     "sort_order" INTEGER DEFAULT 0,
     "is_active" BOOLEAN DEFAULT true,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -149,6 +154,7 @@ CREATE TABLE "warehouses" (
     "manager_id" INTEGER,
     "description" TEXT,
     "is_active" BOOLEAN DEFAULT true,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -172,6 +178,7 @@ CREATE TABLE "suppliers" (
     "address" TEXT,
     "description" TEXT,
     "is_active" BOOLEAN DEFAULT true,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -197,6 +204,7 @@ CREATE TABLE "customers" (
     "credit_limit" DECIMAL(12, 2) DEFAULT 0,
     "description" TEXT,
     "is_active" BOOLEAN DEFAULT true,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -223,6 +231,7 @@ CREATE TABLE "inventory_stocks" (
     "location" VARCHAR(100),
     "shelf_life" DATE,
     "inbound_date" DATE,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -258,6 +267,7 @@ CREATE TABLE "sales_orders" (
     "notes" TEXT,
     "created_by" INTEGER,
     "approved_by" INTEGER,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -291,6 +301,7 @@ CREATE TABLE "sales_order_items" (
     "tax_rate" DECIMAL(5, 2) DEFAULT 0,
     "subtotal" DECIMAL(14, 2) NOT NULL,
     "delivered_quantity" INTEGER DEFAULT 0,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -320,6 +331,7 @@ CREATE TABLE "purchase_orders" (
     "notes" TEXT,
     "created_by" INTEGER,
     "approved_by" INTEGER,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -340,6 +352,7 @@ CREATE TABLE "purchase_order_items" (
     "unit_price" DECIMAL(12, 2) NOT NULL,
     "subtotal" DECIMAL(14, 2) NOT NULL,
     "received_quantity" INTEGER DEFAULT 0,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -365,6 +378,7 @@ CREATE TABLE "finance_payments" (
     "status" VARCHAR(20) DEFAULT 'pending',
     "notes" TEXT,
     "created_by" INTEGER,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -395,6 +409,7 @@ CREATE TABLE "inventory_transfers" (
     "notes" TEXT,
     "created_by" INTEGER,
     "approved_by" INTEGER,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -413,6 +428,7 @@ CREATE TABLE "inventory_transfer_items" (
     "product_id" INTEGER NOT NULL,
     "batch_no" VARCHAR(50),
     "quantity" INTEGER NOT NULL,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -431,6 +447,7 @@ CREATE TABLE "inventory_counts" (
     "notes" TEXT,
     "created_by" INTEGER,
     "approved_by" INTEGER,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -451,6 +468,7 @@ CREATE TABLE "inventory_count_items" (
     "discrepancy_quantity" INTEGER DEFAULT 0,
     "unit_cost" DECIMAL(12, 2) DEFAULT 0,
     "discrepancy_amount" DECIMAL(14, 2) DEFAULT 0,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -504,3 +522,67 @@ ALTER TABLE "inventory_count_items" ADD CONSTRAINT "fk_inventory_count_items_cou
 -- ============================================
 -- 完成
 -- ============================================
+
+
+CREATE TABLE IF NOT EXISTS "audit_logs" (
+    "id" SERIAL PRIMARY KEY,
+    "table_name" VARCHAR(100) NOT NULL,
+    "record_id" INTEGER NOT NULL,
+    "action" VARCHAR(20) NOT NULL,
+    "old_data" JSONB,
+    "new_data" JSONB,
+    "changed_fields" JSONB,
+    "user_id" INTEGER,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS "bpm_process_definition" (
+    "id" SERIAL PRIMARY KEY,
+    "name" VARCHAR(100) NOT NULL,
+    "code" VARCHAR(50) NOT NULL UNIQUE,
+    "description" TEXT,
+    "category" VARCHAR(50),
+    "version" VARCHAR(20),
+    "config" JSONB,
+    "status" VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "bpm_process_instance" (
+    "id" SERIAL PRIMARY KEY,
+    "process_definition_id" INTEGER NOT NULL REFERENCES "bpm_process_definition"("id"),
+    "instance_no" VARCHAR(50) NOT NULL UNIQUE,
+    "business_type" VARCHAR(50),
+    "business_id" INTEGER,
+    "business_no" VARCHAR(50),
+    "applicant_id" INTEGER NOT NULL,
+    "status" VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',
+    "variables" JSONB,
+    "start_time" TIMESTAMPTZ,
+    "end_time" TIMESTAMPTZ,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "bpm_task" (
+    "id" SERIAL PRIMARY KEY,
+    "process_instance_id" INTEGER NOT NULL REFERENCES "bpm_process_instance"("id"),
+    "task_no" VARCHAR(50) NOT NULL UNIQUE,
+    "node_id" VARCHAR(50) NOT NULL,
+    "node_name" VARCHAR(100) NOT NULL,
+    "name" VARCHAR(100) NOT NULL,
+    "task_type" VARCHAR(50) NOT NULL,
+    "assignee_id" INTEGER,
+    "status" VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    "comment" TEXT,
+    "business_type" VARCHAR(50),
+    "business_id" INTEGER,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completed_at" TIMESTAMPTZ
+);

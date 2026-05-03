@@ -85,6 +85,7 @@ impl ProductCategoryService {
             is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -134,7 +135,7 @@ impl ProductCategoryService {
 
         category.updated_at = Set(Utc::now());
 
-        let result = category.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", category, Some(0)).await?;
         Ok(result)
     }
 

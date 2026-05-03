@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -22,6 +23,7 @@ pub struct Model {
     pub gross_profit_rate: Decimal,
     pub avg_order_value: Decimal,
     #[sea_orm(column_type = "Timestamp")]
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

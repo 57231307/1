@@ -249,7 +249,7 @@ impl AccountSubjectService {
         active_model.assist_color_no = sea_orm::Set(req.assist_color_no);
         active_model.enable_dual_unit = sea_orm::Set(req.enable_dual_unit);
 
-        let result = active_model.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
         info!("会计科目更新成功：id={}", result.id);
 
         Ok(result)

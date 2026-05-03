@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 会计科目 Entity
 //!
 //! 对应数据库表：account_subjects
@@ -52,6 +53,7 @@ pub struct Model {
 
     // 状态
     pub status: String,
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

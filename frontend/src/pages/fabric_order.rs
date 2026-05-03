@@ -1,6 +1,9 @@
 // 面料订单管理页面
 
+use crate::utils::permissions;
 use yew::prelude::*;
+use crate::components::permission_guard::PermissionGuard;
+use crate::utils::dom_helper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::fabric_order::{
@@ -116,16 +119,8 @@ impl Component for FabricOrderPage {
                 true
             }
             Msg::CreateOrder => {
-                let get_val = |id: &str| -> String {
-                    web_sys::window().unwrap().document().unwrap().get_element_by_id(id).unwrap()
-                        .dyn_into::<web_sys::HtmlInputElement>().map(|e| e.value())
-                        .or_else(|_| web_sys::window().unwrap().document().unwrap().get_element_by_id(id).unwrap().dyn_into::<web_sys::HtmlTextAreaElement>().map(|e| e.value()))
-                        .unwrap_or_default()
-                };
-                let get_opt = |id: &str| -> Option<String> {
-                    let v = get_val(id);
-                    if v.is_empty() { None } else { Some(v) }
-                };
+                let get_val = |id: &str| -> String { dom_helper::get_input_value(id).or_else(|| dom_helper::get_textarea_value(id)).unwrap_or_default() };
+                let get_opt = |id: &str| -> Option<String> { let v = get_val(id); if v.is_empty() { None } else { Some(v) } };
                 
                 if self.modal_mode == ModalMode::Create {
                     let req = CreateFabricOrderRequest {
@@ -334,16 +329,20 @@ impl FabricOrderPage {
                                             </button>
                                             {if order_status == "待审批" {
                                                 html! {
-                                                    <button class="btn-sm btn-success" onclick={ctx.link().callback(move |_| Msg::ApproveOrder(order_id))}>
+                                                    <PermissionGuard resource="fabric_order" action="approve">
+<button class="btn-sm btn-success" onclick={ctx.link().callback(move |_| Msg::ApproveOrder(order_id))}>
                                                         {"审批"}
                                                     </button>
+</PermissionGuard>
                                                 }
                                             } else {
                                                 html! {}
                                             }}
-                                            <button class="btn-sm btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteOrder(order_id))}>
+                                            <PermissionGuard resource="fabric_order" action="delete">
+<button class="btn-sm btn-danger" onclick={ctx.link().callback(move |_| Msg::DeleteOrder(order_id))}>
                                                 {"删除"}
                                             </button>
+</PermissionGuard>
                                         </div>
                                     </td>
                                 </tr>
@@ -537,7 +536,9 @@ impl FabricOrderPage {
                         <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"关闭"}</button>
                         {if self.modal_mode == ModalMode::Create {
                             html! {
-                                <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateOrder)}>{"保存"}</button>
+                                <PermissionGuard resource="fabric_order" action="create">
+<button class="btn-primary" onclick={ctx.link().callback(|_| Msg::CreateOrder)}>{"保存"}</button>
+</PermissionGuard>
                             }
                         } else {
                             html! {}

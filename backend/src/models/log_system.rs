@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
+
 //! 系统日志 Model
 //!
 //! 系统日志模块
@@ -52,6 +53,7 @@ pub struct Model {
     pub execution_time: Option<i64>,
 
     /// 创建时间
+    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 
