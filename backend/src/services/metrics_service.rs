@@ -312,11 +312,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_handler() {
-        let metrics_service = Arc::new(
-            MetricsService::new().expect("metrics service should initialize"),
-        );
-        
-        let response = metrics_handler(State(metrics_service)).await;
+        let state = crate::utils::app_state::AppState::default();
+        let response = metrics_handler(State(state)).await;
         
         assert!(response.is_ok());
         let response = response.expect("metrics handler should succeed");
@@ -334,12 +331,6 @@ mod tests {
 
     #[test]
     fn test_create_metrics_router() {
-        let metrics_service = Arc::new(
-            MetricsService::new().expect("metrics service should initialize"),
-        );
-        let _router = create_metrics_router(metrics_service.clone());
-        
-        // 验证路由创建成功
-        assert!(Arc::strong_count(&metrics_service) >= 1);
+        let _router = create_metrics_router();
     }
 }

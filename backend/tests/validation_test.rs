@@ -1,5 +1,5 @@
-use bingxi_erp_backend::handlers::user_handler::CreateUserRequest;
-use bingxi_erp_backend::handlers::warehouse_handler::CreateWarehouseRequest;
+use bingxi_backend::handlers::user_handler::CreateUserRequest;
+use bingxi_backend::handlers::warehouse_handler::CreateWarehouseRequest;
 use validator::Validate;
 
 #[test]
@@ -7,7 +7,7 @@ fn test_create_user_validation() {
     // 边界条件：太短的用户名
     let req1 = CreateUserRequest {
         username: "ab".to_string(), // < 3
-        password: "password123".to_string(),
+        password: "ValidPass1!".to_string(),
         email: None,
         phone: Some("123456789".to_string()),
         role_id: None,
@@ -29,7 +29,7 @@ fn test_create_user_validation() {
     // 边界条件：非法邮箱
     let req3 = CreateUserRequest {
         username: "admin".to_string(),
-        password: "password123".to_string(),
+        password: "ValidPass1!".to_string(),
         email: Some("invalid-email".to_string()),
         phone: Some("123456789".to_string()),
         role_id: None,
@@ -40,7 +40,7 @@ fn test_create_user_validation() {
     // 合法请求
     let valid_req = CreateUserRequest {
         username: "admin_user".to_string(),
-        password: "password123".to_string(),
+        password: "ValidPass1!".to_string(),
         email: Some("admin@example.com".to_string()),
         phone: Some("123456789".to_string()),
         role_id: None,

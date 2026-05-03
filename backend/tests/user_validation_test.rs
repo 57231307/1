@@ -13,7 +13,6 @@ fn test_password_strength_validation() {
         phone: None,
         role_id: None,
         department_id: None,
-        is_active: None,
     };
     assert!(req1.validate().is_err());
 
@@ -25,7 +24,6 @@ fn test_password_strength_validation() {
         phone: None,
         role_id: None,
         department_id: None,
-        is_active: None,
     };
     assert!(req2.validate().is_err());
 
@@ -37,7 +35,6 @@ fn test_password_strength_validation() {
         phone: None,
         role_id: None,
         department_id: None,
-        is_active: None,
     };
     assert!(req3.validate().is_err());
 
@@ -49,7 +46,6 @@ fn test_password_strength_validation() {
         phone: None,
         role_id: None,
         department_id: None,
-        is_active: None,
     };
     assert!(req4.validate().is_ok());
 }

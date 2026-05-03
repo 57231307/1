@@ -1,6 +1,8 @@
 //! AuthService 单元测试
 
 use bingxi_backend::services::auth_service::AuthService;
+use sea_orm::DatabaseConnection;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_password_hashing_and_verification() {
@@ -34,7 +36,8 @@ async fn test_jwt_token_generation_and_validation() {
     let secret = "very-secure-test-secret-key-at-least-32-bytes-long";
     
     // 1. 测试 Token 生成
-    let token_result = AuthService::generate_token(user_id, username, role_id, secret);
+    let auth_service = AuthService::new(Arc::new(DatabaseConnection::Disconnected), secret.to_string());
+    let token_result = auth_service.generate_token(user_id, username, role_id);
     assert!(token_result.is_ok());
     let token = token_result.unwrap();
     assert!(!token.is_empty());

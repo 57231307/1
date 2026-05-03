@@ -131,6 +131,7 @@ impl FiveDimensionQueryService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::error::AppError;
 
     #[test]
     fn test_generate_five_dimension_id() {
@@ -157,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_five_dimension_id() {
+    fn test_parse_five_dimension_id() -> Result<(), AppError> {
         let id = "P100|B20240101|C001|D20240101001|G一等品";
         let dim = FiveDimensionQueryService::parse_five_dimension_id(id)
             .ok_or_else(|| AppError::ValidationError("无效的五维ID".into()))?;
@@ -167,5 +168,6 @@ mod tests {
         assert_eq!(dim.color_no, "001");
         assert_eq!(dim.dye_lot_no, Some("20240101001".to_string()));
         assert_eq!(dim.grade, "一等品");
+        Ok(())
     }
 }

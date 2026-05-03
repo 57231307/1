@@ -55,6 +55,20 @@ impl RateLimiter {
             true
         }
     }
+
+    pub fn cleanup(&self) {
+        let now = Instant::now();
+        let expired_keys: Vec<String> = self
+            .storage
+            .iter()
+            .filter(|entry| now >= entry.reset_at)
+            .map(|entry| entry.key().clone())
+            .collect();
+
+        for key in expired_keys {
+            self.storage.remove(&key);
+        }
+    }
 }
 
 // 全局 100 次/分钟限制

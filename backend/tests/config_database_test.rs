@@ -3,9 +3,17 @@
 use bingxi_backend::config::settings::AppSettings;
 // Tests for config database
 
+fn set_test_env() {
+    std::env::set_var(
+        "AUTH__JWT_SECRET",
+        "test-jwt-secret-key-for-tests-only-32-bytes-minimum",
+    );
+}
+
 /// 测试配置文件加载
 #[tokio::test]
 async fn test_config_loading() {
+    set_test_env();
     // 测试默认配置加载
     let settings = AppSettings::new();
     assert!(settings.is_ok());
@@ -23,6 +31,7 @@ async fn test_config_loading() {
 /// 测试数据库连接池初始化
 #[tokio::test]
 async fn test_database_pool_initialization() {
+    set_test_env();
     // 注意：这个测试需要一个可用的PostgreSQL数据库
     // 这里我们测试配置加载和连接池创建过程，不实际连接数据库
     let settings = AppSettings::new().unwrap();
@@ -35,6 +44,7 @@ async fn test_database_pool_initialization() {
 /// 测试CORS配置
 #[tokio::test]
 async fn test_cors_config() {
+    set_test_env();
     let settings = AppSettings::new().unwrap();
     
     // 验证默认CORS配置
