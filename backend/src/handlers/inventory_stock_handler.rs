@@ -1,7 +1,8 @@
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::dual_unit_converter::DualUnitConverter;
+use crate::utils::error::AppError;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -215,83 +216,66 @@ pub async fn delete_stock(
 pub async fn list_stock(
     State(state): State<AppState>,
     Query(params): Query<ListStockParams>,
-) -> Result<Json<StockListResponse>, (StatusCode, String)> {
+) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockResponse>>>, AppError> {
     if let Err(e) = params.validate() {
-        return Err((StatusCode::BAD_REQUEST, e.to_string()));
+        return Err(AppError::ValidationError(e.to_string()));
     }
 
     let service = InventoryStockService::new(state.db.clone());
 
-    match service
+    let (stock_list, _total) = service
         .list_stock(
             params.page.unwrap_or(0),
             params.page_size.unwrap_or(20),
             params.warehouse_id,
             params.product_id,
         )
-        .await
-    {
-        Ok((stock_list, total)) => {
-            let stock_responses: Vec<StockResponse> = stock_list
-                .into_iter()
-                .map(|stock| StockResponse {
-                    id: stock.id,
-                    warehouse_id: stock.warehouse_id,
-                    product_id: stock.product_id,
-                    quantity_on_hand: stock.quantity_on_hand,
-                    quantity_available: stock.quantity_available,
-                    quantity_reserved: stock.quantity_reserved,
-                    reorder_point: stock.reorder_point,
-                    bin_location: stock.bin_location,
-                    created_at: stock.created_at,
-                    updated_at: stock.updated_at,
-                })
-                .collect();
+        .await?;
 
-            Ok(Json(StockListResponse {
-                stock: stock_responses,
-                total,
-                page: params.page.unwrap_or(0),
-                page_size: params.page_size.unwrap_or(20),
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let stock_responses: Vec<StockResponse> = stock_list
+        .into_iter()
+        .map(|stock| StockResponse {
+            id: stock.id,
+            warehouse_id: stock.warehouse_id,
+            product_id: stock.product_id,
+            quantity_on_hand: stock.quantity_on_hand,
+            quantity_available: stock.quantity_available,
+            quantity_reserved: stock.quantity_reserved,
+            reorder_point: stock.reorder_point,
+            bin_location: stock.bin_location,
+            created_at: stock.created_at,
+            updated_at: stock.updated_at,
+        })
+        .collect();
+
+    Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
 }
 
 pub async fn check_low_stock(
     State(state): State<AppState>,
     Query(params): Query<LowStockParams>,
-) -> Result<Json<LowStockResponse>, (StatusCode, String)> {
+) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    match service.check_low_stock(params.warehouse_id, params.product_id, params.batch_no).await {
-        Ok(stock_list) => {
-            let stock_responses: Vec<StockResponse> = stock_list
-                .into_iter()
-                .map(|stock| StockResponse {
-                    id: stock.id,
-                    warehouse_id: stock.warehouse_id,
-                    product_id: stock.product_id,
-                    quantity_on_hand: stock.quantity_on_hand,
-                    quantity_available: stock.quantity_available,
-                    quantity_reserved: stock.quantity_reserved,
-                    reorder_point: stock.reorder_point,
-                    bin_location: stock.bin_location,
-                    created_at: stock.created_at,
-                    updated_at: stock.updated_at,
-                })
-                .collect();
+    let stock_list = service.check_low_stock(params.warehouse_id, params.product_id, params.batch_no).await?;
 
-            let count = stock_responses.len() as u64;
+    let stock_responses: Vec<StockResponse> = stock_list
+        .into_iter()
+        .map(|stock| StockResponse {
+            id: stock.id,
+            warehouse_id: stock.warehouse_id,
+            product_id: stock.product_id,
+            quantity_on_hand: stock.quantity_on_hand,
+            quantity_available: stock.quantity_available,
+            quantity_reserved: stock.quantity_reserved,
+            reorder_point: stock.reorder_point,
+            bin_location: stock.bin_location,
+            created_at: stock.created_at,
+            updated_at: stock.updated_at,
+        })
+        .collect();
 
-            Ok(Json(LowStockResponse {
-                products: stock_responses,
-                count,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
 }
 
 use validator::Validate;
@@ -321,67 +305,54 @@ pub struct LowStockParams {
 pub async fn list_stock_fabric(
     State(state): State<AppState>,
     Query(params): Query<ListStockFabricParams>,
-) -> Result<Json<StockFabricListResponse>, (StatusCode, String)> {
+) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockFabricResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(0);
-    let page_size = params.page_size.unwrap_or(20);
-
-    match service
+    let stock_list = service
         .find_by_batch_and_color(
             &params.batch_no.unwrap_or_default(),
             &params.color_no.unwrap_or_default(),
             params.warehouse_id,
         )
-        .await
-    {
-        Ok(stock_list) => {
-            let total = stock_list.len() as u64;
-            let stock_responses: Vec<StockFabricResponse> = stock_list
-                .into_iter()
-                .map(|stock| StockFabricResponse {
-                    id: stock.id,
-                    warehouse_id: stock.warehouse_id,
-                    product_id: stock.product_id,
-                    batch_no: stock.batch_no,
-                    color_no: stock.color_no,
-                    dye_lot_no: stock.dye_lot_no,
-                    grade: stock.grade,
-                    quantity_on_hand: stock.quantity_on_hand,
-                    quantity_available: stock.quantity_available,
-                    quantity_reserved: stock.quantity_reserved,
-                    quantity_meters: stock.quantity_meters,
-                    quantity_kg: stock.quantity_kg,
-                    gram_weight: stock.gram_weight,
-                    width: stock.width,
-                    bin_location: stock.bin_location,
-                    created_at: stock.created_at,
-                    updated_at: stock.updated_at,
-                })
-                .collect();
+        .await?;
 
-            Ok(Json(StockFabricListResponse {
-                stock: stock_responses,
-                total,
-                page,
-                page_size,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let stock_responses: Vec<StockFabricResponse> = stock_list
+        .into_iter()
+        .map(|stock| StockFabricResponse {
+            id: stock.id,
+            warehouse_id: stock.warehouse_id,
+            product_id: stock.product_id,
+            batch_no: stock.batch_no,
+            color_no: stock.color_no,
+            dye_lot_no: stock.dye_lot_no,
+            grade: stock.grade,
+            quantity_on_hand: stock.quantity_on_hand,
+            quantity_available: stock.quantity_available,
+            quantity_reserved: stock.quantity_reserved,
+            quantity_meters: stock.quantity_meters,
+            quantity_kg: stock.quantity_kg,
+            gram_weight: stock.gram_weight,
+            width: stock.width,
+            bin_location: stock.bin_location,
+            created_at: stock.created_at,
+            updated_at: stock.updated_at,
+        })
+        .collect();
+
+    Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
 }
 
 /// 查询库存流水
 pub async fn list_transactions(
     State(state): State<AppState>,
     Query(params): Query<ListTransactionParams>,
-) -> Result<Json<TransactionListResponse>, (StatusCode, String)> {
+) -> Result<Json<crate::utils::response::ApiResponse<Vec<TransactionResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    match service
+    let (transactions, _total) = service
         .list_transactions(
             page,
             page_size,
@@ -393,50 +364,41 @@ pub async fn list_transactions(
             params.start_date,
             params.end_date,
         )
-        .await
-    {
-        Ok((transactions, total)) => {
-            let transaction_responses: Vec<TransactionResponse> = transactions
-                .into_iter()
-                .map(|txn| TransactionResponse {
-                    id: txn.id,
-                    transaction_type: txn.transaction_type,
-                    product_id: txn.product_id,
-                    warehouse_id: txn.warehouse_id,
-                    batch_no: txn.batch_no,
-                    color_no: txn.color_no,
-                    quantity_meters: txn.quantity_meters,
-                    quantity_kg: txn.quantity_kg,
-                    quantity_before_meters: txn.quantity_before_meters.unwrap_or(Decimal::ZERO),
-                    quantity_before_kg: txn.quantity_before_kg.unwrap_or(Decimal::ZERO),
-                    quantity_after_meters: txn.quantity_after_meters.unwrap_or(Decimal::ZERO),
-                    quantity_after_kg: txn.quantity_after_kg.unwrap_or(Decimal::ZERO),
-                    source_bill_type: txn.source_bill_type,
-                    source_bill_no: txn.source_bill_no,
-                    remarks: txn.notes,
-                    created_at: txn.created_at,
-                })
-                .collect();
+        .await?;
 
-            Ok(Json(TransactionListResponse {
-                transactions: transaction_responses,
-                total,
-                page,
-                page_size,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let transaction_responses: Vec<TransactionResponse> = transactions
+        .into_iter()
+        .map(|txn| TransactionResponse {
+            id: txn.id,
+            transaction_type: txn.transaction_type,
+            product_id: txn.product_id,
+            warehouse_id: txn.warehouse_id,
+            batch_no: txn.batch_no,
+            color_no: txn.color_no,
+            quantity_meters: txn.quantity_meters,
+            quantity_kg: txn.quantity_kg,
+            quantity_before_meters: txn.quantity_before_meters.unwrap_or(Decimal::ZERO),
+            quantity_before_kg: txn.quantity_before_kg.unwrap_or(Decimal::ZERO),
+            quantity_after_meters: txn.quantity_after_meters.unwrap_or(Decimal::ZERO),
+            quantity_after_kg: txn.quantity_after_kg.unwrap_or(Decimal::ZERO),
+            source_bill_type: txn.source_bill_type,
+            source_bill_no: txn.source_bill_no,
+            remarks: txn.notes,
+            created_at: txn.created_at,
+        })
+        .collect();
+
+    Ok(Json(crate::utils::response::ApiResponse::success(transaction_responses)))
 }
 
 /// 获取库存汇总（按批次 + 色号）
 pub async fn get_inventory_summary(
     State(state): State<AppState>,
     Query(params): Query<ListStockFabricParams>,
-) -> Result<Json<InventorySummaryResponse>, (StatusCode, String)> {
+) -> Result<Json<crate::utils::response::ApiResponse<Vec<InventorySummaryItem>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    match service
+    let summary_items = service
         .get_inventory_summary(
             params.warehouse_id,
             params.product_id,
@@ -444,41 +406,24 @@ pub async fn get_inventory_summary(
             params.color_no,
             params.grade,
         )
-        .await
-    {
-        Ok(summary_items) => {
-            let mut total_meters = rust_decimal::Decimal::ZERO;
-            let mut total_kg = rust_decimal::Decimal::ZERO;
+        .await?;
 
-            let summary: Vec<InventorySummaryItem> = summary_items
-                .into_iter()
-                .map(|item| {
-                    total_meters += item.total_quantity_meters;
-                    total_kg += item.total_quantity_kg;
-                    InventorySummaryItem {
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                        batch_no: item.batch_no,
-                        color_no: item.color_no,
-                        grade: item.grade,
-                        total_quantity_meters: item.total_quantity_meters,
-                        total_quantity_kg: item.total_quantity_kg,
-                        warehouse_name: item.warehouse_name,
-                    }
-                })
-                .collect();
+    let summary: Vec<InventorySummaryItem> = summary_items
+        .into_iter()
+        .map(|item| InventorySummaryItem {
+            product_id: item.product_id,
+            product_name: item.product_name,
+            batch_no: item.batch_no,
+            color_no: item.color_no,
+            grade: item.grade,
+            total_quantity_meters: item.total_quantity_meters,
+            total_quantity_kg: item.total_quantity_kg,
+            warehouse_name: item.warehouse_name,
+        })
+        .collect();
 
-            Ok(Json(InventorySummaryResponse {
-                summary,
-                total_meters,
-                total_kg,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    Ok(Json(crate::utils::response::ApiResponse::success(summary)))
 }
-
-use axum::extract::Query;
 
 #[derive(Debug, Deserialize)]
 pub struct ListStockFabricParams {

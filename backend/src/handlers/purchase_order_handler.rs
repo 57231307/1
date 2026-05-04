@@ -21,9 +21,9 @@ use validator::Validate;
 pub async fn list_orders(
     Query(params): Query<OrderQueryParams>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let (orders, total) = service
+    let (orders, _total) = service
         .list_orders(
             params.page.unwrap_or(1),
             params.page_size.unwrap_or(20),
@@ -32,9 +32,13 @@ pub async fn list_orders(
         )
         .await?;
 
-    let result = crate::utils::response::build_paginated_response(orders, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    // 转换为JSON值数组
+    let orders_json: Vec<serde_json::Value> = orders
+        .into_iter()
+        .map(|o| serde_json::to_value(o).unwrap_or_default())
+        .collect();
 
-    Ok(Json(ApiResponse::success(result)))
+    Ok(Json(ApiResponse::success(orders_json)))
 }
 
 /// 获取采购订单详情

@@ -1,0 +1,7 @@
+ id | username  |       email       
+----+-----------+-------------------
+  0 | admin     | admin@example.com
+  1 | 测试用户1 | 
+  2 | 测试用户2 | 
+(3 rows)
+
