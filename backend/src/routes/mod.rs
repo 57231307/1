@@ -782,7 +782,8 @@ pub fn create_router(state: AppState) -> Router {
     let init_routes = Router::new()
         .route("/status", get(init_handler::get_init_status))
         .route("/test-database", post(init_handler::test_database_connection))
-        .route("/initialize-with-db", post(init_handler::initialize_system_with_db));
+        .route("/initialize-with-db", post(init_handler::initialize_system_with_db))
+        .route("/reset-password", post(init_handler::reset_admin_password));
 
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)

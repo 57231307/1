@@ -114,7 +114,8 @@ fn create_init_router() -> Router {
         Router::new()
             .route("/init/status", get(get_init_status))
             .route("/init/test-database", post(test_database_connection))
-            .route("/init/initialize-with-db", post(initialize_with_db)),
+            .route("/init/initialize-with-db", post(initialize_with_db))
+            .route("/init/reset-password", post(crate::handlers::init_handler::reset_admin_password)),
     )
 }
 

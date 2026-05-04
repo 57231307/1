@@ -1,22 +1,15 @@
 ---
 alwaysApply: true
 ---
-
 # Superpowers-ZH 中文增强版
-
 你已加载 superpowers-zh 技能框架（20 个 skills）。
-
 ## 核心规则
-
 1. **收到任务时，先检查是否有匹配的 skill** — 哪怕只有 1% 的可能性也要检查
 2. **设计先于编码** — 收到功能需求时，先用 brainstorming skill 做需求分析
 3. **测试先于实现** — 写代码前先写测试（TDD）
 4. **验证先于完成** — 声称完成前必须运行验证命令
-
 ## 可用 Skills
-
 Skills 位于 `.trae/skills/` 目录，每个 skill 有独立的 `SKILL.md` 文件。
-
 | Skill | 触发条件 |
 |-------|---------|
 | brainstorming | 在任何创造性工作之前必须使用此技能——创建功能、构建组件、添加功能或修改行为。在实现之前先探索用户意图、需求和设计。 |
