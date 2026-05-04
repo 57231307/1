@@ -52,30 +52,26 @@ impl PurchaseReceiptService {
 
     /// 确认收货单
     pub async fn confirm(id: i32) -> Result<PurchaseReceipt, String> {
-        let response: ApiResponse<PurchaseReceipt> =
-            ApiService::post(&format!("/purchases/receipts/{}/confirm", id), &serde_json::json!({})).await?;
-        response.into_result()
+        let response: PurchaseReceipt = ApiService::post(&format!("/purchases/receipts/{}/confirm", id), &serde_json::json!({})).await?;
+        Ok(response)
     }
 
     /// 获取收货单明细列表
     pub async fn list_items(receipt_id: i32) -> Result<Vec<PurchaseReceiptItem>, String> {
-        let response: ApiResponse<Vec<PurchaseReceiptItem>> =
-            ApiService::get(&format!("/purchases/receipts/{}/items", receipt_id)).await?;
-        response.into_result()
+        let response: Vec<PurchaseReceiptItem> = ApiService::get(&format!("/purchases/receipts/{}/items", receipt_id)).await?;
+        Ok(response)
     }
 
     /// 添加收货明细
     pub async fn create_item(receipt_id: i32, req: CreateReceiptItemRequest) -> Result<PurchaseReceiptItem, String> {
-        let response: ApiResponse<PurchaseReceiptItem> =
-            ApiService::post(&format!("/purchases/receipts/{}/items", receipt_id), &req).await?;
-        response.into_result()
+        let response: PurchaseReceiptItem = ApiService::post(&format!("/purchases/receipts/{}/items", receipt_id), &req).await?;
+        Ok(response)
     }
 
     /// 更新收货明细
     pub async fn update_item(receipt_id: i32, item_id: i32, req: UpdateReceiptItemRequest) -> Result<PurchaseReceiptItem, String> {
-        let response: ApiResponse<PurchaseReceiptItem> =
-            ApiService::put(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id), &req).await?;
-        response.into_result()
+        let response: PurchaseReceiptItem = ApiService::put(&format!("/purchases/receipts/{}/items/{}", receipt_id, item_id), &req).await?;
+        Ok(response)
     }
 
     /// 删除收货明细

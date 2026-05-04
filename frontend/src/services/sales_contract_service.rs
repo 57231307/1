@@ -32,39 +32,39 @@ impl SalesContractService {
             url.push_str(&format!("page_size={}", page_size));
         }
 
-        let response: ApiResponse<SalesContractListResponse> = ApiService::get(&url).await?;
-        response.into_result()
+        let response: SalesContractListResponse = ApiService::get(&url).await?;
+        Ok(response)
     }
 
     /// 获取销售合同详情
     #[allow(dead_code)]
     pub async fn get_contract(id: i32) -> Result<SalesContract, String> {
-        let response: ApiResponse<SalesContract> = ApiService::get(&format!("/sales-contracts/{}", id)).await?;
-        response.into_result()
+        let response: SalesContract = ApiService::get(&format!("/sales-contracts/{}", id)).await?;
+        Ok(response)
     }
 
     /// 创建销售合同
     pub async fn create_contract(req: CreateSalesContractRequest) -> Result<SalesContract, String> {
-        let response: ApiResponse<SalesContract> = ApiService::post("/sales-contracts", &req).await?;
-        response.into_result()
+        let response: SalesContract = ApiService::post("/sales-contracts", &req).await?;
+        Ok(response)
     }
 
     /// 审核销售合同
     pub async fn approve_contract(id: i32) -> Result<SalesContract, String> {
-        let response: ApiResponse<SalesContract> = ApiService::put(&format!("/sales-contracts/{}/approve", id), &serde_json::json!({})).await?;
-        response.into_result()
+        let response: SalesContract = ApiService::put(&format!("/sales-contracts/{}/approve", id), &serde_json::json!({})).await?;
+        Ok(response)
     }
 
     /// 执行销售合同
     pub async fn execute_contract(id: i32, req: ExecuteSalesContractRequest) -> Result<SalesContract, String> {
-        let response: ApiResponse<SalesContract> = ApiService::put(&format!("/sales-contracts/{}/execute", id), &req).await?;
-        response.into_result()
+        let response: SalesContract = ApiService::put(&format!("/sales-contracts/{}/execute", id), &req).await?;
+        Ok(response)
     }
 
     /// 取消销售合同
     pub async fn cancel_contract(id: i32, reason: String) -> Result<SalesContract, String> {
         let req = CancelSalesContractRequest { reason };
-        let response: ApiResponse<SalesContract> = ApiService::put(&format!("/sales-contracts/{}/cancel", id), &req).await?;
-        response.into_result()
+        let response: SalesContract = ApiService::put(&format!("/sales-contracts/{}/cancel", id), &req).await?;
+        Ok(response)
     }
 }

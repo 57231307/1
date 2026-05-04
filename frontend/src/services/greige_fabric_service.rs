@@ -55,17 +55,17 @@ impl GreigeFabricService {
         } else {
             format!("/greige-fabric?{}", params.join("&"))
         };
-        let response: ApiResponse<GreigeFabricListResponse> = ApiService::get(&url).await?;
-        response.into_result()
+        let response: GreigeFabricListResponse = ApiService::get(&url).await?;
+        Ok(response)
     }
 
     pub async fn stock_in(id: i32, req: StockInRequest) -> Result<GreigeFabric, String> {
-        let response: ApiResponse<GreigeFabric> = ApiService::post(&format!("/greige-fabric/{}/stock-in", id), &req).await?;
-        response.into_result()
+        let response: GreigeFabric = ApiService::post(&format!("/greige-fabric/{}/stock-in", id), &req).await?;
+        Ok(response)
     }
 
     pub async fn stock_out(id: i32, req: StockOutRequest) -> Result<GreigeFabric, String> {
-        let response: ApiResponse<GreigeFabric> = ApiService::post(&format!("/greige-fabric/{}/stock-out", id), &req).await?;
-        response.into_result()
+        let response: GreigeFabric = ApiService::post(&format!("/greige-fabric/{}/stock-out", id), &req).await?;
+        Ok(response)
     }
 }

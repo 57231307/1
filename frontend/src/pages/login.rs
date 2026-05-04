@@ -154,17 +154,17 @@ impl Component for LoginPage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let onusername = ctx.link().batch_callback(|e: Event| {
+        let onusername = ctx.link().batch_callback(|e: InputEvent| {
             let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
             Some(Msg::UsernameChanged(target.value()))
         });
 
-        let onpassword = ctx.link().batch_callback(|e: Event| {
+        let onpassword = ctx.link().batch_callback(|e: InputEvent| {
             let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
             Some(Msg::PasswordChanged(target.value()))
         });
 
-        let ontotp = ctx.link().batch_callback(|e: Event| {
+        let ontotp = ctx.link().batch_callback(|e: InputEvent| {
             let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
             Some(Msg::TotpTokenChanged(target.value()))
         });
@@ -184,14 +184,14 @@ impl Component for LoginPage {
                         <div class="error-message">{error}</div>
                     }
 
-                    <form onsubmit={onsubmit}>
+                    <div class="login-form">
                         <div class="form-group">
                             <label for="username">{"用户名"}</label>
                             <input
                                 type="text"
                                 id="username"
                                 value={self.username.clone()}
-                                onchange={onusername}
+                                oninput={onusername}
                                 placeholder="请输入用户名"
                                 disabled={self.is_loading}
                             />
@@ -203,7 +203,7 @@ impl Component for LoginPage {
                                 type="password"
                                 id="password"
                                 value={self.password.clone()}
-                                onchange={onpassword}
+                                oninput={onpassword}
                                 placeholder="请输入密码"
                                 disabled={self.is_loading}
                             />
@@ -216,7 +216,7 @@ impl Component for LoginPage {
                                     type="text"
                                     id="totp"
                                     value={self.totp_token.clone()}
-                                    onchange={ontotp}
+                                    oninput={ontotp}
                                     placeholder="请输入 6 位验证码"
                                     disabled={self.is_loading}
                                     maxlength="6"
@@ -225,9 +225,9 @@ impl Component for LoginPage {
                         }
 
                         <button
-                            type="submit"
+                            type="button"
+                            onclick={ctx.link().callback(|_| Msg::LoginStarted)}
                             class="login-button"
-                            disabled={self.is_loading || self.username.is_empty() || self.password.is_empty() || (self.show_totp_input && self.totp_token.len() != 6)}
                         >
                             if self.is_loading {
                                 {"登录中..."}
@@ -235,7 +235,7 @@ impl Component for LoginPage {
                                 {"登录"}
                             }
                         </button>
-                    </form>
+                    </div>
 
                     <div class="login-footer">
                         <p>{"秉羲面料管理 v1.0.0"}</p>

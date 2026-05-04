@@ -10,7 +10,6 @@ use crate::models::cost_collection::{
 };
 use crate::services::cost_collection_service::CostCollectionService;
 use crate::services::crud_service::CrudService;
-use crate::components::main_layout::MainLayout;
 
 /// 成本归集页面状态
 pub struct CostCollectionPage {
@@ -312,7 +311,7 @@ impl Component for CostCollectionPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page="cost_collection">
+            <>
                 <div class="cost-collection-page">
                     <div class="page-header">
                         <h1>{"成本归集"}</h1>
@@ -321,7 +320,7 @@ impl Component for CostCollectionPage {
 
                     {self.render_content(ctx)}
                 </div>
-            </MainLayout>
+            </>
         }
     }
 }

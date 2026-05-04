@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS products (
     cost_price DECIMAL(10,2),
     description TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -153,22 +154,29 @@ CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 -- ==================== 仓库表 ====================
 CREATE TABLE IF NOT EXISTS warehouses (
     id SERIAL PRIMARY KEY,
-    code VARCHAR(50) NOT NULL UNIQUE,
+    warehouse_code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(200) NOT NULL,
     address VARCHAR(500),
-    manager VARCHAR(100),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    country VARCHAR(100),
+    postal_code VARCHAR(20),
     phone VARCHAR(20),
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    email VARCHAR(100),
+    manager_id INTEGER REFERENCES users(id),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE warehouses IS '仓库信息表';
-COMMENT ON COLUMN warehouses.code IS '仓库编码';
-COMMENT ON COLUMN warehouses.status IS '状态：active-启用，inactive-停用';
+COMMENT ON COLUMN warehouses.warehouse_code IS '仓库编码';
+COMMENT ON COLUMN warehouses.is_active IS '状态：true-启用，false-停用';
 
-CREATE INDEX IF NOT EXISTS idx_warehouses_code ON warehouses(code);
-CREATE INDEX IF NOT EXISTS idx_warehouses_status ON warehouses(status);
+CREATE INDEX IF NOT EXISTS idx_warehouses_code ON warehouses(warehouse_code);
+CREATE INDEX IF NOT EXISTS idx_warehouses_status ON warehouses(is_active);
 
 -- ========================================
 -- 4. 库存管理
@@ -177,33 +185,49 @@ CREATE INDEX IF NOT EXISTS idx_warehouses_status ON warehouses(status);
 -- ==================== 库存表 ====================
 CREATE TABLE IF NOT EXISTS inventory_stocks (
     id SERIAL PRIMARY KEY,
-    product_id INTEGER NOT NULL REFERENCES products(id),
     warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
+    product_id INTEGER NOT NULL REFERENCES products(id),
+    quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0,
+    quantity_available DECIMAL(12,2) NOT NULL DEFAULT 0,
+    quantity_reserved DECIMAL(12,2) NOT NULL DEFAULT 0,
+    quantity_incoming DECIMAL(12,2) NOT NULL DEFAULT 0,
+    reorder_point DECIMAL(12,2) NOT NULL DEFAULT 0,
+    reorder_quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
+    bin_location VARCHAR(100),
+    last_count_date TIMESTAMPTZ,
+    last_movement_date TIMESTAMPTZ,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     batch_no VARCHAR(50) NOT NULL,
-    color_code VARCHAR(50),
-    color_name VARCHAR(100),
-    quantity DECIMAL(10,2) NOT NULL DEFAULT 0,
-    unit VARCHAR(20) NOT NULL,
-    unit_price DECIMAL(10,2),
-    total_amount DECIMAL(10,2),
-    min_stock DECIMAL(10,2) DEFAULT 0,
-    max_stock DECIMAL(10,2) DEFAULT 0,
-    remark TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    color_no VARCHAR(50) NOT NULL,
+    dye_lot_no VARCHAR(50),
+    grade VARCHAR(20) NOT NULL,
+    production_date TIMESTAMPTZ,
+    expiry_date TIMESTAMPTZ,
+
+    quantity_meters DECIMAL(12,2) NOT NULL DEFAULT 0,
+    quantity_kg DECIMAL(12,2) NOT NULL DEFAULT 0,
+    gram_weight DECIMAL(10,2),
+    width DECIMAL(10,2),
+
+    location_id INTEGER,
+    shelf_no VARCHAR(50),
+    layer_no VARCHAR(50),
+
+    stock_status VARCHAR(20) NOT NULL DEFAULT 'active',
+    quality_status VARCHAR(20) NOT NULL DEFAULT 'qualified'
 );
 
 COMMENT ON TABLE inventory_stocks IS '库存信息表（面料批次管理）';
 COMMENT ON COLUMN inventory_stocks.batch_no IS '批次号';
-COMMENT ON COLUMN inventory_stocks.color_code IS '色号';
-COMMENT ON COLUMN inventory_stocks.min_stock IS '最低库存预警线';
-COMMENT ON COLUMN inventory_stocks.max_stock IS '最高库存预警线';
+COMMENT ON COLUMN inventory_stocks.color_no IS '色号';
 
 CREATE INDEX IF NOT EXISTS idx_inventory_stocks_product_id ON inventory_stocks(product_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_stocks_warehouse_id ON inventory_stocks(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_stocks_batch_no ON inventory_stocks(batch_no);
-CREATE INDEX IF NOT EXISTS idx_inventory_stocks_status ON inventory_stocks(status);
+CREATE INDEX IF NOT EXISTS idx_inventory_stocks_status ON inventory_stocks(stock_status);
 
 -- ==================== 库存调整表 ====================
 CREATE TABLE IF NOT EXISTS inventory_adjustments (
@@ -263,16 +287,25 @@ CREATE INDEX IF NOT EXISTS idx_inventory_adjustment_items_stock_id ON inventory_
 CREATE TABLE IF NOT EXISTS sales_orders (
     id SERIAL PRIMARY KEY,
     order_no VARCHAR(50) NOT NULL UNIQUE,
-    customer_name VARCHAR(200) NOT NULL,
+    customer_id INTEGER NOT NULL,
     order_date TIMESTAMPTZ NOT NULL,
+    required_date TIMESTAMPTZ NOT NULL,
+    ship_date TIMESTAMPTZ,
     status VARCHAR(20) NOT NULL,
-    total_amount DECIMAL(12,2) NOT NULL,
+    subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    shipping_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    balance_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    shipping_address TEXT,
+    billing_address TEXT,
     notes TEXT,
-    created_by INTEGER,
-    approved_by INTEGER,
+    created_by INTEGER REFERENCES users(id),
+    approved_by INTEGER REFERENCES users(id),
     approved_at TIMESTAMPTZ,
-    shipped_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -288,12 +321,37 @@ CREATE TABLE IF NOT EXISTS sales_order_items (
     id SERIAL PRIMARY KEY,
     order_id INTEGER NOT NULL REFERENCES sales_orders(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id),
-    quantity DECIMAL(12,2) NOT NULL,
-    unit_price DECIMAL(12,2) NOT NULL,
-    total_price DECIMAL(12,2) NOT NULL,
+    quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
+    unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_percent DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax_percent DECIMAL(12,2) NOT NULL DEFAULT 0,
+    subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    shipped_quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
     notes TEXT,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    color_no VARCHAR(50) NOT NULL DEFAULT '',
+    color_name VARCHAR(100),
+    pantone_code VARCHAR(50),
+    grade_required VARCHAR(50),
+    quantity_meters DECIMAL(12,2) NOT NULL DEFAULT 0,
+    quantity_kg DECIMAL(12,2) NOT NULL DEFAULT 0,
+    gram_weight DECIMAL(12,2),
+    width DECIMAL(12,2),
+    batch_requirement VARCHAR(100),
+    dye_lot_requirement VARCHAR(100),
+    base_price DECIMAL(12,2),
+    color_extra_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    grade_price_diff DECIMAL(12,2) NOT NULL DEFAULT 0,
+    final_price DECIMAL(12,2),
+    shipped_quantity_meters DECIMAL(12,2) NOT NULL DEFAULT 0,
+    shipped_quantity_kg DECIMAL(12,2) NOT NULL DEFAULT 0,
+    paper_tube_weight DECIMAL(12,2),
+    is_net_weight BOOLEAN
 );
 
 COMMENT ON TABLE sales_order_items IS '销售订单明细表';
@@ -409,11 +467,11 @@ INSERT INTO departments (code, name, description) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- 插入默认仓库
-INSERT INTO warehouses (code, name, status) VALUES
-('WH001', '主仓库', 'active'),
-('WH002', '成品仓库', 'active'),
-('WH003', '原料仓库', 'active')
-ON CONFLICT (code) DO NOTHING;
+INSERT INTO warehouses (warehouse_code, name, is_active) VALUES
+('WH001', '主仓库', true),
+('WH002', '成品仓库', true),
+('WH003', '原料仓库', true)
+ON CONFLICT (warehouse_code) DO NOTHING;
 
 -- 插入默认管理员用户（密码：admin123，使用 bcrypt 加密）
 -- 注意：实际密码哈希值需要在应用层生成
@@ -431,18 +489,17 @@ SELECT
     p.name AS product_name,
     p.code AS product_code,
     w.name AS warehouse_name,
-    s.quantity,
-    s.min_stock,
-    s.max_stock,
+    s.quantity_available AS quantity,
+    s.reorder_point AS min_stock,
+    s.quantity_available,
     CASE 
-        WHEN s.quantity < s.min_stock THEN 'low'
-        WHEN s.quantity > s.max_stock THEN 'high'
+        WHEN s.quantity_available < s.reorder_point THEN 'low'
         ELSE 'normal'
     END AS stock_status
 FROM inventory_stocks s
 JOIN products p ON s.product_id = p.id
 JOIN warehouses w ON s.warehouse_id = w.id
-WHERE s.quantity < s.min_stock OR s.quantity > s.max_stock;
+WHERE s.quantity_available < s.reorder_point;
 
 -- ========================================
 -- 迁移完成
@@ -882,8 +939,8 @@ ON CONFLICT DO NOTHING;
 -- 7.1 迁移现有库存数据到双计量单位字段
 UPDATE inventory_stocks
 SET 
-    quantity_meters = quantity,
-    quantity_kg = quantity * COALESCE(gram_weight, 150) / 1000,
+    quantity_meters = quantity_available,
+    quantity_kg = quantity_available * COALESCE(gram_weight, 150) / 1000,
     batch_no = COALESCE(batch_no, 'B' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || LPAD(id::varchar, 4, '0')),
     color_no = COALESCE(color_no, 'C001'),
     grade = '一等品'
@@ -896,7 +953,7 @@ SET
     quantity_kg = quantity * COALESCE(gram_weight, 150) / 1000,
     color_no = 'C001',
     grade_required = '一等品',
-    final_price = total_price / NULLIF(quantity, 0)
+    final_price = total_amount / NULLIF(quantity, 0)
 WHERE quantity_meters = 0;
 
 -- ========================================
@@ -919,7 +976,7 @@ SELECT
     SUM(s.quantity_meters) AS total_quantity_meters,
     SUM(s.quantity_kg) AS total_quantity_kg,
     AVG(s.gram_weight) AS avg_gram_weight,
-    SUM(s.quantity_meters * COALESCE(s.unit_price, 0)) AS total_amount
+    SUM(s.quantity_meters * COALESCE(p.standard_price, 0)) AS total_amount
 FROM inventory_stocks s
 INNER JOIN products p ON s.product_id = p.id
 INNER JOIN warehouses w ON s.warehouse_id = w.id
@@ -7791,7 +7848,6 @@ COMMENT ON TABLE logistics_waybills IS '物流运单与发货追踪表';
 
 -- Add barcode field to inventory_pieces if not exists
 ALTER TABLE inventory_piece ADD COLUMN IF NOT EXISTS barcode VARCHAR(100) UNIQUE;
--- ========================================\n-- 秉羲 ERP 系统 - 性能优化迁移脚本\n-- 版本：2026-04-01\n-- 说明：添加索引以优化数据库查询性能\n-- ========================================\n\n-- ========================================\n-- 1. 库存管理优化\n-- ========================================\n\n-- 库存表复合索引（低库存检查）\nCREATE INDEX IF NOT EXISTS idx_inventory_low_stock ON inventory_stocks(warehouse_id, stock_status, quality_status, reorder_point, quantity_available);\n\n-- 库存表复合索引（按产品和批次查询）\nCREATE INDEX IF NOT EXISTS idx_inventory_product_batch ON inventory_stocks(product_id, batch_no, color_no);\n\n-- 库存表复合索引（按状态和数量查询）\nCREATE INDEX IF NOT EXISTS idx_inventory_status_quantity ON inventory_stocks(stock_status, quality_status, quantity_available);\n\n-- ========================================\n-- 2. 销售管理优化\n-- ========================================\n\n-- 销售订单表复合索引（按状态和日期查询）\nCREATE INDEX IF NOT EXISTS idx_sales_orders_status_date ON sales_orders(status, order_date);\n\n-- 销售订单表复合索引（按客户和状态查询）\nCREATE INDEX IF NOT EXISTS idx_sales_orders_customer_status ON sales_orders(customer_name, status);\n\n-- 销售订单明细表复合索引（按订单和色号查询）\nCREATE INDEX IF NOT EXISTS idx_sales_order_items_order_color ON sales_order_items(order_id, color_no);\n\n-- 销售订单明细表复合索引（按产品和批次查询）\nCREATE INDEX IF NOT EXISTS idx_sales_order_items_product_batch ON sales_order_items(product_id, batch_requirement);\n\n-- ========================================\n-- 3. 库存流水优化\n-- ========================================\n\n-- 库存流水表复合索引（按交易类型和日期查询）\nCREATE INDEX IF NOT EXISTS idx_inventory_transactions_type_date ON inventory_transactions(transaction_type, created_at);\n\n-- 库存流水表复合索引（按仓库和批次查询）\nCREATE INDEX IF NOT EXISTS idx_inventory_transactions_warehouse_batch ON inventory_transactions(warehouse_id, batch_no, color_no);\n\n-- 库存流水表复合索引（按产品和数量查询）\nCREATE INDEX IF NOT EXISTS idx_inventory_transactions_product_quantity ON inventory_transactions(product_id, quantity_meters, quantity_kg);\n\n-- ========================================\n-- 4. 产品管理优化\n-- ========================================\n\n-- 产品表复合索引（按类型和状态查询）\nCREATE INDEX IF NOT EXISTS idx_products_type_status ON products(product_type, status);\n\n-- 产品表复合索引（按类别和价格查询）\nCREATE INDEX IF NOT EXISTS idx_products_category_price ON products(category_id, standard_price);\n\n-- 产品色号表复合索引（按产品和色号查询）\nCREATE INDEX IF NOT EXISTS idx_product_colors_product_color ON product_colors(product_id, color_no, is_active);\n\n-- ========================================\n-- 5. 客户管理优化\n-- ========================================\n\n-- 客户表复合索引（按行业和质量要求查询）\nCREATE INDEX IF NOT EXISTS idx_customers_industry_quality ON customers(customer_industry, quality_requirement);\n\n-- 客户表索引（按名称查询）\nCREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);\n\n-- ========================================\n-- 6. 仓库管理优化\n-- ========================================\n\n-- 仓库表复合索引（按类型和状态查询）\nCREATE INDEX IF NOT EXISTS idx_warehouses_type_status ON warehouses(warehouse_type, status);\n\n-- 库位表复合索引（按仓库和类型查询）\nCREATE INDEX IF NOT EXISTS idx_warehouse_locations_warehouse_type ON warehouse_locations(warehouse_id, location_type);\n\n-- ========================================\n-- 7. 系统管理优化\n-- ========================================\n\n-- 操作日志表复合索引（按模块和操作查询）\nCREATE INDEX IF NOT EXISTS idx_operation_logs_module_action ON operation_logs(module, action, status);\n\n-- 操作日志表复合索引（按用户和日期查询）\nCREATE INDEX IF NOT EXISTS idx_operation_logs_user_date ON operation_logs(user_id, created_at);\n\n-- ========================================\n-- 8. 视图优化\n-- ========================================\n\n-- 重新创建库存预警视图（增加索引使用）\nCREATE OR REPLACE VIEW v_low_stock_alerts AS\nSELECT \n    s.id,\n    s.batch_no,\n    p.name AS product_name,\n    p.code AS product_code,\n    w.name AS warehouse_name,\n    s.quantity_meters AS quantity,\n    s.reorder_point AS min_stock,\n    s.quantity_available,\n    CASE \n        WHEN s.quantity_available < s.reorder_point THEN 'low'\n        ELSE 'normal'\n    END AS stock_status\nFROM inventory_stocks s\nJOIN products p ON s.product_id = p.id\nJOIN warehouses w ON s.warehouse_id = w.id\nWHERE s.stock_status = '正常'\n  AND s.quality_status = '合格'\n  AND s.reorder_point > 0\n  AND s.quantity_available < s.reorder_point;\n\n-- ========================================\n-- 迁移完成提示\n-- ========================================\n\nDO $$\nBEGIN\n    RAISE NOTICE '========================================';\n    RAISE NOTICE '秉羲 ERP 系统 - 性能优化迁移完成';\n    RAISE NOTICE '版本：2026-04-01';\n    RAISE NOTICE '========================================';\n    RAISE NOTICE '添加索引：16 个';\n    RAISE NOTICE '  - 库存管理：4 个';\n    RAISE NOTICE '  - 销售管理：4 个';\n    RAISE NOTICE '  - 库存流水：3 个';\n    RAISE NOTICE '  - 产品管理：3 个';\n    RAISE NOTICE '  - 客户管理：2 个';\n    RAISE NOTICE '  - 仓库管理：2 个';\n    RAISE NOTICE '  - 系统管理：2 个';\n    RAISE NOTICE '';\n    RAISE NOTICE '优化视图：1 个';\n    RAISE NOTICE '  - v_low_stock_alerts (库存预警视图)';\n    RAISE NOTICE '========================================';\nEND $$;-- ========================================
 -- 秉羲 ERP 系统 - 供应商产品映射模块数据库迁移
 -- 版本：2026-03-23
 -- 模块：供应商产品映射
@@ -7951,8 +8007,6 @@ ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
-COMMENT ON COLUMN inventory_stocks.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（公斤/米）';
 
 -- 2. 采购入库明细表添加计算字段
 ALTER TABLE purchase_receipt_item 
@@ -8786,8 +8840,6 @@ ADD COLUMN IF NOT EXISTS quantity_kg DECIMAL(18,4),
 ADD COLUMN IF NOT EXISTS calculated_quantity_kg DECIMAL(10,3),
 ADD COLUMN IF NOT EXISTS unit_conversion_rate DECIMAL(10,6);
 
-COMMENT ON COLUMN inventory_stocks.calculated_quantity_kg IS '计算后的公斤数（自动计算）';
-COMMENT ON COLUMN inventory_stocks.unit_conversion_rate IS '单位换算率（公斤/米）';
 
 -- 2. 采购入库明细表添加计算字段
 ALTER TABLE purchase_receipt_item 

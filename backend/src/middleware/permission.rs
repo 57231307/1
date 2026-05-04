@@ -53,6 +53,8 @@ pub async fn permission_middleware(
     )
     .await;
 
+    tracing::info!("DEBUG_PERM: user={}, role={}, path={}, has_perm={}", auth.user_id, role_id, path, has_permission);
+
     if has_permission {
         Ok(next.run(request).await)
     } else {
@@ -114,6 +116,11 @@ async fn check_permission(
     resource_id: Option<i32>,
     action: &str,
 ) -> bool {
+    // Admin role bypasses all permission checks
+    if role_id == 1 {
+        return true;
+    }
+
     // Attempt to load from cache
     let permissions = if let Some(cached) = PERMISSION_CACHE.get(&role_id) {
         cached.clone()

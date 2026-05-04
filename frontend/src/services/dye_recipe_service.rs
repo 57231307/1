@@ -52,17 +52,17 @@ impl DyeRecipeService {
         } else {
             format!("/dye-recipe?{}", params.join("&"))
         };
-        let response: ApiResponse<DyeRecipeListResponse> = ApiService::get(&url).await?;
-        response.into_result()
+        let response: DyeRecipeListResponse = ApiService::get(&url).await?;
+        Ok(response)
     }
 
     pub async fn approve(id: i32, req: ApproveRecipeRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::post(&format!("/dye-recipe/{}/approve", id), &req).await?;
-        response.into_result()
+        let response: DyeRecipe = ApiService::post(&format!("/dye-recipe/{}/approve", id), &req).await?;
+        Ok(response)
     }
 
     pub async fn create_version(id: i32, req: CreateVersionRequest) -> Result<DyeRecipe, String> {
-        let response: ApiResponse<DyeRecipe> = ApiService::post(&format!("/dye-recipe/{}/version", id), &req).await?;
-        response.into_result()
+        let response: DyeRecipe = ApiService::post(&format!("/dye-recipe/{}/version", id), &req).await?;
+        Ok(response)
     }
 }

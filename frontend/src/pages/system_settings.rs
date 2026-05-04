@@ -1,6 +1,5 @@
 use crate::utils::permissions;
 use crate::utils::toast_helper;
-use crate::components::main_layout::MainLayout;
 use yew::prelude::*;
 
 #[function_component(SystemSettingsPage)]
@@ -110,7 +109,7 @@ pub fn system_settings_page() -> Html {
     };
 
     html! {
-        <MainLayout current_page="系统设置">
+        <>
             <div class="px-4 sm:px-6 lg:px-8 py-8">
                 <div class="sm:flex sm:items-center">
                     <div class="sm:flex-auto">
@@ -160,6 +159,6 @@ pub fn system_settings_page() -> Html {
                     }}
                 </div>
             </div>
-        </MainLayout>
+        </>
     }
 }

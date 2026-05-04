@@ -58,9 +58,8 @@ impl SalesPriceService {
             format!("?{}", params.join("&"))
         };
 
-        let response: ApiResponse<Vec<SalesPrice>> =
-            ApiService::get(&format!("/sales/prices{}", query)).await?;
-        response.into_result()
+        let response: Vec<SalesPrice> = ApiService::get(&format!("/sales/prices{}", query)).await?;
+        Ok(response)
     }
 
     /// 获取销售价格详情
@@ -73,16 +72,14 @@ impl SalesPriceService {
 
     /// 审批销售价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<SalesPrice, String> {
-        let response: ApiResponse<SalesPrice> =
-            ApiService::post(&format!("/sales/prices/{}/approve", id), &req).await?;
-        response.into_result()
+        let response: SalesPrice = ApiService::post(&format!("/sales/prices/{}/approve", id), &req).await?;
+        Ok(response)
     }
 
     /// 获取客户价格等级
     pub async fn get_customer_price_level(customer_type: &str) -> Result<Vec<SalesPrice>, String> {
-        let response: ApiResponse<Vec<SalesPrice>> =
-            ApiService::get(&format!("/sales/prices/customer-level/{}", customer_type)).await?;
-        response.into_result()
+        let response: Vec<SalesPrice> = ApiService::get(&format!("/sales/prices/customer-level/{}", customer_type)).await?;
+        Ok(response)
     }
 
     /// 获取价格策略
@@ -93,8 +90,7 @@ impl SalesPriceService {
             String::new()
         };
 
-        let response: ApiResponse<Vec<SalesPrice>> =
-            ApiService::get(&format!("/sales/prices/strategies{}", query)).await?;
-        response.into_result()
+        let response: Vec<SalesPrice> = ApiService::get(&format!("/sales/prices/strategies{}", query)).await?;
+        Ok(response)
     }
 }

@@ -7,7 +7,8 @@ use axum::{
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
 
-use crate::models::dto::{ApiResponse, PageRequest};
+use crate::models::dto::PageRequest;
+use crate::utils::response::ApiResponse;
 use crate::services::inventory_count_service::{
     CreateInventoryCountRequest, InventoryCountService, UpdateInventoryCountRequest,
 };

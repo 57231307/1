@@ -9,7 +9,6 @@ use crate::models::assist_accounting::{
 };
 use crate::services::assist_accounting_service::AssistAccountingService;
 use crate::services::crud_service::CrudService;
-use crate::components::main_layout::MainLayout;
 
 /// 辅助核算页面状态
 pub struct AssistAccountingPage {
@@ -246,7 +245,7 @@ impl Component for AssistAccountingPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page="assist_accounting">
+            <>
                 <div class="assist-accounting-page">
                     <div class="page-header">
                         <h1>{"辅助核算"}</h1>
@@ -255,7 +254,7 @@ impl Component for AssistAccountingPage {
 
                     {self.render_content(ctx)}
                 </div>
-            </MainLayout>
+            </>
         }
     }
 }

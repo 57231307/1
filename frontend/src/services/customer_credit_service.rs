@@ -27,50 +27,45 @@ impl CustomerCreditService {
         if let Some(page_size) = params.page_size {
             url.push_str(&format!("page_size={}", page_size));
         }
-        let response: ApiResponse<CustomerCreditListResponse> = ApiService::get(&url).await?;
-        response.into_result()
+        let response: CustomerCreditListResponse = ApiService::get(&url).await?;
+        Ok(response)
     }
 
     /// 获取客户信用详情
     pub async fn get_credit(customer_id: i32) -> Result<CustomerCredit, String> {
-        let response: ApiResponse<CustomerCredit> =
-            ApiService::get(&format!("/customer-credits/{}", customer_id)).await?;
-        response.into_result()
+        let response: CustomerCredit = ApiService::get(&format!("/customer-credits/{}", customer_id)).await?;
+        Ok(response)
     }
 
     /// 设置客户信用评级
     pub async fn set_credit_rating(req: CreditRatingRequest) -> Result<CustomerCredit, String> {
-        let response: ApiResponse<CustomerCredit> = ApiService::post("/customer-credits/rating", &req).await?;
-        response.into_result()
+        let response: CustomerCredit = ApiService::post("/customer-credits/rating", &req).await?;
+        Ok(response)
     }
 
     /// 占用信用额度
     pub async fn occupy_credit(customer_id: i32, amount: String) -> Result<CustomerCredit, String> {
         let req = CreditAmountRequest { amount };
-        let response: ApiResponse<CustomerCredit> =
-            ApiService::post(&format!("/customer-credits/{}/occupy", customer_id), &req).await?;
-        response.into_result()
+        let response: CustomerCredit = ApiService::post(&format!("/customer-credits/{}/occupy", customer_id), &req).await?;
+        Ok(response)
     }
 
     /// 释放信用额度
     pub async fn release_credit(customer_id: i32, amount: String) -> Result<CustomerCredit, String> {
         let req = CreditAmountRequest { amount };
-        let response: ApiResponse<CustomerCredit> =
-            ApiService::post(&format!("/customer-credits/{}/release", customer_id), &req).await?;
-        response.into_result()
+        let response: CustomerCredit = ApiService::post(&format!("/customer-credits/{}/release", customer_id), &req).await?;
+        Ok(response)
     }
 
     /// 调整信用额度
     pub async fn adjust_credit_limit(customer_id: i32, req: CreditLimitAdjustmentRequest) -> Result<CustomerCredit, String> {
-        let response: ApiResponse<CustomerCredit> =
-            ApiService::post(&format!("/customer-credits/{}/adjust", customer_id), &req).await?;
-        response.into_result()
+        let response: CustomerCredit = ApiService::post(&format!("/customer-credits/{}/adjust", customer_id), &req).await?;
+        Ok(response)
     }
 
     /// 停用客户信用
     pub async fn deactivate_credit(customer_id: i32) -> Result<CustomerCredit, String> {
-        let response: ApiResponse<CustomerCredit> =
-            ApiService::post(&format!("/customer-credits/{}/deactivate", customer_id), &serde_json::json!({})).await?;
-        response.into_result()
+        let response: CustomerCredit = ApiService::post(&format!("/customer-credits/{}/deactivate", customer_id), &serde_json::json!({})).await?;
+        Ok(response)
     }
 }

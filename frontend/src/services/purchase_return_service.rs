@@ -47,9 +47,8 @@ impl PurchaseReturnService {
             format!("?{}", params.join("&"))
         };
 
-        let response: ApiResponse<PaginatedReturns> =
-            ApiService::get(&format!("/purchases/returns{}", query_string)).await?;
-        response.into_result()
+        let response: PaginatedReturns = ApiService::get(&format!("/purchases/returns{}", query_string)).await?;
+        Ok(response)
     }
 
     /// 获取退货单详情
@@ -60,44 +59,38 @@ impl PurchaseReturnService {
 
     /// 提交退货单
     pub async fn submit(id: i32) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post(&format!("/purchases/returns/{}/submit", id), &serde_json::json!({})).await?;
-        response.into_result()
+        let response: PurchaseReturn = ApiService::post(&format!("/purchases/returns/{}/submit", id), &serde_json::json!({})).await?;
+        Ok(response)
     }
 
     /// 审批退货单
     pub async fn approve(id: i32) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post(&format!("/purchases/returns/{}/approve", id), &serde_json::json!({})).await?;
-        response.into_result()
+        let response: PurchaseReturn = ApiService::post(&format!("/purchases/returns/{}/approve", id), &serde_json::json!({})).await?;
+        Ok(response)
     }
 
     /// 拒绝退货单
     pub async fn reject(id: i32, reason: String) -> Result<PurchaseReturn, String> {
-        let response: ApiResponse<PurchaseReturn> =
-            ApiService::post(&format!("/purchases/returns/{}/reject", id), &RejectReturnRequest { reason }).await?;
-        response.into_result()
+        let response: PurchaseReturn = ApiService::post(&format!("/purchases/returns/{}/reject", id), &RejectReturnRequest { reason }).await?;
+        Ok(response)
     }
 
     /// 获取退货单明细列表
     pub async fn list_items(return_id: i32) -> Result<Vec<PurchaseReturnItem>, String> {
-        let response: ApiResponse<Vec<PurchaseReturnItem>> =
-            ApiService::get(&format!("/purchases/returns/{}/items", return_id)).await?;
-        response.into_result()
+        let response: Vec<PurchaseReturnItem> = ApiService::get(&format!("/purchases/returns/{}/items", return_id)).await?;
+        Ok(response)
     }
 
     /// 添加退货明细
     pub async fn create_item(return_id: i32, req: CreatePurchaseReturnItemRequest) -> Result<PurchaseReturnItem, String> {
-        let response: ApiResponse<PurchaseReturnItem> =
-            ApiService::post(&format!("/purchases/returns/{}/items", return_id), &req).await?;
-        response.into_result()
+        let response: PurchaseReturnItem = ApiService::post(&format!("/purchases/returns/{}/items", return_id), &req).await?;
+        Ok(response)
     }
 
     /// 更新退货明细
     pub async fn update_item(return_id: i32, item_id: i32, req: UpdateReturnItemRequest) -> Result<PurchaseReturnItem, String> {
-        let response: ApiResponse<PurchaseReturnItem> =
-            ApiService::put(&format!("/purchases/returns/{}/items/{}", return_id, item_id), &req).await?;
-        response.into_result()
+        let response: PurchaseReturnItem = ApiService::put(&format!("/purchases/returns/{}/items/{}", return_id, item_id), &req).await?;
+        Ok(response)
     }
 
     /// 删除退货明细

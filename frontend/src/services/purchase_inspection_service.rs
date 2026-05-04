@@ -46,9 +46,8 @@ impl PurchaseInspectionService {
             format!("?{}", params.join("&"))
         };
 
-        let response: ApiResponse<InspectionListResponse> =
-            ApiService::get(&format!("/purchase-inspections{}", query_string)).await?;
-        response.into_result()
+        let response: InspectionListResponse = ApiService::get(&format!("/purchase-inspections{}", query_string)).await?;
+        Ok(response)
     }
 
     /// 获取检验单详情
@@ -60,8 +59,7 @@ impl PurchaseInspectionService {
 
     /// 完成采购检验单
     pub async fn complete(id: i32, req: CompleteInspectionRequest) -> Result<PurchaseInspection, String> {
-        let response: ApiResponse<PurchaseInspection> =
-            ApiService::post(&format!("/purchase-inspections/{}/complete", id), &req).await?;
-        response.into_result()
+        let response: PurchaseInspection = ApiService::post(&format!("/purchase-inspections/{}/complete", id), &req).await?;
+        Ok(response)
     }
 }

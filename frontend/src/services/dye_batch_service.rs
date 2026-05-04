@@ -49,17 +49,17 @@ impl DyeBatchService {
         } else {
             format!("/dye-batch?{}", params.join("&"))
         };
-        let response: ApiResponse<DyeBatchListResponse> = ApiService::get(&url).await?;
-        response.into_result()
+        let response: DyeBatchListResponse = ApiService::get(&url).await?;
+        Ok(response)
     }
 
     pub async fn complete(id: i32, req: CompleteDyeBatchRequest) -> Result<DyeBatch, String> {
-        let response: ApiResponse<DyeBatch> = ApiService::post(&format!("/dye-batch/{}/complete", id), &req).await?;
-        response.into_result()
+        let response: DyeBatch = ApiService::post(&format!("/dye-batch/{}/complete", id), &req).await?;
+        Ok(response)
     }
 
     pub async fn get_by_color(color_code: &str) -> Result<Vec<DyeBatch>, String> {
-        let response: ApiResponse<Vec<DyeBatch>> = ApiService::get(&format!("/dye-batch/by-color/{}", color_code)).await?;
-        response.into_result()
+        let response: Vec<DyeBatch> = ApiService::get(&format!("/dye-batch/by-color/{}", color_code)).await?;
+        Ok(response)
     }
 }

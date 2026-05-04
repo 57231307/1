@@ -6,7 +6,6 @@ use crate::services::user_service::UserService;
 use crate::services::crud_service::CrudService;
 use crate::models::user::User;
 use crate::utils::storage::Storage;
-use crate::components::main_layout::MainLayout;
 
 pub struct UserListPage {
     users: Vec<User>,
@@ -119,7 +118,7 @@ impl Component for UserListPage {
         let _on_logout = link.callback(|_: MouseEvent| Msg::Logout);
 
         html! {
-            <MainLayout current_page={"users".to_string()}>
+            <>
                 <div class="user-list-page">
                     <div class="page-header">
                         <h1>{"用户管理"}</h1>
@@ -200,7 +199,7 @@ impl Component for UserListPage {
                         </div>
                     }
                 </div>
-            </MainLayout>
+            </>
         }
     }
 }

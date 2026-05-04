@@ -9,6 +9,11 @@ pub struct MainLayoutProps {
 
 #[function_component(MainLayout)]
 pub fn main_layout(props: &MainLayoutProps) -> Html {
+    use_effect_with((), |_| {
+        web_sys::console::log_1(&"MainLayout rendered!".into());
+        || ()
+    });
+
     html! {
         <div class="app-container">
             <Navigation current_page={props.current_page.clone()} />

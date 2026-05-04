@@ -47,35 +47,41 @@ impl std::error::Error for AppError {}
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_type, error_message) = match &self {
-            AppError::DatabaseError(_) => (
+            AppError::DatabaseError(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "DatabaseError",
-                "数据库操作失败",
+                msg.clone(),
             ),
             AppError::ValidationError(_) => (
                 StatusCode::BAD_REQUEST,
                 "ValidationError",
-                "请求参数验证失败",
+                "请求参数验证失败".to_string(),
             ),
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound", "未找到"),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound", "未找到".to_string()),
             AppError::ResourceNotFound(_) => {
-                (StatusCode::NOT_FOUND, "ResourceNotFound", "资源不存在")
+                (StatusCode::NOT_FOUND, "ResourceNotFound", "资源不存在".to_string())
             }
-            AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError", "业务错误"),
-            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized", "未授权访问"),
+            AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError", "业务错误".to_string()),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized", "未授权访问".to_string()),
             AppError::InternalError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "InternalError",
-                "服务器内部错误",
+                "系统内部错误".to_string(),
             ),
-            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BadRequest", "请求错误"),
-            AppError::PermissionDenied(_) => {
-                (StatusCode::FORBIDDEN, "PermissionDenied", "权限不足")
-            },
+            AppError::PermissionDenied(_) => (
+                StatusCode::FORBIDDEN,
+                "PermissionDenied",
+                "权限不足".to_string(),
+            ),
+            AppError::BadRequest(_) => (
+                StatusCode::BAD_REQUEST,
+                "BadRequest",
+                "请求错误".to_string(),
+            ),
             AppError::TooManyRequests => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "TooManyRequests",
-                "请求过于频繁，请稍后再试",
+                "请求过于频繁，请稍后再试".to_string(),
             ),
         };
 
@@ -91,7 +97,7 @@ impl IntoResponse for AppError {
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
         tracing::error!("数据库错误：{:?}", err);
-        AppError::DatabaseError("数据库操作失败，请联系管理员".to_string())
+        AppError::DatabaseError(format!("Query Error: {:?}", err))
     }
 }
 

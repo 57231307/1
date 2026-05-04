@@ -1,6 +1,6 @@
 use axum::{extract::{State, Query, Path}, Json};
 use crate::utils::app_state::AppState;
-use crate::models::dto::ApiResponse;
+use crate::utils::response::ApiResponse;
 use crate::models::dto::crm_dto::{CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery};
 use crate::services::crm_service::CrmService;
 use crate::utils::error::AppError;

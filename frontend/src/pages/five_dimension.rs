@@ -9,7 +9,6 @@ use crate::models::five_dimension::{
 };
 use crate::services::five_dimension_service::FiveDimensionService;
 use crate::services::crud_service::CrudService;
-use crate::components::main_layout::MainLayout;
 
 pub struct FiveDimensionPage {
     // 列表数据
@@ -246,7 +245,7 @@ impl Component for FiveDimensionPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page="five_dimensions">
+            <>
                 <div class="five-dimension-page">
                     <div class="page-header">
                         <h1>{"五维查询"}</h1>
@@ -255,7 +254,7 @@ impl Component for FiveDimensionPage {
 
                     {self.render_content(ctx)}
                 </div>
-            </MainLayout>
+            </>
         }
     }
 }

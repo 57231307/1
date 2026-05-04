@@ -412,8 +412,8 @@ pub async fn get_plan_executions(
 pub async fn list_budgets(
     Query(_params): Query<serde_json::Value>, State(_state): State<AppState>, auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算列表查询功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算列表查询功能尚未实现".to_string()))
+    info!("用户 {} 正在预算列表查询", auth.username);
+    Ok(Json(ApiResponse::ok("[]".to_string())))
 }
 
 

@@ -7,13 +7,9 @@ pub struct SalesReturnService;
 impl SalesReturnService {
     pub async fn create(req: crate::models::sales_return::CreateSalesReturnRequest) -> Result<SalesReturn, String> {
         let url = "/sales-returns";
-        let response: ApiResponse<SalesReturn> = ApiService::post(url, &req).await?;
-        if response.success {
-            response.data.ok_or_else(|| "创建成功但未返回数据".to_string())
-        } else {
-            Err(response.error.unwrap_or_else(|| "创建失败".to_string()))
-        }
-    }
+        let response: SalesReturn = ApiService::post(url, &req).await?;
+        Ok(response)
+}
 
     pub async fn list(query: SalesReturnQuery) -> Result<PaginatedResponse<SalesReturn>, String> {
         let mut query_params = Vec::new();
@@ -57,22 +53,14 @@ impl SalesReturnService {
     pub async fn submit(id: i32) -> Result<SalesReturn, String> {
         let url = format!("/sales-returns/{}/submit", id);
         let empty_body: Option<serde_json::Value> = None;
-        let response: ApiResponse<SalesReturn> = ApiService::post(&url, &empty_body).await?;
-        if response.success {
-            response.data.ok_or_else(|| "提交成功但未返回数据".to_string())
-        } else {
-            Err(response.error.unwrap_or_else(|| "提交失败".to_string()))
-        }
-    }
+        let response: SalesReturn = ApiService::post(&url, &empty_body).await?;
+        Ok(response)
+}
 
     pub async fn approve(id: i32) -> Result<SalesReturn, String> {
         let url = format!("/sales-returns/{}/approve", id);
         let empty_body: Option<serde_json::Value> = None;
-        let response: ApiResponse<SalesReturn> = ApiService::post(&url, &empty_body).await?;
-        if response.success {
-            response.data.ok_or_else(|| "审批成功但未返回数据".to_string())
-        } else {
-            Err(response.error.unwrap_or_else(|| "审批失败".to_string()))
-        }
-    }
+        let response: SalesReturn = ApiService::post(&url, &empty_body).await?;
+        Ok(response)
+}
 }

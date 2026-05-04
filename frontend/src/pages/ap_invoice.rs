@@ -12,7 +12,6 @@ use crate::models::ap_invoice::{
 };
 use crate::services::ap_invoice_service::ApInvoiceService;
 use crate::services::crud_service::CrudService;
-use crate::components::main_layout::MainLayout;
 use crate::utils::permissions;
 
 /// 应付发票管理页面状态
@@ -283,7 +282,7 @@ impl Component for ApInvoicePage {
         });
 
         html! {
-            <MainLayout current_page="ap_invoices">
+            <>
                 <div class="ap-invoice-page">
                     <div class="page-header">
                         <h1>{"应付发票管理"}</h1>
@@ -327,7 +326,7 @@ impl Component for ApInvoicePage {
                         {self.render_balance_content(ctx)}
                     }
                 </div>
-            </MainLayout>
+            </>
         }
     }
 }

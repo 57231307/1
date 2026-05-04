@@ -66,7 +66,7 @@
                 let className = target.className || '';
                 
                 // Track click event asynchronously
-                fetch('/api/v1/audit/track', {
+                fetch('/api/v1/erp/finance/audit/track', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -89,6 +89,13 @@
             }
         });
     </script>
+    <style>
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal, .modal-content { background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .modal-body { margin-bottom: 20px; overflow-y: auto; flex: 1; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+    </style>
 </head>
 <body>
     <div id="app"></div>

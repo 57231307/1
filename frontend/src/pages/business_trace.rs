@@ -10,7 +10,6 @@ use crate::models::business_trace::{
 };
 use crate::services::business_trace_service::BusinessTraceService;
 use crate::services::crud_service::CrudService;
-use crate::components::main_layout::MainLayout;
 
 /// 业务追溯页面状态
 pub struct BusinessTracePage {
@@ -250,7 +249,7 @@ impl Component for BusinessTracePage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <MainLayout current_page="business_trace">
+            <>
                 <div class="business-trace-page">
                     <div class="page-header">
                         <h1>{"业务追溯"}</h1>
@@ -259,7 +258,7 @@ impl Component for BusinessTracePage {
 
                     {self.render_content(ctx)}
                 </div>
-            </MainLayout>
+            </>
         }
     }
 }

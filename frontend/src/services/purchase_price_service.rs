@@ -55,9 +55,8 @@ impl PurchasePriceService {
             format!("?{}", params.join("&"))
         };
 
-        let response: ApiResponse<Vec<PurchasePrice>> =
-            ApiService::get(&format!("/purchases/prices{}", query)).await?;
-        response.into_result()
+        let response: Vec<PurchasePrice> = ApiService::get(&format!("/purchases/prices{}", query)).await?;
+        Ok(response)
     }
 
     /// 获取采购价格详情
@@ -70,24 +69,23 @@ impl PurchasePriceService {
 
     /// 审批采购价格
     pub async fn approve(id: i32, req: ApprovePriceRequest) -> Result<PurchasePrice, String> {
-        let response: ApiResponse<PurchasePrice> =
-            ApiService::post(&format!("/purchases/prices/{}/approve", id), &req).await?;
-        response.into_result()
+        let response: PurchasePrice = ApiService::post(&format!("/purchases/prices/{}/approve", id), &req).await?;
+        Ok(response)
     }
 
     /// 获取价格历史
     pub async fn history(product_id: i32, supplier_id: i32, limit: i64) -> Result<Vec<PurchasePrice>, String> {
-        let response: ApiResponse<Vec<PurchasePrice>> = ApiService::get(
+        let response: Vec<PurchasePrice> = ApiService::get(
             &format!("/purchases/prices/history/{}/{}?limit={}", product_id, supplier_id, limit)
         ).await?;
-        response.into_result()
+        Ok(response)
     }
 
     /// 分析价格趋势
     pub async fn analyze_trend(product_id: i32, supplier_id: i32) -> Result<PriceTrendAnalysis, String> {
-        let response: ApiResponse<PriceTrendAnalysis> = ApiService::get(
+        let response: PriceTrendAnalysis = ApiService::get(
             &format!("/purchases/prices/trend/{}/{}", product_id, supplier_id)
         ).await?;
-        response.into_result()
+        Ok(response)
     }
 }

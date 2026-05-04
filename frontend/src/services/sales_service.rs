@@ -22,13 +22,9 @@ impl SalesService {
     pub async fn submit_order(id: i32) -> Result<SalesOrder, String> {
         let url = format!("/sales/orders/{}/submit", id);
         let empty_body: Option<serde_json::Value> = None;
-        let response: ApiResponse<SalesOrder> = ApiService::post(&url, &empty_body).await?;
-        if response.success {
-            response.data.ok_or_else(|| "提交成功但未返回数据".to_string())
-        } else {
-            Err(response.error.unwrap_or_else(|| "提交失败".to_string()))
-        }
-    }
+        let response: SalesOrder = ApiService::post(&url, &empty_body).await?;
+        Ok(response)
+}
 
     pub async fn list_orders() -> Result<SalesOrderListResponse, String> {
         ApiService::get::<SalesOrderListResponse>("/sales/orders").await

@@ -36,32 +36,32 @@ impl FixedAssetService {
             url = format!("{}?{}", url, query_params.join("&"));
         }
 
-        let response: ApiResponse<AssetListResponse> = ApiService::get(&url).await?;
-        response.into_result()
+        let response: AssetListResponse = ApiService::get(&url).await?;
+        Ok(response)
     }
 
     /// 获取资产详情
     pub async fn get_asset(id: i32) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::get(&format!("/assets/{}", id)).await?;
-        response.into_result()
+        let response: FixedAsset = ApiService::get(&format!("/assets/{}", id)).await?;
+        Ok(response)
     }
 
     /// 创建资产
     pub async fn create_asset(req: CreateAssetRequest) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::post("/assets", &req).await?;
-        response.into_result()
+        let response: FixedAsset = ApiService::post("/assets", &req).await?;
+        Ok(response)
     }
 
     /// 计提折旧
     pub async fn depreciate_asset(id: i32, req: DepreciateRequest) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::post(&format!("/assets/{}/depreciate", id), &req).await?;
-        response.into_result()
+        let response: FixedAsset = ApiService::post(&format!("/assets/{}/depreciate", id), &req).await?;
+        Ok(response)
     }
 
     /// 处置资产
     pub async fn dispose_asset(id: i32, req: DisposalRequest) -> Result<FixedAsset, String> {
-        let response: ApiResponse<FixedAsset> = ApiService::post(&format!("/assets/{}/dispose", id), &req).await?;
-        response.into_result()
+        let response: FixedAsset = ApiService::post(&format!("/assets/{}/dispose", id), &req).await?;
+        Ok(response)
     }
 
     /// 删除资产

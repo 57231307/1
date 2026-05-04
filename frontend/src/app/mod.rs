@@ -144,19 +144,27 @@ impl Component for App {
     }
 }
 
-fn protected_route_with_permission<F>(component: F, resource: &str, action: &str) -> Html
+use crate::components::main_layout::MainLayout;
+
+fn protected_route_with_permission<F>(component: F, page_name: &str, resource: &str, action: &str) -> Html
 where
     F: FnOnce() -> Html,
 {
     if Storage::get_token().is_some() {
         if permissions::has_permission(resource, action) {
-            component()
+            html! {
+                <MainLayout current_page={page_name.to_string()}>
+                    {component()}
+                </MainLayout>
+            }
         } else {
             html! {
-                <div class="error-page" style="padding: 20px; text-align: center;">
-                    <h1>{"无权访问"}</h1>
-                    <p>{"您没有权限访问此页面"}</p>
-                </div>
+                <MainLayout current_page={page_name.to_string()}>
+                    <div class="error-page" style="padding: 20px; text-align: center;">
+                        <h1>{"无权访问"}</h1>
+                        <p>{"您没有权限访问此页面"}</p>
+                    </div>
+                </MainLayout>
             }
         }
     } else {
@@ -164,12 +172,16 @@ where
     }
 }
 
-fn protected_route<F>(component: F) -> Html
+fn protected_route<F>(component: F, page_name: &str) -> Html
 where
     F: FnOnce() -> Html,
 {
     if Storage::get_token().is_some() {
-        component()
+        html! {
+            <MainLayout current_page={page_name.to_string()}>
+                {component()}
+            </MainLayout>
+        }
     } else {
         html! { <Redirect<Route> to={Route::Login}/> }
     }
@@ -179,61 +191,61 @@ fn switch(route: Route) -> Html {
     match route {
         Route::Init => html! { <InitPage /> },
         Route::Login => html! { <LoginPage /> },
-        Route::Dashboard => protected_route(|| html! { <DashboardPage /> }),
-        Route::Users => protected_route_with_permission(|| html! { <UserListPage /> }, "user", "read"),
-            Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }),
-        Route::Roles => protected_route(|| html! { <RoleListPage /> }),
-        Route::Products => protected_route(|| html! { <ProductListPage /> }),
-        Route::ProductCategories => protected_route(|| html! { <ProductCategoryPage /> }),
-        Route::Warehouses => protected_route(|| html! { <WarehouseListPage /> }),
-        Route::Departments => protected_route(|| html! { <DepartmentListPage /> }),
-        Route::Inventory => protected_route_with_permission(|| html! { <InventoryStockPage /> }, "inventory_stock", "read"),
-        Route::Sales => protected_route_with_permission(|| html! { <SalesOrderPage /> }, "sales_order", "read"),
-        Route::FabricOrders => protected_route(|| html! { <FabricOrderPage /> }),
-        Route::SalesContracts => protected_route(|| html! { <SalesContractPage /> }),
-        Route::Transfers => protected_route(|| html! { <InventoryTransferPage /> }),
-        Route::Counts => protected_route(|| html! { <InventoryCountPage /> }),
-        Route::FinanceInvoices => protected_route(|| html! { <FinanceInvoicePage /> }),
-        Route::FinancePayments => protected_route(|| html! { <FinancePaymentPage /> }),
-        Route::PurchasePrices => protected_route(|| html! { <PurchasePricePage /> }),
-        Route::SalesPrices => protected_route(|| html! { <SalesPricePage /> }),
-        Route::SalesReturns => protected_route(|| html! { <SalesReturnPage /> }),
-        Route::SalesAnalysis => protected_route(|| html! { <SalesAnalysisPage /> }),
-        Route::QualityInspection => protected_route(|| html! { <QualityInspectionPage /> }),
-        Route::FinancialAnalysis => protected_route(|| html! { <FinancialAnalysisPage /> }),
-        Route::SupplierEvaluation => protected_route(|| html! { <SupplierEvaluationPage /> }),
-        Route::Customers => protected_route(|| html! { <CustomerPage /> }),
-        Route::Batches => protected_route(|| html! { <BatchPage /> }),
-        Route::PurchaseOrders => protected_route_with_permission(|| html! { <PurchaseOrderPage /> }, "purchase_order", "read"),
-        Route::PurchaseReceipts => protected_route(|| html! { <PurchaseReceiptPage /> }),
-        Route::PurchaseReturns => protected_route(|| html! { <PurchaseReturnPage /> }),
-        Route::Suppliers => protected_route(|| html! { <SupplierPage /> }),
-        Route::InventoryAdjustments => protected_route(|| html! { <InventoryAdjustmentPage /> }),
-        Route::AccountSubjects => protected_route(|| html! { <AccountSubjectPage /> }),
-        Route::Vouchers => protected_route(|| html! { <VoucherPage /> }),
-        Route::FundManagement => protected_route(|| html! { <FundManagementPage /> }),
-        Route::FixedAssets => protected_route(|| html! { <FixedAssetPage /> }),
-        Route::CustomerCredits => protected_route(|| html! { <CustomerCreditPage /> }),
-        Route::DualUnitConverter => protected_route(|| html! { <DualUnitConverterPage /> }),
-        Route::FiveDimensions => protected_route(|| html! { <FiveDimensionPage /> }),
-        Route::BusinessTrace => protected_route(|| html! { <BusinessTracePage /> }),
-        Route::ApInvoices => protected_route_with_permission(|| html! { <ApInvoicePage /> }, "ap_invoice", "read"),
-        Route::ApPaymentRequests => protected_route(|| html! { <ApPaymentRequestPage /> }),
-        Route::ApPayments => protected_route(|| html! { <ApPaymentPage /> }),
-        Route::ApReconciliations => protected_route(|| html! { <ApReconciliationPage /> }),
-        Route::ApVerifications => protected_route(|| html! { <ApVerificationPage /> }),
-        Route::ApReports => protected_route(|| html! { <ApReportPage /> }),
-        Route::ArInvoices => protected_route(|| html! { <ArInvoicePage /> }),
-        Route::AssistAccounting => protected_route(|| html! { <AssistAccountingPage /> }),
-        Route::PurchaseContracts => protected_route(|| html! { <PurchaseContractPage /> }),
-        Route::CostCollections => protected_route(|| html! { <CostCollectionPage /> }),
-        Route::PurchaseInspections => protected_route(|| html! { <PurchaseInspectionPage /> }),
-        Route::DyeBatches => protected_route(|| html! { <DyeBatchPage /> }),
-        Route::DyeRecipes => protected_route(|| html! { <DyeRecipePage /> }),
-        Route::GreigeFabrics => protected_route(|| html! { <GreigeFabricPage /> }),
-        Route::CrmLeads => protected_route(|| html! { <CrmLeadPage /> }),
-        Route::CrmOpportunities => protected_route(|| html! { <CrmOpportunityPage /> }),
-        Route::MyTasks => protected_route(|| html! { <crate::pages::my_tasks::MyTasksPage /> }),
+        Route::Dashboard => protected_route(|| html! { <DashboardPage /> }, "dashboard"),
+        Route::Users => protected_route_with_permission(|| html! { <UserListPage /> }, "users", "user", "read"),
+        Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }, "system-settings"),
+        Route::Roles => protected_route(|| html! { <RoleListPage /> }, "roles"),
+        Route::Products => protected_route(|| html! { <ProductListPage /> }, "products"),
+        Route::ProductCategories => protected_route(|| html! { <ProductCategoryPage /> }, "product-categories"),
+        Route::Warehouses => protected_route(|| html! { <WarehouseListPage /> }, "warehouses"),
+        Route::Departments => protected_route(|| html! { <DepartmentListPage /> }, "departments"),
+        Route::Inventory => protected_route_with_permission(|| html! { <InventoryStockPage /> }, "inventory", "inventory_stock", "read"),
+        Route::Sales => protected_route_with_permission(|| html! { <SalesOrderPage /> }, "sales", "sales_order", "read"),
+        Route::FabricOrders => protected_route(|| html! { <FabricOrderPage /> }, "fabric-orders"),
+        Route::SalesContracts => protected_route(|| html! { <SalesContractPage /> }, "sales-contracts"),
+        Route::Transfers => protected_route(|| html! { <InventoryTransferPage /> }, "transfers"),
+        Route::Counts => protected_route(|| html! { <InventoryCountPage /> }, "counts"),
+        Route::FinanceInvoices => protected_route(|| html! { <FinanceInvoicePage /> }, "finance-invoices"),
+        Route::FinancePayments => protected_route(|| html! { <FinancePaymentPage /> }, "finance-payments"),
+        Route::PurchasePrices => protected_route(|| html! { <PurchasePricePage /> }, "purchase-prices"),
+        Route::SalesPrices => protected_route(|| html! { <SalesPricePage /> }, "sales-prices"),
+        Route::SalesReturns => protected_route(|| html! { <SalesReturnPage /> }, "sales-returns"),
+        Route::SalesAnalysis => protected_route(|| html! { <SalesAnalysisPage /> }, "sales-analysis"),
+        Route::QualityInspection => protected_route(|| html! { <QualityInspectionPage /> }, "quality-inspection"),
+        Route::FinancialAnalysis => protected_route(|| html! { <FinancialAnalysisPage /> }, "financial-analysis"),
+        Route::SupplierEvaluation => protected_route(|| html! { <SupplierEvaluationPage /> }, "supplier-evaluation"),
+        Route::Customers => protected_route(|| html! { <CustomerPage /> }, "customers"),
+        Route::Batches => protected_route(|| html! { <BatchPage /> }, "batches"),
+        Route::PurchaseOrders => protected_route_with_permission(|| html! { <PurchaseOrderPage /> }, "purchase-orders", "purchase_order", "read"),
+        Route::PurchaseReceipts => protected_route(|| html! { <PurchaseReceiptPage /> }, "purchase-receipts"),
+        Route::PurchaseReturns => protected_route(|| html! { <PurchaseReturnPage /> }, "purchase-returns"),
+        Route::Suppliers => protected_route(|| html! { <SupplierPage /> }, "suppliers"),
+        Route::InventoryAdjustments => protected_route(|| html! { <InventoryAdjustmentPage /> }, "inventory-adjustments"),
+        Route::AccountSubjects => protected_route(|| html! { <AccountSubjectPage /> }, "account-subjects"),
+        Route::Vouchers => protected_route(|| html! { <VoucherPage /> }, "vouchers"),
+        Route::FundManagement => protected_route(|| html! { <FundManagementPage /> }, "fund-management"),
+        Route::FixedAssets => protected_route(|| html! { <FixedAssetPage /> }, "fixed-assets"),
+        Route::CustomerCredits => protected_route(|| html! { <CustomerCreditPage /> }, "customer-credits"),
+        Route::DualUnitConverter => protected_route(|| html! { <DualUnitConverterPage /> }, "dual-unit-converter"),
+        Route::FiveDimensions => protected_route(|| html! { <FiveDimensionPage /> }, "five-dimensions"),
+        Route::BusinessTrace => protected_route(|| html! { <BusinessTracePage /> }, "business-trace"),
+        Route::ApInvoices => protected_route_with_permission(|| html! { <ApInvoicePage /> }, "ap-invoices", "ap_invoice", "read"),
+        Route::ApPaymentRequests => protected_route(|| html! { <ApPaymentRequestPage /> }, "ap-payment-requests"),
+        Route::ApPayments => protected_route(|| html! { <ApPaymentPage /> }, "ap-payments"),
+        Route::ApReconciliations => protected_route(|| html! { <ApReconciliationPage /> }, "ap-reconciliations"),
+        Route::ApVerifications => protected_route(|| html! { <ApVerificationPage /> }, "ap-verifications"),
+        Route::ApReports => protected_route(|| html! { <ApReportPage /> }, "ap-reports"),
+        Route::ArInvoices => protected_route(|| html! { <ArInvoicePage /> }, "ar-invoices"),
+        Route::AssistAccounting => protected_route(|| html! { <AssistAccountingPage /> }, "assist-accounting"),
+        Route::PurchaseContracts => protected_route(|| html! { <PurchaseContractPage /> }, "purchase-contracts"),
+        Route::CostCollections => protected_route(|| html! { <CostCollectionPage /> }, "cost-collections"),
+        Route::PurchaseInspections => protected_route(|| html! { <PurchaseInspectionPage /> }, "purchase-inspections"),
+        Route::DyeBatches => protected_route(|| html! { <DyeBatchPage /> }, "dye-batches"),
+        Route::DyeRecipes => protected_route(|| html! { <DyeRecipePage /> }, "dye-recipes"),
+        Route::GreigeFabrics => protected_route(|| html! { <GreigeFabricPage /> }, "greige-fabrics"),
+        Route::CrmLeads => protected_route(|| html! { <CrmLeadPage /> }, "crm-leads"),
+        Route::CrmOpportunities => protected_route(|| html! { <CrmOpportunityPage /> }, "crm-opportunities"),
+        Route::MyTasks => protected_route(|| html! { <crate::pages::my_tasks::MyTasksPage /> }, "my-tasks"),
         Route::NotFound => html! { <div>{"页面未找到"}</div> },
     }
 }

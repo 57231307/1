@@ -114,3 +114,8 @@ opt-level = 0
 debug = 0
 codegen-units = 16
 lto = false
+
+[[bin]]
+name = "test_perms"
+path = "src/bin/test_perms.rs"
+
