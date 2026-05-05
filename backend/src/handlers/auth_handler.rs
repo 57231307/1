@@ -131,11 +131,15 @@ pub async fn login(
             };
 
             // 创建 HttpOnly Cookie
+            // 开发环境下关闭secure标志，允许HTTP传输；生产环境必须开启HTTPS
+            let is_production = std::env::var("ENV")
+                .unwrap_or_else(|_| "development".to_string()) == "production";
+            
             let cookie = Cookie::build(("jwt", token))
                 .path("/")
                 .http_only(true)
-                .secure(true) // 生产环境应开启 HTTPS
-                .same_site(SameSite::Strict)
+                .secure(is_production) // 生产环境开启HTTPS，开发环境关闭
+                .same_site(SameSite::Lax) // 改为Lax以支持跨端口访问(3000->8082)
                 .max_age(time::Duration::hours(24))
                 .build();
 

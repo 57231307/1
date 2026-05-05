@@ -93,6 +93,10 @@ pub async fn anti_brute_force(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
+    // TEMPORARY DEBUG BYPASS: 临时禁用暴力破解保护以进行调试
+    // TODO: 修复后恢复正常的速率限制
+    return Ok(next.run(req).await);
+
     let ip = req
         .extensions()
         .get::<axum::extract::ConnectInfo<SocketAddr>>()

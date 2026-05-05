@@ -32,20 +32,22 @@ impl Storage {
         Self::get_window()?.session_storage().ok().flatten()
     }
 
-    pub fn set_token(_token: &str) {
-        tracing::warn!("set_token 已废弃，请使用 HttpOnly Cookie");
-        // 为了维持前端 SPA 路由守卫的逻辑，临时在 sessionStorage 存一个登录标记
+    pub fn set_token(token: &str) {
+        // 为了维持前端 SPA 路由守卫的逻辑，在 sessionStorage 存储认证标记和真实token
         if let Some(storage) = Self::get_session_storage() {
             let _ = storage.set_item("is_authenticated", "true");
+            let _ = storage.set_item("auth_token", token); // 存储真实token用于API请求
         }
     }
 
     pub fn get_token() -> Option<String> {
-        tracing::warn!("get_token 已废弃，请使用 HttpOnly Cookie");
-        // 返回一个 dummy 字符串欺骗路由守卫，如果 is_authenticated 存在
+        // 从 sessionStorage 获取真实token
         if let Some(storage) = Self::get_session_storage() {
+            // 先检查是否已认证
             if storage.get_item("is_authenticated").ok().flatten().is_some() {
-                return Some("cookie_auth_active".to_string());
+                // 返回真实token（如果存在），否则返回dummy字符串
+                return storage.get_item("auth_token").ok().flatten()
+                    .or_else(|| Some("cookie_auth_active".to_string()));
             }
         }
         None
