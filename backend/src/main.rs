@@ -282,7 +282,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ),
                 )
                 .layer(cors.clone())
-                // 修复：先认证后授权（注意：Tower .layer() 按逆序执行）
+                // 中间件执行顺序：auth_middleware（最后注册、最外层、先执行）→ permission_middleware → request_validator → 处理器
                 .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), permission_middleware))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
                 .layer(axum::middleware::from_fn(request_validator_middleware))

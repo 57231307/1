@@ -37,10 +37,6 @@ pub async fn permission_middleware(
     // DEBUG: 输出用户信息
     tracing::error!("DEBUG_PERMISSION: user_id={}, username={}, role_id={:?}", auth.user_id, auth.username, auth.role_id);
 
-    // TEMPORARY: 临时允许所有请求以调试问题
-    // TODO: 修复后移除这行
-    return Ok(next.run(request).await);
-
     let role_id = match auth.role_id {
         Some(id) => id,
         None => {
