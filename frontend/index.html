@@ -58,19 +58,21 @@
 
         // OmniAudit UI Tracker
         document.addEventListener('click', function(e) {
-            // Find closest button or a tag
             let target = e.target.closest('button, a');
             if (target) {
+                if (target.closest('.login-container')) {
+                    return;
+                }
+
                 let action = target.innerText.trim() || target.getAttribute('aria-label') || 'click';
                 let resource = target.tagName.toLowerCase();
                 let className = target.className || '';
                 
-                // Track click event asynchronously
                 fetch('/api/v1/erp/finance/audit/track', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') // Fallback if using local storage
+                        'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
                     },
                     body: JSON.stringify({
                         event_type: 'UI_CLICK',
@@ -85,7 +87,9 @@
                         duration_ms: 0,
                         status: 'SUCCESS'
                     })
-                }).catch(err => console.log('Audit tracking failed', err));
+                }).catch(function(err) {
+                    // 审计追踪静默失败，不干扰正常流程
+                });
             }
         });
     </script>

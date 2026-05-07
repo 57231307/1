@@ -11,7 +11,11 @@ database:
   name: "bingxi"
   username: "bingxi"
   password: "d5eb610ccf1a701dac02d5.dbcba8f5f546a"
-  max_connections: 10
+  max_connections: 50
+  min_connections: 5
+  acquire_timeout_ms: 30000
+  idle_timeout_ms: 300000
+  max_lifetime_ms: 1800000
   ssl_mode: "disable"
   ssl_ca: null
 

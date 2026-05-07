@@ -169,7 +169,7 @@ impl Component for SalesOrderPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     if let Ok(res) = WarehouseService::list().await {
-                        link.send_message(Msg::WarehousesLoaded(res.warehouses));
+                        link.send_message(Msg::WarehousesLoaded(res.data));
                     }
                 });
                 false

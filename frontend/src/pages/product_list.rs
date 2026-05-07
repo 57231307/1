@@ -19,7 +19,7 @@ pub fn product_list_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 match ProductService::list().await {
                     Ok(data) => {
-                        products.set(data.products);
+                        products.set(data);
                         loading.set(false);
                     }
                     Err(e) => {
@@ -42,7 +42,7 @@ pub fn product_list_page() -> Html {
                 match ProductService::delete(id).await {
                     Ok(_) => {
                         if let Ok(data) = ProductService::list().await {
-                            products.set(data.products);
+                            products.set(data);
                         }
                     }
                     Err(e) => {

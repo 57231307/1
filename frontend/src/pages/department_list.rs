@@ -19,7 +19,7 @@ pub fn department_list_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 match DepartmentService::list().await {
                     Ok(data) => {
-                        departments.set(data.departments);
+                        departments.set(data.data);
                         loading.set(false);
                     }
                     Err(e) => {
@@ -42,7 +42,7 @@ pub fn department_list_page() -> Html {
                 match DepartmentService::delete(id).await {
                     Ok(_) => {
                         if let Ok(data) = DepartmentService::list().await {
-                            departments.set(data.departments);
+                            departments.set(data.data);
                         }
                     }
                     Err(e) => {

@@ -15,8 +15,12 @@ pub struct Warehouse {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct WarehouseListResponse {
-    pub warehouses: Vec<Warehouse>,
+    pub data: Vec<Warehouse>,
+    #[serde(default)]
+    pub items: Vec<Warehouse>,
     pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

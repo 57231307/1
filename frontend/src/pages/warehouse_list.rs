@@ -19,7 +19,7 @@ pub fn warehouse_list_page() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 match WarehouseService::list().await {
                     Ok(data) => {
-                        warehouses.set(data.warehouses);
+                        warehouses.set(data.data);
                         loading.set(false);
                     }
                     Err(e) => {
@@ -42,7 +42,7 @@ pub fn warehouse_list_page() -> Html {
                 match WarehouseService::delete(id).await {
                     Ok(_) => {
                         if let Ok(data) = WarehouseService::list().await {
-                            warehouses.set(data.warehouses);
+                            warehouses.set(data.data);
                         }
                     }
                     Err(e) => {

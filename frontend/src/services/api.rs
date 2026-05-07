@@ -163,18 +163,27 @@ impl ApiService {
 
         let status = response.status();
         
-        // 前端 Token 过期自动处理：拦截 401 未授权错误
         if status == 401 {
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "{}".to_string());
+            
+            let backend_error = serde_json::from_str::<serde_json::Value>(&error_body)
+                .ok()
+                .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from));
+            
             crate::utils::storage::Storage::remove_token();
             if let Some(win) = web_sys::window() {
-                // 如果当前不在登录页，则强制跳转到登录页
                 if let Ok(loc) = win.location().pathname() {
                     if !loc.contains("/login") {
                         let _ = win.location().set_href("/login");
                     }
                 }
             }
-            return Err("会话已过期，请重新登录".to_string());
+
+            let error_msg = backend_error.unwrap_or_else(|| "会话已过期，请重新登录".to_string());
+            return Err(error_msg);
         }
 
         if response.ok() {

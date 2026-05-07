@@ -1,14 +1,13 @@
 use yew::prelude::*;
 use crate::services::inventory_service::InventoryService;
 use crate::services::crud_service::CrudService;
-use crate::models::inventory::{StockFabricResponse, InventorySummaryResponse};
+use crate::models::inventory::{StockFabricResponse, InventorySummaryItem};
 use crate::utils::permissions;
 
 #[function_component(InventoryStockPage)]
 pub fn inventory_stock_page() -> Html {
     let stocks = use_state(|| Vec::<StockFabricResponse>::new());
-    let summary = use_state(|| None::<InventorySummaryResponse>);
-    let total = use_state(|| 0u64);
+    let summary = use_state(|| Vec::<InventorySummaryItem>::new());
     let loading = use_state(|| false);
     let error = use_state(|| String::new());
 
@@ -18,7 +17,6 @@ pub fn inventory_stock_page() -> Html {
     let load_data = {
         let stocks = stocks.clone();
         let summary = summary.clone();
-        let total = total.clone();
         let loading = loading.clone();
         let error = error.clone();
         let batch = batch_filter.clone();
@@ -27,7 +25,6 @@ pub fn inventory_stock_page() -> Html {
         Callback::from(move |_| {
             let stocks = stocks.clone();
             let summary = summary.clone();
-            let total = total.clone();
             let loading = loading.clone();
             let error = error.clone();
             
@@ -39,19 +36,16 @@ pub fn inventory_stock_page() -> Html {
             let b_owned = b.map(|s| s.to_string());
             let c_owned = c.map(|s| s.to_string());
             wasm_bindgen_futures::spawn_local(async move {
-                // 加载面料库存
                 match InventoryService::list_stock_fabric(1, 50, b_owned.as_deref(), c_owned.as_deref()).await {
                     Ok(resp) => {
-                        stocks.set(resp.stock);
-                        total.set(resp.total);
+                        stocks.set(resp);
                     }
                     Err(e) => error.set(format!("加载库存失败: {}", e))
                 }
                 
-                // 顺便加载汇总数据
                 if b_owned.is_none() && c_owned.is_none() {
                     if let Ok(sum) = InventoryService::get_inventory_summary().await {
-                        summary.set(Some(sum));
+                        summary.set(sum);
                     }
                 }
                 b_loading.set(false);
@@ -93,18 +87,18 @@ pub fn inventory_stock_page() -> Html {
                 }
             </div>
             
-            if let Some(sum) = (*summary).clone() {
+            if !(*summary).is_empty() {
                 <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px;">
                     <div class="card" style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #fff;">
                         <h3>{"库存总米数"}</h3>
                         <div style="font-size: 24px; font-weight: bold; color: #2980b9;">
-                            {format!("{} M", sum.total_meters)}
+                            {format!("{:.2} M", (*summary).iter().filter_map(|s| s.total_quantity_meters.parse::<f64>().ok()).sum::<f64>())}
                         </div>
                     </div>
                     <div class="card" style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #fff;">
                         <h3>{"库存总重量"}</h3>
                         <div style="font-size: 24px; font-weight: bold; color: #27ae60;">
-                            {format!("{} KG", sum.total_kg)}
+                            {format!("{:.2} KG", (*summary).iter().filter_map(|s| s.total_quantity_kg.parse::<f64>().ok()).sum::<f64>())}
                         </div>
                     </div>
                 </div>

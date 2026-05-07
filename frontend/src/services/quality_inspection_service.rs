@@ -96,7 +96,7 @@ impl QualityInspectionService {
 
     pub async fn create_record(req: CreateInspectionRecordRequest) -> Result<InspectionRecord, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/quality-inspections/records", &payload).await
+        ApiService::post("/quality-inspection/records", &payload).await
     }
 
     pub async fn get_statistics(product_id: Option<i32>) -> Result<QualityStatistics, String> {
@@ -128,11 +128,11 @@ impl QualityInspectionService {
 
     pub async fn create_defect(req: CreateQualityDefectRequest) -> Result<QualityDefect, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post("/quality-inspections/defects", &payload).await
+        ApiService::post("/quality-inspection/defects", &payload).await
     }
 
     pub async fn handle_defect(id: i32, req: HandleDefectRequest) -> Result<QualityDefect, String> {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        ApiService::post(&format!("/quality-inspections/defects/{}/handle", id), &payload).await
+        ApiService::post(&format!("/quality-inspection/defects/{}/handle", id), &payload).await
     }
 }

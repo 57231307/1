@@ -14,13 +14,7 @@ pub struct StockResponse {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StockListResponse {
-    pub stock: Vec<StockResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
+pub type StockListResponse = Vec<StockResponse>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StockFabricResponse {
@@ -43,13 +37,7 @@ pub struct StockFabricResponse {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StockFabricListResponse {
-    pub stock: Vec<StockFabricResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
+pub type StockFabricListResponse = Vec<StockFabricResponse>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateStockFabricRequest {
@@ -88,13 +76,7 @@ pub struct TransactionResponse {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TransactionListResponse {
-    pub transactions: Vec<TransactionResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
+pub type TransactionListResponse = Vec<TransactionResponse>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InventorySummaryItem {
@@ -108,9 +90,4 @@ pub struct InventorySummaryItem {
     pub warehouse_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InventorySummaryResponse {
-    pub summary: Vec<InventorySummaryItem>,
-    pub total_meters: String,
-    pub total_kg: String,
-}
+pub type InventorySummaryResponse = Vec<InventorySummaryItem>;

@@ -496,7 +496,7 @@ impl InventoryStockService {
             s.grade,
             SUM(s.quantity_meters) AS total_quantity_meters,
             SUM(s.quantity_kg) AS total_quantity_kg
-        FROM inventory_stock s
+        FROM inventory_stocks s
         INNER JOIN products p ON s.product_id = p.id
         INNER JOIN warehouses w ON s.warehouse_id = w.id
         WHERE {}

@@ -15,8 +15,12 @@ pub struct Department {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct DepartmentListResponse {
-    pub departments: Vec<Department>,
+    pub data: Vec<Department>,
+    #[serde(default)]
+    pub items: Vec<Department>,
     pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

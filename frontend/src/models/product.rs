@@ -14,11 +14,7 @@ pub struct Product {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ProductListResponse {
-    pub products: Vec<Product>,
-    pub total: u64,
-}
+pub type ProductListResponse = Vec<Product>;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CreateProductRequest {
