@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::models::finance_payment;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;

@@ -1,6 +1,7 @@
 //! API 网关中间件
 //!
 //! 提供限流、熔断、请求转换等功能
+#![allow(dead_code)]
 
 use axum::{
     body::Body,

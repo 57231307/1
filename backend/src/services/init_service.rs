@@ -1,4 +1,5 @@
 //! 系统初始化服务
+#![allow(dead_code)]
 
 use crate::models::department;
 use crate::models::role;

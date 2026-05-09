@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::auth_context::AuthContext;
 use crate::models::quality_standard;
 use crate::services::quality_standard_service::QualityStandardService;

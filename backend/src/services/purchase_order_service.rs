@@ -2,6 +2,7 @@
 //!
 //! 采购订单服务层，负责采购订单的核心业务逻辑
 //! 包含订单创建、审批、执行、退货等全流程管理
+#![allow(dead_code)]
 
 use crate::models::{
     department, product, purchase_order, purchase_order_item, purchase_receipt, supplier, warehouse,

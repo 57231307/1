@@ -1,6 +1,7 @@
 //! 采购质检 Service
 //!
 //! 采购质检服务层，负责采购质检的核心业务逻辑
+#![allow(dead_code)]
 
 use crate::models::purchase_inspection;
 use crate::utils::number_generator::DocumentNumberGenerator;

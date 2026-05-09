@@ -2,6 +2,7 @@
 //!
 //! 采购入库服务层，负责采购入库的核心业务逻辑
 //! 包含入库单创建、确认、更新等全流程管理
+#![allow(dead_code)]
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::utils::number_generator::DocumentNumberGenerator;

@@ -1,6 +1,7 @@
 //! 采购入库 Handler
 //!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
+#![allow(dead_code)]
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_receipt_service::{

@@ -1,4 +1,5 @@
 //! 系统更新服务
+#![allow(dead_code)]
 
 use std::fs;
 use std::io::{self, Write};

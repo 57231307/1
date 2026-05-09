@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use config::{Config, ConfigError, File};
 use serde::Deserialize;
 

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::{
     inventory_stock, inventory_transaction, purchase_receipt_item, sales_delivery_item,
 };

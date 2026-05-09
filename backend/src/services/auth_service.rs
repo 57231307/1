@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::user;
 use crate::services::user_service::UserService;
 use argon2::{

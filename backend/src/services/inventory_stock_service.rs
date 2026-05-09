@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
 use crate::utils::dual_unit_converter::DualUnitConverter;

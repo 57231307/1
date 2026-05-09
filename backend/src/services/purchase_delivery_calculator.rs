@@ -1,6 +1,7 @@
 //! 采购交期计算服务
 //!
 //! 根据供应商历史交货数据自动计算建议交货日期
+#![allow(dead_code)]
 
 use chrono::{NaiveDate, Datelike};
 use rust_decimal::Decimal;

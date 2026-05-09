@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::user;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};

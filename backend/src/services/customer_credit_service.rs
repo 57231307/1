@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;

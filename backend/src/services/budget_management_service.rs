@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;

@@ -1,6 +1,7 @@
 //! 采购质检 Handler
 //!
 //! 采购质检 HTTP 接口层
+#![allow(dead_code)]
 
 use crate::services::purchase_inspection_service::{
     CompleteInspectionRequest, CreatePurchaseInspectionRequest, PurchaseInspectionService,

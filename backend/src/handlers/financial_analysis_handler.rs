@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::auth_context::AuthContext;
 use crate::models::financial_analysis;
 use crate::models::financial_analysis_result;

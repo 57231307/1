@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sea_orm::*;
 use serde_json::Value;
 use std::sync::Arc;

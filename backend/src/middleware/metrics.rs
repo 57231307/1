@@ -1,5 +1,6 @@
 //! 监控中间件
 //! 自动记录请求指标
+#![allow(dead_code)]
 
 use axum::{
     body::Body,

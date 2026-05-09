@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;

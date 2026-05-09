@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::quality_standard;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;

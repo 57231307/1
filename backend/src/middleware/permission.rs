@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::public_routes::is_public_path;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::role_permission;

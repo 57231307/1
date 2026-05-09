@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sea_orm::{ColumnTrait, QueryFilter};
 use tokio::sync::broadcast;
 use std::sync::Arc;

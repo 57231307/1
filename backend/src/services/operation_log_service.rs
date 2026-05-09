@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::operation_log;
 use sea_orm::{EntityTrait, Set, ActiveModelTrait, DbErr, Order, PaginatorTrait};
 use std::sync::Arc;

@@ -1,4 +1,5 @@
 //! 系统初始化处理器
+#![allow(dead_code)]
 
 use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus};
 use axum::{extract::State, http::StatusCode, Json};

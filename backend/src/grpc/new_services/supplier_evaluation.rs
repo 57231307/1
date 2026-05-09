@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use tonic::{Request, Response, Status};
 use crate::grpc::new_services::GrpcNewServices;
 use crate::grpc::new_services::support::{parse_decimal, empty_to_option, id_to_option, operator_id, handle_error};

@@ -1,7 +1,10 @@
+#![allow(dead_code)]
+
 /// 双计量单位换算工具（面料行业专用）
 ///
 /// 提供米数 ↔ 公斤数的精确换算功能
 /// 支持幅宽、克重等多参数计算
+
 use rust_decimal::Decimal;
 use std::str::FromStr;
 

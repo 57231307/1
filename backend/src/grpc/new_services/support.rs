@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use rust_decimal::Decimal;
 use tonic::{Request, Status};
 use crate::middleware::auth_context::AuthContext;

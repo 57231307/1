@@ -1,6 +1,7 @@
 //! 会计科目 Service
 //!
 //! 会计科目业务逻辑层
+#![allow(dead_code)]
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::utils::number_generator::DocumentNumberGenerator;
 // 凭证管理 Service
 //

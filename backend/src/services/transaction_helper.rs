@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::utils::error::AppError;
 use sea_orm::{DatabaseConnection, TransactionTrait, DatabaseTransaction};
 use std::future::Future;

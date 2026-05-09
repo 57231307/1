@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
     SupplierService, UpdateContactRequest, UpdateSupplierRequest,

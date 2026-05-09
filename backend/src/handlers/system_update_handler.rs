@@ -1,4 +1,5 @@
 //! 系统更新处理器
+#![allow(dead_code)]
 
 use axum::{
     extract::Multipart,

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sea_orm::*;
 use std::sync::Arc;
 use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};

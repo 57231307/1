@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QuerySelect, QueryFilter, QueryOrder, TransactionTrait,
 };

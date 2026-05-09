@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

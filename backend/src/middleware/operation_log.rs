@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use chrono::Utc;
 // 操作日志中间件
 // 自动记录用户的 HTTP 请求操作

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
 use crate::services::sales_price_service::{CreateSalesPriceInput, SalesPriceService};

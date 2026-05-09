@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::auth_context::AuthContext;
 use crate::models::supplier_evaluation;
 use crate::models::supplier_evaluation_record;

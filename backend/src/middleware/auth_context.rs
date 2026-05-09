@@ -1,6 +1,7 @@
 //! 认证上下文模块
 //!
 //! 提供从 JWT Token 提取用户信息的功能
+#![allow(dead_code)]
 
 use crate::services::auth_service::AppClaims;
 use axum::{

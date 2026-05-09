@@ -1,6 +1,7 @@
 //! 销售退货 Service
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑
+#![allow(dead_code)]
 
 use crate::models::{sales_return, sales_return_item, product, inventory_stock};
 use crate::utils::error::AppError;

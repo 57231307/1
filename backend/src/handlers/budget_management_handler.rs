@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};

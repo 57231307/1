@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::supplier_evaluation;
 use crate::models::supplier_evaluation_record;
 use crate::utils::error::AppError;

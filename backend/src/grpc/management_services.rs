@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use chrono::Datelike;
 // 管理服务 gRPC 实现
 // 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fixed_asset;
 use crate::services::fixed_asset_service::{

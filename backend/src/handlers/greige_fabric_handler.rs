@@ -1,4 +1,5 @@
 //! 坯布管理Handler（原料布匹管理）
+#![allow(dead_code)]
 
 use axum::{
     extract::{Path, Query, State},

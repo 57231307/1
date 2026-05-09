@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;

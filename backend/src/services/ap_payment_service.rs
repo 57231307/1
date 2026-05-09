@@ -2,6 +2,7 @@
 //!
 //! 付款服务层，负责付款执行的核心业务逻辑
 //! 包含付款单创建、确认、付款计划等管理
+#![allow(dead_code)]
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::utils::number_generator::DocumentNumberGenerator;
