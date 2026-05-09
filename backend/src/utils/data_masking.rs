@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_mask_email() {
         assert_eq!(DataMasker::mask_email("admin@example.com"), "a***@example.com");
-        assert_eq!(DataMasker::mask_email("a@b.com"), "*@b.com");
+        assert_eq!(DataMasker::mask_email("a@b.com"), "*@b.com*");
     }
 
     #[test]

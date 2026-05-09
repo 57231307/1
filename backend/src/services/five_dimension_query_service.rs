@@ -132,7 +132,6 @@ impl FiveDimensionQueryService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::error::AppError;
 
     #[test]
     fn test_generate_five_dimension_id() {

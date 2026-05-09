@@ -269,7 +269,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             let app_state_clone = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
-            create_router(app_state)
+            let app = create_router(app_state)
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {
@@ -326,9 +326,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::HeaderName::from_static("permissions-policy"),
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
-                )),
-                grpc_db,
-            )
+                ));
+            (app, Some(grpc_db))
         }
         Err(e) => {
             info!("数据库连接失败: {}", e);
@@ -399,11 +398,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;
         let grpc_jwt_secret = settings.auth.jwt_secret.clone();
         Some(tokio::spawn(async move {
-            let grpc_service = crate::grpc::service::GrpcUserService::new(grpc_db, grpc_jwt_secret);
+            let user_service = crate::grpc::service::GrpcUserService::new(grpc_db.clone(), grpc_jwt_secret.clone());
+            let management_services = crate::grpc::management_services::GrpcManagementServices::new(grpc_db.clone());
+            let new_services = crate::grpc::new_services::GrpcNewServices::new(grpc_db);
+
             let grpc_server = tonic::transport::Server::builder()
-                .add_service(crate::grpc::service::proto::user_service_server::UserServiceServer::new(grpc_service.clone()))
-                .add_service(crate::grpc::service::proto::auth_service_server::AuthServiceServer::new(grpc_service));
-            
+                .add_service(crate::grpc::service::proto::user_service_server::UserServiceServer::new(user_service.clone()))
+                .add_service(crate::grpc::service::proto::auth_service_server::AuthServiceServer::new(user_service))
+                .add_service(crate::grpc::service::proto::purchase_contract_service_server::PurchaseContractServiceServer::new(management_services.clone()))
+                .add_service(crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer::new(management_services.clone()))
+                .add_service(crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer::new(management_services.clone()))
+                .add_service(crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer::new(management_services));
+
             info!("gRPC 服务器监听地址：{}", grpc_addr);
             if let Err(e) = grpc_server.serve(grpc_addr).await {
                 warn!("gRPC 服务器启动失败: {}", e);

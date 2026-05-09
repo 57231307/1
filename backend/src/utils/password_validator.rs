@@ -167,7 +167,7 @@ pub fn validate_password_with_policy(
     }
 
     let lower_password = password.to_lowercase();
-    if COMMON_PASSWORDS.contains(&lower_password.as_str()) {
+    if COMMON_PASSWORDS.iter().any(|common| lower_password.contains(common)) {
         errors.push("Password is too common".to_string());
         suggestions.push("Use more unique password".to_string());
         score = score.saturating_sub(30);
