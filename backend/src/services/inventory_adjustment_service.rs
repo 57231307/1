@@ -334,6 +334,7 @@ mod tests {
                 approved_by: None,
                 approved_at: None,
                 status: "pending".to_string(),
+                is_deleted: false,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },

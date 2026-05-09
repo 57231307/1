@@ -118,6 +118,7 @@ pub async fn get_order(
 /// POST /api/v1/erp/sales/orders
 pub async fn create_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(request): Json<CreateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
@@ -133,6 +134,7 @@ pub async fn create_order(
 /// PUT /api/v1/erp/sales/orders/:id
 pub async fn update_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(request): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -149,6 +151,7 @@ pub async fn update_order(
 /// DELETE /api/v1/erp/sales/orders/:id
 pub async fn delete_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());

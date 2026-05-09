@@ -140,6 +140,7 @@ pub async fn reject_purchase_return(
 pub async fn delete_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
     service.delete(id).await?;
@@ -178,7 +179,7 @@ pub async fn list_purchase_return_items(
 
 pub async fn create_purchase_return_item(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<CreateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
@@ -189,7 +190,7 @@ pub async fn create_purchase_return_item(
 
 pub async fn update_purchase_return_item(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {

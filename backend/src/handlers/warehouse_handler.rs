@@ -14,6 +14,7 @@ use crate::services::warehouse_service::WarehouseService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::middleware::auth_context::AuthContext;
 
 /// 查询参数 - 仓库列表
 #[derive(Debug, Deserialize, Validate)]
@@ -92,6 +93,7 @@ pub struct UpdateLocationRequest {
 /// 获取库位列表
 pub async fn list_locations(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(query): Query<LocationListQuery>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let page = query.page.unwrap_or(1);
@@ -126,6 +128,7 @@ pub async fn list_locations(
 /// 创建库位
 pub async fn create_location(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let active_location = location_model::ActiveModel {
@@ -157,6 +160,7 @@ pub async fn create_location(
 /// 获取库位详情
 pub async fn get_location(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let location = LocationEntity::find_by_id(id)
@@ -170,6 +174,7 @@ pub async fn get_location(
 /// 更新库位
 pub async fn update_location(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Json(_req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -188,6 +193,7 @@ pub async fn update_location(
 /// 删除库位
 pub async fn delete_location(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     LocationEntity::delete_by_id(id).exec(&*state.db).await?;

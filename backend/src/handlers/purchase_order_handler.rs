@@ -21,6 +21,7 @@ use validator::Validate;
 pub async fn list_orders(
     Query(params): Query<OrderQueryParams>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let (orders, _total) = service
@@ -45,7 +46,7 @@ pub async fn list_orders(
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let order = service.get_order(id).await?;

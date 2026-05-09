@@ -41,6 +41,9 @@ pub struct Model {
     /// 来源：MARKETING=营销活动，REFERRAL=转介绍，DIRECT=直接联系，OTHER=其他
     pub source: String,
 
+    /// 关联客户 ID（线索转化后关联到客户）
+    pub customer_id: Option<i32>,
+
     /// 状态：NEW=新建，CONTACTED=已联系，QUALIFIED=已合格，CONVERTED=已转化，LOST=已流失
     pub status: String,
 

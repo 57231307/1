@@ -10,6 +10,7 @@ use crate::services::customer_service::CustomerService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::app_state::AppState;
+use crate::middleware::auth_context::AuthContext;
 
 /// 创建客户请求
 #[derive(Debug, Deserialize, Validate)]
@@ -244,6 +245,7 @@ pub async fn update_customer(
 pub async fn delete_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
     customer_service.delete_customer(id).await?;

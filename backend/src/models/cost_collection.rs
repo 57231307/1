@@ -22,6 +22,7 @@ pub struct Model {
     pub cost_object_no: Option<String>,
 
     // 面料行业字段
+    pub batch_id: Option<i32>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
     pub dye_lot_no: Option<String>,

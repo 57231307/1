@@ -1,6 +1,7 @@
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
+use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -80,6 +81,7 @@ pub struct LowStockResponse {
 
 pub async fn get_stock(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
     let service = InventoryStockService::new(state.db.clone());
@@ -103,6 +105,7 @@ pub async fn get_stock(
 
 pub async fn create_stock(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
     let service = InventoryStockService::new(state.db.clone());
@@ -142,6 +145,7 @@ pub async fn create_stock(
 
 pub async fn update_stock(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateStockRequest>,
 ) -> Result<Json<StockResponse>, (StatusCode, String)> {
@@ -194,6 +198,7 @@ pub async fn update_stock(
 
 pub async fn delete_stock(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<()>, (StatusCode, String)> {
     let service = InventoryStockService::new(state.db.clone());
@@ -215,6 +220,7 @@ pub async fn delete_stock(
 
 pub async fn list_stock(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockResponse>>>, AppError> {
     if let Err(e) = params.validate() {

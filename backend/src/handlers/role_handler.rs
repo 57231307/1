@@ -1,3 +1,4 @@
+use crate::middleware::auth_context::AuthContext;
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
@@ -82,6 +83,7 @@ pub struct AssignPermissionPayload {
 /// 获取角色列表
 pub async fn list_roles(
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<RoleListResponse>, (StatusCode, String)> {
     let service = RolePermissionService::new(state.db.clone());
 
@@ -114,6 +116,7 @@ pub async fn list_roles(
 /// 获取角色详情
 pub async fn get_role(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
     let service = RolePermissionService::new(state.db.clone());
@@ -151,6 +154,7 @@ pub async fn get_role(
 /// 创建角色
 pub async fn create_role(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
     let service = RolePermissionService::new(state.db.clone());
@@ -195,6 +199,7 @@ pub async fn create_role(
 /// 更新角色
 pub async fn update_role(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateRolePayload>,
 ) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
@@ -240,6 +245,7 @@ pub async fn update_role(
 /// 删除角色
 pub async fn delete_role(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let service = RolePermissionService::new(state.db.clone());
@@ -253,6 +259,7 @@ pub async fn delete_role(
 /// 分配权限
 pub async fn assign_permission(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(role_id): Path<i32>,
     Json(payload): Json<AssignPermissionPayload>,
 ) -> Result<Json<PermissionResponse>, (StatusCode, String)> {
@@ -281,6 +288,7 @@ pub async fn assign_permission(
 /// 移除权限
 pub async fn remove_permission(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let service = RolePermissionService::new(state.db.clone());
@@ -294,6 +302,7 @@ pub async fn remove_permission(
 /// 获取角色权限列表
 pub async fn get_role_permissions(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(role_id): Path<i32>,
 ) -> Result<Json<Vec<PermissionResponse>>, (StatusCode, String)> {
     let service = RolePermissionService::new(state.db.clone());

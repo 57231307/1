@@ -28,7 +28,7 @@ pub struct Model {
     /// 当前状态：PENDING=待处理，PROCESSING=处理中，COMPLETED=已完成，TERMINATED=已终止
     pub status: String,
 
-    /// 业务类型
+    /// 业务类型: SALES_ORDER=销售订单, PURCHASE_ORDER=采购订单, PRODUCTION_ORDER=生产订单, FINANCE=财务单据
     pub business_type: Option<String>,
 
     /// 业务 ID
