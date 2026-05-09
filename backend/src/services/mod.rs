@@ -72,3 +72,9 @@ pub mod omni_audit_service;
 pub mod omni_audit_query_service;
 pub mod order_change_history_service;
 pub mod purchase_delivery_calculator;
+// MRP生产计划模块
+pub mod production_order_service;
+pub mod mrp_engine_service;
+// 应收对账与多币种模块
+pub mod ar_reconciliation_service;
+pub mod currency_service;

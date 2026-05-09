@@ -24,6 +24,16 @@ pub mod sales_order;
 pub mod sales_order_item;
 pub mod sales_order_change_history;
 pub mod user;
+// MRP生产计划模块
+pub mod production_order;
+pub mod bom;
+pub mod bom_item;
+pub mod mrp_result;
+pub mod work_center;
+// 应收对账与多币种模块
+pub mod ar_reconciliation;
+pub mod currency;
+pub mod exchange_rate;
 pub mod warehouse;
 // 总账模块
 pub mod account_balance;

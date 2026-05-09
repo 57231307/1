@@ -70,6 +70,8 @@ pub mod greige_fabric_handler;
 pub mod system_update_handler;
 pub mod sales_return_handler;
 pub mod bpm_handler;
+// MRP生产计划模块
+pub mod production_order_handler;
 pub mod logistics_handler;
 pub mod barcode_scanner_handler;
 pub mod piece_split_handler;

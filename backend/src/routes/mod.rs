@@ -49,6 +49,7 @@ use crate::handlers::{
     inventory_transfer_handler,
     product_category_handler,
     product_handler,
+    production_order_handler,
     purchase_contract_handler,
     purchase_inspection_handler,
     purchase_order_handler,
@@ -840,6 +841,12 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/purchase-prices", purchase_price_routes)
         .nest("/api/v1/erp/ap", ap_routes)
         .nest("/api/v1/erp/ar", ar_routes)
+        // MRP生产计划路由
+        .nest("/api/v1/erp/production", Router::new()
+            .route("/orders", get(production_order_handler::list_production_orders).post(production_order_handler::create_production_order))
+            .route("/orders/:id", get(production_order_handler::get_production_order).put(production_order_handler::update_production_order).delete(production_order_handler::delete_production_order))
+            .route("/orders/:id/status", put(production_order_handler::update_production_order_status))
+        )
         .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
