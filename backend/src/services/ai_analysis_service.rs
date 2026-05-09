@@ -2,6 +2,8 @@
 //!
 //! 提供销售预测、库存优化、异常检测等智能分析功能
 
+#![allow(dead_code)]
+
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;

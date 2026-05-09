@@ -2,6 +2,8 @@
 //!
 //! 基于BOM和库存数据计算物料需求
 
+#![allow(dead_code)]
+
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};

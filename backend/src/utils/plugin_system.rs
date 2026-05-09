@@ -2,6 +2,8 @@
 //!
 //! 提供插件接口定义、加载器、生命周期管理
 
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 
 /// 插件状态

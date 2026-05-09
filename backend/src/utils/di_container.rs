@@ -2,6 +2,8 @@
 //!
 //! Provides a simple DI container for managing service lifecycle and dependencies
 
+#![allow(dead_code)]
+
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

@@ -2,6 +2,8 @@
 //!
 //! 提供客户应收对账单的生成、发送、确认和争议处理
 
+#![allow(dead_code)]
+
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{

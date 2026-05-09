@@ -2,6 +2,8 @@
 //!
 //! 提供币种管理和汇率维护功能
 
+#![allow(dead_code)]
+
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
