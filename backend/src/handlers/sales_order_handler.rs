@@ -250,3 +250,34 @@ pub async fn get_order_history(
 
     Ok(Json(ApiResponse::success(result)))
 }
+
+// ========== 数据导出接口 ==========
+
+use axum::http::header;
+
+/// 导出销售订单
+pub async fn export_orders(
+    State(state): State<AppState>,
+    Query(query): Query<SalesOrderQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let sales_service = SalesService::new(state.db.clone());
+
+    let csv_data = sales_service
+        .export_orders_to_csv(query.status, query.customer_id, query.order_no)
+        .await
+        .map_err(|e| AppError::InternalError(format!("导出失败: {}", e)))?;
+
+    let filename = format!("sales_orders_export_{}.csv", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", filename),
+        )
+        .body(axum::body::Body::from(csv_data))
+        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+
+    Ok(response)
+}

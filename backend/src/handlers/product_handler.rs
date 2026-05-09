@@ -101,6 +101,22 @@ pub struct BatchCreateColorsRequest {
     pub colors: Vec<CreateProductColorRequest>,
 }
 
+/// 导入产品请求
+#[derive(Debug, Deserialize)]
+pub struct ImportProductsRequest {
+    /// CSV 数据，每行一个产品，使用逗号分隔
+    /// 第一行为表头，后续为数据
+    pub csv_data: String,
+}
+
+/// 导出产品查询参数
+#[derive(Debug, Deserialize)]
+pub struct ExportProductsQuery {
+    pub category_id: Option<i32>,
+    pub status: Option<String>,
+    pub search: Option<String>,
+}
+
 /// 获取产品列表
 use crate::utils::field_mask::mask_sensitive_fields;
 
@@ -322,4 +338,80 @@ pub async fn batch_create_colors(
         .await?;
     let msg = format!("批量创建{}个色号成功", colors.len());
     Ok(Json(ApiResponse::success_with_msg(colors, &msg)))
+}
+
+// ========== 数据导入导出接口 ==========
+
+use axum::http::header;
+
+/// 导出产品数据
+pub async fn export_products(
+    State(state): State<AppState>,
+    Query(query): Query<ExportProductsQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let product_service = ProductService::new(state.db.clone());
+
+    let csv_data = product_service
+        .export_products_to_csv(query.category_id, query.status, query.search)
+        .await
+        .map_err(|e| AppError::InternalError(format!("导出失败: {}", e)))?;
+
+    let filename = format!("products_export_{}.csv", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", filename),
+        )
+        .body(axum::body::Body::from(csv_data))
+        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+
+    Ok(response)
+}
+
+/// 导入产品数据
+pub async fn import_products(
+    State(state): State<AppState>,
+    Json(req): Json<ImportProductsRequest>,
+) -> Result<Json<ApiResponse<crate::utils::import_export::ImportResult>>, AppError> {
+    let product_service = ProductService::new(state.db.clone());
+
+    let csv_bytes = req.csv_data.into_bytes();
+
+    let result: crate::utils::import_export::ImportResult = product_service
+        .import_products_from_csv(&csv_bytes)
+        .await?;
+
+    let msg = if result.is_all_success() {
+        format!("成功导入 {} 条产品数据", result.success_count)
+    } else {
+        format!(
+            "导入完成：成功 {} 条，失败 {} 条，共 {} 条",
+            result.success_count, result.error_count, result.total_count
+        )
+    };
+
+    Ok(Json(ApiResponse::success_with_msg(result, &msg)))
+}
+
+/// 获取产品导入模板
+pub async fn get_product_import_template(
+    State(_state): State<AppState>,
+) -> Result<axum::response::Response, AppError> {
+    let template_data = ProductService::generate_product_import_template()
+        .map_err(|e| AppError::InternalError(format!("模板生成失败: {}", e)))?;
+
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"product_import_template.csv\"",
+        )
+        .body(axum::body::Body::from(template_data))
+        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+
+    Ok(response)
 }

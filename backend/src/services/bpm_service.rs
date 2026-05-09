@@ -293,6 +293,274 @@ impl BpmService {
             .one(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))
     }
+
+    // ========== 审批链功能 ==========
+
+    /// 获取流程实例的审批链
+    pub async fn get_approval_chain(&self, instance_id: i32) -> Result<Vec<ApprovalChainNode>, AppError> {
+        let instance = bpm_process_instance::Entity::find_by_id(instance_id)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
+
+        let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("流程定义不存在".to_string()))?;
+
+        let tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::ProcessInstanceId.eq(instance_id))
+            .order_by_asc(bpm_task::Column::CreatedAt)
+            .all(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let mut chain = Vec::new();
+
+        if let Some(flow_def) = definition.config {
+            if let Some(nodes) = flow_def.get("nodes").and_then(|n| n.as_array()) {
+                for node in nodes {
+                    let node_id = node.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
+                    let node_name = node.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+                    let node_type = node.get("type").and_then(|t| t.as_str()).unwrap_or("").to_string();
+
+                    // 查找对应的任务
+                    let task = tasks.iter().find(|t| t.node_id == node_id);
+
+                    chain.push(ApprovalChainNode {
+                        node_id: node_id.clone(),
+                        node_name,
+                        node_type,
+                        assignee_id: task.and_then(|t| t.assignee_id),
+                        assignee_name: None, // 可以通过关联查询获取用户名
+                        status: task.map(|t| t.status.clone()).unwrap_or_else(|| "PENDING".to_string()),
+                        comment: task.and_then(|t| t.comment.clone()),
+                        completed_at: task.and_then(|t| t.completed_at),
+                        due_time: task.and_then(|t| t.due_time),
+                    });
+                }
+            }
+        }
+
+        Ok(chain)
+    }
+
+    /// 获取流程实例详情（包含审批链）
+    pub async fn get_instance_detail(&self, instance_id: i32) -> Result<ProcessInstanceDetail, AppError> {
+        let instance = bpm_process_instance::Entity::find_by_id(instance_id)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
+
+        let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::ProcessInstanceId.eq(instance_id))
+            .order_by_asc(bpm_task::Column::CreatedAt)
+            .all(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let approval_chain = self.get_approval_chain(instance_id).await?;
+
+        Ok(ProcessInstanceDetail {
+            instance: instance.clone(),
+            definition_name: definition.map(|d| d.name).unwrap_or_default(),
+            tasks,
+            approval_chain,
+        })
+    }
+
+    // ========== 流程监控功能 ==========
+
+    /// 获取流程监控统计
+    pub async fn get_monitor_stats(&self) -> Result<ProcessMonitorStats, AppError> {
+        use sea_orm::QuerySelect;
+
+        let total_instances = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let processing_instances = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::Status.eq("PROCESSING"))
+            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let completed_instances = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
+            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let terminated_instances = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::Status.eq("TERMINATED"))
+            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let pending_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::Status.eq("PENDING"))
+            .filter(bpm_task::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let completed_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::Status.eq("COMPLETED"))
+            .filter(bpm_task::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let rejected_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::Status.eq("REJECTED"))
+            .filter(bpm_task::Column::IsDeleted.eq(false))
+            .count(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 计算平均流程处理时长（分钟）
+        let avg_duration = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
+            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
+            .filter(bpm_process_instance::Column::EndTime.is_not_null())
+            .select_only()
+            .column_as(
+                sea_orm::sea_query::Expr::cust("AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60)"),
+                "avg_duration"
+            )
+            .into_tuple::<Option<f64>>()
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .flatten();
+
+        Ok(ProcessMonitorStats {
+            total_instances: total_instances as i64,
+            processing_instances: processing_instances as i64,
+            completed_instances: completed_instances as i64,
+            terminated_instances: terminated_instances as i64,
+            total_tasks: total_tasks as i64,
+            pending_tasks: pending_tasks as i64,
+            completed_tasks: completed_tasks as i64,
+            rejected_tasks: rejected_tasks as i64,
+            avg_process_duration_minutes: avg_duration,
+        })
+    }
+
+    /// 获取待处理任务列表（用于监控）
+    pub async fn get_pending_tasks_for_monitor(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<PageResponse<bpm_task::Model>, AppError> {
+        let mut stmt = bpm_task::Entity::find()
+            .filter(bpm_task::Column::Status.eq("PENDING"))
+            .filter(bpm_task::Column::IsDeleted.eq(false));
+
+        let paginator = stmt.paginate(&*self.db, page_size);
+        let total = paginator.num_items().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let items = paginator.fetch_page(page - 1).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total_pages = if total == 0 { 0 } else { total.div_ceil(page_size) };
+        Ok(PageResponse {
+            data: items,
+            total,
+            page,
+            page_size,
+            total_pages,
+        })
+    }
+
+    /// 获取流程实例列表（用于监控）
+    pub async fn list_instances_for_monitor(
+        &self,
+        status: Option<String>,
+        page: u64,
+        page_size: u64,
+    ) -> Result<PageResponse<bpm_process_instance::Model>, AppError> {
+        let mut stmt = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::IsDeleted.eq(false));
+
+        if let Some(s) = status {
+            stmt = stmt.filter(bpm_process_instance::Column::Status.eq(s));
+        }
+
+        stmt = stmt.order_by_desc(bpm_process_instance::Column::CreatedAt);
+
+        let paginator = stmt.paginate(&*self.db, page_size);
+        let total = paginator.num_items().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let items = paginator.fetch_page(page - 1).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total_pages = if total == 0 { 0 } else { total.div_ceil(page_size) };
+        Ok(PageResponse {
+            data: items,
+            total,
+            page,
+            page_size,
+            total_pages,
+        })
+    }
+
+    /// 转办任务
+    pub async fn transfer_task(
+        &self,
+        task_id: i32,
+        new_assignee_id: i32,
+        transfer_reason: &str,
+    ) -> Result<(), AppError> {
+        let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let task = bpm_task::Entity::find_by_id(task_id)
+            .one(&txn).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
+
+        if task.status != "PENDING" {
+            return Err(AppError::ValidationError("只能转办待处理任务".to_string()));
+        }
+
+        let mut task_active: bpm_task::ActiveModel = task.into();
+        task_active.assignee_id = Set(Some(new_assignee_id));
+        task_active.comment = Set(Some(format!("[转办] {}", transfer_reason)));
+        task_active.updated_at = Set(chrono::Utc::now());
+        task_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        Ok(())
+    }
+
+    /// 催办任务
+    pub async fn urge_task(
+        &self,
+        task_id: i32,
+        urge_message: &str,
+    ) -> Result<(), AppError> {
+        let task = bpm_task::Entity::find_by_id(task_id)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
+
+        if task.status != "PENDING" {
+            return Err(AppError::ValidationError("只能催办待处理任务".to_string()));
+        }
+
+        // 记录催办日志，可以通过事件总线发送通知
+        tracing::info!(
+            "催办任务 {}: {}, 处理人: {:?}, 消息: {}",
+            task_id,
+            task.name,
+            task.assignee_id,
+            urge_message
+        );
+
+        // TODO: 通过事件总线发送催办通知给处理人
+
+        Ok(())
+    }
 }
 
 /// BPM business relation info
@@ -307,4 +575,41 @@ pub struct BpmBusinessRelation {
     pub task_count: i32,
     pub completed_tasks: i32,
     pub pending_tasks: i32,
+}
+
+/// 审批链节点信息
+#[derive(Debug, serde::Serialize)]
+pub struct ApprovalChainNode {
+    pub node_id: String,
+    pub node_name: String,
+    pub node_type: String,
+    pub assignee_id: Option<i32>,
+    pub assignee_name: Option<String>,
+    pub status: String,
+    pub comment: Option<String>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub due_time: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// 流程监控统计
+#[derive(Debug, serde::Serialize)]
+pub struct ProcessMonitorStats {
+    pub total_instances: i64,
+    pub processing_instances: i64,
+    pub completed_instances: i64,
+    pub terminated_instances: i64,
+    pub total_tasks: i64,
+    pub pending_tasks: i64,
+    pub completed_tasks: i64,
+    pub rejected_tasks: i64,
+    pub avg_process_duration_minutes: Option<f64>,
+}
+
+/// 流程实例详情
+#[derive(Debug, serde::Serialize)]
+pub struct ProcessInstanceDetail {
+    pub instance: bpm_process_instance::Model,
+    pub definition_name: String,
+    pub tasks: Vec<bpm_task::Model>,
+    pub approval_chain: Vec<ApprovalChainNode>,
 }

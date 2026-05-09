@@ -308,3 +308,33 @@ pub struct OrderQueryParams {
 pub struct RejectOrderRequest {
     pub reason: String,
 }
+
+// ========== 数据导出接口 ==========
+
+use axum::http::header;
+
+/// 导出采购订单
+pub async fn export_orders(
+    State(state): State<AppState>,
+    Query(query): Query<OrderQueryParams>,
+) -> Result<axum::response::Response, AppError> {
+    let service = PurchaseOrderService::new(state.db.clone());
+
+    let csv_data = service
+        .export_orders_to_csv(query.status, query.supplier_id)
+        .await?;
+
+    let filename = format!("purchase_orders_export_{}.csv", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", filename),
+        )
+        .body(axum::body::Body::from(csv_data))
+        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+
+    Ok(response)
+}

@@ -84,3 +84,7 @@ pub mod ar_reconciliation_handler;
 pub mod currency_handler;
 pub mod ai_analysis_handler;
 pub mod report_engine_handler;
+// 消息通知模块
+pub mod notification_handler;
+// 数据权限模块
+pub mod data_permission_handler;

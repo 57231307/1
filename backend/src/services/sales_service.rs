@@ -1058,4 +1058,108 @@ impl SalesService {
         // 返回订单详情
         self.get_order_detail(completed_order.id).await
     }
+
+    // ========== 数据导出方法 ==========
+
+    /// 导出销售订单为 CSV 格式
+    pub async fn export_orders_to_csv(
+        &self,
+        status: Option<String>,
+        customer_id: Option<i32>,
+        order_no: Option<String>,
+    ) -> Result<Vec<u8>, sea_orm::DbErr> {
+        let page_req = PageRequest {
+            page: 1,
+            page_size: 10000,
+        };
+        let orders = self
+            .list_orders(page_req, status, customer_id, order_no)
+            .await?;
+
+        let headers = vec![
+            "订单编号".to_string(),
+            "客户ID".to_string(),
+            "客户名称".to_string(),
+            "订单日期".to_string(),
+            "要求交货日期".to_string(),
+            "发货日期".to_string(),
+            "状态".to_string(),
+            "小计金额".to_string(),
+            "税额".to_string(),
+            "折扣金额".to_string(),
+            "运费".to_string(),
+            "总金额".to_string(),
+            "已付金额".to_string(),
+            "余额".to_string(),
+            "送货地址".to_string(),
+            "账单地址".to_string(),
+            "备注".to_string(),
+            "创建人ID".to_string(),
+            "审批人ID".to_string(),
+            "审批时间".to_string(),
+        ];
+
+        let rows: Vec<std::collections::HashMap<String, String>> = orders
+            .data
+            .into_iter()
+            .map(|o| {
+                let mut row = std::collections::HashMap::new();
+                row.insert("订单编号".to_string(), o.order_no);
+                row.insert("客户ID".to_string(), o.customer_id.to_string());
+                row.insert(
+                    "客户名称".to_string(),
+                    o.customer_name.unwrap_or_default(),
+                );
+                row.insert(
+                    "订单日期".to_string(),
+                    o.order_date.format("%Y-%m-%d %H:%M:%S").to_string(),
+                );
+                row.insert(
+                    "要求交货日期".to_string(),
+                    o.required_date.format("%Y-%m-%d %H:%M:%S").to_string(),
+                );
+                row.insert(
+                    "发货日期".to_string(),
+                    o.ship_date
+                        .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_default(),
+                );
+                row.insert("状态".to_string(), o.status);
+                row.insert("小计金额".to_string(), o.subtotal.to_string());
+                row.insert("税额".to_string(), o.tax_amount.to_string());
+                row.insert("折扣金额".to_string(), o.discount_amount.to_string());
+                row.insert("运费".to_string(), o.shipping_cost.to_string());
+                row.insert("总金额".to_string(), o.total_amount.to_string());
+                row.insert("已付金额".to_string(), o.paid_amount.to_string());
+                row.insert("余额".to_string(), o.balance_amount.to_string());
+                row.insert(
+                    "送货地址".to_string(),
+                    o.shipping_address.unwrap_or_default(),
+                );
+                row.insert(
+                    "账单地址".to_string(),
+                    o.billing_address.unwrap_or_default(),
+                );
+                row.insert("备注".to_string(), o.notes.unwrap_or_default());
+                row.insert(
+                    "创建人ID".to_string(),
+                    o.created_by.map(|id: i32| id.to_string()).unwrap_or_default(),
+                );
+                row.insert(
+                    "审批人ID".to_string(),
+                    o.approved_by.map(|id: i32| id.to_string()).unwrap_or_default(),
+                );
+                row.insert(
+                    "审批时间".to_string(),
+                    o.approved_at
+                        .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_default(),
+                );
+                row
+            })
+            .collect();
+
+        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
+            .map_err(|e| sea_orm::DbErr::Custom(format!("CSV 生成失败: {}", e)))
+    }
 }

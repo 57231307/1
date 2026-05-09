@@ -85,3 +85,8 @@ pub mod report_engine_service;
 pub mod tenant_service;
 pub mod webhook_service;
 pub mod api_key_service;
+// 消息通知模块
+pub mod notification_service;
+pub mod email_service;
+pub mod event_notification_service;
+pub mod data_permission_service;

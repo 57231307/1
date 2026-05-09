@@ -766,6 +766,94 @@ impl PurchaseOrderService {
 
         Ok(items)
     }
+
+    // ========== 数据导出方法 ==========
+
+    /// 导出采购订单为 CSV 格式
+    pub async fn export_orders_to_csv(
+        &self,
+        status: Option<String>,
+        supplier_id: Option<i32>,
+    ) -> Result<Vec<u8>, AppError> {
+        let (orders, _total) = self.list_orders(1, 10000, status, supplier_id).await?;
+
+        let headers = vec![
+            "订单编号".to_string(),
+            "供应商ID".to_string(),
+            "供应商名称".to_string(),
+            "订单日期".to_string(),
+            "预计交货日期".to_string(),
+            "实际交货日期".to_string(),
+            "仓库ID".to_string(),
+            "仓库名称".to_string(),
+            "部门ID".to_string(),
+            "部门名称".to_string(),
+            "采购员ID".to_string(),
+            "币种".to_string(),
+            "汇率".to_string(),
+            "总金额".to_string(),
+            "总金额外币".to_string(),
+            "总数量".to_string(),
+            "总数量辅助".to_string(),
+            "状态".to_string(),
+            "付款条件".to_string(),
+            "运输条款".to_string(),
+            "备注".to_string(),
+        ];
+
+        let rows: Vec<std::collections::HashMap<String, String>> = orders
+            .into_iter()
+            .map(|o| {
+                let mut row = std::collections::HashMap::new();
+                row.insert("订单编号".to_string(), o.order_no);
+                row.insert("供应商ID".to_string(), o.supplier_id.to_string());
+                row.insert(
+                    "供应商名称".to_string(),
+                    o.supplier_name.unwrap_or_default(),
+                );
+                row.insert("订单日期".to_string(), o.order_date.to_string());
+                row.insert(
+                    "预计交货日期".to_string(),
+                    o.expected_delivery_date.map(|d| d.to_string()).unwrap_or_default(),
+                );
+                row.insert(
+                    "实际交货日期".to_string(),
+                    o.actual_delivery_date.map(|d| d.to_string()).unwrap_or_default(),
+                );
+                row.insert("仓库ID".to_string(), o.warehouse_id.to_string());
+                row.insert(
+                    "仓库名称".to_string(),
+                    o.warehouse_name.unwrap_or_default(),
+                );
+                row.insert("部门ID".to_string(), o.department_id.to_string());
+                row.insert(
+                    "部门名称".to_string(),
+                    o.department_name.unwrap_or_default(),
+                );
+                row.insert("采购员ID".to_string(), o.purchaser_id.to_string());
+                row.insert("币种".to_string(), o.currency);
+                row.insert("汇率".to_string(), o.exchange_rate.to_string());
+                row.insert("总金额".to_string(), o.total_amount.to_string());
+                row.insert("总金额外币".to_string(), o.total_amount_foreign.to_string());
+                row.insert("总数量".to_string(), o.total_quantity.to_string());
+                row.insert("总数量辅助".to_string(), o.total_quantity_alt.to_string());
+                row.insert("状态".to_string(), o.order_status);
+                row.insert(
+                    "付款条件".to_string(),
+                    o.payment_terms.unwrap_or_default(),
+                );
+                row.insert(
+                    "运输条款".to_string(),
+                    o.shipping_terms.unwrap_or_default(),
+                );
+                row.insert("备注".to_string(), o.notes.unwrap_or_default());
+                row
+            })
+            .collect();
+
+        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
+            .map_err(|e| AppError::InternalError(format!("CSV 生成失败: {}", e)))
+    }
 }
 
 // =====================================================

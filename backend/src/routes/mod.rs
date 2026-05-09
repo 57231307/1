@@ -79,6 +79,8 @@ use crate::handlers::{
     warehouse_handler,
     webhook_handler,
     init_handler, accounting_period_handler, omni_audit_handler,
+    notification_handler,
+    data_permission_handler,
 };
 
 use crate::services::metrics_service::create_metrics_router;
@@ -128,6 +130,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/batch/create", post(bulk_product_handler::batch_create_products))
         .route("/batch/update", post(bulk_product_handler::batch_update_products))
         .route("/batch/delete", post(bulk_product_handler::batch_delete_products))
+        // 数据导入导出路由
+        .route("/export", get(product_handler::export_products))
+        .route("/import", post(product_handler::import_products))
+        .route("/import-template", get(product_handler::get_product_import_template))
         // 色号管理路由
         .route(
             "/:product_id/colors",
@@ -246,6 +252,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
         .route("/orders/:id/complete", post(sales_order_handler::complete_order))
         .route("/orders/:id/history", get(sales_order_handler::get_order_history))
+        .route("/orders/export", get(sales_order_handler::export_orders))
         // 面料行业销售订单路由
         .route(
             "/fabric-orders",
@@ -541,6 +548,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/submit", post(purchase_order_handler::submit_order))
         .route("/orders/:id/reject", post(purchase_order_handler::reject_order))
         .route("/orders/:id/close", post(purchase_order_handler::close_order))
+        .route("/orders/export", get(purchase_order_handler::export_orders))
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
@@ -778,7 +786,15 @@ pub fn create_router(state: AppState) -> Router {
         .route("/tasks/approve", post(bpm_handler::approve_task))
         .route("/tasks", get(bpm_handler::query_tasks))
         .route("/business-relation", get(bpm_handler::get_business_relation))
-        .route("/visualization/:instance_id", get(bpm_handler::get_process_visualization));
+        .route("/visualization/:instance_id", get(bpm_handler::get_process_visualization))
+        // 审批链和监控接口
+        .route("/instances/:instance_id/approval-chain", get(bpm_handler::get_approval_chain))
+        .route("/instances/:instance_id/detail", get(bpm_handler::get_instance_detail))
+        .route("/monitor/stats", get(bpm_handler::get_monitor_stats))
+        .route("/monitor/pending-tasks", get(bpm_handler::get_pending_tasks_for_monitor))
+        .route("/monitor/instances", get(bpm_handler::list_instances_for_monitor))
+        .route("/tasks/:task_id/transfer", post(bpm_handler::transfer_task))
+        .route("/tasks/:task_id/urge", post(bpm_handler::urge_task));
 
     // 健康检查路由
     // 扫码出库路由
@@ -908,6 +924,24 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/api-keys", Router::new()
             .route("/", get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key))
             .route("/:id/revoke", post(api_key_handler::revoke_api_key))
+        )
+        // 数据权限路由
+        .nest("/api/v1/erp/data-permissions", Router::new()
+            .route("/", post(data_permission_handler::set_data_permission))
+            .route("/scope-types", get(data_permission_handler::list_scope_types))
+            .route("/roles/:role_id", get(data_permission_handler::list_role_data_permissions))
+            .route("/roles/:role_id/:resource_type", get(data_permission_handler::get_data_permission).delete(data_permission_handler::delete_data_permission))
+        )
+        // 消息通知路由
+        .nest("/api/v1/erp/notifications", Router::new()
+            .route("/", get(notification_handler::list_notifications))
+            .route("/unread-count", get(notification_handler::get_unread_count))
+            .route("/read-all", post(notification_handler::mark_all_as_read))
+            .route("/batch-read", post(notification_handler::batch_mark_as_read))
+            .route("/settings", get(notification_handler::get_settings).put(notification_handler::update_setting))
+            .route("/:id", get(notification_handler::get_notification))
+            .route("/:id/read", post(notification_handler::mark_as_read))
+            .route("/:id", delete(notification_handler::delete_notification))
         )
         .nest("/", metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))

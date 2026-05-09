@@ -109,3 +109,107 @@ pub async fn get_process_visualization(
 
     Ok(Json(ApiResponse::success(visualization)))
 }
+
+// ========== 审批链和监控接口 ==========
+
+/// 获取流程实例审批链
+pub async fn get_approval_chain(
+    Path(instance_id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let chain = service.get_approval_chain(instance_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(chain)?)))
+}
+
+/// 获取流程实例详情
+pub async fn get_instance_detail(
+    Path(instance_id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let detail = service.get_instance_detail(instance_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(detail)?)))
+}
+
+/// 流程监控统计查询参数
+#[derive(Debug, Deserialize)]
+pub struct MonitorQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub status: Option<String>,
+}
+
+/// 获取流程监控统计
+pub async fn get_monitor_stats(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let stats = service.get_monitor_stats().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(stats)?)))
+}
+
+/// 获取待处理任务列表（监控）
+pub async fn get_pending_tasks_for_monitor(
+    State(state): State<AppState>,
+    Query(query): Query<MonitorQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    let tasks = service.get_pending_tasks_for_monitor(page, page_size).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(tasks)?)))
+}
+
+/// 获取流程实例列表（监控）
+pub async fn list_instances_for_monitor(
+    State(state): State<AppState>,
+    Query(query): Query<MonitorQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    let instances = service.list_instances_for_monitor(query.status, page, page_size).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(instances)?)))
+}
+
+/// 转办任务请求
+#[derive(Debug, Deserialize)]
+pub struct TransferTaskRequest {
+    pub new_assignee_id: i32,
+    pub transfer_reason: String,
+}
+
+/// 转办任务
+pub async fn transfer_task(
+    Path(task_id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<TransferTaskRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    service.transfer_task(task_id, req.new_assignee_id, &req.transfer_reason).await?;
+    Ok(Json(ApiResponse::success_with_msg(
+        "任务转办成功".to_string(),
+        "任务转办成功",
+    )))
+}
+
+/// 催办任务请求
+#[derive(Debug, Deserialize)]
+pub struct UrgeTaskRequest {
+    pub urge_message: String,
+}
+
+/// 催办任务
+pub async fn urge_task(
+    Path(task_id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<UrgeTaskRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    service.urge_task(task_id, &req.urge_message).await?;
+    Ok(Json(ApiResponse::success_with_msg(
+        "催办成功".to_string(),
+        "催办通知已发送",
+    )))
+}

@@ -173,3 +173,8 @@ pub mod tenant_config;
 pub mod tenant_plan;
 pub mod webhook;
 pub mod api_key;
+// 消息通知模块
+pub mod notification;
+pub mod notification_setting;
+// 数据权限模块
+pub mod data_permission;
