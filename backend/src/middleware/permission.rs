@@ -73,11 +73,19 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
     
     if path_parts.len() >= 4 && path_parts[0] == "api" && path_parts[1] == "v1" && path_parts[2] == "erp" {
-        let resource_type = path_parts[3].to_string();
+        // 处理嵌套路径，如 /api/v1/erp/sales/orders/:id/approve
+        // 资源类型由第4段决定，如果第4段是资源类型（如users, products），直接使用
+        // 如果第4段是模块名（如sales, purchases），则使用第5段作为资源类型
+        let resource_type = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
+            path_parts[4].to_string()
+        } else {
+            path_parts[3].to_string()
+        };
         
-        // 尝试提取资源ID
-        if path_parts.len() >= 5 {
-            if let Ok(id) = path_parts[4].parse::<i32>() {
+        // 尝试提取资源ID（跳过模块前缀）
+        let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) { 5 } else { 4 };
+        for i in start_idx..path_parts.len() {
+            if let Ok(id) = path_parts[i].parse::<i32>() {
                 return (resource_type, Some(id));
             }
         }
@@ -86,6 +94,18 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     } else {
         ("unknown".to_string(), None)
     }
+}
+
+/// 判断是否为模块前缀（如 sales, purchases, finance 等）
+fn is_module_prefix(part: &str) -> bool {
+    matches!(part,
+        "sales" | "purchases" | "finance" | "inventory" | "gl" | "ap" | "ar" |
+        "bpm" | "crm" | "ai" | "reports" | "tenants" | "webhooks" | "api-keys" |
+        "supplier-evaluation" | "customer-credits" | "financial-analysis" |
+        "fund-management" | "quality-inspection" | "cost-collections" |
+        "sales-analysis" | "sales-prices" | "purchase-prices" |
+        "sales-returns" | "ar-reconciliations" | "exchange-rates"
+    )
 }
 
 fn method_to_action(method: &Method) -> String {
