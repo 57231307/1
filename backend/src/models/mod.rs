@@ -164,3 +164,10 @@ pub mod audit_log;
 pub mod omni_audit_log;
 pub mod audit_alert_rule;
 pub mod approval_template; pub mod approval_node; pub mod approval_instance; pub mod approval_log;
+// 多租户SaaS模块
+pub mod tenant;
+pub mod tenant_user;
+pub mod tenant_config;
+pub mod tenant_plan;
+pub mod webhook;
+pub mod api_key;

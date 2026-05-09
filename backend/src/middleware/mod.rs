@@ -9,3 +9,5 @@ pub mod request_validator;
 pub mod permission;
 pub mod csrf;
 pub mod public_routes;
+pub mod tenant;
+pub mod api_gateway;

@@ -1,6 +1,7 @@
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
+use crate::middleware::api_gateway::RateLimitStore;
 use crate::services::metrics_service::MetricsService;
 use crate::services::omni_audit_service::OmniAuditEngine;
 use crate::utils::cache::AppCache;
@@ -19,7 +20,8 @@ pub struct AppState {
     pub cache: Arc<AppCache>,
     pub metrics: Arc<MetricsService>,
     pub cookie_key: Key,
-    }
+    pub rate_limiter: Arc<RateLimitStore>,
+}
 
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
@@ -54,6 +56,7 @@ impl AppState {
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
+            rate_limiter: Arc::new(RateLimitStore::new()),
         }
     }
 }
@@ -75,6 +78,7 @@ impl Default for AppState {
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
+            rate_limiter: Arc::new(RateLimitStore::new()),
         }
     }
 }

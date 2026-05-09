@@ -12,6 +12,7 @@ use crate::handlers::{
     logistics_handler,
     account_subject_handler,
     ap_invoice_handler,
+    api_key_handler,
     ap_payment_handler,
     ap_payment_request_handler,
     ap_reconciliation_handler,
@@ -67,10 +68,12 @@ use crate::handlers::{
     sales_return_handler,
     supplier_evaluation_handler,
     supplier_handler,
+    tenant_handler,
     user_handler,
     system_update_handler,
     voucher_handler,
     warehouse_handler,
+    webhook_handler,
     init_handler, accounting_period_handler, omni_audit_handler,
 };
 
@@ -858,6 +861,22 @@ pub fn create_router(state: AppState) -> Router {
             .route("/customers/:id/summary", get(crate::handlers::crm_handler::get_customer_relation_summary))
         )
         .nest("/api/v1/erp/init", init_routes)
+        // 多租户SaaS路由
+        .nest("/api/v1/erp/tenants", Router::new()
+            .route("/", get(tenant_handler::list_tenants).post(tenant_handler::create_tenant))
+            .route("/:id", get(tenant_handler::get_tenant))
+            .route("/:id/status", put(tenant_handler::update_tenant_status))
+        )
+        // Webhook路由
+        .nest("/api/v1/erp/webhooks", Router::new()
+            .route("/", get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook))
+            .route("/:id", delete(webhook_handler::delete_webhook))
+        )
+        // API密钥路由
+        .nest("/api/v1/erp/api-keys", Router::new()
+            .route("/", get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key))
+            .route("/:id/revoke", post(api_key_handler::revoke_api_key))
+        )
         .nest("/", metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))

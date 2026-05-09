@@ -15,6 +15,8 @@ pub struct AppClaims {
     pub sub: i32,
     pub username: String,
     pub role_id: Option<i32>,
+    /// 租户 ID（多租户支持）
+    pub tenant_id: Option<i32>,
     #[serde(with = "chrono::serde::ts_seconds")]
     pub exp: DateTime<Utc>,
     #[serde(with = "chrono::serde::ts_seconds")]
@@ -60,7 +62,7 @@ impl AuthService {
             return Err(AuthError::UserInactive);
         }
 
-        let token = self.generate_token(user.id, &user.username, user.role_id)
+        let token = self.generate_token(user.id, &user.username, user.role_id, None)
             .map_err(|e| AuthError::TokenGenerationError(e.to_string()))?;
 
         Ok((token, user))
@@ -71,6 +73,7 @@ impl AuthService {
         user_id: i32,
         username: &str,
         role_id: Option<i32>,
+        tenant_id: Option<i32>,
     ) -> Result<String, AuthError> {
         let now = Utc::now();
         // Token expires in 2 hours (reduced from 24 hours for security)
@@ -82,6 +85,7 @@ impl AuthService {
             sub: user_id,
             username: username.to_string(),
             role_id,
+            tenant_id,
             exp,
             iat: now,
             refresh_exp,

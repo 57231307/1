@@ -75,3 +75,7 @@ pub mod production_order_handler;
 pub mod logistics_handler;
 pub mod barcode_scanner_handler;
 pub mod piece_split_handler;
+// 多租户SaaS模块
+pub mod tenant_handler;
+pub mod webhook_handler;
+pub mod api_key_handler;

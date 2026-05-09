@@ -50,6 +50,8 @@ pub struct AuthContext {
     pub username: String,
     /// 角色 ID
     pub role_id: Option<i32>,
+    /// 租户 ID（多租户支持）
+    pub tenant_id: Option<i32>,
 }
 
 impl AuthContext {
@@ -58,6 +60,7 @@ impl AuthContext {
             user_id: claims.sub,
             username: claims.username,
             role_id: claims.role_id,
+            tenant_id: claims.tenant_id,
         }
     }
 }

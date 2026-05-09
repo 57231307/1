@@ -81,3 +81,7 @@ pub mod currency_service;
 // AI智能分析与报表模块
 pub mod ai_analysis_service;
 pub mod report_engine_service;
+// 多租户SaaS模块
+pub mod tenant_service;
+pub mod webhook_service;
+pub mod api_key_service;

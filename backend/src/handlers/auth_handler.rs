@@ -241,7 +241,7 @@ pub async fn refresh_token(
 
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
     let new_token = auth_service
-        .generate_token(claims.sub, &claims.username, claims.role_id)
+        .generate_token(claims.sub, &claims.username, claims.role_id, claims.tenant_id)
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
