@@ -8,6 +8,7 @@ use crate::services::purchase_inspection_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -53,14 +54,14 @@ pub async fn get_inspection(
 #[axum::debug_handler]
 pub async fn create_inspection(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreatePurchaseInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()?;
 
     let service = PurchaseInspectionService::new(state.db.clone());
-    let user_id = 1;
 
-    let inspection = service.create_inspection(req, user_id).await?;
+    let inspection = service.create_inspection(req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(inspection)?,
@@ -73,12 +74,12 @@ pub async fn create_inspection(
 pub async fn update_inspection(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<UpdatePurchaseInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseInspectionService::new(state.db.clone());
-    let user_id = 1;
 
-    let inspection = service.update_inspection(id, req, user_id).await?;
+    let inspection = service.update_inspection(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(inspection)?,
@@ -91,14 +92,14 @@ pub async fn update_inspection(
 pub async fn complete_inspection(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CompleteInspectionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()?;
 
     let service = PurchaseInspectionService::new(state.db.clone());
-    let user_id = 1;
 
-    let inspection = service.complete_inspection(id, req, user_id).await?;
+    let inspection = service.complete_inspection(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(inspection)?,

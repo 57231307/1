@@ -93,10 +93,6 @@ pub async fn anti_brute_force(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    // TEMPORARY DEBUG BYPASS: 临时禁用暴力破解保护以进行调试
-    // TODO: 修复后恢复正常的速率限制
-    return Ok(next.run(req).await);
-
     let ip = req
         .extensions()
         .get::<axum::extract::ConnectInfo<SocketAddr>>()
@@ -105,7 +101,10 @@ pub async fn anti_brute_force(
 
     if !BRUTE_FORCE_LIMITER.check(&ip) {
         tracing::warn!("Brute force blocked for IP {}", ip);
-        return Err(AppError::TooManyRequests);
+        return Err(AppError::TooManyRequests {
+            retry_after: Some(300),
+            message: "登录尝试次数过多，请5分钟后再试".to_string(),
+        });
     }
 
     Ok(next.run(req).await)

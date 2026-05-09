@@ -7,6 +7,7 @@ use crate::services::purchase_return_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -52,14 +53,14 @@ pub async fn get_purchase_return(
 #[axum::debug_handler]
 pub async fn create_purchase_return(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()?;
 
     let service = PurchaseReturnService::new(state.db.clone());
-    let user_id = 1;
 
-    let return_order = service.create_return(req, user_id).await?;
+    let return_order = service.create_return(req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(return_order)?,
@@ -72,12 +73,12 @@ pub async fn create_purchase_return(
 pub async fn update_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<UpdatePurchaseReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    let user_id = 1;
 
-    let return_order = service.update_return(id, req, user_id).await?;
+    let return_order = service.update_return(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(return_order)?,
@@ -89,11 +90,11 @@ pub async fn update_purchase_return(
 pub async fn submit_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    let user_id = 1;
 
-    let return_order = service.submit_return(id, user_id).await?;
+    let return_order = service.submit_return(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(return_order)?,
@@ -105,11 +106,11 @@ pub async fn submit_purchase_return(
 pub async fn approve_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    let user_id = 1;
 
-    let return_order = service.approve_return(id, user_id).await?;
+    let return_order = service.approve_return(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(return_order)?,
@@ -122,12 +123,12 @@ pub async fn approve_purchase_return(
 pub async fn reject_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<RejectReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    let user_id = 1;
 
-    let return_order = service.reject_return(id, req.reason, user_id).await?;
+    let return_order = service.reject_return(id, req.reason, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(return_order)?,
@@ -167,7 +168,7 @@ pub struct RejectReturnRequest {
 
 pub async fn list_purchase_return_items(
     State(state): State<AppState>,
-    _auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
@@ -177,7 +178,7 @@ pub async fn list_purchase_return_items(
 
 pub async fn create_purchase_return_item(
     State(state): State<AppState>,
-    _auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<CreateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
@@ -188,7 +189,7 @@ pub async fn create_purchase_return_item(
 
 pub async fn update_purchase_return_item(
     State(state): State<AppState>,
-    _auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
@@ -199,7 +200,7 @@ pub async fn update_purchase_return_item(
 
 pub async fn delete_purchase_return_item(
     State(state): State<AppState>,
-    _auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());

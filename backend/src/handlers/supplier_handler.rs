@@ -4,6 +4,7 @@ use crate::services::supplier_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -45,15 +46,15 @@ pub async fn get_supplier(
 #[axum::debug_handler]
 pub async fn create_supplier(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()?;
 
     let service = SupplierService::new(state.db.clone());
-    let user_id = 1;
 
     let supplier = service
-        .create_supplier(req, user_id)
+        .create_supplier(req, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -67,13 +68,13 @@ pub async fn create_supplier(
 pub async fn update_supplier(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<UpdateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    let user_id = 1;
 
     let supplier = service
-        .update_supplier(id, req, user_id)
+        .update_supplier(id, req, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -101,13 +102,13 @@ pub async fn delete_supplier(
 pub async fn toggle_supplier_status(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<ToggleStatusRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    let user_id = 1;
 
     let supplier = service
-        .toggle_supplier_status(id, req.enable, user_id)
+        .toggle_supplier_status(id, req.enable, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -148,15 +149,15 @@ pub async fn list_supplier_contacts(
 pub async fn create_supplier_contact(
     Path(supplier_id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()?;
 
     let service = SupplierService::new(state.db.clone());
-    let user_id = 1;
 
     let contact = service
-        .create_supplier_contact(supplier_id, req, user_id)
+        .create_supplier_contact(supplier_id, req, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -170,13 +171,13 @@ pub async fn create_supplier_contact(
 pub async fn update_supplier_contact(
     Path((_supplier_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<UpdateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    let user_id = 1;
 
     let contact = service
-        .update_supplier_contact(contact_id, req, user_id)
+        .update_supplier_contact(contact_id, req, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(

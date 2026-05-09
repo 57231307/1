@@ -68,7 +68,6 @@ impl AppSettings {
             Err(e) => {
                 eprintln!("警告: 无法加载配置文件: {}", e);
                 eprintln!("将尝试从环境变量加载配置");
-                // 尝试仅从环境变量构建
                 match Config::builder()
                     .add_source(config::Environment::default().separator("__"))
                     .build()
@@ -88,12 +87,19 @@ impl AppSettings {
             }
         };
 
-        // 强制检查 JWT 密钥强度
-        if app_settings.auth.jwt_secret.len() < 32 || app_settings.auth.jwt_secret.contains("change-in-production") || app_settings.auth.jwt_secret.contains("change-this") {
+        app_settings.load_sensitive_from_env();
+
+        if app_settings.auth.jwt_secret.len() < 32 || 
+           app_settings.auth.jwt_secret.contains("change-in-production") || 
+           app_settings.auth.jwt_secret.contains("change-this") ||
+           app_settings.auth.jwt_secret.contains("local-dev") {
             panic!("致命错误: JWT 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥。");
         }
 
-        // 处理 CORS 允许来源的环境变量（逗号分隔列表）
+        if app_settings.auth.jwt_secret.len() < 32 {
+            panic!("致命错误: JWT 密钥长度必须至少 32 字节");
+        }
+
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {
             app_settings.cors.allowed_origins = origins_str
                 .split(',')
@@ -102,7 +108,6 @@ impl AppSettings {
                 .collect();
         }
 
-        // 确保数据库连接字符串存在
         if app_settings.database.connection_string.is_empty() {
             app_settings.database.connection_string = format!(
                 "postgres://{}:{}@{}:{}/{}",
@@ -115,5 +120,23 @@ impl AppSettings {
         }
 
         Ok(app_settings)
+    }
+
+    fn load_sensitive_from_env(&mut self) {
+        if let Ok(password) = std::env::var("DATABASE_PASSWORD") {
+            self.database.password = password;
+        }
+
+        if let Ok(jwt_secret) = std::env::var("JWT_SECRET") {
+            self.auth.jwt_secret = jwt_secret;
+        }
+
+        if let Ok(cookie_secret) = std::env::var("COOKIE_SECRET") {
+            self.auth.cookie_secret = Some(cookie_secret);
+        }
+
+        if let Ok(prev_secret) = std::env::var("PREVIOUS_JWT_SECRET") {
+            self.auth.previous_jwt_secret = Some(prev_secret);
+        }
     }
 }

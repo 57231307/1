@@ -9,7 +9,6 @@ use serde_json::Value;
 use crate::models::{omni_audit_log, audit_alert_rule};
 
 type HmacSha256 = Hmac<Sha256>;
-const AUDIT_SECRET_KEY: &[u8] = b"bingxi_erp_audit_super_secret_key_2026";
 
 #[derive(Debug, Clone)]
 pub struct OmniAuditMessage {
@@ -29,35 +28,39 @@ pub struct OmniAuditMessage {
 
 pub struct OmniAuditEngine {
     sender: mpsc::Sender<OmniAuditMessage>,
+    secret_key: Vec<u8>,
 }
 
 impl OmniAuditEngine {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        // 创建容量为 10000 的 channel，防止高并发时阻塞业务线程
+    pub fn new(db: Arc<DatabaseConnection>) -> Result<Self, String> {
+        let secret_key = std::env::var("AUDIT_SECRET_KEY")
+            .map_err(|_| "AUDIT_SECRET_KEY 环境变量未设置".to_string())?;
+
+        if secret_key.len() < 32 {
+            return Err("AUDIT_SECRET_KEY 长度必须至少 32 字节".to_string());
+        }
+
         let (sender, mut receiver) = mpsc::channel::<OmniAuditMessage>(10000);
 
         let db_clone = db.clone();
-        
-        // 启动后台守护任务 (Daemon Task)
+        let secret_key_clone = secret_key.clone();
+
         tokio::spawn(async move {
             tracing::info!("OmniAudit 异步收集引擎已启动");
             while let Some(msg) = receiver.recv().await {
-                // 1. 签名计算
                 let payload_str = msg.payload.as_ref().map(|p| p.to_string()).unwrap_or_default();
                 let sign_material = format!("{}|{}|{}|{}", msg.trace_id, msg.event_type, msg.action, payload_str);
-                
-                let mut mac = HmacSha256::new_from_slice(AUDIT_SECRET_KEY).expect("HMAC can take key of any size");
+
+                let mut mac = HmacSha256::new_from_slice(secret_key_clone.as_bytes())
+                    .expect("HMAC can take key of any size");
                 mac.update(sign_material.as_bytes());
                 let signature = hex::encode(mac.finalize().into_bytes());
 
-                // 2. 告警规则匹配 (简化版: 若状态为 FAILED 或 DENIED 且类型为 SECURITY_ALERT)
                 if msg.status == "FAILED" || msg.status == "DENIED" || msg.event_type == "SECURITY_ALERT" {
-                    tracing::warn!("【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}", 
+                    tracing::warn!("【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}",
                         msg.user_id, msg.event_name, msg.resource, msg.status);
-                    // 实际项目中这里可以推送到 WebSocket 或邮件
                 }
 
-                // 3. 落盘存储
                 let log = omni_audit_log::ActiveModel {
                     trace_id: ActiveValue::Set(msg.trace_id),
                     user_id: ActiveValue::Set(msg.user_id),
@@ -82,10 +85,9 @@ impl OmniAuditEngine {
             }
         });
 
-        Self { sender }
+        Ok(Self { sender, secret_key: secret_key.into_bytes() })
     }
 
-    /// 发送异步审计日志，不阻塞当前线程
     pub fn log(&self, msg: OmniAuditMessage) {
         let sender = self.sender.clone();
         tokio::spawn(async move {

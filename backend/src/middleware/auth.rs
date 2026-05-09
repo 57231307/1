@@ -18,19 +18,9 @@ pub async fn auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // TEMPORARY DEBUG BYPASS: 插入管理员AuthContext以确保权限中间件通过
-    let path = request.uri().path().to_string();
-    let auth_context = AuthContext {
-        user_id: 0,
-        username: "admin".to_string(),
-        role_id: Some(1),
-    };
-    request.extensions_mut().insert(auth_context);
-    tracing::info!("[AUTH_MW] 绕过认证，已插入管理员AuthContext, path={}", path);
-    return Ok(next.run(request).await);
-
     let path = request.uri().path();
 
+    // 公共路径跳过认证
     if is_public_path(path) {
         return Ok(next.run(request).await);
     }
