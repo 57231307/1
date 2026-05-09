@@ -36,8 +36,8 @@ pub async fn permission_middleware(
         }
     };
 
-    // DEBUG: 输出用户信息
-    tracing::error!("DEBUG_PERMISSION: user_id={}, username={}, role_id={:?}", auth.user_id, auth.username, auth.role_id);
+    // 权限检查日志（仅记录事件，不包含敏感详细信息）
+    tracing::debug!("权限检查: user_id={}, path={}", auth.user_id, path);
 
     let role_id = match auth.role_id {
         Some(id) => id,

@@ -5,6 +5,7 @@ use crate::middleware::api_gateway::RateLimitStore;
 use crate::services::metrics_service::MetricsService;
 use crate::services::omni_audit_service::OmniAuditEngine;
 use crate::utils::cache::AppCache;
+use crate::utils::di_container::DIContainer;
 
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
@@ -21,6 +22,7 @@ pub struct AppState {
     pub metrics: Arc<MetricsService>,
     pub cookie_key: Key,
     pub rate_limiter: Arc<RateLimitStore>,
+    pub di_container: Arc<DIContainer>,
 }
 
 impl FromRef<AppState> for Key {
@@ -47,6 +49,7 @@ impl AppState {
 
         let metrics = MetricsService::new().expect("Failed to create metrics service");
         let cookie_key = Key::derive_from(final_cookie_secret.as_bytes());
+        let di_container = Arc::new(DIContainer::new());
         Self {
             db,
             omni_audit,
@@ -57,18 +60,36 @@ impl AppState {
             metrics: Arc::new(metrics),
             cookie_key,
             rate_limiter: Arc::new(RateLimitStore::new()),
+            di_container,
         }
+    }
+
+    /// 从DI容器获取服务实例
+    pub fn get_service<T: 'static + Send + Sync>(&self) -> Option<Arc<T>> {
+        self.di_container.get::<T>()
+    }
+
+    /// 向DI容器注册服务实例
+    pub fn register_service<T: 'static + Send + Sync>(&self, instance: Arc<T>) {
+        self.di_container.register_singleton(instance);
     }
 }
 
 impl Default for AppState {
+    /// 警告：此Default实现仅用于测试环境。
+    /// 生产环境必须使用环境变量配置真实的密钥。
+    /// 如果检测到编译目标为release模式，将panic以防止意外使用。
     fn default() -> Self {
+        #[cfg(not(debug_assertions))]
+        panic!("AppState::default() 禁止在生产环境(release模式)中使用。请使用 AppState::new() 并提供真实的密钥配置。");
+
         let metrics = MetricsService::new().expect("Failed to create metrics service");
         let default_cookie_secret = "default-cookie-secret-key-for-test-environments-only-32-bytes".to_string();
         let cookie_key = Key::derive_from(default_cookie_secret.as_bytes());
         let db = Arc::new(DatabaseConnection::Disconnected);
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())
             .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"));
+        let di_container = Arc::new(DIContainer::new());
         Self {
             db: db.clone(),
             omni_audit,
@@ -79,6 +100,7 @@ impl Default for AppState {
             metrics: Arc::new(metrics),
             cookie_key,
             rate_limiter: Arc::new(RateLimitStore::new()),
+            di_container,
         }
     }
 }

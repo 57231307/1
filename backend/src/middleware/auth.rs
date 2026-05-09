@@ -49,37 +49,35 @@ pub async fn auth_middleware(
     };
 
     if token.is_empty() {
-        warn!("令牌为空");
+        warn!("认证失败: 令牌为空, path={}", path);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
     // 检查 Token 是否在黑名单中
     let is_blacklisted = state.cache.get_token_blacklist().get(&token).is_some();
     if is_blacklisted {
-        warn!("Token is blacklisted");
+        warn!("认证失败: Token已被吊销, path={}", path);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
     let mut claims = AuthService::validate_token_static(&token, &state.jwt_secret);
-    
+
     // API 密钥轮换机制：如果当前密钥验证失败，且配置了 previous_jwt_secret，尝试使用旧密钥验证
     if claims.is_err() {
-        tracing::error!("DEBUG_AUTH: JWT验证失败, secret长度={}, 错误={:?}", state.jwt_secret.len(), claims.as_ref().unwrap_err());
+        warn!("JWT验证失败，尝试使用旧密钥进行平滑过渡");
         if let Some(prev_secret) = &state.previous_jwt_secret {
-            tracing::info!("使用新 JWT 密钥验证失败，尝试使用旧密钥进行平滑过渡");
             claims = AuthService::validate_token_static(&token, prev_secret);
         }
     }
 
     match claims {
         Ok(claims) => {
-            tracing::info!("DEBUG_AUTH: user_id={}, username={}, role_id={:?}", claims.sub, claims.username, claims.role_id);
             let auth_context = AuthContext::from_claims(claims);
             request.extensions_mut().insert(auth_context);
             Ok(next.run(request).await)
         }
         Err(_) => {
-            warn!("令牌验证失败");
+            warn!("认证失败: 令牌验证失败, path={}", path);
             Err(StatusCode::UNAUTHORIZED)
         }
     }
