@@ -7,7 +7,6 @@ use crate::utils::app_state::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_service::OmniAuditMessage;
 use crate::services::omni_audit_query_service::{OmniAuditQueryService, AuditQueryFilter, AuditStats};
-use crate::models::omni_audit_log;
 use crate::utils::response::ApiResponse;
 use crate::utils::error::AppError;
 

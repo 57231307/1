@@ -6,7 +6,7 @@ use hmac::{Hmac, Mac, KeyInit};
 use sha2::Sha256;
 use serde_json::Value;
 
-use crate::models::{omni_audit_log, audit_alert_rule};
+use crate::models::omni_audit_log;
 
 type HmacSha256 = Hmac<Sha256>;
 

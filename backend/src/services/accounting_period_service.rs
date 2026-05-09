@@ -1,8 +1,8 @@
 use crate::models::accounting_period;
 use crate::utils::error::AppError;
-use chrono::{Datelike, NaiveDate, Utc, TimeZone};
+use chrono::{Datelike, Utc, TimeZone};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, QueryOrder,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
 use std::sync::Arc;
 

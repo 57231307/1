@@ -77,7 +77,7 @@ pub struct DeleteUserResponse {
 
 pub async fn get_user(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(state.db.clone());
@@ -99,7 +99,7 @@ pub async fn get_user(
 
 pub async fn create_user(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     if let Err(e) = payload.validate() {
@@ -138,7 +138,7 @@ pub async fn create_user(
 
 pub async fn list_users(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(params): Query<ListUsersParams>,
 ) -> Result<Json<ApiResponse<UserListResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let user_service = UserService::new(state.db.clone());
@@ -184,7 +184,7 @@ use axum::extract::Query;
 /// 更新用户信息
 pub async fn update_user(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, (StatusCode, Json<ApiResponse<()>>)> {

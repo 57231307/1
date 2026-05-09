@@ -86,7 +86,7 @@ impl MrpEngineService {
     /// 基于BOM展开计算子物料需求
     pub async fn explode_bom(
         &self,
-        product_id: i32,
+        _product_id: i32,
         parent_quantity: Decimal,
         required_date: NaiveDate,
         source_type: String,

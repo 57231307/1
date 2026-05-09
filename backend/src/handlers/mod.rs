@@ -79,3 +79,8 @@ pub mod piece_split_handler;
 pub mod tenant_handler;
 pub mod webhook_handler;
 pub mod api_key_handler;
+// Phase 2-3 补充Handler
+pub mod ar_reconciliation_handler;
+pub mod currency_handler;
+pub mod ai_analysis_handler;
+pub mod report_engine_handler;

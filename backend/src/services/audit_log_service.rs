@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use crate::models::audit_log;
 use chrono::Utc;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::Serialize;
 
 pub struct AuditLogService {
     db: Arc<DatabaseConnection>,
@@ -89,7 +89,7 @@ impl AuditLogService {
         };
 
         // 获取旧数据
-        use sea_orm::sea_query::IntoCondition;
+        
         let old_data = E::find()
             .filter(sea_orm::sea_query::Expr::col(pk_col).eq(pk_val_unwrapped))
             .one(db)

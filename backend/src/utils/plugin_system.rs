@@ -2,9 +2,7 @@
 //!
 //! 提供插件接口定义、加载器、生命周期管理
 
-use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// 插件状态
 #[derive(Debug, Clone, PartialEq)]

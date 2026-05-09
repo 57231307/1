@@ -201,7 +201,7 @@ pub async fn create_customer(
 pub async fn update_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    auth: crate::middleware::auth_context::AuthContext,
+    _auth: crate::middleware::auth_context::AuthContext,
     Json(payload): Json<UpdateCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     payload.validate()?;
@@ -245,7 +245,7 @@ pub async fn update_customer(
 pub async fn delete_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
     customer_service.delete_customer(id).await?;

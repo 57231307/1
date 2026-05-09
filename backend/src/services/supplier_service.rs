@@ -467,7 +467,7 @@ impl SupplierService {
 
     /// 取消所有主要联系人
     async fn clear_primary_contacts(&self, supplier_id: i32) -> Result<(), AppError> {
-        use sea_orm::ActiveModelTrait;
+        
 
         let contacts = supplier_contact::Entity::find()
             .filter(supplier_contact::Column::SupplierId.eq(supplier_id))

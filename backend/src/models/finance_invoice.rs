@@ -46,7 +46,6 @@ impl Related<super::customer::Entity> for Entity {
 
 
 use sea_orm::ActiveValue;
-use serde_json::Value;
 
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
@@ -57,9 +56,9 @@ impl ActiveModelBehavior for ActiveModel {
         if !insert {
             if let ActiveValue::Set(id) | ActiveValue::Unchanged(id) = self.id.clone() {
                 if let Ok(Some(old_data)) = Entity::find_by_id(id.clone()).one(db).await {
-                    if let Ok(old_json) = serde_json::to_value(&old_data) {
+                    if let Ok(_old_json) = serde_json::to_value(&old_data) {
                         // To get new data, we apply ActiveModel over old_data
-                        let mut new_data = old_data.clone();
+                        let _new_data = old_data.clone();
                         // This requires applying the active model, but ActiveModel doesn't have a simple apply method without moving.
                         // Actually we can just serialize the ActiveModel directly if we want, but it serializes differently.
                     }

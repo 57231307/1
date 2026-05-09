@@ -191,7 +191,7 @@ impl AiAnalysisService {
         let check_date = Utc::now().date_naive() - Duration::days(days);
 
         // 检测销售异常（销量突降）
-        let sales_orders = SalesOrderEntity::find()
+        let _sales_orders = SalesOrderEntity::find()
             .filter(crate::models::sales_order::Column::CreatedAt.gte(check_date))
             .filter(crate::models::sales_order::Column::IsDeleted.eq(false))
             .all(&*self.db)
@@ -297,7 +297,7 @@ impl AiAnalysisService {
     }
 
     /// 计算平均日销量
-    async fn calculate_avg_daily_sales(&self, product_id: i32) -> Result<Decimal, AppError> {
+    async fn calculate_avg_daily_sales(&self, _product_id: i32) -> Result<Decimal, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(30);
 
         let orders = SalesOrderEntity::find()

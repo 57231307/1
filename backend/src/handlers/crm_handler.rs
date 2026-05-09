@@ -29,7 +29,7 @@ pub async fn list_leads(
 
 pub async fn update_lead_status(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {

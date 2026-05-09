@@ -23,7 +23,7 @@ use validator::Validate;
 pub async fn list_receipts(
     Query(params): Query<ReceiptQueryParams>,
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let (receipts, total) = service
@@ -45,7 +45,7 @@ pub async fn list_receipts(
 pub async fn get_receipt(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let receipt = service.get_receipt(id).await?;

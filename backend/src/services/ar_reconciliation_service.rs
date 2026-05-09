@@ -282,4 +282,24 @@ impl ArReconciliationService {
 
         Ok(updated)
     }
+
+    /// 更新对账单状态（通用）
+    pub async fn update_status(&self, id: i32, status: &str) -> Result<ReconciliationModel, AppError> {
+        let model = ReconciliationEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set(status.to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(updated)
+    }
 }

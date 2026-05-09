@@ -3,7 +3,6 @@
 use crate::models::tenant::{self, Entity as Tenant, ActiveModel as TenantActiveModel};
 use crate::models::tenant_user::{self, Entity as TenantUser};
 use crate::models::tenant_config::{self, Entity as TenantConfig};
-use crate::models::tenant_plan::{self, Entity as TenantPlan};
 use sea_orm::*;
 use std::sync::Arc;
 use chrono::Utc;

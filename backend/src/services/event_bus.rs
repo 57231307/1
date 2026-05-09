@@ -78,7 +78,6 @@ impl Default for EventBus {
     }
 }
 
-use crate::utils::app_state::AppState;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 
 pub async fn start_event_listener(db: Arc<DatabaseConnection>) {

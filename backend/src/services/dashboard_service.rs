@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::models::{inventory_stock, product, sales_order, user, warehouse};
+use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::utils::cache::{AppCache, Cache};
 
 /// 仪表板概览数据
@@ -281,7 +281,7 @@ impl DashboardService {
             .unwrap_or(Decimal::ZERO);
 
         // 低库存产品数
-        let low_stock_count = inventory_stock::Entity::find()
+        let _low_stock_count = inventory_stock::Entity::find()
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
@@ -291,7 +291,7 @@ impl DashboardService {
             .await? as i64;
 
         // 零库存产品数
-        let zero_stock_count = inventory_stock::Entity::find()
+        let _zero_stock_count = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::QuantityMeters.eq(Decimal::ZERO))
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .count(self.db.as_ref())

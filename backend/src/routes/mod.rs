@@ -11,6 +11,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::handlers::{
     logistics_handler,
     account_subject_handler,
+    ai_analysis_handler,
     ap_invoice_handler,
     api_key_handler,
     ap_payment_handler,
@@ -18,6 +19,7 @@ use crate::handlers::{
     ap_reconciliation_handler,
     ap_report_handler,
     ap_verification_handler,
+    ar_reconciliation_handler,
     barcode_scanner_handler,
     ar_invoice_handler,
     assist_accounting_handler,
@@ -28,6 +30,7 @@ use crate::handlers::{
     budget_management_handler,
     business_trace_handler,
     cost_collection_handler,
+    currency_handler,
     customer_credit_handler,
     customer_handler,
     dashboard_handler,
@@ -59,6 +62,7 @@ use crate::handlers::{
     purchase_return_handler,
     quality_inspection_handler,
     quality_standard_handler,
+    report_engine_handler,
     role_handler,
     sales_analysis_handler,
     sales_contract_handler,
@@ -861,6 +865,34 @@ pub fn create_router(state: AppState) -> Router {
             .route("/customers/:id/summary", get(crate::handlers::crm_handler::get_customer_relation_summary))
         )
         .nest("/api/v1/erp/init", init_routes)
+        // 应收对账路由
+        .nest("/api/v1/erp/ar-reconciliations", Router::new()
+            .route("/", get(ar_reconciliation_handler::list_reconciliations).post(ar_reconciliation_handler::create_reconciliation))
+            .route("/:id", get(ar_reconciliation_handler::get_reconciliation))
+            .route("/:id/status", put(ar_reconciliation_handler::update_reconciliation_status))
+        )
+        // 多币种路由
+        .nest("/api/v1/erp/currencies", Router::new()
+            .route("/", get(currency_handler::list_currencies).post(currency_handler::create_currency))
+            .route("/base", get(currency_handler::get_base_currency))
+        )
+        .nest("/api/v1/erp/exchange-rates", Router::new()
+            .route("/", post(currency_handler::create_exchange_rate))
+            .route("/query", get(currency_handler::get_exchange_rate))
+        )
+        // AI智能分析路由
+        .nest("/api/v1/erp/ai", Router::new()
+            .route("/forecast-sales", get(ai_analysis_handler::forecast_sales))
+            .route("/optimize-inventory", get(ai_analysis_handler::optimize_inventory))
+            .route("/detect-anomalies", get(ai_analysis_handler::detect_anomalies))
+            .route("/recommendations", get(ai_analysis_handler::get_recommendations))
+        )
+        // 报表引擎路由
+        .nest("/api/v1/erp/reports", Router::new()
+            .route("/templates", get(report_engine_handler::list_templates))
+            .route("/execute", get(report_engine_handler::execute_report))
+            .route("/export", get(report_engine_handler::export_report))
+        )
         // 多租户SaaS路由
         .nest("/api/v1/erp/tenants", Router::new()
             .route("/", get(tenant_handler::list_tenants).post(tenant_handler::create_tenant))

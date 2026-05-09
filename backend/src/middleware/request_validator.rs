@@ -7,7 +7,7 @@ use axum::{
 };
 
 pub async fn request_validator_middleware(
-    mut request: Request<Body>,
+    request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
