@@ -224,6 +224,18 @@ impl CurrencyService {
     }
 
     /// 货币转换
+    ///
+    /// 将金额从一种货币转换为另一种货币
+    ///
+    /// # 参数
+    /// - `from_currency`: 源货币代码
+    /// - `to_currency`: 目标货币代码
+    /// - `amount`: 金额
+    /// - `date`: 汇率日期
+    ///
+    /// # 返回
+    /// - `Ok(converted_amount)`: 转换后的金额
+    /// - `Err(AppError::NotFound)`: 未找到汇率
     pub async fn convert(
         &self,
         from_currency: &str,
@@ -246,5 +258,101 @@ impl CurrencyService {
             })?;
 
         Ok(amount * rate.rate)
+    }
+
+    /// 货币转换（通过本位币）
+    ///
+    /// 当直接汇率不存在时，通过本位币进行间接转换
+    /// 例如：USD -> CNY 不存在，则 USD -> BASE -> CNY
+    ///
+    /// # 参数
+    /// - `from_currency`: 源货币代码
+    /// - `to_currency`: 目标货币代码
+    /// - `amount`: 金额
+    /// - `date`: 汇率日期
+    ///
+    /// # 返回
+    /// - `Ok(converted_amount)`: 转换后的金额
+    /// - `Err(AppError::NotFound)`: 未找到汇率
+    pub async fn convert_via_base(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+        amount: Decimal,
+        date: NaiveDate,
+    ) -> Result<Decimal, AppError> {
+        if from_currency == to_currency {
+            return Ok(amount);
+        }
+
+        // 尝试直接转换
+        if let Ok(result) = self.convert(from_currency, to_currency, amount, date).await {
+            return Ok(result);
+        }
+
+        // 获取本位币
+        let base_currency = self.get_base_currency().await?
+            .ok_or_else(|| AppError::NotFound("未设置本位币".to_string()))?;
+
+        let base_code = base_currency.code;
+
+        // 间接转换：from -> base -> to
+        let base_amount = self.convert(from_currency, &base_code, amount, date).await?;
+        self.convert(&base_code, to_currency, base_amount, date).await
+    }
+
+    /// 批量获取汇率
+    ///
+    /// 获取指定日期所有有效汇率
+    ///
+    /// # 参数
+    /// - `date`: 汇率日期
+    ///
+    /// # 返回
+    /// - `Ok(Vec<RateModel>)`: 汇率列表
+    pub async fn get_all_rates(
+        &self,
+        date: NaiveDate,
+    ) -> Result<Vec<RateModel>, AppError> {
+        let models = RateEntity::find()
+            .filter(crate::models::exchange_rate::Column::EffectiveDate.lte(date))
+            .filter(crate::models::exchange_rate::Column::IsDeleted.eq(false))
+            .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
+            .all(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 去重，只保留每个货币对的最新汇率
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+
+        for model in models {
+            let key = format!("{}->{}", model.from_currency, model.to_currency);
+            if seen.insert(key) {
+                result.push(model);
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// 删除汇率（软删除）
+    pub async fn delete_exchange_rate(&self, id: i32) -> Result<(), AppError> {
+        let model = RateEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("汇率不存在".to_string()))?;
+
+        let mut active_model: RateActiveModel = model.into();
+        active_model.is_deleted = Set(true);
+        active_model.updated_at = Set(Utc::now());
+
+        active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(())
     }
 }

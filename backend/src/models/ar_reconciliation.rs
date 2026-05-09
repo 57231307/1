@@ -77,11 +77,20 @@ pub struct Model {
     /// 是否删除
     pub is_deleted: bool,
 
+    /// 创建人 ID
+    pub created_by: Option<i32>,
+
+    /// 客户确认人 ID
+    pub confirmed_by: Option<i32>,
+
     /// 创建时间
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+
+    /// 客户确认时间
+    pub confirmed_at: Option<DateTime<Utc>>,
 }
 
 /// 应收对账关联关系

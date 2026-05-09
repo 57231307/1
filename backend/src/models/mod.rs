@@ -32,6 +32,8 @@ pub mod mrp_result;
 pub mod work_center;
 // 应收对账与多币种模块
 pub mod ar_reconciliation;
+pub mod ar_reconciliation_item;
+pub mod ar_aging_analysis;
 pub mod currency;
 pub mod exchange_rate;
 pub mod warehouse;
