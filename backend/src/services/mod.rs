@@ -78,3 +78,6 @@ pub mod mrp_engine_service;
 // 应收对账与多币种模块
 pub mod ar_reconciliation_service;
 pub mod currency_service;
+// AI智能分析与报表模块
+pub mod ai_analysis_service;
+pub mod report_engine_service;
