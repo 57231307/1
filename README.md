@@ -1153,7 +1153,151 @@
 **前端页面**：
 - [dashboard.rs](file:///workspace/frontend/src/pages/dashboard.rs) - 仪表盘页面
 
-### 23. 初始化模块
+### 23. MRP生产计划模块
+
+**功能描述**：
+- 生产订单管理（创建、审批、执行、关闭）
+- BOM物料清单管理
+- MRP物料需求计算引擎
+- 工作中心管理
+- 缺料预警
+
+**核心模型**：
+- [production_order.rs](file:///workspace/backend/src/models/production_order.rs) - 生产订单模型
+- [bom.rs](file:///workspace/backend/src/models/bom.rs) - BOM物料清单模型
+- [bom_item.rs](file:///workspace/backend/src/models/bom_item.rs) - BOM明细项模型
+- [mrp_result.rs](file:///workspace/backend/src/models/mrp_result.rs) - MRP计算结果模型
+- [work_center.rs](file:///workspace/backend/src/models/work_center.rs) - 工作中心模型
+- [production_order_service.rs](file:///workspace/backend/src/services/production_order_service.rs) - 生产订单服务
+- [mrp_engine_service.rs](file:///workspace/backend/src/services/mrp_engine_service.rs) - MRP计算引擎服务
+- [production_order_handler.rs](file:///workspace/backend/src/handlers/production_order_handler.rs) - 生产订单处理函数
+
+**API接口**：
+- `GET /api/v1/erp/production/orders` - 获取生产订单列表
+- `POST /api/v1/erp/production/orders` - 创建生产订单
+- `GET /api/v1/erp/production/orders/:id` - 获取生产订单详情
+- `PUT /api/v1/erp/production/orders/:id` - 更新生产订单
+- `DELETE /api/v1/erp/production/orders/:id` - 删除生产订单
+- `PUT /api/v1/erp/production/orders/:id/status` - 更新生产订单状态
+
+### 24. 应收对账模块
+
+**功能描述**：
+- 应收对账单创建与管理
+- 对账单状态流转（草稿→已发送→已确认→有争议→已关闭）
+- 客户对账查询
+
+**核心模型**：
+- [ar_reconciliation.rs](file:///workspace/backend/src/models/ar_reconciliation.rs) - 应收对账模型
+- [ar_reconciliation_service.rs](file:///workspace/backend/src/services/ar_reconciliation_service.rs) - 应收对账服务
+- [ar_reconciliation_handler.rs](file:///workspace/backend/src/handlers/ar_reconciliation_handler.rs) - 应收对账处理函数
+
+**API接口**：
+- `GET /api/v1/erp/ar-reconciliations` - 获取对账列表
+- `POST /api/v1/erp/ar-reconciliations` - 创建对账单
+- `GET /api/v1/erp/ar-reconciliations/:id` - 获取对账详情
+- `PUT /api/v1/erp/ar-reconciliations/:id/status` - 更新对账状态
+
+### 25. 多币种支持模块
+
+**功能描述**：
+- 币种管理（创建、查询、设置基准币种）
+- 汇率管理（创建汇率、汇率查询、汇率转换）
+- 支持多种国际币种
+
+**核心模型**：
+- [currency.rs](file:///workspace/backend/src/models/currency.rs) - 币种模型
+- [exchange_rate.rs](file:///workspace/backend/src/models/exchange_rate.rs) - 汇率模型
+- [currency_service.rs](file:///workspace/backend/src/services/currency_service.rs) - 币种服务
+- [currency_handler.rs](file:///workspace/backend/src/handlers/currency_handler.rs) - 币种处理函数
+
+**API接口**：
+- `GET /api/v1/erp/currencies` - 获取币种列表
+- `POST /api/v1/erp/currencies` - 创建币种
+- `GET /api/v1/erp/currencies/base` - 获取基准币种
+- `POST /api/v1/erp/exchange-rates` - 创建汇率
+- `GET /api/v1/erp/exchange-rates/query` - 查询汇率
+
+### 26. AI智能分析模块
+
+**功能描述**：
+- 销售预测（基于移动平均+季节性因子）
+- 库存优化（安全库存、再订货点建议）
+- 异常检测（销售额、库存、采购异常识别）
+- 智能推荐（热销产品、采购建议）
+
+**核心模型**：
+- [ai_analysis_service.rs](file:///workspace/backend/src/services/ai_analysis_service.rs) - AI分析服务
+- [ai_analysis_handler.rs](file:///workspace/backend/src/handlers/ai_analysis_handler.rs) - AI分析处理函数
+
+**API接口**：
+- `GET /api/v1/erp/ai/forecast-sales` - 销售预测
+- `GET /api/v1/erp/ai/optimize-inventory` - 库存优化
+- `GET /api/v1/erp/ai/detect-anomalies` - 异常检测
+- `GET /api/v1/erp/ai/recommendations` - 智能推荐
+
+### 27. 报表引擎模块
+
+**功能描述**：
+- 预定义报表模板（销售汇总、库存状态、财务报表）
+- 报表执行与数据查询
+- 报表导出（CSV、JSON格式）
+
+**核心模型**：
+- [report_engine_service.rs](file:///workspace/backend/src/services/report_engine_service.rs) - 报表引擎服务
+- [report_engine_handler.rs](file:///workspace/backend/src/handlers/report_engine_handler.rs) - 报表引擎处理函数
+
+**API接口**：
+- `GET /api/v1/erp/reports/templates` - 获取报表模板列表
+- `GET /api/v1/erp/reports/execute` - 执行报表
+- `GET /api/v1/erp/reports/export` - 导出报表
+
+### 28. 多租户SaaS模块
+
+**功能描述**：
+- 租户管理（创建、查询、状态管理）
+- 租户数据隔离
+- 租户配置管理
+- 租户套餐管理
+
+**核心模型**：
+- [tenant.rs](file:///workspace/backend/src/models/tenant.rs) - 租户模型
+- [tenant_user.rs](file:///workspace/backend/src/models/tenant_user.rs) - 租户用户模型
+- [tenant_config.rs](file:///workspace/backend/src/models/tenant_config.rs) - 租户配置模型
+- [tenant_plan.rs](file:///workspace/backend/src/models/tenant_plan.rs) - 租户套餐模型
+- [tenant_service.rs](file:///workspace/backend/src/services/tenant_service.rs) - 租户服务
+- [tenant_handler.rs](file:///workspace/backend/src/handlers/tenant_handler.rs) - 租户处理函数
+
+**API接口**：
+- `GET /api/v1/erp/tenants` - 获取租户列表
+- `POST /api/v1/erp/tenants` - 创建租户
+- `GET /api/v1/erp/tenants/:id` - 获取租户详情
+- `PUT /api/v1/erp/tenants/:id/status` - 更新租户状态
+
+### 29. Webhook与API密钥模块
+
+**功能描述**：
+- Webhook订阅管理（创建、查询、删除）
+- API密钥管理（创建、查询、撤销）
+- 开放生态支持
+
+**核心模型**：
+- [webhook.rs](file:///workspace/backend/src/models/webhook.rs) - Webhook模型
+- [api_key.rs](file:///workspace/backend/src/models/api_key.rs) - API密钥模型
+- [webhook_service.rs](file:///workspace/backend/src/services/webhook_service.rs) - Webhook服务
+- [api_key_service.rs](file:///workspace/backend/src/services/api_key_service.rs) - API密钥服务
+- [webhook_handler.rs](file:///workspace/backend/src/handlers/webhook_handler.rs) - Webhook处理函数
+- [api_key_handler.rs](file:///workspace/backend/src/handlers/api_key_handler.rs) - API密钥处理函数
+
+**API接口**：
+- `GET /api/v1/erp/webhooks` - 获取Webhook列表
+- `POST /api/v1/erp/webhooks` - 创建Webhook
+- `DELETE /api/v1/erp/webhooks/:id` - 删除Webhook
+- `GET /api/v1/erp/api-keys` - 获取API密钥列表
+- `POST /api/v1/erp/api-keys` - 创建API密钥
+- `POST /api/v1/erp/api-keys/:id/revoke` - 撤销API密钥
+
+### 30. 初始化模块
 
 **功能描述**：
 - 系统初始化
@@ -1203,6 +1347,7 @@
 主要迁移文件包括：
 - [001_init.sql](file:///workspace/backend/database/migration/001_init.sql) - 初始数据库结构
 - [002_inventory_reservation.sql](file:///workspace/backend/database/migration/002_inventory_reservation.sql) - 库存预留
+- [003_foreign_keys.sql](file:///workspace/backend/database/migration/003_foreign_keys.sql) - 数据关联外键
 - [004_customers.sql](file:///workspace/backend/database/migration/004_customers.sql) - 客户管理
 - [005_fabric_industry_adaptation.sql](file:///workspace/backend/database/migration/005_fabric_industry_adaptation.sql) - 面料行业适配
 - [006_gl_module.sql](file:///workspace/backend/database/migration/006_gl_module.sql) - 总账模块
@@ -1243,6 +1388,10 @@
 - [060_assist_accounting.sql](file:///workspace/backend/database/migration/060_assist_accounting.sql) - 辅助核算
 - [060_performance_optimization.sql](file:///workspace/backend/database/migration/060_performance_optimization.sql) - 性能优化
 - [061_supplier_product_mapping.sql](file:///workspace/backend/database/migration/061_supplier_product_mapping.sql) - 供应商产品映射
+- [004_mrp_production.sql](file:///workspace/backend/database/migration/004_mrp_production.sql) - MRP生产计划
+- [005_ar_currency.sql](file:///workspace/backend/database/migration/005_ar_currency.sql) - 应收对账与多币种
+- [006_tenant_saas.sql](file:///workspace/backend/database/migration/006_tenant_saas.sql) - 多租户SaaS
+- [007_api_gateway.sql](file:///workspace/backend/database/migration/007_api_gateway.sql) - API网关
 
 ---
 
@@ -1353,6 +1502,52 @@
 - `GET /readiness` - 就绪检查
 - `GET /liveness` - 存活检查
 
+#### 14. MRP生产计划接口
+- `GET /api/v1/erp/production/orders` - 获取生产订单列表
+- `POST /api/v1/erp/production/orders` - 创建生产订单
+- `GET /api/v1/erp/production/orders/:id` - 获取生产订单详情
+- `PUT /api/v1/erp/production/orders/:id` - 更新生产订单
+- `DELETE /api/v1/erp/production/orders/:id` - 删除生产订单
+- `PUT /api/v1/erp/production/orders/:id/status` - 更新生产订单状态
+
+#### 15. 应收对账接口
+- `GET /api/v1/erp/ar-reconciliations` - 获取对账列表
+- `POST /api/v1/erp/ar-reconciliations` - 创建对账单
+- `GET /api/v1/erp/ar-reconciliations/:id` - 获取对账详情
+- `PUT /api/v1/erp/ar-reconciliations/:id/status` - 更新对账状态
+
+#### 16. 多币种接口
+- `GET /api/v1/erp/currencies` - 获取币种列表
+- `POST /api/v1/erp/currencies` - 创建币种
+- `GET /api/v1/erp/currencies/base` - 获取基准币种
+- `POST /api/v1/erp/exchange-rates` - 创建汇率
+- `GET /api/v1/erp/exchange-rates/query` - 查询汇率
+
+#### 17. AI智能分析接口
+- `GET /api/v1/erp/ai/forecast-sales` - 销售预测
+- `GET /api/v1/erp/ai/optimize-inventory` - 库存优化
+- `GET /api/v1/erp/ai/detect-anomalies` - 异常检测
+- `GET /api/v1/erp/ai/recommendations` - 智能推荐
+
+#### 18. 报表引擎接口
+- `GET /api/v1/erp/reports/templates` - 获取报表模板列表
+- `GET /api/v1/erp/reports/execute` - 执行报表
+- `GET /api/v1/erp/reports/export` - 导出报表
+
+#### 19. 多租户SaaS接口
+- `GET /api/v1/erp/tenants` - 获取租户列表
+- `POST /api/v1/erp/tenants` - 创建租户
+- `GET /api/v1/erp/tenants/:id` - 获取租户详情
+- `PUT /api/v1/erp/tenants/:id/status` - 更新租户状态
+
+#### 20. Webhook与API密钥接口
+- `GET /api/v1/erp/webhooks` - 获取Webhook列表
+- `POST /api/v1/erp/webhooks` - 创建Webhook
+- `DELETE /api/v1/erp/webhooks/:id` - 删除Webhook
+- `GET /api/v1/erp/api-keys` - 获取API密钥列表
+- `POST /api/v1/erp/api-keys` - 创建API密钥
+- `POST /api/v1/erp/api-keys/:id/revoke` - 撤销API密钥
+
 ---
 
 ## 安全机制
@@ -1436,6 +1631,52 @@
 - JWT令牌包含过期时间
 - 敏感信息不记录在日志中
 - 数据库连接使用安全的连接字符串
+
+### 7. 密码强度验证
+
+**功能描述**：
+- 密码长度验证（最少8位）
+- 大小写字母要求
+- 数字要求
+- 特殊字符要求
+- 常见密码检测
+- 连续字符检测
+
+**核心实现**：
+- [password_validator.rs](file:///workspace/backend/src/utils/password_validator.rs) - 密码验证器
+
+### 8. 数据脱敏
+
+**功能描述**：
+- 密码脱敏（显示为********）
+- 手机号脱敏（138****8888）
+- 邮箱脱敏（a***@example.com）
+- 身份证号脱敏（310101********1234）
+- 银行卡号脱敏（622202******8888）
+- JSON敏感字段自动脱敏
+
+**核心实现**：
+- [data_masking.rs](file:///workspace/backend/src/utils/data_masking.rs) - 数据脱敏工具
+
+### 9. 防暴力攻击
+
+**功能描述**：
+- 登录接口限流
+- IP级别请求频率限制
+- 自动锁定异常IP
+
+**核心实现**：
+- [rate_limit.rs](file:///workspace/backend/src/middleware/rate_limit.rs) - 限流中间件
+
+### 10. 操作日志
+
+**功能描述**：
+- 记录所有敏感操作
+- 支持操作追溯
+- 审计日志查询
+
+**核心实现**：
+- [operation_log.rs](file:///workspace/backend/src/middleware/operation_log.rs) - 操作日志中间件
 
 ---
 
