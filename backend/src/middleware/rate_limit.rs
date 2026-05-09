@@ -82,7 +82,10 @@ pub async fn rate_limit_by_ip(
 
     if !GLOBAL_LIMITER.check(&rate_key) {
         tracing::warn!("Rate limit exceeded for {}", rate_key);
-        return Err(AppError::TooManyRequests);
+        return Err(AppError::TooManyRequests {
+            retry_after: Some(60),
+            message: "请求过于频繁".to_string(),
+        });
     }
 
     Ok(next.run(req).await)

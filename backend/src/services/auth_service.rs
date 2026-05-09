@@ -19,6 +19,11 @@ pub struct AppClaims {
     pub exp: DateTime<Utc>,
     #[serde(with = "chrono::serde::ts_seconds")]
     pub iat: DateTime<Utc>,
+    /// 刷新令牌过期时间（7天）
+    #[serde(with = "chrono::serde::ts_seconds")]
+    pub refresh_exp: DateTime<Utc>,
+    /// 会话唯一标识
+    pub session_id: String,
 }
 
 #[derive(Clone)]
@@ -68,8 +73,10 @@ impl AuthService {
         role_id: Option<i32>,
     ) -> Result<String, AuthError> {
         let now = Utc::now();
-        // Token expires in 24 hours
-        let exp = now + Duration::hours(24);
+        // Token expires in 2 hours (reduced from 24 hours for security)
+        let exp = now + Duration::hours(2);
+        // Refresh token expires in 7 days
+        let refresh_exp = now + Duration::days(7);
 
         let claims = AppClaims {
             sub: user_id,
@@ -77,6 +84,8 @@ impl AuthService {
             role_id,
             exp,
             iat: now,
+            refresh_exp,
+            session_id: uuid::Uuid::new_v4().to_string(),
         };
 
         encode(&Header::default(), &claims, &self.encoding_key)

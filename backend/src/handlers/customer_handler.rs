@@ -3,6 +3,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
@@ -11,44 +12,69 @@ use crate::utils::response::ApiResponse;
 use crate::utils::app_state::AppState;
 
 /// 创建客户请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateCustomerRequest {
+    #[validate(length(min = 1, max = 50, message = "客户编码长度必须在1到50个字符之间"))]
     pub customer_code: String,
+    #[validate(length(min = 1, max = 200, message = "客户名称长度必须在1到200个字符之间"))]
     pub customer_name: String,
+    #[validate(length(max = 100, message = "联系人名称长度不能超过100个字符"))]
     pub contact_person: Option<String>,
+    #[validate(length(max = 20, message = "联系电话长度不能超过20个字符"))]
     pub contact_phone: Option<String>,
+    #[validate(email(message = "邮箱格式不正确"))]
     pub contact_email: Option<String>,
+    #[validate(length(max = 500, message = "地址长度不能超过500个字符"))]
     pub address: Option<String>,
+    #[validate(length(max = 100, message = "城市长度不能超过100个字符"))]
     pub city: Option<String>,
+    #[validate(length(max = 100, message = "省份长度不能超过100个字符"))]
     pub province: Option<String>,
+    #[validate(length(max = 20, message = "邮编长度不能超过20个字符"))]
     pub postal_code: Option<String>,
     pub credit_limit: Option<String>,
     pub payment_terms: Option<i32>,
+    #[validate(length(max = 50, message = "税号长度不能超过50个字符"))]
     pub tax_id: Option<String>,
+    #[validate(length(max = 200, message = "银行名称长度不能超过200个字符"))]
     pub bank_name: Option<String>,
+    #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
     pub customer_type: Option<String>,
+    #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
 }
 
 /// 更新客户请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateCustomerRequest {
+    #[validate(length(min = 1, max = 200, message = "客户名称长度必须在1到200个字符之间"))]
     pub customer_name: Option<String>,
+    #[validate(length(max = 100, message = "联系人名称长度不能超过100个字符"))]
     pub contact_person: Option<String>,
+    #[validate(length(max = 20, message = "联系电话长度不能超过20个字符"))]
     pub contact_phone: Option<String>,
+    #[validate(email(message = "邮箱格式不正确"))]
     pub contact_email: Option<String>,
+    #[validate(length(max = 500, message = "地址长度不能超过500个字符"))]
     pub address: Option<String>,
+    #[validate(length(max = 100, message = "城市长度不能超过100个字符"))]
     pub city: Option<String>,
+    #[validate(length(max = 100, message = "省份长度不能超过100个字符"))]
     pub province: Option<String>,
+    #[validate(length(max = 20, message = "邮编长度不能超过20个字符"))]
     pub postal_code: Option<String>,
     pub credit_limit: Option<String>,
     pub payment_terms: Option<i32>,
+    #[validate(length(max = 50, message = "税号长度不能超过50个字符"))]
     pub tax_id: Option<String>,
+    #[validate(length(max = 200, message = "银行名称长度不能超过200个字符"))]
     pub bank_name: Option<String>,
+    #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
     pub customer_type: Option<String>,
     pub status: Option<String>,
+    #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
 }
 
@@ -124,8 +150,11 @@ pub async fn get_customer(
 /// 创建客户
 pub async fn create_customer(
     State(state): State<AppState>,
+    auth: crate::middleware::auth_context::AuthContext,
     Json(payload): Json<CreateCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    payload.validate()?;
+
     let customer_service = CustomerService::new(state.db.clone());
 
     let credit_limit = payload
@@ -156,7 +185,7 @@ pub async fn create_customer(
             payload.bank_account,
             customer_type,
             payload.notes,
-            Some(1),
+            Some(auth.user_id),
         )
         .await?;
 
@@ -171,8 +200,11 @@ pub async fn create_customer(
 pub async fn update_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: crate::middleware::auth_context::AuthContext,
     Json(payload): Json<UpdateCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    payload.validate()?;
+
     let customer_service = CustomerService::new(state.db.clone());
 
     let credit_limit = payload

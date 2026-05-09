@@ -236,6 +236,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/approve", post(sales_order_handler::approve_order))
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
         .route("/orders/:id/complete", post(sales_order_handler::complete_order))
+        .route("/orders/:id/history", get(sales_order_handler::get_order_history))
         // 面料行业销售订单路由
         .route(
             "/fabric-orders",

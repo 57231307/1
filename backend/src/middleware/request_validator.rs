@@ -39,13 +39,13 @@ pub async fn request_validator_middleware(
 
     let is_valid_origin = origin.map(|o| {
         allowed_origins.iter().any(|allowed| {
-            o.starts_with(allowed) || allowed == "*"
+            o.starts_with(*allowed) || *allowed == "*"
         })
     }).unwrap_or(false);
 
     let is_valid_referer = referer.map(|r| {
         allowed_origins.iter().any(|allowed| {
-            r.starts_with(allowed) || allowed == "*"
+            r.starts_with(*allowed) || *allowed == "*"
         })
     }).unwrap_or(false);
 

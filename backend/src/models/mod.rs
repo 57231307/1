@@ -22,6 +22,7 @@ pub mod role;
 pub mod role_permission;
 pub mod sales_order;
 pub mod sales_order_item;
+pub mod sales_order_change_history;
 pub mod user;
 pub mod warehouse;
 // 总账模块

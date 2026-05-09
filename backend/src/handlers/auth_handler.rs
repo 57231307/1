@@ -140,7 +140,7 @@ pub async fn login(
                 .http_only(true)
                 .secure(is_production) // 生产环境开启HTTPS，开发环境关闭
                 .same_site(SameSite::Lax) // 改为Lax以支持跨端口访问(3000->8082)
-                .max_age(time::Duration::hours(24))
+                .max_age(time::Duration::hours(2)) // 2 hours
                 .build();
 
             let jar = jar.add(cookie);
@@ -230,6 +230,15 @@ pub async fn refresh_token(
             Json(ApiResponse::error("无效的令牌")),
         ))?;
 
+    // 检查是否在刷新期内（7天）
+    let now = chrono::Utc::now();
+    if now > claims.refresh_exp {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ApiResponse::error("刷新令牌已过期，请重新登录")),
+        ));
+    }
+
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
     let new_token = auth_service
         .generate_token(claims.sub, &claims.username, claims.role_id)
@@ -242,7 +251,7 @@ pub async fn refresh_token(
 
     Ok(Json(ApiResponse::success(RefreshTokenResponse {
         token: new_token,
-        expires_in: 86400,
+        expires_in: 7200, // 2 hours
     })))
 }
 

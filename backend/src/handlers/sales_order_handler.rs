@@ -218,3 +218,32 @@ pub async fn complete_order(
         "销售订单完成成功",
     )))
 }
+
+/// 查询订单变更历史
+/// GET /api/v1/erp/sales/orders/:id/history
+#[derive(Debug, Deserialize)]
+pub struct HistoryQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+pub async fn get_order_history(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Query(query): Query<HistoryQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let history_service = crate::services::order_change_history_service::OrderChangeHistoryService::new(state.db.clone());
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+
+    let (histories, total) = history_service.get_history_by_order(id, page, page_size).await?;
+
+    let result = serde_json::json!({
+        "list": histories,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    });
+
+    Ok(Json(ApiResponse::success(result)))
+}

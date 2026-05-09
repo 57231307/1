@@ -22,7 +22,7 @@ pub struct ErrorResponse {
     InternalError(String),
     BadRequest(String),
     PermissionDenied(String),
-    TooManyRequests,
+    TooManyRequests { retry_after: Option<u64>, message: String },
 }
 
 impl fmt::Display for AppError {
@@ -37,7 +37,7 @@ impl fmt::Display for AppError {
             AppError::InternalError(msg) => write!(f, "内部错误：{}", msg),
             AppError::BadRequest(msg) => write!(f, "请求错误：{}", msg),
             AppError::PermissionDenied(msg) => write!(f, "权限不足：{}", msg),
-            AppError::TooManyRequests => write!(f, "请求过于频繁，请稍后再试"),
+            AppError::TooManyRequests { message, .. } => write!(f, "{}", message),
         }
     }
 }
@@ -78,11 +78,18 @@ impl IntoResponse for AppError {
                 "BadRequest",
                 "请求错误".to_string(),
             ),
-            AppError::TooManyRequests => (
-                StatusCode::TOO_MANY_REQUESTS,
-                "TooManyRequests",
-                "请求过于频繁，请稍后再试".to_string(),
-            ),
+            AppError::TooManyRequests { retry_after, message } => {
+                let retry_msg = if let Some(seconds) = retry_after {
+                    format!("{}，请{}秒后再试", message, seconds)
+                } else {
+                    message.clone()
+                };
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "TooManyRequests",
+                    retry_msg,
+                )
+            }
         };
 
         let body = ErrorResponse {
