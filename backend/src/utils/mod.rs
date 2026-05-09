@@ -4,6 +4,8 @@ pub mod dual_unit_converter;
 pub mod error;
 pub mod fabric_five_dimension;
 pub mod response;
+pub mod password_validator;
+pub mod di_container;
 
 pub use response::ApiResponse;
 pub use response::PaginatedResponse;

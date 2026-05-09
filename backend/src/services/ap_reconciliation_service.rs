@@ -252,6 +252,129 @@ impl ApReconciliationService {
         // 由于物化视图查询较复杂，暂时返回空结果
         Ok(vec![])
     }
+
+    /// 自动对账 - 为所有供应商自动生成对账单
+    pub async fn auto_reconcile_all(
+        &self,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        user_id: i32,
+    ) -> Result<Vec<AutoReconciliationResult>, AppError> {
+        use crate::models::supplier;
+
+        let suppliers = supplier::Entity::find().all(&*self.db).await?;
+        let mut results = Vec::new();
+
+        for sup in suppliers {
+            let req = GenerateReconciliationRequest {
+                supplier_id: sup.id,
+                start_date,
+                end_date,
+                notes: Some(format!("Auto-generated reconciliation for {}", sup.supplier_name)),
+            };
+
+            match self.generate_reconciliation(req, user_id).await {
+                Ok(rec) => {
+                    let invoice_count = ap_invoice::Entity::find()
+                        .filter(ap_invoice::Column::SupplierId.eq(sup.id))
+                        .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
+                        .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
+                        .count(&*self.db)
+                        .await? as usize;
+
+                    let payment_count = ap_payment::Entity::find()
+                        .filter(ap_payment::Column::SupplierId.eq(sup.id))
+                        .filter(ap_payment::Column::PaymentDate.gte(start_date))
+                        .filter(ap_payment::Column::PaymentDate.lte(end_date))
+                        .count(&*self.db)
+                        .await? as usize;
+
+                    results.push(AutoReconciliationResult {
+                        reconciliation_id: rec.id,
+                        reconciliation_no: rec.reconciliation_no,
+                        supplier_id: sup.id,
+                        start_date,
+                        end_date,
+                        opening_balance: rec.opening_balance,
+                        total_invoice: rec.total_invoice,
+                        total_payment: rec.total_payment,
+                        closing_balance: rec.closing_balance,
+                        invoice_count,
+                        payment_count,
+                        status: rec.reconciliation_status,
+                        message: "Auto reconciliation successful".to_string(),
+                    });
+                }
+                Err(e) => {
+                    results.push(AutoReconciliationResult {
+                        reconciliation_id: 0,
+                        reconciliation_no: String::new(),
+                        supplier_id: sup.id,
+                        start_date,
+                        end_date,
+                        opening_balance: Decimal::ZERO,
+                        total_invoice: Decimal::ZERO,
+                        total_payment: Decimal::ZERO,
+                        closing_balance: Decimal::ZERO,
+                        invoice_count: 0,
+                        payment_count: 0,
+                        status: "FAILED".to_string(),
+                        message: format!("Failed: {}", e),
+                    });
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// 获取发票关联信息
+    pub async fn get_invoice_relations(
+        &self,
+        invoice_id: i32,
+    ) -> Result<Vec<InvoiceRelationInfo>, AppError> {
+        let invoice = ap_invoice::Entity::find_by_id(invoice_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("Invoice {}", invoice_id)))?;
+
+        let mut relations = Vec::new();
+
+        // 关联采购入库单
+        if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
+            relations.push(InvoiceRelationInfo {
+                invoice_id: invoice.id,
+                invoice_no: invoice.invoice_no.clone(),
+                source_type: invoice.source_type.clone().unwrap_or_default(),
+                source_id: invoice.source_id.unwrap_or_default(),
+                source_no: None,
+                supplier_id: invoice.supplier_id,
+                amount: invoice.amount,
+                status: invoice.invoice_status.clone(),
+            });
+        }
+
+        // 关联付款记录
+        let payments = ap_payment::Entity::find()
+            .filter(ap_payment::Column::SupplierId.eq(invoice.supplier_id))
+            .all(&*self.db)
+            .await?;
+
+        for payment in payments {
+            relations.push(InvoiceRelationInfo {
+                invoice_id: invoice.id,
+                invoice_no: invoice.invoice_no.clone(),
+                source_type: "PAYMENT".to_string(),
+                source_id: payment.id,
+                source_no: Some(payment.payment_no.clone()),
+                supplier_id: invoice.supplier_id,
+                amount: payment.payment_amount,
+                status: payment.payment_status.clone(),
+            });
+        }
+
+        Ok(relations)
+    }
 }
 
 // =====================================================
@@ -309,4 +432,35 @@ pub struct SupplierApSummary {
 
     /// 逾期金额
     pub overdue_amount: Decimal,
+}
+
+/// 自动对账结果
+#[derive(Debug, Serialize)]
+pub struct AutoReconciliationResult {
+    pub reconciliation_id: i32,
+    pub reconciliation_no: String,
+    pub supplier_id: i32,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    pub opening_balance: Decimal,
+    pub total_invoice: Decimal,
+    pub total_payment: Decimal,
+    pub closing_balance: Decimal,
+    pub invoice_count: usize,
+    pub payment_count: usize,
+    pub status: String,
+    pub message: String,
+}
+
+/// 发票关联信息
+#[derive(Debug, Serialize)]
+pub struct InvoiceRelationInfo {
+    pub invoice_id: i32,
+    pub invoice_no: String,
+    pub source_type: String,
+    pub source_id: i32,
+    pub source_no: Option<String>,
+    pub supplier_id: i32,
+    pub amount: Decimal,
+    pub status: String,
 }

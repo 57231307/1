@@ -1,7 +1,17 @@
 
 use dashmap::DashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+/// 缓存统计信息
+#[derive(Debug, Clone, Default)]
+pub struct CacheStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub evictions: u64,
+    pub size: usize,
+}
 
 /// 缓存值结构体，包含值和过期时间
 struct CachedValue<T> {
@@ -16,6 +26,8 @@ pub trait Cache<K, V> {
     fn remove(&self, key: &K);
     fn clear(&self);
     fn contains_key(&self, key: &K) -> bool;
+    fn stats(&self) -> CacheStats;
+    fn cleanup_expired(&self);
 }
 
 /// 内存缓存实现
@@ -25,6 +37,9 @@ where
     V: Clone,
 {
     storage: DashMap<K, CachedValue<V>>,
+    hits: AtomicU64,
+    misses: AtomicU64,
+    evictions: AtomicU64,
 }
 
 impl<K, V> Default for MemoryCache<K, V>
@@ -45,11 +60,36 @@ where
     pub fn new() -> Self {
         Self {
             storage: DashMap::new(),
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
+            evictions: AtomicU64::new(0),
         }
     }
 
     pub fn arc() -> Arc<Self> {
         Arc::new(Self::new())
+    }
+
+    pub fn get_stats(&self) -> CacheStats {
+        CacheStats {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            evictions: self.evictions.load(Ordering::Relaxed),
+            size: self.storage.len(),
+        }
+    }
+
+    pub fn cleanup(&self) {
+        let now = Instant::now();
+        let mut removed = 0u64;
+        self.storage.retain(|_, v| {
+            let keep = v.expires_at.map_or(true, |exp| now <= exp);
+            if !keep {
+                removed += 1;
+            }
+            keep
+        });
+        self.evictions.fetch_add(removed, Ordering::Relaxed);
     }
 }
 
@@ -66,17 +106,21 @@ where
                 false
             }
         } else {
+            self.misses.fetch_add(1, Ordering::Relaxed);
             return None;
         };
 
         if is_expired {
             self.storage.remove(key);
+            self.misses.fetch_add(1, Ordering::Relaxed);
             return None;
         }
 
         if let Some(entry) = self.storage.get(key) {
+            self.hits.fetch_add(1, Ordering::Relaxed);
             Some(entry.value.clone())
         } else {
+            self.misses.fetch_add(1, Ordering::Relaxed);
             None
         }
     }
@@ -95,10 +139,26 @@ where
 
     fn clear(&self) {
         self.storage.clear();
+        self.hits.store(0, Ordering::Relaxed);
+        self.misses.store(0, Ordering::Relaxed);
+        self.evictions.store(0, Ordering::Relaxed);
     }
 
     fn contains_key(&self, key: &K) -> bool {
         self.storage.contains_key(key)
+    }
+
+    fn stats(&self) -> CacheStats {
+        CacheStats {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            evictions: self.evictions.load(Ordering::Relaxed),
+            size: self.storage.len(),
+        }
+    }
+
+    fn cleanup_expired(&self) {
+        self.cleanup();
     }
 }
 

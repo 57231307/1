@@ -241,4 +241,69 @@ impl BpmService {
             total_pages,
         })
     }
+
+    /// Get BPM business relation info
+    pub async fn get_business_relation(&self, business_type: &str, business_id: i32) -> Result<BpmBusinessRelation, AppError> {
+        let instance = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::BusinessType.eq(business_type))
+            .filter(bpm_process_instance::Column::BusinessId.eq(business_id))
+            .order_by_desc(bpm_process_instance::Column::CreatedAt)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if let Some(inst) = instance {
+            let tasks = bpm_task::Entity::find()
+                .filter(bpm_task::Column::ProcessInstanceId.eq(inst.id))
+                .all(&*self.db).await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+            Ok(BpmBusinessRelation {
+                has_process: true,
+                instance_id: inst.id,
+                instance_no: inst.instance_no,
+                process_status: inst.status,
+                start_time: inst.start_time,
+                end_time: inst.end_time,
+                task_count: tasks.len() as i32,
+                completed_tasks: tasks.iter().filter(|t| t.status == "COMPLETED").count() as i32,
+                pending_tasks: tasks.iter().filter(|t| t.status == "PENDING").count() as i32,
+            })
+        } else {
+            Ok(BpmBusinessRelation {
+                has_process: false,
+                instance_id: 0,
+                instance_no: String::new(),
+                process_status: "NONE".to_string(),
+                start_time: chrono::Utc::now(),
+                end_time: None,
+                task_count: 0,
+                completed_tasks: 0,
+                pending_tasks: 0,
+            })
+        }
+    }
+
+    /// Get process instance by business
+    pub async fn get_process_by_business(&self, business_type: &str, business_id: i32) -> Result<Option<bpm_process_instance::Model>, AppError> {
+        bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::BusinessType.eq(business_type))
+            .filter(bpm_process_instance::Column::BusinessId.eq(business_id))
+            .order_by_desc(bpm_process_instance::Column::CreatedAt)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))
+    }
+}
+
+/// BPM business relation info
+#[derive(Debug, serde::Serialize)]
+pub struct BpmBusinessRelation {
+    pub has_process: bool,
+    pub instance_id: i32,
+    pub instance_no: String,
+    pub process_status: String,
+    pub start_time: chrono::DateTime<chrono::Utc>,
+    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub task_count: i32,
+    pub completed_tasks: i32,
+    pub pending_tasks: i32,
 }

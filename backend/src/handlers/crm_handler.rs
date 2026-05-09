@@ -55,3 +55,25 @@ pub async fn list_opportunities(
     let value = serde_json::to_value(res).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
+
+/// Get lead relation info
+pub async fn get_lead_relation(
+    Path(lead_id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let relation = service.get_lead_relation(lead_id).await?;
+    let value = serde_json::to_value(relation).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// Get customer relation summary
+pub async fn get_customer_relation_summary(
+    Path(customer_id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let summary = service.get_customer_relation_summary(customer_id).await?;
+    let value = serde_json::to_value(summary).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}

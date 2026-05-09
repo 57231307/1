@@ -16,8 +16,8 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 
-/// 创建成本归集请求
-#[derive(Debug, Clone)]
+/// 更新成本归集请求
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct UpdateCostCollectionRequest {
     pub collection_date: Option<NaiveDate>,
     pub direct_material: Option<Decimal>,
@@ -244,4 +244,159 @@ impl CostCollectionService {
 
         Ok(())
     }
+
+    /// 获取成本分析汇总
+    pub async fn get_cost_analysis_summary(
+        &self,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<CostAnalysisSummary, AppError> {
+        use sea_orm::QuerySelect;
+        use sea_orm::sea_query::{Expr, Query};
+
+        let mut query = cost_collection::Entity::find();
+
+        if let Some(start) = start_date {
+            query = query.filter(cost_collection::Column::CollectionDate.gte(start));
+        }
+        if let Some(end) = end_date {
+            query = query.filter(cost_collection::Column::CollectionDate.lte(end));
+        }
+
+        let collections = query.all(&*self.db).await?;
+
+        let mut total_direct_material = Decimal::ZERO;
+        let mut total_direct_labor = Decimal::ZERO;
+        let mut total_overhead = Decimal::ZERO;
+        let mut total_processing = Decimal::ZERO;
+        let mut total_dyeing = Decimal::ZERO;
+        let mut total_cost = Decimal::ZERO;
+        let mut total_output_meters = Decimal::ZERO;
+        let mut total_output_kg = Decimal::ZERO;
+        let mut record_count = 0;
+
+        for c in &collections {
+            total_direct_material += c.direct_material;
+            total_direct_labor += c.direct_labor;
+            total_overhead += c.manufacturing_overhead;
+            total_processing += c.processing_fee;
+            total_dyeing += c.dyeing_fee;
+            total_cost += c.total_cost;
+            if let Some(m) = c.output_quantity_meters {
+                total_output_meters += m;
+            }
+            if let Some(k) = c.output_quantity_kg {
+                total_output_kg += k;
+            }
+            record_count += 1;
+        }
+
+        let avg_unit_cost_meters = if total_output_meters > Decimal::ZERO {
+            Some(total_cost / total_output_meters)
+        } else {
+            None
+        };
+
+        let avg_unit_cost_kg = if total_output_kg > Decimal::ZERO {
+            Some(total_cost / total_output_kg)
+        } else {
+            None
+        };
+
+        Ok(CostAnalysisSummary {
+            record_count,
+            total_direct_material,
+            total_direct_labor,
+            total_overhead,
+            total_processing,
+            total_dyeing,
+            total_cost,
+            total_output_meters,
+            total_output_kg,
+            avg_unit_cost_meters,
+            avg_unit_cost_kg,
+            material_ratio: if total_cost > Decimal::ZERO { Some(total_direct_material / total_cost) } else { None },
+            labor_ratio: if total_cost > Decimal::ZERO { Some(total_direct_labor / total_cost) } else { None },
+            overhead_ratio: if total_cost > Decimal::ZERO { Some(total_overhead / total_cost) } else { None },
+        })
+    }
+
+    /// 按批次获取成本分析
+    pub async fn get_cost_by_batch(
+        &self,
+        batch_no: Option<String>,
+    ) -> Result<Vec<BatchCostAnalysis>, AppError> {
+        let mut query = cost_collection::Entity::find();
+
+        if let Some(batch) = batch_no {
+            query = query.filter(cost_collection::Column::BatchNo.eq(batch));
+        }
+
+        let collections = query
+            .order_by(cost_collection::Column::CollectionDate, Order::Desc)
+            .all(&*self.db)
+            .await?;
+
+        let mut result = Vec::new();
+        for c in collections {
+            result.push(BatchCostAnalysis {
+                collection_no: c.collection_no,
+                batch_no: c.batch_no,
+                color_no: c.color_no,
+                collection_date: Some(c.collection_date),
+                direct_material: c.direct_material,
+                direct_labor: c.direct_labor,
+                manufacturing_overhead: c.manufacturing_overhead,
+                processing_fee: c.processing_fee,
+                dyeing_fee: c.dyeing_fee,
+                total_cost: c.total_cost,
+                output_quantity_meters: c.output_quantity_meters,
+                output_quantity_kg: c.output_quantity_kg,
+                unit_cost_meters: c.unit_cost_meters,
+                unit_cost_kg: c.unit_cost_kg,
+                status: c.status,
+            });
+        }
+
+        Ok(result)
+    }
+}
+
+/// 成本分析汇总
+#[derive(Debug, serde::Serialize)]
+pub struct CostAnalysisSummary {
+    pub record_count: i32,
+    pub total_direct_material: Decimal,
+    pub total_direct_labor: Decimal,
+    pub total_overhead: Decimal,
+    pub total_processing: Decimal,
+    pub total_dyeing: Decimal,
+    pub total_cost: Decimal,
+    pub total_output_meters: Decimal,
+    pub total_output_kg: Decimal,
+    pub avg_unit_cost_meters: Option<Decimal>,
+    pub avg_unit_cost_kg: Option<Decimal>,
+    pub material_ratio: Option<Decimal>,
+    pub labor_ratio: Option<Decimal>,
+    pub overhead_ratio: Option<Decimal>,
+}
+
+/// 批次成本分析
+#[derive(Debug, serde::Serialize)]
+pub struct BatchCostAnalysis {
+    pub collection_no: String,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+    pub collection_date: Option<NaiveDate>,
+    pub direct_material: Decimal,
+    pub direct_labor: Decimal,
+    pub manufacturing_overhead: Decimal,
+    pub processing_fee: Decimal,
+    pub dyeing_fee: Decimal,
+    pub total_cost: Decimal,
+    pub output_quantity_meters: Option<Decimal>,
+    pub output_quantity_kg: Option<Decimal>,
+    pub unit_cost_meters: Option<Decimal>,
+    pub unit_cost_kg: Option<Decimal>,
+    pub status: String,
 }

@@ -116,4 +116,102 @@ impl CrmService {
         
         Ok(PageResponse::new(items, total, page, page_size))
     }
+
+    /// Get lead relation info with opportunities
+    pub async fn get_lead_relation(&self, lead_id: i32) -> Result<LeadRelationInfo, AppError> {
+        let lead = crm_lead::Entity::find_by_id(lead_id)
+            .one(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("Lead not found".to_string()))?;
+
+        let opportunities = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::LeadId.eq(lead_id))
+            .all(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total_amount: rust_decimal::Decimal = opportunities.iter()
+            .map(|o| o.amount)
+            .sum();
+
+        Ok(LeadRelationInfo {
+            lead_id: lead.id,
+            lead_no: lead.lead_no,
+            lead_name: lead.name,
+            lead_status: lead.status,
+            opportunity_count: opportunities.len() as i32,
+            total_opportunity_amount: total_amount,
+            opportunities: opportunities.into_iter().map(|o| OpportunityBrief {
+                id: o.id,
+                opportunity_no: o.opportunity_no,
+                name: o.name,
+                amount: Some(o.amount),
+                stage: Some(o.stage),
+                expected_close_date: o.expected_close_date,
+            }).collect(),
+        })
+    }
+
+    /// Get customer relation summary
+    pub async fn get_customer_relation_summary(&self, customer_id: i32) -> Result<CustomerRelationSummary, AppError> {
+        let opportunities = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::CustomerId.eq(customer_id))
+            .all(&*self.db).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total_amount: rust_decimal::Decimal = opportunities.iter()
+            .map(|o| o.amount)
+            .sum();
+
+        let won_amount: rust_decimal::Decimal = opportunities.iter()
+            .filter(|o| o.stage == "WON")
+            .map(|o| o.amount)
+            .sum();
+
+        Ok(CustomerRelationSummary {
+            customer_id,
+            opportunity_count: opportunities.len() as i32,
+            total_amount,
+            won_amount,
+            won_count: opportunities.iter().filter(|o| o.stage == "WON").count() as i32,
+            lost_count: opportunities.iter().filter(|o| o.stage == "LOST").count() as i32,
+            open_count: opportunities.iter().filter(|o| {
+                o.stage != "WON" && o.stage != "LOST"
+            }).count() as i32,
+        })
+    }
+}
+
+/// Lead relation info
+#[derive(Debug, serde::Serialize)]
+pub struct LeadRelationInfo {
+    pub lead_id: i32,
+    pub lead_no: String,
+    pub lead_name: String,
+    pub lead_status: String,
+    pub opportunity_count: i32,
+    pub total_opportunity_amount: rust_decimal::Decimal,
+    pub opportunities: Vec<OpportunityBrief>,
+}
+
+/// Opportunity brief info
+#[derive(Debug, serde::Serialize)]
+pub struct OpportunityBrief {
+    pub id: i32,
+    pub opportunity_no: String,
+    pub name: String,
+    pub amount: Option<rust_decimal::Decimal>,
+    pub stage: Option<String>,
+    pub expected_close_date: Option<chrono::NaiveDate>,
+}
+
+/// Customer relation summary
+#[derive(Debug, serde::Serialize)]
+pub struct CustomerRelationSummary {
+    pub customer_id: i32,
+    pub opportunity_count: i32,
+    pub total_amount: rust_decimal::Decimal,
+    pub won_amount: rust_decimal::Decimal,
+    pub won_count: i32,
+    pub lost_count: i32,
+    pub open_count: i32,
 }

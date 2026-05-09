@@ -158,3 +158,43 @@ pub async fn delete_collection(
     service.delete(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message((), "成本归集删除成功")))
 }
+
+/// 成本分析查询参数
+#[derive(Debug, Deserialize)]
+pub struct CostAnalysisQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+}
+
+/// 获取成本分析汇总
+pub async fn get_cost_analysis_summary(
+    Query(params): Query<CostAnalysisQuery>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let start_date = params.start_date.and_then(|s| s.parse().ok());
+    let end_date = params.end_date.and_then(|s| s.parse().ok());
+
+    let service = CostCollectionService::new(state.db.clone());
+    let summary = service.get_cost_analysis_summary(start_date, end_date).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(summary).map_err(|_| AppError::InternalError("序列化失败".into()))?)))
+}
+
+/// 按批次查询成本参数
+#[derive(Debug, Deserialize)]
+pub struct CostByBatchQuery {
+    pub batch_no: Option<String>,
+}
+
+/// 按批次获取成本分析
+pub async fn get_cost_by_batch(
+    Query(params): Query<CostByBatchQuery>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<crate::services::cost_collection_service::BatchCostAnalysis>>>, AppError> {
+    let service = CostCollectionService::new(state.db.clone());
+    let analyses = service.get_cost_by_batch(params.batch_no).await?;
+
+    Ok(Json(ApiResponse::success(analyses)))
+}

@@ -14,7 +14,7 @@ use axum::{
     Json,
 };
 use crate::utils::app_state::AppState;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 /// 查询采购订单列表
@@ -231,6 +231,61 @@ pub async fn delete_order_item(auth: AuthContext,
     service.delete_order_item(item_id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_msg((), "订单明细删除成功")))
+}
+
+/// 计算建议交货日期
+/// POST /api/v1/erp/purchase/orders/delivery-date
+#[derive(Debug, Deserialize)]
+pub struct CalculateDeliveryRequest {
+    pub supplier_id: i32,
+    pub order_date: chrono::NaiveDate,
+    pub items: Vec<DeliveryItemRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeliveryItemRequest {
+    pub product_id: i32,
+    pub quantity: rust_decimal::Decimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeliveryDateResponse {
+    pub suggested_date: chrono::NaiveDate,
+    pub avg_lead_time_days: i32,
+    pub max_production_days: i32,
+    pub calculation_basis: String,
+    pub historical_orders: i64,
+}
+
+pub async fn calculate_delivery_date(
+    State(state): State<AppState>,
+    Json(req): Json<CalculateDeliveryRequest>,
+) -> Result<Json<ApiResponse<DeliveryDateResponse>>, AppError> {
+    let calculator = crate::services::purchase_delivery_calculator::PurchaseDeliveryCalculator::new(state.db.clone());
+
+    let items: Vec<crate::services::purchase_delivery_calculator::OrderItemInfo> = req.items
+        .into_iter()
+        .map(|item| crate::services::purchase_delivery_calculator::OrderItemInfo {
+            product_id: item.product_id,
+            quantity: item.quantity,
+        })
+        .collect();
+
+    let calc_req = crate::services::purchase_delivery_calculator::DeliveryCalculationRequest {
+        supplier_id: req.supplier_id,
+        order_date: req.order_date,
+        items,
+    };
+
+    let result = calculator.calculate_delivery_date(&calc_req).await?;
+
+    Ok(Json(ApiResponse::success(DeliveryDateResponse {
+        suggested_date: result.suggested_date,
+        avg_lead_time_days: result.avg_lead_time_days,
+        max_production_days: result.max_production_days,
+        calculation_basis: result.calculation_basis,
+        historical_orders: result.historical_orders,
+    })))
 }
 
 // =====================================================

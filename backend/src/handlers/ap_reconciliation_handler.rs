@@ -172,14 +172,63 @@ pub async fn get_supplier_summary(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
-        "用户 {} 查询供应商应付汇总，供应商 ID: {:?}",
+        "User {} query supplier AP summary, supplier ID: {:?}",
         auth.username, params.supplier_id
     );
 
     let service = ApReconciliationService::new(state.db.clone());
     let summary = service.get_supplier_summary(params.supplier_id).await?;
 
-    info!("用户 {} 查询供应商应付汇总成功", auth.username);
+    info!("User {} query supplier AP summary success", auth.username);
 
     Ok(Json(ApiResponse::success(serde_json::to_value(summary)?)))
+}
+
+/// Auto reconciliation request
+#[derive(Debug, Deserialize)]
+pub struct AutoReconcileRequest {
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+}
+
+/// Auto reconcile all suppliers
+pub async fn auto_reconcile_all(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<AutoReconcileRequest>,
+) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    info!(
+        "User {} auto reconcile all suppliers from {} to {}",
+        auth.username, req.start_date, req.end_date
+    );
+
+    let service = ApReconciliationService::new(state.db.clone());
+    let results = service.auto_reconcile_all(req.start_date, req.end_date, auth.user_id).await?;
+
+    let success_count = results.iter().filter(|r| r.status != "FAILED").count();
+    let fail_count = results.len() - success_count;
+
+    info!(
+        "User {} auto reconcile completed: {} success, {} failed",
+        auth.username, success_count, fail_count
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(results)?,
+        &format!("Auto reconciliation completed: {} success, {} failed", success_count, fail_count),
+    )))
+}
+
+/// Get invoice relations
+pub async fn get_invoice_relations(
+    Path(invoice_id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    info!("User {} query invoice {} relations", auth.username, invoice_id);
+
+    let service = ApReconciliationService::new(state.db.clone());
+    let relations = service.get_invoice_relations(invoice_id).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(relations)?)))
 }

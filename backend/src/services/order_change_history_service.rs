@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait, QueryOrder, QueryFilter};
+use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait, QueryOrder, QueryFilter, QuerySelect, PaginatorTrait};
 use sea_orm::ColumnTrait;
 
 use crate::models::sales_order_change_history;

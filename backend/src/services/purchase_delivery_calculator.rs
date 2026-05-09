@@ -2,9 +2,9 @@
 //!
 //! 根据供应商历史交货数据自动计算建议交货日期
 
-use chrono::{NaiveDate, Utc, Weekday};
+use chrono::{NaiveDate, Datelike};
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, Statement, FromQueryResult};
+use sea_orm::{DatabaseConnection, Statement, FromQueryResult, ConnectionTrait};
 use std::sync::Arc;
 
 use crate::utils::error::AppError;
@@ -102,9 +102,8 @@ impl PurchaseDeliveryCalculator {
         &self,
         supplier_id: i32,
     ) -> Result<(i32, i64), AppError> {
-        let result = self
-            .db
-            .query_one(Statement::from_sql_and_values(
+        let result = self.db.query_one(
+            Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 r#"
                 SELECT 
@@ -125,13 +124,14 @@ impl PurchaseDeliveryCalculator {
                 AND actual_delivery_date IS NOT NULL
                 "#,
                 vec![supplier_id.into()],
-            ))
-            .await
-            .map_err(|e| AppError::InternalError(format!("查询供应商交货周期失败: {}", e)))?;
+            ),
+        )
+        .await
+        .map_err(|e| AppError::InternalError(format!("查询供应商交货周期失败: {}", e)))?;
 
         if let Some(row) = result {
-            let avg_days: Option<i32> = row.try_get("", "avg_days").ok();
-            let order_count: Option<i64> = row.try_get("", "order_count").ok();
+            let avg_days: Option<i32> = row.try_get_by_index(0).ok();
+            let order_count: Option<i64> = row.try_get_by_index(1).ok();
             Ok((avg_days.unwrap_or(7), order_count.unwrap_or(0)))
         } else {
             Ok((7, 0))
@@ -166,7 +166,7 @@ impl PurchaseDeliveryCalculator {
         while remaining > 0 {
             current = current.succ_opt().unwrap_or(current);
             let weekday = current.weekday();
-            if weekday != Weekday::Sat && weekday != Weekday::Sun {
+            if weekday != chrono::Weekday::Sat && weekday != chrono::Weekday::Sun {
                 remaining -= 1;
             }
         }

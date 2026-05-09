@@ -210,7 +210,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_credentials(true) // 因为改成了 Cookie 鉴权，必须设置为 true
         .max_age(Duration::from_secs(86400)); // 24小时
 
-    let db_result = Database::connect(&settings.database.connection_string).await;
+    // 配置数据库连接池
+    let mut db_opts = sea_orm::ConnectOptions::new(settings.database.connection_string.clone());
+    db_opts
+        .max_connections(settings.database.max_connections)
+        .min_connections(5)
+        .connect_timeout(Duration::from_secs(10))
+        .acquire_timeout(Duration::from_secs(10))
+        .idle_timeout(Duration::from_secs(300))
+        .max_lifetime(Duration::from_secs(1800))
+        .sqlx_logging(true)
+        .sqlx_logging_level(tracing::log::LevelFilter::Debug);
+
+    let db_result = Database::connect(db_opts).await;
 
     let app = match db_result {
         Ok(db) => {

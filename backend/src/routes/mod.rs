@@ -96,7 +96,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(user_handler::create_user))
         .route("/:id", get(user_handler::get_user))
         .route("/:id", put(user_handler::update_user))
-        .route("/:id", delete(user_handler::delete_user));
+        .route("/:id", delete(user_handler::delete_user))
+        .route("/change-password", post(user_handler::change_password));
 
     // 角色管理路由
     let role_routes = Router::new()
@@ -522,6 +523,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // 采购管理路由
     let purchase_routes = Router::new()
+        .route("/orders/delivery-date", post(purchase_order_handler::calculate_delivery_date))
         .route("/orders", get(purchase_order_handler::list_orders))
         .route("/orders", post(purchase_order_handler::create_order))
         .route("/orders/:id", get(purchase_order_handler::get_order))
@@ -666,7 +668,12 @@ pub fn create_router(state: AppState) -> Router {
     // 成本归集路由
     let cost_collection_routes = Router::new()
         .route("/", get(cost_collection_handler::list_collections))
-        .route("/", post(cost_collection_handler::create_collection));
+        .route("/", post(cost_collection_handler::create_collection))
+        .route("/:id", get(cost_collection_handler::get_collection))
+        .route("/:id", put(cost_collection_handler::update_collection))
+        .route("/:id", delete(cost_collection_handler::delete_collection))
+        .route("/analysis/summary", get(cost_collection_handler::get_cost_analysis_summary))
+        .route("/analysis/by-batch", get(cost_collection_handler::get_cost_by_batch));
 
     // 销售分析路由
     let sales_analysis_routes = Router::new()
@@ -731,7 +738,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/reconciliations/generate", post(ap_reconciliation_handler::generate_reconciliation))
         .route("/reconciliations/:id/confirm", post(ap_reconciliation_handler::confirm_reconciliation))
         .route("/reconciliations/:id/dispute", post(ap_reconciliation_handler::dispute_reconciliation))
+        .route("/reconciliations/auto", post(ap_reconciliation_handler::auto_reconcile_all))
         .route("/reconciliations/summary", get(ap_reconciliation_handler::get_supplier_summary))
+        .route("/invoices/:id/relations", get(ap_reconciliation_handler::get_invoice_relations))
         .route("/reports/statistics", get(ap_report_handler::get_statistics_report))
         .route("/reports/daily", get(ap_report_handler::get_daily_report))
         .route("/reports/monthly", get(ap_report_handler::get_monthly_report))
@@ -755,11 +764,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/status", get(system_update_handler::get_update_status));
 
 
-    // BPM 路由
+    // BPM路由
     let bpm_routes = Router::new()
-        .route("/instances/start", post(bpm_handler::start_process))
+        .route("/process/start", post(bpm_handler::start_process))
         .route("/tasks/approve", post(bpm_handler::approve_task))
-        .route("/tasks", get(bpm_handler::query_tasks));
+        .route("/tasks", get(bpm_handler::query_tasks))
+        .route("/business-relation", get(bpm_handler::get_business_relation))
+        .route("/visualization/:instance_id", get(bpm_handler::get_process_visualization));
 
     // 健康检查路由
     // 扫码出库路由
@@ -835,7 +846,9 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/crm", Router::new()
             .route("/leads", post(crate::handlers::crm_handler::create_lead).get(crate::handlers::crm_handler::list_leads))
             .route("/leads/:id/status", put(crate::handlers::crm_handler::update_lead_status))
+            .route("/leads/:id/relations", get(crate::handlers::crm_handler::get_lead_relation))
             .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
+            .route("/customers/:id/summary", get(crate::handlers::crm_handler::get_customer_relation_summary))
         )
         .nest("/api/v1/erp/init", init_routes)
         .nest("/", metrics_routes)

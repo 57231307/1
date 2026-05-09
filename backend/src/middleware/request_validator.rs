@@ -58,11 +58,8 @@ pub async fn request_validator_middleware(
 }
 
 fn is_state_changing_method(method: &axum::http::Method) -> bool {
-    matches!(
-        method,
-        axum::http::Method::POST |
-        axum::http::Method::PUT |
-        axum::http::Method::PATCH |
-        axum::http::Method::DELETE
-    )
+    *method == axum::http::Method::POST
+        || *method == axum::http::Method::PUT
+        || *method == axum::http::Method::PATCH
+        || *method == axum::http::Method::DELETE
 }

@@ -2,6 +2,7 @@ use crate::services::auth_service::AuthService;
 use crate::services::user_service::UserService;
 use crate::services::role_permission_service::RolePermissionService;
 use crate::utils::response::ApiResponse;
+use crate::utils::password_validator::{validate_password, get_password_feedback};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -11,31 +12,17 @@ use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 use validator::{Validate, ValidationError};
-use regex::Regex;
-use once_cell::sync::Lazy;
-
-static RE_LOWERCASE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[a-z]").unwrap());
-static RE_UPPERCASE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[A-Z]").unwrap());
-static RE_DIGIT: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d").unwrap());
-static RE_SPECIAL: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"[!@#\$%\^&\*\(\)_\+\-\=\[\]\{\};:'\,<>\./\?\\|`~]").unwrap()
-});
 
 fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
-    if password.len() < 8 {
-        return Err(ValidationError::new("密码长度至少为8位"));
+    let result = validate_password(password);
+    if result.is_valid {
+        Ok(())
+    } else {
+        let msg = get_password_feedback(&result);
+        let mut err = ValidationError::new("password_strength");
+        err.message = Some(std::borrow::Cow::Owned(msg));
+        Err(err)
     }
-    
-    let has_lowercase = RE_LOWERCASE.is_match(password);
-    let has_uppercase = RE_UPPERCASE.is_match(password);
-    let has_digit = RE_DIGIT.is_match(password);
-    let has_special = RE_SPECIAL.is_match(password);
-
-    if !has_lowercase || !has_uppercase || !has_digit || !has_special {
-        return Err(ValidationError::new("密码必须包含大写字母、小写字母、数字和特殊字符"));
-    }
-    
-    Ok(())
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -270,4 +257,74 @@ pub async fn delete_user(
         Ok(_) => Ok(Json(ApiResponse::success(DeleteUserResponse { success: true }))),
         Err(e) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string())))),
     }
+}
+
+/// 修改密码请求
+#[derive(Debug, Deserialize, Validate)]
+pub struct ChangePasswordRequest {
+    #[validate(length(min = 1, message = "原密码不能为空"))]
+    pub old_password: String,
+    #[validate(custom(function = "validate_password_strength"))]
+    pub new_password: String,
+}
+
+/// 修改密码响应
+#[derive(Debug, Serialize)]
+pub struct ChangePasswordResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// 修改当前用户密码
+pub async fn change_password(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<ChangePasswordRequest>,
+) -> Result<Json<ApiResponse<ChangePasswordResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
+    if let Err(e) = req.validate() {
+        return Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string()))));
+    }
+
+    let user_service = UserService::new(state.db.clone());
+
+    // 获取当前用户信息
+    let user = user_service.find_by_id(auth.user_id).await
+        .map_err(|e| (StatusCode::NOT_FOUND, Json(ApiResponse::error(e.to_string()))))?;
+
+    // 验证原密码
+    let is_valid = AuthService::verify_password(&req.old_password, &user.password_hash)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
+
+    if !is_valid {
+        return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("原密码不正确".to_string()))));
+    }
+
+    // 检查新密码不能与原密码相同
+    let is_same = AuthService::verify_password(&req.new_password, &user.password_hash)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
+
+    if is_same {
+        return Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error("新密码不能与原密码相同".to_string()))));
+    }
+
+    // 哈希新密码
+    let new_password_hash = AuthService::hash_password(&req.new_password)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
+
+    // 更新密码
+    use sea_orm::ActiveModelTrait;
+    let mut user_model: crate::models::user::ActiveModel = user.into();
+    user_model.password_hash = sea_orm::Set(new_password_hash);
+    user_model.updated_at = sea_orm::Set(chrono::Utc::now());
+
+    user_model.update(state.db.as_ref()).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string()))))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        ChangePasswordResponse {
+            success: true,
+            message: "密码修改成功".to_string(),
+        },
+        "密码修改成功，请使用新密码重新登录",
+    )))
 }
