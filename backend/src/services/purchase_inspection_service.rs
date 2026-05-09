@@ -8,7 +8,7 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;

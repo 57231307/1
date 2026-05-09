@@ -1,6 +1,6 @@
 use crate::models::accounting_period;
 use crate::utils::error::AppError;
-use chrono::{Datelike, Utc, TimeZone};
+use chrono::{Utc, TimeZone};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };

@@ -7,8 +7,8 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait, QuerySelect, FromQueryResult, RelationTrait
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    QueryFilter, QueryOrder, Set, TransactionTrait
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -379,7 +379,7 @@ pub struct UpdateReturnItemRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, FromQueryResult)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sea_orm::FromQueryResult)]
 pub struct PurchaseReturnItemDto {
     pub id: i32,
     pub return_id: i32,

@@ -173,7 +173,6 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         }
                     }
                 }
-                _ => {}
             }
         }
     });
