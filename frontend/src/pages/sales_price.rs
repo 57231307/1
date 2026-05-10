@@ -50,7 +50,11 @@ pub fn sales_price_page() -> Html {
                 <h1>{"销售价格管理"}</h1>
                 <div>
                     <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
-                    <button class="btn btn-success">{"新增定价"}</button>
+                    <button class="btn btn-success" onclick={Callback::from(|_| {
+                        if let Some(window) = web_sys::window() {
+                            let _ = window.alert_with_message("新增价格功能开发中");
+                        }
+                    })}>{"新增定价"}</button>
                 </div>
             </div>
             

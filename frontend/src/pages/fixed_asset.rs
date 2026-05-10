@@ -48,7 +48,11 @@ pub fn fixed_asset_page() -> Html {
         <div class="fixed-asset-page">
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"固定资产管理"}</h1>
-                <button class="btn btn-primary">{"新增资产"}</button>
+                <button class="btn btn-primary" onclick={Callback::from(|_| {
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.alert_with_message("新增资产功能开发中");
+                    }
+                })}>{"新增资产"}</button>
             </div>
             
             if *loading {
@@ -90,8 +94,16 @@ pub fn fixed_asset_page() -> Html {
                                             }
                                         })}>{"查看"}</button>
                                         if a.status.as_deref() == Some("IN_USE") {
-                                            <button class="btn btn-sm btn-warning" style="margin-right: 5px;">{"计提折旧"}</button>
-                                            <button class="btn btn-sm btn-danger">{"处置"}</button>
+                                            <button class="btn btn-sm btn-warning" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("计提折旧功能开发中");
+                                                }
+                                            })}>{"计提折旧"}</button>
+                                            <button class="btn btn-sm btn-danger" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("处置功能开发中");
+                                                }
+                                            })}>{"处置"}</button>
                                         }
                                     </td>
                                 </tr>

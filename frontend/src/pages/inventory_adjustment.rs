@@ -52,9 +52,9 @@ pub fn inventory_adjustment_page() -> Html {
                     <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
                     <button class="btn btn-success" onclick={Callback::from(|_| {
                         if let Some(window) = web_sys::window() {
-                            let _ = window.alert_with_message("功能开发中");
+                            let _ = window.alert_with_message("新增调整功能开发中");
                         }
-                    })}>{"新建调整单"}</button>
+                    })}>{"新增调整"}</button>
                 </div>
             </div>
             

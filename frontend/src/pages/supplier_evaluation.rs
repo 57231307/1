@@ -39,7 +39,11 @@ pub fn supplier_evaluation_page() -> Html {
                     <h1>{"供应商绩效与评估"}</h1>
                     <p style="color: #666;">{"基于质量、交期和服务的供应商评级体系"}</p>
                 </div>
-                <button class="btn btn-primary">{"发起评估"}</button>
+                <button class="btn btn-primary" onclick={Callback::from(|_| {
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.alert_with_message("功能开发中");
+                    }
+                })}>{"发起评估"}</button>
             </div>
             
             if *loading {
@@ -99,7 +103,11 @@ pub fn supplier_evaluation_page() -> Html {
                                         }
                                     </td>
                                     <td style="padding: 10px;">
-                                        <button class="btn btn-sm" style="margin-right: 5px;">{"评估明细"}</button>
+                                        <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.alert_with_message("功能开发中");
+                                            }
+                                        })}>{"评估明细"}</button>
                                     </td>
                                 </tr>
                             }
