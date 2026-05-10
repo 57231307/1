@@ -557,7 +557,24 @@ impl BpmService {
             urge_message
         );
 
-        // TODO: 通过事件总线发送催办通知给处理人
+        // 发送催办通知给处理人
+        if let Some(assignee_id) = task.assignee_id {
+            let notification_service = crate::services::notification_service::NotificationService::new(self.db.clone());
+            let _ = notification_service.create_notification(
+                crate::services::notification_service::CreateNotificationRequest {
+                    user_id: assignee_id,
+                    notification_type: crate::models::notification::NotificationType::Internal,
+                    title: "任务催办".to_string(),
+                    content: format!("任务 '{}' 需要您尽快处理。催办消息: {}", task.name, urge_message),
+                    priority: crate::models::notification::NotificationPriority::High,
+                    business_type: Some("BPM".to_string()),
+                    business_id: Some(task.process_instance_id),
+                    action_url: Some(format!("/bpm/tasks/{}", task_id)),
+                    sender_id: Some(0),
+                    sender_name: Some("系统".to_string()),
+                }
+            ).await;
+        }
 
         Ok(())
     }
