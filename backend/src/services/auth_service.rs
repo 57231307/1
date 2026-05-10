@@ -241,7 +241,8 @@ impl AuthService {
     ///
     /// # 示例
     /// ```
-    /// let hash = AuthService::hash_password("my_password")?;
+    /// use bingxi_backend::AuthService;
+    /// let hash = AuthService::hash_password("my_password").unwrap();
     /// ```
     pub fn hash_password(password: &str) -> Result<String, AuthError> {
         let salt = SaltString::generate(&mut OsRng);
