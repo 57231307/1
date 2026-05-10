@@ -11,7 +11,7 @@ impl CrudService for FundManagementService {
     type Model = FundAccount;
     type ListResponse = FundAccountListResponse;
     type CreateRequest = CreateFundAccountRequest;
-    type UpdateRequest = ();
+    type UpdateRequest = CreateFundAccountRequest;
 
     fn base_path() -> &'static str {
         "/fund-accounts"
@@ -86,6 +86,11 @@ impl FundManagementService {
         let payload = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         let _: serde_json::Value = ApiService::post(&format!("/fund-accounts/{}/unfreeze", id), &payload).await?;
         Ok("解冻成功".to_string())
+    }
+
+    /// 更新资金账户
+    pub async fn update_account(id: i32, req: CreateFundAccountRequest) -> Result<FundAccount, String> {
+        <Self as CrudService>::update(id, req).await
     }
 
     /// 删除资金账户
