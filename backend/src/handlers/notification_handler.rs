@@ -7,12 +7,12 @@ use crate::models::notification::{NotificationStatus, NotificationType};
 use crate::services::notification_service::NotificationService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// 通知列表查询参数
 #[derive(Debug, Deserialize)]

@@ -1311,7 +1311,7 @@
 **前端页面**：
 - [init.rs](file:///workspace/frontend/src/pages/init.rs) - 初始化页面
 
-### 24. 系统更新模块
+### 31. 系统更新模块
 
 **功能描述**：
 - 系统版本管理
@@ -1324,7 +1324,7 @@
 - [system_update_service.rs](file:///workspace/backend/src/services/system_update_service.rs) - 系统更新服务
 - [system_update_handler.rs](file:///workspace/backend/src/handlers/system_update_handler.rs) - 系统更新处理函数
 
-### 25. 操作日志模块
+### 32. 操作日志模块
 
 **功能描述**：
 - 操作日志记录

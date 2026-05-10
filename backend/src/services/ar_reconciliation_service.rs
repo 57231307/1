@@ -27,7 +27,7 @@ use crate::models::ar_reconciliation_item::{
     ActiveModel as ItemActiveModel, Entity as ItemEntity, Model as ItemModel,
 };
 use crate::models::ar_aging_analysis::{
-    ActiveModel as AgingActiveModel, Entity as AgingEntity, Model as AgingModel,
+    ActiveModel as AgingActiveModel, Model as AgingModel,
 };
 use crate::models::ar_invoice::{Entity as ArInvoiceEntity, Model as ArInvoiceModel};
 use crate::models::finance_payment::{Entity as PaymentEntity, Model as PaymentModel};
@@ -724,7 +724,7 @@ impl ArReconciliationService {
         customer_id: Option<i32>,
         analysis_date: NaiveDate,
     ) -> Result<Vec<AgingModel>, AppError> {
-        use sea_orm::QuerySelect;
+        
         use crate::models::ar_invoice::Column as ArInvoiceColumn;
 
         // 查询所有未完全收款的应收单

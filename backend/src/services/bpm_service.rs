@@ -457,7 +457,7 @@ impl BpmService {
         page: u64,
         page_size: u64,
     ) -> Result<PageResponse<bpm_task::Model>, AppError> {
-        let mut stmt = bpm_task::Entity::find()
+        let stmt = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("PENDING"))
             .filter(bpm_task::Column::IsDeleted.eq(false));
 

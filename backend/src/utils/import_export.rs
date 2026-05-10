@@ -9,7 +9,7 @@
 //! - 导入模板生成
 
 use crate::utils::error::AppError;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 
 /// 导入格式
