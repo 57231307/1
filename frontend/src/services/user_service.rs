@@ -18,7 +18,7 @@ impl CrudService for UserService {
     type Model = User;
     type ListResponse = UserListResponse;
     type CreateRequest = CreateUserRequest;
-    type UpdateRequest = serde_json::Value;
+    type UpdateRequest = CreateUserRequest;
 
     fn base_path() -> &'static str {
         "/users"
