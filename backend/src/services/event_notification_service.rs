@@ -4,6 +4,7 @@
 //! 支持订单状态变更、审批提醒、库存预警等业务场景
 
 use crate::models::notification::{NotificationPriority, NotificationType};
+use crate::services::email_service::{EmailService, EmailTemplate};
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
@@ -12,17 +13,45 @@ use std::sync::Arc;
 /// 业务事件通知服务
 pub struct EventNotificationService {
     notification_service: NotificationService,
+    email_service: Option<Arc<EmailService>>,
 }
 
 impl EventNotificationService {
-    /// 创建服务实例
+    /// 创建服务实例（仅站内通知）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {
             notification_service: NotificationService::new(db),
+            email_service: None,
+        }
+    }
+
+    /// 创建服务实例（含邮件通知）
+    pub fn with_email(db: Arc<DatabaseConnection>, email_service: Arc<EmailService>) -> Self {
+        Self {
+            notification_service: NotificationService::new(db),
+            email_service: Some(email_service),
         }
     }
 
     // ========== 订单相关通知 ==========
+
+    /// 发送邮件通知（辅助方法）
+    async fn send_email_notification(
+        &self,
+        to_email: &str,
+        subject: &str,
+        html_content: String,
+    ) {
+        if let Some(email_service) = &self.email_service {
+            let _ = email_service
+                .send_html_email(
+                    vec![to_email.to_string()],
+                    subject.to_string(),
+                    html_content,
+                )
+                .await;
+        }
+    }
 
     /// 订单提交通知
     pub async fn notify_order_submitted(
@@ -45,6 +74,11 @@ impl EventNotificationService {
                 sender_name: Some("系统".to_string()),
             })
             .await?;
+
+        // 发送邮件通知
+        let html = EmailTemplate::order_notification(order_no, "已提交", "/sales/orders");
+        self.send_email_notification("user@example.com", "订单状态更新", html).await;
+
         Ok(())
     }
 

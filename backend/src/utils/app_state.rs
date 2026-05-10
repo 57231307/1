@@ -2,7 +2,11 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::middleware::api_gateway::RateLimitStore;
+use crate::services::data_permission_service::DataPermissionService;
+use crate::services::email_service::EmailService;
+use crate::services::event_notification_service::EventNotificationService;
 use crate::services::metrics_service::MetricsService;
+use crate::services::notification_service::NotificationService;
 use crate::services::omni_audit_service::OmniAuditEngine;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
@@ -23,6 +27,10 @@ pub struct AppState {
     pub cookie_key: Key,
     pub rate_limiter: Arc<RateLimitStore>,
     pub di_container: Arc<DIContainer>,
+    pub email_service: Option<Arc<EmailService>>,
+    pub event_notification_service: Option<Arc<EventNotificationService>>,
+    pub data_permission_service: Arc<DataPermissionService>,
+    pub notification_service: Arc<NotificationService>,
 }
 
 impl FromRef<AppState> for Key {
@@ -50,6 +58,12 @@ impl AppState {
         let metrics = MetricsService::new().expect("Failed to create metrics service");
         let cookie_key = Key::derive_from(final_cookie_secret.as_bytes());
         let di_container = Arc::new(DIContainer::new());
+        let email_service = EmailService::from_env().map(Arc::new);
+        let event_notification_service = email_service.as_ref().map(|email_svc| {
+            Arc::new(EventNotificationService::with_email(db.clone(), email_svc.clone()))
+        });
+        let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
+        let notification_service = Arc::new(NotificationService::new(db.clone()));
         Self {
             db,
             omni_audit,
@@ -61,6 +75,10 @@ impl AppState {
             cookie_key,
             rate_limiter: Arc::new(RateLimitStore::new()),
             di_container,
+            email_service,
+            event_notification_service,
+            data_permission_service,
+            notification_service,
         }
     }
 
@@ -90,6 +108,10 @@ impl Default for AppState {
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())
             .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"));
         let di_container = Arc::new(DIContainer::new());
+        let email_service = EmailService::from_env().map(Arc::new);
+        let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
+        let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
+        let notification_service = Arc::new(NotificationService::new(db.clone()));
         Self {
             db: db.clone(),
             omni_audit,
@@ -101,6 +123,10 @@ impl Default for AppState {
             cookie_key,
             rate_limiter: Arc::new(RateLimitStore::new()),
             di_container,
+            email_service,
+            event_notification_service,
+            data_permission_service,
+            notification_service,
         }
     }
 }

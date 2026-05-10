@@ -12,6 +12,8 @@ use axum::{
 use chrono::Utc;
 use rust_decimal::Decimal;
 use crate::utils::app_state::AppState;
+use crate::models::{inventory_stock, product};
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -255,6 +257,26 @@ pub async fn list_stock(
             updated_at: stock.updated_at,
         })
         .collect();
+
+    // 发送库存预警通知
+    if let Some(ref event_service) = state.event_notification_service {
+        for stock in &stock_responses {
+            if stock.quantity_on_hand < stock.reorder_point {
+                if let Ok(Some(product)) = product::Entity::find_by_id(stock.product_id)
+                    .one(&*state.db)
+                    .await
+                {
+                    let _ = event_service.notify_inventory_alert(
+                        0, // 系统通知，不指定特定用户
+                        &product.name,
+                        product.id,
+                        &stock.quantity_on_hand.to_string(),
+                        &stock.reorder_point.to_string(),
+                    ).await;
+                }
+            }
+        }
+    }
 
     Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
 }

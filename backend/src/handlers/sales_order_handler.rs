@@ -43,29 +43,47 @@ pub async fn list_orders(
 
     let mut orders_json = serde_json::to_value(orders).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     
-    // 字段级权限控制：如果角色不是管理员 (假设 ID 为 1)，则隐藏敏感的财务字段
-    if auth.role_id != Some(1) {
-        let mut list_opt = orders_json.get_mut("list");
-        if list_opt.is_none() {
-            list_opt = orders_json.get_mut("data");
-        }
-        if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-            for order in list {
-                if let Some(obj) = order.as_object_mut() {
-                    obj.remove("subtotal");
-                    obj.remove("tax_amount");
-                    obj.remove("discount_amount");
-                    obj.remove("shipping_cost");
-                    obj.remove("total_amount");
-                    obj.remove("paid_amount");
-                    obj.remove("balance_amount");
-                    
-                    if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
-                        for item in items {
-                            if let Some(item_obj) = item.as_object_mut() {
-                                item_obj.remove("unit_price");
-                                item_obj.remove("tax_rate");
-                                item_obj.remove("total_price");
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state.data_permission_service
+            .get_role_data_permission(role_id, "sales_order")
+            .await
+        {
+            let mut list_opt = orders_json.get_mut("list");
+            if list_opt.is_none() {
+                list_opt = orders_json.get_mut("data");
+            }
+            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
+                state.data_permission_service.filter_fields_batch(
+                    list,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            let mut list_opt = orders_json.get_mut("list");
+            if list_opt.is_none() {
+                list_opt = orders_json.get_mut("data");
+            }
+            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
+                for order in list {
+                    if let Some(obj) = order.as_object_mut() {
+                        obj.remove("subtotal");
+                        obj.remove("tax_amount");
+                        obj.remove("discount_amount");
+                        obj.remove("shipping_cost");
+                        obj.remove("total_amount");
+                        obj.remove("paid_amount");
+                        obj.remove("balance_amount");
+                        
+                        if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
+                            for item in items {
+                                if let Some(item_obj) = item.as_object_mut() {
+                                    item_obj.remove("unit_price");
+                                    item_obj.remove("tax_rate");
+                                    item_obj.remove("total_price");
+                                }
                             }
                         }
                     }
@@ -88,23 +106,35 @@ pub async fn get_order(
     let order = sales_service.get_order_detail(id).await?;
     let mut order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     
-    // 字段级权限控制：如果角色不是管理员 (假设 ID 为 1)，则隐藏敏感的财务字段
-    if auth.role_id != Some(1) {
-        if let Some(obj) = order_json.as_object_mut() {
-            obj.remove("subtotal");
-            obj.remove("tax_amount");
-            obj.remove("discount_amount");
-            obj.remove("shipping_cost");
-            obj.remove("total_amount");
-            obj.remove("paid_amount");
-            obj.remove("balance_amount");
-            
-            if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
-                for item in items {
-                    if let Some(item_obj) = item.as_object_mut() {
-                        item_obj.remove("unit_price");
-                        item_obj.remove("tax_rate");
-                        item_obj.remove("total_price");
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state.data_permission_service
+            .get_role_data_permission(role_id, "sales_order")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut order_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(obj) = order_json.as_object_mut() {
+                obj.remove("subtotal");
+                obj.remove("tax_amount");
+                obj.remove("discount_amount");
+                obj.remove("shipping_cost");
+                obj.remove("total_amount");
+                obj.remove("paid_amount");
+                obj.remove("balance_amount");
+                
+                if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
+                    for item in items {
+                        if let Some(item_obj) = item.as_object_mut() {
+                            item_obj.remove("unit_price");
+                            item_obj.remove("tax_rate");
+                            item_obj.remove("total_price");
+                        }
                     }
                 }
             }
@@ -123,6 +153,16 @@ pub async fn create_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.create_order(request).await?;
+
+    // 订单创建成功后发送通知
+    if let Some(event_service) = &state.event_notification_service {
+        if let Some(created_by) = order.created_by {
+            let _ = event_service
+                .notify_order_submitted(created_by, &order.order_no, order.id)
+                .await;
+        }
+    }
+
     let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
@@ -169,6 +209,16 @@ pub async fn submit_order(
     let sales_service = SalesService::new(state.db.clone());
     let user_id = auth.user_id;
     let order = sales_service.submit_order(id, user_id).await?;
+
+    // 订单提交成功后发送通知给申请人
+    if let Some(event_service) = &state.event_notification_service {
+        if let Some(created_by) = order.created_by {
+            let _ = event_service
+                .notify_order_submitted(created_by, &order.order_no, order.id)
+                .await;
+        }
+    }
+
     let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
@@ -179,11 +229,22 @@ pub async fn submit_order(
 /// 审核销售订单
 /// POST /api/v1/erp/sales/orders/:id/approve
 pub async fn approve_order(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.approve_order(id).await?;
+
+    // 订单审批成功后发送通知给申请人
+    if let Some(event_service) = &state.event_notification_service {
+        if let Some(created_by) = order.created_by {
+            let _ = event_service
+                .notify_order_approved(created_by, &order.order_no, order.id, &auth.username)
+                .await;
+        }
+    }
+
     let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
@@ -194,12 +255,23 @@ pub async fn approve_order(
 /// 发货处理
 /// POST /api/v1/erp/sales/orders/:id/ship
 pub async fn ship_order(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<crate::services::sales_service::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.ship_order(id, payload).await?;
+
+    // 订单发货成功后发送通知给申请人
+    if let Some(event_service) = &state.event_notification_service {
+        if let Some(created_by) = order.created_by {
+            let _ = event_service
+                .notify_order_shipped(created_by, &order.order_no, order.id)
+                .await;
+        }
+    }
+
     let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
@@ -215,6 +287,16 @@ pub async fn complete_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.complete_order(id).await?;
+
+    // 订单完成后发送通知给申请人
+    if let Some(event_service) = &state.event_notification_service {
+        if let Some(created_by) = order.created_by {
+            let _ = event_service
+                .notify_order_completed(created_by, &order.order_no, order.id)
+                .await;
+        }
+    }
+
     let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,

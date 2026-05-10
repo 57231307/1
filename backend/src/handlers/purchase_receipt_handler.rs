@@ -17,6 +17,8 @@ use axum::{
 };
 use crate::utils::app_state::AppState;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+use crate::models::{purchase_order, warehouse};
+use sea_orm::EntityTrait;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -78,6 +80,31 @@ pub async fn create_receipt(auth: AuthContext,
         });
     }
 
+    // 发送采购到货通知
+    if let Some(order_id) = receipt.order_id {
+        if let Some(ref event_service) = state.event_notification_service {
+            if let Ok(Some(order)) = purchase_order::Entity::find_by_id(order_id)
+                .one(&*state.db)
+                .await
+            {
+                let warehouse_name = if let Ok(Some(wh)) = warehouse::Entity::find_by_id(receipt.warehouse_id)
+                    .one(&*state.db)
+                    .await
+                {
+                    wh.name
+                } else {
+                    String::new()
+                };
+
+                let _ = event_service.notify_purchase_arrived(
+                    user_id,
+                    &order.order_no,
+                    order_id,
+                    &warehouse_name,
+                ).await;
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,

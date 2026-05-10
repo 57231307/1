@@ -14,6 +14,8 @@ use axum::{
 };
 use chrono::NaiveDate;
 use crate::utils::app_state::AppState;
+use crate::models::{ap_payment_request, supplier};
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::{info, warn};
@@ -173,6 +175,26 @@ pub async fn submit_request(
 
     let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.submit(id, auth.user_id).await?;
+
+    // 发送付款申请通知给审批人
+    if let Some(ref event_service) = state.event_notification_service {
+        let supplier_name = if let Ok(Some(sup)) = supplier::Entity::find_by_id(request.supplier_id)
+            .one(&*state.db)
+            .await
+        {
+            sup.supplier_name
+        } else {
+            String::new()
+        };
+
+        let _ = event_service.notify_payment_request(
+            auth.user_id,
+            &request.request_no,
+            &request.request_amount.to_string(),
+            &supplier_name,
+            request.id,
+        ).await;
+    }
 
     info!(
         "用户 {} 提交付款申请成功：{}",
