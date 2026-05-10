@@ -58,7 +58,11 @@ pub fn account_subject_page() -> Html {
         <div class="account-subject-page">
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"会计科目管理"}</h1>
-                <button class="btn btn-primary">{"新建科目"}</button>
+                <button class="btn btn-primary" onclick={Callback::from(|_| {
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.alert_with_message("科目创建功能开发中");
+                    }
+                })}>{"新建科目"}</button>
             </div>
             
             if *loading {
@@ -102,7 +106,11 @@ fn render_tree_node(node: &SubjectTreeNode, depth: usize, on_delete: Callback<i3
                 <td style="padding: 10px;">{ &node.name }</td>
                 <td style="padding: 10px;">{ node.level }</td>
                 <td style="padding: 10px;">
-                    <button class="btn btn-sm" style="margin-right: 5px;">{"编辑"}</button>
+                    <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                        if let Some(window) = web_sys::window() {
+                            let _ = window.alert_with_message("科目编辑功能开发中");
+                        }
+                    })}>{"编辑"}</button>
                     <button class="btn btn-sm btn-danger" onclick={{ let id = node.id; on_delete.reform(move |_| id) }}>{"删除"}</button>
                 </td>
             </tr>

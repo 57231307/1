@@ -51,7 +51,11 @@ pub fn voucher_page() -> Html {
         <div class="voucher-page">
             <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1>{"凭证管理"}</h1>
-                <button class="btn btn-primary">{"新建凭证"}</button>
+                <button class="btn btn-primary" onclick={Callback::from(|_| {
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.alert_with_message("凭证创建功能开发中");
+                    }
+                })}>{"新建凭证"}</button>
             </div>
             
             if *loading {
@@ -87,9 +91,17 @@ pub fn voucher_page() -> Html {
                                     <td style="padding: 10px;">{ &v.status }</td>
                                     <td style="padding: 10px;">{ v.creator_name.clone().unwrap_or_default() }</td>
                                     <td style="padding: 10px;">
-                                        <button class="btn btn-sm" style="margin-right: 5px;">{"查看"}</button>
+                                        <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.alert_with_message("凭证详情查看功能开发中");
+                                            }
+                                        })}>{"查看"}</button>
                                         if v.status == "DRAFT" {
-                                            <button class="btn btn-sm" style="margin-right: 5px;">{"提交"}</button>
+                                            <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("凭证提交功能开发中");
+                                                }
+                                            })}>{"提交"}</button>
                                         }
                                     </td>
                                 </tr>

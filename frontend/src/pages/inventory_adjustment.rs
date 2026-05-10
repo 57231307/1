@@ -50,7 +50,11 @@ pub fn inventory_adjustment_page() -> Html {
                 <h1>{"库存调整单管理"}</h1>
                 <div>
                     <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
-                    <button class="btn btn-success">{"新建调整单"}</button>
+                    <button class="btn btn-success" onclick={Callback::from(|_| {
+                        if let Some(window) = web_sys::window() {
+                            let _ = window.alert_with_message("功能开发中");
+                        }
+                    })}>{"新建调整单"}</button>
                 </div>
             </div>
             
@@ -94,8 +98,16 @@ pub fn inventory_adjustment_page() -> Html {
                                     <td style="padding: 10px;">
                                         <button class="btn btn-sm" style="margin-right: 5px;">{"详情"}</button>
                                         if a.status == "DRAFT" {
-                                            <button class="btn btn-sm btn-success" style="margin-right: 5px;">{"审核"}</button>
-                                            <button class="btn btn-sm btn-danger">{"驳回"}</button>
+                                            <button class="btn btn-sm btn-success" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("功能开发中");
+                                                }
+                                            })}>{"审核"}</button>
+                                            <button class="btn btn-sm btn-danger" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("功能开发中");
+                                                }
+                                            })}>{"驳回"}</button>
                                         }
                                     </td>
                                 </tr>

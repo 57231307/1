@@ -84,7 +84,11 @@ pub fn fixed_asset_page() -> Html {
                                     <td style="padding: 10px;">{ a.status.clone().unwrap_or_default() }</td>
                                     <td style="padding: 10px;">{ &a.purchase_date }</td>
                                     <td style="padding: 10px;">
-                                        <button class="btn btn-sm" style="margin-right: 5px;">{"查看"}</button>
+                                        <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.alert_with_message("功能开发中");
+                                            }
+                                        })}>{"查看"}</button>
                                         if a.status.as_deref() == Some("IN_USE") {
                                             <button class="btn btn-sm btn-warning" style="margin-right: 5px;">{"计提折旧"}</button>
                                             <button class="btn btn-sm btn-danger">{"处置"}</button>

@@ -50,7 +50,11 @@ pub fn quality_inspection_page() -> Html {
                 <h1>{"质量检验记录"}</h1>
                 <div>
                     <button class="btn btn-primary" onclick={load_data.reform(|_| ())} style="margin-right: 10px;">{"刷新数据"}</button>
-                    <button class="btn btn-success">{"新建检验记录"}</button>
+                    <button class="btn btn-success" onclick={Callback::from(|_| {
+                        if let Some(window) = web_sys::window() {
+                            let _ = window.alert_with_message("检验记录创建功能开发中");
+                        }
+                    })}>{"新建检验记录"}</button>
                 </div>
             </div>
             
@@ -92,9 +96,17 @@ pub fn quality_inspection_page() -> Html {
                                     </td>
                                     <td style="padding: 10px;">{ &r.inspection_date }</td>
                                     <td style="padding: 10px;">
-                                        <button class="btn btn-sm" style="margin-right: 5px;">{"查看详情"}</button>
+                                        <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.alert_with_message("检验记录详情查看功能开发中");
+                                            }
+                                        })}>{"查看详情"}</button>
                                         if r.unqualified_quantity > 0 {
-                                            <button class="btn btn-sm btn-warning">{"处理缺陷"}</button>
+                                            <button class="btn btn-sm btn-warning" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("缺陷处理功能开发中");
+                                                }
+                                            })}>{"处理缺陷"}</button>
                                         }
                                     </td>
                                 </tr>

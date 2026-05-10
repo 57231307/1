@@ -92,9 +92,17 @@ pub fn sales_price_page() -> Html {
                                         }
                                     </td>
                                     <td style="padding: 10px;">
-                                        <button class="btn btn-sm" style="margin-right: 5px;">{"编辑"}</button>
+                                        <button class="btn btn-sm" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.alert_with_message("功能开发中");
+                                            }
+                                        })}>{"编辑"}</button>
                                         if p.status == "DRAFT" {
-                                            <button class="btn btn-sm btn-success" style="margin-right: 5px;">{"审批"}</button>
+                                            <button class="btn btn-sm btn-success" style="margin-right: 5px;" onclick={Callback::from(|_| {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.alert_with_message("功能开发中");
+                                                }
+                                            })}>{"审批"}</button>
                                         }
                                     </td>
                                 </tr>
