@@ -1,66 +1,64 @@
 // 业务追溯页面
 // 提供面料业务的正向追溯和反向追溯功能
 
-use crate::utils::permissions;
-use yew::prelude::*;
+use crate::components::{
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+    page_header::PageHeader,
+    pagination::Pagination,
+    search_bar::SearchBar,
+};
 use crate::components::permission_guard::PermissionGuard;
-use wasm_bindgen_futures::spawn_local;
 use crate::models::business_trace::{
-    TraceChain, FullTraceChainResponse, TraceStageDetail,
+    FullTraceChainResponse, TraceChain, TraceStageDetail,
 };
 use crate::services::business_trace_service::BusinessTraceService;
 use crate::services::crud_service::CrudService;
+use crate::utils::permissions;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use web_sys::HtmlInputElement;
+use yew::prelude::*;
 
 /// 业务追溯页面状态
 pub struct BusinessTracePage {
-    // 追溯链数据
     trace_chain: Option<FullTraceChainResponse>,
-    // 正向追溯结果
     forward_traces: Vec<TraceChain>,
-    // 反向追溯结果
     backward_traces: Vec<TraceChain>,
-    // 加载状态
     loading: bool,
-    // 错误信息
     error: Option<String>,
-    // 当前标签页
     active_tab: String,
-    // 五维ID查询输入
     five_dimension_id_input: String,
-    // 正向追溯参数
     forward_supplier_id: String,
     forward_batch_no: String,
-    // 反向追溯参数
     backward_customer_id: String,
     backward_batch_no: String,
-    // 追溯模式
-    trace_mode: String,
+    search_keyword: String,
+    page: u64,
+    page_size: u64,
+    filtered_forward: Vec<TraceChain>,
+    filtered_backward: Vec<TraceChain>,
 }
 
 /// 页面消息
 pub enum Msg {
-    // 五维ID查询
     UpdateFiveDimensionId(String),
     QueryByFiveDimension,
     FiveDimensionLoaded(Result<FullTraceChainResponse, String>),
-    // 正向追溯
     UpdateForwardSupplierId(String),
     UpdateForwardBatchNo(String),
     ForwardTrace,
     ForwardTraceLoaded(Result<Vec<TraceChain>, String>),
-    // 反向追溯
     UpdateBackwardCustomerId(String),
     UpdateBackwardBatchNo(String),
     BackwardTrace,
     BackwardTraceLoaded(Result<Vec<TraceChain>, String>),
-    // 切换标签页
     SetActiveTab(String),
-    // 切换追溯模式
-    SetTraceMode(String),
-    // 创建快照
     CreateSnapshot(String),
     SnapshotCreated(Result<String, String>),
-    // 错误处理
+    Search(String),
+    ResetSearch,
+    PageChanged(u64),
     Error(String),
 }
 
@@ -81,7 +79,11 @@ impl Component for BusinessTracePage {
             forward_batch_no: String::new(),
             backward_customer_id: String::new(),
             backward_batch_no: String::new(),
-            trace_mode: "five_dimension".to_string(),
+            search_keyword: String::new(),
+            page: 0,
+            page_size: 10,
+            filtered_forward: Vec::new(),
+            filtered_backward: Vec::new(),
         }
     }
 
@@ -157,6 +159,7 @@ impl Component for BusinessTracePage {
                 match result {
                     Ok(traces) => {
                         self.forward_traces = traces;
+                        self.apply_filter();
                         self.error = None;
                     }
                     Err(e) => {
@@ -203,6 +206,7 @@ impl Component for BusinessTracePage {
                 match result {
                     Ok(traces) => {
                         self.backward_traces = traces;
+                        self.apply_filter();
                         self.error = None;
                     }
                     Err(e) => {
@@ -213,10 +217,9 @@ impl Component for BusinessTracePage {
             }
             Msg::SetActiveTab(tab) => {
                 self.active_tab = tab;
-                true
-            }
-            Msg::SetTraceMode(mode) => {
-                self.trace_mode = mode;
+                self.page = 0;
+                self.search_keyword = String::new();
+                self.apply_filter();
                 true
             }
             Msg::CreateSnapshot(trace_chain_id) => {
@@ -230,13 +233,28 @@ impl Component for BusinessTracePage {
             Msg::SnapshotCreated(result) => {
                 match result {
                     Ok(msg) => {
-                        // 可以显示成功消息
                         log::info!("快照创建成功: {}", msg);
                     }
                     Err(e) => {
                         self.error = Some(e);
                     }
                 }
+                true
+            }
+            Msg::Search(keyword) => {
+                self.search_keyword = keyword;
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::ResetSearch => {
+                self.search_keyword = String::new();
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::PageChanged(page) => {
+                self.page = page;
                 true
             }
             Msg::Error(e) => {
@@ -249,80 +267,108 @@ impl Component for BusinessTracePage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <>
-                <div class="business-trace-page">
-                    <div class="page-header">
-                        <h1>{"业务追溯"}</h1>
-                        <p class="subtitle">{"面料业务正向追溯（供应商→客户）和反向追溯（客户→供应商）"}</p>
-                    </div>
+            <div class="business-trace-page">
+                <PageHeader title={"业务追溯".to_string()} subtitle={Some("面料业务正向追溯和反向追溯".to_string())}>
+                    <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::SetActiveTab("five_dimension".to_string()))}>
+                        {"五维ID追溯"}
+                    </button>
+                </PageHeader>
 
-                    {self.render_content(ctx)}
-                </div>
-            </>
-        }
-    }
-}
-
-impl BusinessTracePage {
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <>
-                // 标签页导航
                 {self.render_tabs(ctx)}
+                {self.render_content(ctx)}
 
-                // 五维ID追溯标签页
-                if self.active_tab == "five_dimension" {
-                    {self.render_five_dimension_tab(ctx)}
-                }
-
-                // 正向追溯标签页
-                if self.active_tab == "forward" {
-                    {self.render_forward_tab(ctx)}
-                }
-
-                // 反向追溯标签页
-                if self.active_tab == "backward" {
-                    {self.render_backward_tab(ctx)}
-                }
-
-                // 错误提示
                 if let Some(error) = &self.error {
                     <div class="error-toast">
                         <span class="error-icon">{"⚠️"}</span>
                         <span class="error-message">{error}</span>
                     </div>
                 }
-            </>
+            </div>
+        }
+    }
+}
+
+impl BusinessTracePage {
+    fn apply_filter(&mut self) {
+        if self.search_keyword.is_empty() {
+            self.filtered_forward = self.forward_traces.clone();
+            self.filtered_backward = self.backward_traces.clone();
+        } else {
+            let keyword = self.search_keyword.to_lowercase();
+            self.filtered_forward = self
+                .forward_traces
+                .iter()
+                .filter(|t| {
+                    t.trace_chain_id.to_lowercase().contains(&keyword)
+                        || t.five_dimension_id.to_lowercase().contains(&keyword)
+                        || t.batch_no.to_lowercase().contains(&keyword)
+                        || t.color_no.to_lowercase().contains(&keyword)
+                        || t.grade.to_lowercase().contains(&keyword)
+                        || t.current_bill_no.to_lowercase().contains(&keyword)
+                })
+                .cloned()
+                .collect();
+            self.filtered_backward = self
+                .backward_traces
+                .iter()
+                .filter(|t| {
+                    t.trace_chain_id.to_lowercase().contains(&keyword)
+                        || t.five_dimension_id.to_lowercase().contains(&keyword)
+                        || t.batch_no.to_lowercase().contains(&keyword)
+                        || t.color_no.to_lowercase().contains(&keyword)
+                        || t.grade.to_lowercase().contains(&keyword)
+                        || t.current_bill_no.to_lowercase().contains(&keyword)
+                })
+                .cloned()
+                .collect();
         }
     }
 
-    // 渲染标签页
+    fn paginated_items<T: Clone>(&self, items: &[T]) -> Vec<T> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        items[start..end.min(items.len())].to_vec()
+    }
+
     fn render_tabs(&self, ctx: &Context<Self>) -> Html {
+        let tabs = vec![
+            ("five_dimension", "五维ID追溯"),
+            ("forward", "正向追溯"),
+            ("backward", "反向追溯"),
+        ];
         html! {
             <div class="tabs">
-                <button
-                    class={if self.active_tab == "five_dimension" { "tab-btn active" } else { "tab-btn" }}
-                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("five_dimension".to_string()))}
-                >
-                    {"五维ID追溯"}
-                </button>
-                <button
-                    class={if self.active_tab == "forward" { "tab-btn active" } else { "tab-btn" }}
-                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("forward".to_string()))}
-                >
-                    {"正向追溯"}
-                </button>
-                <button
-                    class={if self.active_tab == "backward" { "tab-btn active" } else { "tab-btn" }}
-                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("backward".to_string()))}
-                >
-                    {"反向追溯"}
-                </button>
+                {for tabs.iter().map(|(key, label)| {
+                    let is_active = self.active_tab == *key;
+                    let key_clone = key.to_string();
+                    html! {
+                        <button
+                            class={if is_active { "tab-btn active" } else { "tab-btn" }}
+                            onclick={ctx.link().callback(move |_| Msg::SetActiveTab(key_clone.clone()))}
+                        >
+                            {label}
+                        </button>
+                    }
+                })}
             </div>
         }
     }
 
-    // 渲染五维ID追溯标签页
+    fn render_content(&self, ctx: &Context<Self>) -> Html {
+        if self.loading {
+            return html! {
+                <LoadingState message={"正在加载追溯数据...".to_string()} />
+            };
+        }
+
+        match self.active_tab.as_str() {
+            "five_dimension" => self.render_five_dimension_tab(ctx),
+            "forward" => self.render_forward_tab(ctx),
+            "backward" => self.render_backward_tab(ctx),
+            _ => html! {},
+        }
+    }
+
     fn render_five_dimension_tab(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div class="card">
@@ -330,7 +376,6 @@ impl BusinessTracePage {
                     <h2>{"按五维ID查询追溯链"}</h2>
                 </div>
                 <div class="card-body">
-                    // 查询表单
                     <div class="query-form">
                         <div class="form-group">
                             <label for="five-dimension-id">{"五维ID"}</label>
@@ -338,16 +383,16 @@ impl BusinessTracePage {
                                 id="five-dimension-id"
                                 type="text"
                                 class="form-control"
-                                placeholder="请输入五维ID，如：P1|B20240101|C001|D001|G 一等品"
+                                placeholder="请输入五维ID"
                                 value={self.five_dimension_id_input.clone()}
                                 oninput={ctx.link().callback(|e: InputEvent| {
-                                    let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
+                                    let target = e.target_unchecked_into::<HtmlInputElement>();
                                     Msg::UpdateFiveDimensionId(target.value())
                                 })}
                             />
                         </div>
                         <button
-                            class="btn-primary"
+                            class="btn btn-primary"
                             onclick={ctx.link().callback(|_| Msg::QueryByFiveDimension)}
                             disabled={self.loading}
                         >
@@ -355,132 +400,160 @@ impl BusinessTracePage {
                         </button>
                     </div>
 
-                    // 追溯链详情
                     if let Some(ref chain) = self.trace_chain {
                         {self.render_trace_chain(ctx, chain)}
+                    } else if !self.loading && self.five_dimension_id_input.is_empty() {
+                        <EmptyState
+                            icon={"🔍".to_string()}
+                            title={"请输入五维ID进行查询".to_string()}
+                            description={"输入五维ID后可查看完整追溯链信息".to_string()}
+                        />
                     }
                 </div>
             </div>
         }
     }
 
-    // 渲染正向追溯标签页
     fn render_forward_tab(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="card">
-                <div class="card-header">
-                    <h2>{"正向追溯 - 从供应商到客户"}</h2>
-                </div>
-                <div class="card-body">
-                    // 查询表单
-                    <div class="query-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="supplier-id">{"供应商ID"}</label>
-                                <input
-                                    id="supplier-id"
-                                    type="number"
-                                    class="form-control"
-                                    placeholder="请输入供应商ID"
-                                    value={self.forward_supplier_id.clone()}
-                                    oninput={ctx.link().callback(|e: InputEvent| {
-                                        let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                        Msg::UpdateForwardSupplierId(target.value())
-                                    })}
-                                />
-                            </div>
-                            <div class="form-group">
-                                <label for="forward-batch-no">{"批次号"}</label>
-                                <input
-                                    id="forward-batch-no"
-                                    type="text"
-                                    class="form-control"
-                                    placeholder="请输入批次号"
-                                    value={self.forward_batch_no.clone()}
-                                    oninput={ctx.link().callback(|e: InputEvent| {
-                                        let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                        Msg::UpdateForwardBatchNo(target.value())
-                                    })}
-                                />
-                            </div>
-                        </div>
-                        <button
-                            class="btn-primary"
-                            onclick={ctx.link().callback(|_| Msg::ForwardTrace)}
-                            disabled={self.loading}
-                        >
-                            {if self.loading { "追溯中..." } else { "开始追溯" }}
-                        </button>
+            <>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>{"正向追溯 - 从供应商到客户"}</h2>
                     </div>
-
-                    // 追溯结果
-                    if !self.forward_traces.is_empty() {
-                        {self.render_trace_list(ctx, &self.forward_traces, "forward")}
-                    }
+                    <div class="card-body">
+                        <div class="query-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="supplier-id">{"供应商ID"}</label>
+                                    <input
+                                        id="supplier-id"
+                                        type="number"
+                                        class="form-control"
+                                        placeholder="请输入供应商ID"
+                                        value={self.forward_supplier_id.clone()}
+                                        oninput={ctx.link().callback(|e: InputEvent| {
+                                            let target = e.target_unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateForwardSupplierId(target.value())
+                                        })}
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="forward-batch-no">{"批次号"}</label>
+                                    <input
+                                        id="forward-batch-no"
+                                        type="text"
+                                        class="form-control"
+                                        placeholder="请输入批次号"
+                                        value={self.forward_batch_no.clone()}
+                                        oninput={ctx.link().callback(|e: InputEvent| {
+                                            let target = e.target_unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateForwardBatchNo(target.value())
+                                        })}
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                class="btn btn-primary"
+                                onclick={ctx.link().callback(|_| Msg::ForwardTrace)}
+                                disabled={self.loading}
+                            >
+                                {if self.loading { "追溯中..." } else { "开始追溯" }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                if !self.forward_traces.is_empty() {
+                    <div class="page-toolbar">
+                        <SearchBar
+                            placeholder={"搜索追溯链ID、批次号或色号...".to_string()}
+                            on_search={ctx.link().callback(|keyword| Msg::Search(keyword))}
+                            on_reset={ctx.link().callback(|_| Msg::ResetSearch)}
+                        />
+                    </div>
+                    {self.render_trace_list(ctx, &self.filtered_forward, "forward")}
+                } else if !self.loading && !self.forward_supplier_id.is_empty() {
+                    <EmptyState
+                        icon={"📭".to_string()}
+                        title={"暂无正向追溯结果".to_string()}
+                        description={"请检查供应商ID和批次号是否正确".to_string()}
+                    />
+                }
+            </>
         }
     }
 
-    // 渲染反向追溯标签页
     fn render_backward_tab(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div class="card">
-                <div class="card-header">
-                    <h2>{"反向追溯 - 从客户到供应商"}</h2>
-                </div>
-                <div class="card-body">
-                    // 查询表单
-                    <div class="query-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="customer-id">{"客户ID"}</label>
-                                <input
-                                    id="customer-id"
-                                    type="number"
-                                    class="form-control"
-                                    placeholder="请输入客户ID"
-                                    value={self.backward_customer_id.clone()}
-                                    oninput={ctx.link().callback(|e: InputEvent| {
-                                        let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                        Msg::UpdateBackwardCustomerId(target.value())
-                                    })}
-                                />
-                            </div>
-                            <div class="form-group">
-                                <label for="backward-batch-no">{"批次号"}</label>
-                                <input
-                                    id="backward-batch-no"
-                                    type="text"
-                                    class="form-control"
-                                    placeholder="请输入批次号"
-                                    value={self.backward_batch_no.clone()}
-                                    oninput={ctx.link().callback(|e: InputEvent| {
-                                        let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                        Msg::UpdateBackwardBatchNo(target.value())
-                                    })}
-                                />
-                            </div>
-                        </div>
-                        <button
-                            class="btn-primary"
-                            onclick={ctx.link().callback(|_| Msg::BackwardTrace)}
-                            disabled={self.loading}
-                        >
-                            {if self.loading { "追溯中..." } else { "开始追溯" }}
-                        </button>
+            <>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>{"反向追溯 - 从客户到供应商"}</h2>
                     </div>
-
-                    // 追溯结果
-                    if !self.backward_traces.is_empty() {
-                        {self.render_trace_list(ctx, &self.backward_traces, "backward")}
-                    }
+                    <div class="card-body">
+                        <div class="query-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="customer-id">{"客户ID"}</label>
+                                    <input
+                                        id="customer-id"
+                                        type="number"
+                                        class="form-control"
+                                        placeholder="请输入客户ID"
+                                        value={self.backward_customer_id.clone()}
+                                        oninput={ctx.link().callback(|e: InputEvent| {
+                                            let target = e.target_unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateBackwardCustomerId(target.value())
+                                        })}
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="backward-batch-no">{"批次号"}</label>
+                                    <input
+                                        id="backward-batch-no"
+                                        type="text"
+                                        class="form-control"
+                                        placeholder="请输入批次号"
+                                        value={self.backward_batch_no.clone()}
+                                        oninput={ctx.link().callback(|e: InputEvent| {
+                                            let target = e.target_unchecked_into::<HtmlInputElement>();
+                                            Msg::UpdateBackwardBatchNo(target.value())
+                                        })}
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                class="btn btn-primary"
+                                onclick={ctx.link().callback(|_| Msg::BackwardTrace)}
+                                disabled={self.loading}
+                            >
+                                {if self.loading { "追溯中..." } else { "开始追溯" }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                if !self.backward_traces.is_empty() {
+                    <div class="page-toolbar">
+                        <SearchBar
+                            placeholder={"搜索追溯链ID、批次号或色号...".to_string()}
+                            on_search={ctx.link().callback(|keyword| Msg::Search(keyword))}
+                            on_reset={ctx.link().callback(|_| Msg::ResetSearch)}
+                        />
+                    </div>
+                    {self.render_trace_list(ctx, &self.filtered_backward, "backward")}
+                } else if !self.loading && !self.backward_customer_id.is_empty() {
+                    <EmptyState
+                        icon={"📭".to_string()}
+                        title={"暂无反向追溯结果".to_string()}
+                        description={"请检查客户ID和批次号是否正确".to_string()}
+                    />
+                }
+            </>
         }
     }
 
-    // 渲染追溯链详情
     fn render_trace_chain(&self, ctx: &Context<Self>, chain: &FullTraceChainResponse) -> Html {
         let chain_id = chain.trace_chain_id.clone();
         html! {
@@ -488,16 +561,15 @@ impl BusinessTracePage {
                 <div class="chain-header">
                     <h3>{"追溯链详情"}</h3>
                     <PermissionGuard resource="business_trace" action="create">
-<button
-                        class="btn-secondary"
-                        onclick={ctx.link().callback(move |_| Msg::CreateSnapshot(chain_id.clone()))}
-                    >
-                        {"创建快照"}
-                    </button>
-</PermissionGuard>
+                        <button
+                            class="btn btn-secondary"
+                            onclick={ctx.link().callback(move |_| Msg::CreateSnapshot(chain_id.clone()))}
+                        >
+                            {"创建快照"}
+                        </button>
+                    </PermissionGuard>
                 </div>
 
-                // 基本信息
                 <div class="chain-info">
                     <div class="info-item">
                         <span class="label">{"追溯链ID："}</span>
@@ -509,7 +581,7 @@ impl BusinessTracePage {
                     </div>
                     <div class="info-item">
                         <span class="label">{"产品ID："}</span>
-                        <span class="value">{chain.product_id.to_string()}</span>
+                        <span class="value">{chain.product_id}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">{"批次号："}</span>
@@ -525,7 +597,7 @@ impl BusinessTracePage {
                     </div>
                     <div class="info-item">
                         <span class="label">{"总环节数："}</span>
-                        <span class="value">{chain.total_stages.to_string()}</span>
+                        <span class="value">{chain.total_stages}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">{"开始时间："}</span>
@@ -539,7 +611,6 @@ impl BusinessTracePage {
                     }
                 </div>
 
-                // 追溯环节列表
                 <div class="stages-section">
                     <h4>{"追溯环节"}</h4>
                     <div class="stages-timeline">
@@ -552,7 +623,6 @@ impl BusinessTracePage {
         }
     }
 
-    // 渲染追溯环节项
     fn render_stage_item(&self, index: usize, stage: &TraceStageDetail) -> Html {
         html! {
             <div class="stage-item">
@@ -573,11 +643,11 @@ impl BusinessTracePage {
                         </div>
                         <div class="detail-row">
                             <span class="label">{"数量(米)："}</span>
-                            <span class="value numeric">{format!("{:.2}", stage.quantity_meters)}</span>
+                            <span class="value numeric">{&stage.quantity_meters}</span>
                         </div>
                         <div class="detail-row">
                             <span class="label">{"数量(公斤)："}</span>
-                            <span class="value numeric">{format!("{:.2}", stage.quantity_kg)}</span>
+                            <span class="value numeric">{&stage.quantity_kg}</span>
                         </div>
                         if let Some(ref warehouse_name) = stage.warehouse_name {
                             <div class="detail-row">
@@ -607,53 +677,65 @@ impl BusinessTracePage {
         }
     }
 
-    // 渲染追溯列表
-    fn render_trace_list(&self, _ctx: &Context<Self>, traces: &[TraceChain], _mode: &str) -> Html {
+    fn render_trace_list(&self, ctx: &Context<Self>, traces: &[TraceChain], _mode: &str) -> Html {
+        if traces.is_empty() && !self.search_keyword.is_empty() {
+            return html! {
+                <EmptyState
+                    icon={"🔍".to_string()}
+                    title={"暂无匹配数据".to_string()}
+                    description={"没有匹配搜索条件的追溯记录".to_string()}
+                />
+            };
+        }
+
         html! {
-            <div class="trace-list">
-                <h3>{"追溯结果"}</h3>
-                <div class="table-responsive">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>{"追溯链ID"}</th>
-                                <th>{"五维ID"}</th>
-                                <th>{"产品ID"}</th>
-                                <th>{"批次号"}</th>
-                                <th>{"色号"}</th>
-                                <th>{"等级"}</th>
-                                <th>{"当前环节"}</th>
-                                <th>{"当前单据"}</th>
-                                <th>{"数量(米)"}</th>
-                                <th>{"数量(公斤)"}</th>
-                                <th>{"状态"}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {for traces.iter().map(|trace| {
-                                html! {
-                                    <tr>
-                                        <td class="trace-chain-id">{&trace.trace_chain_id}</td>
-                                        <td class="five-dim-id">{&trace.five_dimension_id}</td>
-                                        <td>{trace.product_id.to_string()}</td>
-                                        <td>{&trace.batch_no}</td>
-                                        <td>{&trace.color_no}</td>
-                                        <td>{&trace.grade}</td>
-                                        <td>{&trace.current_stage}</td>
-                                        <td>{&trace.current_bill_no}</td>
-                                        <td class="numeric">{format!("{:.2}", trace.quantity_meters)}</td>
-                                        <td class="numeric">{format!("{:.2}", trace.quantity_kg)}</td>
-                                        <td>
-                                            <span class={format!("status-badge status-{}", trace.trace_status.to_lowercase())}>
-                                                {&trace.trace_status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                }
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>{"追溯链ID"}</th>
+                            <th>{"五维ID"}</th>
+                            <th>{"产品ID"}</th>
+                            <th>{"批次号"}</th>
+                            <th>{"色号"}</th>
+                            <th>{"等级"}</th>
+                            <th>{"当前环节"}</th>
+                            <th>{"当前单据"}</th>
+                            <th>{"数量(米)"}</th>
+                            <th>{"数量(公斤)"}</th>
+                            <th>{"状态"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for self.paginated_items(traces).iter().map(|trace| {
+                            html! {
+                                <tr>
+                                    <td class="trace-chain-id">{&trace.trace_chain_id}</td>
+                                    <td class="five-dim-id">{&trace.five_dimension_id}</td>
+                                    <td>{trace.product_id}</td>
+                                    <td>{&trace.batch_no}</td>
+                                    <td>{&trace.color_no}</td>
+                                    <td>{&trace.grade}</td>
+                                    <td>{&trace.current_stage}</td>
+                                    <td>{&trace.current_bill_no}</td>
+                                    <td class="numeric">{&trace.quantity_meters}</td>
+                                    <td class="numeric">{&trace.quantity_kg}</td>
+                                    <td>
+                                        <span class={format!("status-badge status-{}", trace.trace_status.to_lowercase())}>
+                                            {&trace.trace_status}
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        })}
+                    </tbody>
+                </table>
+                <Pagination
+                    current_page={self.page}
+                    page_size={self.page_size}
+                    total={traces.len() as u64}
+                    on_page_change={ctx.link().callback(|page| Msg::PageChanged(page))}
+                />
             </div>
         }
     }

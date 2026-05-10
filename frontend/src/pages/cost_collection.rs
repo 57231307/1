@@ -1,36 +1,38 @@
 // 成本归集页面
 // 提供成本归集数据的查询、创建和管理功能
 
-use crate::utils::permissions;
+use crate::utils::toast_helper;
 use yew::prelude::*;
-use crate::components::permission_guard::PermissionGuard;
+use crate::components::{
+    confirm_dialog::ConfirmDialog,
+    search_bar::SearchBar,
+    pagination::Pagination,
+    page_header::PageHeader,
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+};
 use wasm_bindgen_futures::spawn_local;
 use crate::models::cost_collection::{
     CostCollection, CostCollectionQuery, CreateCostCollectionRequest,
 };
 use crate::services::cost_collection_service::CostCollectionService;
-use crate::services::crud_service::CrudService;
 
 /// 成本归集页面状态
 pub struct CostCollectionPage {
-    // 成本归集列表
     collections: Vec<CostCollection>,
-    // 当前选中的成本归集
-    selected_collection: Option<CostCollection>,
-    // 加载状态
+    filtered_collections: Vec<CostCollection>,
     loading: bool,
-    // 查询参数
-    query_params: CostCollectionQuery,
-    // 错误信息
     error: Option<String>,
-    // 是否显示创建弹窗
-    show_create_modal: bool,
+    search_keyword: String,
+    page: u64,
+    page_size: u64,
+    show_modal: bool,
+    show_delete_confirm: bool,
+    deleting_id: Option<i32>,
+    viewing_collection: Option<CostCollection>,
     // 创建表单数据
     create_form: CreateCostCollectionForm,
-    // 创建提交状态
-    creating: bool,
-    // 创建成功消息
-    create_success: Option<String>,
+    form_error: Option<String>,
 }
 
 /// 创建表单数据
@@ -54,22 +56,15 @@ struct CreateCostCollectionForm {
 
 /// 页面消息
 pub enum Msg {
-    // 加载成本归集列表
     LoadCollections,
     CollectionsLoaded(Result<Vec<CostCollection>, String>),
-    // 查看详情
-    ViewCollection(CostCollection),
-    // 关闭详情
-    CloseDetail,
-    // 更新查询参数
-    UpdateBatchNo(String),
-    UpdateColorNo(String),
-    // 执行查询
-    QueryCollections,
-    // 显示创建弹窗
+    Search(String),
+    ResetSearch,
+    PageChanged(u64),
     ShowCreateModal,
-    // 关闭创建弹窗
     CloseCreateModal,
+    CloseDetail,
+    ViewCollection(CostCollection),
     // 更新创建表单
     UpdateCollectionDate(String),
     UpdateCostObjectType(String),
@@ -88,24 +83,16 @@ pub enum Msg {
     // 提交创建
     SubmitCreate,
     CreateSuccess(Result<CostCollection, String>),
-    // 清除成功消息
-    ClearSuccess,
+    // 删除
+    DeleteCollection(i32),
+    ConfirmDelete,
+    CancelDelete,
+    Deleted,
     // 错误处理
     Error(String),
 }
 
 impl CostCollectionPage {
-    // 初始化默认查询参数
-    fn default_query_params() -> CostCollectionQuery {
-        CostCollectionQuery {
-            batch_no: None,
-            color_no: None,
-            page: Some(1),
-            page_size: Some(20),
-        }
-    }
-
-    // 初始化默认创建表单
     fn default_create_form() -> CreateCostCollectionForm {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         CreateCostCollectionForm {
@@ -123,23 +110,33 @@ impl Component for CostCollectionPage {
         ctx.link().send_message(Msg::LoadCollections);
         Self {
             collections: Vec::new(),
-            selected_collection: None,
+            filtered_collections: Vec::new(),
             loading: true,
-            query_params: Self::default_query_params(),
             error: None,
-            show_create_modal: false,
+            search_keyword: String::new(),
+            page: 0,
+            page_size: 10,
+            show_modal: false,
+            show_delete_confirm: false,
+            deleting_id: None,
+            viewing_collection: None,
             create_form: Self::default_create_form(),
-            creating: false,
-            create_success: None,
+            form_error: None,
         }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::LoadCollections => {
                 self.loading = true;
-                let link = _ctx.link().clone();
-                let params = self.query_params.clone();
+                self.error = None;
+                let link = ctx.link().clone();
+                let params = CostCollectionQuery {
+                    batch_no: None,
+                    color_no: None,
+                    page: Some(1),
+                    page_size: Some(1000),
+                };
                 spawn_local(async move {
                     let result = CostCollectionService::list(params).await;
                     link.send_message(Msg::CollectionsLoaded(result));
@@ -151,6 +148,7 @@ impl Component for CostCollectionPage {
                 match result {
                     Ok(data) => {
                         self.collections = data;
+                        self.apply_filter();
                         self.error = None;
                     }
                     Err(e) => {
@@ -159,42 +157,41 @@ impl Component for CostCollectionPage {
                 }
                 true
             }
-            Msg::ViewCollection(collection) => {
-                self.selected_collection = Some(collection);
+            Msg::Search(keyword) => {
+                self.search_keyword = keyword;
+                self.page = 0;
+                self.apply_filter();
                 true
             }
-            Msg::CloseDetail => {
-                self.selected_collection = None;
+            Msg::ResetSearch => {
+                self.search_keyword = String::new();
+                self.page = 0;
+                self.apply_filter();
                 true
             }
-            Msg::UpdateBatchNo(batch_no) => {
-                self.query_params.batch_no = if batch_no.is_empty() { None } else { Some(batch_no) };
-                false
-            }
-            Msg::UpdateColorNo(color_no) => {
-                self.query_params.color_no = if color_no.is_empty() { None } else { Some(color_no) };
-                false
-            }
-            Msg::QueryCollections => {
-                self.loading = true;
-                let link = _ctx.link().clone();
-                let params = self.query_params.clone();
-                spawn_local(async move {
-                    let result = CostCollectionService::list(params).await;
-                    link.send_message(Msg::CollectionsLoaded(result));
-                });
-                false
+            Msg::PageChanged(page) => {
+                self.page = page;
+                true
             }
             Msg::ShowCreateModal => {
-                self.show_create_modal = true;
+                self.show_modal = true;
                 self.create_form = Self::default_create_form();
-                self.create_success = None;
+                self.form_error = None;
                 true
             }
             Msg::CloseCreateModal => {
-                self.show_create_modal = false;
+                self.show_modal = false;
                 self.create_form = Self::default_create_form();
-                false
+                self.form_error = None;
+                true
+            }
+            Msg::CloseDetail => {
+                self.viewing_collection = None;
+                true
+            }
+            Msg::ViewCollection(collection) => {
+                self.viewing_collection = Some(collection);
+                true
             }
             Msg::UpdateCollectionDate(date) => {
                 self.create_form.collection_date = date;
@@ -253,8 +250,30 @@ impl Component for CostCollectionPage {
                 false
             }
             Msg::SubmitCreate => {
-                self.creating = true;
-                let link = _ctx.link().clone();
+                if self.create_form.direct_material.is_empty() {
+                    self.form_error = Some("直接材料不能为空".to_string());
+                    return true;
+                }
+                if self.create_form.direct_labor.is_empty() {
+                    self.form_error = Some("直接人工不能为空".to_string());
+                    return true;
+                }
+                if self.create_form.manufacturing_overhead.is_empty() {
+                    self.form_error = Some("制造费用不能为空".to_string());
+                    return true;
+                }
+                if self.create_form.processing_fee.is_empty() {
+                    self.form_error = Some("加工费不能为空".to_string());
+                    return true;
+                }
+                if self.create_form.dyeing_fee.is_empty() {
+                    self.form_error = Some("染色费不能为空".to_string());
+                    return true;
+                }
+
+                self.form_error = None;
+
+                let link = ctx.link().clone();
                 let req = CreateCostCollectionRequest {
                     collection_date: self.create_form.collection_date.clone(),
                     cost_object_type: if self.create_form.cost_object_type.is_empty() { None } else { Some(self.create_form.cost_object_type.clone()) },
@@ -278,27 +297,52 @@ impl Component for CostCollectionPage {
                 false
             }
             Msg::CreateSuccess(result) => {
-                self.creating = false;
                 match result {
-                    Ok(collection) => {
-                        self.create_success = Some(format!("成本归集创建成功：{}", collection.collection_no));
-                        self.collections.insert(0, collection);
-                        // 3秒后关闭弹窗
-                        let link = _ctx.link().clone();
-                        spawn_local(async move {
-                            gloo_timers::future::TimeoutFuture::new(3000).await;
-                            link.send_message(Msg::CloseCreateModal);
-                            link.send_message(Msg::ClearSuccess);
-                        });
+                    Ok(_) => {
+                        toast_helper::show_success("成本归集创建成功");
+                        self.show_modal = false;
+                        self.create_form = Self::default_create_form();
+                        ctx.link().send_message(Msg::LoadCollections);
                     }
                     Err(e) => {
-                        self.error = Some(e);
+                        self.form_error = Some(format!("创建失败: {}", e));
                     }
                 }
                 true
             }
-            Msg::ClearSuccess => {
-                self.create_success = None;
+            Msg::DeleteCollection(id) => {
+                self.deleting_id = Some(id);
+                self.show_delete_confirm = true;
+                true
+            }
+            Msg::ConfirmDelete => {
+                if let Some(id) = self.deleting_id {
+                    let link = ctx.link().clone();
+                    spawn_local(async move {
+                        // 使用通用API删除
+                        match crate::services::api::ApiService::delete(&format!("/cost-collections/{}", id)).await {
+                            Ok(_) => {
+                                toast_helper::show_success("删除成功");
+                                link.send_message(Msg::Deleted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("删除失败: {}", e));
+                                link.send_message(Msg::CancelDelete);
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::CancelDelete => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                true
+            }
+            Msg::Deleted => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                ctx.link().send_message(Msg::LoadCollections);
                 false
             }
             Msg::Error(e) => {
@@ -311,195 +355,176 @@ impl Component for CostCollectionPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <>
-                <div class="cost-collection-page">
-                    <div class="page-header">
-                        <h1>{"成本归集"}</h1>
-                        <p class="subtitle">{"按批次、色号等维度进行成本归集管理"}</p>
-                    </div>
+            <div class="cost-collection-page">
+                <PageHeader title={"成本归集".to_string()} subtitle={Some("按批次、色号等维度进行成本归集管理".to_string())}>
+                    <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::ShowCreateModal)}>
+                        {"+ 新建成本归集"}
+                    </button>
+                </PageHeader>
 
-                    {self.render_content(ctx)}
+                <div class="page-toolbar">
+                    <SearchBar
+                        placeholder={"搜索批次号、色号或归集编号...".to_string()}
+                        on_search={ctx.link().callback(|keyword| Msg::Search(keyword))}
+                        on_reset={ctx.link().callback(|_| Msg::ResetSearch)}
+                    />
                 </div>
-            </>
+
+                {self.render_content(ctx)}
+
+                // 详情弹窗
+                if let Some(ref collection) = self.viewing_collection {
+                    {self.render_detail(ctx, collection)}
+                }
+
+                // 创建弹窗
+                if self.show_modal {
+                    {self.render_create_modal(ctx)}
+                }
+
+                // 删除确认对话框
+                <ConfirmDialog
+                    title={"确认删除".to_string()}
+                    message={"确定要删除这条成本归集记录吗？此操作不可撤销。".to_string()}
+                    confirm_text={"删除".to_string()}
+                    cancel_text={"取消".to_string()}
+                    confirm_class={"btn-danger".to_string()}
+                    on_confirm={ctx.link().callback(|_| Msg::ConfirmDelete)}
+                    on_cancel={ctx.link().callback(|_| Msg::CancelDelete)}
+                    visible={self.show_delete_confirm}
+                />
+            </div>
         }
     }
 }
 
 impl CostCollectionPage {
+    fn apply_filter(&mut self) {
+        if self.search_keyword.is_empty() {
+            self.filtered_collections = self.collections.clone();
+        } else {
+            let keyword = self.search_keyword.to_lowercase();
+            self.filtered_collections = self.collections.iter()
+                .filter(|c| {
+                    c.collection_no.to_lowercase().contains(&keyword) ||
+                    c.batch_no.as_ref().map(|s| s.to_lowercase().contains(&keyword)).unwrap_or(false) ||
+                    c.color_no.as_ref().map(|s| s.to_lowercase().contains(&keyword)).unwrap_or(false) ||
+                    c.workshop.as_ref().map(|s| s.to_lowercase().contains(&keyword)).unwrap_or(false)
+                })
+                .cloned()
+                .collect();
+        }
+    }
+
+    fn paginated_collections(&self) -> Vec<CostCollection> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        self.filtered_collections[start..end.min(self.filtered_collections.len())].to_vec()
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <>
-                // 操作栏
-                {self.render_actions(ctx)}
-
-                // 错误提示
-                if let Some(error) = &self.error {
-                    <div class="error-container">
-                        <div class="error-icon">{"⚠️"}</div>
-                        <p class="error-message">{error}</p>
-                        <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadCollections)}>
-                            {"重新加载"}
-                        </button>
-                    </div>
-                }
-
-                // 成本归集列表
-                {self.render_list(ctx)}
-
-                // 详情弹窗
-                if let Some(ref collection) = self.selected_collection {
-                    {self.render_detail(ctx, collection)}
-                }
-
-                // 创建弹窗
-                if self.show_create_modal {
-                    {self.render_create_modal(ctx)}
-                }
-            </>
+        if self.loading {
+            return html! { <LoadingState message={"正在加载成本归集数据...".to_string()} /> };
         }
-    }
 
-    // 渲染操作栏
-    fn render_actions(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="actions-bar">
-                <div class="actions-left">
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ShowCreateModal)}>
-                        {"新建成本归集"}
+        if let Some(error) = &self.error {
+            return html! {
+                <div class="error-container">
+                    <div class="error-icon">{"⚠️"}</div>
+                    <p class="error-message">{error}</p>
+                    <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::LoadCollections)}>
+                        {"重新加载"}
                     </button>
                 </div>
-                <div class="actions-right">
-                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadCollections)}>
-                        {"刷新"}
-                    </button>
-                </div>
-            </div>
+            };
         }
-    }
 
-    // 渲染查询表单
-    fn render_query_form(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="query-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="batch-no">{"批次号"}</label>
-                        <input
-                            id="batch-no"
-                            type="text"
-                            class="form-control"
-                            placeholder="请输入批次号"
-                            value={self.query_params.batch_no.clone().unwrap_or_default()}
-                            oninput={ctx.link().callback(|e: InputEvent| {
-                                let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                Msg::UpdateBatchNo(target.value())
-                            })}
-                        />
-                    </div>
-                    <div class="form-group">
-                        <label for="color-no">{"色号"}</label>
-                        <input
-                            id="color-no"
-                            type="text"
-                            class="form-control"
-                            placeholder="请输入色号"
-                            value={self.query_params.color_no.clone().unwrap_or_default()}
-                            oninput={ctx.link().callback(|e: InputEvent| {
-                                let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                Msg::UpdateColorNo(target.value())
-                            })}
-                        />
-                    </div>
-                </div>
-                <div class="form-actions">
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::QueryCollections)}>
-                        {"查询"}
-                    </button>
-                </div>
-            </div>
-        }
-    }
-
-    // 渲染列表
-    fn render_list(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="card">
-                <div class="card-header">
-                    <h2>{"成本归集列表"}</h2>
-                </div>
-                <div class="card-body">
-                    {self.render_query_form(ctx)}
-
-                    if self.loading {
-                        <div class="loading-container">
-                            <div class="spinner"></div>
-                            <p>{"加载中..."}</p>
-                        </div>
-                    } else if self.collections.is_empty() {
-                        <div class="empty-state">
-                            <div class="empty-icon">{"📭"}</div>
-                            <p>{"暂无成本归集记录"}</p>
-                        </div>
+        if self.filtered_collections.is_empty() {
+            return html! {
+                <EmptyState
+                    icon={"📊".to_string()}
+                    title={"暂无成本归集记录".to_string()}
+                    description={if self.search_keyword.is_empty() {
+                        "点击上方按钮创建第一条成本归集记录".to_string()
                     } else {
-                        <div class="table-responsive">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>{"归集编号"}</th>
-                                        <th>{"归集日期"}</th>
-                                        <th>{"批次号"}</th>
-                                        <th>{"色号"}</th>
-                                        <th>{"车间"}</th>
-                                        <th>{"直接材料"}</th>
-                                        <th>{"直接人工"}</th>
-                                        <th>{"制造费用"}</th>
-                                        <th>{"加工费"}</th>
-                                        <th>{"染色费"}</th>
-                                        <th>{"操作"}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {for self.collections.iter().map(|collection| {
-                                        let collection_clone = collection.clone();
-                                        html! {
-                                            <tr>
-                                                <td>{&collection.collection_no}</td>
-                                                <td>{&collection.collection_date}</td>
-                                                <td>{collection.batch_no.clone().unwrap_or_else(|| "-".to_string())}</td>
-                                                <td>{collection.color_no.clone().unwrap_or_else(|| "-".to_string())}</td>
-                                                <td>{collection.workshop.clone().unwrap_or_else(|| "-".to_string())}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.direct_material)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.direct_labor)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.manufacturing_overhead)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.processing_fee)}</td>
-                                                <td class="numeric">{self.format_decimal(&collection.dyeing_fee)}</td>
-                                                <td>
-                                                    <button
-                                                        class="btn-sm btn-info"
-                                                        onclick={ctx.link().callback(move |_| Msg::ViewCollection(collection_clone.clone()))}
-                                                    >
-                                                        {"详情"}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        }
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </div>
+                        "没有匹配搜索条件的记录".to_string()
+                    }}
+                />
+            };
+        }
+
+        html! {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>{"归集编号"}</th>
+                            <th>{"归集日期"}</th>
+                            <th>{"批次号"}</th>
+                            <th>{"色号"}</th>
+                            <th>{"车间"}</th>
+                            <th class="numeric">{"直接材料"}</th>
+                            <th class="numeric">{"直接人工"}</th>
+                            <th class="numeric">{"制造费用"}</th>
+                            <th class="numeric">{"加工费"}</th>
+                            <th class="numeric">{"染色费"}</th>
+                            <th class="text-center">{"操作"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for self.paginated_collections().iter().map(|collection| {
+                            let collection_clone = collection.clone();
+                            let id = collection.id;
+                            html! {
+                                <tr>
+                                    <td>{&collection.collection_no}</td>
+                                    <td>{&collection.collection_date}</td>
+                                    <td>{collection.batch_no.clone().unwrap_or_else(|| "-".to_string())}</td>
+                                    <td>{collection.color_no.clone().unwrap_or_else(|| "-".to_string())}</td>
+                                    <td>{collection.workshop.clone().unwrap_or_else(|| "-".to_string())}</td>
+                                    <td class="numeric">{self.format_decimal(&collection.direct_material)}</td>
+                                    <td class="numeric">{self.format_decimal(&collection.direct_labor)}</td>
+                                    <td class="numeric">{self.format_decimal(&collection.manufacturing_overhead)}</td>
+                                    <td class="numeric">{self.format_decimal(&collection.processing_fee)}</td>
+                                    <td class="numeric">{self.format_decimal(&collection.dyeing_fee)}</td>
+                                    <td class="text-center">
+                                        <div class="action-buttons">
+                                            <button
+                                                class="btn btn-sm btn-secondary"
+                                                onclick={ctx.link().callback(move |_| Msg::ViewCollection(collection_clone.clone()))}
+                                            >
+                                                {"详情"}
+                                            </button>
+                                            <button
+                                                class="btn btn-sm btn-danger"
+                                                onclick={ctx.link().callback(move |_| Msg::DeleteCollection(id))}
+                                            >
+                                                {"删除"}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        })}
+                    </tbody>
+                </table>
+
+                <Pagination
+                    current_page={self.page}
+                    page_size={self.page_size}
+                    total={self.filtered_collections.len() as u64}
+                    on_page_change={ctx.link().callback(|page| Msg::PageChanged(page))}
+                />
             </div>
         }
     }
 
-    // 渲染详情弹窗
     fn render_detail(&self, ctx: &Context<Self>, collection: &CostCollection) -> Html {
         html! {
             <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
-                <div class="modal-content" onclick={|_| {}}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                     <div class="modal-header">
-                        <h2>{"成本归集详情"}</h2>
+                        <h3>{"成本归集详情"}</h3>
                         <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>{"×"}</button>
                     </div>
                     <div class="modal-body">
@@ -515,10 +540,6 @@ impl CostCollectionPage {
                             <div class="detail-item">
                                 <span class="label">{"成本对象类型"}</span>
                                 <span class="value">{collection.cost_object_type.clone().unwrap_or_else(|| "-".to_string())}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="label">{"成本对象ID"}</span>
-                                <span class="value">{collection.cost_object_id.map(|id| id.to_string()).unwrap_or_else(|| "-".to_string())}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"成本对象编号"}</span>
@@ -565,43 +586,39 @@ impl CostCollectionPage {
                                 <span class="value">{self.format_optional_decimal(&collection.output_quantity_kg)}</span>
                             </div>
                             <div class="detail-item">
-                                <span class="label">{"创建人ID"}</span>
-                                <span class="value">{collection.created_by.to_string()}</span>
-                            </div>
-                            <div class="detail-item">
                                 <span class="label">{"创建时间"}</span>
                                 <span class="value">{&collection.created_at}</span>
                             </div>
                         </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
+                            {"关闭"}
+                        </button>
                     </div>
                 </div>
             </div>
         }
     }
 
-    // 渲染创建弹窗
     fn render_create_modal(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseCreateModal)}>
-                <div class="modal-content modal-lg" onclick={|_| {}}>
+                <div class="modal-content modal-lg" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                     <div class="modal-header">
-                        <h2>{"新建成本归集"}</h2>
+                        <h3>{"新建成本归集"}</h3>
                         <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseCreateModal)}>{"×"}</button>
                     </div>
                     <div class="modal-body">
-                        if let Some(ref success) = self.create_success {
-                            <div class="success-message">
-                                <span>{"✓ "}</span>{success}
-                            </div>
+                        if let Some(ref err) = self.form_error {
+                            <div class="form-error">{err}</div>
                         }
-
-                        <div class="form-grid">
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="collection-date">{"归集日期"}</label>
+                                <label>{"归集日期 *"}</label>
                                 <input
-                                    id="collection-date"
                                     type="date"
-                                    class="form-control"
+                                    class="form-input"
                                     value={self.create_form.collection_date.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
                                         let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
@@ -610,11 +627,10 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="cost-object-type">{"成本对象类型"}</label>
+                                <label>{"成本对象类型"}</label>
                                 <input
-                                    id="cost-object-type"
                                     type="text"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="如：工单、批次"
                                     value={self.create_form.cost_object_type.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -623,12 +639,13 @@ impl CostCollectionPage {
                                     })}
                                 />
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="cost-object-id">{"成本对象ID"}</label>
+                                <label>{"成本对象ID"}</label>
                                 <input
-                                    id="cost-object-id"
                                     type="number"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="成本对象ID"
                                     value={self.create_form.cost_object_id.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -638,11 +655,10 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="cost-object-no">{"成本对象编号"}</label>
+                                <label>{"成本对象编号"}</label>
                                 <input
-                                    id="cost-object-no"
                                     type="text"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="成本对象编号"
                                     value={self.create_form.cost_object_no.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -651,12 +667,13 @@ impl CostCollectionPage {
                                     })}
                                 />
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="batch-no-form">{"批次号"}</label>
+                                <label>{"批次号"}</label>
                                 <input
-                                    id="batch-no-form"
                                     type="text"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="请输入批次号"
                                     value={self.create_form.batch_no.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -666,11 +683,10 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="color-no-form">{"色号"}</label>
+                                <label>{"色号"}</label>
                                 <input
-                                    id="color-no-form"
                                     type="text"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="请输入色号"
                                     value={self.create_form.color_no.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -680,11 +696,10 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="workshop">{"车间"}</label>
+                                <label>{"车间"}</label>
                                 <input
-                                    id="workshop"
                                     type="text"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="请输入车间"
                                     value={self.create_form.workshop.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -695,15 +710,14 @@ impl CostCollectionPage {
                             </div>
                         </div>
 
-                        <h3>{"成本构成"}</h3>
-                        <div class="form-grid">
+                        <h4>{"成本构成"}</h4>
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="direct-material">{"直接材料"}</label>
+                                <label>{"直接材料 *"}</label>
                                 <input
-                                    id="direct-material"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="0.00"
                                     value={self.create_form.direct_material.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -713,12 +727,11 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="direct-labor">{"直接人工"}</label>
+                                <label>{"直接人工 *"}</label>
                                 <input
-                                    id="direct-labor"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="0.00"
                                     value={self.create_form.direct_labor.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -728,12 +741,11 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="manufacturing-overhead">{"制造费用"}</label>
+                                <label>{"制造费用 *"}</label>
                                 <input
-                                    id="manufacturing-overhead"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="0.00"
                                     value={self.create_form.manufacturing_overhead.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -742,13 +754,14 @@ impl CostCollectionPage {
                                     })}
                                 />
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="processing-fee">{"加工费"}</label>
+                                <label>{"加工费 *"}</label>
                                 <input
-                                    id="processing-fee"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="0.00"
                                     value={self.create_form.processing_fee.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -758,12 +771,11 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="dyeing-fee">{"染色费"}</label>
+                                <label>{"染色费 *"}</label>
                                 <input
-                                    id="dyeing-fee"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="0.00"
                                     value={self.create_form.dyeing_fee.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -774,15 +786,14 @@ impl CostCollectionPage {
                             </div>
                         </div>
 
-                        <h3>{"产量信息"}</h3>
-                        <div class="form-grid">
+                        <h4>{"产量信息"}</h4>
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="output-quantity-meters">{"产量(米)"}</label>
+                                <label>{"产量(米)"}</label>
                                 <input
-                                    id="output-quantity-meters"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="可选"
                                     value={self.create_form.output_quantity_meters.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -792,12 +803,11 @@ impl CostCollectionPage {
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="output-quantity-kg">{"产量(公斤)"}</label>
+                                <label>{"产量(公斤)"}</label>
                                 <input
-                                    id="output-quantity-kg"
                                     type="number"
                                     step="0.01"
-                                    class="form-control"
+                                    class="form-input"
                                     placeholder="可选"
                                     value={self.create_form.output_quantity_kg.clone()}
                                     oninput={ctx.link().callback(|e: InputEvent| {
@@ -809,25 +819,18 @@ impl CostCollectionPage {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseCreateModal)}>
+                        <button class="btn btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseCreateModal)}>
                             {"取消"}
                         </button>
-                        <PermissionGuard resource="cost_collection" action="create">
-<button
-                            class="btn-primary"
-                            onclick={ctx.link().callback(|_| Msg::SubmitCreate)}
-                            disabled={self.creating}
-                        >
-                            {if self.creating { "提交中..." } else { "创建" }}
+                        <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>
+                            {"创建"}
                         </button>
-</PermissionGuard>
                     </div>
                 </div>
             </div>
         }
     }
 
-    // 格式化数值
     fn format_decimal(&self, value: &serde_json::Value) -> String {
         if let Some(num) = value.as_f64() {
             format!("{:.2}", num)
@@ -840,7 +843,6 @@ impl CostCollectionPage {
         }
     }
 
-    // 格式化可选数值
     fn format_optional_decimal(&self, value: &Option<serde_json::Value>) -> String {
         match value {
             Some(v) => self.format_decimal(v),

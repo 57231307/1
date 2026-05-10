@@ -1,94 +1,61 @@
 // 辅助核算页面
-// 提供辅助核算数据的查询、统计和分析功能
+// 提供辅助核算记录的查询、统计和分析功能
 
-use crate::utils::permissions;
+use crate::utils::toast_helper;
 use yew::prelude::*;
+use crate::components::{
+    search_bar::SearchBar,
+    pagination::Pagination,
+    page_header::PageHeader,
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+};
+use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use crate::models::assist_accounting::{
-    AssistDimension, AssistRecord, AssistSummary, AssistRecordListResponse, AssistRecordQueryParams, AssistSummaryQueryParams,
+    AssistRecord, AssistRecordListResponse, AssistRecordQueryParams,
+    AssistSummary, AssistSummaryQueryParams, AssistDimension,
 };
 use crate::services::assist_accounting_service::AssistAccountingService;
-use crate::services::crud_service::CrudService;
 
 /// 辅助核算页面状态
 pub struct AssistAccountingPage {
-    // 维度列表
-    dimensions: Vec<AssistDimension>,
-    // 记录列表
     records: Vec<AssistRecord>,
-    // 汇总数据
+    filtered_records: Vec<AssistRecord>,
+    dimensions: Vec<AssistDimension>,
     summaries: Vec<AssistSummary>,
-    // 当前选中的维度
-    selected_dimension: Option<AssistDimension>,
-    // 当前查看的记录详情
-    selected_record: Option<AssistRecord>,
-    // 加载状态
     loading: bool,
-    // 查询参数
-    query_params: AssistRecordQueryParams,
-    // 汇总查询参数
-    summary_params: AssistSummaryQueryParams,
-    // 错误信息
     error: Option<String>,
-    // 当前标签页
-    active_tab: String,
-    // 维度加载状态
-    dimensions_loading: bool,
-    // 汇总加载状态
-    summary_loading: bool,
+    search_keyword: String,
+    page: u64,
+    page_size: u64,
+    filter_dimension: String,
+    filter_business_type: String,
+    viewing_record: Option<AssistRecord>,
+    active_tab: Tab,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum Tab {
+    Records,
+    Summary,
 }
 
 /// 页面消息
 pub enum Msg {
-    // 加载维度列表
-    LoadDimensions,
+    LoadData,
+    DataLoaded(Result<AssistRecordListResponse, String>),
     DimensionsLoaded(Result<Vec<AssistDimension>, String>),
-    // 加载记录列表
-    LoadRecords,
-    RecordsLoaded(Result<AssistRecordListResponse, String>),
-    // 加载汇总数据
-    LoadSummary,
     SummaryLoaded(Result<Vec<AssistSummary>, String>),
-    // 选择维度
-    SelectDimension(AssistDimension),
-    // 查看记录详情
-    ViewRecord(AssistRecord),
-    // 关闭详情
+    Search(String),
+    ResetSearch,
+    PageChanged(u64),
+    SetFilterDimension(String),
+    SetFilterBusinessType(String),
     CloseDetail,
-    // 更新查询参数
-    UpdateAccountingPeriod(String),
-    UpdateDimensionCode(String),
-    UpdateBusinessType(String),
-    UpdateWarehouseId(String),
-    // 执行查询
-    QueryRecords,
-    // 切换标签页
-    SetActiveTab(String),
-    // 错误处理
-    Error(String),
-}
-
-impl AssistAccountingPage {
-    // 初始化默认查询参数
-    fn default_query_params() -> AssistRecordQueryParams {
-        AssistRecordQueryParams {
-            accounting_period: None,
-            dimension_code: None,
-            business_type: None,
-            warehouse_id: None,
-            page: Some(0),
-            page_size: Some(20),
-        }
-    }
-
-    // 初始化默认汇总参数
-    fn default_summary_params() -> AssistSummaryQueryParams {
-        let current_month = chrono::Local::now().format("%Y-%m").to_string();
-        AssistSummaryQueryParams {
-            accounting_period: current_month,
-            dimension_code: None,
-        }
-    }
+    ViewRecord(AssistRecord),
+    SwitchTab(Tab),
+    Refresh,
 }
 
 impl Component for AssistAccountingPage {
@@ -96,66 +63,77 @@ impl Component for AssistAccountingPage {
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
-        ctx.link().send_message(Msg::LoadDimensions);
-        ctx.link().send_message(Msg::LoadRecords);
-        ctx.link().send_message(Msg::LoadSummary);
+        ctx.link().send_message(Msg::LoadData);
         Self {
-            dimensions: Vec::new(),
             records: Vec::new(),
+            filtered_records: Vec::new(),
+            dimensions: Vec::new(),
             summaries: Vec::new(),
-            selected_dimension: None,
-            selected_record: None,
             loading: true,
-            query_params: Self::default_query_params(),
-            summary_params: Self::default_summary_params(),
             error: None,
-            active_tab: "dimensions".to_string(),
-            dimensions_loading: true,
-            summary_loading: true,
+            search_keyword: String::new(),
+            page: 0,
+            page_size: 10,
+            filter_dimension: String::from("全部"),
+            filter_business_type: String::from("全部"),
+            viewing_record: None,
+            active_tab: Tab::Records,
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::LoadDimensions => {
-                self.dimensions_loading = true;
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    let result = AssistAccountingService::list_dimensions().await;
-                    link.send_message(Msg::DimensionsLoaded(result));
-                });
-                false
-            }
-            Msg::DimensionsLoaded(result) => {
-                self.dimensions_loading = false;
-                match result {
-                    Ok(data) => {
-                        self.dimensions = data;
-                        self.error = None;
-                    }
-                    Err(e) => {
-                        self.error = Some(e);
-                    }
-                }
-                true
-            }
-            Msg::LoadRecords => {
+            Msg::LoadData => {
                 self.loading = true;
+                self.error = None;
+
+                // 加载维度列表
                 let link = ctx.link().clone();
-                let params = self.query_params.clone();
                 spawn_local(async move {
-                    let result = AssistAccountingService::query_records(params).await;
-                    link.send_message(Msg::RecordsLoaded(result));
+                    match AssistAccountingService::list_dimensions().await {
+                        Ok(data) => link.send_message(Msg::DimensionsLoaded(Ok(data))),
+                        Err(e) => link.send_message(Msg::DimensionsLoaded(Err(e))),
+                    }
                 });
+
+                // 加载记录列表
+                let link = ctx.link().clone();
+                let params = AssistRecordQueryParams {
+                    accounting_period: None,
+                    dimension_code: if self.filter_dimension == "全部" { None } else { Some(self.filter_dimension.clone()) },
+                    business_type: if self.filter_business_type == "全部" { None } else { Some(self.filter_business_type.clone()) },
+                    warehouse_id: None,
+                    page: Some(1),
+                    page_size: Some(1000),
+                };
+                spawn_local(async move {
+                    match AssistAccountingService::query_records(params).await {
+                        Ok(data) => link.send_message(Msg::DataLoaded(Ok(data))),
+                        Err(e) => link.send_message(Msg::DataLoaded(Err(e))),
+                    }
+                });
+
+                // 加载汇总数据
+                let link = ctx.link().clone();
+                let summary_params = AssistSummaryQueryParams {
+                    accounting_period: chrono::Local::now().format("%Y-%m").to_string(),
+                    dimension_code: None,
+                };
+                spawn_local(async move {
+                    match AssistAccountingService::get_summary(summary_params).await {
+                        Ok(data) => link.send_message(Msg::SummaryLoaded(Ok(data))),
+                        Err(e) => link.send_message(Msg::SummaryLoaded(Err(e))),
+                    }
+                });
+
                 false
             }
-            Msg::RecordsLoaded(result) => {
+            Msg::DataLoaded(result) => {
                 self.loading = false;
                 match result {
                     Ok(data) => {
                         self.records = data.records;
-                        self.query_params.page = Some(data.page);
-                        self.query_params.page_size = Some(data.page_size);
+                        self.apply_filter();
                         self.error = None;
                     }
                     Err(e) => {
@@ -164,442 +142,317 @@ impl Component for AssistAccountingPage {
                 }
                 true
             }
-            Msg::LoadSummary => {
-                self.summary_loading = true;
-                let link = ctx.link().clone();
-                let params = self.summary_params.clone();
-                spawn_local(async move {
-                    let result = AssistAccountingService::get_summary(params).await;
-                    link.send_message(Msg::SummaryLoaded(result));
-                });
-                false
+            Msg::DimensionsLoaded(result) => {
+                if let Ok(data) = result {
+                    self.dimensions = data;
+                }
+                true
             }
             Msg::SummaryLoaded(result) => {
-                self.summary_loading = false;
-                match result {
-                    Ok(data) => {
-                        self.summaries = data;
-                        self.error = None;
-                    }
-                    Err(e) => {
-                        self.error = Some(e);
-                    }
+                if let Ok(data) = result {
+                    self.summaries = data;
                 }
                 true
             }
-            Msg::SelectDimension(dimension) => {
-                self.selected_dimension = Some(dimension);
-                self.query_params.dimension_code = self.selected_dimension.as_ref().map(|d| d.dimension_code.clone());
-                ctx.link().send_message(Msg::LoadRecords);
+            Msg::Search(keyword) => {
+                self.search_keyword = keyword;
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::ResetSearch => {
+                self.search_keyword = String::new();
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::PageChanged(page) => {
+                self.page = page;
+                true
+            }
+            Msg::SetFilterDimension(dimension) => {
+                self.filter_dimension = dimension;
+                self.page = 0;
+                ctx.link().send_message(Msg::LoadData);
                 false
             }
-            Msg::ViewRecord(record) => {
-                self.selected_record = Some(record);
-                true
+            Msg::SetFilterBusinessType(tp) => {
+                self.filter_business_type = tp;
+                self.page = 0;
+                ctx.link().send_message(Msg::LoadData);
+                false
             }
             Msg::CloseDetail => {
-                self.selected_record = None;
+                self.viewing_record = None;
                 true
             }
-            Msg::UpdateAccountingPeriod(period) => {
-                let period_clone = period.clone();
-                self.query_params.accounting_period = if period.is_empty() { None } else { Some(period) };
-                self.summary_params.accounting_period = if period_clone.is_empty() { chrono::Local::now().format("%Y-%m").to_string() } else { period_clone };
-                false
+            Msg::ViewRecord(record) => {
+                self.viewing_record = Some(record);
+                true
             }
-            Msg::UpdateDimensionCode(code) => {
-                let code_clone = code.clone();
-                self.query_params.dimension_code = if code.is_empty() { None } else { Some(code) };
-                self.summary_params.dimension_code = if code_clone.is_empty() { None } else { Some(code_clone) };
-                false
-            }
-            Msg::UpdateBusinessType(business_type) => {
-                self.query_params.business_type = if business_type.is_empty() { None } else { Some(business_type) };
-                false
-            }
-            Msg::UpdateWarehouseId(warehouse_id) => {
-                self.query_params.warehouse_id = warehouse_id.parse::<i32>().ok();
-                false
-            }
-            Msg::QueryRecords => {
-                self.loading = true;
-                let link = ctx.link().clone();
-                let params = self.query_params.clone();
-                spawn_local(async move {
-                    let result = AssistAccountingService::query_records(params).await;
-                    link.send_message(Msg::RecordsLoaded(result));
-                });
-                false
-            }
-            Msg::SetActiveTab(tab) => {
+            Msg::SwitchTab(tab) => {
                 self.active_tab = tab;
                 true
             }
-            Msg::Error(e) => {
-                self.error = Some(e);
-                self.loading = false;
-                true
+            Msg::Refresh => {
+                ctx.link().send_message(Msg::LoadData);
+                false
             }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <>
-                <div class="assist-accounting-page">
-                    <div class="page-header">
-                        <h1>{"辅助核算"}</h1>
-                        <p class="subtitle">{"按批次、色号、缸号、等级、仓库等维度进行辅助核算"}</p>
-                    </div>
+            <div class="assist-accounting-page">
+                <PageHeader title={"辅助核算".to_string()} subtitle={Some("查询和统计辅助核算数据".to_string())}>
+                    <></>
+                </PageHeader>
 
-                    {self.render_content(ctx)}
+                <div class="tab-bar">
+                    <button
+                        class={if self.active_tab == Tab::Records { "tab-btn active" } else { "tab-btn" }}
+                        onclick={ctx.link().callback(|_| Msg::SwitchTab(Tab::Records))}
+                    >
+                        {"核算记录"}
+                    </button>
+                    <button
+                        class={if self.active_tab == Tab::Summary { "tab-btn active" } else { "tab-btn" }}
+                        onclick={ctx.link().callback(|_| Msg::SwitchTab(Tab::Summary))}
+                    >
+                        {"汇总统计"}
+                    </button>
                 </div>
-            </>
+
+                {self.render_content(ctx)}
+
+                // 详情弹窗
+                if let Some(ref record) = self.viewing_record {
+                    {self.render_detail(ctx, record)}
+                }
+            </div>
         }
     }
 }
 
 impl AssistAccountingPage {
+    fn apply_filter(&mut self) {
+        if self.search_keyword.is_empty() {
+            self.filtered_records = self.records.clone();
+        } else {
+            let keyword = self.search_keyword.to_lowercase();
+            self.filtered_records = self.records.iter()
+                .filter(|r| {
+                    r.business_type.to_lowercase().contains(&keyword) ||
+                    r.business_no.to_lowercase().contains(&keyword) ||
+                    r.batch_no.to_lowercase().contains(&keyword) ||
+                    r.color_no.to_lowercase().contains(&keyword) ||
+                    r.grade.to_lowercase().contains(&keyword)
+                })
+                .cloned()
+                .collect();
+        }
+    }
+
+    fn paginated_records(&self) -> Vec<AssistRecord> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        self.filtered_records[start..end.min(self.filtered_records.len())].to_vec()
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
+        match self.active_tab {
+            Tab::Records => self.render_records_tab(ctx),
+            Tab::Summary => self.render_summary_tab(ctx),
+        }
+    }
+
+    fn render_records_tab(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
+
+        let on_dimension_change = link.batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterDimension(target.value()))
+        });
+
+        let on_business_type_change = link.batch_callback(|e: Event| {
+            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
+            Some(Msg::SetFilterBusinessType(target.value()))
+        });
+
         html! {
             <>
-                // 标签页导航
-                {self.render_tabs(ctx)}
+                <div class="page-toolbar">
+                    <div class="filter-bar">
+                        <div class="filter-item">
+                            <label>{"核算维度："}</label>
+                            <select value={self.filter_dimension.clone()} onchange={on_dimension_change}>
+                                <option value="全部">{"全部"}</option>
+                                {for self.dimensions.iter().map(|d| {
+                                    let code = d.dimension_code.clone();
+                                    html! {
+                                        <option value={code.clone()}>{&d.dimension_name}</option>
+                                    }
+                                })}
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>{"业务类型："}</label>
+                            <select value={self.filter_business_type.clone()} onchange={on_business_type_change}>
+                                <option value="全部">{"全部"}</option>
+                                <option value="采购入库">{"采购入库"}</option>
+                                <option value="销售出库">{"销售出库"}</option>
+                                <option value="生产领料">{"生产领料"}</option>
+                                <option value="生产入库">{"生产入库"}</option>
+                                <option value="调拨">{"调拨"}</option>
+                                <option value="盘点">{"盘点"}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <SearchBar
+                        placeholder={"搜索业务单号、批次号、色号...".to_string()}
+                        on_search={link.callback(|keyword| Msg::Search(keyword))}
+                        on_reset={link.callback(|_| Msg::ResetSearch)}
+                    />
+                </div>
 
-                // 维度标签页
-                if self.active_tab == "dimensions" {
-                    {self.render_dimensions_tab(ctx)}
-                }
+                if self.loading {
+                    <LoadingState message={"正在加载辅助核算数据...".to_string()} />
+                } else if let Some(error) = &self.error {
+                    <div class="error-container">
+                        <div class="error-icon">{"⚠️"}</div>
+                        <p class="error-message">{error}</p>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::LoadData)}>
+                            {"重新加载"}
+                        </button>
+                    </div>
+                } else if self.filtered_records.is_empty() {
+                    <EmptyState
+                        icon={"📑".to_string()}
+                        title={"暂无辅助核算记录".to_string()}
+                        description={if self.search_keyword.is_empty() {
+                            "暂无数据".to_string()
+                        } else {
+                            "没有匹配搜索条件的记录".to_string()
+                        }}
+                    />
+                } else {
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>{"业务类型"}</th>
+                                    <th>{"业务单号"}</th>
+                                    <th>{"科目ID"}</th>
+                                    <th>{"五维ID"}</th>
+                                    <th>{"批次号"}</th>
+                                    <th>{"色号"}</th>
+                                    <th>{"等级"}</th>
+                                    <th class="numeric">{"借方金额"}</th>
+                                    <th class="numeric">{"贷方金额"}</th>
+                                    <th class="numeric">{"数量(米)"}</th>
+                                    <th class="numeric">{"数量(公斤)"}</th>
+                                    <th class="text-center">{"操作"}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {for self.paginated_records().iter().map(|record| {
+                                    let record_clone = record.clone();
+                                    html! {
+                                        <tr>
+                                            <td>{&record.business_type}</td>
+                                            <td>{&record.business_no}</td>
+                                            <td>{record.account_subject_id}</td>
+                                            <td>{&record.five_dimension_id}</td>
+                                            <td>{&record.batch_no}</td>
+                                            <td>{&record.color_no}</td>
+                                            <td>{&record.grade}</td>
+                                            <td class="numeric">{format_decimal(&record.debit_amount)}</td>
+                                            <td class="numeric">{format_decimal(&record.credit_amount)}</td>
+                                            <td class="numeric">{format_decimal(&record.quantity_meters)}</td>
+                                            <td class="numeric">{format_decimal(&record.quantity_kg)}</td>
+                                            <td class="text-center">
+                                                <div class="action-buttons">
+                                                    <button
+                                                        class="btn btn-sm btn-info"
+                                                        onclick={link.callback(move |_| Msg::ViewRecord(record_clone.clone()))}
+                                                    >
+                                                        {"详情"}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                })}
+                            </tbody>
+                        </table>
 
-                // 记录标签页
-                if self.active_tab == "records" {
-                    {self.render_records_tab(ctx)}
-                }
-
-                // 汇总标签页
-                if self.active_tab == "summary" {
-                    {self.render_summary_tab(ctx)}
-                }
-
-                // 记录详情弹窗
-                if let Some(ref record) = self.selected_record {
-                    {self.render_record_detail(ctx, record)}
+                        <Pagination
+                            current_page={self.page}
+                            page_size={self.page_size}
+                            total={self.filtered_records.len() as u64}
+                            on_page_change={link.callback(|page| Msg::PageChanged(page))}
+                        />
+                    </div>
                 }
             </>
         }
     }
 
-    // 渲染标签页
-    fn render_tabs(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="tabs">
-                <button
-                    class={if self.active_tab == "dimensions" { "tab-btn active" } else { "tab-btn" }}
-                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("dimensions".to_string()))}
-                >
-                    {"核算维度"}
-                </button>
-                <button
-                    class={if self.active_tab == "records" { "tab-btn active" } else { "tab-btn" }}
-                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("records".to_string()))}
-                >
-                    {"核算记录"}
-                </button>
-                <button
-                    class={if self.active_tab == "summary" { "tab-btn active" } else { "tab-btn" }}
-                    onclick={ctx.link().callback(|_| Msg::SetActiveTab("summary".to_string()))}
-                >
-                    {"核算汇总"}
-                </button>
-            </div>
-        }
-    }
-
-    // 渲染维度标签页
-    fn render_dimensions_tab(&self, ctx: &Context<Self>) -> Html {
-        if self.dimensions_loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
-        }
-
-        html! {
-            <div class="card">
-                <div class="card-header">
-                    <h2>{"辅助核算维度"}</h2>
-                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadDimensions)}>
-                        {"刷新"}
-                    </button>
-                </div>
-                <div class="card-body">
-                    if self.dimensions.is_empty() {
-                        <div class="empty-state">
-                            <div class="empty-icon">{"📭"}</div>
-                            <p>{"暂无核算维度"}</p>
-                        </div>
-                    } else {
-                        <div class="dimensions-grid">
-                            {for self.dimensions.iter().map(|dim| {
-                                let dim_clone = dim.clone();
-                                html! {
-                                    <div
-                                        class="dimension-card"
-                                        onclick={ctx.link().callback(move |_| Msg::SelectDimension(dim_clone.clone()))}
-                                    >
-                                        <div class="dimension-code">{&dim.dimension_code}</div>
-                                        <div class="dimension-name">{&dim.dimension_name}</div>
-                                        <div class="dimension-desc">{dim.description.clone().unwrap_or_else(|| "-".to_string())}</div>
-                                        <div class="dimension-status">
-                                            {if dim.is_active { "启用" } else { "禁用" }}
-                                        </div>
-                                    </div>
-                                }
-                            })}
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-    }
-
-    // 渲染记录标签页
-    fn render_records_tab(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="card">
-                <div class="card-header">
-                    <h2>{"辅助核算记录查询"}</h2>
-                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadRecords)}>
-                        {"刷新"}
-                    </button>
-                </div>
-                <div class="card-body">
-                    // 查询条件
-                    {self.render_query_form(ctx)}
-
-                    // 记录列表
-                    if self.loading {
-                        <div class="loading-container">
-                            <div class="spinner"></div>
-                            <p>{"加载中..."}</p>
-                        </div>
-                    } else if let Some(error) = &self.error {
-                        <div class="error-container">
-                            <div class="error-icon">{"⚠️"}</div>
-                            <p class="error-message">{error}</p>
-                            <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadRecords)}>
-                                {"重新加载"}
-                            </button>
-                        </div>
-                    } else if self.records.is_empty() {
-                        <div class="empty-state">
-                            <div class="empty-icon">{"📭"}</div>
-                            <p>{"暂无核算记录"}</p>
-                        </div>
-                    } else {
-                        <div class="table-responsive">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>{"ID"}</th>
-                                        <th>{"业务类型"}</th>
-                                        <th>{"业务单号"}</th>
-                                        <th>{"五维ID"}</th>
-                                        <th>{"批次"}</th>
-                                        <th>{"色号"}</th>
-                                        <th>{"等级"}</th>
-                                        <th>{"借方金额"}</th>
-                                        <th>{"贷方金额"}</th>
-                                        <th>{"操作"}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {for self.records.iter().map(|record| {
-                                        let record_clone = record.clone();
-                                        html! {
-                                            <tr>
-                                                <td>{record.id.to_string()}</td>
-                                                <td>{&record.business_type}</td>
-                                                <td>{&record.business_no}</td>
-                                                <td class="five-dim-id">{&record.five_dimension_id}</td>
-                                                <td>{&record.batch_no}</td>
-                                                <td>{&record.color_no}</td>
-                                                <td>{&record.grade}</td>
-                                                <td class="numeric">{self.format_decimal(&record.debit_amount)}</td>
-                                                <td class="numeric">{self.format_decimal(&record.credit_amount)}</td>
-                                                <td>
-                                                    <button
-                                                        class="btn-sm btn-info"
-                                                        onclick={ctx.link().callback(move |_| Msg::ViewRecord(record_clone.clone()))}
-                                                    >
-                                                        {"详情"}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        }
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-    }
-
-    // 渲染查询表单
-    fn render_query_form(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="query-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="accounting-period">{"会计期间"}</label>
-                        <input
-                            id="accounting-period"
-                            type="month"
-                            class="form-control"
-                            value={self.query_params.accounting_period.clone().unwrap_or_default()}
-                            oninput={ctx.link().callback(|e: InputEvent| {
-                                let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                Msg::UpdateAccountingPeriod(target.value())
-                            })}
-                        />
-                    </div>
-                    <div class="form-group">
-                        <label for="business-type">{"业务类型"}</label>
-                        <input
-                            id="business-type"
-                            type="text"
-                            class="form-control"
-                            placeholder="如：采购、销售"
-                            value={self.query_params.business_type.clone().unwrap_or_default()}
-                            oninput={ctx.link().callback(|e: InputEvent| {
-                                let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                Msg::UpdateBusinessType(target.value())
-                            })}
-                        />
-                    </div>
-                    <div class="form-group">
-                        <label for="warehouse-id">{"仓库ID"}</label>
-                        <input
-                            id="warehouse-id"
-                            type="number"
-                            class="form-control"
-                            placeholder="仓库ID"
-                            value={self.query_params.warehouse_id.map(|id| id.to_string()).unwrap_or_default()}
-                            oninput={ctx.link().callback(|e: InputEvent| {
-                                let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                Msg::UpdateWarehouseId(target.value())
-                            })}
-                        />
-                    </div>
-                </div>
-                <div class="form-actions">
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::QueryRecords)}>
-                        {"查询"}
-                    </button>
-                </div>
-            </div>
-        }
-    }
-
-    // 渲染汇总标签页
     fn render_summary_tab(&self, ctx: &Context<Self>) -> Html {
-        if self.summary_loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
-        }
-
         html! {
-            <div class="card">
-                <div class="card-header">
-                    <h2>{"辅助核算汇总"}</h2>
-                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadSummary)}>
-                        {"刷新"}
-                    </button>
-                </div>
-                <div class="card-body">
-                    // 汇总期间选择
-                    <div class="summary-header">
-                        <div class="form-group">
-                            <label for="summary-period">{"会计期间"}</label>
-                            <input
-                                id="summary-period"
-                                type="month"
-                                class="form-control"
-                                value={self.summary_params.accounting_period.clone()}
-                                oninput={ctx.link().callback(|e: InputEvent| {
-                                    let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                                    Msg::UpdateAccountingPeriod(target.value())
+            <div class="summary-container">
+                if self.summaries.is_empty() {
+                    <EmptyState
+                        icon={"📊".to_string()}
+                        title={"暂无汇总数据".to_string()}
+                        description={"当前会计期间暂无汇总数据".to_string()}
+                    />
+                } else {
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>{"会计期间"}</th>
+                                    <th>{"维度代码"}</th>
+                                    <th>{"维度值"}</th>
+                                    <th>{"科目ID"}</th>
+                                    <th class="numeric">{"借方合计"}</th>
+                                    <th class="numeric">{"贷方合计"}</th>
+                                    <th class="numeric">{"数量合计(米)"}</th>
+                                    <th class="numeric">{"数量合计(公斤)"}</th>
+                                    <th>{"记录数"}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {for self.summaries.iter().map(|summary| {
+                                    html! {
+                                        <tr>
+                                            <td>{&summary.accounting_period}</td>
+                                            <td>{&summary.dimension_code}</td>
+                                            <td>{&summary.dimension_value_name}</td>
+                                            <td>{summary.account_subject_id}</td>
+                                            <td class="numeric">{format_decimal(&summary.total_debit)}</td>
+                                            <td class="numeric">{format_decimal(&summary.total_credit)}</td>
+                                            <td class="numeric">{format_decimal(&summary.total_quantity_meters)}</td>
+                                            <td class="numeric">{format_decimal(&summary.total_quantity_kg)}</td>
+                                            <td>{summary.record_count}</td>
+                                        </tr>
+                                    }
                                 })}
-                            />
-                        </div>
-                        <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadSummary)}>
-                            {"查询汇总"}
-                        </button>
+                            </tbody>
+                        </table>
                     </div>
-
-                    if self.summaries.is_empty() {
-                        <div class="empty-state">
-                            <div class="empty-icon">{"📭"}</div>
-                            <p>{"暂无汇总数据"}</p>
-                        </div>
-                    } else {
-                        <div class="table-responsive">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>{"ID"}</th>
-                                        <th>{"会计期间"}</th>
-                                        <th>{"维度代码"}</th>
-                                        <th>{"维度值"}</th>
-                                        <th>{"会计科目ID"}</th>
-                                        <th>{"借方合计"}</th>
-                                        <th>{"贷方合计"}</th>
-                                        <th>{"总米数"}</th>
-                                        <th>{"总公斤数"}</th>
-                                        <th>{"记录数"}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {for self.summaries.iter().map(|summary| {
-                                        html! {
-                                            <tr>
-                                                <td>{summary.id.to_string()}</td>
-                                                <td>{&summary.accounting_period}</td>
-                                                <td>{&summary.dimension_code}</td>
-                                                <td>{&summary.dimension_value_name}</td>
-                                                <td>{summary.account_subject_id.to_string()}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_debit)}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_credit)}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_quantity_meters)}</td>
-                                                <td class="numeric">{self.format_decimal(&summary.total_quantity_kg)}</td>
-                                                <td class="numeric">{summary.record_count.to_string()}</td>
-                                            </tr>
-                                        }
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </div>
+                }
             </div>
         }
     }
 
-    // 渲染记录详情弹窗
-    fn render_record_detail(&self, ctx: &Context<Self>, record: &AssistRecord) -> Html {
+    fn render_detail(&self, ctx: &Context<Self>, record: &AssistRecord) -> Html {
         html! {
             <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
-                <div class="modal-content" onclick={|_| {}}>
+                <div class="modal-content modal-lg" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                     <div class="modal-header">
-                        <h2>{"辅助核算记录详情"}</h2>
+                        <h3>{"辅助核算详情"}</h3>
                         <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>{"×"}</button>
                     </div>
                     <div class="modal-body">
@@ -621,12 +474,12 @@ impl AssistAccountingPage {
                                 <span class="value">{record.business_id.to_string()}</span>
                             </div>
                             <div class="detail-item">
-                                <span class="label">{"会计科目ID"}</span>
+                                <span class="label">{"科目ID"}</span>
                                 <span class="value">{record.account_subject_id.to_string()}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"五维ID"}</span>
-                                <span class="value five-dim-id">{&record.five_dimension_id}</span>
+                                <span class="value">{&record.five_dimension_id}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"产品ID"}</span>
@@ -641,8 +494,8 @@ impl AssistAccountingPage {
                                 <span class="value">{&record.color_no}</span>
                             </div>
                             <div class="detail-item">
-                                <span class="label">{"染缸号"}</span>
-                                <span class="value">{record.dye_lot_no.clone().unwrap_or_else(|| "-".to_string())}</span>
+                                <span class="label">{"缸号"}</span>
+                                <span class="value">{record.dye_lot_no.as_deref().unwrap_or("-")}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"等级"}</span>
@@ -654,35 +507,35 @@ impl AssistAccountingPage {
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"借方金额"}</span>
-                                <span class="value numeric">{self.format_decimal(&record.debit_amount)}</span>
+                                <span class="value numeric">{format_decimal(&record.debit_amount)}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"贷方金额"}</span>
-                                <span class="value numeric">{self.format_decimal(&record.credit_amount)}</span>
+                                <span class="value numeric">{format_decimal(&record.credit_amount)}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"数量(米)"}</span>
-                                <span class="value numeric">{self.format_decimal(&record.quantity_meters)}</span>
+                                <span class="value numeric">{format_decimal(&record.quantity_meters)}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"数量(公斤)"}</span>
-                                <span class="value numeric">{self.format_decimal(&record.quantity_kg)}</span>
+                                <span class="value numeric">{format_decimal(&record.quantity_kg)}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"车间ID"}</span>
-                                <span class="value">{record.workshop_id.map(|id| id.to_string()).unwrap_or_else(|| "-".to_string())}</span>
+                                <span class="value">{record.workshop_id.map(|v| v.to_string()).unwrap_or_else(|| "-".to_string())}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"客户ID"}</span>
-                                <span class="value">{record.customer_id.map(|id| id.to_string()).unwrap_or_else(|| "-".to_string())}</span>
+                                <span class="value">{record.customer_id.map(|v| v.to_string()).unwrap_or_else(|| "-".to_string())}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"供应商ID"}</span>
-                                <span class="value">{record.supplier_id.map(|id| id.to_string()).unwrap_or_else(|| "-".to_string())}</span>
+                                <span class="value">{record.supplier_id.map(|v| v.to_string()).unwrap_or_else(|| "-".to_string())}</span>
                             </div>
                             <div class="detail-item full-width">
                                 <span class="label">{"备注"}</span>
-                                <span class="value">{record.remarks.clone().unwrap_or_else(|| "-".to_string())}</span>
+                                <span class="value">{record.remarks.as_deref().unwrap_or("-")}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="label">{"创建时间"}</span>
@@ -690,19 +543,25 @@ impl AssistAccountingPage {
                             </div>
                         </div>
                     </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetail)}>
+                            {"关闭"}
+                        </button>
+                    </div>
                 </div>
             </div>
         }
     }
+}
 
-    // 格式化数值
-    fn format_decimal(&self, value: &serde_json::Value) -> String {
-        if let Some(num) = value.as_f64() {
-            format!("{:.2}", num)
-        } else if let Some(num) = value.as_i64() {
-            num.to_string()
-        } else {
-            value.to_string()
-        }
+fn format_decimal(value: &serde_json::Value) -> String {
+    if let Some(num) = value.as_f64() {
+        format!("{:.2}", num)
+    } else if let Some(num) = value.as_i64() {
+        num.to_string()
+    } else if let Some(s) = value.as_str() {
+        s.to_string()
+    } else {
+        value.to_string()
     }
 }

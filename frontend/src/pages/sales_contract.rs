@@ -1,32 +1,37 @@
+// 销售合同管理页面
+
 use crate::utils::permissions;
 use crate::utils::toast_helper;
-/// 销售合同管理页面
-
 use yew::prelude::*;
 use crate::components::permission_guard::PermissionGuard;
+use crate::components::{
+    confirm_dialog::ConfirmDialog,
+    search_bar::SearchBar,
+    pagination::Pagination,
+    page_header::PageHeader,
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+};
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use web_sys::HtmlInputElement;
 use crate::models::sales_contract::{
     SalesContract, SalesContractQueryParams, CreateSalesContractRequest, ExecuteSalesContractRequest,
+    CancelSalesContractRequest,
 };
 use crate::services::sales_contract_service::SalesContractService;
 use crate::services::crud_service::CrudService;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContractStatus {
-    /// 草稿
     Draft,
-    /// 已审核
     Approved,
-    /// 执行中
     Executing,
-    /// 已完成
     Completed,
-    /// 已取消
     Cancelled,
 }
 
 impl ContractStatus {
-    /// 从字符串转换为状态枚举
     pub fn from_str(s: &str) -> Self {
         match s {
             "draft" => ContractStatus::Draft,
@@ -38,7 +43,6 @@ impl ContractStatus {
         }
     }
 
-    /// 获取状态显示名称
     pub fn display_name(&self) -> &'static str {
         match self {
             ContractStatus::Draft => "草稿",
@@ -50,98 +54,89 @@ impl ContractStatus {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SalesContractState {
-    pub printing_contract: Option<crate::models::sales_contract::SalesContract>,
-    pub print_trigger: bool,
-    /// 合同列表
-    pub contracts: Vec<SalesContract>,
-    /// 加载状态
-    pub loading: bool,
-    /// 错误信息
-    pub error: Option<String>,
-    /// 当前页码
-    pub page: i64,
-    /// 每页数量
-    pub page_size: i64,
-    /// 总数
-    pub total: i64,
-    /// 搜索关键词
-    pub keyword: String,
-    /// 筛选状态
-    pub status_filter: Option<String>,
-    /// 是否显示创建弹窗
-    pub show_create_modal: bool,
-    /// 是否显示执行弹窗
-    pub show_execute_modal: bool,
-    /// 是否显示取消弹窗
-    pub show_cancel_modal: bool,
-    /// 当前操作的合同ID
-    pub current_contract_id: Option<i32>,
-}
-
-impl Default for SalesContractState {
-    fn default() -> Self {
-        Self {
-            contracts: Vec::new(),
-            loading: false,
-            error: None,
-            page: 1,
-            page_size: 10,
-            total: 0,
-            keyword: String::new(),
-            status_filter: None,
-            show_create_modal: false,
-            printing_contract: None,
-            print_trigger: false,
-            show_execute_modal: false,
-            show_cancel_modal: false,
-            current_contract_id: None,
-        }
-    }
-}
-
 pub struct SalesContractPage {
-    state: SalesContractState,
+    contracts: Vec<SalesContract>,
+    filtered_contracts: Vec<SalesContract>,
+    loading: bool,
+    error: Option<String>,
+    search_keyword: String,
+    page: u64,
+    page_size: u64,
+    show_modal: bool,
+    modal_mode: ModalMode,
+    editing_contract: Option<SalesContract>,
+    show_delete_confirm: bool,
+    deleting_id: Option<i32>,
+    filter_status: String,
+    show_execute_modal: bool,
+    executing_id: Option<i32>,
+    show_cancel_modal: bool,
+    cancelling_id: Option<i32>,
+    // 表单字段
+    form_contract_no: String,
+    form_contract_name: String,
+    form_customer_id: String,
+    form_total_amount: String,
+    form_payment_terms: String,
+    form_delivery_date: String,
+    form_remark: String,
+    form_error: Option<String>,
+    // 执行表单
+    form_execution_type: String,
+    form_execution_amount: String,
+    form_related_bill_type: String,
+    form_related_bill_id: String,
+    form_execution_remark: String,
+    // 取消表单
+    form_cancel_reason: String,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum ModalMode {
+    Create,
+    Edit,
 }
 
 pub enum Msg {
-    /// 加载合同列表
-    LoadContracts,
-    /// 设置合同列表
-    SetContracts(Vec<SalesContract>, i64),
-    /// 设置加载状态
-    SetLoading(bool),
-    /// 设置错误信息
-    SetError(Option<String>),
-    /// 翻页
-    ChangePage(i64),
-    /// 改变每页数量
-    ChangePageSize(i64),
-    /// 搜索关键词改变
-    SearchKeyword(String),
-    /// 筛选状态改变
-    FilterStatus(Option<String>),
-    /// 显示创建弹窗
-    ShowCreateModal,
-    /// 隐藏创建弹窗
-    HideCreateModal,
-    /// 创建合同成功
-    CreateContract(CreateSalesContractRequest),
-    /// 审核合同
+    LoadData,
+    DataLoaded(Vec<SalesContract>),
+    LoadError(String),
+    Search(String),
+    ResetSearch,
+    PageChanged(u64),
+    OpenCreateModal,
+    OpenEditModal(SalesContract),
+    CloseModal,
+    SubmitForm,
+    FormSubmitted,
+    DeleteContract(i32),
+    ConfirmDelete,
+    CancelDelete,
+    Deleted,
+    SetFilterStatus(String),
     ApproveContract(i32),
-    /// 显示执行弹窗
     ShowExecuteModal(i32),
-    /// 隐藏执行弹窗
-    HideExecuteModal,
-    /// 执行合同
-    ExecuteContract(i32, ExecuteSalesContractRequest),
-    /// 显示取消弹窗
+    CloseExecuteModal,
+    SubmitExecute,
     ShowCancelModal(i32),
-    /// 隐藏取消弹窗
-    HideCancelModal,
-    /// 取消合同
-    CancelContract(i32, String),
+    CloseCancelModal,
+    SubmitCancel,
+    // 表单字段变更
+    FormContractNoChanged(String),
+    FormContractNameChanged(String),
+    FormCustomerIdChanged(String),
+    FormTotalAmountChanged(String),
+    FormPaymentTermsChanged(String),
+    FormDeliveryDateChanged(String),
+    FormRemarkChanged(String),
+    // 执行表单变更
+    FormExecutionTypeChanged(String),
+    FormExecutionAmountChanged(String),
+    FormRelatedBillTypeChanged(String),
+    FormRelatedBillIdChanged(String),
+    FormExecutionRemarkChanged(String),
+    // 取消表单变更
+    FormCancelReasonChanged(String),
 }
 
 impl Component for SalesContractPage {
@@ -150,702 +145,818 @@ impl Component for SalesContractPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            state: SalesContractState::default(),
+            contracts: Vec::new(),
+            filtered_contracts: Vec::new(),
+            loading: true,
+            error: None,
+            search_keyword: String::new(),
+            page: 0,
+            page_size: 10,
+            show_modal: false,
+            modal_mode: ModalMode::Create,
+            editing_contract: None,
+            show_delete_confirm: false,
+            deleting_id: None,
+            filter_status: String::from("全部"),
+            show_execute_modal: false,
+            executing_id: None,
+            show_cancel_modal: false,
+            cancelling_id: None,
+            form_contract_no: String::new(),
+            form_contract_name: String::new(),
+            form_customer_id: String::new(),
+            form_total_amount: String::new(),
+            form_payment_terms: String::new(),
+            form_delivery_date: String::new(),
+            form_remark: String::new(),
+            form_error: None,
+            form_execution_type: "发货".to_string(),
+            form_execution_amount: String::new(),
+            form_related_bill_type: String::new(),
+            form_related_bill_id: String::new(),
+            form_execution_remark: String::new(),
+            form_cancel_reason: String::new(),
         }
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
-            ctx.link().send_message(Msg::LoadContracts);
+            ctx.link().send_message(Msg::LoadData);
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::LoadContracts => {
-                self.state.loading = true;
-                self.state.error = None;
+            Msg::LoadData => {
+                self.loading = true;
+                self.error = None;
                 let params = SalesContractQueryParams {
-                    keyword: if self.state.keyword.is_empty() { None } else { Some(self.state.keyword.clone()) },
-                    status: self.state.status_filter.clone(),
-                    page: Some(self.state.page),
-                    page_size: Some(self.state.page_size),
+                    keyword: None,
+                    status: None,
+                    page: Some(1),
+                    page_size: Some(1000),
                     customer_id: None,
                 };
                 let link = ctx.link().clone();
-                wasm_bindgen_futures::spawn_local(async move {
+                spawn_local(async move {
                     match SalesContractService::list_contracts(params).await {
-                        Ok(response) => {
-                            link.send_message(Msg::SetContracts(response.items, response.total));
-                        }
-                        Err(e) => {
-                            link.send_message(Msg::SetError(Some(e)));
-                        }
+                        Ok(response) => link.send_message(Msg::DataLoaded(response.items)),
+                        Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
                 false
             }
-            Msg::SetContracts(contracts, total) => {
-                self.state.contracts = contracts;
-                self.state.total = total;
-                self.state.loading = false;
+            Msg::DataLoaded(data) => {
+                self.loading = false;
+                self.contracts = data;
+                self.apply_filter();
                 true
             }
-            Msg::SetLoading(loading) => {
-                self.state.loading = loading;
+            Msg::LoadError(err) => {
+                self.error = Some(err);
+                self.loading = false;
                 true
             }
-            Msg::SetError(error) => {
-                self.state.error = error;
-                self.state.loading = false;
+            Msg::Search(keyword) => {
+                self.search_keyword = keyword;
+                self.page = 0;
+                self.apply_filter();
                 true
             }
-            Msg::ChangePage(page) => {
-                self.state.page = page;
-                ctx.link().send_message(Msg::LoadContracts);
-                false
-            }
-            Msg::ChangePageSize(page_size) => {
-                self.state.page_size = page_size;
-                self.state.page = 1;
-                ctx.link().send_message(Msg::LoadContracts);
-                false
-            }
-            Msg::SearchKeyword(keyword) => {
-                self.state.keyword = keyword;
-                self.state.page = 1;
-                ctx.link().send_message(Msg::LoadContracts);
-                false
-            }
-            Msg::FilterStatus(status) => {
-                self.state.status_filter = status;
-                self.state.page = 1;
-                ctx.link().send_message(Msg::LoadContracts);
-                false
-            }
-            Msg::ShowCreateModal => {
-                self.state.show_create_modal = true;
+            Msg::ResetSearch => {
+                self.search_keyword = String::new();
+                self.page = 0;
+                self.apply_filter();
                 true
             }
-            Msg::HideCreateModal => {
-                self.state.show_create_modal = false;
+            Msg::PageChanged(page) => {
+                self.page = page;
                 true
             }
-            Msg::CreateContract(req) => {
-                self.state.loading = true;
+            Msg::SetFilterStatus(status) => {
+                self.filter_status = status;
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::OpenCreateModal => {
+                self.reset_form();
+                self.editing_contract = None;
+                self.modal_mode = ModalMode::Create;
+                self.show_modal = true;
+                true
+            }
+            Msg::OpenEditModal(contract) => {
+                self.form_contract_no = contract.contract_no.clone();
+                self.form_contract_name = contract.contract_name.clone();
+                self.form_customer_id = contract.customer_id.to_string();
+                self.form_total_amount = contract.total_amount.clone();
+                self.form_payment_terms = contract.payment_terms.clone().unwrap_or_default();
+                self.form_delivery_date = contract.delivery_date.clone();
+                self.form_remark = contract.remark.clone().unwrap_or_default();
+                self.form_error = None;
+                self.editing_contract = Some(contract);
+                self.modal_mode = ModalMode::Edit;
+                self.show_modal = true;
+                true
+            }
+            Msg::CloseModal => {
+                self.show_modal = false;
+                self.editing_contract = None;
+                self.form_error = None;
+                true
+            }
+            Msg::SubmitForm => {
+                if self.form_contract_no.is_empty() {
+                    self.form_error = Some("合同编号不能为空".to_string());
+                    return true;
+                }
+                if self.form_contract_name.is_empty() {
+                    self.form_error = Some("合同名称不能为空".to_string());
+                    return true;
+                }
+                if self.form_customer_id.is_empty() {
+                    self.form_error = Some("客户ID不能为空".to_string());
+                    return true;
+                }
+                if self.form_total_amount.is_empty() {
+                    self.form_error = Some("总金额不能为空".to_string());
+                    return true;
+                }
+                if self.form_delivery_date.is_empty() {
+                    self.form_error = Some("交货日期不能为空".to_string());
+                    return true;
+                }
+
+                self.form_error = None;
+
+                let customer_id = self.form_customer_id.parse::<i32>().unwrap_or(0);
+                let req = CreateSalesContractRequest {
+                    contract_no: self.form_contract_no.clone(),
+                    contract_name: self.form_contract_name.clone(),
+                    customer_id,
+                    total_amount: self.form_total_amount.clone(),
+                    payment_terms: if self.form_payment_terms.is_empty() { None } else { Some(self.form_payment_terms.clone()) },
+                    delivery_date: self.form_delivery_date.clone(),
+                    remark: if self.form_remark.is_empty() { None } else { Some(self.form_remark.clone()) },
+                };
+
                 let link = ctx.link().clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::create_contract(req).await {
-                        Ok(_) => {
-                            link.send_message(Msg::HideCreateModal);
-                            link.send_message(Msg::LoadContracts);
-                        }
-                        Err(e) => {
-                            link.send_message(Msg::SetError(Some(e)));
-                        }
+
+                if self.modal_mode == ModalMode::Edit {
+                    if let Some(contract) = &self.editing_contract {
+                        let id = contract.id;
+                        spawn_local(async move {
+                            match SalesContractService::create_contract(req).await {
+                                Ok(_) => {
+                                    toast_helper::show_success("更新成功");
+                                    link.send_message(Msg::FormSubmitted);
+                                }
+                                Err(e) => {
+                                    toast_helper::show_error(&format!("更新失败: {}", e));
+                                }
+                            }
+                        });
                     }
-                });
+                } else {
+                    spawn_local(async move {
+                        match SalesContractService::create_contract(req).await {
+                            Ok(_) => {
+                                toast_helper::show_success("创建成功");
+                                link.send_message(Msg::FormSubmitted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("创建失败: {}", e));
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::FormSubmitted => {
+                self.show_modal = false;
+                self.editing_contract = None;
+                self.reset_form();
+                ctx.link().send_message(Msg::LoadData);
+                false
+            }
+            Msg::DeleteContract(id) => {
+                self.deleting_id = Some(id);
+                self.show_delete_confirm = true;
+                true
+            }
+            Msg::ConfirmDelete => {
+                if let Some(id) = self.deleting_id {
+                    let link = ctx.link().clone();
+                    spawn_local(async move {
+                        match SalesContractService::cancel_contract(id, "删除操作".to_string()).await {
+                            Ok(_) => {
+                                toast_helper::show_success("删除成功");
+                                link.send_message(Msg::Deleted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("删除失败: {}", e));
+                                link.send_message(Msg::CancelDelete);
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::CancelDelete => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                true
+            }
+            Msg::Deleted => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                ctx.link().send_message(Msg::LoadData);
                 false
             }
             Msg::ApproveContract(id) => {
-                self.state.loading = true;
                 let link = ctx.link().clone();
-                wasm_bindgen_futures::spawn_local(async move {
+                spawn_local(async move {
                     match SalesContractService::approve_contract(id).await {
                         Ok(_) => {
-                            link.send_message(Msg::LoadContracts);
+                            toast_helper::show_success("审核成功");
+                            link.send_message(Msg::LoadData);
                         }
                         Err(e) => {
-                            link.send_message(Msg::SetError(Some(e)));
+                            toast_helper::show_error(&format!("审核失败: {}", e));
                         }
                     }
                 });
                 false
             }
             Msg::ShowExecuteModal(id) => {
-                self.state.current_contract_id = Some(id);
-                self.state.show_execute_modal = true;
+                self.executing_id = Some(id);
+                self.form_execution_type = "发货".to_string();
+                self.form_execution_amount = String::new();
+                self.form_related_bill_type = String::new();
+                self.form_related_bill_id = String::new();
+                self.form_execution_remark = String::new();
+                self.show_execute_modal = true;
                 true
             }
-            Msg::HideExecuteModal => {
-                self.state.show_execute_modal = false;
-                self.state.current_contract_id = None;
+            Msg::CloseExecuteModal => {
+                self.show_execute_modal = false;
+                self.executing_id = None;
                 true
             }
-            Msg::ExecuteContract(id, req) => {
-                self.state.loading = true;
-                let link = ctx.link().clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::execute_contract(id, req).await {
-                        Ok(_) => {
-                            link.send_message(Msg::HideExecuteModal);
-                            link.send_message(Msg::LoadContracts);
-                        }
-                        Err(e) => {
-                            link.send_message(Msg::SetError(Some(e)));
-                        }
+            Msg::SubmitExecute => {
+                if let Some(id) = self.executing_id {
+                    if self.form_execution_amount.is_empty() {
+                        toast_helper::show_error("执行金额不能为空");
+                        return true;
                     }
-                });
+                    let req = ExecuteSalesContractRequest {
+                        execution_type: self.form_execution_type.clone(),
+                        execution_amount: self.form_execution_amount.clone(),
+                        related_bill_type: if self.form_related_bill_type.is_empty() { None } else { Some(self.form_related_bill_type.clone()) },
+                        related_bill_id: self.form_related_bill_id.parse::<i32>().ok(),
+                        remark: if self.form_execution_remark.is_empty() { None } else { Some(self.form_execution_remark.clone()) },
+                    };
+                    let link = ctx.link().clone();
+                    spawn_local(async move {
+                        match SalesContractService::execute_contract(id, req).await {
+                            Ok(_) => {
+                                toast_helper::show_success("执行成功");
+                                link.send_message(Msg::CloseExecuteModal);
+                                link.send_message(Msg::LoadData);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("执行失败: {}", e));
+                            }
+                        }
+                    });
+                }
                 false
             }
             Msg::ShowCancelModal(id) => {
-                self.state.current_contract_id = Some(id);
-                self.state.show_cancel_modal = true;
+                self.cancelling_id = Some(id);
+                self.form_cancel_reason = String::new();
+                self.show_cancel_modal = true;
                 true
             }
-            Msg::HideCancelModal => {
-                self.state.show_cancel_modal = false;
-                self.state.current_contract_id = None;
+            Msg::CloseCancelModal => {
+                self.show_cancel_modal = false;
+                self.cancelling_id = None;
                 true
             }
-            Msg::CancelContract(id, reason) => {
-                self.state.loading = true;
-                let link = ctx.link().clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    match SalesContractService::cancel_contract(id, reason).await {
-                        Ok(_) => {
-                            link.send_message(Msg::HideCancelModal);
-                            link.send_message(Msg::LoadContracts);
+            Msg::SubmitCancel => {
+                if self.form_cancel_reason.is_empty() {
+                    toast_helper::show_error("取消原因不能为空");
+                    return true;
+                }
+                if let Some(id) = self.cancelling_id {
+                    let reason = self.form_cancel_reason.clone();
+                    let link = ctx.link().clone();
+                    spawn_local(async move {
+                        match SalesContractService::cancel_contract(id, reason).await {
+                            Ok(_) => {
+                                toast_helper::show_success("取消成功");
+                                link.send_message(Msg::CloseCancelModal);
+                                link.send_message(Msg::LoadData);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("取消失败: {}", e));
+                            }
                         }
-                        Err(e) => {
-                            link.send_message(Msg::SetError(Some(e)));
-                        }
-                    }
-                });
+                    });
+                }
                 false
             }
+            Msg::FormContractNoChanged(v) => { self.form_contract_no = v; true }
+            Msg::FormContractNameChanged(v) => { self.form_contract_name = v; true }
+            Msg::FormCustomerIdChanged(v) => { self.form_customer_id = v; true }
+            Msg::FormTotalAmountChanged(v) => { self.form_total_amount = v; true }
+            Msg::FormPaymentTermsChanged(v) => { self.form_payment_terms = v; true }
+            Msg::FormDeliveryDateChanged(v) => { self.form_delivery_date = v; true }
+            Msg::FormRemarkChanged(v) => { self.form_remark = v; true }
+            Msg::FormExecutionTypeChanged(v) => { self.form_execution_type = v; true }
+            Msg::FormExecutionAmountChanged(v) => { self.form_execution_amount = v; true }
+            Msg::FormRelatedBillTypeChanged(v) => { self.form_related_bill_type = v; true }
+            Msg::FormRelatedBillIdChanged(v) => { self.form_related_bill_id = v; true }
+            Msg::FormExecutionRemarkChanged(v) => { self.form_execution_remark = v; true }
+            Msg::FormCancelReasonChanged(v) => { self.form_cancel_reason = v; true }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
+
         html! {
             <div class="sales-contract-page">
-                <div class="page-header">
-                    <h1>{"销售合同管理"}</h1>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::ShowCreateModal)}>
-                        {"新建合同"}
-                    </button>
-                </div>
+                <PageHeader title={"销售合同管理".to_string()} subtitle={Some("管理所有销售合同信息".to_string())}>
+                    <PermissionGuard resource="sales_contract" action="create">
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::OpenCreateModal)}>
+                            {"+ 新建销售合同"}
+                        </button>
+                    </PermissionGuard>
+                </PageHeader>
 
-                // 搜索和筛选区域
-                <div class="search-bar">
-                    <input
-                        type="text"
-                        placeholder="搜索合同编号或名称..."
-                        value={self.state.keyword.clone()}
-                        oninput={ctx.link().batch_callback(|e: InputEvent| {
-                            let target = e.target()?;
-                            if let Ok(input) = target.dyn_into::<web_sys::HtmlInputElement>() {
-                                Some(Msg::SearchKeyword(input.value()))
-                            } else {
-                                Some(Msg::SearchKeyword(String::new()))
-                            }
-                        })}
+                <div class="page-toolbar">
+                    <SearchBar
+                        placeholder={"搜索合同编号或名称...".to_string()}
+                        on_search={link.callback(|keyword| Msg::Search(keyword))}
+                        on_reset={link.callback(|_| Msg::ResetSearch)}
                     />
-                    <select
-                        value={self.state.status_filter.clone().unwrap_or_default()}
-                        onchange={ctx.link().batch_callback(|e: Event| {
-                            let target = e.target()?;
-                            if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
-                                let value = select.value();
-                                Some(Msg::FilterStatus(if value.is_empty() { None } else { Some(value) }))
-                            } else {
-                                Some(Msg::FilterStatus(None))
-                            }
-                        })}
-                    >
-                        <option value="">{"全部状态"}</option>
-                        <option value="draft">{"草稿"}</option>
-                        <option value="approved">{"已审核"}</option>
-                        <option value="executing">{"执行中"}</option>
-                        <option value="completed">{"已完成"}</option>
-                        <option value="cancelled">{"已取消"}</option>
-                    </select>
-                    <button onclick={ctx.link().callback(|_| Msg::LoadContracts)}>{"刷新"}</button>
-                </div>
-
-                // 加载状态
-                if self.state.loading {
-                    <div class="loading">{"加载中..."}</div>
-                }
-
-                // 错误信息
-                if let Some(error) = &self.state.error {
-                    <div class="error-message">{error}</div>
-                }
-
-                // 合同列表
-                <div class="contract-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>{"合同编号"}</th>
-                                <th>{"合同名称"}</th>
-                                <th>{"客户"}</th>
-                                <th>{"总金额"}</th>
-                                <th>{"交货日期"}</th>
-                                <th>{"状态"}</th>
-                                <th>{"操作"}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {for self.state.contracts.iter().map(|contract| {
-                                let status = ContractStatus::from_str(&contract.status);
-                                let contract_id = contract.id;
-                                let contract_id2 = contract.id;
-                                let contract_id3 = contract.id;
-                                html! {
-                                    <tr>
-                                        <td>{&contract.contract_no}</td>
-                                        <td>{&contract.contract_name}</td>
-                                        <td>{contract.customer_name.as_deref().unwrap_or("-")}</td>
-                                        <td>{format!("{:.2}", contract.total_amount)}</td>
-                                        <td>{&contract.delivery_date}</td>
-                                        <td>{status.display_name()}</td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                if status == ContractStatus::Draft {
-                                                    <button onclick={ctx.link().callback(move |_| Msg::ApproveContract(contract_id))}>
-                                                        {"审核"}
-                                                    </button>
-                                                }
-                                                if status == ContractStatus::Approved || status == ContractStatus::Executing {
-                                                    <button onclick={ctx.link().callback(move |_| Msg::ShowExecuteModal(contract_id2))}>
-                                                        {"执行"}
-                                                    </button>
-                                                }
-                                                if status == ContractStatus::Draft || status == ContractStatus::Approved {
-                                                    <button onclick={ctx.link().callback(move |_| Msg::ShowCancelModal(contract_id3))}>
-                                                        {"取消"}
-                                                    </button>
-                                                }
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
+                    <div class="filter-group">
+                        <label>{"状态："}</label>
+                        <select
+                            class="form-control"
+                            value={self.filter_status.clone()}
+                            onchange={link.batch_callback(|e: Event| {
+                                let target = e.target()?;
+                                let select = target.unchecked_into::<web_sys::HtmlSelectElement>();
+                                Some(Msg::SetFilterStatus(select.value()))
                             })}
-                        </tbody>
-                    </table>
+                        >
+                            <option value="全部">{"全部"}</option>
+                            <option value="draft">{"草稿"}</option>
+                            <option value="approved">{"已审核"}</option>
+                            <option value="executing">{"执行中"}</option>
+                            <option value="completed">{"已完成"}</option>
+                            <option value="cancelled">{"已取消"}</option>
+                        </select>
+                    </div>
                 </div>
 
-                // 分页
-                <div class="pagination">
-                    <span>{format!("共 {} 条记录", self.state.total)}</span>
-                    <button
-                        disabled={self.state.page <= 1}
-                        onclick={ctx.link().callback(|_| Msg::ChangePage(0))}
-                    >
-                        {"上一页"}
-                    </button>
-                    <span>{format!("第 {} 页", self.state.page)}</span>
-                    <button
-                        disabled={self.state.page * self.state.page_size >= self.state.total}
-                        onclick={ctx.link().callback(|_| Msg::ChangePage(2))}
-                    >
-                        {"下一页"}
-                    </button>
-                    <select
-                        value={self.state.page_size.to_string()}
-                        onchange={ctx.link().batch_callback(|e: Event| {
-                            let target = e.target()?;
-                            if let Ok(select) = target.dyn_into::<web_sys::HtmlSelectElement>() {
-                                if let Ok(size) = select.value().parse::<i64>() {
-                                    Some(Msg::ChangePageSize(size))
-                                } else {
-                                    Some(Msg::ChangePageSize(10))
-                                }
-                            } else {
-                                Some(Msg::ChangePageSize(10))
-                            }
-                        })}
-                    >
-                        <option value="10">{"10条/页"}</option>
-                        <option value="20">{"20条/页"}</option>
-                        <option value="50">{"50条/页"}</option>
-                    </select>
-                </div>
-
-                // 创建合同弹窗
-                if self.state.show_create_modal {
-                    <CreateContractModal
-                        on_close={ctx.link().callback(|_| Msg::HideCreateModal)}
-                        on_submit={ctx.link().callback(|req| Msg::CreateContract(req))}
+                if self.loading {
+                    <LoadingState message={"正在加载销售合同数据...".to_string()} />
+                } else if let Some(err) = &self.error {
+                    <div class="error-container">
+                        <div class="error-icon">{"⚠️"}</div>
+                        <p class="error-message">{err}</p>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::LoadData)}>
+                            {"重新加载"}
+                        </button>
+                    </div>
+                } else if self.filtered_contracts.is_empty() {
+                    <EmptyState
+                        icon={"📄".to_string()}
+                        title={"暂无销售合同数据".to_string()}
+                        description={if self.search_keyword.is_empty() {
+                            "点击上方按钮创建第一个销售合同".to_string()
+                        } else {
+                            "没有匹配搜索条件的合同".to_string()
+                        }}
                     />
+                } else {
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>{"ID"}</th>
+                                    <th>{"合同编号"}</th>
+                                    <th>{"合同名称"}</th>
+                                    <th>{"客户"}</th>
+                                    <th class="numeric">{"总金额"}</th>
+                                    <th>{"交货日期"}</th>
+                                    <th>{"状态"}</th>
+                                    <th class="text-center">{"操作"}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {for self.paginated_contracts().iter().map(|contract| {
+                                    let status = ContractStatus::from_str(&contract.status);
+                                    let contract_clone = contract.clone();
+                                    let id = contract.id;
+                                    let id2 = contract.id;
+                                    let id3 = contract.id;
+                                    let id4 = contract.id;
+                                    html! {
+                                        <tr>
+                                            <td>{contract.id}</td>
+                                            <td>{&contract.contract_no}</td>
+                                            <td>{&contract.contract_name}</td>
+                                            <td>{contract.customer_name.as_deref().unwrap_or("-")}</td>
+                                            <td class="numeric">{&contract.total_amount}</td>
+                                            <td>{&contract.delivery_date}</td>
+                                            <td>{status.display_name()}</td>
+                                            <td class="text-center">
+                                                <div class="action-buttons">
+                                                    if permissions::has_permission("sales_contract", "update") {
+                                                        <button
+                                                            class="btn btn-sm btn-secondary"
+                                                            onclick={link.callback(move |_| Msg::OpenEditModal(contract_clone.clone()))}
+                                                        >
+                                                            {"编辑"}
+                                                        </button>
+                                                    }
+                                                    if status == ContractStatus::Draft {
+                                                        <button
+                                                            class="btn btn-sm btn-primary"
+                                                            onclick={link.callback(move |_| Msg::ApproveContract(id))}
+                                                        >
+                                                            {"审核"}
+                                                        </button>
+                                                    }
+                                                    if status == ContractStatus::Approved || status == ContractStatus::Executing {
+                                                        <button
+                                                            class="btn btn-sm btn-primary"
+                                                            onclick={link.callback(move |_| Msg::ShowExecuteModal(id2))}
+                                                        >
+                                                            {"执行"}
+                                                        </button>
+                                                    }
+                                                    if status == ContractStatus::Draft || status == ContractStatus::Approved {
+                                                        <button
+                                                            class="btn btn-sm btn-warning"
+                                                            onclick={link.callback(move |_| Msg::ShowCancelModal(id3))}
+                                                        >
+                                                            {"取消"}
+                                                        </button>
+                                                    }
+                                                    <PermissionGuard resource="sales_contract" action="delete">
+                                                        <button
+                                                            class="btn btn-sm btn-danger"
+                                                            onclick={link.callback(move |_| Msg::DeleteContract(id4))}
+                                                        >
+                                                            {"删除"}
+                                                        </button>
+                                                    </PermissionGuard>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                })}
+                            </tbody>
+                        </table>
+
+                        <Pagination
+                            current_page={self.page}
+                            page_size={self.page_size}
+                            total={self.filtered_contracts.len() as u64}
+                            on_page_change={link.callback(|page| Msg::PageChanged(page))}
+                        />
+                    </div>
                 }
 
-                // 执行合同弹窗
-                if self.state.show_execute_modal {
-                    <ExecuteContractModal
-                        contract_id={self.state.current_contract_id.unwrap_or(0)}
-                        on_close={ctx.link().callback(|_| Msg::HideExecuteModal)}
-                        on_submit={ctx.link().callback(|(id, req)| Msg::ExecuteContract(id, req))}
-                    />
+                // 新建/编辑弹窗
+                if self.show_modal {
+                    {self.render_form_modal(ctx)}
                 }
 
-                // 取消合同弹窗
-                if self.state.show_cancel_modal {
-                    <CancelContractModal
-                        contract_id={self.state.current_contract_id.unwrap_or(0)}
-                        on_close={ctx.link().callback(|_| Msg::HideCancelModal)}
-                        on_submit={ctx.link().callback(|(id, reason)| Msg::CancelContract(id, reason))}
-                    />
+                // 执行弹窗
+                if self.show_execute_modal {
+                    {self.render_execute_modal(ctx)}
                 }
+
+                // 取消弹窗
+                if self.show_cancel_modal {
+                    {self.render_cancel_modal(ctx)}
+                }
+
+                // 删除确认对话框
+                <ConfirmDialog
+                    title={"确认删除".to_string()}
+                    message={"确定要删除这个销售合同吗？此操作不可撤销。".to_string()}
+                    confirm_text={"删除".to_string()}
+                    cancel_text={"取消".to_string()}
+                    confirm_class={"btn-danger".to_string()}
+                    on_confirm={link.callback(|_| Msg::ConfirmDelete)}
+                    on_cancel={link.callback(|_| Msg::CancelDelete)}
+                    visible={self.show_delete_confirm}
+                />
             </div>
         }
     }
 }
 
-// ============ 子组件 ============
+impl SalesContractPage {
+    fn apply_filter(&mut self) {
+        let mut result = self.contracts.clone();
 
-/// 创建合同弹窗组件
-#[derive(Properties, PartialEq)]
-pub struct CreateContractModalProps {
-    pub on_close: Callback<()>,
-    pub on_submit: Callback<CreateSalesContractRequest>,
-}
+        if self.filter_status != "全部" {
+            result = result.into_iter()
+                .filter(|c| c.status == self.filter_status)
+                .collect();
+        }
 
-#[derive(Clone, PartialEq)]
-pub struct CreateContractModalState {
-    contract_no: String,
-    contract_name: String,
-    customer_id: i32,
-    total_amount: String,
-    payment_terms: String,
-    delivery_date: String,
-    remark: String,
-}
-
-#[derive(Clone, PartialEq)]
-pub struct CreateContractModal {
-    state: CreateContractModalState,
-}
-
-pub enum CreateContractMsg {
-    UpdateContractNo(String),
-    UpdateContractName(String),
-    UpdateCustomerId(String),
-    UpdateTotalAmount(String),
-    UpdatePaymentTerms(String),
-    UpdateDeliveryDate(String),
-    UpdateRemark(String),
-    Submit,
-}
-
-impl Component for CreateContractModal {
-    type Message = CreateContractMsg;
-    type Properties = CreateContractModalProps;
-
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self {
-            state: CreateContractModalState {
-                contract_no: String::new(),
-                contract_name: String::new(),
-                customer_id: 0,
-                total_amount: String::new(),
-                payment_terms: String::new(),
-                delivery_date: String::new(),
-                remark: String::new(),
-            },
+        if self.search_keyword.is_empty() {
+            self.filtered_contracts = result;
+        } else {
+            let keyword = self.search_keyword.to_lowercase();
+            self.filtered_contracts = result.iter()
+                .filter(|c| {
+                    c.contract_no.to_lowercase().contains(&keyword) ||
+                    c.contract_name.to_lowercase().contains(&keyword) ||
+                    c.customer_name.as_ref().map(|n| n.to_lowercase().contains(&keyword)).unwrap_or(false)
+                })
+                .cloned()
+                .collect();
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            CreateContractMsg::UpdateContractNo(val) => {
-                self.state.contract_no = val;
-                true
-            }
-            CreateContractMsg::UpdateContractName(val) => {
-                self.state.contract_name = val;
-                true
-            }
-            CreateContractMsg::UpdateCustomerId(val) => {
-                if let Ok(id) = val.parse::<i32>() {
-                    self.state.customer_id = id;
-                }
-                true
-            }
-            CreateContractMsg::UpdateTotalAmount(val) => {
-                self.state.total_amount = val;
-                true
-            }
-            CreateContractMsg::UpdatePaymentTerms(val) => {
-                self.state.payment_terms = val;
-                true
-            }
-            CreateContractMsg::UpdateDeliveryDate(val) => {
-                self.state.delivery_date = val;
-                true
-            }
-            CreateContractMsg::UpdateRemark(val) => {
-                self.state.remark = val;
-                true
-            }
-            CreateContractMsg::Submit => {
-                let req = CreateSalesContractRequest {
-                    contract_no: self.state.contract_no.clone(),
-                    contract_name: self.state.contract_name.clone(),
-                    customer_id: self.state.customer_id,
-                    total_amount: self.state.total_amount.clone(),
-                    payment_terms: Some(self.state.payment_terms.clone()),
-                    delivery_date: self.state.delivery_date.clone(),
-                    remark: if self.state.remark.is_empty() { None } else { Some(self.state.remark.clone()) },
-                };
-                ctx.props().on_submit.emit(req);
-                false
-            }
-        }
+    fn paginated_contracts(&self) -> Vec<SalesContract> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        self.filtered_contracts[start..end.min(self.filtered_contracts.len())].to_vec()
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let props = ctx.props();
-        
-        let on_input = |msg: fn(String) -> CreateContractMsg| {
-            ctx.link().batch_callback(move |e: InputEvent| {
-                let target = e.target()?;
-                let input = target.unchecked_into::<web_sys::HtmlInputElement>();
-                Some(msg(input.value()))
-            })
-        };
+    fn reset_form(&mut self) {
+        self.form_contract_no = String::new();
+        self.form_contract_name = String::new();
+        self.form_customer_id = String::new();
+        self.form_total_amount = String::new();
+        self.form_payment_terms = String::new();
+        self.form_delivery_date = String::new();
+        self.form_remark = String::new();
+        self.form_error = None;
+    }
+
+    fn render_form_modal(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
+        let is_edit = self.modal_mode == ModalMode::Edit;
+        let title = if is_edit { "编辑销售合同" } else { "新建销售合同" };
+
+        let on_contract_no_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormContractNoChanged(input.value()))
+        });
+        let on_contract_name_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormContractNameChanged(input.value()))
+        });
+        let on_customer_id_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormCustomerIdChanged(input.value()))
+        });
+        let on_total_amount_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormTotalAmountChanged(input.value()))
+        });
+        let on_payment_terms_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormPaymentTermsChanged(input.value()))
+        });
+        let on_delivery_date_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormDeliveryDateChanged(input.value()))
+        });
+        let on_remark_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormRemarkChanged(input.value()))
+        });
 
         html! {
-            <div class="modal-overlay">
-                <div class="modal">
+            <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                     <div class="modal-header">
-                        <h2>{"新建销售合同"}</h2>
-                        <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
+                        <h3>{title}</h3>
+                        <button class="close-btn" onclick={link.callback(|_| Msg::CloseModal)}>{"×"}</button>
                     </div>
                     <div class="modal-body">
+                        if let Some(err) = &self.form_error {
+                            <div class="form-error">{err}</div>
+                        }
                         <div class="form-group">
-                            <label>{"合同编号"}</label>
-                            <input type="text" value={self.state.contract_no.clone()} oninput={on_input(CreateContractMsg::UpdateContractNo)} />
+                            <label>{"合同编号 *"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_contract_no.clone()}
+                                oninput={on_contract_no_change}
+                                placeholder="请输入合同编号"
+                            />
                         </div>
                         <div class="form-group">
-                            <label>{"合同名称"}</label>
-                            <input type="text" value={self.state.contract_name.clone()} oninput={on_input(CreateContractMsg::UpdateContractName)} />
+                            <label>{"合同名称 *"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_contract_name.clone()}
+                                oninput={on_contract_name_change}
+                                placeholder="请输入合同名称"
+                            />
                         </div>
                         <div class="form-group">
-                            <label>{"客户ID"}</label>
-                            <input type="number" value={self.state.customer_id.to_string()} oninput={on_input(CreateContractMsg::UpdateCustomerId)} />
+                            <label>{"客户ID *"}</label>
+                            <input
+                                type="number"
+                                class="form-input"
+                                value={self.form_customer_id.clone()}
+                                oninput={on_customer_id_change}
+                                placeholder="请输入客户ID"
+                            />
                         </div>
                         <div class="form-group">
-                            <label>{"总金额"}</label>
-                            <input type="number" step="0.01" value={self.state.total_amount.clone()} oninput={on_input(CreateContractMsg::UpdateTotalAmount)} />
+                            <label>{"总金额 *"}</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                class="form-input"
+                                value={self.form_total_amount.clone()}
+                                oninput={on_total_amount_change}
+                                placeholder="请输入总金额"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>{"交货日期 *"}</label>
+                            <input
+                                type="date"
+                                class="form-input"
+                                value={self.form_delivery_date.clone()}
+                                oninput={on_delivery_date_change}
+                            />
                         </div>
                         <div class="form-group">
                             <label>{"付款条款"}</label>
-                            <input type="text" value={self.state.payment_terms.clone()} oninput={on_input(CreateContractMsg::UpdatePaymentTerms)} />
-                        </div>
-                        <div class="form-group">
-                            <label>{"交货日期"}</label>
-                            <input type="date" value={self.state.delivery_date.clone()} oninput={on_input(CreateContractMsg::UpdateDeliveryDate)} />
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_payment_terms.clone()}
+                                oninput={on_payment_terms_change}
+                                placeholder="如：月结30天"
+                            />
                         </div>
                         <div class="form-group">
                             <label>{"备注"}</label>
-                            <input type="text" value={self.state.remark.clone()} oninput={on_input(CreateContractMsg::UpdateRemark)} />
+                            <textarea
+                                class="form-input"
+                                value={self.form_remark.clone()}
+                                oninput={on_remark_change}
+                                placeholder="请输入备注信息"
+                                rows="3"
+                            />
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
-                        <button class="btn-primary" onclick={ctx.link().callback(|_| CreateContractMsg::Submit)}>{"提交"}</button>
+                        <button class="btn btn-secondary" onclick={link.callback(|_| Msg::CloseModal)}>
+                            {"取消"}
+                        </button>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitForm)}>
+                            {if is_edit { "保存修改" } else { "创建合同" }}
+                        </button>
                     </div>
                 </div>
             </div>
         }
     }
-}
 
-/// 执行合同弹窗组件
-#[derive(Properties, PartialEq)]
-pub struct ExecuteContractModalProps {
-    pub contract_id: i32,
-    pub on_close: Callback<()>,
-    pub on_submit: Callback<(i32, ExecuteSalesContractRequest)>,
-}
+    fn render_execute_modal(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
 
-
-
-
-pub struct ExecuteContractModal {
-    execution_type: String,
-    execution_amount: String,
-    related_bill_type: String,
-    related_bill_id: String,
-    remark: String,
-}
-
-pub enum ExecuteMsg {
-    UpdateExecutionType(String),
-    UpdateExecutionAmount(String),
-    UpdateRelatedBillType(String),
-    UpdateRelatedBillId(String),
-    UpdateRemark(String),
-    Submit,
-}
-
-impl Component for ExecuteContractModal {
-    type Message = ExecuteMsg;
-    type Properties = ExecuteContractModalProps;
-
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self {
-            execution_type: "发货".to_string(),
-            execution_amount: "0".to_string(),
-            related_bill_type: String::new(),
-            related_bill_id: String::new(),
-            remark: String::new(),
-        }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            ExecuteMsg::UpdateExecutionType(val) => self.execution_type = val,
-            ExecuteMsg::UpdateExecutionAmount(val) => self.execution_amount = val,
-            ExecuteMsg::UpdateRelatedBillType(val) => self.related_bill_type = val,
-            ExecuteMsg::UpdateRelatedBillId(val) => self.related_bill_id = val,
-            ExecuteMsg::UpdateRemark(val) => self.remark = val,
-            ExecuteMsg::Submit => {
-                use std::str::FromStr;
-                let req = ExecuteSalesContractRequest {
-                    execution_type: self.execution_type.clone(),
-                    execution_amount: self.execution_amount.clone(),
-                    related_bill_type: if self.related_bill_type.is_empty() { None } else { Some(self.related_bill_type.clone()) },
-                    related_bill_id: i32::from_str(&self.related_bill_id).ok(),
-                    remark: if self.remark.is_empty() { None } else { Some(self.remark.clone()) },
-                };
-                ctx.props().on_submit.emit((ctx.props().contract_id, req));
-            }
-        }
-        true
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let props = ctx.props();
-        
-        let on_input = |f: fn(String) -> ExecuteMsg| {
-            ctx.link().callback(move |e: InputEvent| {
-                use wasm_bindgen::JsCast;
-                let input = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                f(input.value())
-            })
-        };
-
-        let on_select = |f: fn(String) -> ExecuteMsg| {
-            ctx.link().callback(move |e: Event| {
-                use wasm_bindgen::JsCast;
-                let select = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
-                f(select.value())
-            })
-        };
+        let on_execution_type_change = link.batch_callback(|e: Event| {
+            let target = e.target()?;
+            let select = target.unchecked_into::<web_sys::HtmlSelectElement>();
+            Some(Msg::FormExecutionTypeChanged(select.value()))
+        });
+        let on_execution_amount_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormExecutionAmountChanged(input.value()))
+        });
+        let on_related_bill_type_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormRelatedBillTypeChanged(input.value()))
+        });
+        let on_related_bill_id_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormRelatedBillIdChanged(input.value()))
+        });
+        let on_execution_remark_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormExecutionRemarkChanged(input.value()))
+        });
 
         html! {
-            <div class="modal-overlay">
-                <div class="modal">
+            <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseExecuteModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                     <div class="modal-header">
-                        <h2>{format!("执行合同 #{}", props.contract_id)}</h2>
-                        <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
+                        <h3>{"执行合同"}</h3>
+                        <button class="close-btn" onclick={link.callback(|_| Msg::CloseExecuteModal)}>{"×"}</button>
                     </div>
-                    <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
-                        <div>
-                            <label>{"执行类型: "}</label>
-                            <select onchange={on_select(ExecuteMsg::UpdateExecutionType)} value={self.execution_type.clone()}>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>{"执行类型"}</label>
+                            <select
+                                class="form-input"
+                                value={self.form_execution_type.clone()}
+                                onchange={on_execution_type_change}
+                            >
                                 <option value="发货">{"发货/收货"}</option>
                                 <option value="付款">{"付款/收款"}</option>
                             </select>
                         </div>
-                        <div>
-                            <label>{"执行金额: "}</label>
-                            <input type="number" step="0.01" value={self.execution_amount.clone()} oninput={on_input(ExecuteMsg::UpdateExecutionAmount)} />
+                        <div class="form-group">
+                            <label>{"执行金额 *"}</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                class="form-input"
+                                value={self.form_execution_amount.clone()}
+                                oninput={on_execution_amount_change}
+                                placeholder="请输入执行金额"
+                            />
                         </div>
-                        <div>
-                            <label>{"关联单据类型: "}</label>
-                            <input type="text" value={self.related_bill_type.clone()} oninput={on_input(ExecuteMsg::UpdateRelatedBillType)} placeholder="可选" />
+                        <div class="form-group">
+                            <label>{"关联单据类型"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_related_bill_type.clone()}
+                                oninput={on_related_bill_type_change}
+                                placeholder="可选"
+                            />
                         </div>
-                        <div>
-                            <label>{"关联单据ID: "}</label>
-                            <input type="number" value={self.related_bill_id.clone()} oninput={on_input(ExecuteMsg::UpdateRelatedBillId)} placeholder="可选" />
+                        <div class="form-group">
+                            <label>{"关联单据ID"}</label>
+                            <input
+                                type="number"
+                                class="form-input"
+                                value={self.form_related_bill_id.clone()}
+                                oninput={on_related_bill_id_change}
+                                placeholder="可选"
+                            />
                         </div>
-                        <div>
-                            <label>{"备注: "}</label>
-                            <input type="text" value={self.remark.clone()} oninput={on_input(ExecuteMsg::UpdateRemark)} placeholder="可选" />
+                        <div class="form-group">
+                            <label>{"备注"}</label>
+                            <textarea
+                                class="form-input"
+                                value={self.form_execution_remark.clone()}
+                                oninput={on_execution_remark_change}
+                                placeholder="请输入备注"
+                                rows="3"
+                            />
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button onclick={props.on_close.reform(|_| ())}>{"取消"}</button>
-                        <button class="primary" onclick={ctx.link().callback(|_| ExecuteMsg::Submit)}>{"确认执行"}</button>
+                        <button class="btn btn-secondary" onclick={link.callback(|_| Msg::CloseExecuteModal)}>
+                            {"取消"}
+                        </button>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitExecute)}>
+                            {"确认执行"}
+                        </button>
                     </div>
                 </div>
             </div>
         }
     }
-}
 
-/// 取消合同弹窗组件
-#[derive(Properties, PartialEq)]
-pub struct CancelContractModalProps {
-    pub contract_id: i32,
-    pub on_close: Callback<()>,
-    pub on_submit: Callback<(i32, String)>,
-}
+    fn render_cancel_modal(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
 
+        let on_cancel_reason_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormCancelReasonChanged(input.value()))
+        });
 
-
-
-pub struct CancelContractModalState {
-    reason: String,
-}
-
-pub enum CancelMsg {
-    UpdateReason(String),
-    Submit,
-}
-
-pub struct CancelContractModal { pub reason: String }
-
-impl Component for CancelContractModal {
-    type Message = CancelMsg;
-    type Properties = CancelContractModalProps;
-
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self { reason: String::new() }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            CancelMsg::UpdateReason(val) => self.reason = val,
-            CancelMsg::Submit => {
-                ctx.props().on_submit.emit((ctx.props().contract_id, self.reason.clone()));
-            }
-        }
-        true
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let props = ctx.props();
         html! {
-            <div class="modal-overlay">
-                <div class="modal">
+            <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseCancelModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                     <div class="modal-header">
-                        <h2>{format!("取消合同 #{}", props.contract_id)}</h2>
-                        <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
+                        <h3>{"取消合同"}</h3>
+                        <button class="close-btn" onclick={link.callback(|_| Msg::CloseCancelModal)}>{"×"}</button>
                     </div>
-                    <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
-                        <div>
-                            <label>{"取消原因: "}</label>
-                            <textarea 
-                                value={self.reason.clone()} 
-                                oninput={ctx.link().callback(|e: InputEvent| {
-                                    use wasm_bindgen::JsCast;
-                                    CancelMsg::UpdateReason(e.target_unchecked_into::<web_sys::HtmlTextAreaElement>().value())
-                                })} 
-                                rows="3" 
-                                style="width: 100%;"
-                            ></textarea>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>{"取消原因 *"}</label>
+                            <textarea
+                                class="form-input"
+                                value={self.form_cancel_reason.clone()}
+                                oninput={on_cancel_reason_change}
+                                placeholder="请输入取消原因"
+                                rows="3"
+                            />
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button onclick={props.on_close.reform(|_| ())}>{"关闭"}</button>
-                        <button class="danger" onclick={ctx.link().callback(|_| CancelMsg::Submit)}>{"确认取消"}</button>
+                        <button class="btn btn-secondary" onclick={link.callback(|_| Msg::CloseCancelModal)}>
+                            {"关闭"}
+                        </button>
+                        <button class="btn btn-danger" onclick={link.callback(|_| Msg::SubmitCancel)}>
+                            {"确认取消"}
+                        </button>
                     </div>
                 </div>
             </div>

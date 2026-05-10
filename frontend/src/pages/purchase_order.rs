@@ -1,52 +1,94 @@
-use crate::utils::toast_helper;
 // 采购订单管理页面
 
+use crate::utils::permissions;
+use crate::utils::toast_helper;
 use yew::prelude::*;
 use crate::components::permission_guard::PermissionGuard;
+use crate::components::{
+    confirm_dialog::ConfirmDialog,
+    search_bar::SearchBar,
+    pagination::Pagination,
+    page_header::PageHeader,
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery};
+use web_sys::HtmlInputElement;
+use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderQuery, CreatePurchaseOrderRequest};
 use crate::services::purchase_order_service::PurchaseOrderService;
 use crate::services::crud_service::CrudService;
-use crate::utils::permissions;
-use crate::components::print_header::PrintHeader;
 
 pub struct PurchaseOrderPage {
-    printing_order: Option<crate::models::purchase_order::PurchaseOrder>,
-    print_trigger: bool,
     orders: Vec<PurchaseOrder>,
+    filtered_orders: Vec<PurchaseOrder>,
     loading: bool,
     error: Option<String>,
-    filter_status: String,
+    search_keyword: String,
     page: u64,
     page_size: u64,
-
-    viewing_item: Option<PurchaseOrder>,}
+    show_modal: bool,
+    modal_mode: ModalMode,
+    editing_order: Option<PurchaseOrder>,
+    show_delete_confirm: bool,
+    deleting_id: Option<i32>,
+    viewing_item: Option<PurchaseOrder>,
+    printing_order: Option<PurchaseOrder>,
+    print_trigger: bool,
+    // 表单字段
+    form_supplier_id: String,
+    form_order_date: String,
+    form_expected_delivery_date: String,
+    form_warehouse_id: String,
+    form_department_id: String,
+    form_currency: String,
+    form_payment_terms: String,
+    form_shipping_terms: String,
+    form_notes: String,
+    form_error: Option<String>,
+}
 
 #[derive(Clone, PartialEq)]
 pub enum ModalMode {
-    View,
     Create,
     Edit,
 }
 
 pub enum Msg {
-    LoadOrders,
-    OrdersLoaded(Vec<PurchaseOrder>),
+    LoadData,
+    DataLoaded(Vec<PurchaseOrder>),
     LoadError(String),
-    SetFilterStatus(String),
-    ViewOrder(i32),
+    Search(String),
+    ResetSearch,
+    PageChanged(u64),
+    OpenCreateModal,
+    OpenEditModal(PurchaseOrder),
+    CloseModal,
+    SubmitForm,
+    FormSubmitted,
     DeleteOrder(i32),
-    SubmitOrder(i32),
-    PrintOrder(crate::models::purchase_order::PurchaseOrder),
+    ConfirmDelete,
+    CancelDelete,
+    Deleted,
+    ViewOrder(i32),
+    CloseDetailModal,
+    PrintOrder(PurchaseOrder),
     ClearPrint,
-    ExportPdf(crate::models::purchase_order::PurchaseOrder),
+    SubmitOrder(i32),
     ApproveOrder(i32),
     RejectOrder(i32),
     CloseOrder(i32),
-    ChangePage(u64),
-
-    CloseDetailModal,}
+    // 表单字段变更
+    FormSupplierIdChanged(String),
+    FormOrderDateChanged(String),
+    FormExpectedDeliveryDateChanged(String),
+    FormWarehouseIdChanged(String),
+    FormDepartmentIdChanged(String),
+    FormCurrencyChanged(String),
+    FormPaymentTermsChanged(String),
+    FormShippingTermsChanged(String),
+    FormNotesChanged(String),
+}
 
 impl Component for PurchaseOrderPage {
     type Message = Msg;
@@ -54,21 +96,37 @@ impl Component for PurchaseOrderPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            viewing_item: None,
             orders: Vec::new(),
+            filtered_orders: Vec::new(),
             loading: true,
+            error: None,
+            search_keyword: String::new(),
+            page: 0,
+            page_size: 10,
+            show_modal: false,
+            modal_mode: ModalMode::Create,
+            editing_order: None,
+            show_delete_confirm: false,
+            deleting_id: None,
+            viewing_item: None,
             printing_order: None,
             print_trigger: false,
-            error: None,
-            filter_status: String::from("全部"),
-            page: 1,
-            page_size: 20,
+            form_supplier_id: String::new(),
+            form_order_date: String::new(),
+            form_expected_delivery_date: String::new(),
+            form_warehouse_id: String::new(),
+            form_department_id: String::new(),
+            form_currency: "CNY".to_string(),
+            form_payment_terms: String::new(),
+            form_shipping_terms: String::new(),
+            form_notes: String::new(),
+            form_error: None,
         }
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
-            ctx.link().send_message(Msg::LoadOrders);
+            ctx.link().send_message(Msg::LoadData);
         }
         if self.print_trigger {
             self.print_trigger = false;
@@ -80,65 +138,212 @@ impl Component for PurchaseOrderPage {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::CloseDetailModal => {
-                self.viewing_item = None;
-                true
-            }
-            Msg::LoadOrders => {
+            Msg::LoadData => {
                 self.loading = true;
-                let query = PurchaseOrderQuery {
-                    page: Some(self.page),
-                    page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    supplier_id: None,
-                };
+                self.error = None;
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match PurchaseOrderService::list_with_query(&query).await {
-                        Ok(orders) => link.send_message(Msg::OrdersLoaded(orders)),
+                    let query = PurchaseOrderQuery {
+                        page: Some(1),
+                        page_size: Some(1000),
+                        status: None,
+                        supplier_id: None,
+                    };
+                    match PurchaseOrderService::list(query).await {
+                        Ok(res) => link.send_message(Msg::DataLoaded(res)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
                 false
             }
-            Msg::OrdersLoaded(orders) => {
-                self.orders = orders;
+            Msg::DataLoaded(data) => {
+                self.loading = false;
+                self.orders = data;
+                self.apply_filter();
+                true
+            }
+            Msg::LoadError(err) => {
+                self.error = Some(err);
                 self.loading = false;
                 true
             }
-            Msg::LoadError(e) => {
-                self.error = Some(e);
-                self.loading = false;
+            Msg::Search(keyword) => {
+                self.search_keyword = keyword;
+                self.page = 0;
+                self.apply_filter();
                 true
             }
-            Msg::SetFilterStatus(status) => {
-                self.filter_status = status;
-                ctx.link().send_message(Msg::LoadOrders);
+            Msg::ResetSearch => {
+                self.search_keyword = String::new();
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::PageChanged(page) => {
+                self.page = page;
+                true
+            }
+            Msg::OpenCreateModal => {
+                self.reset_form();
+                self.editing_order = None;
+                self.modal_mode = ModalMode::Create;
+                self.show_modal = true;
+                true
+            }
+            Msg::OpenEditModal(order) => {
+                self.form_supplier_id = order.supplier_id.to_string();
+                self.form_order_date = order.order_date.clone();
+                self.form_expected_delivery_date = order.expected_delivery_date.clone().unwrap_or_default();
+                self.form_warehouse_id = order.warehouse_id.to_string();
+                self.form_department_id = order.department_id.to_string();
+                self.form_currency = order.currency.clone().unwrap_or_else(|| "CNY".to_string());
+                self.form_payment_terms = order.payment_terms.clone().unwrap_or_default();
+                self.form_shipping_terms = order.shipping_terms.clone().unwrap_or_default();
+                self.form_notes = order.notes.clone().unwrap_or_default();
+                self.form_error = None;
+                self.editing_order = Some(order);
+                self.modal_mode = ModalMode::Edit;
+                self.show_modal = true;
+                true
+            }
+            Msg::CloseModal => {
+                self.show_modal = false;
+                self.editing_order = None;
+                self.form_error = None;
+                true
+            }
+            Msg::SubmitForm => {
+                if self.form_supplier_id.is_empty() {
+                    self.form_error = Some("供应商不能为空".to_string());
+                    return true;
+                }
+                if self.form_order_date.is_empty() {
+                    self.form_error = Some("订单日期不能为空".to_string());
+                    return true;
+                }
+                if self.form_warehouse_id.is_empty() {
+                    self.form_error = Some("仓库不能为空".to_string());
+                    return true;
+                }
+
+                self.form_error = None;
+
+                let supplier_id = self.form_supplier_id.parse::<i32>().unwrap_or(0);
+                let warehouse_id = self.form_warehouse_id.parse::<i32>().unwrap_or(0);
+                let department_id = if self.form_department_id.is_empty() { None } else { Some(self.form_department_id.parse::<i32>().unwrap_or(0)) };
+
+                let req = CreatePurchaseOrderRequest {
+                    supplier_id,
+                    order_date: self.form_order_date.clone(),
+                    expected_delivery_date: if self.form_expected_delivery_date.is_empty() { None } else { Some(self.form_expected_delivery_date.clone()) },
+                    warehouse_id,
+                    department_id: department_id.unwrap_or(0),
+                    currency: if self.form_currency.is_empty() { None } else { Some(self.form_currency.clone()) },
+                    exchange_rate: None,
+                    payment_terms: if self.form_payment_terms.is_empty() { None } else { Some(self.form_payment_terms.clone()) },
+                    shipping_terms: if self.form_shipping_terms.is_empty() { None } else { Some(self.form_shipping_terms.clone()) },
+                    notes: if self.form_notes.is_empty() { None } else { Some(self.form_notes.clone()) },
+                    attachment_urls: None,
+                    items: vec![],
+                };
+
+                let link = ctx.link().clone();
+
+                if self.modal_mode == ModalMode::Edit {
+                    if let Some(order) = &self.editing_order {
+                        let id = order.id;
+                        let update_req = crate::models::purchase_order::UpdatePurchaseOrderRequest {
+                            supplier_id: Some(supplier_id),
+                            order_date: Some(self.form_order_date.clone()),
+                            expected_delivery_date: if self.form_expected_delivery_date.is_empty() { None } else { Some(self.form_expected_delivery_date.clone()) },
+                            warehouse_id: Some(warehouse_id),
+                            department_id,
+                            currency: if self.form_currency.is_empty() { None } else { Some(self.form_currency.clone()) },
+                            exchange_rate: None,
+                            payment_terms: if self.form_payment_terms.is_empty() { None } else { Some(self.form_payment_terms.clone()) },
+                            shipping_terms: if self.form_shipping_terms.is_empty() { None } else { Some(self.form_shipping_terms.clone()) },
+                            notes: if self.form_notes.is_empty() { None } else { Some(self.form_notes.clone()) },
+                            attachment_urls: None,
+                        };
+                        spawn_local(async move {
+                            match PurchaseOrderService::update(id, update_req).await {
+                                Ok(_) => {
+                                    toast_helper::show_success("更新成功");
+                                    link.send_message(Msg::FormSubmitted);
+                                }
+                                Err(e) => {
+                                    toast_helper::show_error(&format!("更新失败: {}", e));
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    spawn_local(async move {
+                        match PurchaseOrderService::create(req).await {
+                            Ok(_) => {
+                                toast_helper::show_success("创建成功");
+                                link.send_message(Msg::FormSubmitted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("创建失败: {}", e));
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::FormSubmitted => {
+                self.show_modal = false;
+                self.editing_order = None;
+                self.reset_form();
+                ctx.link().send_message(Msg::LoadData);
+                false
+            }
+            Msg::DeleteOrder(id) => {
+                self.deleting_id = Some(id);
+                self.show_delete_confirm = true;
+                true
+            }
+            Msg::ConfirmDelete => {
+                if let Some(id) = self.deleting_id {
+                    let link = ctx.link().clone();
+                    spawn_local(async move {
+                        match PurchaseOrderService::delete(id).await {
+                            Ok(_) => {
+                                toast_helper::show_success("删除成功");
+                                link.send_message(Msg::Deleted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("删除失败: {}", e));
+                                link.send_message(Msg::CancelDelete);
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::CancelDelete => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                true
+            }
+            Msg::Deleted => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                ctx.link().send_message(Msg::LoadData);
                 false
             }
             Msg::ViewOrder(id) => {
                 self.viewing_item = self.orders.iter().find(|i| i.id == id).cloned();
                 true
             }
-            Msg::DeleteOrder(id) => {
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match PurchaseOrderService::delete(id).await {
-                        Ok(_) => link.send_message(Msg::LoadOrders),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
-                    }
-                });
-                false
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
             }
-
             Msg::PrintOrder(order) => {
                 self.printing_order = Some(order);
                 self.print_trigger = true;
-                true
-            }
-
-            Msg::ExportPdf(o) => {
-                crate::utils::pdf_export::export_to_pdf("pdf-export-content", &format!("purchase_order_{}.pdf", o.order_no));
                 true
             }
             Msg::ClearPrint => {
@@ -150,8 +355,11 @@ impl Component for PurchaseOrderPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseOrderService::submit(id).await {
-                        Ok(_) => link.send_message(Msg::LoadOrders),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("提交成功");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("提交失败: {}", e)),
                     }
                 });
                 false
@@ -160,8 +368,11 @@ impl Component for PurchaseOrderPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseOrderService::approve(id).await {
-                        Ok(_) => link.send_message(Msg::LoadOrders),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("审批通过");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("审批失败: {}", e)),
                     }
                 });
                 false
@@ -170,8 +381,11 @@ impl Component for PurchaseOrderPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseOrderService::reject(id, "不符合要求".to_string()).await {
-                        Ok(_) => link.send_message(Msg::LoadOrders),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("已驳回");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("驳回失败: {}", e)),
                     }
                 });
                 false
@@ -180,56 +394,464 @@ impl Component for PurchaseOrderPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseOrderService::close(id).await {
-                        Ok(_) => link.send_message(Msg::LoadOrders),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("订单已关闭");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("关闭失败: {}", e)),
                     }
                 });
                 false
             }
-            Msg::ChangePage(page) => {
-                self.page = page;
-                ctx.link().send_message(Msg::LoadOrders);
-                false
-            }
+            Msg::FormSupplierIdChanged(v) => { self.form_supplier_id = v; true }
+            Msg::FormOrderDateChanged(v) => { self.form_order_date = v; true }
+            Msg::FormExpectedDeliveryDateChanged(v) => { self.form_expected_delivery_date = v; true }
+            Msg::FormWarehouseIdChanged(v) => { self.form_warehouse_id = v; true }
+            Msg::FormDepartmentIdChanged(v) => { self.form_department_id = v; true }
+            Msg::FormCurrencyChanged(v) => { self.form_currency = v; true }
+            Msg::FormPaymentTermsChanged(v) => { self.form_payment_terms = v; true }
+            Msg::FormShippingTermsChanged(v) => { self.form_shipping_terms = v; true }
+            Msg::FormNotesChanged(v) => { self.form_notes = v; true }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_status_change = ctx.link().batch_callback(|e: Event| {
-            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
-            Some(Msg::SetFilterStatus(target.value()))
-        });
+        let link = ctx.link();
 
         html! {
             <div class="purchase-order-page">
-                <div class="page-header">
-                    <h1>{"📦 采购订单管理"}</h1>
+                <PageHeader title={"采购订单管理".to_string()} subtitle={Some("管理所有采购订单信息".to_string())}>
+                    <PermissionGuard resource="purchase_order" action="create">
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::OpenCreateModal)}>
+                            {"+ 新建采购订单"}
+                        </button>
+                    </PermissionGuard>
+                </PageHeader>
+
+                <div class="page-toolbar">
+                    <SearchBar
+                        placeholder={"搜索订单编号或供应商...".to_string()}
+                        on_search={link.callback(|keyword| Msg::Search(keyword))}
+                        on_reset={link.callback(|_| Msg::ResetSearch)}
+                    />
                 </div>
 
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>{"订单状态："}</label>
-                        <select value={self.filter_status.clone()} onchange={on_status_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="草稿">{"草稿"}</option>
-                            <option value="待审批">{"待审批"}</option>
-                            <option value="已审批">{"已审批"}</option>
-                            <option value="已关闭">{"已关闭"}</option>
-                            <option value="已拒绝">{"已拒绝"}</option>
-                        </select>
+                if self.loading {
+                    <LoadingState message={"正在加载采购订单数据...".to_string()} />
+                } else if let Some(err) = &self.error {
+                    <div class="error-container">
+                        <div class="error-icon">{"⚠️"}</div>
+                        <p class="error-message">{err}</p>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::LoadData)}>
+                            {"重新加载"}
+                        </button>
                     </div>
-                </div>
+                } else if self.filtered_orders.is_empty() {
+                    <EmptyState
+                        icon={"📦".to_string()}
+                        title={"暂无采购订单数据".to_string()}
+                        description={if self.search_keyword.is_empty() {
+                            "点击上方按钮创建第一个采购订单".to_string()
+                        } else {
+                            "没有匹配搜索条件的订单".to_string()
+                        }}
+                    />
+                } else {
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>{"订单编号"}</th>
+                                    <th>{"供应商"}</th>
+                                    <th>{"订单日期"}</th>
+                                    <th>{"要求交货日期"}</th>
+                                    <th>{"订单状态"}</th>
+                                    <th class="numeric">{"总金额"}</th>
+                                    <th>{"仓库"}</th>
+                                    <th class="text-center">{"操作"}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {for self.paginated_orders().iter().map(|order| {
+                                    let order_clone = order.clone();
+                                    let order_clone2 = order.clone();
+                                    let id = order.id;
+                                    let status = order.status.clone();
+                                    html! {
+                                        <tr>
+                                            <td>{&order.order_no}</td>
+                                            <td>{order.supplier_name.as_deref().unwrap_or("-")}</td>
+                                            <td>{&order.order_date}</td>
+                                            <td>{order.expected_delivery_date.as_deref().unwrap_or("-")}</td>
+                                            <td>{&status}</td>
+                                            <td class="numeric">{&order.total_amount}</td>
+                                            <td>{order.warehouse_name.as_deref().unwrap_or("-")}</td>
+                                            <td class="text-center">
+                                                <div class="action-buttons">
+                                                    <button
+                                                        class="btn btn-sm btn-secondary"
+                                                        onclick={link.callback(move |_| Msg::ViewOrder(id))}
+                                                    >
+                                                        {"查看"}
+                                                    </button>
+                                                    if status == "DRAFT" || status == "REJECTED" {
+                                                        <PermissionGuard resource="purchase_order" action="update">
+                                                            <button
+                                                                class="btn btn-sm btn-secondary"
+                                                                onclick={link.callback(move |_| Msg::OpenEditModal(order_clone.clone()))}
+                                                            >
+                                                                {"编辑"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                        <PermissionGuard resource="purchase_order" action="update">
+                                                            <button
+                                                                class="btn btn-sm btn-primary"
+                                                                onclick={link.callback(move |_| Msg::SubmitOrder(id))}
+                                                            >
+                                                                {"提交"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                    }
+                                                    if status == "PENDING_APPROVAL" || status == "SUBMITTED" {
+                                                        <PermissionGuard resource="purchase_order" action="approve">
+                                                            <button
+                                                                class="btn btn-sm btn-success"
+                                                                onclick={link.callback(move |_| Msg::ApproveOrder(id))}
+                                                            >
+                                                                {"通过"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                        <PermissionGuard resource="purchase_order" action="approve">
+                                                            <button
+                                                                class="btn btn-sm btn-warning"
+                                                                onclick={link.callback(move |_| Msg::RejectOrder(id))}
+                                                            >
+                                                                {"驳回"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                    }
+                                                    if status == "APPROVED" {
+                                                        <PermissionGuard resource="purchase_order" action="update">
+                                                            <button
+                                                                class="btn btn-sm btn-secondary"
+                                                                onclick={link.callback(move |_| Msg::CloseOrder(id))}
+                                                            >
+                                                                {"关闭"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                    }
+                                                    <button
+                                                        class="btn btn-sm btn-secondary"
+                                                        onclick={link.callback(move |_| Msg::PrintOrder(order_clone2.clone()))}
+                                                    >
+                                                        {"打印"}
+                                                    </button>
+                                                    if status == "DRAFT" {
+                                                        <PermissionGuard resource="purchase_order" action="delete">
+                                                            <button
+                                                                class="btn btn-sm btn-danger"
+                                                                onclick={link.callback(move |_| Msg::DeleteOrder(id))}
+                                                            >
+                                                                {"删除"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                })}
+                            </tbody>
+                        </table>
 
-                {self.render_content(ctx)}
-                {self.render_detail_modal(ctx)}
+                        <Pagination
+                            current_page={self.page}
+                            page_size={self.page_size}
+                            total={self.filtered_orders.len() as u64}
+                            on_page_change={link.callback(|page| Msg::PageChanged(page))}
+                        />
+                    </div>
+                }
+
+                if self.show_modal {
+                    {self.render_form_modal(ctx)}
+                }
+
+                if let Some(item) = &self.viewing_item {
+                    {self.render_detail_modal(ctx, item)}
+                }
+
                 {self.render_print_view()}
+
+                <ConfirmDialog
+                    title={"确认删除".to_string()}
+                    message={"确定要删除这个采购订单吗？此操作不可撤销。".to_string()}
+                    confirm_text={"删除".to_string()}
+                    cancel_text={"取消".to_string()}
+                    confirm_class={"btn-danger".to_string()}
+                    on_confirm={link.callback(|_| Msg::ConfirmDelete)}
+                    on_cancel={link.callback(|_| Msg::CancelDelete)}
+                    visible={self.show_delete_confirm}
+                />
             </div>
         }
     }
 }
 
 impl PurchaseOrderPage {
-    
+    fn apply_filter(&mut self) {
+        if self.search_keyword.is_empty() {
+            self.filtered_orders = self.orders.clone();
+        } else {
+            let keyword = self.search_keyword.to_lowercase();
+            self.filtered_orders = self.orders.iter()
+                .filter(|o| {
+                    o.order_no.to_lowercase().contains(&keyword) ||
+                    o.supplier_name.as_ref().map(|s| s.to_lowercase().contains(&keyword)).unwrap_or(false) ||
+                    o.status.to_lowercase().contains(&keyword)
+                })
+                .cloned()
+                .collect();
+        }
+    }
+
+    fn paginated_orders(&self) -> Vec<PurchaseOrder> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        self.filtered_orders[start..end.min(self.filtered_orders.len())].to_vec()
+    }
+
+    fn reset_form(&mut self) {
+        self.form_supplier_id = String::new();
+        self.form_order_date = String::new();
+        self.form_expected_delivery_date = String::new();
+        self.form_warehouse_id = String::new();
+        self.form_department_id = String::new();
+        self.form_currency = "CNY".to_string();
+        self.form_payment_terms = String::new();
+        self.form_shipping_terms = String::new();
+        self.form_notes = String::new();
+        self.form_error = None;
+    }
+
+    fn render_form_modal(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
+        let is_edit = self.modal_mode == ModalMode::Edit;
+        let title = if is_edit { "编辑采购订单" } else { "新建采购订单" };
+
+        let on_supplier_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormSupplierIdChanged(input.value()))
+        });
+        let on_date_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormOrderDateChanged(input.value()))
+        });
+        let on_delivery_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormExpectedDeliveryDateChanged(input.value()))
+        });
+        let on_warehouse_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormWarehouseIdChanged(input.value()))
+        });
+        let on_department_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormDepartmentIdChanged(input.value()))
+        });
+        let on_currency_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormCurrencyChanged(input.value()))
+        });
+        let on_payment_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormPaymentTermsChanged(input.value()))
+        });
+        let on_shipping_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormShippingTermsChanged(input.value()))
+        });
+        let on_notes_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormNotesChanged(input.value()))
+        });
+
+        html! {
+            <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
+                    <div class="modal-header">
+                        <h3>{title}</h3>
+                        <button class="close-btn" onclick={link.callback(|_| Msg::CloseModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        if let Some(err) = &self.form_error {
+                            <div class="form-error">{err}</div>
+                        }
+                        <div class="form-group">
+                            <label>{"供应商ID *"}</label>
+                            <input
+                                type="number"
+                                class="form-input"
+                                value={self.form_supplier_id.clone()}
+                                oninput={on_supplier_change}
+                                placeholder="请输入供应商ID"
+                            />
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>{"订单日期 *"}</label>
+                                <input
+                                    type="date"
+                                    class="form-input"
+                                    value={self.form_order_date.clone()}
+                                    oninput={on_date_change}
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label>{"要求交货日期"}</label>
+                                <input
+                                    type="date"
+                                    class="form-input"
+                                    value={self.form_expected_delivery_date.clone()}
+                                    oninput={on_delivery_change}
+                                />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>{"仓库ID *"}</label>
+                                <input
+                                    type="number"
+                                    class="form-input"
+                                    value={self.form_warehouse_id.clone()}
+                                    oninput={on_warehouse_change}
+                                    placeholder="请输入仓库ID"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label>{"部门ID"}</label>
+                                <input
+                                    type="number"
+                                    class="form-input"
+                                    value={self.form_department_id.clone()}
+                                    oninput={on_department_change}
+                                    placeholder="请输入部门ID"
+                                />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>{"币种"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_currency.clone()}
+                                oninput={on_currency_change}
+                                placeholder="如：CNY、USD"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>{"付款条款"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_payment_terms.clone()}
+                                oninput={on_payment_change}
+                                placeholder="请输入付款条款"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>{"运输条款"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_shipping_terms.clone()}
+                                oninput={on_shipping_change}
+                                placeholder="请输入运输条款"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>{"备注"}</label>
+                            <textarea
+                                class="form-input"
+                                value={self.form_notes.clone()}
+                                oninput={on_notes_change}
+                                placeholder="请输入备注信息"
+                                rows="3"
+                            />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick={link.callback(|_| Msg::CloseModal)}>
+                            {"取消"}
+                        </button>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitForm)}>
+                            {if is_edit { "保存修改" } else { "创建订单" }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    fn render_detail_modal(&self, ctx: &Context<Self>, item: &PurchaseOrder) -> Html {
+        html! {
+            <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())} style="width: 800px; max-width: 90vw;">
+                    <div class="modal-header">
+                        <h2>{"采购订单详情"}</h2>
+                        <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"订单编号: "}</span>
+                                <span class="detail-value">{&item.order_no}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"供应商: "}</span>
+                                <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"订单日期: "}</span>
+                                <span class="detail-value">{&item.order_date}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"要求交货日期: "}</span>
+                                <span class="detail-value">{item.expected_delivery_date.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"状态: "}</span>
+                                <span class="detail-value">{&item.status}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"总金额: "}</span>
+                                <span class="detail-value">{&item.total_amount}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"仓库: "}</span>
+                                <span class="detail-value">{item.warehouse_name.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"部门: "}</span>
+                                <span class="detail-value">{item.department_name.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"币种: "}</span>
+                                <span class="detail-value">{item.currency.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"付款条款: "}</span>
+                                <span class="detail-value">{item.payment_terms.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"运输条款: "}</span>
+                                <span class="detail-value">{item.shipping_terms.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"备注: "}</span>
+                                <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
     fn render_print_view(&self) -> Html {
         if let Some(order) = &self.printing_order {
             html! {
@@ -237,292 +859,30 @@ impl PurchaseOrderPage {
                     <style>
                     {r#"
                     @media print {
-                        body * {
-                            visibility: hidden;
-                        }
-                        .print-view, .print-view * {
-                            visibility: visible;
-                        }
-                        .print-view {
-                            position: absolute;
-                            left: 0;
-                            top: 0;
-                            width: 100%;
-                            display: block !important;
-                            padding: 20px;
-                        }
+                        body * { visibility: hidden; }
+                        .print-view, .print-view * { visibility: visible; }
+                        .print-view { position: absolute; left: 0; top: 0; width: 100%; display: block !important; padding: 20px; }
                         .no-print { display: none !important; }
-                        .print-header { display: block !important; }
                         body { font-size: 11pt; }
                         table { border-collapse: collapse; width: 100%; }
                         th, td { border: 1px solid #333; padding: 6px; }
                     }
                     "#}
                     </style>
-                    <PrintHeader 
-                        title="秉羲面料管理 - 采购订单" 
-                        doc_no={order.order_no.clone()} 
-                        date={order.order_date.to_string()} 
-                    />
-                    <div class="print-info-grid">
-                        <div><strong>{"订单编号："}</strong> {&order.order_no}</div>
-                        <div><strong>{"订单日期："}</strong> {&order.order_date}</div>
+                    <div class="print-header" style="text-align: center; margin-bottom: 20px;">
+                        <h2>{"采购订单"}</h2>
+                        <p>{"单号: "}{&order.order_no}</p>
+                    </div>
+                    <div class="print-info-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
                         <div><strong>{"供应商："}</strong> {order.supplier_name.as_deref().unwrap_or("-")}</div>
+                        <div><strong>{"订单日期："}</strong> {&order.order_date}</div>
                         <div><strong>{"要求交货期："}</strong> {order.expected_delivery_date.as_deref().unwrap_or("-")}</div>
                         <div><strong>{"采购总金额："}</strong> {&order.total_amount} {order.currency.as_deref().unwrap_or("")}</div>
-                        <div><strong>{"采购员："}</strong> {order.purchaser_id.unwrap_or(0)}</div>
                     </div>
-                    <table class="print-table">
-                        <thead>
-                            <tr>
-                                <th>{"序号"}</th>
-                                <th>{"产品名称"}</th>
-                                <th>{"规格"}</th>
-                                <th>{"数量"}</th>
-                                <th>{"单价"}</th>
-                                <th>{"小计"}</th>
-                                <th>{"备注"}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            // 实际项目中这里应该渲染 items，但目前 purchase_order.rs 的列表中没有展开 items
-                            // 所以留出空行或仅打印主表信息
-                            <tr>
-                                <td colspan="7" style="text-align: center; padding: 20px;">{"【订单明细请在详情页查看并打印】"}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div class="print-footer">
-                        <div class="print-signature">{"制单人签字"}</div>
-                        <div class="print-signature">{"审批人签字"}</div>
-                        <div class="print-signature">{"供应商确认盖章"}</div>
-                    </div>
-                </div>
-            }
-        } else {
-            html! {}
-        }
-    }
-
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
-        if self.loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
-        }
-
-        if let Some(error) = &self.error {
-            return html! {
-                <div class="error-container">
-                    <div class="error-icon">{"⚠️"}</div>
-                    <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadOrders)}>
-                        {"重新加载"}
-                    </button>
-                </div>
-            };
-        }
-
-        if self.orders.is_empty() {
-            return html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"📦"}</div>
-                    <p>{"暂无采购订单"}</p>
-                </div>
-            };
-        }
-
-        html! {
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>{"订单编号"}</th>
-                            <th>{"供应商"}</th>
-                            <th>{"订单日期"}</th>
-                            <th>{"要求交货日期"}</th>
-                            <th>{"订单状态"}</th>
-                            <th>{"总金额"}</th>
-                            <th>{"仓库"}</th>
-                            <th>{"操作"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {for self.orders.iter().map(|order| {
-                            let status = order.status.clone();
-                            let order_id = order.id;
-                            let status_check = status.clone();
-                            html! {
-                                <tr>
-                                    <td>{&order.order_no}</td>
-                                    <td>{order.supplier_name.as_deref().unwrap_or("-")}</td>
-                                    <td>{&order.order_date}</td>
-                                    <td>{order.expected_delivery_date.as_deref().unwrap_or("-")}</td>
-                                    <td>{status}</td>
-                                    <td class="numeric">{&order.total_amount}</td>
-                                    <td>{order.warehouse_name.as_deref().unwrap_or("-")}</td>
-                                    <td>
-                                        {if status_check == "REJECTED" || status_check == "DRAFT" {
-                                            html! {
-                                                if permissions::has_permission("purchase_order", "update") {
-                                                    <PermissionGuard resource="purchase_order" action="create">
-<button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::SubmitOrder(order_id))}>{"提交审批"}</button>
-</PermissionGuard>
-                                                }
-                                            }
-                                        } else if status_check == "PENDING_APPROVAL" || status_check == "SUBMITTED" {
-                                            html! {
-                                                if permissions::has_permission("purchase_order", "approve") {
-                                                    <>
-                                                        <PermissionGuard resource="purchase_order" action="approve">
-<button class="px-3 py-1 bg-green-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::ApproveOrder(order_id))}>{"审批通过"}</button>
-</PermissionGuard>
-                                                        <PermissionGuard resource="purchase_order" action="approve">
-<button class="px-3 py-1 bg-red-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::RejectOrder(order_id))}>{"驳回"}</button>
-</PermissionGuard>
-                                                    </>
-                                                }
-                                            }
-                                        } else if status_check == "APPROVED" {
-                                            html! {
-                                                if permissions::has_permission("purchase_order", "update") {
-                                                    <button class="px-3 py-1 bg-yellow-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::CloseOrder(order_id))}>{"关闭订单"}</button>
-                                                }
-                                            }
-                                        } else {
-                                            html! {}
-                                        }}
-                                        if permissions::has_permission("purchase_order", "read") {
-                                            <button class="px-3 py-1 bg-gray-500 text-white rounded text-xs ml-2" onclick={let order_print = order.clone(); ctx.link().callback(move |_| Msg::PrintOrder(order_print.clone()))}>{"打印"}</button>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        }
-    }
-    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
-        if let Some(item) = &self.viewing_item {
-            html! {
-                <div class="modal-overlay">
-                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
-                        <div class="modal-header">
-                            <h2>{"详情"}</h2>
-                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
-                                    <span class="detail-value">{item.id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order No: "}</span>
-                                    <span class="detail-value">{&item.order_no}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Id: "}</span>
-                                    <span class="detail-value">{item.supplier_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Name: "}</span>
-                                    <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order Date: "}</span>
-                                    <span class="detail-value">{&item.order_date}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Expected Delivery Date: "}</span>
-                                    <span class="detail-value">{item.expected_delivery_date.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Actual Delivery Date: "}</span>
-                                    <span class="detail-value">{item.actual_delivery_date.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Status: "}</span>
-                                    <span class="detail-value">{&item.status}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Amount: "}</span>
-                                    <span class="detail-value">{&item.total_amount}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Amount Foreign: "}</span>
-                                    <span class="detail-value">{item.total_amount_foreign.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Quantity: "}</span>
-                                    <span class="detail-value">{item.total_quantity.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Quantity Alt: "}</span>
-                                    <span class="detail-value">{item.total_quantity_alt.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Paid Amount: "}</span>
-                                    <span class="detail-value">{item.paid_amount.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Warehouse Id: "}</span>
-                                    <span class="detail-value">{item.warehouse_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Warehouse Name: "}</span>
-                                    <span class="detail-value">{item.warehouse_name.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Department Id: "}</span>
-                                    <span class="detail-value">{item.department_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Department Name: "}</span>
-                                    <span class="detail-value">{item.department_name.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Purchaser Id: "}</span>
-                                    <span class="detail-value">{item.purchaser_id.map_or("-".to_string(), |v| v.to_string())}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Currency: "}</span>
-                                    <span class="detail-value">{item.currency.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Exchange Rate: "}</span>
-                                    <span class="detail-value">{item.exchange_rate.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Payment Terms: "}</span>
-                                    <span class="detail-value">{item.payment_terms.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Shipping Terms: "}</span>
-                                    <span class="detail-value">{item.shipping_terms.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Notes: "}</span>
-                                    <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created At: "}</span>
-                                    <span class="detail-value">{&item.created_at}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated At: "}</span>
-                                    <span class="detail-value">{&item.updated_at}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
-                        </div>
+                    <div class="print-footer" style="margin-top: 40px; display: flex; justify-content: space-around;">
+                        <div>{"制单人签字"}</div>
+                        <div>{"审批人签字"}</div>
+                        <div>{"供应商确认盖章"}</div>
                     </div>
                 </div>
             }

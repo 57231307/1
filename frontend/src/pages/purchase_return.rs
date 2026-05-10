@@ -1,54 +1,84 @@
+use crate::utils::permissions;
 use crate::utils::toast_helper;
 // 采购退货管理页面
 
 use yew::prelude::*;
 use crate::components::permission_guard::PermissionGuard;
+use crate::components::{
+    confirm_dialog::ConfirmDialog,
+    search_bar::SearchBar,
+    pagination::Pagination,
+    page_header::PageHeader,
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use crate::models::purchase_return::{CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest, 
+use web_sys::HtmlInputElement;
+use crate::models::purchase_return::{
+    CreatePurchaseReturnRequest, CreatePurchaseReturnItemRequest,
     PurchaseReturn, PurchaseReturnQuery,
 };
 use crate::services::purchase_return_service::PurchaseReturnService;
 use crate::services::crud_service::CrudService;
-use crate::utils::permissions;
 
-/// 采购退货页面状态管理
 pub struct PurchaseReturnPage {
-    printing_return: Option<crate::models::purchase_return::PurchaseReturn>,
-    print_trigger: bool,
-    show_modal: bool,
-    new_return_no: String,
-    new_supplier_id: String,
-    new_product_id: String,
-    new_quantity: String,
-    new_reason: String,
     returns: Vec<PurchaseReturn>,
+    filtered_returns: Vec<PurchaseReturn>,
     loading: bool,
     error: Option<String>,
-    filter_status: String,
+    search_keyword: String,
     page: u64,
     page_size: u64,
+    show_modal: bool,
+    modal_mode: ModalMode,
+    editing_return: Option<PurchaseReturn>,
+    show_delete_confirm: bool,
+    deleting_id: Option<i32>,
+    viewing_item: Option<PurchaseReturn>,
+    // 表单字段
+    form_return_no: String,
+    form_supplier_id: String,
+    form_product_id: String,
+    form_quantity: String,
+    form_reason: String,
+    form_error: Option<String>,
+}
 
-    viewing_item: Option<PurchaseReturn>,}
+#[derive(Clone, PartialEq)]
+pub enum ModalMode {
+    Create,
+    Edit,
+}
 
-/// 消息枚举
 pub enum Msg {
-    LoadReturns,
-    ReturnsLoaded(Vec<PurchaseReturn>),
+    LoadData,
+    DataLoaded(Vec<PurchaseReturn>),
     LoadError(String),
-    SetFilterStatus(String),
-    ViewReturn(i32),
+    Search(String),
+    ResetSearch,
+    PageChanged(u64),
+    OpenCreateModal,
+    OpenEditModal(PurchaseReturn),
+    CloseModal,
+    SubmitForm,
+    FormSubmitted,
     DeleteReturn(i32),
+    ConfirmDelete,
+    CancelDelete,
+    Deleted,
+    ViewReturn(i32),
+    CloseDetailModal,
     SubmitReturn(i32),
     ApproveReturn(i32),
     RejectReturn(i32),
-    ChangePage(u64),
-    OpenModal,
-    CloseModal,
-    UpdateInput(String, String),
-    SubmitCreate,
-
-    CloseDetailModal,}
+    // 表单字段变更
+    FormReturnNoChanged(String),
+    FormSupplierIdChanged(String),
+    FormProductIdChanged(String),
+    FormQuantityChanged(String),
+    FormReasonChanged(String),
+}
 
 impl Component for PurchaseReturnPage {
     type Message = Msg;
@@ -56,98 +86,229 @@ impl Component for PurchaseReturnPage {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            viewing_item: None,
             returns: Vec::new(),
+            filtered_returns: Vec::new(),
             loading: true,
-            printing_return: None,
-            print_trigger: false,
-            show_modal: false,
-            new_return_no: String::new(),
-            new_supplier_id: String::new(),
-            new_product_id: String::new(),
-            new_quantity: String::new(),
-            new_reason: String::new(),
             error: None,
-            filter_status: String::from("全部"),
-            page: 1,
-            page_size: 20,
+            search_keyword: String::new(),
+            page: 0,
+            page_size: 10,
+            show_modal: false,
+            modal_mode: ModalMode::Create,
+            editing_return: None,
+            show_delete_confirm: false,
+            deleting_id: None,
+            viewing_item: None,
+            form_return_no: String::new(),
+            form_supplier_id: String::new(),
+            form_product_id: String::new(),
+            form_quantity: String::new(),
+            form_reason: String::new(),
+            form_error: None,
         }
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
-            ctx.link().send_message(Msg::LoadReturns);
+            ctx.link().send_message(Msg::LoadData);
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::CloseDetailModal => {
-                self.viewing_item = None;
-                true
-            }
-            Msg::LoadReturns => {
+            Msg::LoadData => {
                 self.loading = true;
-                let query = PurchaseReturnQuery {
-                    page: Some(self.page),
-                    page_size: Some(self.page_size),
-                    status: if self.filter_status == "全部" { None } else { Some(self.filter_status.clone()) },
-                    supplier_id: None,
-                };
+                self.error = None;
                 let link = ctx.link().clone();
                 spawn_local(async move {
-                    match PurchaseReturnService::list_with_query(&query).await {
-                        Ok(returns) => link.send_message(Msg::ReturnsLoaded(returns.items)),
+                    let query = PurchaseReturnQuery {
+                        page: Some(1),
+                        page_size: Some(1000),
+                        status: None,
+                        supplier_id: None,
+                    };
+                    match PurchaseReturnService::list(query).await {
+                        Ok(res) => link.send_message(Msg::DataLoaded(res.items)),
                         Err(e) => link.send_message(Msg::LoadError(e)),
                     }
                 });
                 false
             }
-            Msg::ReturnsLoaded(returns) => {
-                self.returns = returns;
+            Msg::DataLoaded(data) => {
+                self.loading = false;
+                self.returns = data;
+                self.apply_filter();
+                true
+            }
+            Msg::LoadError(err) => {
+                self.error = Some(err);
                 self.loading = false;
                 true
             }
-            Msg::LoadError(e) => {
-                self.error = Some(e);
-                self.loading = false;
+            Msg::Search(keyword) => {
+                self.search_keyword = keyword;
+                self.page = 0;
+                self.apply_filter();
                 true
             }
-            Msg::SetFilterStatus(status) => {
-                self.filter_status = status;
-                ctx.link().send_message(Msg::LoadReturns);
+            Msg::ResetSearch => {
+                self.search_keyword = String::new();
+                self.page = 0;
+                self.apply_filter();
+                true
+            }
+            Msg::PageChanged(page) => {
+                self.page = page;
+                true
+            }
+            Msg::OpenCreateModal => {
+                self.reset_form();
+                self.editing_return = None;
+                self.modal_mode = ModalMode::Create;
+                self.show_modal = true;
+                true
+            }
+            Msg::OpenEditModal(ret) => {
+                self.form_return_no = ret.return_no.clone();
+                self.form_supplier_id = ret.supplier_id.to_string();
+                self.form_reason = ret.reason.clone().unwrap_or_default();
+                self.form_error = None;
+                self.editing_return = Some(ret);
+                self.modal_mode = ModalMode::Edit;
+                self.show_modal = true;
+                true
+            }
+            Msg::CloseModal => {
+                self.show_modal = false;
+                self.editing_return = None;
+                self.form_error = None;
+                true
+            }
+            Msg::SubmitForm => {
+                if self.form_return_no.is_empty() {
+                    self.form_error = Some("退货单号不能为空".to_string());
+                    return true;
+                }
+                if self.form_supplier_id.is_empty() {
+                    self.form_error = Some("供应商不能为空".to_string());
+                    return true;
+                }
+
+                self.form_error = None;
+
+                let supplier_id = self.form_supplier_id.parse::<i32>().unwrap_or(0);
+                let req = CreatePurchaseReturnRequest {
+                    return_no: self.form_return_no.clone(),
+                    supplier_id,
+                    order_id: None,
+                    return_date: Some(String::new()),
+                    reason_type: "质量问题".to_string(),
+                    reason_detail: if self.form_reason.is_empty() { None } else { Some(self.form_reason.clone()) },
+                    remarks: None,
+                    items: vec![CreatePurchaseReturnItemRequest {
+                        product_id: self.form_product_id.parse::<i32>().unwrap_or(0),
+                        quantity: self.form_quantity.parse::<rust_decimal::Decimal>().unwrap_or_default(),
+                        unit_price: None,
+                    }],
+                };
+
+                let link = ctx.link().clone();
+
+                if self.modal_mode == ModalMode::Edit {
+                    if let Some(ret) = &self.editing_return {
+                        let id = ret.id;
+                        let update_req = crate::models::purchase_return::UpdatePurchaseReturnRequest {
+                            return_date: None,
+                            warehouse_id: None,
+                            department_id: None,
+                            reason: if self.form_reason.is_empty() { None } else { Some(self.form_reason.clone()) },
+                            notes: None,
+                        };
+                        spawn_local(async move {
+                            match PurchaseReturnService::update(id, update_req).await {
+                                Ok(_) => {
+                                    toast_helper::show_success("更新成功");
+                                    link.send_message(Msg::FormSubmitted);
+                                }
+                                Err(e) => {
+                                    toast_helper::show_error(&format!("更新失败: {}", e));
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    spawn_local(async move {
+                        match PurchaseReturnService::create(req).await {
+                            Ok(_) => {
+                                toast_helper::show_success("创建成功");
+                                link.send_message(Msg::FormSubmitted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("创建失败: {}", e));
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::FormSubmitted => {
+                self.show_modal = false;
+                self.editing_return = None;
+                self.reset_form();
+                ctx.link().send_message(Msg::LoadData);
+                false
+            }
+            Msg::DeleteReturn(id) => {
+                self.deleting_id = Some(id);
+                self.show_delete_confirm = true;
+                true
+            }
+            Msg::ConfirmDelete => {
+                if let Some(id) = self.deleting_id {
+                    let link = ctx.link().clone();
+                    spawn_local(async move {
+                        match PurchaseReturnService::delete(id).await {
+                            Ok(_) => {
+                                toast_helper::show_success("删除成功");
+                                link.send_message(Msg::Deleted);
+                            }
+                            Err(e) => {
+                                toast_helper::show_error(&format!("删除失败: {}", e));
+                                link.send_message(Msg::CancelDelete);
+                            }
+                        }
+                    });
+                }
+                false
+            }
+            Msg::CancelDelete => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                true
+            }
+            Msg::Deleted => {
+                self.show_delete_confirm = false;
+                self.deleting_id = None;
+                ctx.link().send_message(Msg::LoadData);
                 false
             }
             Msg::ViewReturn(id) => {
                 self.viewing_item = self.returns.iter().find(|i| i.id == id).cloned();
                 true
             }
-            Msg::DeleteReturn(id) => {
-                if !toast_helper::confirm("确定要删除此退货单吗？") {
-                    return false;
-                }
-                
-                let link = ctx.link().clone();
-                spawn_local(async move {
-                    match PurchaseReturnService::delete(id).await {
-                        Ok(_) => {
-                            toast_helper::show_success("删除成功");
-                            link.send_message(Msg::LoadReturns);
-                        }
-                        Err(e) => {
-                            toast_helper::show_error(&format!("删除失败: {}", e));
-                            link.send_message(Msg::LoadError(e));
-                        }
-                    }
-                });
-                false
+            Msg::CloseDetailModal => {
+                self.viewing_item = None;
+                true
             }
             Msg::SubmitReturn(id) => {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseReturnService::submit(id).await {
-                        Ok(_) => link.send_message(Msg::LoadReturns),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("提交成功");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("提交失败: {}", e)),
                     }
                 });
                 false
@@ -156,8 +317,11 @@ impl Component for PurchaseReturnPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseReturnService::approve(id).await {
-                        Ok(_) => link.send_message(Msg::LoadReturns),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("审批通过");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("审批失败: {}", e)),
                     }
                 });
                 false
@@ -166,355 +330,378 @@ impl Component for PurchaseReturnPage {
                 let link = ctx.link().clone();
                 spawn_local(async move {
                     match PurchaseReturnService::reject(id, "不符合要求".to_string()).await {
-                        Ok(_) => link.send_message(Msg::LoadReturns),
-                        Err(e) => link.send_message(Msg::LoadError(e)),
+                        Ok(_) => {
+                            toast_helper::show_success("已驳回");
+                            link.send_message(Msg::LoadData);
+                        }
+                        Err(e) => toast_helper::show_error(&format!("驳回失败: {}", e)),
                     }
                 });
                 false
             }
-
-            Msg::OpenModal => {
-                self.show_modal = true;
-                true
-            }
-            Msg::CloseModal => {
-                self.show_modal = false;
-                true
-            }
-            Msg::UpdateInput(field, value) => {
-                match field.as_str() {
-                    "return_no" => self.new_return_no = value,
-                    "supplier_id" => self.new_supplier_id = value,
-                    "product_id" => self.new_product_id = value,
-                    "quantity" => self.new_quantity = value,
-                    "reason" => self.new_reason = value,
-                    _ => {}
-                }
-                true
-            }
-            Msg::SubmitCreate => {
-                use std::str::FromStr;
-                let req = CreatePurchaseReturnRequest {
-                    return_no: self.new_return_no.clone(),
-                    supplier_id: i32::from_str(&self.new_supplier_id).unwrap_or(0),
-                    order_id: None,
-                    return_date: Some(String::new()),
-                    reason_type: "质量问题".to_string(),
-                    reason_detail: Some(self.new_reason.clone()),
-                    remarks: None,
-                    items: vec![CreatePurchaseReturnItemRequest {
-                        product_id: i32::from_str(&self.new_product_id).unwrap_or(0),
-                        quantity: rust_decimal::Decimal::from_str(&self.new_quantity).unwrap_or_default(),
-                        unit_price: None,
-                    }],
-                };
-                let link = ctx.link().clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    let _ = crate::services::purchase_return_service::PurchaseReturnService::create(req).await;
-                    link.send_message(Msg::LoadReturns);
-                    link.send_message(Msg::CloseModal);
-                });
-                true
-            }
-            Msg::ChangePage(page) => {
-                self.page = page;
-                ctx.link().send_message(Msg::LoadReturns);
-                false
-            }
+            Msg::FormReturnNoChanged(v) => { self.form_return_no = v; true }
+            Msg::FormSupplierIdChanged(v) => { self.form_supplier_id = v; true }
+            Msg::FormProductIdChanged(v) => { self.form_product_id = v; true }
+            Msg::FormQuantityChanged(v) => { self.form_quantity = v; true }
+            Msg::FormReasonChanged(v) => { self.form_reason = v; true }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let on_status_change = ctx.link().batch_callback(|e: Event| {
-            let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
-            Some(Msg::SetFilterStatus(target.value()))
-        });
+        let link = ctx.link();
 
         html! {
             <div class="purchase-return-page">
-                <div class="page-header">
-                    <h1>{"退货管理"}</h1>
-                    <button class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700" onclick={ctx.link().callback(|_| Msg::OpenModal)}>
-                        {"新建退货单"}
-                    </button>
+                <PageHeader title={"采购退货管理".to_string()} subtitle={Some("管理所有采购退货单信息".to_string())}>
+                    <PermissionGuard resource="purchase_return" action="create">
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::OpenCreateModal)}>
+                            {"+ 新建退货单"}
+                        </button>
+                    </PermissionGuard>
+                </PageHeader>
+
+                <div class="page-toolbar">
+                    <SearchBar
+                        placeholder={"搜索退货单号或供应商...".to_string()}
+                        on_search={link.callback(|keyword| Msg::Search(keyword))}
+                        on_reset={link.callback(|_| Msg::ResetSearch)}
+                    />
                 </div>
 
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>{"退货状态："}</label>
-                        <select value={self.filter_status.clone()} onchange={on_status_change}>
-                            <option value="全部">{"全部"}</option>
-                            <option value="草稿">{"草稿"}</option>
-                            <option value="待审批">{"待审批"}</option>
-                            <option value="已审批">{"已审批"}</option>
-                            <option value="已拒绝">{"已拒绝"}</option>
-                        </select>
+                if self.loading {
+                    <LoadingState message={"正在加载采购退货数据...".to_string()} />
+                } else if let Some(err) = &self.error {
+                    <div class="error-container">
+                        <div class="error-icon">{"⚠️"}</div>
+                        <p class="error-message">{err}</p>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::LoadData)}>
+                            {"重新加载"}
+                        </button>
                     </div>
-                </div>
+                } else if self.filtered_returns.is_empty() {
+                    <EmptyState
+                        icon={"📦".to_string()}
+                        title={"暂无采购退货单数据".to_string()}
+                        description={if self.search_keyword.is_empty() {
+                            "点击上方按钮创建第一个采购退货单".to_string()
+                        } else {
+                            "没有匹配搜索条件的退货单".to_string()
+                        }}
+                    />
+                } else {
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>{"退货单号"}</th>
+                                    <th>{"关联订单"}</th>
+                                    <th>{"供应商"}</th>
+                                    <th>{"退货日期"}</th>
+                                    <th>{"状态"}</th>
+                                    <th class="numeric">{"退货数量"}</th>
+                                    <th class="numeric">{"退货金额"}</th>
+                                    <th>{"仓库"}</th>
+                                    <th class="text-center">{"操作"}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {for self.paginated_returns().iter().map(|ret| {
+                                    let ret_clone = ret.clone();
+                                    let id = ret.id;
+                                    let status = ret.status.clone();
+                                    html! {
+                                        <tr>
+                                            <td>{&ret.return_no}</td>
+                                            <td>{ret.order_no.as_deref().unwrap_or("-")}</td>
+                                            <td>{ret.supplier_name.as_deref().unwrap_or("-")}</td>
+                                            <td>{&ret.return_date}</td>
+                                            <td>{&status}</td>
+                                            <td class="numeric">{&ret.total_quantity}</td>
+                                            <td class="numeric">{&ret.total_amount}</td>
+                                            <td>{ret.warehouse_name.as_deref().unwrap_or("-")}</td>
+                                            <td class="text-center">
+                                                <div class="action-buttons">
+                                                    <button
+                                                        class="btn btn-sm btn-secondary"
+                                                        onclick={link.callback(move |_| Msg::ViewReturn(id))}
+                                                    >
+                                                        {"查看"}
+                                                    </button>
+                                                    if status == "DRAFT" {
+                                                        <PermissionGuard resource="purchase_return" action="update">
+                                                            <button
+                                                                class="btn btn-sm btn-secondary"
+                                                                onclick={link.callback(move |_| Msg::OpenEditModal(ret_clone.clone()))}
+                                                            >
+                                                                {"编辑"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                        <PermissionGuard resource="purchase_return" action="update">
+                                                            <button
+                                                                class="btn btn-sm btn-primary"
+                                                                onclick={link.callback(move |_| Msg::SubmitReturn(id))}
+                                                            >
+                                                                {"提交"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                        <PermissionGuard resource="purchase_return" action="delete">
+                                                            <button
+                                                                class="btn btn-sm btn-danger"
+                                                                onclick={link.callback(move |_| Msg::DeleteReturn(id))}
+                                                            >
+                                                                {"删除"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                    }
+                                                    if status == "PENDING_APPROVAL" || status == "SUBMITTED" {
+                                                        <PermissionGuard resource="purchase_return" action="approve">
+                                                            <button
+                                                                class="btn btn-sm btn-success"
+                                                                onclick={link.callback(move |_| Msg::ApproveReturn(id))}
+                                                            >
+                                                                {"通过"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                        <PermissionGuard resource="purchase_return" action="approve">
+                                                            <button
+                                                                class="btn btn-sm btn-warning"
+                                                                onclick={link.callback(move |_| Msg::RejectReturn(id))}
+                                                            >
+                                                                {"驳回"}
+                                                            </button>
+                                                        </PermissionGuard>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                })}
+                            </tbody>
+                        </table>
 
-                {self.render_content(ctx)}
-                {self.render_detail_modal(ctx)}
-                {self.render_print_view()}
-                {self.render_modal(ctx)}
+                        <Pagination
+                            current_page={self.page}
+                            page_size={self.page_size}
+                            total={self.filtered_returns.len() as u64}
+                            on_page_change={link.callback(|page| Msg::PageChanged(page))}
+                        />
+                    </div>
+                }
+
+                if self.show_modal {
+                    {self.render_form_modal(ctx)}
+                }
+
+                if let Some(item) = &self.viewing_item {
+                    {self.render_detail_modal(ctx, item)}
+                }
+
+                <ConfirmDialog
+                    title={"确认删除".to_string()}
+                    message={"确定要删除这个采购退货单吗？此操作不可撤销。".to_string()}
+                    confirm_text={"删除".to_string()}
+                    cancel_text={"取消".to_string()}
+                    confirm_class={"btn-danger".to_string()}
+                    on_confirm={link.callback(|_| Msg::ConfirmDelete)}
+                    on_cancel={link.callback(|_| Msg::CancelDelete)}
+                    visible={self.show_delete_confirm}
+                />
             </div>
         }
     }
 }
 
 impl PurchaseReturnPage {
-    
-    fn render_modal(&self, ctx: &Context<Self>) -> Html {
-        if !self.show_modal { return html! {}; }
-        let on_input = |field: &'static str| {
-            ctx.link().callback(move |e: InputEvent| {
-                let input = e.target_unchecked_into::<web_sys::HtmlInputElement>();
-                Msg::UpdateInput(field.to_string(), input.value())
-            })
-        };
-        html! {
-            <div class="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
-                <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onclick={ctx.link().callback(|_| Msg::CloseModal)}></div>
-                <div class="relative w-full max-w-lg mx-auto my-6 z-50">
-                    <div class="relative flex flex-col w-full bg-white border-0 rounded-xl shadow-2xl outline-none focus:outline-none p-6">
-                        <h3 class="text-2xl font-semibold mb-4">{"新建采购退货单"}</h3>
-                        <div class="grid grid-cols-1 gap-4 mb-4">
-                            <input placeholder="退单号 (例如: PR20260401)" class="w-full px-3 py-2 border rounded" oninput={on_input("return_no")} value={self.new_return_no.clone()} />
-                            <input placeholder="退货原因说明" class="w-full px-3 py-2 border rounded" oninput={on_input("reason")} value={self.new_reason.clone()} />
-                            <h4 class="font-semibold">{"退回商品明细"}</h4>
-                            <input placeholder="产品 ID" class="w-full px-3 py-2 border rounded" oninput={on_input("product_id")} value={self.new_product_id.clone()} />
-                            <input placeholder="退回数量" class="w-full px-3 py-2 border rounded" oninput={on_input("quantity")} value={self.new_quantity.clone()} />
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <button class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded" onclick={ctx.link().callback(|_| Msg::CloseModal)}>{"取消"}</button>
-                            <PermissionGuard resource="purchase_return" action="create">
-<button class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" onclick={ctx.link().callback(|_| Msg::SubmitCreate)}>{"确认创建"}</button>
-</PermissionGuard>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
-    }
-
-    
-    fn render_print_view(&self) -> Html {
-        if let Some(ret) = &self.printing_return {
-            html! {
-                <div class="print-view" style="display: none;">
-                    <div class="print-header">
-                        <h2>{"秉羲面料管理 - 采购退货单"}</h2>
-                    </div>
-                    <div class="print-info-grid">
-                        <div><strong>{"退货单号："}</strong> {&ret.return_no}</div>
-                        <div><strong>{"供应商 ID："}</strong> {&ret.supplier_id}</div>
-                        <div><strong>{"原订单 ID："}</strong> {ret.order_id}</div>
-                        <div><strong>{"退货总额："}</strong> {&ret.total_amount}</div>
-                        <div><strong>{"退货原因："}</strong> {ret.reason.as_deref().unwrap_or("-")}</div>
-                        <div><strong>{"备注："}</strong> {ret.notes.as_deref().unwrap_or("-")}</div>
-                        <div><strong>{"状态："}</strong> {&ret.status}</div>
-                    </div>
-                    <table class="print-table">
-                        <thead>
-                            <tr>
-                                <th>{"产品 ID"}</th>
-                                <th>{"退货数量"}</th>
-                                <th>{"单价"}</th>
-                                <th>{"金额"}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="4" style="text-align: center; padding: 20px;">{"【明细项请在详情页查看并打印】"}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div class="print-footer">
-                        <div class="print-signature">{"仓库退货员"}</div>
-                        <div class="print-signature">{"审批人"}</div>
-                        <div class="print-signature">{"供应商确认"}</div>
-                    </div>
-                </div>
-            }
+    fn apply_filter(&mut self) {
+        if self.search_keyword.is_empty() {
+            self.filtered_returns = self.returns.clone();
         } else {
-            html! {}
+            let keyword = self.search_keyword.to_lowercase();
+            self.filtered_returns = self.returns.iter()
+                .filter(|r| {
+                    r.return_no.to_lowercase().contains(&keyword) ||
+                    r.supplier_name.as_ref().map(|s| s.to_lowercase().contains(&keyword)).unwrap_or(false) ||
+                    r.status.to_lowercase().contains(&keyword)
+                })
+                .cloned()
+                .collect();
         }
     }
 
-    fn render_content(&self, ctx: &Context<Self>) -> Html {
-        if self.loading {
-            return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
-            };
-        }
+    fn paginated_returns(&self) -> Vec<PurchaseReturn> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        self.filtered_returns[start..end.min(self.filtered_returns.len())].to_vec()
+    }
 
-        if let Some(error) = &self.error {
-            return html! {
-                <div class="error-container">
-                    <div class="error-icon">{"⚠️"}</div>
-                    <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadReturns)}>
-                        {"重新加载"}
-                    </button>
-                </div>
-            };
-        }
+    fn reset_form(&mut self) {
+        self.form_return_no = String::new();
+        self.form_supplier_id = String::new();
+        self.form_product_id = String::new();
+        self.form_quantity = String::new();
+        self.form_reason = String::new();
+        self.form_error = None;
+    }
 
-        if self.returns.is_empty() {
-            return html! {
-                <div class="empty-state">
-                    <div class="empty-icon">{"📦"}</div>
-                    <p>{"暂无采购退货单"}</p>
-                </div>
-            };
-        }
+    fn render_form_modal(&self, ctx: &Context<Self>) -> Html {
+        let link = ctx.link();
+        let is_edit = self.modal_mode == ModalMode::Edit;
+        let title = if is_edit { "编辑采购退货单" } else { "新建采购退货单" };
+
+        let on_return_no_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormReturnNoChanged(input.value()))
+        });
+        let on_supplier_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormSupplierIdChanged(input.value()))
+        });
+        let on_product_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormProductIdChanged(input.value()))
+        });
+        let on_quantity_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormQuantityChanged(input.value()))
+        });
+        let on_reason_change = link.batch_callback(|e: InputEvent| {
+            e.target().and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).map(|input| Msg::FormReasonChanged(input.value()))
+        });
 
         html! {
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>{"退货单号"}</th>
-                            <th>{"关联订单"}</th>
-                            <th>{"供应商"}</th>
-                            <th>{"退货日期"}</th>
-                            <th>{"退货状态"}</th>
-                            <th>{"退货数量"}</th>
-                            <th>{"退货金额"}</th>
-                            <th>{"仓库"}</th>
-                            <th>{"操作"}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {for self.returns.iter().map(|ret| {
-                            let status = ret.status.clone();
-                            let ret_id = ret.id;
-                            let status_check = status.clone();
-                            html! {
-                                <tr>
-                                    <td>{&ret.return_no}</td>
-                                    <td>{ret.order_no.as_deref().unwrap_or("-")}</td>
-                                    <td>{ret.supplier_name.as_deref().unwrap_or("-")}</td>
-                                    <td>{&ret.return_date}</td>
-                                    <td>{status}</td>
-                                    <td class="numeric">{&ret.total_quantity}</td>
-                                    <td class="numeric">{&ret.total_amount}</td>
-                                    <td>{ret.warehouse_name.as_deref().unwrap_or("-")}</td>
-                                    <td>
-                                        if status_check == "DRAFT" && permissions::has_permission("purchase_return", "delete") {
-                                            <PermissionGuard resource="purchase_return" action="delete">
-<button class="px-3 py-1 bg-red-600 text-white rounded text-xs" onclick={ctx.link().callback(move |_| Msg::DeleteReturn(ret_id))}>
-                                                {"删除"}
-                                            </button>
-</PermissionGuard>
-                                        }
-                                        <button class="px-3 py-1 bg-blue-600 text-white rounded text-xs ml-2" onclick={ctx.link().callback(move |_| Msg::ViewReturn(ret_id))}>
-                                            {"详情"}
-                                        </button>
-                                    </td>
-                                </tr>
-                            }
-                        })}
-                    </tbody>
-                </table>
+            <div class="modal-overlay" onclick={link.callback(|_| Msg::CloseModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
+                    <div class="modal-header">
+                        <h3>{title}</h3>
+                        <button class="close-btn" onclick={link.callback(|_| Msg::CloseModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        if let Some(err) = &self.form_error {
+                            <div class="form-error">{err}</div>
+                        }
+                        <div class="form-group">
+                            <label>{"退货单号 *"}</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                value={self.form_return_no.clone()}
+                                oninput={on_return_no_change}
+                                placeholder="请输入退货单号"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>{"供应商ID *"}</label>
+                            <input
+                                type="number"
+                                class="form-input"
+                                value={self.form_supplier_id.clone()}
+                                oninput={on_supplier_change}
+                                placeholder="请输入供应商ID"
+                            />
+                        </div>
+                        if !is_edit {
+                            <div class="form-group">
+                                <label>{"产品ID"}</label>
+                                <input
+                                    type="number"
+                                    class="form-input"
+                                    value={self.form_product_id.clone()}
+                                    oninput={on_product_change}
+                                    placeholder="请输入产品ID"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label>{"退货数量"}</label>
+                                <input
+                                    type="number"
+                                    class="form-input"
+                                    value={self.form_quantity.clone()}
+                                    oninput={on_quantity_change}
+                                    placeholder="请输入退货数量"
+                                />
+                            </div>
+                        }
+                        <div class="form-group">
+                            <label>{"退货原因"}</label>
+                            <textarea
+                                class="form-input"
+                                value={self.form_reason.clone()}
+                                oninput={on_reason_change}
+                                placeholder="请输入退货原因"
+                                rows="3"
+                            />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick={link.callback(|_| Msg::CloseModal)}>
+                            {"取消"}
+                        </button>
+                        <button class="btn btn-primary" onclick={link.callback(|_| Msg::SubmitForm)}>
+                            {if is_edit { "保存修改" } else { "创建退货单" }}
+                        </button>
+                    </div>
+                </div>
             </div>
         }
     }
-    fn render_detail_modal(&self, ctx: &Context<Self>) -> Html {
-        if let Some(item) = &self.viewing_item {
-            html! {
-                <div class="modal-overlay">
-                    <div class="modal-content" style="width: 800px; max-width: 90vw;">
-                        <div class="modal-header">
-                            <h2>{"详情"}</h2>
-                            <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Id: "}</span>
-                                    <span class="detail-value">{item.id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Return No: "}</span>
-                                    <span class="detail-value">{&item.return_no}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order Id: "}</span>
-                                    <span class="detail-value">{item.order_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Order No: "}</span>
-                                    <span class="detail-value">{item.order_no.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Id: "}</span>
-                                    <span class="detail-value">{item.supplier_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Supplier Name: "}</span>
-                                    <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Return Date: "}</span>
-                                    <span class="detail-value">{&item.return_date}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Status: "}</span>
-                                    <span class="detail-value">{&item.status}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Quantity: "}</span>
-                                    <span class="detail-value">{&item.total_quantity}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Total Amount: "}</span>
-                                    <span class="detail-value">{&item.total_amount}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Warehouse Id: "}</span>
-                                    <span class="detail-value">{item.warehouse_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Warehouse Name: "}</span>
-                                    <span class="detail-value">{item.warehouse_name.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Department Id: "}</span>
-                                    <span class="detail-value">{item.department_id.to_string()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Department Name: "}</span>
-                                    <span class="detail-value">{item.department_name.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Reason: "}</span>
-                                    <span class="detail-value">{item.reason.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Notes: "}</span>
-                                    <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Created At: "}</span>
-                                    <span class="detail-value">{&item.created_at}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label" style="font-weight: bold; color: #666;">{"Updated At: "}</span>
-                                    <span class="detail-value">{&item.updated_at}</span>
-                                </div>
+
+    fn render_detail_modal(&self, ctx: &Context<Self>, item: &PurchaseReturn) -> Html {
+        html! {
+            <div class="modal-overlay" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>
+                <div class="modal-content" onclick={Callback::from(|e: MouseEvent| e.stop_propagation())} style="width: 800px; max-width: 90vw;">
+                    <div class="modal-header">
+                        <h2>{"采购退货单详情"}</h2>
+                        <button class="close-btn" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"×"}</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"退货单号: "}</span>
+                                <span class="detail-value">{&item.return_no}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"关联订单: "}</span>
+                                <span class="detail-value">{item.order_no.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"供应商: "}</span>
+                                <span class="detail-value">{item.supplier_name.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"退货日期: "}</span>
+                                <span class="detail-value">{&item.return_date}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"状态: "}</span>
+                                <span class="detail-value">{&item.status}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"退货数量: "}</span>
+                                <span class="detail-value">{&item.total_quantity}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"退货金额: "}</span>
+                                <span class="detail-value">{&item.total_amount}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"仓库: "}</span>
+                                <span class="detail-value">{item.warehouse_name.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"部门: "}</span>
+                                <span class="detail-value">{item.department_name.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"原因: "}</span>
+                                <span class="detail-value">{item.reason.as_deref().unwrap_or("-")}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-weight: bold; color: #666;">{"备注: "}</span>
+                                <span class="detail-value">{item.notes.as_deref().unwrap_or("-")}</span>
                             </div>
                         </div>
-                        <div class="modal-footer">
-                            <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
-                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::CloseDetailModal)}>{"关闭"}</button>
                     </div>
                 </div>
-            }
-        } else {
-            html! {}
+            </div>
         }
     }
 }

@@ -1,64 +1,63 @@
 // 五维查询页面
 // 提供面料五维数据的查询、搜索和管理功能
 
-use crate::utils::permissions;
-use yew::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use crate::models::five_dimension::{
-    FiveDimensionStatsParams, FiveDimensionItem, FiveDimensionStatsResponse, FiveDimensionListResponse, FiveDimensionSearchParams,
+use crate::components::{
+    empty_state::EmptyState,
+    loading_state::LoadingState,
+    page_header::PageHeader,
+    pagination::Pagination,
+    search_bar::SearchBar,
 };
-use crate::services::five_dimension_service::FiveDimensionService;
+use crate::models::five_dimension::{
+    FiveDimensionItem, FiveDimensionListResponse, FiveDimensionSearchParams,
+    FiveDimensionSearchResponse, FiveDimensionStatsParams, FiveDimensionStatsResponse,
+};
 use crate::services::crud_service::CrudService;
+use crate::services::five_dimension_service::FiveDimensionService;
+use crate::utils::permissions;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use web_sys::HtmlInputElement;
+use web_sys::HtmlSelectElement;
+use yew::prelude::*;
 
 pub struct FiveDimensionPage {
-    // 列表数据
     list_data: Option<FiveDimensionListResponse>,
-    // 当前选中的统计详情
     selected_stats: Option<FiveDimensionStatsResponse>,
-    // 搜索结果
     search_results: Vec<FiveDimensionItem>,
-    // 解析后的五维ID详情
     parsed_dimension: Option<FiveDimensionItem>,
-    // 加载状态
     loading: bool,
-    // 搜索加载状态
     searching: bool,
-    // 错误信息
     error: Option<String>,
-    // 搜索关键字
     search_keyword: String,
-    // 搜索类型
     search_type: String,
-    // 解析输入
     parse_input: String,
-    // 解析错误
     parse_error: Option<String>,
-    // 搜索类型选项
+    active_tab: String,
+    page: u64,
+    page_size: u64,
+    filtered_list: Vec<FiveDimensionStatsResponse>,
     search_types: Vec<(String, String)>,
 }
 
 pub enum Msg {
-    // 加载列表数据
     LoadList,
     ListLoaded(Result<FiveDimensionListResponse, String>),
-    // 搜索
     UpdateSearchKeyword(String),
     UpdateSearchType(String),
     Search,
-    SearchResultLoaded(Result<Vec<FiveDimensionItem>, String>),
-    // 解析五维ID
+    SearchResultLoaded(Result<FiveDimensionSearchResponse, String>),
     UpdateParseInput(String),
     ParseId,
     ParseResultLoaded(Result<FiveDimensionItem, String>),
-    // 查看详情
     ViewStats(FiveDimensionItem),
     ClearSelection,
-    // 错误处理
+    SetActiveTab(String),
+    PageChanged(u64),
     Error(String),
 }
 
 impl FiveDimensionPage {
-    // 搜索类型列表
     const SEARCH_TYPES: &'static [(&'static str, &'static str)] = &[
         ("product", "按产品"),
         ("batch", "按批次"),
@@ -86,7 +85,14 @@ impl Component for FiveDimensionPage {
             search_type: "product".to_string(),
             parse_input: String::new(),
             parse_error: None,
-            search_types: Self::SEARCH_TYPES.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            active_tab: "list".to_string(),
+            page: 0,
+            page_size: 10,
+            filtered_list: Vec::new(),
+            search_types: Self::SEARCH_TYPES
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
         }
     }
 
@@ -104,7 +110,7 @@ impl Component for FiveDimensionPage {
                         grade: None,
                         warehouse_id: None,
                         page: Some(0),
-                        page_size: Some(20),
+                        page_size: Some(100),
                     };
                     let result = FiveDimensionService::list_stats(params).await;
                     link.send_message(Msg::ListLoaded(result));
@@ -115,6 +121,7 @@ impl Component for FiveDimensionPage {
                 self.loading = false;
                 match result {
                     Ok(data) => {
+                        self.filtered_list = data.items.clone();
                         self.list_data = Some(data);
                         self.error = None;
                     }
@@ -142,18 +149,18 @@ impl Component for FiveDimensionPage {
                         keyword,
                         search_type,
                         page: Some(0),
-                        page_size: Some(20),
+                        page_size: Some(100),
                     };
                     let result = FiveDimensionService::search(params).await;
-                    link.send_message(Msg::SearchResultLoaded(result.map(|r| r.items)));
+                    link.send_message(Msg::SearchResultLoaded(result));
                 });
                 false
             }
             Msg::SearchResultLoaded(result) => {
                 self.searching = false;
                 match result {
-                    Ok(items) => {
-                        self.search_results = items;
+                    Ok(response) => {
+                        self.search_results = response.items;
                         self.error = None;
                     }
                     Err(e) => {
@@ -181,10 +188,16 @@ impl Component for FiveDimensionPage {
                                 if let Some(dimension) = response.dimension {
                                     link.send_message(Msg::ParseResultLoaded(Ok(dimension)));
                                 } else {
-                                    link.send_message(Msg::ParseResultLoaded(Err("解析结果为空".to_string())));
+                                    link.send_message(Msg::ParseResultLoaded(Err(
+                                        "解析结果为空".to_string(),
+                                    )));
                                 }
                             } else {
-                                link.send_message(Msg::ParseResultLoaded(Err(response.error.unwrap_or_else(|| "解析失败".to_string()))));
+                                link.send_message(Msg::ParseResultLoaded(Err(
+                                    response
+                                        .error
+                                        .unwrap_or_else(|| "解析失败".to_string()),
+                                )));
                             }
                         }
                         Err(e) => {
@@ -214,11 +227,8 @@ impl Component for FiveDimensionPage {
                     let result = FiveDimensionService::get_stats_by_id(&five_dimension_id).await;
                     match result {
                         Ok(stats) => {
-                            // 更新选中项
-                            let mut stats = stats;
-                            stats.dimension = item;
                             link.send_message(Msg::ListLoaded(Ok(FiveDimensionListResponse {
-                                items: vec![stats.clone()],
+                                items: vec![stats],
                                 total: 1,
                                 page: 0,
                                 page_size: 20,
@@ -235,6 +245,15 @@ impl Component for FiveDimensionPage {
                 self.selected_stats = None;
                 true
             }
+            Msg::SetActiveTab(tab) => {
+                self.active_tab = tab;
+                self.page = 0;
+                true
+            }
+            Msg::PageChanged(page) => {
+                self.page = page;
+                true
+            }
             Msg::Error(e) => {
                 self.error = Some(e);
                 self.loading = false;
@@ -245,28 +264,49 @@ impl Component for FiveDimensionPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <>
-                <div class="five-dimension-page">
-                    <div class="page-header">
-                        <h1>{"五维查询"}</h1>
-                        <p class="subtitle">{"面料批次、色号、染缸、等级五维数据管理"}</p>
-                    </div>
+            <div class="five-dimension-page">
+                <PageHeader title={"五维数据".to_string()} subtitle={Some("面料批次、色号、染缸、等级五维数据管理".to_string())}>
+                    <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::LoadList)}>
+                        {"刷新"}
+                    </button>
+                </PageHeader>
 
-                    {self.render_content(ctx)}
-                </div>
-            </>
+                {self.render_tabs(ctx)}
+                {self.render_content(ctx)}
+            </div>
         }
     }
 }
 
 impl FiveDimensionPage {
+    fn render_tabs(&self, ctx: &Context<Self>) -> Html {
+        let tabs = vec![
+            ("list", "数据列表"),
+            ("search", "搜索"),
+            ("parse", "解析ID"),
+        ];
+        html! {
+            <div class="tabs">
+                {for tabs.iter().map(|(key, label)| {
+                    let is_active = self.active_tab == *key;
+                    let key_clone = key.to_string();
+                    html! {
+                        <button
+                            class={if is_active { "tab-btn active" } else { "tab-btn" }}
+                            onclick={ctx.link().callback(move |_| Msg::SetActiveTab(key_clone.clone()))}
+                        >
+                            {label}
+                        </button>
+                    }
+                })}
+            </div>
+        }
+    }
+
     fn render_content(&self, ctx: &Context<Self>) -> Html {
         if self.loading {
             return html! {
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <p>{"加载中..."}</p>
-                </div>
+                <LoadingState message={"正在加载五维数据...".to_string()} />
             };
         }
 
@@ -275,24 +315,18 @@ impl FiveDimensionPage {
                 <div class="error-container">
                     <div class="error-icon">{"⚠️"}</div>
                     <p class="error-message">{error}</p>
-                    <button class="btn-primary" onclick={ctx.link().callback(|_| Msg::LoadList)}>
+                    <button class="btn btn-primary" onclick={ctx.link().callback(|_| Msg::LoadList)}>
                         {"重新加载"}
                     </button>
                 </div>
             };
         }
 
-        html! {
-            <>
-                // 搜索区域
-                {self.render_search_section(ctx)}
-
-                // 解析五维ID区域
-                {self.render_parse_section(ctx)}
-
-                // 列表区域
-                {self.render_list_section(ctx)}
-            </>
+        match self.active_tab.as_str() {
+            "list" => self.render_list_section(ctx),
+            "search" => self.render_search_section(ctx),
+            "parse" => self.render_parse_section(ctx),
+            _ => html! {},
         }
     }
 
@@ -311,7 +345,7 @@ impl FiveDimensionPage {
                                 class="form-control"
                                 value={self.search_type.clone()}
                                 onchange={ctx.link().callback(|e: Event| {
-                                    let target = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+                                    let target = e.target_unchecked_into::<HtmlSelectElement>();
                                     Msg::UpdateSearchType(target.value())
                                 })}
                             >
@@ -331,13 +365,13 @@ impl FiveDimensionPage {
                                 placeholder="请输入搜索关键字"
                                 value={self.search_keyword.clone()}
                                 oninput={ctx.link().callback(|e: InputEvent| {
-                                    let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
+                                    let target = e.target_unchecked_into::<HtmlInputElement>();
                                     Msg::UpdateSearchKeyword(target.value())
                                 })}
                             />
                         </div>
                         <button
-                            class="btn-primary"
+                            class="btn btn-primary"
                             onclick={ctx.link().callback(|_| Msg::Search)}
                             disabled={self.searching}
                         >
@@ -345,11 +379,10 @@ impl FiveDimensionPage {
                         </button>
                     </div>
 
-                    // 搜索结果
                     if !self.search_results.is_empty() {
                         <div class="search-results">
                             <h3>{"搜索结果"}</h3>
-                            <div class="table-responsive">
+                            <div class="table-container">
                                 <table class="data-table">
                                     <thead>
                                         <tr>
@@ -369,7 +402,7 @@ impl FiveDimensionPage {
                                             html! {
                                                 <tr>
                                                     <td class="five-dim-id">{&item.five_dimension_id}</td>
-                                                    <td>{item.product_id.to_string()}</td>
+                                                    <td>{item.product_id}</td>
                                                     <td>{item.product_name.clone().unwrap_or_else(|| "-".to_string())}</td>
                                                     <td>{&item.batch_no}</td>
                                                     <td>{&item.color_no}</td>
@@ -377,7 +410,7 @@ impl FiveDimensionPage {
                                                     <td>{&item.grade}</td>
                                                     <td>
                                                         <button
-                                                            class="btn-sm btn-info"
+                                                            class="btn btn-sm btn-info"
                                                             onclick={ctx.link().callback(move |_| Msg::ViewStats(item_clone.clone()))}
                                                         >
                                                             {"查看详情"}
@@ -390,6 +423,12 @@ impl FiveDimensionPage {
                                 </table>
                             </div>
                         </div>
+                    } else if !self.search_keyword.is_empty() && !self.searching {
+                        <EmptyState
+                            icon={"🔍".to_string()}
+                            title={"暂无搜索结果".to_string()}
+                            description={"没有匹配搜索条件的五维数据".to_string()}
+                        />
                     }
                 </div>
             </div>
@@ -410,23 +449,22 @@ impl FiveDimensionPage {
                                 id="parse-input"
                                 type="text"
                                 class="form-control"
-                                placeholder="请输入五维ID，如：P1|B20240101|C001|D20240101001|G 一等品"
+                                placeholder="请输入五维ID"
                                 value={self.parse_input.clone()}
                                 oninput={ctx.link().callback(|e: InputEvent| {
-                                    let target = e.target_unchecked_into::<web_sys::HtmlInputElement>();
+                                    let target = e.target_unchecked_into::<HtmlInputElement>();
                                     Msg::UpdateParseInput(target.value())
                                 })}
                             />
                         </div>
                         <button
-                            class="btn-primary"
+                            class="btn btn-primary"
                             onclick={ctx.link().callback(|_| Msg::ParseId)}
                         >
                             {"解析"}
                         </button>
                     </div>
 
-                    // 解析结果
                     if let Some(dimension) = &self.parsed_dimension {
                         <div class="parse-result success">
                             <h3>{"解析成功"}</h3>
@@ -437,7 +475,7 @@ impl FiveDimensionPage {
                                 </div>
                                 <div class="result-item">
                                     <span class="label">{"产品ID："}</span>
-                                    <span class="value">{dimension.product_id.to_string()}</span>
+                                    <span class="value">{dimension.product_id}</span>
                                 </div>
                                 <div class="result-item">
                                     <span class="label">{"产品名称："}</span>
@@ -478,19 +516,17 @@ impl FiveDimensionPage {
             <div class="card list-card">
                 <div class="card-header">
                     <h2>{"五维统计数据列表"}</h2>
-                    <button class="btn-secondary" onclick={ctx.link().callback(|_| Msg::LoadList)}>
-                        {"刷新"}
-                    </button>
                 </div>
                 <div class="card-body">
                     if let Some(list_data) = &self.list_data {
                         if list_data.items.is_empty() {
-                            <div class="empty-state">
-                                <div class="empty-icon">{"📭"}</div>
-                                <p>{"暂无数据"}</p>
-                            </div>
+                            <EmptyState
+                                icon={"📭".to_string()}
+                                title={"暂无数据".to_string()}
+                                description={"当前暂无五维统计数据".to_string()}
+                            />
                         } else {
-                            <div class="table-responsive">
+                            <div class="table-container">
                                 <table class="data-table">
                                     <thead>
                                         <tr>
@@ -506,14 +542,12 @@ impl FiveDimensionPage {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {for list_data.items.iter().map(|item| {
+                                        {for self.paginated_items(&list_data.items).iter().map(|item| {
                                             html! {
                                                 <tr>
                                                     <td class="five-dim-id">{&item.dimension.five_dimension_id}</td>
                                                     <td>
-                                                        <div class="cell-with-tooltip">
-                                                            {item.dimension.product_name.clone().unwrap_or_else(|| format!("产品#{}", item.dimension.product_id))}
-                                                        </div>
+                                                        {item.dimension.product_name.clone().unwrap_or_else(|| format!("产品#{}", item.dimension.product_id))}
                                                     </td>
                                                     <td>{&item.dimension.batch_no}</td>
                                                     <td>{&item.dimension.color_no}</td>
@@ -521,25 +555,38 @@ impl FiveDimensionPage {
                                                     <td>{&item.dimension.grade}</td>
                                                     <td class="numeric">{self.format_decimal(&item.total_meters)}</td>
                                                     <td class="numeric">{self.format_decimal(&item.total_kg)}</td>
-                                                    <td class="numeric">{item.stock_count.to_string()}</td>
+                                                    <td class="numeric">{item.stock_count}</td>
                                                 </tr>
                                             }
                                         })}
                                     </tbody>
                                 </table>
-                            </div>
-                            <div class="pagination-info">
-                                <span>{"第 "}{list_data.page + 1}{" / "}{((list_data.total as f64 / list_data.page_size as f64).ceil() as u64).max(1)}{" 页"}</span>
-                                <span>{"共 "}{list_data.total}{" 条记录"}</span>
+                                <Pagination
+                                    current_page={self.page}
+                                    page_size={self.page_size}
+                                    total={list_data.total}
+                                    on_page_change={ctx.link().callback(|page| Msg::PageChanged(page))}
+                                />
                             </div>
                         }
+                    } else {
+                        <EmptyState
+                            icon={"📭".to_string()}
+                            title={"暂无数据".to_string()}
+                            description={"当前暂无五维统计数据".to_string()}
+                        />
                     }
                 </div>
             </div>
         }
     }
 
-    // 格式化数值
+    fn paginated_items(&self, items: &[FiveDimensionStatsResponse]) -> Vec<FiveDimensionStatsResponse> {
+        let start = (self.page * self.page_size) as usize;
+        let end = ((self.page + 1) * self.page_size) as usize;
+        items[start..end.min(items.len())].to_vec()
+    }
+
     fn format_decimal(&self, value: &serde_json::Value) -> String {
         if let Some(num) = value.as_f64() {
             format!("{:.2}", num)
