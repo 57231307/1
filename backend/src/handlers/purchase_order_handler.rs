@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::supplier;
 use crate::services::purchase_order_service::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, PurchaseOrderService,
     UpdateOrderItemRequest, UpdatePurchaseOrderRequest,
@@ -15,6 +16,7 @@ use axum::{
     Json,
 };
 use crate::utils::app_state::AppState;
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -22,7 +24,7 @@ use validator::Validate;
 pub async fn list_orders(
     Query(params): Query<OrderQueryParams>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let (orders, _total) = service
@@ -35,10 +37,50 @@ pub async fn list_orders(
         .await?;
 
     // 转换为JSON值数组
-    let orders_json: Vec<serde_json::Value> = orders
+    let mut orders_json: Vec<serde_json::Value> = orders
         .into_iter()
         .map(|o| serde_json::to_value(o).unwrap_or_default())
         .collect();
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "purchase_order")
+            .await
+        {
+            state.data_permission_service.filter_fields_batch(
+                &mut orders_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            for order in &mut orders_json {
+                if let Some(obj) = order.as_object_mut() {
+                    obj.remove("total_amount");
+                    obj.remove("total_amount_foreign");
+                    obj.remove("total_quantity");
+                    obj.remove("total_quantity_alt");
+                    obj.remove("paid_amount");
+                    obj.remove("balance_amount");
+
+                    if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
+                        for item in items {
+                            if let Some(item_obj) = item.as_object_mut() {
+                                item_obj.remove("unit_price");
+                                item_obj.remove("unit_price_foreign");
+                                item_obj.remove("subtotal");
+                                item_obj.remove("tax_amount");
+                                item_obj.remove("discount_amount");
+                                item_obj.remove("total_amount");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success(orders_json)))
 }
@@ -47,12 +89,51 @@ pub async fn list_orders(
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let order = service.get_order(id).await?;
+    let mut order_json = serde_json::to_value(order)?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(order)?)))
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "purchase_order")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut order_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(obj) = order_json.as_object_mut() {
+                obj.remove("total_amount");
+                obj.remove("total_amount_foreign");
+                obj.remove("total_quantity");
+                obj.remove("total_quantity_alt");
+                obj.remove("paid_amount");
+                obj.remove("balance_amount");
+
+                if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
+                    for item in items {
+                        if let Some(item_obj) = item.as_object_mut() {
+                            item_obj.remove("unit_price");
+                            item_obj.remove("unit_price_foreign");
+                            item_obj.remove("subtotal");
+                            item_obj.remove("tax_amount");
+                            item_obj.remove("discount_amount");
+                            item_obj.remove("total_amount");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Json(ApiResponse::success(order_json)))
 }
 
 /// 创建采购订单
@@ -69,6 +150,29 @@ pub async fn create_order(
     let user_id = auth.user_id;
 
     let order = service.create_order(req, user_id).await?;
+
+    // 发送采购订单创建通知
+    if let Some(ref event_service) = state.event_notification_service {
+        let supplier_name = supplier::Entity::find_by_id(order.supplier_id)
+            .one(state.db.as_ref())
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.supplier_name)
+            .unwrap_or_else(|| "未知供应商".to_string());
+
+        let amount = order.total_amount.to_string();
+
+        let _ = event_service
+            .notify_purchase_order_created(
+                user_id,
+                &order.order_no,
+                order.id,
+                &supplier_name,
+                &amount,
+            )
+            .await;
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(order)?,
@@ -150,7 +254,20 @@ pub async fn reject_order(auth: AuthContext,
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    let order = service.reject_order(id, req.reason, user_id).await?;
+    let order = service.reject_order(id, req.reason.clone(), user_id).await?;
+
+    // 发送审批拒绝通知
+    if let Some(ref event_service) = state.event_notification_service {
+        let _ = event_service
+            .notify_approval_result(
+                order.created_by,
+                &order.order_no,
+                false,
+                &auth.username,
+                Some(&req.reason),
+            )
+            .await;
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(order)?,

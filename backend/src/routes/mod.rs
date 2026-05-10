@@ -80,6 +80,7 @@ use crate::handlers::{
     webhook_handler,
     init_handler, accounting_period_handler, omni_audit_handler,
     notification_handler,
+    user_notification_setting_handler,
     data_permission_handler,
 };
 
@@ -942,6 +943,10 @@ pub fn create_router(state: AppState) -> Router {
             .route("/:id", get(notification_handler::get_notification))
             .route("/:id/read", post(notification_handler::mark_as_read))
             .route("/:id", delete(notification_handler::delete_notification))
+        )
+        // 用户通知偏好设置路由
+        .nest("/api/v1/erp/user/notification-setting", Router::new()
+            .route("/", get(user_notification_setting_handler::get_setting).put(user_notification_setting_handler::update_setting))
         )
         .nest("/", metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))

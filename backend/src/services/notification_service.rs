@@ -295,6 +295,11 @@ impl NotificationService {
         Ok(setting)
     }
 
+    /// 获取数据库连接（用于关联查询）
+    pub fn db(&self) -> &Arc<DatabaseConnection> {
+        &self.db
+    }
+
     /// 检查用户是否启用了某类通知
     pub async fn is_notification_enabled(
         &self,

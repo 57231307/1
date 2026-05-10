@@ -62,7 +62,44 @@ pub async fn list_requests(
         auth.username, total
     );
 
-    let result = crate::utils::response::build_paginated_response(requests, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let mut result = crate::utils::response::build_paginated_response(requests, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "ap_payment_request")
+            .await
+        {
+            let mut list_opt = result.get_mut("list");
+            if list_opt.is_none() {
+                list_opt = result.get_mut("data");
+            }
+            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
+                state.data_permission_service.filter_fields_batch(
+                    list,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            let mut list_opt = result.get_mut("list");
+            if list_opt.is_none() {
+                list_opt = result.get_mut("data");
+            }
+            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
+                for request in list {
+                    if let Some(obj) = request.as_object_mut() {
+                        obj.remove("request_amount");
+                        obj.remove("request_amount_foreign");
+                        obj.remove("bank_account");
+                        obj.remove("bank_name");
+                    }
+                }
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -83,7 +120,32 @@ pub async fn get_request(
         auth.username, request.request_no
     );
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(request)?)))
+    let mut request_json = serde_json::to_value(request)?;
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "ap_payment_request")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut request_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(obj) = request_json.as_object_mut() {
+                obj.remove("request_amount");
+                obj.remove("request_amount_foreign");
+                obj.remove("bank_account");
+                obj.remove("bank_name");
+            }
+        }
+    }
+
+    Ok(Json(ApiResponse::success(request_json)))
 }
 
 /// 创建付款申请
@@ -247,7 +309,20 @@ pub async fn reject_request(
     );
 
     let service = ApPaymentRequestService::new(state.db.clone());
-    let request = service.reject(id, req.reason, auth.user_id).await?;
+    let request = service.reject(id, req.reason.clone(), auth.user_id).await?;
+
+    // 发送审批拒绝通知
+    if let Some(ref event_service) = state.event_notification_service {
+        let _ = event_service
+            .notify_approval_result(
+                request.created_by,
+                &request.request_no,
+                false,
+                &auth.username,
+                Some(&req.reason),
+            )
+            .await;
+    }
 
     info!(
         "用户 {} 拒绝付款申请成功：{}",

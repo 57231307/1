@@ -86,5 +86,7 @@ pub mod ai_analysis_handler;
 pub mod report_engine_handler;
 // 消息通知模块
 pub mod notification_handler;
+// 用户通知偏好设置模块
+pub mod user_notification_setting_handler;
 // 数据权限模块
 pub mod data_permission_handler;

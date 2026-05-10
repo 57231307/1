@@ -85,24 +85,55 @@ pub struct LowStockResponse {
 
 pub async fn get_stock(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<StockResponse>, (StatusCode, String)> {
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let service = InventoryStockService::new(state.db.clone());
 
     match service.find_by_id(id).await {
-        Ok(stock) => Ok(Json(StockResponse {
-            id: stock.id,
-            warehouse_id: stock.warehouse_id,
-            product_id: stock.product_id,
-            quantity_on_hand: stock.quantity_on_hand,
-            quantity_available: stock.quantity_available,
-            quantity_reserved: stock.quantity_reserved,
-            reorder_point: stock.reorder_point,
-            bin_location: stock.bin_location,
-            created_at: stock.created_at,
-            updated_at: stock.updated_at,
-        })),
+        Ok(stock) => {
+            let response = StockResponse {
+                id: stock.id,
+                warehouse_id: stock.warehouse_id,
+                product_id: stock.product_id,
+                quantity_on_hand: stock.quantity_on_hand,
+                quantity_available: stock.quantity_available,
+                quantity_reserved: stock.quantity_reserved,
+                reorder_point: stock.reorder_point,
+                bin_location: stock.bin_location,
+                created_at: stock.created_at,
+                updated_at: stock.updated_at,
+            };
+
+            let mut response_json = serde_json::to_value(response)
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+            // 数据权限控制：获取角色数据权限并应用字段过滤
+            if let Some(role_id) = auth.role_id {
+                if let Ok(Some(permission)) = state
+                    .data_permission_service
+                    .get_role_data_permission(role_id, "inventory_stock")
+                    .await
+                {
+                    state.data_permission_service.filter_fields(
+                        &mut response_json,
+                        &permission.allowed_fields,
+                        &permission.hidden_fields,
+                    );
+                } else if role_id != 1 {
+                    // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+                    if let Some(obj) = response_json.as_object_mut() {
+                        obj.remove("quantity_on_hand");
+                        obj.remove("quantity_available");
+                        obj.remove("quantity_reserved");
+                        obj.remove("reorder_point");
+                        obj.remove("reorder_quantity");
+                    }
+                }
+            }
+
+            Ok(Json(response_json))
+        }
         Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
     }
 }
@@ -224,9 +255,9 @@ pub async fn delete_stock(
 
 pub async fn list_stock(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListStockParams>,
-) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockResponse>>>, AppError> {
+) -> Result<Json<crate::utils::response::ApiResponse<Vec<serde_json::Value>>>, AppError> {
     if let Err(e) = params.validate() {
         return Err(AppError::ValidationError(e.to_string()));
     }
@@ -278,7 +309,38 @@ pub async fn list_stock(
         }
     }
 
-    Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
+    let mut stock_json: Vec<serde_json::Value> = stock_responses
+        .into_iter()
+        .map(|s| serde_json::to_value(s).unwrap_or_default())
+        .collect();
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "inventory_stock")
+            .await
+        {
+            state.data_permission_service.filter_fields_batch(
+                &mut stock_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            for stock in &mut stock_json {
+                if let Some(obj) = stock.as_object_mut() {
+                    obj.remove("quantity_on_hand");
+                    obj.remove("quantity_available");
+                    obj.remove("quantity_reserved");
+                    obj.remove("reorder_point");
+                    obj.remove("reorder_quantity");
+                }
+            }
+        }
+    }
+
+    Ok(Json(crate::utils::response::ApiResponse::success(stock_json)))
 }
 
 pub async fn check_low_stock(

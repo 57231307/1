@@ -111,6 +111,7 @@ pub struct CustomerResponse {
 pub async fn list_customers(
     State(state): State<AppState>,
     Query(query): Query<CustomerListQuery>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<serde_json::Value>>>, AppError>
 {
     let page_req = PageRequest {
@@ -123,11 +124,40 @@ pub async fn list_customers(
         .list_customers(page_req, query.status, query.customer_type, query.keyword)
         .await?;
 
-    let customers_json: Vec<serde_json::Value> = result
+    let mut customers_json: Vec<serde_json::Value> = result
         .data
         .into_iter()
         .map(|c| serde_json::to_value(c).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
         .collect::<Result<Vec<_>, _>>()?;
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "customer")
+            .await
+        {
+            state.data_permission_service.filter_fields_batch(
+                &mut customers_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            for customer in &mut customers_json {
+                if let Some(obj) = customer.as_object_mut() {
+                    obj.remove("credit_limit");
+                    obj.remove("payment_terms");
+                    obj.remove("tax_id");
+                    obj.remove("bank_name");
+                    obj.remove("bank_account");
+                    obj.remove("contact_phone");
+                    obj.remove("contact_email");
+                    obj.remove("address");
+                }
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success(
         crate::utils::response::PaginatedResponse::new(
@@ -143,10 +173,39 @@ pub async fn list_customers(
 pub async fn get_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
     let customer = customer_service.get_customer(id).await?;
-    let customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "customer")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut customer_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(obj) = customer_json.as_object_mut() {
+                obj.remove("credit_limit");
+                obj.remove("payment_terms");
+                obj.remove("tax_id");
+                obj.remove("bank_name");
+                obj.remove("bank_account");
+                obj.remove("contact_phone");
+                obj.remove("contact_email");
+                obj.remove("address");
+            }
+        }
+    }
+
     Ok(Json(ApiResponse::success(customer_json)))
 }
 

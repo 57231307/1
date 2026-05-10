@@ -11,6 +11,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 /// 创建调整单请求
 #[derive(Debug, Deserialize)]
@@ -205,6 +206,7 @@ pub async fn approve_adjustment(auth: AuthContext,
 pub async fn reject_adjustment(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
@@ -214,6 +216,21 @@ pub async fn reject_adjustment(
                 .get_adjustment(id)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+            // 发送审批拒绝通知
+            if let Some(ref event_service) = state.event_notification_service {
+                if let Some(created_by) = detail.adjustment.created_by {
+                    let _ = event_service
+                        .notify_approval_result(
+                            created_by,
+                            &detail.adjustment.adjustment_no,
+                            false,
+                            &auth.username,
+                            None,
+                        )
+                        .await;
+                }
+            }
 
             Ok(Json(AdjustmentResponse {
                 id: detail.adjustment.id,
