@@ -402,6 +402,42 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Cleanup Old Releases
+        run: |
+          # 保留最近的 10 个发布版本，删除其余的旧版本
+          echo "获取所有 Release 标签（按时间倒序）..."
+          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
+            jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name')
+
+          total=$(echo "$releases" | wc -l)
+          echo "总共找到 $total 个 Release"
+
+          if [ "$total" -gt 10 ]; then
+            to_delete=$(echo "$releases" | tail -n +11)
+            echo "需要删除 $(echo "$to_delete" | wc -l) 个旧 Release"
+
+            for tag in $to_delete; do
+              echo "删除 Release: $tag"
+              release_id=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" | \
+                jq -r '.id')
+
+              if [ "$release_id" != "null" ] && [ -n "$release_id" ]; then
+                curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                  "https://api.github.com/repos/${{ github.repository }}/releases/$release_id"
+                echo "已删除 Release: $tag (ID: $release_id)"
+              fi
+
+              echo "删除标签: $tag"
+              curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$tag"
+              echo "已删除标签: $tag"
+            done
+          else
+            echo "Release 数量 ($total) 未超过 10 个，无需清理"
+          fi
+
   notify:
     name: 构建通知
     needs: [test, build-backend, build-frontend, package-release, github-release]
