@@ -183,8 +183,15 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             TAG_NAME=${GITHUB_REF#refs/tags/}
           else
-            # 时间戳版本格式: YYYY.MMDD.HHMM
-            VERSION=$(date +'%Y.%m%d.%H%M')
+            # 时间戳版本格式: YYYY.MMDD.HHMM (移除前导零以符合 Cargo 语义化版本规范)
+            YEAR=$(date +'%Y')
+            MONTH=$(date +'%-m')
+            DAY=$(date +'%-d')
+            HOUR=$(date +'%-H')
+            MIN=$(date +'%-M')
+            # 将小时和分钟组合成一个无前导零的数字
+            TIME=$((HOUR * 100 + MIN))
+            VERSION="${YEAR}.${MONTH}${DAY}.${TIME}"
             TAG_NAME="v${VERSION}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
