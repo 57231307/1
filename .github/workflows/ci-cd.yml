@@ -322,10 +322,17 @@ jobs:
         run: |
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
           # 获取上一个 Release 的标签（不依赖 git tags，从 GitHub API 获取）
-          PREV_TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1" | \
-            jq -r '.[0].tag_name // empty')
-          
+          API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
+
+          # 检查 API 响应是否为数组，避免 jq 解析错误
+          if echo "$API_RESPONSE" | jq -e 'type == "array"' > /dev/null 2>&1; then
+            PREV_TAG=$(echo "$API_RESPONSE" | jq -r '.[0].tag_name // empty')
+          else
+            echo "警告：GitHub API 返回非预期响应，使用默认方式生成 CHANGELOG"
+            PREV_TAG=""
+          fi
+
           if [ -z "$PREV_TAG" ]; then
             CHANGELOG=$(git log --oneline --no-merges -n 50)
           else
