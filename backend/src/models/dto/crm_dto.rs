@@ -39,3 +39,33 @@ pub struct OpportunityQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ConvertLeadRequest {
+    pub customer_type: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateLeadRequest {
+    pub name: Option<String>,
+    pub customer_name: Option<String>,
+    pub contact_person: Option<String>,
+    pub contact_phone: Option<String>,
+    pub email: Option<String>,
+    pub address: Option<String>,
+    pub source: Option<String>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateOpportunityRequest {
+    pub name: Option<String>,
+    pub customer_id: Option<i32>,
+    pub lead_id: Option<i32>,
+    pub amount: Option<Decimal>,
+    pub expected_close_date: Option<NaiveDate>,
+    pub stage: Option<String>,
+    pub source: Option<String>,
+    pub remarks: Option<String>,
+}

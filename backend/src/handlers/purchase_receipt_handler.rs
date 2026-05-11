@@ -26,7 +26,7 @@ use validator::Validate;
 pub async fn list_receipts(
     Query(params): Query<ReceiptQueryParams>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let (receipts, total) = service
@@ -39,7 +39,42 @@ pub async fn list_receipts(
         )
         .await?;
 
-    let result = crate::utils::response::build_paginated_response(receipts, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let mut result = crate::utils::response::build_paginated_response(receipts, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state.data_permission_service
+            .get_role_data_permission(role_id, "purchase_receipt")
+            .await
+        {
+            let mut list_opt = result.get_mut("list");
+            if list_opt.is_none() {
+                list_opt = result.get_mut("data");
+            }
+            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
+                state.data_permission_service.filter_fields_batch(
+                    list,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            let mut list_opt = result.get_mut("list");
+            if list_opt.is_none() {
+                list_opt = result.get_mut("data");
+            }
+            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
+                for receipt in list {
+                    if let Some(obj) = receipt.as_object_mut() {
+                        obj.remove("total_amount");
+                        obj.remove("tax_amount");
+                        obj.remove("discount_amount");
+                    }
+                }
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -48,12 +83,34 @@ pub async fn list_receipts(
 pub async fn get_receipt(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let receipt = service.get_receipt(id).await?;
+    let mut receipt_json = serde_json::to_value(receipt).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(receipt)?)))
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state.data_permission_service
+            .get_role_data_permission(role_id, "purchase_receipt")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut receipt_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(obj) = receipt_json.as_object_mut() {
+                obj.remove("total_amount");
+                obj.remove("tax_amount");
+                obj.remove("discount_amount");
+            }
+        }
+    }
+
+    Ok(Json(ApiResponse::success(receipt_json)))
 }
 
 /// 创建采购入库单
@@ -147,14 +204,43 @@ pub async fn confirm_receipt(auth: AuthContext,
 }
 
 /// 获取入库明细列表
-pub async fn list_receipt_items(_auth: AuthContext, 
+pub async fn list_receipt_items(
+    auth: AuthContext,
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let items = service.list_receipt_items(receipt_id).await?;
+    let mut items_json = serde_json::to_value(items).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state.data_permission_service
+            .get_role_data_permission(role_id, "purchase_receipt_item")
+            .await
+        {
+            if let Some(list) = items_json.as_array_mut() {
+                state.data_permission_service.filter_fields_batch(
+                    list,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(list) = items_json.as_array_mut() {
+                for item in list {
+                    if let Some(obj) = item.as_object_mut() {
+                        obj.remove("unit_price");
+                        obj.remove("total_price");
+                        obj.remove("tax_amount");
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Json(ApiResponse::success(items_json)))
 }
 
 /// 添加入库明细

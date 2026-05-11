@@ -5,6 +5,7 @@
 #   - DATABASE_PASSWORD (数据库密码)
 #   - JWT_SECRET (JWT 密钥，至少 32 字节)
 #   - COOKIE_SECRET (Cookie 密钥，至少 32 字节)
+#   - AUDIT_SECRET_KEY (审计密钥，至少 32 字节)
 # 生成方法: openssl rand -base64 32
 
 server:
@@ -45,5 +46,12 @@ cors:
     - "http://127.0.0.1:3000"
     - "http://localhost:8080"
     - "http://127.0.0.1:8080"
+
+security:
+  jwt_secret: "${JWT_SECRET}"
+  audit_secret: "${AUDIT_SECRET_KEY}"
+  cors_allowed_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
 
 env: "development"

@@ -280,6 +280,19 @@ pub async fn approve_request(
     let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.approve(id, auth.user_id).await?;
 
+    // 发送审批通过通知
+    if let Some(ref event_service) = state.event_notification_service {
+        let _ = event_service
+            .notify_approval_result(
+                request.created_by,
+                &request.request_no,
+                true,
+                &auth.username,
+                None,
+            )
+            .await;
+    }
+
     info!(
         "用户 {} 审批付款申请通过：{}",
         auth.username, request.request_no

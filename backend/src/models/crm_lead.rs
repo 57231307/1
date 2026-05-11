@@ -63,6 +63,13 @@ pub struct Model {
 
 /// CRM 线索关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::customer::Entity",
+        from = "Column::CustomerId",
+        to = "super::customer::Column::Id"
+    )]
+    Customer,
+}
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -367,6 +367,24 @@ pub async fn check_low_stock(
         })
         .collect();
 
+    // 发送库存预警通知
+    if let Some(ref event_service) = state.event_notification_service {
+        for stock in &stock_responses {
+            if let Ok(Some(product)) = product::Entity::find_by_id(stock.product_id)
+                .one(&*state.db)
+                .await
+            {
+                let _ = event_service.notify_inventory_alert(
+                    0,
+                    &product.name,
+                    product.id,
+                    &stock.quantity_on_hand.to_string(),
+                    &stock.reorder_point.to_string(),
+                ).await;
+            }
+        }
+    }
+
     Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
 }
 

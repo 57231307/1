@@ -109,6 +109,16 @@ impl AppSettings {
                 .collect();
         }
 
+        if app_settings.cors.allowed_origins.is_empty() {
+            tracing::warn!(
+                "安全警告: 未配置 CORS 允许来源，默认仅允许 localhost。请在生产环境配置正确的 CORS__ALLOWED_ORIGINS 或 cors.allowed_origins"
+            );
+            app_settings.cors.allowed_origins = vec![
+                "http://localhost:3000".to_string(),
+                "http://127.0.0.1:3000".to_string(),
+            ];
+        }
+
         if app_settings.database.connection_string.is_empty() {
             app_settings.database.connection_string = format!(
                 "postgres://{}:{}@{}:{}/{}",

@@ -35,7 +35,12 @@ pub struct OmniAuditEngine {
 impl OmniAuditEngine {
     pub fn new(db: Arc<DatabaseConnection>) -> Result<Self, String> {
         let secret_key = std::env::var("AUDIT_SECRET_KEY")
-            .unwrap_or_else(|_| "default-audit-secret-key-for-test-environments-only-32-bytes".to_string());
+            .unwrap_or_else(|_| {
+                tracing::warn!(
+                    "安全警告: 未设置 AUDIT_SECRET_KEY 环境变量，正在使用默认密钥。请在生产环境中设置强密钥！"
+                );
+                "default-audit-secret-key-for-test-environments-only-32-bytes".to_string()
+            });
 
         if secret_key.len() < 32 {
             return Err("AUDIT_SECRET_KEY 长度必须至少 32 字节".to_string());
