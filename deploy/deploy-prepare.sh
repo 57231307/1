@@ -58,7 +58,13 @@ check_dependencies() {
     # 检查 Trunk (WebAssembly 构建工具)
     if ! command -v trunk &> /dev/null; then
         log "INFO" "安装 Trunk..."
-        curl -sSL https://trunkrs.dev/install.sh | bash
+        if ! cargo install trunk 2>/dev/null; then
+            log "WARNING" "Trunk 安装失败，尝试从 GitHub 安装..."
+            curl -sSL https://raw.githubusercontent.com/thedodd/trunk/master/scripts/install.sh | bash || {
+                log "ERROR" "Trunk 安装失败，请手动安装: cargo install trunk"
+                exit 1
+            }
+        fi
         log "SUCCESS" "Trunk 安装完成"
     fi
     
@@ -92,11 +98,19 @@ manage_version() {
     log "SUCCESS" "版本已更新到: $NEW_VERSION"
     
     # 提交版本号变更
-    if git status | grep -q "VERSION"; then
+    if git status --porcelain | grep -q "VERSION"; then
         git add VERSION
-        git commit -m "Bump version to $NEW_VERSION"
-        git push
-        log "SUCCESS" "版本号已提交到 Git"
+        if git commit -m "Bump version to $NEW_VERSION"; then
+            if git push; then
+                log "SUCCESS" "版本号已提交到 Git"
+            else
+                log "WARNING" "版本号提交到 Git 成功，但推送失败"
+            fi
+        else
+            log "ERROR" "版本号提交到 Git 失败"
+        fi
+    else
+        log "WARNING" "VERSION 文件没有变更，跳过提交"
     fi
     
     echo $NEW_VERSION

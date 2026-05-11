@@ -13,6 +13,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   RUST_VERSION: 1.94.1
@@ -160,6 +164,8 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.version.outputs.tag_name }}
@@ -177,8 +183,15 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             TAG_NAME=${GITHUB_REF#refs/tags/}
           else
-            # 时间戳版本格式: YYYY.MMDD.HHMM
-            VERSION=$(date +'%Y.%m%d.%H%M')
+            # 时间戳版本格式: YYYY.MMDD.HHMM (移除前导零以符合 Cargo 语义化版本规范)
+            YEAR=$(date +'%Y')
+            MONTH=$(date +'%-m')
+            DAY=$(date +'%-d')
+            HOUR=$(date +'%-H')
+            MIN=$(date +'%-M')
+            # 将小时和分钟组合成一个无前导零的数字
+            TIME=$((HOUR * 100 + MIN))
+            VERSION="${YEAR}.${MONTH}${DAY}.${TIME}"
             TAG_NAME="v${VERSION}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -212,9 +225,23 @@ jobs:
             git commit -m "chore(release): 自动更新版本号至 ${{ steps.version.outputs.version }}"
             # 使用 GITHUB_TOKEN 设置远程仓库 URL
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            # 确保我们有最新的代码
-            git pull --rebase origin ${{ github.ref_name }} || true
-            git push origin HEAD:${{ github.ref_name }}
+            # 获取远程最新变更并尝试推送
+            for i in 1 2 3; do
+              echo "尝试推送 (第 $i 次)..."
+              git fetch origin ${{ github.ref_name }}
+              if git rebase origin/${{ github.ref_name }}; then
+                if git push origin HEAD:${{ github.ref_name }}; then
+                  echo "推送成功"
+                  break
+                fi
+              fi
+              if [ "$i" -eq 3 ]; then
+                echo "错误：多次尝试推送失败"
+                exit 1
+              fi
+              echo "推送失败，等待后重试..."
+              sleep 3
+            done
           fi
 
       - name: 下载后端产物
@@ -302,13 +329,28 @@ jobs:
         run: |
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
           # 获取上一个 Release 的标签（不依赖 git tags，从 GitHub API 获取）
-          PREV_TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1" | \
-            jq -r '.[0].tag_name // empty')
-          
-          if [ -z "$PREV_TAG" ]; then
+          API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
+
+          # 检查 API 响应是否为数组，避免 jq 解析错误
+          if echo "$API_RESPONSE" | jq -e 'type == "array"' > /dev/null 2>&1; then
+            PREV_TAG=$(echo "$API_RESPONSE" | jq -r '.[0].tag_name // empty')
+          else
+            echo "警告：GitHub API 返回非预期响应，使用默认方式生成 CHANGELOG"
+            PREV_TAG=""
+          fi
+
+          # 检查 PREV_TAG 是否在本地存在（actions/checkout 默认不拉取所有 tag）
+          if [ -n "$PREV_TAG" ] && ! git rev-parse "$PREV_TAG" > /dev/null 2>&1; then
+            echo "警告：标签 $PREV_TAG 在本地不存在，获取远程 tags..."
+            git fetch --tags origin || true
+          fi
+
+          if [ -z "$PREV_TAG" ] || ! git rev-parse "$PREV_TAG" > /dev/null 2>&1; then
+            echo "使用最近 50 条提交生成 CHANGELOG"
             CHANGELOG=$(git log --oneline --no-merges -n 50)
           else
+            echo "使用标签范围 ${PREV_TAG}..HEAD 生成 CHANGELOG"
             CHANGELOG=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
           fi
 
