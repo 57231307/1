@@ -340,9 +340,17 @@ jobs:
             PREV_TAG=""
           fi
 
-          if [ -z "$PREV_TAG" ]; then
+          # 检查 PREV_TAG 是否在本地存在（actions/checkout 默认不拉取所有 tag）
+          if [ -n "$PREV_TAG" ] && ! git rev-parse "$PREV_TAG" > /dev/null 2>&1; then
+            echo "警告：标签 $PREV_TAG 在本地不存在，获取远程 tags..."
+            git fetch --tags origin || true
+          fi
+
+          if [ -z "$PREV_TAG" ] || ! git rev-parse "$PREV_TAG" > /dev/null 2>&1; then
+            echo "使用最近 50 条提交生成 CHANGELOG"
             CHANGELOG=$(git log --oneline --no-merges -n 50)
           else
+            echo "使用标签范围 ${PREV_TAG}..HEAD 生成 CHANGELOG"
             CHANGELOG=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
           fi
 
