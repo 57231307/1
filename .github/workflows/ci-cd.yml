@@ -164,6 +164,8 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.version.outputs.tag_name }}
@@ -216,9 +218,23 @@ jobs:
             git commit -m "chore(release): 自动更新版本号至 ${{ steps.version.outputs.version }}"
             # 使用 GITHUB_TOKEN 设置远程仓库 URL
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            # 确保我们有最新的代码
-            git pull --rebase origin ${{ github.ref_name }} || true
-            git push origin HEAD:${{ github.ref_name }}
+            # 获取远程最新变更并尝试推送
+            for i in 1 2 3; do
+              echo "尝试推送 (第 $i 次)..."
+              git fetch origin ${{ github.ref_name }}
+              if git rebase origin/${{ github.ref_name }}; then
+                if git push origin HEAD:${{ github.ref_name }}; then
+                  echo "推送成功"
+                  break
+                fi
+              fi
+              if [ "$i" -eq 3 ]; then
+                echo "错误：多次尝试推送失败"
+                exit 1
+              fi
+              echo "推送失败，等待后重试..."
+              sleep 3
+            done
           fi
 
       - name: 下载后端产物
