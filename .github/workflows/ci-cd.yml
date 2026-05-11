@@ -210,15 +210,12 @@ jobs:
             echo "版本号未发生变化，跳过提交"
           else
             git commit -m "chore(release): 自动更新版本号至 ${{ steps.version.outputs.version }}"
-            git push
+            # 使用 GITHUB_TOKEN 设置远程仓库 URL
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            # 确保我们有最新的代码
+            git pull --rebase origin ${{ github.ref_name }} || true
+            git push origin HEAD:${{ github.ref_name }}
           fi
-
-      - name: 创建并推送标签
-        run: |
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          git tag -f "$TAG_NAME"
-          git push -f origin "$TAG_NAME"
-          echo "已创建并推送标签: $TAG_NAME"
 
       - name: 下载后端产物
         uses: actions/download-artifact@v4
@@ -303,14 +300,16 @@ jobs:
       - name: 生成发布说明
         id: release-notes
         run: |
-          git fetch --tags
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
-          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || echo "")
+          # 获取上一个 Release 的标签（不依赖 git tags，从 GitHub API 获取）
+          PREV_TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1" | \
+            jq -r '.[0].tag_name // empty')
           
           if [ -z "$PREV_TAG" ]; then
             CHANGELOG=$(git log --oneline --no-merges -n 50)
           else
-            CHANGELOG=$(git log "${PREV_TAG}..${TAG_NAME}" --oneline --no-merges)
+            CHANGELOG=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
           fi
 
           # 写入 CHANGELOG
@@ -404,8 +403,8 @@ jobs:
 
       - name: Cleanup Old Releases
         run: |
-          # 保留最近的 10 个发布版本，删除其余的旧版本
-          echo "获取所有 Release 标签（按时间倒序）..."
+          # 保留最近的 10 个发布版本，删除其余的旧版本（只删除 Release，不删除 Git 标签）
+          echo "获取所有 Release（按时间倒序）..."
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
             jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name')
@@ -428,11 +427,6 @@ jobs:
                   "https://api.github.com/repos/${{ github.repository }}/releases/$release_id"
                 echo "已删除 Release: $tag (ID: $release_id)"
               fi
-
-              echo "删除标签: $tag"
-              curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$tag"
-              echo "已删除标签: $tag"
             done
           else
             echo "Release 数量 ($total) 未超过 10 个，无需清理"
