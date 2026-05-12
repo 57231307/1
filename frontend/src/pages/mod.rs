@@ -57,7 +57,7 @@ pub mod dye_batch;
 pub mod dye_recipe;
 pub mod greige_fabric;
 
-pub use login::LoginPage;
+pub use login::Login;
 pub use init::InitPage;
 pub use dashboard::DashboardPage;
 pub use user_list::UserListPage;
@@ -115,3 +115,4 @@ pub use sales_return::SalesReturnPage;
 pub mod system_settings;
 pub use system_settings::SystemSettingsPage;
 pub mod my_tasks;
+pub use my_tasks::MyTasksPage;

@@ -1,6 +1,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::route::Route;
+use crate::app::Route;
 
 #[derive(Properties, PartialEq)]
 pub struct NavigationProps {
@@ -34,16 +34,16 @@ pub fn navigation(props: &NavigationProps) -> Html {
 
             <div class="nav-menu">
                 <NavItem route={Route::Dashboard} icon={"fas fa-tachometer-alt"} label={"仪表盘"} {collapsed} />
-                <NavItem route={Route::Fabrics} icon={"fas fa-layer-group"} label={"面料管理"} {collapsed} />
+                <NavItem route={Route::Products} icon={"fas fa-layer-group"} label={"面料管理"} {collapsed} />
                 <NavItem route={Route::Inventory} icon={"fas fa-warehouse"} label={"库存管理"} {collapsed} />
-                <NavItem route={Route::Orders} icon={"fas fa-shopping-cart"} label={"订单管理"} {collapsed} />
+                <NavItem route={Route::Sales} icon={"fas fa-shopping-cart"} label={"订单管理"} {collapsed} />
                 <NavItem route={Route::Suppliers} icon={"fas fa-truck"} label={"供应商"} {collapsed} />
-                <NavItem route={Route::Reports} icon={"fas fa-chart-bar"} label={"报表分析"} {collapsed} />
-                <NavItem route={Route::Settings} icon={"fas fa-cog"} label={"系统设置"} {collapsed} />
+                <NavItem route={Route::SalesAnalysis} icon={"fas fa-chart-bar"} label={"报表分析"} {collapsed} />
+                <NavItem route={Route::SystemSettings} icon={"fas fa-cog"} label={"系统设置"} {collapsed} />
             </div>
 
             <div class="nav-footer">
-                <NavItem route={Route::Profile} icon={"fas fa-user"} label={"个人中心"} {collapsed} />
+                <NavItem route={Route::Users} icon={"fas fa-user"} label={"个人中心"} {collapsed} />
             </div>
         </nav>
     }

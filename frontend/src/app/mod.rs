@@ -1,6 +1,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
-use crate::pages::{SystemSettingsPage, LoginPage, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesReturnPage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage, crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage};
+use crate::pages::{SystemSettingsPage, Login, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesReturnPage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage, crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage, MyTasksPage};
 use crate::utils::storage::Storage;
 use crate::utils::permissions;
 
@@ -146,20 +146,20 @@ impl Component for App {
 
 use crate::components::main_layout::MainLayout;
 
-fn protected_route_with_permission<F>(component: F, page_name: &str, resource: &str, action: &str) -> Html
+fn protected_route_with_permission<F>(component: F, _page_name: &str, resource: &str, action: &str) -> Html
 where
     F: FnOnce() -> Html,
 {
     if Storage::get_token().is_some() {
         if permissions::has_permission(resource, action) {
             html! {
-                <MainLayout current_page={page_name.to_string()}>
+                <MainLayout>
                     {component()}
                 </MainLayout>
             }
         } else {
             html! {
-                <MainLayout current_page={page_name.to_string()}>
+                <MainLayout>
                     <div class="error-page" style="padding: 20px; text-align: center;">
                         <h1>{"无权访问"}</h1>
                         <p>{"您没有权限访问此页面"}</p>
@@ -172,13 +172,13 @@ where
     }
 }
 
-fn protected_route<F>(component: F, page_name: &str) -> Html
+fn protected_route<F>(component: F, _page_name: &str) -> Html
 where
     F: FnOnce() -> Html,
 {
     if Storage::get_token().is_some() {
         html! {
-            <MainLayout current_page={page_name.to_string()}>
+            <MainLayout>
                 {component()}
             </MainLayout>
         }
@@ -190,7 +190,7 @@ where
 fn switch(route: Route) -> Html {
     match route {
         Route::Init => html! { <InitPage /> },
-        Route::Login => html! { <LoginPage /> },
+        Route::Login => html! { <Login /> },
         Route::Dashboard => protected_route(|| html! { <DashboardPage /> }, "dashboard"),
         Route::Users => protected_route_with_permission(|| html! { <UserListPage /> }, "users", "user", "read"),
         Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }, "system-settings"),
