@@ -31,6 +31,7 @@ pub struct AppState {
     pub event_notification_service: Option<Arc<EventNotificationService>>,
     pub data_permission_service: Arc<DataPermissionService>,
     pub notification_service: Arc<NotificationService>,
+    pub allowed_origins: Vec<String>,
 }
 
 impl FromRef<AppState> for Key {
@@ -46,6 +47,10 @@ impl AppState {
     }
 
     pub fn with_secrets(db: Arc<DatabaseConnection>, omni_audit: Arc<OmniAuditEngine>, jwt_secret: String, previous_jwt_secret: Option<String>, cookie_secret: String) -> Self {
+        Self::with_secrets_and_cors(db, omni_audit, jwt_secret, previous_jwt_secret, cookie_secret, vec![])
+    }
+
+    pub fn with_secrets_and_cors(db: Arc<DatabaseConnection>, omni_audit: Arc<OmniAuditEngine>, jwt_secret: String, previous_jwt_secret: Option<String>, cookie_secret: String, allowed_origins: Vec<String>) -> Self {
         let mut final_cookie_secret = cookie_secret;
         if final_cookie_secret.len() < 32 {
             tracing::warn!(
@@ -79,6 +84,7 @@ impl AppState {
             event_notification_service,
             data_permission_service,
             notification_service,
+            allowed_origins,
         }
     }
 
@@ -127,6 +133,7 @@ impl Default for AppState {
             event_notification_service,
             data_permission_service,
             notification_service,
+            allowed_origins: vec![],
         }
     }
 }
