@@ -1,6 +1,6 @@
 [package]
 name = "bingxi-backend"
-version = "2026.512.1405"
+version = "2026.512.1431"
 edition = "2021"
 authors = ["BingXi Team"]
 description = "秉羲面料管理 - Rust 后端服务"
