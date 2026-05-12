@@ -91,6 +91,16 @@ impl Component for LoginPage {
                 true
             }
             Msg::LoginStarted => {
+                // 前端表单验证
+                if self.username.trim().is_empty() {
+                    self.error_message = Some("用户名不能为空".to_string());
+                    return true;
+                }
+                if self.password.trim().is_empty() {
+                    self.error_message = Some("密码不能为空".to_string());
+                    return true;
+                }
+
                 self.is_loading = true;
                 self.error_message = None;
 
