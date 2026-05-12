@@ -1,12 +1,15 @@
 use crate::middleware::public_routes::is_public_path;
+use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
+    extract::State,
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
 };
 
 pub async fn request_validator_middleware(
+    State(state): State<AppState>,
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -31,26 +34,22 @@ pub async fn request_validator_middleware(
         .get("referer")
         .and_then(|v| v.to_str().ok());
 
-    let allowed_origins = vec![
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "https://erp.example.com",
-    ];
+    let allowed_origins = &state.allowed_origins;
 
     let is_valid_origin = origin.map(|o| {
         allowed_origins.iter().any(|allowed| {
-            o.starts_with(*allowed) || *allowed == "*"
+            o.starts_with(allowed) || allowed == "*"
         })
     }).unwrap_or(false);
 
     let is_valid_referer = referer.map(|r| {
         allowed_origins.iter().any(|allowed| {
-            r.starts_with(*allowed) || *allowed == "*"
+            r.starts_with(allowed) || allowed == "*"
         })
     }).unwrap_or(false);
 
     if !is_valid_origin && !is_valid_referer {
-        tracing::warn!("CSRF验证失败: 非法来源 origin={:?}, referer={:?}", origin, referer);
+        tracing::warn!("CSRF验证失败: 非法来源 origin={:?}, referer={:?}, 允许的源={:?}", origin, referer, allowed_origins);
         return Err(StatusCode::FORBIDDEN);
     }
 

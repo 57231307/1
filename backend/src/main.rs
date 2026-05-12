@@ -260,14 +260,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let grpc_db = db.clone();
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(db.clone())?);
             
-            let app_state = crate::utils::app_state::AppState::with_secrets(
-                db, 
+            let app_state = crate::utils::app_state::AppState::with_secrets_and_cors(
+                db,
                 omni_audit,
-                settings.auth.jwt_secret.clone(), 
+                settings.auth.jwt_secret.clone(),
                 settings.auth.previous_jwt_secret.clone(),
-                cookie_secret
+                cookie_secret,
+                settings.cors.allowed_origins.clone(),
             );
             let app_state_clone = app_state.clone();
+            let app_state_clone2 = app_state.clone();
+            let app_state_clone3 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             let app = create_router(app_state)
                 .layer(
@@ -296,9 +299,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .layer(cors.clone())
                 // 中间件执行顺序：auth_middleware（最后注册、最外层、先执行）→ permission_middleware → request_validator → 处理器
-                .layer(axum::middleware::from_fn_with_state(app_state_clone.clone(), permission_middleware))
-                .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
-                .layer(axum::middleware::from_fn(request_validator_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone2, auth_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone3, request_validator_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
                     HeaderValue::from_static("nosniff"),
