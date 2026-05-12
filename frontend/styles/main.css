@@ -44,7 +44,7 @@ body {
 
 /* 导航菜单样式 */
 .navigation {
-    width: 260px;
+    width: 130px;
     height: 100vh;
     background: var(--surface-color);
     border-right: 1px solid var(--border-color);
@@ -146,7 +146,7 @@ body {
 
 .main-content {
     flex: 1;
-    margin-left: 250px;
+    margin-left: 125px;
     padding: 20px;
     transition: margin-left 0.3s;
 }
