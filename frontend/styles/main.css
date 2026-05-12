@@ -44,7 +44,7 @@ body {
 
 /* 导航菜单样式 */
 .navigation {
-    width: 130px;
+    width: 200px;
     height: 100vh;
     background: var(--surface-color);
     border-right: 1px solid var(--border-color);
@@ -53,8 +53,12 @@ body {
     top: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    transition: var(--transition);
+    transition: width 0.3s ease;
     z-index: 40;
+}
+
+.navigation.collapsed {
+    width: 50px;
 }
 
 .nav-brand {
@@ -68,15 +72,83 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.navigation.collapsed .nav-brand {
+    padding: 15px 5px;
+    justify-content: center;
+}
+
+.nav-brand-short {
+    display: none;
+    font-size: 16px;
+}
+
+.navigation.collapsed .nav-brand-short {
+    display: inline;
+}
+
+.nav-brand-full {
+    display: inline;
+}
+
+.navigation.collapsed .nav-brand-full {
+    display: none;
+}
+
+.sidebar-toggle {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    line-height: 1;
+}
+
+.sidebar-toggle:hover {
+    background-color: rgba(102, 126, 234, 0.1);
+}
+
+.navigation.collapsed .sidebar-toggle {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 0;
 }
 
 .nav-menu {
     padding: 5px 0;
 }
 
+.navigation.collapsed .nav-menu {
+    padding: 5px 0;
+}
+
 /* 导航组样式 */
 .nav-group {
     margin-bottom: 2px;
+}
+
+.navigation.collapsed .nav-group {
+    margin-bottom: 4px;
 }
 
 .nav-group-header {
@@ -89,6 +161,16 @@ body {
     font-weight: 600;
     color: #333;
     font-size: 12px;
+}
+
+.navigation.collapsed .nav-group-header {
+    padding: 8px 5px;
+    justify-content: center;
+}
+
+.navigation.collapsed .nav-group-title,
+.navigation.collapsed .nav-group-icon {
+    display: none;
 }
 
 .nav-group-header:hover {
@@ -122,8 +204,8 @@ body {
     opacity: 1;
 }
 
-.nav-group-content {
-    max-height: 500px;
+.navigation.collapsed .nav-group-content {
+    display: none;
 }
 
 .nav-item {
@@ -139,6 +221,20 @@ body {
     text-overflow: ellipsis;
 }
 
+.navigation.collapsed .nav-item {
+    padding: 6px 2px;
+    text-align: center;
+    font-size: 10px;
+    border-left: none;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    height: auto;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .nav-item:hover {
     background-color: #f0f4ff;
     color: #667eea;
@@ -152,6 +248,11 @@ body {
     font-weight: 500;
 }
 
+.navigation.collapsed .nav-item.active {
+    border-left: none;
+    background-color: #f0f4ff;
+}
+
 /* 主内容区域 */
 .app-container {
     display: flex;
@@ -160,9 +261,13 @@ body {
 
 .main-content {
     flex: 1;
-    margin-left: 130px;
+    margin-left: 200px;
     padding: 20px;
-    transition: margin-left 0.3s;
+    transition: margin-left 0.3s ease;
+}
+
+.main-content.expanded {
+    margin-left: 50px;
 }
 
 /* 登录页面样式 */

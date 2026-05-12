@@ -5,6 +5,8 @@ use crate::app::Route;
 #[derive(Properties, PartialEq)]
 pub struct NavigationProps {
     pub current_page: String,
+    pub collapsed: bool,
+    pub on_toggle: Callback<MouseEvent>,
 }
 
 #[function_component(Navigation)]
@@ -176,12 +178,26 @@ pub fn navigation(props: &NavigationProps) -> Html {
         }
     };
 
+    let collapsed = props.collapsed;
+    let on_toggle = props.on_toggle.clone();
+
     html! {
-        <nav class="navigation w-64 h-screen overflow-y-auto bg-white border-r border-gray-200 shadow-sm flex flex-col">
-            <div class="nav-brand px-6 py-5 text-xl font-extrabold text-indigo-700 border-b border-gray-100 sticky top-0 bg-white z-10">
-                {"秉羲面料管理"}
+        <nav class={if collapsed { "navigation collapsed" } else { "navigation" }}>
+            <div class="nav-brand">
+                if collapsed {
+                    <span class="nav-brand-short">{"秉羲"}</span>
+                } else {
+                    <span class="nav-brand-full">{"秉羲面料管理"}</span>
+                }
+                <button class="sidebar-toggle" onclick={on_toggle} title={if collapsed { "展开侧边栏" } else { "收起侧边栏" }}>
+                    if collapsed {
+                        {"»"}
+                    } else {
+                        {"«"}
+                    }
+                </button>
             </div>
-            <div class="nav-menu flex-1 px-3 py-4 space-y-1">
+            <div class="nav-menu">
                 
                 {render_l1_group("工作台", l1_dashboard, html! {
                     <>
