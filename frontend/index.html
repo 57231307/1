@@ -3,108 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>秉羲面料管理</title>
-    <link data-trunk rel="css" href="styles/main.css">
-    <!-- 引入 Tailwind CSS 用于现代 UI 开发 -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#4F46E5',
-                    }
-                }
-            }
-        }
+    <title>秉羲面料管理系统</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="icon" href="/assets/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        import init from '/bingxi_frontend.js';
+        init();
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script>
-        window.renderSalesChart = function(id, dates, amounts) {
-            var chartDom = document.getElementById(id);
-            if (!chartDom) return;
-            var myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
-            var option = {
-                tooltip: { trigger: 'axis' },
-                xAxis: { type: 'category', data: dates },
-                yAxis: { type: 'value' },
-                series: [{ data: amounts, type: 'line', smooth: true, areaStyle: {}, itemStyle: { color: '#4F46E5' } }]
-            };
-            myChart.setOption(option);
-        };
-        
-        window.renderInventoryChart = function(id, warehouses, quantities) {
-            var chartDom = document.getElementById(id);
-            if (!chartDom) return;
-            var myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
-            var option = {
-                tooltip: { trigger: 'item' },
-                series: [{
-                    type: 'pie',
-                    radius: '70%',
-                    data: warehouses.map(function(w, i) { return {name: w, value: quantities[i]}; }),
-                    emphasis: {
-                        itemStyle: {
-                            shadowBlur: 10,
-                            shadowOffsetX: 0,
-                            shadowColor: 'rgba(0, 0, 0, 0.5)'
-                        }
-                    }
-                }]
-            };
-            myChart.setOption(option);
+        // 全局错误处理
+        window.onerror = function(msg, url, line, col, error) {
+            console.error('Global error:', msg, 'at', url, line, col);
+            return false;
         };
 
-        // OmniAudit UI Tracker
-        document.addEventListener('click', function(e) {
-            let target = e.target.closest('button, a');
-            if (target) {
-                if (target.closest('.login-container')) {
-                    return;
-                }
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+        });
 
-                let action = target.innerText.trim() || target.getAttribute('aria-label') || 'click';
-                let resource = target.tagName.toLowerCase();
-                let className = target.className || '';
-                
-                let token = localStorage.getItem('token');
-                if (!token) return;
-                
-                fetch('/api/v1/erp/finance/audit/track', {
+        // 性能监控
+        if (window.performance) {
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    var timing = window.performance.timing;
+                    var loadTime = timing.loadEventEnd - timing.navigationStart;
+                    console.log('Page load time:', loadTime + 'ms');
+                }, 0);
+            });
+        }
+
+        // 跟踪请求
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                fetch('/api/tracking/page-view', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
                     },
                     body: JSON.stringify({
-                        event_type: 'UI_CLICK',
-                        event_name: 'click_' + action,
-                        resource: resource + (className ? '.' + className.split(' ')[0] : ''),
-                        action: action,
-                        payload: {
-                            tagName: target.tagName,
-                            text: action,
-                            href: target.getAttribute('href')
-                        },
-                        duration_ms: 0,
-                        status: 'SUCCESS'
+                        path: window.location.pathname,
+                        timestamp: new Date().toISOString()
                     })
-                }).catch(function(err) {
-                    // 审计追踪静默失败，不干扰正常流程
+                }).catch(function(error) {
+                    console.error('Tracking request failed:', error);
                 });
             }
         });
     </script>
-    <style>
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal, .modal-content { background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .modal-body { margin-bottom: 20px; overflow-y: auto; flex: 1; }
-        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #eee; padding-top: 10px; }
-    </style>
-</head>
-<body>
-    <div id="app"></div>
 </body>
 </html>

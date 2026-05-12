@@ -1,257 +1,158 @@
 use yew::prelude::*;
-use yew_router::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-use wasm_bindgen::JsCast;
-use crate::app::Route;
-use crate::services::auth::AuthService;
-use crate::services::crud_service::CrudService;
-use crate::services::init_service::InitService;
-use crate::utils::storage::Storage;
+use gloo_net::http::Request;
+use serde_json::json;
 use web_sys::HtmlInputElement;
 
-pub struct LoginPage {
-    username: String,
-    password: String,
-    totp_token: String,
-    show_totp_input: bool,
-    error_message: Option<String>,
-    is_loading: bool,
-    auth_service: AuthService,
-    need_init: bool,
-}
+#[function_component(Login)]
+pub fn login() -> Html {
+    let username = use_state(|| String::new());
+    let password = use_state(|| String::new());
+    let error = use_state(|| Option::<String>::None);
+    let loading = use_state(|| false);
 
-pub enum Msg {
-    UsernameChanged(String),
-    PasswordChanged(String),
-    TotpTokenChanged(String),
-    LoginStarted,
-    LoginSuccess(crate::models::auth::LoginResponse),
-    LoginFailure(String),
-    LoadingChanged(bool),
-    CheckInitStatus,
-    InitStatusChecked(bool),
-}
+    let onsubmit = {
+        let username = username.clone();
+        let password = password.clone();
+        let error = error.clone();
+        let loading = loading.clone();
 
-impl Component for LoginPage {
-    type Message = Msg;
-    type Properties = ();
-
-    fn create(_ctx: &Context<Self>) -> Self {
-        _ctx.link().send_message(Msg::CheckInitStatus);
-        Self {
-            username: String::new(),
-            password: String::new(),
-            totp_token: String::new(),
-            show_totp_input: false,
-            error_message: None,
-            is_loading: false,
-            auth_service: AuthService::new(),
-            need_init: false,
-        }
-    }
-
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::CheckInitStatus => {
-                let link = _ctx.link().clone();
-                spawn_local(async move {
-                    match InitService::check_status().await {
-                        Ok(status) => {
-                            link.send_message(Msg::InitStatusChecked(!status.initialized));
-                        }
-                        Err(_) => {
-                            link.send_message(Msg::InitStatusChecked(true));
-                        }
-                    }
-                });
-                true
-            }
-            Msg::InitStatusChecked(need_init) => {
-                self.need_init = need_init;
-                if need_init {
-                    if let Some(navigator) = _ctx.link().navigator() {
-                        navigator.push(&Route::Init);
-                    }
-                }
-                true
-            }
-            Msg::UsernameChanged(value) => {
-                self.username = value;
-                self.error_message = None;
-                true
-            }
-            Msg::PasswordChanged(value) => {
-                self.password = value;
-                self.error_message = None;
-                true
-            }
-            Msg::TotpTokenChanged(value) => {
-                self.totp_token = value;
-                self.error_message = None;
-                true
-            }
-            Msg::LoginStarted => {
-                // 前端表单验证
-                if self.username.trim().is_empty() {
-                    self.error_message = Some("用户名不能为空".to_string());
-                    return true;
-                }
-                if self.password.trim().is_empty() {
-                    self.error_message = Some("密码不能为空".to_string());
-                    return true;
-                }
-
-                self.is_loading = true;
-                self.error_message = None;
-
-                let auth_service = self.auth_service.clone();
-                let username = self.username.clone();
-                let password = self.password.clone();
-                let totp_token = if self.show_totp_input && !self.totp_token.is_empty() {
-                    Some(self.totp_token.clone())
-                } else {
-                    None
-                };
-                let link = _ctx.link().clone();
-
-                spawn_local(async move {
-                    match auth_service.login(&username, &password, totp_token).await {
-                        Ok(response) => {
-                            link.send_message(Msg::LoginSuccess(response));
-                        }
-                        Err(error) => {
-                            link.send_message(Msg::LoginFailure(error));
-                        }
-                    }
-                });
-                true
-            }
-            Msg::LoginSuccess(resp) => {
-                self.is_loading = false;
-                Storage::set_token(&resp.token);
-                if let Some(perms) = resp.permissions {
-                    if let Ok(json) = serde_json::to_string(&perms) {
-                        Storage::set_item("user_permissions", &json);
-                    }
-                }
-
-                // 登录成功后清除 just_initialized 标志
-                if let Some(Ok(Some(storage))) = web_sys::window().map(|w| w.session_storage()) {
-                    let _ = storage.remove_item("just_initialized");
-                }
-
-            // 登录成功，跳转到仪表板
-            if let Some(navigator) = _ctx.link().navigator() {
-                navigator.push(&Route::Dashboard);
-            }
-                true
-            }
-            Msg::LoginFailure(error) => {
-                self.is_loading = false;
-                if error.contains("需要提供两步验证码") {
-                    self.show_totp_input = true;
-                    self.error_message = Some("此账号开启了两步验证，请输入验证码".to_string());
-                } else {
-                    self.error_message = Some(error);
-                }
-                true
-            }
-            Msg::LoadingChanged(loading) => {
-                self.is_loading = loading;
-                true
-            }
-        }
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let onusername = ctx.link().batch_callback(|e: InputEvent| {
-            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
-            Some(Msg::UsernameChanged(target.value()))
-        });
-
-        let onpassword = ctx.link().batch_callback(|e: InputEvent| {
-            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
-            Some(Msg::PasswordChanged(target.value()))
-        });
-
-        let ontotp = ctx.link().batch_callback(|e: InputEvent| {
-            let target = e.target()?.dyn_into::<HtmlInputElement>().ok()?;
-            Some(Msg::TotpTokenChanged(target.value()))
-        });
-
-        let onsubmit = ctx.link().callback(|e: SubmitEvent| {
+        Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
-            Msg::LoginStarted
-        });
 
-        html! {
+            if username.is_empty() || password.is_empty() {
+                error.set(Some("用户名和密码不能为空".to_string()));
+                return;
+            }
+
+            let username_val = (*username).clone();
+            let password_val = (*password).clone();
+            let error = error.clone();
+            let loading = loading.clone();
+
+            loading.set(true);
+            error.set(None);
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let response = Request::post("/api/auth/login")
+                    .json(&json!({
+                        "username": username_val,
+                        "password": password_val
+                    }))
+                    .unwrap()
+                    .send()
+                    .await;
+
+                match response {
+                    Ok(resp) => {
+                        if resp.ok() {
+                            match resp.json::<serde_json::Value>().await {
+                                Ok(data) => {
+                                    if let Some(token) = data.get("token").and_then(|t| t.as_str()) {
+                                        let window = web_sys::window().unwrap();
+                                        let storage = window.local_storage().unwrap().unwrap();
+                                        storage.set_item("token", token).unwrap();
+
+                                        let location = window.location();
+                                        let _ = location.set_href("/");
+                                    } else {
+                                        error.set(Some("登录响应中缺少 token".to_string()));
+                                    }
+                                }
+                                Err(e) => {
+                                    error.set(Some(format!("解析响应失败: {}", e)));
+                                }
+                            }
+                        } else {
+                            let status = resp.status();
+                            let text = resp.text().await.unwrap_or_default();
+                            error.set(Some(format!("登录失败 ({}): {}", status, text)));
+                        }
+                    }
+                    Err(e) => {
+                        error.set(Some(format!("网络请求失败: {}", e)));
+                    }
+                }
+
+                loading.set(false);
+            });
+        })
+    };
+
+    let on_username_change = {
+        let username = username.clone();
+        Callback::from(move |e: Event| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            username.set(input.value());
+        })
+    };
+
+    let on_password_change = {
+        let password = password.clone();
+        Callback::from(move |e: Event| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            password.set(input.value());
+        })
+    };
+
+    html! {
+        <div class="login-page">
             <div class="login-container">
-                <div class="login-box">
-                    <h1>{"秉羲面料管理"}</h1>
-                    <h2>{"用户登录"}</h2>
-                    
-                    if let Some(error) = &self.error_message {
-                        <div class="error-message">{error}</div>
+                <div class="login-header">
+                    <h1>{ "秉羲面料管理系统" }</h1>
+                    <p>{ "请登录以继续" }</p>
+                </div>
+
+                <form class="login-form" {onsubmit}>
+                    if let Some(err) = (*error).as_ref() {
+                        <div class="error-message">
+                            { err }
+                        </div>
                     }
 
-                    <div class="login-form">
-                        <div class="form-group">
-                            <label for="username">{"用户名"}</label>
-                            <input
-                                type="text"
-                                id="username"
-                                value={self.username.clone()}
-                                oninput={onusername}
-                                placeholder="请输入用户名"
-                                disabled={self.is_loading}
-                            />
-                        </div>
+                    <div class="form-group">
+                        <label for="username">{ "用户名" }</label>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            placeholder="请输入用户名"
+                            value={(*username).clone()}
+                            onchange={on_username_change}
+                            required={true}
+                        />
+                    </div>
 
-                        <div class="form-group">
-                            <label for="password">{"密码"}</label>
-                            <input
-                                type="password"
-                                id="password"
-                                value={self.password.clone()}
-                                oninput={onpassword}
-                                placeholder="请输入密码"
-                                disabled={self.is_loading}
-                            />
-                        </div>
+                    <div class="form-group">
+                        <label for="password">{ "密码" }</label>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="请输入密码"
+                            value={(*password).clone()}
+                            onchange={on_password_change}
+                            required={true}
+                        />
+                    </div>
 
-                        if self.show_totp_input {
-                            <div class="form-group">
-                                <label for="totp">{"两步验证码"}</label>
-                                <input
-                                    type="text"
-                                    id="totp"
-                                    value={self.totp_token.clone()}
-                                    oninput={ontotp}
-                                    placeholder="请输入 6 位验证码"
-                                    disabled={self.is_loading}
-                                    maxlength="6"
-                                />
-                            </div>
+                    <button
+                        type="submit"
+                        class="login-button"
+                        disabled={*loading}
+                    >
+                        if *loading {
+                            <span class="loading-spinner"></span>
+                            { "登录中..." }
+                        } else {
+                            { "登录" }
                         }
+                    </button>
+                </form>
 
-                        <button
-                            type="button"
-                            onclick={ctx.link().callback(|_| Msg::LoginStarted)}
-                            class="login-button"
-                        >
-                            if self.is_loading {
-                                {"登录中..."}
-                            } else {
-                                {"登录"}
-                            }
-                        </button>
-                    </div>
-
-                    <div class="login-footer">
-                        <p>{"秉羲面料管理 v1.0.0"}</p>
-                    </div>
+                <div class="login-footer">
+                    <p>{ "忘记密码？请联系管理员" }</p>
                 </div>
             </div>
-        }
+        </div>
     }
 }
