@@ -1,88 +1,100 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
-
-export interface QualityInspection {
-  id: number
-  inspection_no: string
-  inspection_type: string
-  product_id: number
-  product_name: string
-  quantity: number
-  qualified_quantity: number
-  unqualified_quantity: number
-  inspector: string
-  inspection_date: string
-  result: string
-  defect_count?: number
-  defect_rate?: number
-  remark?: string
-  items?: QualityInspectionItem[]
-}
-
-export interface QualityInspectionItem {
-  id: number
-  inspection_id: number
-  defect_type: string
-  defect_count: number
-  defect_description?: string
-}
+import type { ApiResponse, QueryParams } from '@/types/api'
 
 export interface QualityStandard {
   id: number
   standard_code: string
   standard_name: string
-  standard_type: string
   version: string
-  content?: string
-  status: string
-  effective_date?: string
-  created_at?: string
+  type: 'product' | 'process'
+  status: 'draft' | 'approved' | 'published'
+  content: string
+  attachments: string[]
+  created_by: number
+  created_by_name: string
+  approved_by: number
+  approved_by_name: string
+  approved_at: string
+  created_at: string
+  updated_at: string
 }
 
-export interface QualityDefect {
+export interface QualityRecord {
   id: number
-  defect_code: string
-  defect_name: string
-  defect_type: string
-  severity: string
-  processing_method?: string
-  status: string
+  record_no: string
+  inspection_type: string
+  product_id: number
+  product_name: string
+  batch_no: string
+  inspection_date: string
+  inspector: string
+  result: 'pass' | 'fail' | 'pending'
+  defects: Defect[]
+  remark: string
+  created_at: string
 }
 
-export const qualityApi = {
-  listStandards: (params?: any) =>
-    request.get<ApiResponse<{ list: QualityStandard[]; total: number }>>('/quality-standards', { params }),
+export interface Defect {
+  id: number
+  record_id: number
+  defect_type: string
+  defect_description: string
+  severity: 'minor' | 'major' | 'critical'
+  quantity: number
+  processed: boolean
+  processed_by: string
+  processed_at: string
+  remark: string
+}
 
-  createStandard: (data: Partial<QualityStandard>) =>
-    request.post<ApiResponse<QualityStandard>>('/quality-standards', data),
+export function listQualityStandards(params?: QueryParams): Promise<ApiResponse<QualityStandard[]>> {
+  return request.get('/api/v1/erp/quality-standards', { params })
+}
 
-  getStandard: (id: number) =>
-    request.get<ApiResponse<QualityStandard>>(`/quality-standards/${id}`),
+export function getQualityStandard(id: number): Promise<ApiResponse<QualityStandard>> {
+  return request.get(`/api/v1/erp/quality-standards/${id}`)
+}
 
-  updateStandard: (id: number, data: Partial<QualityStandard>) =>
-    request.put<ApiResponse<QualityStandard>>(`/quality-standards/${id}`, data),
+export function createQualityStandard(data: Partial<QualityStandard>): Promise<ApiResponse<QualityStandard>> {
+  return request.post('/api/v1/erp/quality-standards', data)
+}
 
-  deleteStandard: (id: number) =>
-    request.delete<ApiResponse<null>>(`/quality-standards/${id}`),
+export function updateQualityStandard(id: number, data: Partial<QualityStandard>): Promise<ApiResponse<QualityStandard>> {
+  return request.put(`/api/v1/erp/quality-standards/${id}`, data)
+}
 
-  approveStandard: (id: number) =>
-    request.post<ApiResponse<null>>(`/quality-standards/${id}/approve`),
+export function deleteQualityStandard(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/api/v1/erp/quality-standards/${id}`)
+}
 
-  publishStandard: (id: number) =>
-    request.post<ApiResponse<null>>(`/quality-standards/${id}/publish`),
+export function approveQualityStandard(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/quality-standards/${id}/approve`)
+}
 
-  listInspectionRecords: (params?: any) =>
-    request.get<ApiResponse<{ list: QualityInspection[]; total: number }>>('/quality-inspection/records', { params }),
+export function publishQualityStandard(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/quality-standards/${id}/publish`)
+}
 
-  createInspectionRecord: (data: Partial<QualityInspection>) =>
-    request.post<ApiResponse<QualityInspection>>('/quality-inspection/records', data),
+export function getQualityStandardVersions(id: number): Promise<ApiResponse<QualityStandard[]>> {
+  return request.get(`/api/v1/erp/quality-standards/${id}/versions`)
+}
 
-  getInspectionRecord: (id: number) =>
-    request.get<ApiResponse<QualityInspection>>(`/quality-inspection/records/${id}`),
+export function listQualityRecords(params?: QueryParams): Promise<ApiResponse<QualityRecord[]>> {
+  return request.get('/api/v1/erp/quality-inspection/records', { params })
+}
 
-  listDefects: (params?: any) =>
-    request.get<ApiResponse<{ list: QualityDefect[]; total: number }>>('/quality-inspection/defects', { params }),
+export function getQualityRecord(id: number): Promise<ApiResponse<QualityRecord>> {
+  return request.get(`/api/v1/erp/quality-inspection/records/${id}`)
+}
 
-  processDefect: (id: number, data: { processing_method: string }) =>
-    request.post<ApiResponse<null>>(`/quality-inspection/defects/${id}/process`, data),
+export function createQualityRecord(data: Partial<QualityRecord>): Promise<ApiResponse<QualityRecord>> {
+  return request.post('/api/v1/erp/quality-inspection/records', data)
+}
+
+export function listDefects(params?: QueryParams): Promise<ApiResponse<Defect[]>> {
+  return request.get('/api/v1/erp/quality-inspection/defects', { params })
+}
+
+export function processDefect(id: number, data: { remark: string }): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/quality-inspection/defects/${id}/process`, data)
 }

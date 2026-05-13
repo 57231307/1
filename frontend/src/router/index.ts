@@ -96,6 +96,36 @@ const routes = [
     meta: { title: '审批管理', requiresAuth: true }
   },
   {
+    path: '/quality',
+    name: 'Quality',
+    component: () => import('@/views/quality/index.vue'),
+    meta: { title: '质量管理', requiresAuth: true }
+  },
+  {
+    path: '/purchase-ext',
+    name: 'PurchaseExt',
+    component: () => import('@/views/purchase-ext/index.vue'),
+    meta: { title: '采购扩展', requiresAuth: true }
+  },
+  {
+    path: '/sales-ext',
+    name: 'SalesExt',
+    component: () => import('@/views/sales-ext/index.vue'),
+    meta: { title: '销售扩展', requiresAuth: true }
+  },
+  {
+    path: '/crm',
+    name: 'CRM',
+    component: () => import('@/views/crm/index.vue'),
+    meta: { title: '客户关系管理', requiresAuth: true }
+  },
+  {
+    path: '/advanced',
+    name: 'Advanced',
+    component: () => import('@/views/advanced/index.vue'),
+    meta: { title: '高级功能', requiresAuth: true }
+  },
+  {
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),
