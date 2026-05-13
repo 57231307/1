@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "bingxi-backend"
-version = "2026.513.328"
+version = "2026.513.452"
 dependencies = [
  "anyhow",
  "arc-swap",

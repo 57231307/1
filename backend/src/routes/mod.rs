@@ -3,6 +3,8 @@ use axum::{
     Router,
     middleware,
 };
+use axum::http::{Method, header};
+use tower_http::cors::{CorsLayer, Any};
 use crate::utils::app_state::AppState;
 use crate::middleware::rate_limit;
 use utoipa::OpenApi;
@@ -1056,6 +1058,11 @@ pub fn create_router(state: AppState) -> Router {
                 Ok(res)
             }
         }))
+        .layer(CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT])
+            .allow_credentials(true))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))
         .with_state(state)
