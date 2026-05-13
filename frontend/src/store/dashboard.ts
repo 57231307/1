@@ -11,6 +11,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     todayOrders: 0,
     pendingOrders: 0,
     lowStockProducts: 0,
+    monthSales: 0,
     recentActivities: [],
   })
 

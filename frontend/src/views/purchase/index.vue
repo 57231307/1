@@ -274,7 +274,7 @@ const handleApprove = async (row: any) => {
     fetchData()
   } catch {}
 }
-const handleReceive = (row: any) => { ElMessage.info('创建收货单功能开发中') }
+const handleReceive = (_row: any) => { ElMessage.info('创建收货单功能开发中') }
 
 onMounted(() => { fetchData(); fetchSuppliers() })
 </script>
