@@ -1,6 +1,6 @@
 [package]
 name = "bingxi_frontend"
-version = "2026.513.231"
+version = "2026.513.305"
 edition = "2021"
 description = "秉羲面料管理前端 - Yew + Utoo"
 authors = ["秉羲团队"]
