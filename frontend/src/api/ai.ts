@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import type { ApiResponse } from '@/types/api'
 
 export function forecastSales(params?: { period: string; product_id?: number }): Promise<ApiResponse<any>> {
   return request.get('/api/v1/erp/ai/forecast-sales', { params })

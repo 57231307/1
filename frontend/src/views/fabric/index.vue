@@ -223,12 +223,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
-import { listDyeBatches, getDyeBatch, createDyeBatch, updateDyeBatch, completeDyeBatch, type DyeBatch } from '@/api/dye-batch'
-import { listGreigeFabrics, getGreigeFabric, createGreigeFabric, updateGreigeFabric, stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
+import { listDyeBatches, createDyeBatch, updateDyeBatch, completeDyeBatch, type DyeBatch } from '@/api/dye-batch'
+import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
 import { listDyeRecipes, getDyeRecipe, createDyeRecipe, updateDyeRecipe, approveDyeRecipe, createNewVersion as createNewVersionApi, type DyeRecipe } from '@/api/dye-recipe'
 import { listSuppliers, type Supplier } from '@/api/supplier'
 
@@ -313,9 +313,9 @@ const submitDye = async () => {
   dyeSubmitLoading.value = true
   try {
     if (dyeForm.id) {
-      await updateDyeBatch(dyeForm.id, dyeForm)
+      await updateDyeBatch(dyeForm.id, dyeForm as Partial<DyeBatch>)
     } else {
-      await createDyeBatch(dyeForm)
+      await createDyeBatch(dyeForm as Partial<DyeBatch>)
     }
     ElMessage.success('操作成功')
     dyeDialogVisible.value = false
@@ -356,9 +356,9 @@ const submitGreige = async () => {
   greigeSubmitLoading.value = true
   try {
     if (greigeForm.id) {
-      await updateGreigeFabric(greigeForm.id, greigeForm)
+      await updateGreigeFabric(greigeForm.id, greigeForm as Partial<GreigeFabric>)
     } else {
-      await createGreigeFabric(greigeForm)
+      await createGreigeFabric(greigeForm as Partial<GreigeFabric>)
     }
     ElMessage.success('操作成功')
     greigeDialogVisible.value = false
@@ -396,14 +396,14 @@ const recipeDialogVisible = ref(false)
 const recipeFormRef = ref<FormInstance>()
 const recipeSubmitLoading = ref(false)
 const processParamsText = ref('')
-const recipeForm = reactive({ id: 0, recipe_no: '', recipe_name: '', color_code: '', color_name: '', fabric_type: '', version: '1.0', status: 'draft', recipe_items: [], process_parameters: {} as Record<string, any> })
+const recipeForm = reactive({ id: 0, recipe_no: '', recipe_name: '', color_code: '', color_name: '', fabric_type: '', version: 1 as number, status: 'draft' as const, recipe_items: [] as any[], process_parameters: {} as Record<string, any> })
 
 const openRecipeDialog = async (row?: DyeRecipe) => {
   if (row) {
-    Object.assign(recipeForm, row)
+    Object.assign(recipeForm, { ...row, version: Number(row.version) || 1 })
     processParamsText.value = JSON.stringify(row.process_parameters, null, 2)
   } else {
-    Object.assign(recipeForm, { id: 0, recipe_no: '', recipe_name: '', color_code: '', color_name: '', fabric_type: '', version: '1.0', status: 'draft', recipe_items: [{ id: 0, chemical_name: '', chemical_code: '', dosage: 0, dosage_unit: 'g/l', sequence: 1, remark: '' }], process_parameters: {} })
+    Object.assign(recipeForm, { id: 0, recipe_no: '', recipe_name: '', color_code: '', color_name: '', fabric_type: '', version: 1, status: 'draft' as const, recipe_items: [{ id: 0, chemical_name: '', chemical_code: '', dosage: 0, dosage_unit: 'g/l', sequence: 1, remark: '' }], process_parameters: {} })
     processParamsText.value = ''
   }
   recipeDialogVisible.value = true
@@ -424,9 +424,9 @@ const submitRecipe = async () => {
       return
     }
     if (recipeForm.id) {
-      await updateDyeRecipe(recipeForm.id, recipeForm)
+      await updateDyeRecipe(recipeForm.id, recipeForm as Partial<DyeRecipe>)
     } else {
-      await createDyeRecipe(recipeForm)
+      await createDyeRecipe(recipeForm as Partial<DyeRecipe>)
     }
     ElMessage.success('操作成功')
     recipeDialogVisible.value = false

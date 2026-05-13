@@ -97,7 +97,6 @@
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="openPriceDialog(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="deletePrice(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -118,8 +117,8 @@
             <el-form-item label="退货单号">
               <el-input v-model="returnQuery.return_no" placeholder="退货单号" clearable />
             </el-form-item>
-            <el-form-item label="供应商">
-              <el-input v-model="returnQuery.supplier_name" placeholder="供应商名称" clearable />
+            <el-form-item label="客户">
+              <el-input v-model="returnQuery.customer_name" placeholder="客户名称" clearable />
             </el-form-item>
             <el-form-item label="状态">
               <el-select v-model="returnQuery.status" placeholder="选择状态" clearable>
@@ -140,7 +139,7 @@
         <el-card shadow="hover">
           <el-table :data="purchaseReturns" v-loading="returnLoading" stripe>
             <el-table-column prop="return_no" label="退货单号" width="140" />
-            <el-table-column prop="supplier_name" label="供应商" min-width="150" />
+            <el-table-column prop="customer_name" label="客户" min-width="150" />
             <el-table-column prop="order_no" label="订单号" width="140" />
             <el-table-column prop="return_date" label="退货日期" width="120" />
             <el-table-column prop="total_amount" label="总金额" width="120" align="right">
@@ -381,8 +380,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="供应商" prop="supplier_name">
-              <el-input v-model="returnForm.supplier_name" placeholder="供应商名称" />
+            <el-form-item label="客户" prop="customer_name">
+              <el-input v-model="returnForm.customer_name" placeholder="客户名称" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -455,7 +454,7 @@
     <el-dialog v-model="returnViewVisible" title="采购退货详情" width="800px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="退货单号">{{ currentReturn?.return_no }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{ currentReturn?.supplier_name }}</el-descriptions-item>
+        <el-descriptions-item label="客户">{{ currentReturn?.customer_name }}</el-descriptions-item>
         <el-descriptions-item label="关联订单">{{ currentReturn?.order_no }}</el-descriptions-item>
         <el-descriptions-item label="退货日期">{{ currentReturn?.return_date }}</el-descriptions-item>
         <el-descriptions-item label="总金额">{{ formatMoney(currentReturn?.total_amount || 0) }}</el-descriptions-item>
@@ -492,7 +491,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -501,7 +500,6 @@ import {
   getPurchaseContract,
   createPurchaseContract,
   updatePurchaseContract,
-  deletePurchaseContract,
   approvePurchaseContract,
   executePurchaseContract,
   cancelPurchaseContract,
@@ -513,7 +511,6 @@ import {
   getPurchasePrice,
   createPurchasePrice,
   updatePurchasePrice,
-  deletePurchasePrice,
   type PurchasePrice
 } from '@/api/purchase-price'
 import {
@@ -541,7 +538,7 @@ const priceQuery = reactive({
 
 const returnQuery = reactive({
   return_no: '',
-  supplier_name: '',
+  customer_name: '',
   status: ''
 })
 
@@ -594,7 +591,7 @@ const resetPriceQuery = () => {
 
 const resetReturnQuery = () => {
   returnQuery.return_no = ''
-  returnQuery.supplier_name = ''
+  returnQuery.customer_name = ''
   returnQuery.status = ''
   fetchPurchaseReturns()
 }
@@ -839,16 +836,7 @@ const submitPrice = async () => {
   }
 }
 
-const deletePrice = async (row: PurchasePrice) => {
-  try {
-    await ElMessageBox.confirm('确定删除此价格记录吗？', '删除确认', { type: 'warning' })
-    await deletePurchasePrice(row.id)
-    ElMessage.success('删除成功')
-    fetchPurchasePrices()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
-  }
-}
+
 
 const returnDialogVisible = ref(false)
 const returnFormRef = ref<FormInstance>()
@@ -856,8 +844,8 @@ const returnSubmitLoading = ref(false)
 const returnForm = reactive({
   id: 0,
   return_no: '',
-  supplier_id: 0,
-  supplier_name: '',
+  customer_id: 0,
+  customer_name: '',
   order_id: 0,
   order_no: '',
   return_date: '',
@@ -869,7 +857,7 @@ const returnForm = reactive({
 
 const returnRules: FormRules = {
   return_no: [{ required: true, message: '请输入退货单号', trigger: 'blur' }],
-  supplier_name: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
+  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
   return_date: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入退货原因', trigger: 'blur' }]
 }
@@ -882,8 +870,8 @@ const openReturnDialog = async (row?: SalesReturn) => {
     Object.assign(returnForm, {
       id: 0,
       return_no: '',
-      supplier_id: 0,
-      supplier_name: '',
+      customer_id: 0,
+      customer_name: '',
       order_id: 0,
       order_no: '',
       return_date: '',
