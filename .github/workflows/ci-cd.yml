@@ -162,7 +162,7 @@ jobs:
       - name: 安装 Trunk (仅在缓存未命中时)
         if: steps.cache-cargo.outputs.cache-hit != 'true'
         run: |
-          cargo install --locked trunk
+          cargo install --locked trunk || cargo install --locked --force trunk
 
       - name: 确保 WASM 目标已安装
         run: |
