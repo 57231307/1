@@ -78,17 +78,17 @@ pub fn login() -> Html {
         })
     };
 
-    let on_username_change = {
+    let on_username_input = {
         let username = username.clone();
-        Callback::from(move |e: Event| {
+        Callback::from(move |e: InputEvent| {
             let input: HtmlInputElement = e.target_unchecked_into();
             username.set(input.value());
         })
     };
 
-    let on_password_change = {
+    let on_password_input = {
         let password = password.clone();
-        Callback::from(move |e: Event| {
+        Callback::from(move |e: InputEvent| {
             let input: HtmlInputElement = e.target_unchecked_into();
             password.set(input.value());
         })
@@ -117,7 +117,7 @@ pub fn login() -> Html {
                             name="username"
                             placeholder="请输入用户名"
                             value={(*username).clone()}
-                            onchange={on_username_change}
+                            oninput={on_username_input}
                             required={true}
                         />
                     </div>
@@ -130,7 +130,7 @@ pub fn login() -> Html {
                             name="password"
                             placeholder="请输入密码"
                             value={(*password).clone()}
-                            onchange={on_password_change}
+                            oninput={on_password_input}
                             required={true}
                         />
                     </div>
