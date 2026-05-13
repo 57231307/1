@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
+import type { ApiResponse, QueryParams } from '@/types/api'
 
 export interface ARInvoice {
   id: number
@@ -15,6 +15,7 @@ export interface ARInvoice {
   payment_status: string
   due_date?: string
   remark?: string
+  created_at: string
 }
 
 export interface ARReconciliation {
@@ -29,6 +30,7 @@ export interface ARReconciliation {
   status: string
   confirmed_by?: string
   confirmed_at?: string
+  created_at: string
 }
 
 export interface FundAccount {
@@ -42,68 +44,85 @@ export interface FundAccount {
   status: string
   bank_name?: string
   bank_account?: string
+  created_at: string
 }
 
-export const arApi = {
-  listInvoices: (params?: any) =>
-    request.get<ApiResponse<{ list: ARInvoice[]; total: number }>>('/ar/invoices', { params }),
-
-  createInvoice: (data: Partial<ARInvoice>) =>
-    request.post<ApiResponse<ARInvoice>>('/ar/invoices', data),
-
-  getInvoice: (id: number) =>
-    request.get<ApiResponse<ARInvoice>>(`/ar/invoices/${id}`),
-
-  updateInvoice: (id: number, data: Partial<ARInvoice>) =>
-    request.put<ApiResponse<ARInvoice>>(`/ar/invoices/${id}`, data),
-
-  deleteInvoice: (id: number) =>
-    request.delete<ApiResponse<null>>(`/ar/invoices/${id}`),
-
-  approveInvoice: (id: number) =>
-    request.post<ApiResponse<null>>(`/ar/invoices/${id}/approve`),
-
-  cancelInvoice: (id: number) =>
-    request.post<ApiResponse<null>>(`/ar/invoices/${id}/cancel`),
-
-  listReconciliations: (params?: any) =>
-    request.get<ApiResponse<{ list: ARReconciliation[]; total: number }>>('/ar-reconciliations', { params }),
-
-  createReconciliation: (data: Partial<ARReconciliation>) =>
-    request.post<ApiResponse<ARReconciliation>>('/ar-reconciliations', data),
-
-  getReconciliation: (id: number) =>
-    request.get<ApiResponse<ARReconciliation>>(`/ar-reconciliations/${id}`),
-
-  updateReconciliationStatus: (id: number, status: string) =>
-    request.put<ApiResponse<null>>(`/ar-reconciliations/${id}/status`, { status }),
+export function listARInvoices(params?: QueryParams): Promise<ApiResponse<ARInvoice[]>> {
+  return request.get('/api/v1/erp/ar/invoices', { params })
 }
 
-export const fundApi = {
-  listAccounts: (params?: any) =>
-    request.get<ApiResponse<{ list: FundAccount[]; total: number }>>('/fund-management/accounts', { params }),
+export function getARInvoice(id: number): Promise<ApiResponse<ARInvoice>> {
+  return request.get(`/api/v1/erp/ar/invoices/${id}`)
+}
 
-  createAccount: (data: Partial<FundAccount>) =>
-    request.post<ApiResponse<FundAccount>>('/fund-management/accounts', data),
+export function createARInvoice(data: Partial<ARInvoice>): Promise<ApiResponse<ARInvoice>> {
+  return request.post('/api/v1/erp/ar/invoices', data)
+}
 
-  getAccount: (id: number) =>
-    request.get<ApiResponse<FundAccount>>(`/fund-management/accounts/${id}`),
+export function updateARInvoice(id: number, data: Partial<ARInvoice>): Promise<ApiResponse<ARInvoice>> {
+  return request.put(`/api/v1/erp/ar/invoices/${id}`, data)
+}
 
-  deposit: (id: number, data: { amount: number; remark?: string }) =>
-    request.post<ApiResponse<any>>(`/fund-management/accounts/${id}/deposit`, data),
+export function deleteARInvoice(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/api/v1/erp/ar/invoices/${id}`)
+}
 
-  withdraw: (id: number, data: { amount: number; remark?: string }) =>
-    request.post<ApiResponse<any>>(`/fund-management/accounts/${id}/withdraw`, data),
+export function approveARInvoice(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ar/invoices/${id}/approve`)
+}
 
-  freeze: (id: number, data: { amount: number; reason: string }) =>
-    request.post<ApiResponse<any>>(`/fund-management/accounts/${id}/freeze`, data),
+export function cancelARInvoice(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ar/invoices/${id}/cancel`)
+}
 
-  unfreeze: (id: number, data: { amount: number }) =>
-    request.post<ApiResponse<any>>(`/fund-management/accounts/${id}/unfreeze`, data),
+export function listARReconciliations(params?: QueryParams): Promise<ApiResponse<ARReconciliation[]>> {
+  return request.get('/api/v1/erp/ar-reconciliations', { params })
+}
 
-  deleteAccount: (id: number) =>
-    request.delete<ApiResponse<null>>(`/fund-management/accounts/${id}`),
+export function getARReconciliation(id: number): Promise<ApiResponse<ARReconciliation>> {
+  return request.get(`/api/v1/erp/ar-reconciliations/${id}`)
+}
 
-  transfer: (data: { from_account_id: number; to_account_id: number; amount: number; remark?: string }) =>
-    request.post<ApiResponse<any>>('/fund-management/transfer', data),
+export function createARReconciliation(data: Partial<ARReconciliation>): Promise<ApiResponse<ARReconciliation>> {
+  return request.post('/api/v1/erp/ar-reconciliations', data)
+}
+
+export function updateARReconciliationStatus(id: number, status: string): Promise<ApiResponse<void>> {
+  return request.put(`/api/v1/erp/ar-reconciliations/${id}/status`, { status })
+}
+
+export function listFundAccounts(params?: QueryParams): Promise<ApiResponse<FundAccount[]>> {
+  return request.get('/api/v1/erp/fund-management/accounts', { params })
+}
+
+export function getFundAccount(id: number): Promise<ApiResponse<FundAccount>> {
+  return request.get(`/api/v1/erp/fund-management/accounts/${id}`)
+}
+
+export function createFundAccount(data: Partial<FundAccount>): Promise<ApiResponse<FundAccount>> {
+  return request.post('/api/v1/erp/fund-management/accounts', data)
+}
+
+export function depositFund(id: number, data: { amount: number; remark?: string }): Promise<ApiResponse<FundAccount>> {
+  return request.post(`/api/v1/erp/fund-management/accounts/${id}/deposit`, data)
+}
+
+export function withdrawFund(id: number, data: { amount: number; remark?: string }): Promise<ApiResponse<FundAccount>> {
+  return request.post(`/api/v1/erp/fund-management/accounts/${id}/withdraw`, data)
+}
+
+export function freezeFund(id: number, data: { amount: number; reason: string }): Promise<ApiResponse<FundAccount>> {
+  return request.post(`/api/v1/erp/fund-management/accounts/${id}/freeze`, data)
+}
+
+export function unfreezeFund(id: number, data: { amount: number }): Promise<ApiResponse<FundAccount>> {
+  return request.post(`/api/v1/erp/fund-management/accounts/${id}/unfreeze`, data)
+}
+
+export function deleteFundAccount(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/api/v1/erp/fund-management/accounts/${id}`)
+}
+
+export function transferFund(data: { from_account_id: number; to_account_id: number; amount: number; remark?: string }): Promise<ApiResponse<void>> {
+  return request.post('/api/v1/erp/fund-management/transfer', data)
 }

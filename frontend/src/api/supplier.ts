@@ -5,6 +5,7 @@ export interface Supplier {
   id: number
   supplier_code: string
   supplier_name: string
+  name: string
   contact_person?: string
   phone?: string
   email?: string
@@ -15,6 +16,10 @@ export interface Supplier {
   payment_terms?: string
   lead_time?: number
   created_at?: string
+}
+
+export function listSuppliers(params?: SupplierQueryParams): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
+  return request.get('/api/v1/erp/suppliers', { params })
 }
 
 export interface SupplierQueryParams {

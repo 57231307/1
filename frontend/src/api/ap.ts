@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
+import type { ApiResponse, QueryParams } from '@/types/api'
 
 export interface APInvoice {
   id: number
@@ -15,6 +15,7 @@ export interface APInvoice {
   payment_status: string
   due_date?: string
   remark?: string
+  created_at: string
 }
 
 export interface APPayment {
@@ -26,7 +27,9 @@ export interface APPayment {
   payment_amount: number
   payment_method: string
   status: string
+  bank_account?: string
   remark?: string
+  created_at: string
 }
 
 export interface APPaymentRequest {
@@ -41,6 +44,7 @@ export interface APPaymentRequest {
   payment_method?: string
   bank_account?: string
   remark?: string
+  created_at: string
 }
 
 export interface APVerification {
@@ -53,6 +57,7 @@ export interface APVerification {
   verification_amount: number
   verification_date: string
   status: string
+  created_at: string
 }
 
 export interface APReconciliation {
@@ -67,99 +72,169 @@ export interface APReconciliation {
   status: string
   confirmed_by?: string
   confirmed_at?: string
+  created_at: string
 }
 
-export const apApi = {
-  listInvoices: (params?: any) =>
-    request.get<ApiResponse<{ list: APInvoice[]; total: number }>>('/ap/invoices', { params }),
+export function listAPInvoices(params?: QueryParams): Promise<ApiResponse<APInvoice[]>> {
+  return request.get('/api/v1/erp/ap/invoices', { params })
+}
 
-  createInvoice: (data: Partial<APInvoice>) =>
-    request.post<ApiResponse<APInvoice>>('/ap/invoices', data),
+export function getAPInvoice(id: number): Promise<ApiResponse<APInvoice>> {
+  return request.get(`/api/v1/erp/ap/invoices/${id}`)
+}
 
-  getInvoice: (id: number) =>
-    request.get<ApiResponse<APInvoice>>(`/ap/invoices/${id}`),
+export function createAPInvoice(data: Partial<APInvoice>): Promise<ApiResponse<APInvoice>> {
+  return request.post('/api/v1/erp/ap/invoices', data)
+}
 
-  updateInvoice: (id: number, data: Partial<APInvoice>) =>
-    request.put<ApiResponse<APInvoice>>(`/ap/invoices/${id}`, data),
+export function updateAPInvoice(id: number, data: Partial<APInvoice>): Promise<ApiResponse<APInvoice>> {
+  return request.put(`/api/v1/erp/ap/invoices/${id}`, data)
+}
 
-  deleteInvoice: (id: number) =>
-    request.delete<ApiResponse<null>>(`/ap/invoices/${id}`),
+export function deleteAPInvoice(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/api/v1/erp/ap/invoices/${id}`)
+}
 
-  approveInvoice: (id: number) =>
-    request.post<ApiResponse<null>>(`/ap/invoices/${id}/approve`),
+export function approveAPInvoice(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/invoices/${id}/approve`)
+}
 
-  cancelInvoice: (id: number) =>
-    request.post<ApiResponse<null>>(`/ap/invoices/${id}/cancel`),
+export function cancelAPInvoice(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/invoices/${id}/cancel`)
+}
 
-  autoGenerate: (data: { order_ids: number[] }) =>
-    request.post<ApiResponse<{ invoice_ids: number[] }>>('/ap/invoices/auto-generate', data),
+export function autoGenerateAPInvoices(data: { order_ids: number[] }): Promise<ApiResponse<{ invoice_ids: number[] }>> {
+  return request.post('/api/v1/erp/ap/invoices/auto-generate', data)
+}
 
-  getAgingAnalysis: (params?: { supplier_id?: number; date?: string }) =>
-    request.get<ApiResponse<any[]>>('/ap/invoices/aging', { params }),
+export function getAPAgingAnalysis(params?: { supplier_id?: number; date?: string }): Promise<ApiResponse<any[]>> {
+  return request.get('/api/v1/erp/ap/invoices/aging', { params })
+}
 
-  listPayments: (params?: any) =>
-    request.get<ApiResponse<{ list: APPayment[]; total: number }>>('/ap/payments', { params }),
+export function listAPPayments(params?: QueryParams): Promise<ApiResponse<APPayment[]>> {
+  return request.get('/api/v1/erp/ap/payments', { params })
+}
 
-  createPayment: (data: Partial<APPayment>) =>
-    request.post<ApiResponse<APPayment>>('/ap/payments', data),
+export function getAPPayment(id: number): Promise<ApiResponse<APPayment>> {
+  return request.get(`/api/v1/erp/ap/payments/${id}`)
+}
 
-  getPayment: (id: number) =>
-    request.get<ApiResponse<APPayment>>(`/ap/payments/${id}`),
+export function createAPPayment(data: Partial<APPayment>): Promise<ApiResponse<APPayment>> {
+  return request.post('/api/v1/erp/ap/payments', data)
+}
 
-  updatePayment: (id: number, data: Partial<APPayment>) =>
-    request.put<ApiResponse<APPayment>>(`/ap/payments/${id}`, data),
+export function updateAPPayment(id: number, data: Partial<APPayment>): Promise<ApiResponse<APPayment>> {
+  return request.put(`/api/v1/erp/ap/payments/${id}`, data)
+}
 
-  confirmPayment: (id: number) =>
-    request.post<ApiResponse<null>>(`/ap/payments/${id}/confirm`),
+export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/payments/${id}/confirm`)
+}
 
-  listPaymentRequests: (params?: any) =>
-    request.get<ApiResponse<{ list: APPaymentRequest[]; total: number }>>('/ap/payment-requests', { params }),
+export function listAPPaymentRequests(params?: QueryParams): Promise<ApiResponse<APPaymentRequest[]>> {
+  return request.get('/api/v1/erp/ap/payment-requests', { params })
+}
 
-  createPaymentRequest: (data: Partial<APPaymentRequest>) =>
-    request.post<ApiResponse<APPaymentRequest>>('/ap/payment-requests', data),
+export function getAPPaymentRequest(id: number): Promise<ApiResponse<APPaymentRequest>> {
+  return request.get(`/api/v1/erp/ap/payment-requests/${id}`)
+}
 
-  submitPaymentRequest: (id: number) =>
-    request.post<ApiResponse<null>>(`/ap/payment-requests/${id}/submit`),
+export function createAPPaymentRequest(data: Partial<APPaymentRequest>): Promise<ApiResponse<APPaymentRequest>> {
+  return request.post('/api/v1/erp/ap/payment-requests', data)
+}
 
-  approvePaymentRequest: (id: number) =>
-    request.post<ApiResponse<null>>(`/ap/payment-requests/${id}/approve`),
+export function updateAPPaymentRequest(id: number, data: Partial<APPaymentRequest>): Promise<ApiResponse<APPaymentRequest>> {
+  return request.put(`/api/v1/erp/ap/payment-requests/${id}`, data)
+}
 
-  rejectPaymentRequest: (id: number, reason: string) =>
-    request.post<ApiResponse<null>>(`/ap/payment-requests/${id}/reject`, { reason }),
+export function deleteAPPaymentRequest(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/api/v1/erp/ap/payment-requests/${id}`)
+}
 
-  listVerifications: (params?: any) =>
-    request.get<ApiResponse<{ list: APVerification[]; total: number }>>('/ap/verifications', { params }),
+export function submitAPPaymentRequest(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/payment-requests/${id}/submit`)
+}
 
-  getVerification: (id: number) =>
-    request.get<ApiResponse<APVerification>>(`/ap/verifications/${id}`),
+export function approveAPPaymentRequest(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/payment-requests/${id}/approve`)
+}
 
-  autoVerify: (data: { invoice_id: number; payment_id?: number }) =>
-    request.post<ApiResponse<APVerification>>('/ap/verifications/auto', data),
+export function rejectAPPaymentRequest(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/payment-requests/${id}/reject`, { reason })
+}
 
-  manualVerify: (data: { invoice_id: number; payment_id: number; amount: number }) =>
-    request.post<ApiResponse<APVerification>>('/ap/verifications/manual', data),
+export function listAPVerifications(params?: QueryParams): Promise<ApiResponse<APVerification[]>> {
+  return request.get('/api/v1/erp/ap/verifications', { params })
+}
 
-  listReconciliations: (params?: any) =>
-    request.get<ApiResponse<{ list: APReconciliation[]; total: number }>>('/ap/reconciliations', { params }),
+export function getAPVerification(id: number): Promise<ApiResponse<APVerification>> {
+  return request.get(`/api/v1/erp/ap/verifications/${id}`)
+}
 
-  getReconciliation: (id: number) =>
-    request.get<ApiResponse<APReconciliation>>(`/ap/reconciliations/${id}`),
+export function autoVerifyAP(data: { invoice_id: number; payment_id?: number }): Promise<ApiResponse<APVerification>> {
+  return request.post('/api/v1/erp/ap/verifications/auto', data)
+}
 
-  confirmReconciliation: (id: number) =>
-    request.post<ApiResponse<null>>(`/ap/reconciliations/${id}/confirm`),
+export function manualVerifyAP(data: { invoice_id: number; payment_id: number; amount: number }): Promise<ApiResponse<APVerification>> {
+  return request.post('/api/v1/erp/ap/verifications/manual', data)
+}
 
-  disputeReconciliation: (id: number, reason: string) =>
-    request.post<ApiResponse<null>>(`/ap/reconciliations/${id}/dispute`, { reason }),
+export function cancelAPVerification(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/verifications/${id}/cancel`)
+}
 
-  getStatisticsReport: (params?: any) =>
-    request.get<ApiResponse<any>>('/ap/reports/statistics', { params }),
+export function getUnverifiedAPInvoices(): Promise<ApiResponse<APInvoice[]>> {
+  return request.get('/api/v1/erp/ap/verifications/unverified/invoices')
+}
 
-  getDailyReport: (date: string) =>
-    request.get<ApiResponse<any>>('/ap/reports/daily', { params: { date } }),
+export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
+  return request.get('/api/v1/erp/ap/verifications/unverified/payments')
+}
 
-  getMonthlyReport: (year: number, month: number) =>
-    request.get<ApiResponse<any>>('/ap/reports/monthly', { params: { year, month } }),
+export function listAPReconciliations(params?: QueryParams): Promise<ApiResponse<APReconciliation[]>> {
+  return request.get('/api/v1/erp/ap/reconciliations', { params })
+}
 
-  getAgingReport: () =>
-    request.get<ApiResponse<any>>('/ap/reports/aging'),
+export function getAPReconciliation(id: number): Promise<ApiResponse<APReconciliation>> {
+  return request.get(`/api/v1/erp/ap/reconciliations/${id}`)
+}
+
+export function generateAPReconciliation(data: { supplier_id: number; start_date: string; end_date: string }): Promise<ApiResponse<APReconciliation>> {
+  return request.post('/api/v1/erp/ap/reconciliations/generate', data)
+}
+
+export function confirmAPReconciliation(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/reconciliations/${id}/confirm`)
+}
+
+export function disputeAPReconciliation(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/api/v1/erp/ap/reconciliations/${id}/dispute`, { reason })
+}
+
+export function autoReconcileAllAP(): Promise<ApiResponse<void>> {
+  return request.post('/api/v1/erp/ap/reconciliations/auto')
+}
+
+export function getAPSupplierSummary(supplierId: number): Promise<ApiResponse<any>> {
+  return request.get(`/api/v1/erp/ap/reconciliations/summary`, { params: { supplier_id: supplierId } })
+}
+
+export function getAPInvoiceRelations(id: number): Promise<ApiResponse<any>> {
+  return request.get(`/api/v1/erp/ap/invoices/${id}/relations`)
+}
+
+export function getAPStatisticsReport(params?: QueryParams): Promise<ApiResponse<any>> {
+  return request.get('/api/v1/erp/ap/reports/statistics', { params })
+}
+
+export function getAPDailyReport(date: string): Promise<ApiResponse<any>> {
+  return request.get('/api/v1/erp/ap/reports/daily', { params: { date } })
+}
+
+export function getAPMonthlyReport(year: number, month: number): Promise<ApiResponse<any>> {
+  return request.get('/api/v1/erp/ap/reports/monthly', { params: { year, month } })
+}
+
+export function getAPAgingReport(): Promise<ApiResponse<any>> {
+  return request.get('/api/v1/erp/ap/reports/aging')
 }

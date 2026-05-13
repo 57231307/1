@@ -18,6 +18,30 @@ const routes = [
     meta: { title: '仪表盘', requiresAuth: true }
   },
   {
+    path: '/system',
+    name: 'System',
+    component: () => import('@/views/system/index.vue'),
+    meta: { title: '系统管理', requiresAuth: true }
+  },
+  {
+    path: '/finance',
+    name: 'Finance',
+    component: () => import('@/views/finance/index.vue'),
+    meta: { title: '财务管理', requiresAuth: true }
+  },
+  {
+    path: '/ap',
+    name: 'AP',
+    component: () => import('@/views/ap/index.vue'),
+    meta: { title: '应付管理', requiresAuth: true }
+  },
+  {
+    path: '/ar',
+    name: 'AR',
+    component: () => import('@/views/ar/index.vue'),
+    meta: { title: '应收管理', requiresAuth: true }
+  },
+  {
     path: '/fabric',
     name: 'Fabric',
     component: () => import('@/views/fabric/index.vue'),
@@ -72,12 +96,6 @@ const routes = [
     meta: { title: '审批管理', requiresAuth: true }
   },
   {
-    path: '/system',
-    name: 'System',
-    component: () => import('@/views/system/index.vue'),
-    meta: { title: '系统管理', requiresAuth: true }
-  },
-  {
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),
@@ -103,7 +121,7 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const title = to.meta.title as string
   if (title) {
-    document.title = `${title} - 并夕 ERP 系统`
+    document.title = `${title} - 秉羲面料管理系统`
   }
 
   if (to.meta.requiresAuth) {

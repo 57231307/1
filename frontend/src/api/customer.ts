@@ -5,6 +5,7 @@ export interface Customer {
   id: number
   customer_code: string
   customer_name: string
+  name: string
   contact_person?: string
   phone?: string
   email?: string
@@ -17,6 +18,10 @@ export interface Customer {
   customer_type?: string
   status: string
   created_at?: string
+}
+
+export function listCustomers(params?: CustomerQueryParams): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
+  return request.get('/api/v1/erp/customers', { params })
 }
 
 export interface CustomerQueryParams {

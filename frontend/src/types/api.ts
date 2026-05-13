@@ -39,6 +39,7 @@ export interface ApiResponse<T = any> {
   code: number
   message: string
   data: T
+  total?: number
 }
 
 export interface PageResult<T = any> {
@@ -54,6 +55,14 @@ export interface QueryParams {
   keyword?: string
   order_by?: string
   order_dir?: 'asc' | 'desc'
+  status?: string | number
+  supplier_name?: string
+  customer_name?: string
+  invoice_no?: string
+  voucher_no?: string
+  date_range?: string[]
+  supplier_id?: number
+  customer_id?: number
 }
 
 export type StatusType = 'active' | 'inactive' | 'pending' | 'approved' | 'rejected' | 'cancelled'
