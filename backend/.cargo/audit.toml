@@ -1,9 +1,0 @@
-[advisories]
-ignore = [
-    # rsa 0.9.10 存在 Marvin Attack 时序侧信道漏洞，但 sqlx-mysql 依赖此版本且暂无修复版本
-    "RUSTSEC-2023-0071",
-    # idna 0.4.0 被 validator 0.16.1 锁定，validator 尚未发布新版本
-    "RUSTSEC-2024-0421",
-    # protobuf 2.28.0 被 prometheus 0.13.4 锁定，prometheus 尚未升级
-    "RUSTSEC-2024-0437",
-]
