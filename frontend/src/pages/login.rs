@@ -33,7 +33,9 @@ pub fn login() -> Html {
             error.set(None);
 
             wasm_bindgen_futures::spawn_local(async move {
-                let response = Request::post("/api/auth/login")
+                let response = Request::post("/api/v1/erp/auth/login")
+                    .header("Content-Type", "application/json")
+                    .header("X-Requested-With", "XMLHttpRequest")
                     .json(&json!({
                         "username": username_val,
                         "password": password_val
