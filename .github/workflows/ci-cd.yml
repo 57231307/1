@@ -30,21 +30,30 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
+      - name: 缓存 Rustup 工具链
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.rustup
+          key: ${{ runner.os }}-rustup-${{ env.RUST_VERSION }}
+
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
-      - name: 缓存 Cargo 依赖
+      - name: 缓存 Cargo 二进制文件和依赖
         uses: actions/cache@v5
         with:
           path: |
+            ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-test-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-test-${{ env.RUST_VERSION }}-
             ${{ runner.os }}-cargo-test-
 
       - name: 安装系统依赖
@@ -65,20 +74,29 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
+      - name: 缓存 Rustup 工具链
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.rustup
+          key: ${{ runner.os }}-rustup-${{ env.RUST_VERSION }}
+
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: 缓存 Cargo 依赖
+      - name: 缓存 Cargo 二进制文件和依赖
         uses: actions/cache@v5
         with:
           path: |
+            ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: ${{ runner.os }}-cargo-backend-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-backend-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-backend-${{ env.RUST_VERSION }}-
             ${{ runner.os }}-cargo-backend-
 
       - name: 安装系统依赖
@@ -116,13 +134,33 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
+      - name: 缓存 Rustup 工具链
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.rustup
+          key: ${{ runner.os }}-rustup-${{ env.RUST_VERSION }}-wasm
+
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: wasm32-unknown-unknown
 
-      - name: 安装 Trunk
+      - name: 缓存 Cargo 二进制文件和 Trunk
+        id: cache-cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-bin-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bin-${{ env.RUST_VERSION }}-
+
+      - name: 安装 Trunk (仅在缓存未命中时)
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
         run: |
           cargo install --locked trunk
 
@@ -131,15 +169,14 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup target list --installed | grep wasm32-unknown-unknown
 
-      - name: 缓存 Cargo 依赖
+      - name: 缓存前端 target
         uses: actions/cache@v5
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
             frontend/target
-          key: ${{ runner.os }}-cargo-frontend-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-frontend-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-frontend-${{ env.RUST_VERSION }}-
             ${{ runner.os }}-cargo-frontend-
 
       - name: 构建前端 (Release模式)
