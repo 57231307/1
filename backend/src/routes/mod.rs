@@ -953,6 +953,104 @@ pub fn create_router(state: AppState) -> Router {
         )
         .nest("/", metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))
+        // 静态文件服务 - CSS样式文件
+        .route("/static/*path", get({
+            move |axum::extract::Path(path): axum::extract::Path<String>| async move {
+                let static_path = format!("/workspace/frontend/static/{}", path);
+                if let Ok(content) = tokio::fs::read(&static_path).await {
+                    let body = axum::body::Body::from(content);
+                    let mut res = axum::response::Response::new(body);
+                    res.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("text/css"),
+                    );
+                    return Ok::<_, std::convert::Infallible>(res);
+                }
+                let fallback = format!("{}/static/{}", std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string()), path);
+                if let Ok(content) = tokio::fs::read(&fallback).await {
+                    let body = axum::body::Body::from(content);
+                    let mut res = axum::response::Response::new(body);
+                    res.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("text/css"),
+                    );
+                    return Ok(res);
+                }
+                let body = axum::body::Body::from("/* File not found */");
+                Ok(axum::response::Response::builder()
+                    .status(axum::http::StatusCode::NOT_FOUND)
+                    .body(body)
+                    .unwrap())
+            }
+        }))
+        // 前端WASM文件服务
+        .route("/bingxi_frontend.js", get({
+            let wasm_dir = "/workspace/frontend/target/wasm32-unknown-unknown/release";
+            move |req: axum::http::Request<axum::body::Body>| async move {
+                let js_file = format!("{}/bingxi_frontend.js", wasm_dir);
+                if let Ok(content) = tokio::fs::read(&js_file).await {
+                    let body = axum::body::Body::from(content);
+                    let mut res = axum::response::Response::new(body);
+                    res.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("application/javascript"),
+                    );
+                    res.headers_mut().insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::header::HeaderValue::from_static("public, max-age=3600"),
+                    );
+                    return Ok::<_, std::convert::Infallible>(res);
+                }
+                let fallback = format!("{}/dist/bingxi_frontend.js", std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string()));
+                if let Ok(content) = tokio::fs::read(&fallback).await {
+                    let body = axum::body::Body::from(content);
+                    let mut res = axum::response::Response::new(body);
+                    res.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("application/javascript"),
+                    );
+                    return Ok(res);
+                }
+                let body = axum::body::Body::from("console.log('WASM loader not found')");
+                Ok(axum::response::Response::new(body))
+            }
+        }))
+        .route("/bingxi_frontend_bg.wasm", get({
+            let wasm_dir = "/workspace/frontend/target/wasm32-unknown-unknown/release";
+            move |_req: axum::http::Request<axum::body::Body>| async move {
+                let wasm_file = format!("{}/bingxi_frontend_bg.wasm", wasm_dir);
+                if let Ok(content) = tokio::fs::read(&wasm_file).await {
+                    let body = axum::body::Body::from(content);
+                    let mut res = axum::response::Response::new(body);
+                    res.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("application/wasm"),
+                    );
+                    res.headers_mut().insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::header::HeaderValue::from_static("public, max-age=3600"),
+                    );
+                    return Ok::<_, std::convert::Infallible>(res);
+                }
+                let fallback = format!("{}/dist/bingxi_frontend_bg.wasm", std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string()));
+                if let Ok(content) = tokio::fs::read(&fallback).await {
+                    let body = axum::body::Body::from(content);
+                    let mut res = axum::response::Response::new(body);
+                    res.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("application/wasm"),
+                    );
+                    return Ok(res);
+                }
+                let body = axum::body::Body::empty();
+                let mut res = axum::response::Response::new(body);
+                res.headers_mut().insert(
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::HeaderValue::from_static("application/wasm"),
+                );
+                Ok(res)
+            }
+        }))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))
         .with_state(state)
