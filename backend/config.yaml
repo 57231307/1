@@ -47,11 +47,4 @@ cors:
     - "http://localhost:8080"
     - "http://127.0.0.1:8080"
 
-security:
-  jwt_secret: "${JWT_SECRET}"
-  audit_secret: "${AUDIT_SECRET_KEY}"
-  cors_allowed_origins:
-    - "http://localhost:3000"
-    - "http://127.0.0.1:3000"
-
 env: "development"

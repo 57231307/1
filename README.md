@@ -144,7 +144,7 @@
 - backend/src/handlers/user_handler.rs - 用户处理函数
 
 **前端页面**：
-- frontend/src/views/system/users/index.vue - 用户列表页面
+- 待开发
 
 **API接口**：
 - `GET /api/v1/erp/users` - 获取用户列表
@@ -167,7 +167,7 @@
 - backend/src/handlers/role_handler.rs - 角色处理函数
 
 **前端页面**：
-- frontend/src/views/system/roles/index.vue - 角色列表页面
+- 待开发
 
 **API接口**：
 - `GET /api/v1/erp/roles` - 获取角色列表
@@ -189,7 +189,7 @@
 - backend/src/handlers/department_handler.rs - 部门处理函数
 
 **前端页面**：
-- frontend/src/views/system/departments/index.vue - 部门列表页面
+- 待开发
 
 **API接口**：
 - `GET /api/v1/erp/departments` - 获取部门列表
@@ -305,12 +305,25 @@
 
 系统使用数据库迁移文件来管理数据库结构，所有迁移文件位于 backend/database/migration/ 目录。
 
-主要迁移文件包括：
-- 001_init.sql - 初始数据库结构
-- 002_inventory_reservation.sql - 库存预留
-- 003_foreign_keys.sql - 数据关联外键
-- 004_customers.sql - 客户管理
-- 005_fabric_industry_adaptation.sql - 面料行业适配
+主要迁移文件位于 `backend/database/migration/` 目录：
+- 001_consolidated_schema.sql - 统一初始Schema
+- 002_add_totp.sql - TOTP双因素认证
+- 002_order_change_history.sql - 订单变更历史
+- 003_foreign_keys.sql - 外键约束
+- 004_mrp_production.sql - MRP生产模块
+- 005_ar_currency.sql - 应收和货币模块
+- 006_tenant_saas.sql - 多租户SaaS支持
+- 007_api_gateway.sql - API网关配置
+- 008_core_foreign_keys.sql - 核心模块外键
+- 009_finance_foreign_keys.sql - 财务模块外键
+- 010_inventory_foreign_keys.sql - 库存模块外键
+- 011_bpm_foreign_keys.sql - BPM模块外键
+- 012_crm_foreign_keys.sql - CRM模块外键
+- 013_quality_foreign_keys.sql - 质量模块外键
+- 014_init_role_permissions.sql - 初始化角色权限
+- 015_ar_reconciliation_enhance.sql - 应收对账增强
+- 016_notification_tables.sql - 通知相关表
+- 017_data_permission_tables.sql - 数据权限表
 
 ---
 
