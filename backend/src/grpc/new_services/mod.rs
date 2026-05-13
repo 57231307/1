@@ -21,6 +21,13 @@ use crate::services::inventory_reservation_service::InventoryReservationService;
 use crate::services::financial_analysis_service::FinancialAnalysisService;
 
 /// gRPC 新增服务集合
+///
+/// 保留用于将来添加以下服务的 gRPC 接口:
+/// - AssistAccountingService (辅助核算)
+/// - SupplierEvaluationService (供应商评估)
+/// - FiveDimensionQueryService (五维查询)
+/// - InventoryReservationService (库存预留)
+/// - FinancialAnalysisService (财务分析)
 #[derive(Clone)]
 pub struct GrpcNewServices {
     assist_accounting_service: Arc<AssistAccountingService>,
