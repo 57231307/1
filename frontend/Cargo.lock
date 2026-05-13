@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "bingxi_frontend"
-version = "2026.512.956"
+version = "2026.513.231"
 dependencies = [
  "chrono",
  "console_error_panic_hook",

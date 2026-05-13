@@ -49,15 +49,20 @@ pub fn login() -> Html {
                         if resp.ok() {
                             match resp.json::<serde_json::Value>().await {
                                 Ok(data) => {
-                                    if let Some(token) = data.get("token").and_then(|t| t.as_str()) {
-                                        let window = web_sys::window().unwrap();
-                                        let storage = window.local_storage().unwrap().unwrap();
-                                        storage.set_item("token", token).unwrap();
+                                    let api_data = data.get("data");
+                                    if let Some(api_data) = api_data {
+                                        if let Some(token) = api_data.get("token").and_then(|t| t.as_str()) {
+                                            let window = web_sys::window().unwrap();
+                                            let storage = window.local_storage().unwrap().unwrap();
+                                            storage.set_item("token", token).unwrap();
 
-                                        let location = window.location();
-                                        let _ = location.set_href("/");
+                                            let location = window.location();
+                                            let _ = location.set_href("/");
+                                        } else {
+                                            error.set(Some("登录响应中缺少 token".to_string()));
+                                        }
                                     } else {
-                                        error.set(Some("登录响应中缺少 token".to_string()));
+                                        error.set(Some("登录响应格式错误".to_string()));
                                     }
                                 }
                                 Err(e) => {
