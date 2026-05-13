@@ -1,0 +1,251 @@
+//! 数据权限服务
+//!
+//! 提供数据范围控制和字段级权限管理功能
+
+use crate::models::data_permission::{self, Entity as DataPermissionEntity};
+use crate::utils::error::AppError;
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
+use serde_json::Value;
+use std::sync::Arc;
+
+/// 数据范围类型常量
+pub mod data_scope {
+    pub const ALL: &str = "ALL";
+    pub const DEPT: &str = "DEPT";
+    pub const DEPT_AND_BELOW: &str = "DEPT_AND_BELOW";
+    pub const SELF: &str = "SELF";
+    pub const CUSTOM: &str = "CUSTOM";
+}
+
+/// 数据权限查询结果
+#[derive(Debug, Clone)]
+pub struct DataPermissionResult {
+    /// 数据范围类型
+    pub scope_type: String,
+    /// 自定义条件
+    pub custom_condition: Option<Value>,
+    /// 允许的字段
+    pub allowed_fields: Option<Vec<String>>,
+    /// 隐藏的字段
+    pub hidden_fields: Option<Vec<String>>,
+}
+
+/// 数据权限服务
+pub struct DataPermissionService {
+    db: Arc<DatabaseConnection>,
+}
+
+impl DataPermissionService {
+    /// 创建服务实例
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
+
+    /// 获取角色的数据权限
+    pub async fn get_role_data_permission(
+        &self,
+        role_id: i32,
+        resource_type: &str,
+    ) -> Result<Option<DataPermissionResult>, AppError> {
+        // Admin 角色拥有全部权限
+        if role_id == 1 {
+            return Ok(Some(DataPermissionResult {
+                scope_type: data_scope::ALL.to_string(),
+                custom_condition: None,
+                allowed_fields: None,
+                hidden_fields: None,
+            }));
+        }
+
+        let permission = DataPermissionEntity::find()
+            .filter(data_permission::Column::RoleId.eq(role_id))
+            .filter(data_permission::Column::ResourceType.eq(resource_type))
+            .filter(data_permission::Column::IsEnabled.eq(true))
+            .one(&*self.db)
+            .await?;
+
+        Ok(permission.map(|p| DataPermissionResult {
+            scope_type: p.scope_type,
+            custom_condition: p.custom_condition,
+            allowed_fields: p.allowed_fields.and_then(|f| f.as_array().map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })),
+            hidden_fields: p.hidden_fields.and_then(|f| f.as_array().map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })),
+        }))
+    }
+
+    /// 检查用户是否有数据权限
+    pub async fn check_data_permission(
+        &self,
+        role_id: i32,
+        resource_type: &str,
+    ) -> Result<bool, AppError> {
+        // Admin 角色拥有全部权限
+        if role_id == 1 {
+            return Ok(true);
+        }
+
+        let count = DataPermissionEntity::find()
+            .filter(data_permission::Column::RoleId.eq(role_id))
+            .filter(data_permission::Column::ResourceType.eq(resource_type))
+            .filter(data_permission::Column::IsEnabled.eq(true))
+            .count(&*self.db)
+            .await?;
+
+        Ok(count > 0)
+    }
+
+    /// 设置数据权限
+    pub async fn set_data_permission(
+        &self,
+        role_id: i32,
+        resource_type: String,
+        scope_type: String,
+        custom_condition: Option<Value>,
+        allowed_fields: Option<Value>,
+        hidden_fields: Option<Value>,
+    ) -> Result<data_permission::Model, AppError> {
+        let existing = DataPermissionEntity::find()
+            .filter(data_permission::Column::RoleId.eq(role_id))
+            .filter(data_permission::Column::ResourceType.eq(&resource_type))
+            .one(&*self.db)
+            .await?;
+
+        let permission = if let Some(existing) = existing {
+            let mut active_model: data_permission::ActiveModel = existing.into();
+            active_model.scope_type = Set(scope_type);
+            active_model.custom_condition = Set(custom_condition);
+            active_model.allowed_fields = Set(allowed_fields);
+            active_model.hidden_fields = Set(hidden_fields);
+            active_model.is_enabled = Set(true);
+            active_model.updated_at = Set(Utc::now());
+            active_model.update(&*self.db).await?
+        } else {
+            let active_model = data_permission::ActiveModel {
+                id: Default::default(),
+                role_id: Set(role_id),
+                resource_type: Set(resource_type),
+                scope_type: Set(scope_type),
+                custom_condition: Set(custom_condition),
+                allowed_fields: Set(allowed_fields),
+                hidden_fields: Set(hidden_fields),
+                is_enabled: Set(true),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+            };
+            active_model.insert(&*self.db).await?
+        };
+
+        Ok(permission)
+    }
+
+    /// 删除数据权限
+    pub async fn delete_data_permission(
+        &self,
+        role_id: i32,
+        resource_type: &str,
+    ) -> Result<(), AppError> {
+        let existing = DataPermissionEntity::find()
+            .filter(data_permission::Column::RoleId.eq(role_id))
+            .filter(data_permission::Column::ResourceType.eq(resource_type))
+            .one(&*self.db)
+            .await?;
+
+        if let Some(existing) = existing {
+            let mut active_model: data_permission::ActiveModel = existing.into();
+            active_model.is_enabled = Set(false);
+            active_model.updated_at = Set(Utc::now());
+            active_model.update(&*self.db).await?;
+        }
+
+        Ok(())
+    }
+
+    /// 获取角色的所有数据权限
+    pub async fn list_role_data_permissions(
+        &self,
+        role_id: i32,
+    ) -> Result<Vec<data_permission::Model>, AppError> {
+        let permissions = DataPermissionEntity::find()
+            .filter(data_permission::Column::RoleId.eq(role_id))
+            .filter(data_permission::Column::IsEnabled.eq(true))
+            .all(&*self.db)
+            .await?;
+
+        Ok(permissions)
+    }
+
+    /// 过滤字段（根据字段权限）
+    pub fn filter_fields(
+        &self,
+        data: &mut serde_json::Value,
+        allowed_fields: &Option<Vec<String>>,
+        hidden_fields: &Option<Vec<String>>,
+    ) {
+        if let Some(obj) = data.as_object_mut() {
+            // 如果有允许的字段列表，只保留允许的字段
+            if let Some(allowed) = allowed_fields {
+                let allowed_set: std::collections::HashSet<_> = allowed.iter().cloned().collect();
+                obj.retain(|key, _| allowed_set.contains(key));
+            }
+
+            // 移除隐藏的字段
+            if let Some(hidden) = hidden_fields {
+                for field in hidden {
+                    obj.remove(field);
+                }
+            }
+        }
+    }
+
+    /// 批量过滤字段
+    pub fn filter_fields_batch(
+        &self,
+        data_list: &mut [serde_json::Value],
+        allowed_fields: &Option<Vec<String>>,
+        hidden_fields: &Option<Vec<String>>,
+    ) {
+        for data in data_list {
+            self.filter_fields(data, allowed_fields, hidden_fields);
+        }
+    }
+}
+
+/// 数据权限构建器
+///
+/// 用于构建数据查询时的权限过滤条件
+pub struct DataPermissionBuilder;
+
+impl DataPermissionBuilder {
+    /// 构建部门数据范围过滤条件
+    pub fn build_dept_filter(dept_id: i32) -> serde_json::Value {
+        serde_json::json!({
+            "department_id": dept_id
+        })
+    }
+
+    /// 构建本人数据范围过滤条件
+    pub fn build_self_filter(user_id: i32) -> serde_json::Value {
+        serde_json::json!({
+            "created_by": user_id
+        })
+    }
+
+    /// 构建部门及以下数据范围过滤条件
+    pub fn build_dept_and_below_filter(dept_ids: Vec<i32>) -> serde_json::Value {
+        serde_json::json!({
+            "department_id": {
+                "$in": dept_ids
+            }
+        })
+    }
+}

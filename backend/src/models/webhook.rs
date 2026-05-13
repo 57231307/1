@@ -1,0 +1,28 @@
+#![allow(dead_code)]
+
+use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "webhooks")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub tenant_id: i32,
+    pub name: String,
+    pub url: String,
+    pub events: String,
+    pub secret: Option<String>,
+    pub is_active: bool,
+    pub last_triggered_at: Option<DateTime<Utc>>,
+    pub last_status: Option<String>,
+    pub retry_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {}
+
+impl ActiveModelBehavior for ActiveModel {}
