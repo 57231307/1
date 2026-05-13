@@ -290,9 +290,10 @@ impl Component for InitPage {
 
                 if let Some(navigator) = _ctx.link().navigator() {
                     let navigator = navigator.clone();
-                    gloo_timers::callback::Timeout::new(2000, move || {
+                    wasm_bindgen_futures::spawn_local(async move {
+                        gloo::timers::future::TimeoutFuture::new(2000).await;
                         navigator.push(&Route::Login);
-                    }).forget();
+                    });
                 }
                 true
             }

@@ -336,6 +336,14 @@ impl Component for SalesReturnPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
+        let default_state = crate::state::app_state::AppState::default();
+        let app_state = match ctx.link().context::<yew::UseStateHandle<crate::state::app_state::AppState>>(Callback::from(|_| {})) {
+            Some((handle, _)) => {
+                let s: &crate::state::app_state::AppState = &*handle;
+                s.clone()
+            }
+            None => default_state,
+        };
 
         html! {
             <div class="sales-return-page">
@@ -436,7 +444,7 @@ impl Component for SalesReturnPage {
                                                     >
                                                         {"查看"}
                                                     </button>
-                                                    if permissions::has_permission("sales_return", "update") {
+                                                    if permissions::has_permission(&app_state, "sales_return", "update") {
                                                         <button
                                                             class="btn btn-sm btn-secondary"
                                                             onclick={link.callback(move |_| Msg::OpenEditModal(return_clone.clone()))}

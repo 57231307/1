@@ -12,3 +12,4 @@ pub mod page_header;
 pub mod empty_state;
 pub mod loading_state;
 pub mod header;
+pub mod error_boundary;

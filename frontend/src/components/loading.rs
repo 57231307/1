@@ -1,6 +1,7 @@
 use yew::prelude::*;
 use std::rc::Rc;
-use gloo_events::EventListener;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, PartialEq, Default)]
 pub struct LoadingState {
@@ -27,39 +28,52 @@ impl Reducible for LoadingState {
 #[function_component(LoadingProvider)]
 pub fn loading_provider(props: &yew::html::ChildrenProps) -> Html {
     let state = use_reducer(LoadingState::default);
-    
+
     {
         let state = state.clone();
         use_effect_with((), move |_| {
             let window = web_sys::window().unwrap();
-            
-            let start_listener = EventListener::new(&window, "api_start_loading", {
+
+            let start_callback = Closure::wrap(Box::new({
                 let state = state.clone();
-                move |_| {
+                move |_event: web_sys::Event| {
                     state.dispatch(LoadingAction::Start);
                 }
-            });
-            
-            let stop_listener = EventListener::new(&window, "api_stop_loading", {
+            }) as Box<dyn FnMut(web_sys::Event)>);
+
+            let stop_callback = Closure::wrap(Box::new({
                 let state = state.clone();
-                move |_| {
+                move |_event: web_sys::Event| {
                     state.dispatch(LoadingAction::Stop);
                 }
-            });
-            
-            || {
-                drop(start_listener);
-                drop(stop_listener);
+            }) as Box<dyn FnMut(web_sys::Event)>);
+
+            window
+                .add_event_listener_with_callback("api_start_loading", start_callback.as_ref().unchecked_ref())
+                .unwrap();
+            window
+                .add_event_listener_with_callback("api_stop_loading", stop_callback.as_ref().unchecked_ref())
+                .unwrap();
+
+            move || {
+                window
+                    .remove_event_listener_with_callback("api_start_loading", start_callback.as_ref().unchecked_ref())
+                    .unwrap();
+                window
+                    .remove_event_listener_with_callback("api_stop_loading", stop_callback.as_ref().unchecked_ref())
+                    .unwrap();
+                start_callback.forget();
+                stop_callback.forget();
             }
         });
     }
-    
+
     let is_loading = state.request_count > 0;
-    
+
     html! {
         <ContextProvider<UseReducerHandle<LoadingState>> context={state.clone()}>
             { props.children.clone() }
-            
+
             if is_loading {
                 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
                     <div class="flex flex-col items-center p-6 bg-white rounded-lg shadow-xl">

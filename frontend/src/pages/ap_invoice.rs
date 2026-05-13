@@ -271,6 +271,14 @@ impl Component for ApInvoicePage {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let default_state = crate::state::app_state::AppState::default();
+        let app_state = match ctx.link().context::<yew::UseStateHandle<crate::state::app_state::AppState>>(Callback::from(|_| {})) {
+            Some((handle, _)) => {
+                let s: &crate::state::app_state::AppState = &*handle;
+                s.clone()
+            }
+            None => default_state,
+        };
         let on_status_change = ctx.link().batch_callback(|e: Event| {
             let target = e.target()?.dyn_into::<web_sys::HtmlSelectElement>().ok()?;
             Some(Msg::SetFilterStatus(target.value()))
@@ -319,7 +327,7 @@ impl Component for ApInvoicePage {
                                 {"刷新"}
                             </button>
                         </div>
-                        {self.render_list_content(ctx)}
+                        {self.render_list_content(ctx, &app_state)}
                     } else if self.active_tab == "aging" {
                         {self.render_aging_content(ctx)}
                     } else if self.active_tab == "balance" {
@@ -358,7 +366,7 @@ impl ApInvoicePage {
         }
     }
 
-    fn render_list_content(&self, ctx: &Context<Self>) -> Html {
+    fn render_list_content(&self, ctx: &Context<Self>, app_state: &crate::state::app_state::AppState) -> Html {
         if self.loading {
             return html! {
                 <div class="loading-container">
@@ -439,18 +447,18 @@ impl ApInvoicePage {
                                         <td class="numeric">{invoice.outstanding_amount.as_deref().unwrap_or("0.00")}</td>
                                         <td>{invoice.source_bill_no.as_deref().unwrap_or("-")}</td>
                                         <td>
-                                            if permissions::has_permission("ap_invoice", "read") {
+                                            if permissions::has_permission(&app_state, "ap_invoice", "read") {
                                                 <button class="btn-secondary" onclick={let i = invoice.clone(); ctx.link().callback(move |_| Msg::PrintInvoice(i.clone()))}>{"打印"}</button>
                                             }
                                             if status_check == "待审核" {
-                                                if permissions::has_permission("ap_invoice", "approve") {
+                                                if permissions::has_permission(&app_state, "ap_invoice", "approve") {
                                                     <PermissionGuard resource="ap_invoice" action="approve">
 <button class="btn-primary" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::ApproveInvoice(invoice_id))}>{"审核"}</button>
 </PermissionGuard>
                                                     <button class="btn-danger" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::CancelInvoice(invoice_id, "手动取消".to_string()))}>{"取消"}</button>
                                                 }
                                             }
-                                            if permissions::has_permission("ap_invoice", "delete") {
+                                            if permissions::has_permission(&app_state, "ap_invoice", "delete") {
                                                 <PermissionGuard resource="ap_invoice" action="delete">
 <button class="btn-danger" style="margin-left: 8px;" onclick={ctx.link().callback(move |_| Msg::DeleteInvoice(invoice_id))}>{"删除"}</button>
 </PermissionGuard>

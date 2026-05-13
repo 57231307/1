@@ -46,7 +46,7 @@ pub struct ToastState {
 #[function_component(ToastProvider)]
 pub fn toast_provider(props: &yew::html::ChildrenProps) -> Html {
     let state = use_reducer(ToastState::default);
-    
+
     html! {
         <ContextProvider<UseReducerHandle<ToastState>> context={state.clone()}>
             { props.children.clone() }
@@ -63,7 +63,7 @@ pub fn toast_provider(props: &yew::html::ChildrenProps) -> Html {
                     let onclick = Callback::from(move |_| {
                         dispatcher.dispatch(ToastAction::Remove(id));
                     });
-                    
+
                     html! {
                         <div class={format!("{} text-white px-4 py-2 rounded shadow-lg flex justify-between items-center min-w-[200px] animate-fade-in-down", bg_color)}>
                             <span>{ &toast.message }</span>
@@ -86,12 +86,10 @@ pub fn show_toast(dispatcher: UseReducerHandle<ToastState>, message: impl Into<S
         message: message.into(),
         toast_type,
     }));
-    
-    // Yew doesn't easily support setTimeout in generic functions without WASM binds,
-    // so in a real app we'd use gloo_timers here to auto-remove after 3s.
-    // For simplicity, we just let them click 'x' or we implement a hook.
+
     let dispatcher_clone = dispatcher.clone();
-    gloo_timers::callback::Timeout::new(3000, move || {
+    wasm_bindgen_futures::spawn_local(async move {
+        gloo::timers::future::TimeoutFuture::new(3000).await;
         dispatcher_clone.dispatch(ToastAction::Remove(id));
-    }).forget();
+    });
 }

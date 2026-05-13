@@ -3,6 +3,8 @@ use yew_router::prelude::*;
 use crate::pages::{SystemSettingsPage, Login, InitPage, DashboardPage, UserListPage, RoleListPage, ProductListPage, ProductCategoryPage, WarehouseListPage, DepartmentListPage, InventoryStockPage, SalesOrderPage, InventoryTransferPage, InventoryCountPage, FinanceInvoicePage, FinancePaymentPage, PurchasePricePage, SalesPricePage, SalesReturnPage, SalesAnalysisPage, QualityInspectionPage, FinancialAnalysisPage, SupplierEvaluationPage, FabricOrderPage, CustomerPage, BatchPage, PurchaseOrderPage, PurchaseReceiptPage, PurchaseReturnPage, SupplierPage, InventoryAdjustmentPage, AccountSubjectPage, VoucherPage, FundManagementPage, FixedAssetPage, CustomerCreditPage, DualUnitConverterPage, FiveDimensionPage, BusinessTracePage, ApInvoicePage, ApPaymentRequestPage, ApPaymentPage, ApReconciliationPage, ApVerificationPage, ArInvoicePage, AssistAccountingPage, SalesContractPage, PurchaseContractPage, CostCollectionPage, ApReportPage, PurchaseInspectionPage, DyeBatchPage, DyeRecipePage, GreigeFabricPage, crm_lead::CrmLeadPage, crm_opportunity::CrmOpportunityPage, MyTasksPage};
 use crate::utils::storage::Storage;
 use crate::utils::permissions;
+use crate::state::app_state::{AppState, AppStateProvider, use_app_state};
+use crate::components::error_boundary::ErrorBoundary;
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {
@@ -125,33 +127,47 @@ pub enum Route {
     NotFound,
 }
 
-pub struct App;
-
-impl Component for App {
-    type Message = ();
-    type Properties = ();
-
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self
+#[function_component(AppRoot)]
+pub fn app_root() -> Html {
+    html! {
+        <AppStateProvider>
+            <App />
+        </AppStateProvider>
     }
+}
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
-        html! {
-            <HashRouter>
-                <Switch<Route> render={switch} />
-            </HashRouter>
+#[function_component(App)]
+pub fn app() -> Html {
+    let state_opt = use_app_state();
+    let default_state = AppState::default();
+    let state = match &state_opt {
+        Some(handle) => {
+            let s: &AppState = &*handle;
+            s.clone()
         }
+        None => default_state,
+    };
+    let render = {
+        let state = state.clone();
+        move |route: Route| switch(route, &state)
+    };
+    html! {
+        <ErrorBoundary>
+            <HashRouter>
+                <Switch<Route> render={render} />
+            </HashRouter>
+        </ErrorBoundary>
     }
 }
 
 use crate::components::main_layout::MainLayout;
 
-fn protected_route_with_permission<F>(component: F, _page_name: &str, resource: &str, action: &str) -> Html
+fn protected_route_with_permission<F>(component: F, _page_name: &str, resource: &str, action: &str, state: &AppState) -> Html
 where
     F: FnOnce() -> Html,
 {
     if Storage::get_token().is_some() {
-        if permissions::has_permission(resource, action) {
+        if permissions::has_permission(state, resource, action) {
             html! {
                 <MainLayout>
                     {component()}
@@ -187,20 +203,20 @@ where
     }
 }
 
-fn switch(route: Route) -> Html {
+fn switch(route: Route, state: &AppState) -> Html {
     match route {
         Route::Init => html! { <InitPage /> },
         Route::Login => html! { <Login /> },
         Route::Dashboard => protected_route(|| html! { <DashboardPage /> }, "dashboard"),
-        Route::Users => protected_route_with_permission(|| html! { <UserListPage /> }, "users", "user", "read"),
+        Route::Users => protected_route_with_permission(|| html! { <UserListPage /> }, "users", "user", "read", state),
         Route::SystemSettings => protected_route(|| html! { <SystemSettingsPage /> }, "system-settings"),
         Route::Roles => protected_route(|| html! { <RoleListPage /> }, "roles"),
         Route::Products => protected_route(|| html! { <ProductListPage /> }, "products"),
         Route::ProductCategories => protected_route(|| html! { <ProductCategoryPage /> }, "product-categories"),
         Route::Warehouses => protected_route(|| html! { <WarehouseListPage /> }, "warehouses"),
         Route::Departments => protected_route(|| html! { <DepartmentListPage /> }, "departments"),
-        Route::Inventory => protected_route_with_permission(|| html! { <InventoryStockPage /> }, "inventory", "inventory_stock", "read"),
-        Route::Sales => protected_route_with_permission(|| html! { <SalesOrderPage /> }, "sales", "sales_order", "read"),
+        Route::Inventory => protected_route_with_permission(|| html! { <InventoryStockPage /> }, "inventory", "inventory_stock", "read", state),
+        Route::Sales => protected_route_with_permission(|| html! { <SalesOrderPage /> }, "sales", "sales_order", "read", state),
         Route::FabricOrders => protected_route(|| html! { <FabricOrderPage /> }, "fabric-orders"),
         Route::SalesContracts => protected_route(|| html! { <SalesContractPage /> }, "sales-contracts"),
         Route::Transfers => protected_route(|| html! { <InventoryTransferPage /> }, "transfers"),
@@ -216,7 +232,7 @@ fn switch(route: Route) -> Html {
         Route::SupplierEvaluation => protected_route(|| html! { <SupplierEvaluationPage /> }, "supplier-evaluation"),
         Route::Customers => protected_route(|| html! { <CustomerPage /> }, "customers"),
         Route::Batches => protected_route(|| html! { <BatchPage /> }, "batches"),
-        Route::PurchaseOrders => protected_route_with_permission(|| html! { <PurchaseOrderPage /> }, "purchase-orders", "purchase_order", "read"),
+        Route::PurchaseOrders => protected_route_with_permission(|| html! { <PurchaseOrderPage /> }, "purchase-orders", "purchase_order", "read", state),
         Route::PurchaseReceipts => protected_route(|| html! { <PurchaseReceiptPage /> }, "purchase-receipts"),
         Route::PurchaseReturns => protected_route(|| html! { <PurchaseReturnPage /> }, "purchase-returns"),
         Route::Suppliers => protected_route(|| html! { <SupplierPage /> }, "suppliers"),
@@ -229,7 +245,7 @@ fn switch(route: Route) -> Html {
         Route::DualUnitConverter => protected_route(|| html! { <DualUnitConverterPage /> }, "dual-unit-converter"),
         Route::FiveDimensions => protected_route(|| html! { <FiveDimensionPage /> }, "five-dimensions"),
         Route::BusinessTrace => protected_route(|| html! { <BusinessTracePage /> }, "business-trace"),
-        Route::ApInvoices => protected_route_with_permission(|| html! { <ApInvoicePage /> }, "ap-invoices", "ap_invoice", "read"),
+        Route::ApInvoices => protected_route_with_permission(|| html! { <ApInvoicePage /> }, "ap-invoices", "ap_invoice", "read", state),
         Route::ApPaymentRequests => protected_route(|| html! { <ApPaymentRequestPage /> }, "ap-payment-requests"),
         Route::ApPayments => protected_route(|| html! { <ApPaymentPage /> }, "ap-payments"),
         Route::ApReconciliations => protected_route(|| html! { <ApReconciliationPage /> }, "ap-reconciliations"),

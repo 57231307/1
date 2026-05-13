@@ -522,6 +522,14 @@ impl Component for SalesOrderPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
+        let default_state = crate::state::app_state::AppState::default();
+        let app_state = match ctx.link().context::<yew::UseStateHandle<crate::state::app_state::AppState>>(Callback::from(|_| {})) {
+            Some((handle, _)) => {
+                let s: &crate::state::app_state::AppState = &*handle;
+                s.clone()
+            }
+            None => default_state,
+        };
 
         html! {
             <div class="sales-order-page">
@@ -617,7 +625,7 @@ impl Component for SalesOrderPage {
                                                     >
                                                         {"打印"}
                                                     </button>
-                                                    if permissions::has_permission("sales_order", "update") {
+                                                    if permissions::has_permission(&app_state, "sales_order", "update") {
                                                         <button
                                                             class="btn btn-sm btn-secondary"
                                                             onclick={link.callback(move |_| Msg::OpenEditModal(order_clone.clone()))}
@@ -625,7 +633,7 @@ impl Component for SalesOrderPage {
                                                             {"编辑"}
                                                         </button>
                                                     }
-                                                    if (order.status == "draft" || order.status == "rejected") && permissions::has_permission("sales_order", "update") {
+                                                    if (order.status == "draft" || order.status == "rejected") && permissions::has_permission(&app_state, "sales_order", "update") {
                                                         <button
                                                             class="btn btn-sm btn-primary"
                                                             onclick={link.callback(move |_| Msg::SubmitOrder(id2))}
@@ -633,7 +641,7 @@ impl Component for SalesOrderPage {
                                                             {"提交审批"}
                                                         </button>
                                                     }
-                                                    if order.status == "approved" && permissions::has_permission("sales_order", "update") {
+                                                    if order.status == "approved" && permissions::has_permission(&app_state, "sales_order", "update") {
                                                         <button
                                                             class="btn btn-sm btn-primary"
                                                             onclick={link.callback(move |_| Msg::PrepareShip(id3))}

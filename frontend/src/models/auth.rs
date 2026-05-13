@@ -15,7 +15,7 @@ pub struct LoginResponse {
     pub permissions: Option<Vec<crate::utils::permissions::UserPermission>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UserInfo {
     pub id: i32,
     pub username: String,

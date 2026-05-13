@@ -7,7 +7,7 @@ use crate::models::five_dimension::{
     FiveDimensionStatsResponse,
 };
 use crate::services::api::ApiService;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use crate::utils::url_encode::encode_uri_component;
 
 /// 五维查询服务
 pub struct FiveDimensionService;
@@ -72,22 +72,22 @@ fn build_query_string(params: &FiveDimensionStatsParams) -> String {
     }
     if let Some(ref batch_no) = params.batch_no {
         if !batch_no.is_empty() {
-            parts.push(format!("batch_no={}", utf8_percent_encode(batch_no, NON_ALPHANUMERIC)));
+            parts.push(format!("batch_no={}", encode_uri_component(batch_no)));
         }
     }
     if let Some(ref color_no) = params.color_no {
         if !color_no.is_empty() {
-            parts.push(format!("color_no={}", utf8_percent_encode(color_no, NON_ALPHANUMERIC)));
+            parts.push(format!("color_no={}", encode_uri_component(color_no)));
         }
     }
     if let Some(ref dye_lot_no) = params.dye_lot_no {
         if !dye_lot_no.is_empty() {
-            parts.push(format!("dye_lot_no={}", utf8_percent_encode(dye_lot_no, NON_ALPHANUMERIC)));
+            parts.push(format!("dye_lot_no={}", encode_uri_component(dye_lot_no)));
         }
     }
     if let Some(ref grade) = params.grade {
         if !grade.is_empty() {
-            parts.push(format!("grade={}", utf8_percent_encode(grade, NON_ALPHANUMERIC)));
+            parts.push(format!("grade={}", encode_uri_component(grade)));
         }
     }
     if let Some(warehouse_id) = params.warehouse_id {
@@ -108,10 +108,10 @@ fn build_search_query_string(params: &FiveDimensionSearchParams) -> String {
     let mut parts = vec![];
 
     if !params.keyword.is_empty() {
-        parts.push(format!("keyword={}", utf8_percent_encode(&params.keyword, NON_ALPHANUMERIC)));
+        parts.push(format!("keyword={}", encode_uri_component(&params.keyword)));
     }
     if !params.search_type.is_empty() {
-        parts.push(format!("search_type={}", utf8_percent_encode(&params.search_type, NON_ALPHANUMERIC)));
+        parts.push(format!("search_type={}", encode_uri_component(&params.search_type)));
     }
     if let Some(page) = params.page {
         parts.push(format!("page={}", page));

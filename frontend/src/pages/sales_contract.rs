@@ -485,6 +485,14 @@ impl Component for SalesContractPage {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
+        let default_state = crate::state::app_state::AppState::default();
+        let app_state = match ctx.link().context::<yew::UseStateHandle<crate::state::app_state::AppState>>(Callback::from(|_| {})) {
+            Some((handle, _)) => {
+                let s: &crate::state::app_state::AppState = &*handle;
+                s.clone()
+            }
+            None => default_state,
+        };
 
         html! {
             <div class="sales-contract-page">
@@ -577,7 +585,7 @@ impl Component for SalesContractPage {
                                             <td>{status.display_name()}</td>
                                             <td class="text-center">
                                                 <div class="action-buttons">
-                                                    if permissions::has_permission("sales_contract", "update") {
+                                                    if permissions::has_permission(&app_state, "sales_contract", "update") {
                                                         <button
                                                             class="btn btn-sm btn-secondary"
                                                             onclick={link.callback(move |_| Msg::OpenEditModal(contract_clone.clone()))}
