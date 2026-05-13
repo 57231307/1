@@ -76,7 +76,15 @@ async function handleLogin() {
       await userStore.login(loginForm)
       
       if (userStore.userInfo?.permissions) {
-        permissionStore.setPermissions(userStore.userInfo.permissions)
+        const permList = userStore.userInfo.permissions.map((code: string) => ({
+          id: 0,
+          name: code,
+          code: code,
+          type: 'menu',
+          resource: code.split(':')[0] || code,
+          action: code.split(':')[1] || '*'
+        }))
+        permissionStore.setPermissions(permList)
       }
       
       ElMessage.success('登录成功')

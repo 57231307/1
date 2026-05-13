@@ -54,6 +54,24 @@ const routes = [
     meta: { title: '供应商管理', requiresAuth: true }
   },
   {
+    path: '/product',
+    name: 'Product',
+    component: () => import('@/views/product/index.vue'),
+    meta: { title: '产品管理', requiresAuth: true }
+  },
+  {
+    path: '/warehouse',
+    name: 'Warehouse',
+    component: () => import('@/views/warehouse/index.vue'),
+    meta: { title: '仓库管理', requiresAuth: true }
+  },
+  {
+    path: '/bpm',
+    name: 'BPM',
+    component: () => import('@/views/bpm/index.vue'),
+    meta: { title: '审批管理', requiresAuth: true }
+  },
+  {
     path: '/system',
     name: 'System',
     component: () => import('@/views/system/index.vue'),
