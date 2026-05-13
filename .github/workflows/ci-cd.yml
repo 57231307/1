@@ -21,6 +21,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   RUST_VERSION: 1.94.1
   CARGO_TERM_COLOR: always
+  NODE_VERSION: 20
 
 jobs:
   test:
@@ -134,55 +135,35 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup 工具链
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 缓存 npm 依赖
         uses: actions/cache@v5
         with:
           path: |
-            ~/.rustup
-          key: ${{ runner.os }}-rustup-${{ env.RUST_VERSION }}-wasm
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          targets: wasm32-unknown-unknown
-
-      - name: 缓存 Cargo 二进制文件和 Trunk
-        id: cache-cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-bin-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+            frontend/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-npm-frontend-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-bin-${{ env.RUST_VERSION }}-
+            ${{ runner.os }}-npm-frontend-
 
-      - name: 安装 Trunk (仅在缓存未命中时)
-        if: steps.cache-cargo.outputs.cache-hit != 'true'
-        run: |
-          cargo install --locked trunk || cargo install --locked --force trunk
-
-      - name: 确保 WASM 目标已安装
-        run: |
-          rustup target add wasm32-unknown-unknown
-          rustup target list --installed | grep wasm32-unknown-unknown
-
-      - name: 缓存前端 target
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/target
-          key: ${{ runner.os }}-cargo-frontend-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-frontend-${{ env.RUST_VERSION }}-
-            ${{ runner.os }}-cargo-frontend-
-
-      - name: 构建前端 (Release模式)
+      - name: 安装前端依赖
         working-directory: frontend
         run: |
-          trunk build --release
+          npm ci
+
+      - name: 类型检查
+        working-directory: frontend
+        run: |
+          npx vue-tsc --noEmit
+
+      - name: 构建前端 (生产模式)
+        working-directory: frontend
+        run: |
+          npm run build
 
       - name: 验证前端构建产物
         run: |
@@ -225,13 +206,11 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             TAG_NAME=${GITHUB_REF#refs/tags/}
           else
-            # 时间戳版本格式: YYYY.MMDD.HHMM (移除前导零以符合 Cargo 语义化版本规范)
             YEAR=$(date +'%Y')
             MONTH=$(date +'%-m')
             DAY=$(date +'%-d')
             HOUR=$(date +'%-H')
             MIN=$(date +'%-M')
-            # 将小时和分钟组合成一个无前导零的数字
             TIME=$((HOUR * 100 + MIN))
             VERSION="${YEAR}.${MONTH}${DAY}.${TIME}"
             TAG_NAME="v${VERSION}"
@@ -244,30 +223,22 @@ jobs:
       - name: 更新版本号文件
         run: |
           echo "${{ steps.version.outputs.version }}" > VERSION
-          # 更新后端 Cargo.toml 版本号
           sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
-          # 更新前端 Cargo.toml 版本号
-          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' frontend/Cargo.toml
-          # 显示更新后的版本号
           echo "VERSION 文件内容:"
           cat VERSION
           echo "后端版本:"
           grep "^version" backend/Cargo.toml | head -1
-          echo "前端版本:"
-          grep "^version" frontend/Cargo.toml | head -1
 
       - name: 提交版本号更新
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION backend/Cargo.toml frontend/Cargo.toml
+          git add VERSION backend/Cargo.toml
           if git diff --cached --quiet; then
             echo "版本号未发生变化，跳过提交"
           else
             git commit -m "chore(release): 自动更新版本号至 ${{ steps.version.outputs.version }}"
-            # 使用 GITHUB_TOKEN 设置远程仓库 URL
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            # 获取远程最新变更并尝试推送
             for i in 1 2 3; do
               echo "尝试推送 (第 $i 次)..."
               git fetch origin ${{ github.ref_name }}
@@ -300,34 +271,26 @@ jobs:
 
       - name: 准备发布包目录结构
         run: |
-          # 创建目录结构
           mkdir -p release/bingxi-erp/backend
           mkdir -p release/bingxi-erp/frontend
           mkdir -p release/bingxi-erp/deploy
           mkdir -p release/bingxi-erp/docs
           
-          # 复制后端文件
           chmod +x release/backend/server
           cp release/backend/server release/bingxi-erp/backend/
           cp backend/.env.example release/bingxi-erp/backend/
-          cp backend/config.toml release/bingxi-erp/backend/ 2>/dev/null || true
           cp backend/config.yaml release/bingxi-erp/backend/ 2>/dev/null || true
           
-          # 复制前端文件
           cp -r release/frontend/dist release/bingxi-erp/frontend/
           
-          # 复制部署文件
           cp -r deploy/* release/bingxi-erp/deploy/
           
-          # 复制数据库迁移文件
           if [ -d "backend/database" ]; then
             cp -r backend/database release/bingxi-erp/ 2>/dev/null || true
           fi
           
-          # 复制文档
           cp README.md release/bingxi-erp/ 2>/dev/null || true
           
-          # 显示目录结构
           echo "发布包目录结构："
           ls -la release/bingxi-erp/
 
@@ -370,11 +333,9 @@ jobs:
         id: release-notes
         run: |
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
-          # 获取上一个 Release 的标签（不依赖 git tags，从 GitHub API 获取）
           API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
 
-          # 检查 API 响应是否为数组，避免 jq 解析错误
           if echo "$API_RESPONSE" | jq -e 'type == "array"' > /dev/null 2>&1; then
             PREV_TAG=$(echo "$API_RESPONSE" | jq -r '.[0].tag_name // empty')
           else
@@ -382,8 +343,7 @@ jobs:
             PREV_TAG=""
           fi
 
-          # 检查 PREV_TAG 是否在本地存在（actions/checkout 默认不拉取所有 tag）
-          if [ -n "$PREV_TAG" ] && ! git rev-parse "$PREV_TAG" > /dev/null 2>&1; then
+          if [ -z "$PREV_TAG" ] || ! git rev-parse "$PREV_TAG" > /dev/null 2>&1; then
             echo "警告：标签 $PREV_TAG 在本地不存在，获取远程 tags..."
             git fetch --tags origin || true
           fi
@@ -396,7 +356,6 @@ jobs:
             CHANGELOG=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
           fi
 
-          # 写入 CHANGELOG
           echo "CHANGELOG<<DELIMITER" >> $GITHUB_ENV
           echo "$CHANGELOG" >> $GITHUB_ENV
           echo "DELIMITER" >> $GITHUB_ENV
@@ -408,7 +367,7 @@ jobs:
           echo "This release contains the complete Bingxi ERP system, including:" >> release_notes.md
           echo "" >> release_notes.md
           echo "- ✅ Backend Service (Rust Axum)" >> release_notes.md
-          echo "- ✅ Frontend Application (Yew WebAssembly)" >> release_notes.md
+          echo "- ✅ Frontend Application (Vue 3 + TypeScript + Element Plus)" >> release_notes.md
           echo "- ✅ Deployment Scripts & Configurations" >> release_notes.md
           echo "- ✅ Complete Project Documentation" >> release_notes.md
           echo "" >> release_notes.md
@@ -456,7 +415,7 @@ jobs:
           echo "## 🔧 Tech Stack" >> release_notes.md
           echo "" >> release_notes.md
           echo "- **Backend**: Rust 2021 + Axum 0.7 + SeaORM 1.0" >> release_notes.md
-          echo "- **Frontend**: Yew 0.21 (Rust WebAssembly)" >> release_notes.md
+          echo "- **Frontend**: Vue 3.4 + TypeScript 5.4 + Element Plus 2.6" >> release_notes.md
           echo "- **Database**: PostgreSQL 14+" >> release_notes.md
           echo "- **Deployment**: Systemd + Nginx" >> release_notes.md
           echo "" >> release_notes.md
@@ -487,7 +446,6 @@ jobs:
 
       - name: Cleanup Old Releases
         run: |
-          # 保留最近的 10 个发布版本，删除其余的旧版本（只删除 Release，不删除 Git 标签）
           echo "获取所有 Release（按时间倒序）..."
           releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \

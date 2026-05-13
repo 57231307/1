@@ -1,10 +1,11 @@
 # 忽略所有构建产物
-target/
-frontend/target/
-frontend/dist/
 backend/target/
 backend/server
 backend/logs/
+
+# 忽略前端构建产物
+frontend/dist/
+frontend/node_modules/
 
 # 忽略发布包（压缩包文件）
 releases/*.zip
@@ -22,9 +23,6 @@ deploy/server2/
 .env
 .env.local
 .env.production
-
-# 忽略 Node.js 依赖
-node_modules/
 
 # 忽略系统文件
 .DS_Store

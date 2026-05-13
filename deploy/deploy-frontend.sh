@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秉羲面料管理 - 前端部署脚本
+# 秉羲面料管理 - 前端部署脚本 (Vue 3 + Element Plus)
 # 使用方式：sudo ./deploy-frontend.sh
 
 set -e
@@ -17,7 +17,7 @@ NGINX_CONFIG="/etc/nginx/sites-available/bingxi-frontend"
 NGINX_ENABLED="/etc/nginx/sites-enabled/bingxi-frontend"
 
 echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}秉羲面料管理前端部署脚本${NC}"
+echo -e "${GREEN}秉羲面料管理前端部署脚本 (Vue 3)${NC}"
 echo -e "${GREEN}=========================================${NC}"
 
 # 检查是否以 root 运行
@@ -26,29 +26,34 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 1. 创建部署目录
-echo -e "${YELLOW}[1/5] 创建部署目录...${NC}"
-mkdir -p "$INSTALL_DIR"
-echo -e "${GREEN}✓ 目录创建完成${NC}"
+# 1. 安装依赖并构建
+echo -e "${YELLOW}[1/4] 安装前端依赖并构建...${NC}"
+cd frontend
+npm install --production=false
+npm run build
+echo -e "${GREEN}✓ 前端构建完成${NC}"
+cd ..
 
-# 2. 复制前端静态文件
-echo -e "${YELLOW}[2/5] 复制前端静态文件...${NC}"
-if [ -d "dist" ]; then
-    cp -r dist/* "$INSTALL_DIR/"
-    echo -e "${GREEN}✓ 静态文件复制完成${NC}"
+# 2. 创建部署目录并复制文件
+echo -e "${YELLOW}[2/4] 部署前端静态文件...${NC}"
+mkdir -p "$INSTALL_DIR"
+if [ -d "frontend/dist" ]; then
+    rm -rf "$INSTALL_DIR"/*
+    cp -r frontend/dist/* "$INSTALL_DIR/"
+    echo -e "${GREEN}✓ 静态文件部署完成${NC}"
 else
-    echo -e "${RED}错误：未找到 dist 目录，请先运行 trunk build${NC}"
+    echo -e "${RED}错误：未找到 dist 目录，请先运行 npm run build${NC}"
     exit 1
 fi
 
 # 3. 设置目录权限
-echo -e "${YELLOW}[3/5] 设置目录权限...${NC}"
+echo -e "${YELLOW}[3/4] 设置目录权限...${NC}"
 chown -R www-data:www-data "$INSTALL_DIR"
 chmod -R 755 "$INSTALL_DIR"
 echo -e "${GREEN}✓ 权限设置完成${NC}"
 
-# 4. 配置 Nginx
-echo -e "${YELLOW}[4/5] 配置 Nginx...${NC}"
+# 4. 配置 Nginx 并重启
+echo -e "${YELLOW}[4/4] 配置 Nginx...${NC}"
 cp deploy/nginx.conf "$NGINX_CONFIG"
 ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
 
@@ -62,23 +67,14 @@ else
     exit 1
 fi
 
-# 5. 检查服务状态
-echo -e "${YELLOW}[5/5] 检查服务状态...${NC}"
-if systemctl is-active --quiet nginx; then
-    echo -e "${GREEN}✓ Nginx 运行正常${NC}"
-    echo -e "${GREEN}=========================================${NC}"
-    echo -e "${GREEN}部署完成！${NC}"
-    echo -e "${GREEN}=========================================${NC}"
-    echo -e "访问地址：http://localhost"
-    echo -e "静态文件目录：$INSTALL_DIR"
-    echo -e "Nginx 配置：$NGINX_CONFIG"
-    echo -e ""
-    echo -e "常用命令："
-    echo -e "  查看状态：sudo systemctl status nginx"
-    echo -e "  重启服务：sudo systemctl restart nginx"
-    echo -e "  查看日志：sudo tail -f /var/log/nginx/bingxi_access.log"
-else
-    echo -e "${RED}✗ Nginx 未运行${NC}"
-    echo -e "启动命令：sudo systemctl start nginx"
-    exit 1
-fi
+echo -e "${GREEN}=========================================${NC}"
+echo -e "${GREEN}部署完成！${NC}"
+echo -e "${GREEN}=========================================${NC}"
+echo -e "访问地址：http://localhost"
+echo -e "静态文件目录：$INSTALL_DIR"
+echo -e "Nginx 配置：$NGINX_CONFIG"
+echo -e ""
+echo -e "常用命令："
+echo -e "  查看状态：sudo systemctl status nginx"
+echo -e "  重启服务：sudo systemctl restart nginx"
+echo -e "  查看日志：sudo tail -f /var/log/nginx/access.log"
