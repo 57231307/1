@@ -11,6 +11,7 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/api/v1/erp/auth/refresh",
     "/api/v1/erp/auth/logout",
     "/api/v1/erp/dashboard",
+    "/api/tracking/page-view",
 ];
 
 pub fn is_public_path(path: &str) -> bool {

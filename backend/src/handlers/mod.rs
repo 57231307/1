@@ -1,6 +1,7 @@
 pub mod account_subject_handler;
 pub mod accounting_period_handler;
 pub mod omni_audit_handler;
+pub mod tracking_handler;
 pub mod crm_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;

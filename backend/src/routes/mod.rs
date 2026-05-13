@@ -82,6 +82,7 @@ use crate::handlers::{
     notification_handler,
     user_notification_setting_handler,
     data_permission_handler,
+    tracking_handler,
 };
 
 use crate::services::metrics_service::create_metrics_router;
@@ -951,6 +952,10 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/user/notification-setting", Router::new()
             .route("/", get(user_notification_setting_handler::get_setting).put(user_notification_setting_handler::update_setting))
         )
+        // 页面访问统计路由
+        .nest("/api/tracking", Router::new()
+            .route("/page-view", post(tracking_handler::track_page_view))
+        )
         .nest("/", metrics_routes)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()))
         // 静态文件服务 - CSS样式文件
@@ -986,7 +991,7 @@ pub fn create_router(state: AppState) -> Router {
         // 前端WASM文件服务
         .route("/bingxi_frontend.js", get({
             let wasm_dir = "/workspace/frontend/target/wasm32-unknown-unknown/release";
-            move |req: axum::http::Request<axum::body::Body>| async move {
+            move |_req: axum::http::Request<axum::body::Body>| async move {
                 let js_file = format!("{}/bingxi_frontend.js", wasm_dir);
                 if let Ok(content) = tokio::fs::read(&js_file).await {
                     let body = axum::body::Body::from(content);
