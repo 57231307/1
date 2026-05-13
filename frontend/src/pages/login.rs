@@ -57,7 +57,7 @@ pub fn login() -> Html {
                                             storage.set_item("token", token).unwrap();
 
                                             let location = window.location();
-                                            let _ = location.set_href("/");
+                                            let _ = location.set_href("/#/dashboard");
                                         } else {
                                             error.set(Some("登录响应中缺少 token".to_string()));
                                         }
