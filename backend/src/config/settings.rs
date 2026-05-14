@@ -90,15 +90,14 @@ impl AppSettings {
 
         app_settings.load_sensitive_from_env();
 
-        if app_settings.auth.jwt_secret.len() < 32 || 
-           app_settings.auth.jwt_secret.contains("change-in-production") || 
-           app_settings.auth.jwt_secret.contains("change-this") ||
-           app_settings.auth.jwt_secret.contains("local-dev") {
+        let jwt_secret = &app_settings.auth.jwt_secret;
+        let secret_len = jwt_secret.len();
+        let contains_weak_patterns = jwt_secret.contains("change-in-production") || 
+           jwt_secret.contains("change-this") ||
+           jwt_secret.contains("local-dev");
+        
+        if secret_len < 32 || contains_weak_patterns {
             panic!("致命错误: JWT 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥。");
-        }
-
-        if app_settings.auth.jwt_secret.len() < 32 {
-            panic!("致命错误: JWT 密钥长度必须至少 32 字节");
         }
 
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {

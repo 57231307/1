@@ -256,6 +256,25 @@ router.beforeEach((to, _from, next) => {
       next({ path: '/login', query: { redirect: to.fullPath } })
       return
     }
+    
+    // 检查 token 有效性
+    try {
+      const tokenData = JSON.parse(atob(token.split('.')[1]))
+      const currentTime = Math.floor(Date.now() / 1000)
+      
+      // 检查 token 是否过期（预留 60 秒缓冲）
+      if (tokenData.exp && tokenData.exp < currentTime + 60) {
+        console.warn('Token 已过期或即将过期')
+        localStorage.removeItem('token')
+        next({ path: '/login', query: { redirect: to.fullPath } })
+        return
+      }
+    } catch (error) {
+      console.error('Token 解析失败:', error)
+      localStorage.removeItem('token')
+      next({ path: '/login', query: { redirect: to.fullPath } })
+      return
+    }
   }
 
   next()
