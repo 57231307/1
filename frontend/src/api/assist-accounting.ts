@@ -3,67 +3,77 @@ import type { ApiResponse, QueryParams } from '../types/api'
 
 export interface AssistDimension {
   id: number
-  dimensionCode: string
-  dimensionName: string
-  dimensionType: string
-  isActive: boolean
-  createdAt?: string
+  name: string
+  code: string
+  description?: string
 }
 
 export interface AssistRecord {
   id: number
-  subjectId: number
-  subjectCode: string
-  subjectName: string
-  dimensionId: number
-  dimensionCode: string
-  dimensionName: string
-  dimensionValue: string
+  dimension_id: number
+  dimension_name: string
+  business_id: number
+  business_type: string
   amount: number
-  direction: string
-  businessId?: string
-  businessType?: string
-  period?: string
-  createdAt?: string
+  balance: number
+  created_at: string
 }
 
 export interface AssistSummary {
-  subjectId: number
-  subjectCode: string
-  subjectName: string
-  dimensionId: number
-  dimensionCode: string
-  dimensionName: string
-  dimensionValue: string
-  debitAmount: number
-  creditAmount: number
-  balance: number
+  dimension_id: number
+  dimension_name: string
+  total_amount: number
+  count: number
 }
 
 export interface AssistRecordQueryParams extends QueryParams {
-  subjectId?: number
-  dimensionId?: number
-  dimensionValue?: string
-  businessType?: string
-  period?: string
+  dimension_id?: number
+  business_type?: string
+  business_id?: number
 }
 
-export function listDimensions(): Promise<ApiResponse<AssistDimension[]>> {
+export interface CreateAssistRecordParams {
+  dimension_id: number
+  business_id: number
+  business_type: string
+  amount: number
+}
+
+export interface UpdateAssistRecordParams {
+  dimension_id?: number
+  business_id?: number
+  business_type?: string
+  amount?: number
+}
+
+export function listAssistDimensions(): Promise<ApiResponse<AssistDimension[]>> {
   return request.get('/assist-accounting/dimensions')
 }
 
-export function queryRecords(params?: AssistRecordQueryParams): Promise<ApiResponse<{ list: AssistRecord[]; total: number }>> {
+export function queryAssistRecords(params?: AssistRecordQueryParams): Promise<ApiResponse<{ list: AssistRecord[]; total: number }>> {
   return request.get('/assist-accounting/records', { params })
 }
 
-export function getRecordsByBusiness(params?: { businessType?: string; businessId?: string }): Promise<ApiResponse<AssistRecord[]>> {
-  return request.get('/assist-accounting/records/business', { params })
+export function getAssistRecordsByBusiness(params: { business_type: string; business_id: number }): Promise<ApiResponse<AssistRecord[]>> {
+  return request.get('/assist-accounting/records/by-business', { params })
 }
 
-export function getRecordsByFiveDimension(fiveDimensionId: string): Promise<ApiResponse<AssistRecord[]>> {
-  return request.get(`/assist-accounting/records/five-dimension/${encodeURIComponent(fiveDimensionId)}`)
+export function getAssistRecordsByFiveDimension(id: string): Promise<ApiResponse<AssistRecord[]>> {
+  return request.get(`/assist-accounting/records/five-dimension/${id}`)
 }
 
-export function getSummary(params?: { subjectId?: number; dimensionId?: number; period?: string }): Promise<ApiResponse<AssistSummary[]>> {
+export function getAssistSummary(params?: { dimension_id?: number }): Promise<ApiResponse<AssistSummary[]>> {
   return request.get('/assist-accounting/summary', { params })
+}
+
+export function createAssistRecord(data: CreateAssistRecordParams): Promise<ApiResponse<AssistRecord>> {
+  return request.post('/assist-accounting/records', data)
+}
+
+export function updateAssistRecord(id: number, data: UpdateAssistRecordParams): Promise<ApiResponse<AssistRecord>> {
+  return request.put(`/assist-accounting/records/${id}`, data)
+}
+
+export function deleteAssistRecord(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/assist-accounting/records/${id}`)
 }

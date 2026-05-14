@@ -111,8 +111,9 @@ import { Plus } from '@element-plus/icons-vue'
 import {
   listReports,
   createReport,
-  executeReport,
+  updateReport,
   deleteReport,
+  executeFinancialReport,
   type FinancialReport,
 } from '@/api/financial-analysis'
 
@@ -192,7 +193,7 @@ const handleSubmitForm = async () => {
         ElMessage.success('创建成功')
       } else {
         if (reportForm.id) {
-          await executeReport(reportForm.id)
+          await updateReport(reportForm.id, reportForm)
           ElMessage.success('更新成功')
         }
       }
@@ -215,7 +216,7 @@ const viewDetail = (row: FinancialReport) => {
 const handleExecute = async (row: FinancialReport) => {
   try {
     await ElMessageBox.confirm(`确认执行财务报告 ${row.reportName} 吗？`, '确认', { type: 'info' })
-    await executeReport(row.id)
+    await executeFinancialReport(row.id)
     ElMessage.success('执行成功，报告已完成')
     fetchReports()
   } catch (e: any) {
