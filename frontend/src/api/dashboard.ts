@@ -1,16 +1,21 @@
 import { request } from './request'
 import type { ApiResponse } from './request'
 
-export interface DashboardStats {
-  fabricCount: number
-  inventoryTotal: number
-  monthOrders: number
-  customerCount: number
-  todayOrders: number
-  pendingOrders: number
-  lowStockProducts: number
-  monthSales: number
-  recentActivities: Activity[]
+export interface DashboardQuery {
+  start_date?: string
+  end_date?: string
+}
+
+export interface DashboardOverview {
+  fabricCount?: number
+  inventoryTotal?: number
+  monthOrders?: number
+  customerCount?: number
+  todayOrders?: number
+  pendingOrders?: number
+  lowStockProducts?: number
+  monthSales?: number
+  recentActivities?: Activity[]
 }
 
 export interface Activity {
@@ -32,17 +37,44 @@ export interface SalesTrend {
   count: number
 }
 
+export interface SalesStatistics {
+  totalAmount?: number
+  orderCount?: number
+  customerCount?: number
+  avgOrderAmount?: number
+  trends?: SalesTrend[]
+}
+
+export interface InventoryStatistics {
+  totalItems?: number
+  totalValue?: number
+  warehouseCount?: number
+  categoryDistribution?: ChartData[]
+}
+
+export interface LowStockAlert {
+  id: number
+  productId: number
+  productName: string
+  productCode: string
+  warehouseId: number
+  warehouseName: string
+  currentQuantity: number
+  minQuantity: number
+  unit?: string
+  alertLevel: 'warning' | 'danger'
+}
+
 export const dashboardApi = {
-  getStats: () => request.get<ApiResponse<DashboardStats>>('/dashboard/stats'),
+  getOverview: (params?: DashboardQuery) =>
+    request.get<ApiResponse<DashboardOverview>>('/dashboard/overview', { params }),
 
-  getSalesTrend: (days = 7) =>
-    request.get<ApiResponse<SalesTrend[]>>('/dashboard/sales-trend', {
-      params: { days },
-    }),
+  getSalesStats: (params?: DashboardQuery) =>
+    request.get<ApiResponse<SalesStatistics>>('/dashboard/sales-stats', { params }),
 
-  getInventoryDistribution: () =>
-    request.get<ApiResponse<ChartData[]>>('/dashboard/inventory-distribution'),
+  getInventoryStats: (params?: DashboardQuery) =>
+    request.get<ApiResponse<InventoryStatistics>>('/dashboard/inventory-stats', { params }),
 
-  getRecentActivities: () =>
-    request.get<ApiResponse<Activity[]>>('/dashboard/activities'),
+  getLowStockAlerts: () =>
+    request.get<ApiResponse<LowStockAlert[]>>('/dashboard/low-stock-alerts'),
 }
