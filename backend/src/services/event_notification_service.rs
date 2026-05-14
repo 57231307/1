@@ -217,10 +217,16 @@ impl EventNotificationService {
         business_type: &str,
         business_id: i32,
     ) -> Result<(), AppError> {
+        let should_email = self
+            .setting_service
+            .should_send_email(approver_user_id, "APPROVAL")
+            .await?;
         let should_internal = self
             .setting_service
             .should_send_internal(approver_user_id, "APPROVAL")
             .await?;
+
+        let approval_url = format!("/approvals/{}", business_id);
 
         if should_internal {
             self.notification_service
@@ -232,12 +238,18 @@ impl EventNotificationService {
                     priority: NotificationPriority::High,
                     business_type: Some(business_type.to_string()),
                     business_id: Some(business_id),
-                    action_url: Some(format!("/approvals/{}", business_id)),
+                    action_url: Some(approval_url.clone()),
                     sender_id: Some(0),
                     sender_name: Some(applicant_name.to_string()),
                 })
                 .await?;
         }
+
+        if should_email {
+            let html = EmailTemplate::approval_notification(task_title, applicant_name, &approval_url);
+            self.send_email_notification(approver_user_id, "待审批任务提醒", html).await;
+        }
+
         Ok(())
     }
 
@@ -323,10 +335,7 @@ impl EventNotificationService {
         }
 
         if should_email {
-            let html = format!(
-                "<h2>库存预警</h2><p>产品 '{}' 当前库存 {}，已低于预警阈值 {}</p>",
-                product_name, current_stock, threshold
-            );
+            let html = EmailTemplate::inventory_alert(product_name, current_stock, threshold);
             self.send_email_notification(user_id, "库存预警通知", html).await;
         }
 

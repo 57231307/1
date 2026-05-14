@@ -1,3 +1,765 @@
 <template>
-  <div>销售管理</div>
+  <div class="sales-page">
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">销售管理</h1>
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+          <el-breadcrumb-item>销售管理</el-breadcrumb-item>
+          <el-breadcrumb-item>销售订单</el-breadcrumb-item>
+        </el-breadcrumb>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新建订单
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
+      </div>
+    </div>
+
+    <el-row :gutter="20" class="stats-row">
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon order-icon">
+              <el-icon><Document /></el-icon>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">本月订单</div>
+              <div class="stat-value">{{ stats.monthOrders }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card shadow="hover" class="stat-card highlight">
+          <div class="stat-content">
+            <div class="stat-icon amount-icon">
+              <el-icon><Money /></el-icon>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">本月销售额</div>
+              <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card shadow="hover" class="stat-card warning">
+          <div class="stat-content">
+            <div class="stat-icon pending-icon">
+              <el-icon><Clock /></el-icon>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">待处理</div>
+              <div class="stat-value">{{ stats.pendingOrders }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon deliver-icon">
+              <el-icon><Van /></el-icon>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">待发货</div>
+              <div class="stat-value">{{ stats.pendingDeliver }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-card shadow="hover" class="filter-card">
+      <el-form :inline="true" :model="queryParams" class="filter-form">
+        <el-form-item label="关键词">
+          <el-input v-model="queryParams.keyword" placeholder="订单号/客户名" clearable @clear="handleQuery" />
+        </el-form-item>
+        <el-form-item label="客户">
+          <el-select v-model="queryParams.customer_id" placeholder="选择客户" clearable @change="handleQuery">
+            <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="订单状态">
+          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+            <el-option label="待审批" value="pending" />
+            <el-option label="已审批" value="approved" />
+            <el-option label="已发货" value="shipped" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="日期范围">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            @change="handleDateChange"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">
+            <el-icon><Search /></el-icon>
+            查询
+          </el-button>
+          <el-button @click="handleReset">
+            <el-icon><Refresh /></el-icon>
+            重置
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="hover" class="table-card">
+      <el-table v-loading="loading" :data="orders" stripe @row-click="handleRowClick">
+        <el-table-column prop="order_no" label="订单号" width="160" fixed>
+          <template #default="{ row }">
+            <el-link type="primary" @click.stop="handleView(row)">{{ row.order_no }}</el-link>
+          </template>
+        </el-table-column>
+        <el-table-column prop="customer_name" label="客户名称" width="180" fixed />
+        <el-table-column prop="order_date" label="订单日期" width="120" />
+        <el-table-column prop="required_date" label="要求交货日期" width="120" />
+        <el-table-column prop="total_amount" label="订单金额" width="120" align="right">
+          <template #default="{ row }">
+            <span class="amount">¥{{ row.total_amount.toLocaleString() }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="contact_person" label="联系人" width="100" />
+        <el-table-column prop="contact_phone" label="联系电话" width="120" />
+        <el-table-column prop="status" label="订单状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)" size="small">
+              {{ getStatusText(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="creator_name" label="创建人" width="100" />
+        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click.stop="handleView(row)">详情</el-button>
+            <el-button v-if="row.status === 'pending'" type="success" link size="small" @click.stop="handleApprove(row)">审批</el-button>
+            <el-button v-if="row.status === 'approved'" type="warning" link size="small" @click.stop="handleDeliver(row)">发货</el-button>
+            <el-button v-if="row.status === 'pending'" type="danger" link size="small" @click.stop="handleCancel(row)">取消</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="queryParams.page"
+          v-model:page-size="queryParams.page_size"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleQuery"
+          @current-change="handleQuery"
+        />
+      </div>
+    </el-card>
+
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="900px" destroy-on-close>
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+        <el-divider content-position="left">基本信息</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="客户" prop="customer_id">
+              <el-select v-model="formData.customer_id" placeholder="选择客户" style="width: 100%" @change="handleCustomerChange">
+                <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="订单日期" prop="order_date">
+              <el-date-picker v-model="formData.order_date" type="date" placeholder="选择日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="要求交货日期" prop="required_date">
+              <el-date-picker v-model="formData.required_date" type="date" placeholder="选择日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="联系人" prop="contact_person">
+              <el-input v-model="formData.contact_person" placeholder="联系人姓名" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="联系电话" prop="contact_phone">
+          <el-input v-model="formData.contact_phone" placeholder="联系电话" style="width: 50%" />
+        </el-form-item>
+        <el-form-item label="收货地址" prop="delivery_address">
+          <el-input v-model="formData.delivery_address" type="textarea" :rows="2" placeholder="详细收货地址" />
+        </el-form-item>
+
+        <el-divider content-position="left">订单明细</el-divider>
+        <div class="order-items">
+          <el-table :data="formData.items" border style="width: 100%">
+            <el-table-column label="产品" width="200">
+              <template #default="{ row, $index }">
+                <el-select v-model="row.product_id" placeholder="选择产品" @change="handleProductSelect($index)">
+                  <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column prop="quantity" label="数量" width="120">
+              <template #default="{ row }">
+                <el-input-number v-model="row.quantity" :min="1" size="small" @change="calculateSubtotal(row)" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="unit" label="单位" width="80" />
+            <el-table-column prop="unit_price" label="单价" width="120">
+              <template #default="{ row }">
+                <el-input-number v-model="row.unit_price" :min="0" :precision="2" size="small" @change="calculateSubtotal(row)" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="subtotal" label="小计" width="120">
+              <template #default="{ row }">
+                <span class="amount">¥{{ (row.subtotal || 0).toLocaleString() }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80">
+              <template #default="{ $index }">
+                <el-button type="danger" link size="small" @click="removeItem($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-button type="primary" plain size="small" @click="addItem" style="margin-top: 10px;">
+            <el-icon><Plus /></el-icon>
+            添加明细
+          </el-button>
+        </div>
+
+        <el-divider content-position="left">其他信息</el-divider>
+        <el-form-item label="备注">
+          <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="订单备注信息" />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="订单总额">
+              <div class="total-amount">¥{{ calculateTotal().toLocaleString() }}</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="税额">
+              <div class="total-amount">¥{{ (calculateTotal() * 0.13).toLocaleString() }}</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="价税合计">
+              <div class="total-amount highlight">¥{{ (calculateTotal() * 1.13).toLocaleString() }}</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="viewDialogVisible" title="订单详情" width="1000px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="订单号">{{ currentOrder?.order_no }}</el-descriptions-item>
+        <el-descriptions-item label="订单状态">
+          <el-tag :type="getStatusType(currentOrder?.status)" size="small">
+            {{ getStatusText(currentOrder?.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ currentOrder?.customer_name }}</el-descriptions-item>
+        <el-descriptions-item label="订单日期">{{ currentOrder?.order_date }}</el-descriptions-item>
+        <el-descriptions-item label="要求交货日期">{{ currentOrder?.required_date }}</el-descriptions-item>
+        <el-descriptions-item label="联系人">{{ currentOrder?.contact_person }}</el-descriptions-item>
+        <el-descriptions-item label="联系电话">{{ currentOrder?.contact_phone }}</el-descriptions-item>
+        <el-descriptions-item label="收货地址" :span="2">{{ currentOrder?.delivery_address }}</el-descriptions-item>
+        <el-descriptions-item label="订单金额">¥{{ currentOrder?.total_amount?.toLocaleString() }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ currentOrder?.creator_name }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider content-position="left">订单明细</el-divider>
+      <el-table :data="currentOrder?.items" border>
+        <el-table-column prop="product_name" label="产品名称" />
+        <el-table-column prop="product_code" label="产品编码" width="120" />
+        <el-table-column prop="quantity" label="数量" width="80" align="right" />
+        <el-table-column prop="unit" label="单位" width="60" />
+        <el-table-column prop="unit_price" label="单价" width="100" align="right">
+          <template #default="{ row }">
+            ¥{{ row.unit_price.toLocaleString() }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="subtotal" label="小计" width="120" align="right">
+          <template #default="{ row }">
+            <strong>¥{{ row.subtotal.toLocaleString() }}</strong>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+  </div>
 </template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Plus, Download, Search, Refresh, Document, Money, Clock, Van
+} from '@element-plus/icons-vue'
+
+const loading = ref(false)
+const orders = ref<any[]>([])
+const customers = ref<any[]>([])
+const products = ref<any[]>([])
+const total = ref(0)
+const dialogVisible = ref(false)
+const viewDialogVisible = ref(false)
+const dialogTitle = ref('')
+const currentOrder = ref<any>(null)
+const formRef = ref()
+const isEdit = ref(false)
+
+const stats = ref({
+  monthOrders: 89,
+  monthAmount: 1250000,
+  pendingOrders: 23,
+  pendingDeliver: 15
+})
+
+const dateRange = ref<[Date, Date] | null>(null)
+
+const queryParams = reactive({
+  page: 1,
+  page_size: 20,
+  keyword: '',
+  customer_id: undefined as number | undefined,
+  status: '',
+  order_date_from: '',
+  order_date_to: ''
+})
+
+const formData = reactive<any>({
+  customer_id: undefined,
+  customer_name: '',
+  order_date: new Date(),
+  required_date: '',
+  contact_person: '',
+  contact_phone: '',
+  delivery_address: '',
+  remark: '',
+  items: []
+})
+
+const formRules = {
+  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
+  order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }]
+}
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: 'CNY',
+    minimumFractionDigits: 0
+  }).format(amount)
+}
+
+const getStatusType = (status: string) => {
+  const typeMap: Record<string, any> = {
+    pending: 'warning',
+    approved: 'primary',
+    shipped: 'success',
+    completed: 'info',
+    cancelled: 'danger'
+  }
+  return typeMap[status] || 'info'
+}
+
+const getStatusText = (status: string) => {
+  const textMap: Record<string, string> = {
+    pending: '待审批',
+    approved: '已审批',
+    shipped: '已发货',
+    completed: '已完成',
+    cancelled: '已取消'
+  }
+  return textMap[status] || status
+}
+
+const fetchData = async () => {
+  loading.value = true
+  try {
+    orders.value = [
+      {
+        id: 1,
+        order_no: 'SO202603130001',
+        customer_name: '纺织公司A',
+        order_date: '2026-05-13',
+        required_date: '2026-05-20',
+        total_amount: 50000,
+        contact_person: '张经理',
+        contact_phone: '13800138000',
+        status: 'pending',
+        creator_name: '销售员A',
+        created_at: '2026-05-13 10:30:00',
+        items: [
+          { id: 1, product_id: 1, product_name: '纯棉斜纹布', product_code: 'FB001', quantity: 1000, unit: '米', unit_price: 25, subtotal: 25000 },
+          { id: 2, product_id: 2, product_name: '涤纶平纹布', product_code: 'FB002', quantity: 1000, unit: '米', unit_price: 25, subtotal: 25000 }
+        ]
+      },
+      {
+        id: 2,
+        order_no: 'SO202603120005',
+        customer_name: '服装厂B',
+        order_date: '2026-05-12',
+        required_date: '2026-05-25',
+        total_amount: 80000,
+        contact_person: '李总',
+        contact_phone: '13900139000',
+        status: 'approved',
+        creator_name: '销售员B',
+        created_at: '2026-05-12 14:20:00',
+        items: [
+          { id: 3, product_id: 1, product_name: '纯棉斜纹布', product_code: 'FB001', quantity: 2000, unit: '米', unit_price: 25, subtotal: 50000 },
+          { id: 4, product_id: 3, product_name: '真丝缎面', product_code: 'FB003', quantity: 200, unit: '米', unit_price: 150, subtotal: 30000 }
+        ]
+      }
+    ]
+    total.value = 2
+    ElMessage.info('使用演示数据')
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchCustomers = async () => {
+  customers.value = [
+    { id: 1, name: '纺织公司A' },
+    { id: 2, name: '服装厂B' },
+    { id: 3, name: '面料贸易商C' }
+  ]
+}
+
+const fetchProducts = async () => {
+  products.value = [
+    { id: 1, name: '纯棉斜纹布', code: 'FB001', price: 25 },
+    { id: 2, name: '涤纶平纹布', code: 'FB002', price: 18 },
+    { id: 3, name: '真丝缎面', code: 'FB003', price: 180 }
+  ]
+}
+
+const handleQuery = () => {
+  queryParams.page = 1
+  fetchData()
+}
+
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.customer_id = undefined
+  queryParams.status = ''
+  dateRange.value = null
+  queryParams.order_date_from = ''
+  queryParams.order_date_to = ''
+  handleQuery()
+}
+
+const handleDateChange = () => {
+  if (dateRange.value) {
+    queryParams.order_date_from = dateRange.value[0].toISOString().split('T')[0]
+    queryParams.order_date_to = dateRange.value[1].toISOString().split('T')[0]
+  } else {
+    queryParams.order_date_from = ''
+    queryParams.order_date_to = ''
+  }
+  handleQuery()
+}
+
+const handleCreate = () => {
+  isEdit.value = false
+  dialogTitle.value = '新建销售订单'
+  Object.assign(formData, {
+    customer_id: undefined,
+    customer_name: '',
+    order_date: new Date(),
+    required_date: '',
+    contact_person: '',
+    contact_phone: '',
+    delivery_address: '',
+    remark: '',
+    items: [{ id: Date.now(), product_id: undefined, product_name: '', product_code: '', quantity: 1, unit: '米', unit_price: 0, subtotal: 0 }]
+  })
+  dialogVisible.value = true
+}
+
+const handleView = (row: any) => {
+  currentOrder.value = row
+  viewDialogVisible.value = true
+}
+
+const handleApprove = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定审批通过订单 ${row.order_no} 吗？`, '审批确认', { type: 'success' })
+    ElMessage.success(`订单 ${row.order_no} 审批成功`)
+    fetchData()
+  } catch {
+    // User cancelled
+  }
+}
+
+const handleDeliver = (_row: any) => {
+  ElMessage.info(`创建发货单功能开发中`)
+}
+
+const handleCancel = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定取消订单 ${row.order_no} 吗？`, '取消确认', { type: 'warning' })
+    ElMessage.success(`订单 ${row.order_no} 已取消`)
+    fetchData()
+  } catch {
+    // User cancelled
+  }
+}
+
+const handleRowClick = (row: any) => {
+  handleView(row)
+}
+
+const handleCustomerChange = (customerId: number) => {
+  const customer = customers.value.find(c => c.id === customerId)
+  if (customer) {
+    formData.customer_name = customer.name
+  }
+}
+
+const handleProductSelect = (index: number) => {
+  const product = products.value.find(p => p.id === formData.items[index].product_id)
+  if (product) {
+    formData.items[index].product_name = product.name
+    formData.items[index].product_code = product.code
+    formData.items[index].unit_price = product.price
+    calculateSubtotal(formData.items[index])
+  }
+}
+
+const calculateSubtotal = (item: any) => {
+  item.subtotal = (item.quantity || 0) * (item.unit_price || 0)
+}
+
+const calculateTotal = () => {
+  return formData.items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0)
+}
+
+const addItem = () => {
+  formData.items.push({
+    id: Date.now(),
+    product_id: undefined,
+    product_name: '',
+    product_code: '',
+    quantity: 1,
+    unit: '米',
+    unit_price: 0,
+    subtotal: 0
+  })
+}
+
+const removeItem = (index: number) => {
+  if (formData.items.length > 1) {
+    formData.items.splice(index, 1)
+  } else {
+    ElMessage.warning('至少保留一条明细')
+  }
+}
+
+const handleSubmit = async () => {
+  try {
+    await formRef.value.validate()
+    formData.total_amount = calculateTotal()
+    ElMessage.success(isEdit.value ? '订单更新成功' : '订单创建成功')
+    dialogVisible.value = false
+    fetchData()
+  } catch (error) {
+    console.error('Form validation failed:', error)
+  }
+}
+
+const handleExport = () => {
+  ElMessage.info('导出功能开发中')
+}
+
+onMounted(() => {
+  fetchData()
+  fetchCustomers()
+  fetchProducts()
+})
+</script>
+
+<style scoped>
+.sales-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-row {
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.stat-card.highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-card.highlight .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.stat-card.highlight .stat-label,
+.stat-card.highlight .stat-value {
+  color: white;
+}
+
+.stat-card.warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.stat-card.warning .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.stat-card.warning .stat-label,
+.stat-card.warning .stat-value {
+  color: white;
+}
+
+.stat-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.stat-icon.order-icon {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.stat-icon.amount-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.stat-icon.pending-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.stat-icon.deliver-icon {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.stat-info {
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+
+.filter-card {
+  margin-bottom: 20px;
+}
+
+.table-card {
+  margin-bottom: 20px;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.amount {
+  font-weight: 600;
+  color: #f56c6c;
+}
+
+.total-amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.total-amount.highlight {
+  color: #f56c6c;
+}
+
+.order-items {
+  margin-bottom: 20px;
+}
+
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+:deep(.el-card__body) {
+  padding: 20px;
+}
+</style>

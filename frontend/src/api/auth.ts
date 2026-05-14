@@ -1,4 +1,4 @@
-import request from './request'
+import { request } from './request'
 import type { LoginRequest, LoginResponse, UserInfo } from '@/types/api'
 
 export function login(data: LoginRequest): Promise<LoginResponse> {

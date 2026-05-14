@@ -1,25 +1,13 @@
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
-
-export interface PageResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  page_size: number
-}
-
 export interface LoginRequest {
   username: string
   password: string
+  totp_code?: string
 }
 
 export interface LoginResponse {
   token: string
   refresh_token: string
+  expires_in: number
   user: UserInfo
 }
 
@@ -27,14 +15,56 @@ export interface UserInfo {
   id: number
   username: string
   real_name: string
-  email: string
-  phone: string
-  role: string
-  permissions: UserPermission[]
+  email?: string
+  phone?: string
+  avatar?: string
+  role_id?: number
+  role_name?: string
+  department_id?: number
+  department_name?: string
+  is_totp_enabled?: boolean
+  permissions?: string[]
 }
 
 export interface UserPermission {
-  resource: string
-  action: string
-  resource_id?: number
+  id: number
+  name: string
+  code: string
+  type: string
+  resource?: string
+  action?: string
 }
+
+export interface ApiResponse<T = any> {
+  code: number
+  message: string
+  data: T
+  total?: number
+}
+
+export interface PageResult<T = any> {
+  list: T[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface QueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  order_by?: string
+  order_dir?: 'asc' | 'desc'
+  status?: string | number
+  supplier_name?: string
+  customer_name?: string
+  invoice_no?: string
+  voucher_no?: string
+  date_range?: string[]
+  supplier_id?: number
+  customer_id?: number
+}
+
+export type StatusType = 'active' | 'inactive' | 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid'

@@ -1,0 +1,62 @@
+import { request } from './request'
+import type { ApiResponse, QueryParams } from '../types/api'
+
+// 生产订单接口
+export interface ProductionOrder {
+  id: number
+  order_no: string
+  sales_order_id?: number
+  product_id: number
+  product_name?: string
+  planned_quantity: number
+  actual_quantity?: number
+  scheduled_start_date?: string
+  scheduled_end_date?: string
+  actual_start_date?: string
+  actual_end_date?: string
+  status: 'draft' | 'planned' | 'in_production' | 'completed' | 'cancelled'
+  priority: number
+  work_center_id?: number
+  remark?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 生产订单状态字典
+export const PRODUCTION_ORDER_STATUS = {
+  draft: { label: '草稿', type: 'info' },
+  planned: { label: '已计划', type: 'warning' },
+  in_production: { label: '生产中', type: 'primary' },
+  completed: { label: '已完成', type: 'success' },
+  cancelled: { label: '已取消', type: 'danger' },
+}
+
+// 获取生产订单列表
+export function listProductionOrders(params?: QueryParams): Promise<ApiResponse<{ list: ProductionOrder[]; total: number }>> {
+  return request.get('/api/v1/erp/production/orders', { params })
+}
+
+// 获取生产订单详情
+export function getProductionOrder(id: number): Promise<ApiResponse<ProductionOrder>> {
+  return request.get(`/api/v1/erp/production/orders/${id}`)
+}
+
+// 创建生产订单
+export function createProductionOrder(data: Partial<ProductionOrder>): Promise<ApiResponse<ProductionOrder>> {
+  return request.post('/api/v1/erp/production/orders', data)
+}
+
+// 更新生产订单
+export function updateProductionOrder(id: number, data: Partial<ProductionOrder>): Promise<ApiResponse<ProductionOrder>> {
+  return request.put(`/api/v1/erp/production/orders/${id}`, data)
+}
+
+// 删除生产订单
+export function deleteProductionOrder(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/api/v1/erp/production/orders/${id}`)
+}
+
+// 更新生产订单状态
+export function updateProductionOrderStatus(id: number, status: string): Promise<ApiResponse<void>> {
+  return request.put(`/api/v1/erp/production/orders/${id}/status`, { status })
+}

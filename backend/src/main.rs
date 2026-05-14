@@ -403,7 +403,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(tokio::spawn(async move {
             let user_service = crate::grpc::service::GrpcUserService::new(grpc_db.clone(), grpc_jwt_secret.clone());
             let management_services = crate::grpc::management_services::GrpcManagementServices::new(grpc_db.clone());
-            let new_services = crate::grpc::new_services::GrpcNewServices::new(grpc_db);
 
             let grpc_server = tonic::transport::Server::builder()
                 .add_service(crate::grpc::service::proto::user_service_server::UserServiceServer::new(user_service.clone()))
