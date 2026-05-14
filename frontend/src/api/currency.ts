@@ -36,21 +36,21 @@ export interface CreateExchangeRateRequest {
 }
 
 export function createCurrency(data: CreateCurrencyRequest) {
-  return request.post('/api/v1/currencies', data)
+  return request.post('/currencies', data)
 }
 
 export function listCurrencies() {
-  return request.get('/api/v1/currencies')
+  return request.get('/currencies')
 }
 
 export function getBaseCurrency() {
-  return request.get('/api/v1/currencies/base')
+  return request.get('/currencies/base')
 }
 
 export function createExchangeRate(data: CreateExchangeRateRequest) {
-  return request.post('/api/v1/exchange-rates', data)
+  return request.post('/exchange-rates', data)
 }
 
 export function getExchangeRate(params: { fromCurrency: string; toCurrency: string; date?: string }) {
-  return request.get('/api/v1/exchange-rates', { params })
+  return request.get('/exchange-rates', { params })
 }

@@ -44,41 +44,41 @@ export interface QueryParams {
 }
 
 export function listVouchers(params?: QueryParams) {
-  return request.get('/api/v1/vouchers', { params })
+  return request.get('/vouchers', { params })
 }
 
 export function getVoucher(id: number) {
-  return request.get(`/api/v1/vouchers/${id}`)
+  return request.get(`/vouchers/${id}`)
 }
 
 export function createVoucher(data: Partial<VoucherEntity>) {
-  return request.post('/api/v1/vouchers', data)
+  return request.post('/vouchers', data)
 }
 
 export function updateVoucher(id: number, data: Partial<VoucherEntity>) {
-  return request.put(`/api/v1/vouchers/${id}`, data)
+  return request.put(`/vouchers/${id}`, data)
 }
 
 export function deleteVoucher(id: number) {
-  return request.delete(`/api/v1/vouchers/${id}`)
+  return request.delete(`/vouchers/${id}`)
 }
 
 export function approveVoucher(id: number) {
-  return request.patch(`/api/v1/vouchers/${id}/approve`)
+  return request.patch(`/vouchers/${id}/approve`)
 }
 
 export function postVoucher(id: number) {
-  return request.patch(`/api/v1/vouchers/${id}/post`)
+  return request.patch(`/vouchers/${id}/post`)
 }
 
 export function unpostVoucher(id: number) {
-  return request.patch(`/api/v1/vouchers/${id}/unpost`)
+  return request.patch(`/vouchers/${id}/unpost`)
 }
 
 export function getVoucherTypes() {
-  return request.get('/api/v1/vouchers/types')
+  return request.get('/vouchers/types')
 }
 
 export function generateVoucherNo() {
-  return request.get('/api/v1/vouchers/generate-no')
+  return request.get('/vouchers/generate-no')
 }

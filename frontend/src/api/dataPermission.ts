@@ -27,21 +27,21 @@ export interface ScopeType {
 }
 
 export function setDataPermission(data: SetDataPermissionRequest) {
-  return request.post('/api/v1/data-permissions', data)
+  return request.post('/data-permissions', data)
 }
 
 export function listRoleDataPermissions(roleId: number) {
-  return request.get(`/api/v1/data-permissions/roles/${roleId}`)
+  return request.get(`/data-permissions/roles/${roleId}`)
 }
 
 export function getDataPermission(roleId: number, resourceType: string) {
-  return request.get(`/api/v1/data-permissions/roles/${roleId}/resources/${resourceType}`)
+  return request.get(`/data-permissions/roles/${roleId}/resources/${resourceType}`)
 }
 
 export function deleteDataPermission(roleId: number, resourceType: string) {
-  return request.delete(`/api/v1/data-permissions/roles/${roleId}/resources/${resourceType}`)
+  return request.delete(`/data-permissions/roles/${roleId}/resources/${resourceType}`)
 }
 
 export function listScopeTypes() {
-  return request.get('/api/v1/data-permissions/scope-types')
+  return request.get('/data-permissions/scope-types')
 }

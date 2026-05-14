@@ -62,49 +62,49 @@ export interface CreateEvaluationRequest {
 }
 
 export function listIndicators(params?: QueryParams) {
-  return request.get('/api/v1/supplier-evaluation/indicators', { params })
+  return request.get('/supplier-evaluation/indicators', { params })
 }
 
 export function createIndicator(data: CreateEvaluationIndicatorRequest) {
-  return request.post('/api/v1/supplier-evaluation/indicators', data)
+  return request.post('/supplier-evaluation/indicators', data)
 }
 
 export function listEvaluationRecords(params?: QueryParams) {
-  return request.get('/api/v1/supplier-evaluation/records', { params })
+  return request.get('/supplier-evaluation/records', { params })
 }
 
 export function getEvaluationRecord(id: number) {
-  return request.get(`/api/v1/supplier-evaluation/records/${id}`)
+  return request.get(`/supplier-evaluation/records/${id}`)
 }
 
 export function createEvaluationRecord(data: CreateEvaluationRequest) {
-  return request.post('/api/v1/supplier-evaluation/records', data)
+  return request.post('/supplier-evaluation/records', data)
 }
 
 export function getSupplierScore(supplierId: number) {
-  return request.get(`/api/v1/supplier-evaluation/suppliers/${supplierId}/score`)
+  return request.get(`/supplier-evaluation/suppliers/${supplierId}/score`)
 }
 
 export function getSupplierRankings(params?: { limit?: number }) {
-  return request.get('/api/v1/supplier-evaluation/rankings', { params })
+  return request.get('/supplier-evaluation/rankings', { params })
 }
 
 export function listEvaluations(params?: QueryParams) {
-  return request.get('/api/v1/supplier-evaluation/evaluations', { params })
+  return request.get('/supplier-evaluation/evaluations', { params })
 }
 
 export function getEvaluation(id: number) {
-  return request.get(`/api/v1/supplier-evaluation/evaluations/${id}`)
+  return request.get(`/supplier-evaluation/evaluations/${id}`)
 }
 
 export function createEvaluation(data: CreateEvaluationRequest) {
-  return request.post('/api/v1/supplier-evaluation/evaluations', data)
+  return request.post('/supplier-evaluation/evaluations', data)
 }
 
 export function updateEvaluation(id: number, data: Partial<EvaluationRecord>) {
-  return request.put(`/api/v1/supplier-evaluation/evaluations/${id}`, data)
+  return request.put(`/supplier-evaluation/evaluations/${id}`, data)
 }
 
 export function deleteEvaluation(id: number) {
-  return request.delete(`/api/v1/supplier-evaluation/evaluations/${id}`)
+  return request.delete(`/supplier-evaluation/evaluations/${id}`)
 }

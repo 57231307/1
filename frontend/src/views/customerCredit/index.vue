@@ -152,7 +152,7 @@ import {
   releaseCredit,
   deactivateCredit,
   type CustomerCredit
-} from '@/api/customerCredit'
+} from '@/api/customer-credit'
 
 const creditList = ref<CustomerCredit[]>([])
 

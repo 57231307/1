@@ -64,21 +64,21 @@ export interface FiveDimensionIdParseResponse {
 }
 
 export function getFiveDimensionStats(params?: FiveDimensionStatsParams) {
-  return request.get('/api/v1/five-dimension/stats', { params })
+  return request.get('/five-dimension/stats', { params })
 }
 
 export function getStatsByFiveDimensionId(fiveDimensionId: string) {
-  return request.get(`/api/v1/five-dimension/${fiveDimensionId}`)
+  return request.get(`/five-dimension/${fiveDimensionId}`)
 }
 
 export function parseFiveDimensionId(fiveDimensionId: string) {
-  return request.post('/api/v1/five-dimension/parse', { five_dimension_id: fiveDimensionId })
+  return request.post('/five-dimension/parse', { five_dimension_id: fiveDimensionId })
 }
 
 export function searchFiveDimension(params: FiveDimensionSearchParams) {
-  return request.get('/api/v1/five-dimension/search', { params })
+  return request.get('/five-dimension/search', { params })
 }
 
 export function listFiveDimensionStats(params?: FiveDimensionStatsParams) {
-  return request.get('/api/v1/five-dimension/list', { params })
+  return request.get('/five-dimension/list', { params })
 }

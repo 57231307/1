@@ -65,17 +65,17 @@ export interface BackwardTraceParams {
 }
 
 export function getTraceByFiveDimension(fiveDimensionId: string) {
-  return request.get(`/api/v1/business-trace/${fiveDimensionId}`)
+  return request.get(`/business-trace/${fiveDimensionId}`)
 }
 
 export function forwardTrace(params: ForwardTraceParams) {
-  return request.get('/api/v1/business-trace/forward', { params })
+  return request.get('/business-trace/forward', { params })
 }
 
 export function backwardTrace(params: BackwardTraceParams) {
-  return request.get('/api/v1/business-trace/backward', { params })
+  return request.get('/business-trace/backward', { params })
 }
 
 export function createTraceSnapshot(traceChainId: string) {
-  return request.post(`/api/v1/business-trace/${traceChainId}/snapshot`)
+  return request.post(`/business-trace/${traceChainId}/snapshot`)
 }

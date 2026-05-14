@@ -69,7 +69,7 @@ const loadData = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await request.get('/api/v1/warehouses/select')
+    const res = await request.get('/warehouses/select')
     warehouseOptions.value = res.data
   } catch (error) {
     console.log('加载仓库失败')
@@ -78,7 +78,7 @@ const loadWarehouses = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await request.get('/api/v1/products/select')
+    const res = await request.get('/products/select')
     productOptions.value = res.data
   } catch (error) {
     console.log('加载产品失败')
