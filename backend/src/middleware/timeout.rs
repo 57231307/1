@@ -6,8 +6,10 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use tower::Layer;
 use tracing::{info, warn};
 
+#[derive(Clone)]
 pub struct TimeoutConfig {
     pub default_timeout: Duration,
 }
@@ -27,36 +29,15 @@ pub async fn timeout_middleware(
 ) -> Response {
     let path = request.uri().path().to_string();
     let method = request.method().clone();
-    
+
     tokio::select! {
-        result = next.run(request) => {
-            match result {
-                Ok(response) => {
-                    info!(
-                        method = %method,
-                        path = %path,
-                        "请求成功"
-                    );
-                    response
-                }
-                Err(status) => {
-                    warn!(
-                        method = %method,
-                        path = %path,
-                        status = %status,
-                        "请求失败"
-                    );
-                    Response::builder()
-                        .status(status)
-                        .body(Body::empty())
-                        .unwrap_or_else(|_| {
-                            Response::builder()
-                                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                .body(Body::empty())
-                                .unwrap()
-                        })
-                }
-            }
+        response = next.run(request) => {
+            info!(
+                method = %method,
+                path = %path,
+                "请求完成"
+            );
+            response
         }
         _ = tokio::time::sleep(state.default_timeout) => {
             warn!(
@@ -78,12 +59,8 @@ pub async fn timeout_middleware(
     }
 }
 
-pub fn create_timeout_layer() -> axum::middleware::FromFnLayer<
-    fn(axum::extract::State<TimeoutConfig>, Request<Body>, Next) -> Response, 
-    TimeoutConfig,
-    ()
-> {
-    axum::middleware::from_fn_with_state(
+pub fn create_timeout_layer<S>() -> impl Layer<S> {
+    axum::middleware::from_fn_with_state::<_, TimeoutConfig, S>(
         TimeoutConfig::default(),
         timeout_middleware,
     )
