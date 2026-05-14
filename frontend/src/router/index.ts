@@ -126,6 +126,36 @@ const routes = [
     meta: { title: '高级功能', requiresAuth: true }
   },
   {
+    path: '/production',
+    name: 'Production',
+    component: () => import('@/views/production/index.vue'),
+    meta: { title: '生产计划', requiresAuth: true }
+  },
+  {
+    path: '/cost',
+    name: 'Cost',
+    component: () => import('@/views/cost/index.vue'),
+    meta: { title: '成本归集', requiresAuth: true }
+  },
+  {
+    path: '/budget',
+    name: 'Budget',
+    component: () => import('@/views/budget/index.vue'),
+    meta: { title: '预算管理', requiresAuth: true }
+  },
+  {
+    path: '/fund',
+    name: 'Fund',
+    component: () => import('@/views/fund/index.vue'),
+    meta: { title: '资金管理', requiresAuth: true }
+  },
+  {
+    path: '/financial-analysis',
+    name: 'FinancialAnalysis',
+    component: () => import('@/views/financial-analysis/index.vue'),
+    meta: { title: '财务分析', requiresAuth: true }
+  },
+  {
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),
