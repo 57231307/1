@@ -156,6 +156,42 @@ const routes = [
     meta: { title: '财务分析', requiresAuth: true }
   },
   {
+    path: '/supplier-evaluation',
+    name: 'SupplierEvaluation',
+    component: () => import('@/views/supplierEvaluation/index.vue'),
+    meta: { title: '供应商评估', requiresAuth: true }
+  },
+  {
+    path: '/customer-credit',
+    name: 'CustomerCredit',
+    component: () => import('@/views/customerCredit/index.vue'),
+    meta: { title: '客户信用管理', requiresAuth: true }
+  },
+  {
+    path: '/currency',
+    name: 'Currency',
+    component: () => import('@/views/currency/index.vue'),
+    meta: { title: '多币种管理', requiresAuth: true }
+  },
+  {
+    path: '/notification',
+    name: 'Notification',
+    component: () => import('@/views/notification/index.vue'),
+    meta: { title: '通知中心', requiresAuth: true }
+  },
+  {
+    path: '/data-permission',
+    name: 'DataPermission',
+    component: () => import('@/views/dataPermission/index.vue'),
+    meta: { title: '数据权限管理', requiresAuth: true }
+  },
+  {
+    path: '/inventory-batch',
+    name: 'InventoryBatch',
+    component: () => import('@/views/inventoryBatch/index.vue'),
+    meta: { title: '批次管理', requiresAuth: true }
+  },
+  {
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),
