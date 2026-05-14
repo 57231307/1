@@ -45,27 +45,27 @@ export interface FixedAssetUpdateRequest {
 }
 
 export function listAssets(params?: QueryParams): Promise<ApiResponse<FixedAsset[]>> {
-  return request.get('/api/v1/erp/fixed-assets', { params })
+  return request.get('/fixed-assets', { params })
 }
 
 export function getAsset(id: number): Promise<ApiResponse<FixedAsset>> {
-  return request.get(`/api/v1/erp/fixed-assets/${id}`)
+  return request.get(`/fixed-assets/${id}`)
 }
 
 export function createAsset(data: FixedAssetCreateRequest): Promise<ApiResponse<FixedAsset>> {
-  return request.post('/api/v1/erp/fixed-assets', data)
+  return request.post('/fixed-assets', data)
 }
 
 export function updateAsset(id: number, data: FixedAssetUpdateRequest): Promise<ApiResponse<FixedAsset>> {
-  return request.put(`/api/v1/erp/fixed-assets/${id}`, data)
+  return request.put(`/fixed-assets/${id}`, data)
 }
 
 export function deleteAsset(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/fixed-assets/${id}`)
+  return request.delete(`/fixed-assets/${id}`)
 }
 
 export function depreciateAsset(id: number): Promise<ApiResponse<FixedAsset>> {
-  return request.post(`/api/v1/erp/fixed-assets/${id}/depreciate`)
+  return request.post(`/fixed-assets/${id}/depreciate`)
 }
 
 export interface Budget {
@@ -116,33 +116,33 @@ export interface BudgetCreateRequest {
 }
 
 export function listBudgets(params?: QueryParams): Promise<ApiResponse<Budget[]>> {
-  return request.get('/api/v1/erp/budgets', { params })
+  return request.get('/budgets', { params })
 }
 
 export function getBudget(id: number): Promise<ApiResponse<Budget>> {
-  return request.get(`/api/v1/erp/budgets/${id}`)
+  return request.get(`/budgets/${id}`)
 }
 
 export function createBudget(data: BudgetCreateRequest): Promise<ApiResponse<Budget>> {
-  return request.post('/api/v1/erp/budgets', data)
+  return request.post('/budgets', data)
 }
 
 export function updateBudget(id: number, data: Partial<BudgetCreateRequest>): Promise<ApiResponse<Budget>> {
-  return request.put(`/api/v1/erp/budgets/${id}`, data)
+  return request.put(`/budgets/${id}`, data)
 }
 
 export function deleteBudget(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/budgets/${id}`)
+  return request.delete(`/budgets/${id}`)
 }
 
 export function approveBudget(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/budgets/${id}/approve`)
+  return request.post(`/budgets/${id}/approve`)
 }
 
 export function adjustBudget(data: { budget_id: number; adjustment_amount: number; reason: string }): Promise<ApiResponse<void>> {
-  return request.post('/api/v1/erp/budgets/adjust', data)
+  return request.post('/budgets/adjust', data)
 }
 
 export function listBudgetItems(params?: QueryParams): Promise<ApiResponse<BudgetItem[]>> {
-  return request.get('/api/v1/erp/budgets/items', { params })
+  return request.get('/budgets/items', { params })
 }

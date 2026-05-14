@@ -17,17 +17,17 @@ export interface Tenant {
 }
 
 export function listTenants(params?: QueryParams): Promise<ApiResponse<Tenant[]>> {
-  return request.get('/api/v1/erp/tenants', { params })
+  return request.get('/tenants', { params })
 }
 
 export function getTenant(id: number): Promise<ApiResponse<Tenant>> {
-  return request.get(`/api/v1/erp/tenants/${id}`)
+  return request.get(`/tenants/${id}`)
 }
 
 export function createTenant(data: Partial<Tenant>): Promise<ApiResponse<Tenant>> {
-  return request.post('/api/v1/erp/tenants', data)
+  return request.post('/tenants', data)
 }
 
 export function updateTenantStatus(id: number, data: { status: string }): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/tenants/${id}/status`, data)
+  return request.put(`/tenants/${id}/status`, data)
 }

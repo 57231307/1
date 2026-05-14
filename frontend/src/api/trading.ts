@@ -36,35 +36,35 @@ export interface ContractItem {
 }
 
 export function listPurchaseContracts(params?: QueryParams): Promise<ApiResponse<PurchaseContract[]>> {
-  return request.get('/api/v1/erp/purchase-contracts', { params })
+  return request.get('/purchase-contracts', { params })
 }
 
 export function getPurchaseContract(id: number): Promise<ApiResponse<PurchaseContract>> {
-  return request.get(`/api/v1/erp/purchase-contracts/${id}`)
+  return request.get(`/purchase-contracts/${id}`)
 }
 
 export function createPurchaseContract(data: Partial<PurchaseContract>): Promise<ApiResponse<PurchaseContract>> {
-  return request.post('/api/v1/erp/purchase-contracts', data)
+  return request.post('/purchase-contracts', data)
 }
 
 export function updatePurchaseContract(id: number, data: Partial<PurchaseContract>): Promise<ApiResponse<PurchaseContract>> {
-  return request.put(`/api/v1/erp/purchase-contracts/${id}`, data)
+  return request.put(`/purchase-contracts/${id}`, data)
 }
 
 export function deletePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/purchase-contracts/${id}`)
+  return request.delete(`/purchase-contracts/${id}`)
 }
 
 export function approvePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/purchase-contracts/${id}/approve`)
+  return request.post(`/purchase-contracts/${id}/approve`)
 }
 
 export function executePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/purchase-contracts/${id}/execute`)
+  return request.put(`/purchase-contracts/${id}/execute`)
 }
 
 export function cancelPurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/purchase-contracts/${id}/cancel`)
+  return request.put(`/purchase-contracts/${id}/cancel`)
 }
 
 // 销售合同
@@ -89,35 +89,35 @@ export interface SalesContract {
 }
 
 export function listSalesContracts(params?: QueryParams): Promise<ApiResponse<SalesContract[]>> {
-  return request.get('/api/v1/erp/sales-contracts', { params })
+  return request.get('/sales-contracts', { params })
 }
 
 export function getSalesContract(id: number): Promise<ApiResponse<SalesContract>> {
-  return request.get(`/api/v1/erp/sales-contracts/${id}`)
+  return request.get(`/sales-contracts/${id}`)
 }
 
 export function createSalesContract(data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
-  return request.post('/api/v1/erp/sales-contracts', data)
+  return request.post('/sales-contracts', data)
 }
 
 export function updateSalesContract(id: number, data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
-  return request.put(`/api/v1/erp/sales-contracts/${id}`, data)
+  return request.put(`/sales-contracts/${id}`, data)
 }
 
 export function deleteSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/sales-contracts/${id}`)
+  return request.delete(`/sales-contracts/${id}`)
 }
 
 export function approveSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/sales-contracts/${id}/approve`)
+  return request.post(`/sales-contracts/${id}/approve`)
 }
 
 export function executeSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/sales-contracts/${id}/execute`)
+  return request.put(`/sales-contracts/${id}/execute`)
 }
 
 export function cancelSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/sales-contracts/${id}/cancel`)
+  return request.put(`/sales-contracts/${id}/cancel`)
 }
 
 // 采购价格
@@ -140,23 +140,23 @@ export interface PurchasePrice {
 }
 
 export function listPurchasePrices(params?: QueryParams): Promise<ApiResponse<PurchasePrice[]>> {
-  return request.get('/api/v1/erp/purchase-prices', { params })
+  return request.get('/purchase-prices', { params })
 }
 
 export function getPurchasePrice(id: number): Promise<ApiResponse<PurchasePrice>> {
-  return request.get(`/api/v1/erp/purchase-prices/${id}`)
+  return request.get(`/purchase-prices/${id}`)
 }
 
 export function createPurchasePrice(data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
-  return request.post('/api/v1/erp/purchase-prices', data)
+  return request.post('/purchase-prices', data)
 }
 
 export function updatePurchasePrice(id: number, data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
-  return request.put(`/api/v1/erp/purchase-prices/${id}`, data)
+  return request.put(`/purchase-prices/${id}`, data)
 }
 
 export function deletePurchasePrice(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/purchase-prices/${id}`)
+  return request.delete(`/purchase-prices/${id}`)
 }
 
 // 销售价格
@@ -179,27 +179,27 @@ export interface SalesPrice {
 }
 
 export function listSalesPrices(params?: QueryParams): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get('/api/v1/erp/sales-prices', { params })
+  return request.get('/sales-prices', { params })
 }
 
 export function getSalesPrice(id: number): Promise<ApiResponse<SalesPrice>> {
-  return request.get(`/api/v1/erp/sales-prices/${id}`)
+  return request.get(`/sales-prices/${id}`)
 }
 
 export function createSalesPrice(data: Partial<SalesPrice>): Promise<ApiResponse<SalesPrice>> {
-  return request.post('/api/v1/erp/sales-prices', data)
+  return request.post('/sales-prices', data)
 }
 
 export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/sales-prices/${id}/approve`)
+  return request.post(`/sales-prices/${id}/approve`)
 }
 
 export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get(`/api/v1/erp/sales-prices/history/${productId}`)
+  return request.get(`/sales-prices/history/${productId}`)
 }
 
 export function listPricingStrategies(): Promise<ApiResponse<any[]>> {
-  return request.get('/api/v1/erp/sales-prices/strategies')
+  return request.get('/sales-prices/strategies')
 }
 
 // 销售退货
@@ -238,13 +238,13 @@ export interface ReturnItem {
 }
 
 export function listSalesReturns(params?: QueryParams): Promise<ApiResponse<SalesReturn[]>> {
-  return request.get('/api/v1/erp/sales-returns', { params })
+  return request.get('/sales-returns', { params })
 }
 
 export function getSalesReturn(id: number): Promise<ApiResponse<SalesReturn>> {
-  return request.get(`/api/v1/erp/sales-returns/${id}`)
+  return request.get(`/sales-returns/${id}`)
 }
 
 export function createSalesReturn(data: Partial<SalesReturn>): Promise<ApiResponse<SalesReturn>> {
-  return request.post('/api/v1/erp/sales-returns', data)
+  return request.post('/sales-returns', data)
 }

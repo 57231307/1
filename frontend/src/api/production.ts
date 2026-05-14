@@ -33,30 +33,30 @@ export const PRODUCTION_ORDER_STATUS = {
 
 // 获取生产订单列表
 export function listProductionOrders(params?: QueryParams): Promise<ApiResponse<{ list: ProductionOrder[]; total: number }>> {
-  return request.get('/api/v1/erp/production/orders', { params })
+  return request.get('/production/orders', { params })
 }
 
 // 获取生产订单详情
 export function getProductionOrder(id: number): Promise<ApiResponse<ProductionOrder>> {
-  return request.get(`/api/v1/erp/production/orders/${id}`)
+  return request.get(`/production/orders/${id}`)
 }
 
 // 创建生产订单
 export function createProductionOrder(data: Partial<ProductionOrder>): Promise<ApiResponse<ProductionOrder>> {
-  return request.post('/api/v1/erp/production/orders', data)
+  return request.post('/production/orders', data)
 }
 
 // 更新生产订单
 export function updateProductionOrder(id: number, data: Partial<ProductionOrder>): Promise<ApiResponse<ProductionOrder>> {
-  return request.put(`/api/v1/erp/production/orders/${id}`, data)
+  return request.put(`/production/orders/${id}`, data)
 }
 
 // 删除生产订单
 export function deleteProductionOrder(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/production/orders/${id}`)
+  return request.delete(`/production/orders/${id}`)
 }
 
 // 更新生产订单状态
 export function updateProductionOrderStatus(id: number, status: string): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/production/orders/${id}/status`, { status })
+  return request.put(`/production/orders/${id}/status`, { status })
 }

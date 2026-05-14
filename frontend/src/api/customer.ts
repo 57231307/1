@@ -21,7 +21,7 @@ export interface Customer {
 }
 
 export function listCustomers(params?: CustomerQueryParams): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
-  return request.get('/api/v1/erp/customers', { params })
+  return request.get('/customers', { params })
 }
 
 export interface CustomerQueryParams {

@@ -1,8 +1,7 @@
 import { request } from './request'
+import type { ApiResponse, QueryParams as BaseQueryParams } from '../types/api'
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
+export interface NotificationQueryParams extends BaseQueryParams {
   status?: string
   notificationType?: string
 }
@@ -38,38 +37,38 @@ export interface UpdateSettingRequest {
   enableSms: boolean
 }
 
-export function listNotifications(params?: QueryParams) {
-  return request.get('/api/v1/notifications', { params })
+export function listNotifications(params?: NotificationQueryParams): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
+  return request.get('/notifications', { params })
 }
 
-export function getNotification(id: number) {
-  return request.get(`/api/v1/notifications/${id}`)
+export function getNotification(id: number): Promise<ApiResponse<Notification>> {
+  return request.get(`/notifications/${id}`)
 }
 
-export function getUnreadCount() {
-  return request.get('/api/v1/notifications/unread-count')
+export function getUnreadCount(): Promise<ApiResponse<number>> {
+  return request.get('/notifications/unread-count')
 }
 
-export function markAsRead(id: number) {
-  return request.post(`/api/v1/notifications/${id}/read`)
+export function markAsRead(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/notifications/${id}/read`)
 }
 
-export function batchMarkAsRead(data: BatchOperationRequest) {
-  return request.post('/api/v1/notifications/batch-read', data)
+export function batchMarkAsRead(data: BatchOperationRequest): Promise<ApiResponse<void>> {
+  return request.post('/notifications/batch-read', data)
 }
 
-export function markAllAsRead() {
-  return request.post('/api/v1/notifications/mark-all-read')
+export function markAllAsRead(): Promise<ApiResponse<void>> {
+  return request.post('/notifications/mark-all-read')
 }
 
-export function deleteNotification(id: number) {
-  return request.delete(`/api/v1/notifications/${id}`)
+export function deleteNotification(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/notifications/${id}`)
 }
 
-export function getSettings() {
-  return request.get('/api/v1/notifications/settings')
+export function getSettings(): Promise<ApiResponse<NotificationSetting[]>> {
+  return request.get('/notifications/settings')
 }
 
-export function updateSetting(data: UpdateSettingRequest) {
-  return request.post('/api/v1/notifications/settings', data)
+export function updateSetting(data: UpdateSettingRequest): Promise<ApiResponse<NotificationSetting>> {
+  return request.put('/notifications/settings', data)
 }

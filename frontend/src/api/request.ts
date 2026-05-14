@@ -59,7 +59,23 @@ class Request {
         }
         return response
       },
-      (error) => {
+      async (error) => {
+        const originalRequest = error.config
+        
+        if (shouldRetry(error) && originalRequest && !originalRequest._retry) {
+          originalRequest._retry = true
+          originalRequest._retryCount = originalRequest._retryCount || 0
+          
+          if (originalRequest._retryCount < 3) {
+            originalRequest._retryCount++
+            const delay = Math.pow(2, originalRequest._retryCount) * 1000
+            await new Promise(resolve => setTimeout(resolve, delay))
+            
+            console.log(`请求重试 ${originalRequest._retryCount}/3:`, originalRequest.url)
+            return this.instance(originalRequest)
+          }
+        }
+        
         const message = error.response?.data?.message || error.message || '网络错误'
         ElMessage.error(message)
         if (error.response?.status === 401) {
@@ -90,6 +106,13 @@ class Request {
   public patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     return this.instance.patch(url, data, config).then((res) => res.data)
   }
+}
+
+function shouldRetry(error: any): boolean {
+  if (error.response) {
+    return [502, 503, 504].includes(error.response.status)
+  }
+  return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
 }
 
 export const request = new Request()

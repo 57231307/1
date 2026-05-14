@@ -20,29 +20,29 @@ export const FUND_ACCOUNT_STATUS = {
 }
 
 export function listFundAccounts(params?: QueryParams): Promise<ApiResponse<{ list: FundAccount[]; total: number }>> {
-  return request.get('/api/v1/erp/fund-management/accounts', { params })
+  return request.get('/fund-management/accounts', { params })
 }
 
 export function getFundAccount(id: number): Promise<ApiResponse<FundAccount>> {
-  return request.get(`/api/v1/erp/fund-management/accounts/${id}`)
+  return request.get(`/fund-management/accounts/${id}`)
 }
 
 export function createFundAccount(data: Partial<FundAccount>): Promise<ApiResponse<FundAccount>> {
-  return request.post('/api/v1/erp/fund-management/accounts', data)
+  return request.post('/fund-management/accounts', data)
 }
 
 export function updateFundAccount(id: number, data: Partial<FundAccount>): Promise<ApiResponse<FundAccount>> {
-  return request.put(`/api/v1/erp/fund-management/accounts/${id}`, data)
+  return request.put(`/fund-management/accounts/${id}`, data)
 }
 
 export function depositFund(id: number, amount: number, remark?: string): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/fund-management/accounts/${id}/deposit`, { amount, remark })
+  return request.post(`/fund-management/accounts/${id}/deposit`, { amount, remark })
 }
 
 export function withdrawFund(id: number, amount: number, remark?: string): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/fund-management/accounts/${id}/withdraw`, { amount, remark })
+  return request.post(`/fund-management/accounts/${id}/withdraw`, { amount, remark })
 }
 
 export function transferFund(from_id: number, to_id: number, amount: number, remark?: string): Promise<ApiResponse<void>> {
-  return request.post('/api/v1/erp/fund-management/transfer', { from_id, to_id, amount, remark })
+  return request.post('/fund-management/transfer', { from_id, to_id, amount, remark })
 }

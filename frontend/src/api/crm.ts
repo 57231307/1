@@ -39,53 +39,53 @@ export interface Opportunity {
 }
 
 export function listLeads(params?: QueryParams): Promise<ApiResponse<Lead[]>> {
-  return request.get('/api/v1/erp/crm/leads', { params })
+  return request.get('/crm/leads', { params })
 }
 
 export function getLead(id: number): Promise<ApiResponse<Lead>> {
-  return request.get(`/api/v1/erp/crm/leads/${id}`)
+  return request.get(`/crm/leads/${id}`)
 }
 
 export function createLead(data: Partial<Lead>): Promise<ApiResponse<Lead>> {
-  return request.post('/api/v1/erp/crm/leads', data)
+  return request.post('/crm/leads', data)
 }
 
 export function updateLead(id: number, data: Partial<Lead>): Promise<ApiResponse<Lead>> {
-  return request.put(`/api/v1/erp/crm/leads/${id}`, data)
+  return request.put(`/crm/leads/${id}`, data)
 }
 
 export function deleteLead(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/crm/leads/${id}`)
+  return request.delete(`/crm/leads/${id}`)
 }
 
 export function updateLeadStatus(id: number, data: { status: string }): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/crm/leads/${id}/status`, data)
+  return request.put(`/crm/leads/${id}/status`, data)
 }
 
 export function convertLead(id: number): Promise<ApiResponse<{ customer_id: number; opportunity_id: number }>> {
-  return request.post(`/api/v1/erp/crm/leads/${id}/convert`)
+  return request.post(`/crm/leads/${id}/convert`)
 }
 
 export function listOpportunities(params?: QueryParams): Promise<ApiResponse<Opportunity[]>> {
-  return request.get('/api/v1/erp/crm/opportunities', { params })
+  return request.get('/crm/opportunities', { params })
 }
 
 export function getOpportunity(id: number): Promise<ApiResponse<Opportunity>> {
-  return request.get(`/api/v1/erp/crm/opportunities/${id}`)
+  return request.get(`/crm/opportunities/${id}`)
 }
 
 export function createOpportunity(data: Partial<Opportunity>): Promise<ApiResponse<Opportunity>> {
-  return request.post('/api/v1/erp/crm/opportunities', data)
+  return request.post('/crm/opportunities', data)
 }
 
 export function updateOpportunity(id: number, data: Partial<Opportunity>): Promise<ApiResponse<Opportunity>> {
-  return request.put(`/api/v1/erp/crm/opportunities/${id}`, data)
+  return request.put(`/crm/opportunities/${id}`, data)
 }
 
 export function deleteOpportunity(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/crm/opportunities/${id}`)
+  return request.delete(`/crm/opportunities/${id}`)
 }
 
 export function getCustomerSummary(customerId: number): Promise<ApiResponse<any>> {
-  return request.get(`/api/v1/erp/crm/customers/${customerId}/summary`)
+  return request.get(`/crm/customers/${customerId}/summary`)
 }

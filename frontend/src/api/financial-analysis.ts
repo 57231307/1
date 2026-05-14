@@ -3,38 +3,62 @@ import type { ApiResponse, QueryParams } from '../types/api'
 
 export interface FinancialReport {
   id: number
-  report_name: string
-  report_type: string
+  reportType: string
+  reportName: string
   period: string
-  status: 'draft' | 'pending' | 'completed'
-  created_at?: string
-  updated_at?: string
+  periodStart?: string
+  periodEnd?: string
+  content?: any
+  generatedBy: string
+  status: string
+  createdAt?: string
 }
 
-export function listFinancialReports(params?: QueryParams): Promise<ApiResponse<{ list: FinancialReport[]; total: number }>> {
-  return request.get('/api/v1/erp/financial-analysis/reports', { params })
+export interface FinancialIndicator {
+  id: number
+  indicatorCode: string
+  indicatorName: string
+  period: string
+  currentValue: number
+  previousValue?: number
+  growthRate?: number
+  targetValue?: number
+  unit?: string
+  createdAt?: string
 }
 
-export function getFinancialReport(id: number): Promise<ApiResponse<FinancialReport>> {
-  return request.get(`/api/v1/erp/financial-analysis/reports/${id}`)
+export interface FinancialTrend {
+  date: string
+  value: number
 }
 
-export function createFinancialReport(data: Partial<FinancialReport>): Promise<ApiResponse<FinancialReport>> {
-  return request.post('/api/v1/erp/financial-analysis/reports', data)
+export interface FinancialReportQueryParams extends QueryParams {
+  reportType?: string
+  period?: string
+  periodStart?: string
+  periodEnd?: string
 }
 
-export function updateFinancialReport(id: number, data: Partial<FinancialReport>): Promise<ApiResponse<FinancialReport>> {
-  return request.put(`/api/v1/erp/financial-analysis/reports/${id}`, data)
+export function listReports(params?: FinancialReportQueryParams): Promise<ApiResponse<{ list: FinancialReport[]; total: number }>> {
+  return request.get('/financial-analysis/reports', { params })
 }
 
-export function deleteFinancialReport(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/financial-analysis/reports/${id}`)
+export function getReport(id: number): Promise<ApiResponse<FinancialReport>> {
+  return request.get(`/financial-analysis/reports/${id}`)
 }
 
-export function executeFinancialReport(id: number): Promise<ApiResponse<any>> {
-  return request.post(`/api/v1/erp/financial-analysis/reports/${id}/execute`)
+export function createReport(data: Partial<FinancialReport>): Promise<ApiResponse<FinancialReport>> {
+  return request.post('/financial-analysis/reports', data)
 }
 
-export function getFinancialTrends(params?: { period?: string }): Promise<ApiResponse<any>> {
-  return request.get('/api/v1/erp/financial-analysis/trends', { params })
+export function executeReport(id: number): Promise<ApiResponse<FinancialReport>> {
+  return request.post(`/financial-analysis/reports/${id}/execute`)
+}
+
+export function createIndicator(data: Partial<FinancialIndicator>): Promise<ApiResponse<FinancialIndicator>> {
+  return request.post('/financial-analysis/indicators', data)
+}
+
+export function getTrends(params?: { period?: string; indicator?: string }): Promise<ApiResponse<FinancialTrend[]>> {
+  return request.get('/financial-analysis/trends', { params })
 }

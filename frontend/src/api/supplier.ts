@@ -19,7 +19,7 @@ export interface Supplier {
 }
 
 export function listSuppliers(params?: SupplierQueryParams): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
-  return request.get('/api/v1/erp/suppliers', { params })
+  return request.get('/suppliers', { params })
 }
 
 export interface SupplierQueryParams {

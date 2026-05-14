@@ -20,25 +20,25 @@ export interface SalesPrice {
 }
 
 export function listSalesPrices(params?: QueryParams): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get('/api/v1/erp/sales-prices', { params })
+  return request.get('/sales-prices', { params })
 }
 
 export function getSalesPrice(id: number): Promise<ApiResponse<SalesPrice>> {
-  return request.get(`/api/v1/erp/sales-prices/${id}`)
+  return request.get(`/sales-prices/${id}`)
 }
 
 export function createSalesPrice(data: Partial<SalesPrice>): Promise<ApiResponse<SalesPrice>> {
-  return request.post('/api/v1/erp/sales-prices', data)
+  return request.post('/sales-prices', data)
 }
 
 export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/sales-prices/${id}/approve`)
+  return request.post(`/sales-prices/${id}/approve`)
 }
 
 export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get(`/api/v1/erp/sales-prices/history/${productId}`)
+  return request.get(`/sales-prices/history/${productId}`)
 }
 
 export function listPricingStrategies(): Promise<ApiResponse<any[]>> {
-  return request.get('/api/v1/erp/sales-prices/strategies')
+  return request.get('/sales-prices/strategies')
 }

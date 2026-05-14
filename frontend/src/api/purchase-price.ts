@@ -20,21 +20,21 @@ export interface PurchasePrice {
 }
 
 export function listPurchasePrices(params?: QueryParams): Promise<ApiResponse<PurchasePrice[]>> {
-  return request.get('/api/v1/erp/purchase-prices', { params })
+  return request.get('/purchase-prices', { params })
 }
 
 export function getPurchasePrice(id: number): Promise<ApiResponse<PurchasePrice>> {
-  return request.get(`/api/v1/erp/purchase-prices/${id}`)
+  return request.get(`/purchase-prices/${id}`)
 }
 
 export function createPurchasePrice(data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
-  return request.post('/api/v1/erp/purchase-prices', data)
+  return request.post('/purchase-prices', data)
 }
 
 export function updatePurchasePrice(id: number, data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
-  return request.put(`/api/v1/erp/purchase-prices/${id}`, data)
+  return request.put(`/purchase-prices/${id}`, data)
 }
 
 export function deletePurchasePrice(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/purchase-prices/${id}`)
+  return request.delete(`/purchase-prices/${id}`)
 }

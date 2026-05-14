@@ -48,53 +48,53 @@ export interface Defect {
 }
 
 export function listQualityStandards(params?: QueryParams): Promise<ApiResponse<QualityStandard[]>> {
-  return request.get('/api/v1/erp/quality-standards', { params })
+  return request.get('/quality-standards', { params })
 }
 
 export function getQualityStandard(id: number): Promise<ApiResponse<QualityStandard>> {
-  return request.get(`/api/v1/erp/quality-standards/${id}`)
+  return request.get(`/quality-standards/${id}`)
 }
 
 export function createQualityStandard(data: Partial<QualityStandard>): Promise<ApiResponse<QualityStandard>> {
-  return request.post('/api/v1/erp/quality-standards', data)
+  return request.post('/quality-standards', data)
 }
 
 export function updateQualityStandard(id: number, data: Partial<QualityStandard>): Promise<ApiResponse<QualityStandard>> {
-  return request.put(`/api/v1/erp/quality-standards/${id}`, data)
+  return request.put(`/quality-standards/${id}`, data)
 }
 
 export function deleteQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/quality-standards/${id}`)
+  return request.delete(`/quality-standards/${id}`)
 }
 
 export function approveQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/quality-standards/${id}/approve`)
+  return request.post(`/quality-standards/${id}/approve`)
 }
 
 export function publishQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/quality-standards/${id}/publish`)
+  return request.post(`/quality-standards/${id}/publish`)
 }
 
 export function getQualityStandardVersions(id: number): Promise<ApiResponse<QualityStandard[]>> {
-  return request.get(`/api/v1/erp/quality-standards/${id}/versions`)
+  return request.get(`/quality-standards/${id}/versions`)
 }
 
 export function listQualityRecords(params?: QueryParams): Promise<ApiResponse<QualityRecord[]>> {
-  return request.get('/api/v1/erp/quality-inspection/records', { params })
+  return request.get('/quality-inspection/records', { params })
 }
 
 export function getQualityRecord(id: number): Promise<ApiResponse<QualityRecord>> {
-  return request.get(`/api/v1/erp/quality-inspection/records/${id}`)
+  return request.get(`/quality-inspection/records/${id}`)
 }
 
 export function createQualityRecord(data: Partial<QualityRecord>): Promise<ApiResponse<QualityRecord>> {
-  return request.post('/api/v1/erp/quality-inspection/records', data)
+  return request.post('/quality-inspection/records', data)
 }
 
 export function listDefects(params?: QueryParams): Promise<ApiResponse<Defect[]>> {
-  return request.get('/api/v1/erp/quality-inspection/defects', { params })
+  return request.get('/quality-inspection/defects', { params })
 }
 
 export function processDefect(id: number, data: { remark: string }): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/quality-inspection/defects/${id}/process`, data)
+  return request.post(`/quality-inspection/defects/${id}/process`, data)
 }

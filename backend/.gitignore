@@ -3,6 +3,11 @@
 .env.local
 .env.production
 
+# 配置文件 - 包含敏感信息
+config.yaml
+config.local.yaml
+config.production.yaml
+
 # 构建产物
 /target/
 **/*.rs.bk

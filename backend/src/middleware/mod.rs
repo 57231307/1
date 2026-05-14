@@ -11,3 +11,4 @@ pub mod csrf;
 pub mod public_routes;
 pub mod tenant;
 pub mod api_gateway;
+pub mod timeout;
