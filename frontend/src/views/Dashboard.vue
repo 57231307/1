@@ -128,7 +128,7 @@
           <template #header>
             <div class="card-header">
               <span>销售趋势</span>
-              <el-radio-group v-model="trendDays" size="small" @change="fetchTrendData">
+              <el-radio-group v-model="trendDays" size="small">
                 <el-radio-button :value="7">近7天</el-radio-button>
                 <el-radio-button :value="30">近30天</el-radio-button>
               </el-radio-group>
@@ -194,27 +194,32 @@ import {
   TrendCharts,
   Refresh
 } from '@element-plus/icons-vue'
-import { useDashboardStore } from '@/store/dashboard'
 import { dashboardApi } from '@/api/dashboard'
 
-const dashboardStore = useDashboardStore()
+interface DashboardStats {
+  fabricCount?: number
+  inventoryTotal?: number
+  monthOrders?: number
+  customerCount?: number
+  todayOrders?: number
+  pendingOrders?: number
+  lowStockProducts?: number
+  monthSales?: number
+  recentActivities?: Array<{
+    id: number
+    type: string
+    content: string
+    time: string
+    user: string
+  }>
+}
 
 const dateRange = ref<[Date, Date] | null>(null)
 const trendDays = ref(7)
 const trendChartRef = ref<HTMLElement>()
 const pieChartRef = ref<HTMLElement>()
 
-const stats = ref({
-  fabricCount: 0,
-  inventoryTotal: 0,
-  monthOrders: 0,
-  customerCount: 0,
-  todayOrders: 0,
-  pendingOrders: 0,
-  lowStockProducts: 0,
-  monthSales: 0,
-  recentActivities: [] as any[]
-})
+const stats = ref<DashboardStats>({})
 
 const formatNumber = (num: number | undefined) => {
   if (!num) return '0'
@@ -243,8 +248,8 @@ const getActivityTypeColor = (type: string) => {
 
 const fetchDashboardData = async () => {
   try {
-    const res = await dashboardApi.getStats()
-    stats.value = res.data
+    const res = await dashboardApi.getOverview()
+    stats.value = res.data || {}
   } catch (error) {
     stats.value = {
       fabricCount: 156,
@@ -267,14 +272,6 @@ const fetchDashboardData = async () => {
   }
 }
 
-const fetchTrendData = async () => {
-  try {
-    await dashboardStore.fetchSalesTrend(trendDays.value)
-  } catch (error) {
-    console.error('Failed to fetch trend data:', error)
-  }
-}
-
 const refreshActivities = () => {
   fetchDashboardData()
   ElMessage.success('刷新成功')
@@ -286,7 +283,6 @@ const handleDateChange = () => {
 
 onMounted(async () => {
   await fetchDashboardData()
-  await fetchTrendData()
   await nextTick()
 })
 </script>

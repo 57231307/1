@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElTabs, ElTabPane, ElTable, ElTableColumn, ElButton, ElSelect, ElDatePicker, ElRow, ElCol, ElMessage, ElCard } from 'element-plus'
-import { FileText, TrendingUp, Wallet, RefreshCw } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { ElTabs, ElTabPane, ElTable, ElTableColumn, ElButton, ElSelect, ElRow, ElCol, ElMessage, ElCard } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import { getBalanceSheet, getProfitStatement, getCashFlowStatement, getTrialBalance, type BalanceSheetItem, type ProfitStatementItem, type CashFlowItem, type ReportData } from '@/api/financeReport'
 
 const activeTab = ref('balance')
@@ -13,16 +13,6 @@ const balanceSheetData = ref<ReportData>({ period: '', period_name: '', items: [
 const profitStatementData = ref<ReportData>({ period: '', period_name: '', items: [] })
 const cashFlowData = ref<ReportData>({ period: '', period_name: '', items: [] })
 const trialBalanceData = ref<ReportData>({ period: '', period_name: '', items: [] })
-
-const years = Array.from({ length: 5 }, (_, i) => ({
-  label: `${new Date().getFullYear() - i}年`,
-  value: new Date().getFullYear() - i
-}))
-
-const months = Array.from({ length: 12 }, (_, i) => ({
-  label: `${i + 1}月`,
-  value: i + 1
-}))
 
 const selectedYear = ref(new Date().getFullYear())
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -138,7 +128,7 @@ loadBalanceSheet()
         </ElCol>
         <ElCol :span="12" />
         <ElCol :span="8" class="filter-right">
-          <ElButton type="primary" icon="RefreshCw" @click="handleRefresh">刷新数据</ElButton>
+          <ElButton type="primary" @click="handleRefresh"><Refresh /> 刷新数据</ElButton>
         </ElCol>
       </ElRow>
     </div>

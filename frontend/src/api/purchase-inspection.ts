@@ -1,6 +1,5 @@
 import { request } from './request'
 import type { ApiResponse, QueryParams } from '../types/api'
-import type { QualityStandard } from './quality'
 
 export interface PurchaseInspectionRecord {
   id: number

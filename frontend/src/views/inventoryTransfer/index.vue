@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
-import { Plus, Edit, Trash2, Eye, Refresh, Check, ArrowRight } from '@element-plus/icons-vue'
-import { listInventoryTransfers, getInventoryTransfer, createInventoryTransfer, updateInventoryTransfer, deleteInventoryTransfer, approveInventoryTransfer, getTransferItems, addTransferItem, deleteTransferItem, type InventoryTransferEntity, type TransferItem } from '@/api/inventoryTransfer'
+import { Plus, Edit, Delete, View, Check, ArrowRight } from '@element-plus/icons-vue'
+import { listInventoryTransfers, getInventoryTransfer, createInventoryTransfer, updateInventoryTransfer, deleteInventoryTransfer, approveInventoryTransfer, getTransferItems, type InventoryTransferEntity, type TransferItem } from '@/api/inventoryTransfer'
+import { request } from '@/api/request'
 
 const tableData = ref<InventoryTransferEntity[]>([])
 const total = ref(0)
@@ -56,7 +57,10 @@ const loadData = async () => {
     const res = await listInventoryTransfers({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...searchForm.value
+      transfer_no: searchForm.value.transfer_no,
+      from_warehouse_id: searchForm.value.from_warehouse_id ? Number(searchForm.value.from_warehouse_id) : undefined,
+      to_warehouse_id: searchForm.value.to_warehouse_id ? Number(searchForm.value.to_warehouse_id) : undefined,
+      status: searchForm.value.status
     })
     tableData.value = res.data.list
     total.value = res.data.total
@@ -303,7 +307,7 @@ loadProducts()
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <Eye />
+            <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
@@ -327,7 +331,7 @@ loadProducts()
             type="danger"
             @click="handleDelete(scope.row)"
           >
-            <Trash2 />
+            <Delete />
           </ElButton>
         </template>
       </ElTableColumn>

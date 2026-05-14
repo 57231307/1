@@ -11,7 +11,6 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
-use tracing::info;
 
 /// 创建调整单请求
 #[derive(Debug, Deserialize)]

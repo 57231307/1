@@ -12,6 +12,7 @@ export interface FinancialReport {
   generatedBy: string
   status: string
   createdAt?: string
+  updatedAt?: string
 }
 
 export interface FinancialIndicator {
@@ -53,6 +54,10 @@ export function createReport(data: Partial<FinancialReport>): Promise<ApiRespons
 
 export function executeReport(id: number): Promise<ApiResponse<FinancialReport>> {
   return request.post(`/financial-analysis/reports/${id}/execute`)
+}
+
+export function deleteReport(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/financial-analysis/reports/${id}`)
 }
 
 export function createIndicator(data: Partial<FinancialIndicator>): Promise<ApiResponse<FinancialIndicator>> {

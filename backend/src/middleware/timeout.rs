@@ -24,7 +24,7 @@ pub async fn timeout_middleware(
     State(state): State<TimeoutConfig>,
     request: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Response {
     let path = request.uri().path().to_string();
     let method = request.method().clone();
     
@@ -37,7 +37,7 @@ pub async fn timeout_middleware(
                         path = %path,
                         "请求成功"
                     );
-                    Ok(response)
+                    response
                 }
                 Err(status) => {
                     warn!(
@@ -46,7 +46,15 @@ pub async fn timeout_middleware(
                         status = %status,
                         "请求失败"
                     );
-                    Err(status)
+                    Response::builder()
+                        .status(status)
+                        .body(Body::empty())
+                        .unwrap_or_else(|_| {
+                            Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(Body::empty())
+                                .unwrap()
+                        })
                 }
             }
         }
@@ -57,13 +65,21 @@ pub async fn timeout_middleware(
                 timeout_secs = %state.default_timeout.as_secs(),
                 "请求超时"
             );
-            Err(StatusCode::REQUEST_TIMEOUT)
+            Response::builder()
+                .status(StatusCode::REQUEST_TIMEOUT)
+                .body(Body::empty())
+                .unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .unwrap()
+                })
         }
     }
 }
 
 pub fn create_timeout_layer() -> axum::middleware::FromFnLayer<
-    fn(axum::extract::State<TimeoutConfig>, Request<Body>, Next) -> _, 
+    fn(axum::extract::State<TimeoutConfig>, Request<Body>, Next) -> Response, 
     TimeoutConfig,
     ()
 > {

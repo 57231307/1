@@ -16,11 +16,12 @@ export interface InventoryTransferEntity {
   approved_at?: string
   approved_by?: number
   approved_by_name?: string
+  items?: TransferItem[]
 }
 
 export interface TransferItem {
   id?: number
-  transfer_id: number
+  transfer_id?: number
   product_id: number
   product_code?: string
   product_name?: string

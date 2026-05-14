@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElTabs, ElTabPane, ElDescriptions } from 'element-plus'
-import { Plus, Edit, Trash2, Eye, Refresh, Check } from '@element-plus/icons-vue'
+import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
+import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
 import { listArReconciliations, getArReconciliation, createArReconciliation, updateArReconciliation, deleteArReconciliation, confirmReconciliation, getReconciliationDetails, type ArReconciliationEntity, type ReconciliationDetail } from '@/api/arReconciliation'
+import { request } from '@/api/request'
 
 const tableData = ref<ArReconciliationEntity[]>([])
 const total = ref(0)
@@ -268,7 +269,7 @@ loadCustomers()
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <Eye />
+            <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
@@ -292,7 +293,7 @@ loadCustomers()
             type="danger"
             @click="handleDelete(scope.row)"
           >
-            <Trash2 />
+            <Delete />
           </ElButton>
         </template>
       </ElTableColumn>

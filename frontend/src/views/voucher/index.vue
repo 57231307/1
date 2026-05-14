@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElTabs, ElTabPane, ElInputNumber } from 'element-plus'
-import { Plus, Edit, Trash2, Eye, Refresh, Check, FileText, Undo } from '@element-plus/icons-vue'
-import { listVouchers, getVoucher, createVoucher, updateVoucher, deleteVoucher, approveVoucher, postVoucher, unpostVoucher, getVoucherTypes, generateVoucherNo, type VoucherEntity, type VoucherEntry } from '@/api/voucher'
+import { ref, watch } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElInputNumber } from 'element-plus'
+import { Plus, Edit, Delete, View, Refresh, Check } from '@element-plus/icons-vue'
+import { listVouchers, getVoucher, createVoucher, updateVoucher, deleteVoucher, approveVoucher, postVoucher, unpostVoucher, getVoucherTypes, generateVoucherNo, type VoucherEntity } from '@/api/voucher'
 import { getAccountSubjectTree } from '@/api/accountSubject'
 
 const tableData = ref<VoucherEntity[]>([])
@@ -191,7 +191,9 @@ const handleSubmit = async () => {
     ElMessage.warning('请填写必填字段')
     return
   }
-  if (Math.abs(form.value.total_debit - form.value.total_credit) > 0.01) {
+  const totalDebit = form.value.total_debit ?? 0
+  const totalCredit = form.value.total_credit ?? 0
+  if (Math.abs(totalDebit - totalCredit) > 0.01) {
     ElMessage.warning('借贷不平')
     return
   }
@@ -347,10 +349,10 @@ loadAccountSubjects()
         </template>
       </ElTableColumn>
       <ElTableColumn prop="total_debit" label="借方金额" width="120" align="right">
-        <template #default="scope">{{ scope.row.total_debit.toFixed(2) }}</template>
+        <template #default="scope">{{ (scope.row.total_debit ?? 0).toFixed(2) }}</template>
       </ElTableColumn>
       <ElTableColumn prop="total_credit" label="贷方金额" width="120" align="right">
-        <template #default="scope">{{ scope.row.total_credit.toFixed(2) }}</template>
+        <template #default="scope">{{ (scope.row.total_credit ?? 0).toFixed(2) }}</template>
       </ElTableColumn>
       <ElTableColumn prop="status" label="状态" width="100">
         <template #default="scope">
@@ -365,7 +367,7 @@ loadAccountSubjects()
       <ElTableColumn label="操作" width="300" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <Eye />
+            <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
@@ -389,7 +391,7 @@ loadAccountSubjects()
             type="success"
             @click="handlePost(scope.row)"
           >
-            <FileText /> 记账
+            <Check /> 记账
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'posted'"
@@ -397,7 +399,7 @@ loadAccountSubjects()
             type="info"
             @click="handleUnpost(scope.row)"
           >
-            <Undo /> 反记账
+            <Refresh /> 反记账
           </ElButton>
           <ElButton
             v-if="scope.row.status !== 'posted'"
@@ -405,7 +407,7 @@ loadAccountSubjects()
             type="danger"
             @click="handleDelete(scope.row)"
           >
-            <Trash2 />
+            <Delete />
           </ElButton>
         </template>
       </ElTableColumn>
@@ -482,12 +484,12 @@ loadAccountSubjects()
         <ElRow :gutter="20" class="total-row">
           <ElCol :span="12" class="total-item">
             <span class="label">借方合计:</span>
-            <span class="value debit">{{ form.total_debit.toFixed(2) }}</span>
+            <span class="value debit">{{ (form.total_debit ?? 0).toFixed(2) }}</span>
           </ElCol>
           <ElCol :span="12" class="total-item">
             <span class="label">贷方合计:</span>
-            <span class="value credit">{{ form.total_credit.toFixed(2) }}</span>
-            <span v-if="Math.abs(form.total_debit - form.total_credit) > 0.01" class="error">
+            <span class="value credit">{{ (form.total_credit ?? 0).toFixed(2) }}</span>
+            <span v-if="Math.abs((form.total_debit ?? 0) - (form.total_credit ?? 0)) > 0.01" class="error">
               借贷不平
             </span>
             <span v-else class="success">借贷平衡</span>

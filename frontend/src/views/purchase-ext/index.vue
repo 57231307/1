@@ -115,10 +115,10 @@
         <el-card shadow="hover" class="filter-card">
           <el-form :inline="true" :model="returnQuery">
             <el-form-item label="退货单号">
-              <el-input v-model="returnQuery.return_no" placeholder="退货单号" clearable />
+              <el-input v-model="returnQuery.returnNo" placeholder="退货单号" clearable />
             </el-form-item>
-            <el-form-item label="客户">
-              <el-input v-model="returnQuery.customer_name" placeholder="客户名称" clearable />
+            <el-form-item label="供应商">
+              <el-input v-model="returnQuery.supplierName" placeholder="供应商名称" clearable />
             </el-form-item>
             <el-form-item label="状态">
               <el-select v-model="returnQuery.status" placeholder="选择状态" clearable>
@@ -138,13 +138,13 @@
 
         <el-card shadow="hover">
           <el-table :data="purchaseReturns" v-loading="returnLoading" stripe>
-            <el-table-column prop="return_no" label="退货单号" width="140" />
-            <el-table-column prop="customer_name" label="客户" min-width="150" />
-            <el-table-column prop="order_no" label="订单号" width="140" />
-            <el-table-column prop="return_date" label="退货日期" width="120" />
-            <el-table-column prop="total_amount" label="总金额" width="120" align="right">
+            <el-table-column prop="returnNo" label="退货单号" width="140" />
+            <el-table-column prop="supplierName" label="供应商" min-width="150" />
+            <el-table-column prop="orderNo" label="订单号" width="140" />
+            <el-table-column prop="returnDate" label="退货日期" width="120" />
+            <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
               <template #default="{ row }">
-                {{ formatMoney(row.total_amount) }}
+                {{ formatMoney(row.totalAmount) }}
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100" align="center">
@@ -154,7 +154,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_by_name" label="创建人" width="100" />
+            <el-table-column prop="createdByName" label="创建人" width="100" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="viewReturn(row)">查看</el-button>
@@ -375,25 +375,25 @@
       <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="退货单号" prop="return_no">
-              <el-input v-model="returnForm.return_no" :disabled="!!returnForm.id" />
+            <el-form-item label="退货单号" prop="returnNo">
+              <el-input v-model="returnForm.returnNo" :disabled="!!returnForm.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户" prop="customer_name">
-              <el-input v-model="returnForm.customer_name" placeholder="客户名称" />
+            <el-form-item label="供应商" prop="supplierName">
+              <el-input v-model="returnForm.supplierName" placeholder="供应商名称" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="关联订单号" prop="order_no">
-              <el-input v-model="returnForm.order_no" placeholder="订单号" />
+            <el-form-item label="关联订单号" prop="orderNo">
+              <el-input v-model="returnForm.orderNo" placeholder="订单号" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="退货日期" prop="return_date">
-              <el-date-picker v-model="returnForm.return_date" type="date" style="width: 100%" value-format="YYYY-MM-DD" />
+            <el-form-item label="退货日期" prop="returnDate">
+              <el-date-picker v-model="returnForm.returnDate" type="date" style="width: 100%" value-format="YYYY-MM-DD" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -402,14 +402,14 @@
         </el-form-item>
         <el-divider>退货明细</el-divider>
         <el-table :data="returnForm.items" border style="width: 100%">
-          <el-table-column prop="product_name" label="产品名称" min-width="150">
+          <el-table-column prop="productName" label="产品名称" min-width="150">
             <template #default="{ row }">
-              <el-input v-model="row.product_name" placeholder="产品名称" />
+              <el-input v-model="row.productName" placeholder="产品名称" />
             </template>
           </el-table-column>
-          <el-table-column prop="product_code" label="产品编码" width="120">
+          <el-table-column prop="productCode" label="产品编码" width="120">
             <template #default="{ row }">
-              <el-input v-model="row.product_code" placeholder="编码" />
+              <el-input v-model="row.productCode" placeholder="编码" />
             </template>
           </el-table-column>
           <el-table-column prop="quantity" label="数量" width="100">
@@ -453,25 +453,25 @@
 
     <el-dialog v-model="returnViewVisible" title="采购退货详情" width="800px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="退货单号">{{ currentReturn?.return_no }}</el-descriptions-item>
-        <el-descriptions-item label="客户">{{ currentReturn?.customer_name }}</el-descriptions-item>
-        <el-descriptions-item label="关联订单">{{ currentReturn?.order_no }}</el-descriptions-item>
-        <el-descriptions-item label="退货日期">{{ currentReturn?.return_date }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{ formatMoney(currentReturn?.total_amount || 0) }}</el-descriptions-item>
+        <el-descriptions-item label="退货单号">{{ currentReturn?.returnNo }}</el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ currentReturn?.supplierName }}</el-descriptions-item>
+        <el-descriptions-item label="关联订单">{{ currentReturn?.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="退货日期">{{ currentReturn?.returnDate }}</el-descriptions-item>
+        <el-descriptions-item label="总金额">{{ formatMoney(currentReturn?.totalAmount || 0) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getReturnStatusType(currentReturn?.status)">
             {{ getReturnStatusLabel(currentReturn?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentReturn?.created_by_name }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by_name }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ currentReturn?.createdByName }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approvedByName }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
       <el-divider>退货明细</el-divider>
       <el-table :data="currentReturn?.items || []" stripe>
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
-        <el-table-column prop="product_code" label="产品编码" width="120" />
+        <el-table-column prop="productName" label="产品名称" min-width="150" />
+        <el-table-column prop="productCode" label="产品编码" width="120" />
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
         <el-table-column prop="unit" label="单位" width="80" />
         <el-table-column prop="price" label="单价" width="100" align="right">
@@ -514,18 +514,19 @@ import {
   type PurchasePrice
 } from '@/api/purchase-price'
 import {
-  listSalesReturns,
-  createSalesReturn,
-  getSalesReturn,
-  type SalesReturn,
-  type ReturnItem
-} from '@/api/sales-return'
+  listPurchaseReturns,
+  createPurchaseReturn,
+  getPurchaseReturn,
+  updatePurchaseReturn,
+  type PurchaseReturn,
+  type PurchaseReturnItem
+} from '@/api/purchase-return'
 
 const activeTab = ref('contract')
 
 const purchaseContracts = ref<PurchaseContract[]>([])
 const purchasePrices = ref<PurchasePrice[]>([])
-const purchaseReturns = ref<SalesReturn[]>([])
+const purchaseReturns = ref<PurchaseReturn[]>([])
 const contractLoading = ref(false)
 const priceLoading = ref(false)
 const returnLoading = ref(false)
@@ -537,8 +538,8 @@ const priceQuery = reactive({
 })
 
 const returnQuery = reactive({
-  return_no: '',
-  customer_name: '',
+  returnNo: '',
+  supplierName: '',
   status: ''
 })
 
@@ -573,8 +574,8 @@ const fetchPurchasePrices = async () => {
 const fetchPurchaseReturns = async () => {
   returnLoading.value = true
   try {
-    const res = await listSalesReturns(returnQuery)
-    purchaseReturns.value = res.data || []
+    const res = await listPurchaseReturns(returnQuery)
+    purchaseReturns.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购退货失败')
   } finally {
@@ -590,8 +591,8 @@ const resetPriceQuery = () => {
 }
 
 const resetReturnQuery = () => {
-  returnQuery.return_no = ''
-  returnQuery.customer_name = ''
+  returnQuery.returnNo = ''
+  returnQuery.supplierName = ''
   returnQuery.status = ''
   fetchPurchaseReturns()
 }
@@ -836,49 +837,47 @@ const submitPrice = async () => {
   }
 }
 
-
-
 const returnDialogVisible = ref(false)
 const returnFormRef = ref<FormInstance>()
 const returnSubmitLoading = ref(false)
 const returnForm = reactive({
   id: 0,
-  return_no: '',
-  customer_id: 0,
-  customer_name: '',
-  order_id: 0,
-  order_no: '',
-  return_date: '',
-  total_amount: 0,
+  returnNo: '',
+  supplierId: 0,
+  supplierName: '',
+  orderId: 0,
+  orderNo: '',
+  returnDate: '',
+  totalAmount: 0,
   reason: '',
   status: 'draft' as 'draft' | 'pending' | 'approved' | 'rejected' | 'completed',
-  items: [] as ReturnItem[]
+  items: [] as PurchaseReturnItem[]
 })
 
 const returnRules: FormRules = {
-  return_no: [{ required: true, message: '请输入退货单号', trigger: 'blur' }],
-  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  return_date: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
+  returnNo: [{ required: true, message: '请输入退货单号', trigger: 'blur' }],
+  supplierName: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
+  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入退货原因', trigger: 'blur' }]
 }
 
-const openReturnDialog = async (row?: SalesReturn) => {
+const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
-    const res = await getSalesReturn(row.id)
+    const res = await getPurchaseReturn(row.id)
     Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
       id: 0,
-      return_no: '',
-      customer_id: 0,
-      customer_name: '',
-      order_id: 0,
-      order_no: '',
-      return_date: '',
-      total_amount: 0,
+      returnNo: '',
+      supplierId: 0,
+      supplierName: '',
+      orderId: 0,
+      orderNo: '',
+      returnDate: '',
+      totalAmount: 0,
       reason: '',
       status: 'draft',
-      items: [{ id: 0, return_id: 0, product_id: 0, product_name: '', product_code: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' }]
+      items: [{ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' }]
     })
   }
   returnDialogVisible.value = true
@@ -890,8 +889,13 @@ const submitReturn = async () => {
 
   returnSubmitLoading.value = true
   try {
-    await createSalesReturn(returnForm)
-    ElMessage.success('创建成功')
+    if (returnForm.id) {
+      await updatePurchaseReturn(returnForm.id, returnForm)
+      ElMessage.success('更新成功')
+    } else {
+      await createPurchaseReturn(returnForm)
+      ElMessage.success('创建成功')
+    }
     returnDialogVisible.value = false
     fetchPurchaseReturns()
   } catch (error: any) {
@@ -901,14 +905,14 @@ const submitReturn = async () => {
   }
 }
 
-const viewReturn = async (row: SalesReturn) => {
-  const res = await getSalesReturn(row.id)
+const viewReturn = async (row: PurchaseReturn) => {
+  const res = await getPurchaseReturn(row.id)
   currentReturn.value = res.data
   returnViewVisible.value = true
 }
 
 const addReturnItem = () => {
-  returnForm.items.push({ id: 0, return_id: 0, product_id: 0, product_name: '', product_code: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' })
+  returnForm.items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' })
 }
 
 const removeReturnItem = (index: number) => {
@@ -918,7 +922,7 @@ const removeReturnItem = (index: number) => {
 }
 
 const returnViewVisible = ref(false)
-const currentReturn = ref<SalesReturn | null>(null)
+const currentReturn = ref<PurchaseReturn | null>(null)
 
 onMounted(() => {
   fetchPurchaseContracts()

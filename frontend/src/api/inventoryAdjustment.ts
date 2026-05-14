@@ -15,11 +15,12 @@ export interface InventoryAdjustmentEntity {
   approved_at?: string
   approved_by?: number
   approved_by_name?: string
+  items?: AdjustmentItem[]
 }
 
 export interface AdjustmentItem {
   id?: number
-  adjustment_id: number
+  adjustment_id?: number
   product_id: number
   product_code?: string
   product_name?: string

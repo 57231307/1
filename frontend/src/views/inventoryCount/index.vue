@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
-import { Plus, Eye, Refresh, CheckCircle } from '@element-plus/icons-vue'
+import { Plus, Check } from '@element-plus/icons-vue'
 import { listInventoryCounts, getInventoryCount, createInventoryCount, deleteInventoryCount, completeInventoryCount, getCountItems, updateCountItem, type InventoryCountEntity, type CountItem } from '@/api/inventoryCount'
+import { request } from '@/api/request'
 
 const tableData = ref<InventoryCountEntity[]>([])
 const total = ref(0)
@@ -53,7 +54,9 @@ const loadData = async () => {
     const res = await listInventoryCounts({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...searchForm.value
+      count_no: searchForm.value.count_no,
+      warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
+      status: searchForm.value.status
     })
     tableData.value = res.data.list
     total.value = res.data.total
@@ -247,7 +250,7 @@ loadWarehouses()
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <Eye />
+            <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
@@ -255,7 +258,7 @@ loadWarehouses()
             type="warning"
             @click="handleComplete(scope.row)"
           >
-            <CheckCircle /> 完成盘点
+            <Check /> 完成盘点
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"

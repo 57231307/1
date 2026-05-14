@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol } from 'element-plus'
-import { Plus, Edit, Trash2, Eye, Refresh, Calendar } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, View, Calendar } from '@element-plus/icons-vue'
 import { listAccountingPeriods, getAccountingPeriod, createAccountingPeriod, updateAccountingPeriod, deleteAccountingPeriod, closePeriod, reopenPeriod, getCurrentPeriod, type AccountingPeriodEntity } from '@/api/accountingPeriod'
 
 const tableData = ref<AccountingPeriodEntity[]>([])
@@ -307,7 +307,7 @@ loadCurrentPeriod()
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <Eye />
+            <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'open'"
@@ -339,7 +339,7 @@ loadCurrentPeriod()
             type="danger"
             @click="handleDelete(scope.row)"
           >
-            <Trash2 />
+            <Delete />
           </ElButton>
         </template>
       </ElTableColumn>

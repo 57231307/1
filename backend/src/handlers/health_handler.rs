@@ -133,9 +133,11 @@ async fn check_database(state: &AppState) -> HealthCheckItem {
 fn check_memory() -> HealthCheckItem {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if let Some(sys) = sysinfo::System::new_all().ok() {
-            let total = sys.total_memory();
-            let used = sys.used_memory();
+        let sys = sysinfo::System::new_all();
+        let total: u64 = sys.total_memory();
+        let used: u64 = sys.used_memory();
+        
+        if total > 0 {
             let percentage = (used as f64 / total as f64 * 100.0) as u64;
             
             if percentage > 95 {

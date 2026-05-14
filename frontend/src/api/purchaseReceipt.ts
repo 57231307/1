@@ -19,11 +19,12 @@ export interface PurchaseReceiptEntity {
   approved_at?: string
   approved_by?: number
   approved_by_name?: string
+  items?: ReceiptItem[]
 }
 
 export interface ReceiptItem {
   id?: number
-  receipt_id: number
+  receipt_id?: number
   product_id: number
   product_code?: string
   product_name?: string
