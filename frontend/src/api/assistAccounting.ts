@@ -74,21 +74,21 @@ export interface AssistSummaryQueryParams {
 }
 
 export function listAssistDimensions() {
-  return request.get('/api/v1/assist-accounting/dimensions')
+  return request.get('/assist-accounting/dimensions')
 }
 
 export function queryAssistRecords(params?: AssistRecordQueryParams) {
-  return request.get('/api/v1/assist-accounting/records', { params })
+  return request.get('/assist-accounting/records', { params })
 }
 
 export function getAssistRecordsByBusiness(params: BusinessQueryParams) {
-  return request.get('/api/v1/assist-accounting/records/by-business', { params })
+  return request.get('/assist-accounting/records/by-business', { params })
 }
 
 export function getAssistRecordsByFiveDimension(fiveDimensionId: string) {
-  return request.get(`/api/v1/assist-accounting/records/five-dimension/${fiveDimensionId}`)
+  return request.get(`/assist-accounting/records/five-dimension/${fiveDimensionId}`)
 }
 
 export function getAssistSummary(params: AssistSummaryQueryParams) {
-  return request.get('/api/v1/assist-accounting/summary', { params })
+  return request.get('/assist-accounting/summary', { params })
 }

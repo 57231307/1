@@ -63,6 +63,7 @@ zip = "2.2"
 
 # 监控
 prometheus = "0.13"
+sysinfo = "0.32"
 
 # 并发数据结构
 dashmap = "5.5"

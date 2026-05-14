@@ -18,8 +18,8 @@
       </template>
       
       <el-table :data="reportList" v-loading="loading" stripe border>
-        <el-table-column prop="report_name" label="报告名称" min-width="160" />
-        <el-table-column prop="report_type" label="报告类型" width="140" />
+        <el-table-column prop="reportName" label="报告名称" min-width="160" />
+        <el-table-column prop="reportType" label="报告类型" width="140" />
         <el-table-column prop="period" label="期间" width="120" />
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
@@ -28,7 +28,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
@@ -58,11 +58,11 @@
       @close="resetForm"
     >
       <el-form :model="reportForm" :rules="reportRules" ref="reportFormRef" label-width="120px">
-        <el-form-item label="报告名称" prop="report_name">
-          <el-input v-model="reportForm.report_name" placeholder="请输入报告名称" />
+        <el-form-item label="报告名称" prop="reportName">
+          <el-input v-model="reportForm.reportName" placeholder="请输入报告名称" />
         </el-form-item>
-        <el-form-item label="报告类型" prop="report_type">
-          <el-select v-model="reportForm.report_type" placeholder="请选择报告类型" style="width: 100%">
+        <el-form-item label="报告类型" prop="reportType">
+          <el-select v-model="reportForm.reportType" placeholder="请选择报告类型" style="width: 100%">
             <el-option label="收入分析" value="income" />
             <el-option label="支出分析" value="expense" />
             <el-option label="利润分析" value="profit" />
@@ -81,16 +81,16 @@
 
     <el-dialog v-model="detailVisible" title="财务分析详情" width="700px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="报告名称">{{ currentReport?.report_name }}</el-descriptions-item>
-        <el-descriptions-item label="报告类型">{{ currentReport?.report_type }}</el-descriptions-item>
+        <el-descriptions-item label="报告名称">{{ currentReport?.reportName }}</el-descriptions-item>
+        <el-descriptions-item label="报告类型">{{ currentReport?.reportType }}</el-descriptions-item>
         <el-descriptions-item label="期间">{{ currentReport?.period }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="currentReport?.status === 'completed' ? 'success' : 'warning'">
             {{ currentReport?.status === 'completed' ? '已完成' : '草稿' }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ currentReport?.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ currentReport?.updated_at }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ currentReport?.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ currentReport?.updatedAt }}</el-descriptions-item>
       </el-descriptions>
       <el-divider />
       <el-alert
@@ -109,13 +109,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listFinancialReports,
-  createFinancialReport,
-  updateFinancialReport,
-  deleteFinancialReport,
+  listReports,
+  createReport,
+  updateReport,
+  deleteReport,
   executeFinancialReport,
   type FinancialReport,
-} from '../../api/financial-analysis'
+} from '@/api/financial-analysis'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -133,22 +133,22 @@ const queryForm = reactive({
 })
 
 const reportForm = reactive<Partial<FinancialReport>>({
-  report_name: '',
-  report_type: '',
+  reportName: '',
+  reportType: '',
   period: '',
   status: 'draft',
 })
 
 const reportRules: FormRules = {
-  report_name: [{ required: true, message: '请输入报告名称', trigger: 'blur' }],
-  report_type: [{ required: true, message: '请选择报告类型', trigger: 'change' }],
+  reportName: [{ required: true, message: '请输入报告名称', trigger: 'blur' }],
+  reportType: [{ required: true, message: '请选择报告类型', trigger: 'change' }],
   period: [{ required: true, message: '请输入期间', trigger: 'blur' }],
 }
 
 const fetchReports = async () => {
   loading.value = true
   try {
-    const res = await listFinancialReports(queryForm)
+    const res = await listReports(queryForm)
     reportList.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (e: any) {
@@ -172,8 +172,8 @@ const openDialog = (type: 'create' | 'edit', row?: FinancialReport) => {
 const resetForm = () => {
   Object.assign(reportForm, {
     id: undefined,
-    report_name: '',
-    report_type: '',
+    reportName: '',
+    reportType: '',
     period: '',
     status: 'draft',
   })
@@ -189,11 +189,11 @@ const handleSubmitForm = async () => {
     submitLoading.value = true
     try {
       if (dialogType.value === 'create') {
-        await createFinancialReport(reportForm)
+        await createReport(reportForm)
         ElMessage.success('创建成功')
       } else {
         if (reportForm.id) {
-          await updateFinancialReport(reportForm.id, reportForm)
+          await updateReport(reportForm.id, reportForm)
           ElMessage.success('更新成功')
         }
       }
@@ -215,7 +215,7 @@ const viewDetail = (row: FinancialReport) => {
 
 const handleExecute = async (row: FinancialReport) => {
   try {
-    await ElMessageBox.confirm(`确认执行财务报告 ${row.report_name} 吗？`, '确认', { type: 'info' })
+    await ElMessageBox.confirm(`确认执行财务报告 ${row.reportName} 吗？`, '确认', { type: 'info' })
     await executeFinancialReport(row.id)
     ElMessage.success('执行成功，报告已完成')
     fetchReports()
@@ -226,13 +226,13 @@ const handleExecute = async (row: FinancialReport) => {
 
 const handleDelete = async (row: FinancialReport) => {
   try {
-    await ElMessageBox.confirm(`确认删除报告 ${row.report_name} 吗？`, '删除确认', {
+    await ElMessageBox.confirm(`确认删除报告 ${row.reportName} 吗？`, '删除确认', {
       type: 'warning',
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
     
-    await deleteFinancialReport(row.id)
+    await deleteReport(row.id)
     ElMessage.success('删除成功')
     fetchReports()
   } catch (e: any) {

@@ -1,67 +1,70 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
-export interface FiveDimension {
-  id?: number
-  fiveDimensionId: string
-  productId?: number
-  productName?: string
-  productCode?: string
-  batchNo?: string
-  colorCode?: string
-  colorName?: string
-  width?: number
-  weight?: number
-  length?: number
-  totalQuantity?: number
-  availableQuantity?: number
-  unit?: string
-  warehouseId?: number
-  warehouseName?: string
-  status?: string
-  createdAt?: string
-  updatedAt?: string
+export interface FiveDimensionStats {
+  five_dimension_id: string
+  product_name: string
+  batch_no: string
+  warehouse_name: string
+  customer_name: string
+  total_qty: number
+  total_amount: number
 }
 
-export interface FiveDimensionStat {
-  fiveDimensionId: string
-  productName: string
-  colorName: string
-  specification: string
-  totalQuantity: number
-  availableQuantity: number
-  warehouseCount: number
+export interface FiveDimensionSearchParams {
+  product_id?: number
+  batch_no?: string
+  warehouse_id?: number
+  customer_id?: number
+  date_range?: string[]
 }
 
-export interface FiveDimensionQueryParams extends QueryParams {
-  fiveDimensionId?: string
-  productId?: number
-  batchNo?: string
-  colorCode?: string
-  warehouseId?: number
-  status?: string
+export interface FiveDimensionTrace {
+  id: number
+  five_dimension_id: string
+  operation_type: string
+  operation_time: string
+  operator: string
+  description: string
 }
 
-export interface ParseFiveDimensionRequest {
-  fiveDimensionId: string
+export interface FiveDimensionParseResult {
+  five_dimension_id: string
+  product_id: number
+  product_name: string
+  batch_no: string
+  color_no: string
+  dye_lot_no?: string
+  grade: string
 }
 
-export function getStats(): Promise<ApiResponse<FiveDimensionStat>> {
+export interface FiveDimensionListResponse {
+  list: FiveDimensionStats[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function getFiveDimensionStats(): Promise<ApiResponse<FiveDimensionStats[]>> {
   return request.get('/five-dimension/stats')
 }
 
-export function listFiveDimensions(params?: FiveDimensionQueryParams): Promise<ApiResponse<{ list: FiveDimension[]; total: number }>> {
-  return request.get('/five-dimension/list', { params })
-}
-
-export function searchFiveDimensions(params?: { keyword?: string; productId?: number; colorCode?: string }): Promise<ApiResponse<FiveDimension[]>> {
-  return request.get('/five-dimension/search', { params })
-}
-
-export function getByFiveDimensionId(fiveDimensionId: string): Promise<ApiResponse<FiveDimension>> {
+export function getStatsByFiveDimensionId(fiveDimensionId: string): Promise<ApiResponse<FiveDimensionStats>> {
   return request.get(`/five-dimension/${encodeURIComponent(fiveDimensionId)}`)
 }
 
-export function parseFiveDimension(data: ParseFiveDimensionRequest): Promise<ApiResponse<FiveDimension>> {
-  return request.post('/five-dimension/parse', data)
+export function parseFiveDimensionId(fiveDimensionId: string): Promise<ApiResponse<FiveDimensionParseResult>> {
+  return request.post('/five-dimension/parse', { five_dimension_id: fiveDimensionId })
+}
+
+export function searchFiveDimension(params?: FiveDimensionSearchParams): Promise<ApiResponse<FiveDimensionStats[]>> {
+  return request.get('/five-dimension/search', { params })
+}
+
+export function listFiveDimensionStats(params?: FiveDimensionSearchParams): Promise<ApiResponse<FiveDimensionListResponse>> {
+  return request.get('/five-dimension/list', { params })
+}
+
+export function getFiveDimensionTrace(fiveDimensionId: string): Promise<ApiResponse<FiveDimensionTrace[]>> {
+  return request.get(`/five-dimension/${encodeURIComponent(fiveDimensionId)}/trace`)
 }

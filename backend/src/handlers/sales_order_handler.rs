@@ -255,7 +255,7 @@ pub async fn approve_order(
 /// 发货处理
 /// POST /api/v1/erp/sales/orders/:id/ship
 pub async fn ship_order(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<crate::services::sales_service::ShipOrderRequest>,

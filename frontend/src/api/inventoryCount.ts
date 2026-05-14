@@ -41,33 +41,33 @@ export interface QueryParams {
 }
 
 export function listInventoryCounts(params?: QueryParams) {
-  return request.get('/api/v1/inventory-count', { params })
+  return request.get('/inventory-count', { params })
 }
 
 export function getInventoryCount(id: number) {
-  return request.get(`/api/v1/inventory-count/${id}`)
+  return request.get(`/inventory-count/${id}`)
 }
 
 export function createInventoryCount(data: Partial<InventoryCountEntity>) {
-  return request.post('/api/v1/inventory-count', data)
+  return request.post('/inventory-count', data)
 }
 
 export function updateInventoryCount(id: number, data: Partial<InventoryCountEntity>) {
-  return request.put(`/api/v1/inventory-count/${id}`, data)
+  return request.put(`/inventory-count/${id}`, data)
 }
 
 export function deleteInventoryCount(id: number) {
-  return request.delete(`/api/v1/inventory-count/${id}`)
+  return request.delete(`/inventory-count/${id}`)
 }
 
 export function completeInventoryCount(id: number) {
-  return request.patch(`/api/v1/inventory-count/${id}/complete`)
+  return request.patch(`/inventory-count/${id}/complete`)
 }
 
 export function getCountItems(id: number) {
-  return request.get(`/api/v1/inventory-count/${id}/items`)
+  return request.get(`/inventory-count/${id}/items`)
 }
 
 export function updateCountItem(itemId: number, data: Partial<CountItem>) {
-  return request.put(`/api/v1/inventory-count/items/${itemId}`, data)
+  return request.put(`/inventory-count/items/${itemId}`, data)
 }

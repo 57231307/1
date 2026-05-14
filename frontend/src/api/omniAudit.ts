@@ -50,13 +50,13 @@ export interface AuditQueryFilter {
 }
 
 export function trackEvent(data: TrackEventRequest) {
-  return request.post('/api/v1/omni-audit/track', data)
+  return request.post('/omni-audit/track', data)
 }
 
 export function getDashboardStats() {
-  return request.get('/api/v1/omni-audit/dashboard')
+  return request.get('/omni-audit/dashboard')
 }
 
 export function searchLogs(filter: AuditQueryFilter) {
-  return request.get('/api/v1/omni-audit/search', { params: filter })
+  return request.get('/omni-audit/search', { params: filter })
 }

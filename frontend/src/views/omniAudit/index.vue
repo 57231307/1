@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElCard, ElTabs, ElTabPane, ElStatistic, ElDescriptions } from 'element-plus'
-import { Search, Refresh, PieChart, Clock, AlarmClock, User } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElDialog, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElCard, ElTabs, ElTabPane, ElStatistic, ElDescriptions } from 'element-plus'
+import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue'
 import { getDashboardStats, searchLogs, type AuditStats, type AuditLog } from '@/api/omniAudit'
 
 const activeTab = ref('dashboard')

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider } from 'element-plus'
+import { ref, reactive } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider } from 'element-plus'
 import { Search, View, Refresh, Key } from '@element-plus/icons-vue'
 import { listFiveDimensionStats, getStatsByFiveDimensionId, parseFiveDimensionId, searchFiveDimension, type FiveDimensionStatsResponse, type FiveDimensionItem } from '@/api/fiveDimension'
 
@@ -21,7 +21,6 @@ const pagination = ref({
 const viewDialogVisible = ref(false)
 const viewData = ref<FiveDimensionStatsResponse | null>(null)
 
-const parseDialogVisible = ref(false)
 const parseInput = ref('')
 const parseResult = ref<FiveDimensionItem | null>(null)
 const parseError = ref('')
@@ -30,6 +29,7 @@ const searchDialogVisible = ref(false)
 const searchKeyword = ref('')
 const searchType = ref('product')
 const searchResults = ref<FiveDimensionItem[]>([])
+const searchFormRef = reactive({ keyword: '' })
 
 const gradeOptions = [
   { label: '一等品', value: '一等品' },
@@ -296,9 +296,9 @@ loadData()
     </ElDialog>
 
     <ElDialog title="快速搜索" :visible="searchDialogVisible" width="700px" @close="searchDialogVisible = false">
-      <ElForm :model="searchKeyword" label-width="80px">
+      <ElForm :model="searchFormRef" label-width="80px">
         <ElFormItem label="搜索关键词">
-          <ElInput v-model="searchKeyword" placeholder="请输入搜索关键词" />
+          <ElInput v-model="searchFormRef.keyword" placeholder="请输入搜索关键词" />
         </ElFormItem>
         <ElFormItem label="搜索类型">
           <ElSelect v-model="searchType">

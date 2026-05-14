@@ -5,41 +5,35 @@ export interface CustomerCredit {
   id: number
   customerId: number
   customerName?: string
-  creditLevel?: string
-  creditScore?: number
   creditLimit: number
-  usedCredit?: number
-  availableCredit?: number
-  creditDays?: number
+  usedAmount?: number
+  availableAmount?: number
+  creditRating?: string
   status: string
-  remark?: string
   createdAt?: string
   updatedAt?: string
 }
 
 export interface CustomerCreditQueryParams extends QueryParams {
   customerId?: number
-  creditLevel?: string
+  creditRating?: string
   status?: string
 }
 
 export interface CreditRatingRequest {
   customerId: number
-  creditLevel: string
-  creditScore: number
-  creditLimit: number
-  creditDays: number
-  remark?: string
-}
-
-export interface CreditLimitAdjustmentRequest {
-  adjustmentType: string
-  amount: number
-  reason: string
+  rating: string
+  effectiveDate?: string
 }
 
 export interface CreditAmountRequest {
   amount: number
+  orderId?: string
+}
+
+export interface CreditLimitAdjustmentRequest {
+  newLimit: number
+  reason: string
 }
 
 export function listCredits(params?: CustomerCreditQueryParams): Promise<ApiResponse<{ list: CustomerCredit[]; total: number }>> {
@@ -48,6 +42,18 @@ export function listCredits(params?: CustomerCreditQueryParams): Promise<ApiResp
 
 export function getCredit(customerId: number): Promise<ApiResponse<CustomerCredit>> {
   return request.get(`/customer-credits/${customerId}`)
+}
+
+export function createCredit(data: Partial<CustomerCredit>): Promise<ApiResponse<CustomerCredit>> {
+  return request.post('/customer-credits', data)
+}
+
+export function updateCredit(id: number, data: Partial<CustomerCredit>): Promise<ApiResponse<CustomerCredit>> {
+  return request.put(`/customer-credits/${id}`, data)
+}
+
+export function deleteCredit(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/customer-credits/${id}`)
 }
 
 export function setCreditRating(data: CreditRatingRequest): Promise<ApiResponse<CustomerCredit>> {

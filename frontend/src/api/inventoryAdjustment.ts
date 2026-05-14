@@ -15,11 +15,12 @@ export interface InventoryAdjustmentEntity {
   approved_at?: string
   approved_by?: number
   approved_by_name?: string
+  items?: AdjustmentItem[]
 }
 
 export interface AdjustmentItem {
   id?: number
-  adjustment_id: number
+  adjustment_id?: number
   product_id: number
   product_code?: string
   product_name?: string
@@ -43,41 +44,41 @@ export interface QueryParams {
 }
 
 export function listInventoryAdjustments(params?: QueryParams) {
-  return request.get('/api/v1/inventory-adjustment', { params })
+  return request.get('/inventory-adjustment', { params })
 }
 
 export function getInventoryAdjustment(id: number) {
-  return request.get(`/api/v1/inventory-adjustment/${id}`)
+  return request.get(`/inventory-adjustment/${id}`)
 }
 
 export function createInventoryAdjustment(data: Partial<InventoryAdjustmentEntity>) {
-  return request.post('/api/v1/inventory-adjustment', data)
+  return request.post('/inventory-adjustment', data)
 }
 
 export function updateInventoryAdjustment(id: number, data: Partial<InventoryAdjustmentEntity>) {
-  return request.put(`/api/v1/inventory-adjustment/${id}`, data)
+  return request.put(`/inventory-adjustment/${id}`, data)
 }
 
 export function deleteInventoryAdjustment(id: number) {
-  return request.delete(`/api/v1/inventory-adjustment/${id}`)
+  return request.delete(`/inventory-adjustment/${id}`)
 }
 
 export function approveInventoryAdjustment(id: number) {
-  return request.patch(`/api/v1/inventory-adjustment/${id}/approve`)
+  return request.patch(`/inventory-adjustment/${id}/approve`)
 }
 
 export function getAdjustmentItems(id: number) {
-  return request.get(`/api/v1/inventory-adjustment/${id}/items`)
+  return request.get(`/inventory-adjustment/${id}/items`)
 }
 
 export function addAdjustmentItem(id: number, data: Partial<AdjustmentItem>) {
-  return request.post(`/api/v1/inventory-adjustment/${id}/items`, data)
+  return request.post(`/inventory-adjustment/${id}/items`, data)
 }
 
 export function updateAdjustmentItem(itemId: number, data: Partial<AdjustmentItem>) {
-  return request.put(`/api/v1/inventory-adjustment/items/${itemId}`, data)
+  return request.put(`/inventory-adjustment/items/${itemId}`, data)
 }
 
 export function deleteAdjustmentItem(itemId: number) {
-  return request.delete(`/api/v1/inventory-adjustment/items/${itemId}`)
+  return request.delete(`/inventory-adjustment/items/${itemId}`)
 }

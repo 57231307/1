@@ -50,7 +50,7 @@
       
       <el-pagination
         v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
+        v-model:page-size="pagination.page_size"
         :total="pagination.total"
         layout="total, prev, pager, next, jumper"
         @current-change="fetchNotifications"
@@ -105,7 +105,7 @@ const statusFilter = ref('')
 
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  page_size: 20,
   total: 0
 })
 
@@ -116,9 +116,9 @@ const fetchNotifications = async () => {
   try {
     const res: any = await listNotifications({
       page: pagination.page,
-      pageSize: pagination.pageSize,
+      page_size: pagination.page_size,
       status: statusFilter.value || undefined
-    })
+    } as any)
     if (res.data) {
       notificationList.value = res.data.list || res.data || []
       pagination.total = res.data.total || res.data?.length || 0

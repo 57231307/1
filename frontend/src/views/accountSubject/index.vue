@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElSwitch, ElTree, ElMessageBox, ElMessage, ElRow, ElCol } from 'element-plus'
-import { Plus, Edit, Trash2, Eye, Refresh, ChevronRight } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, View, Refresh } from '@element-plus/icons-vue'
 import { listAccountSubjects, getAccountSubject, createAccountSubject, updateAccountSubject, deleteAccountSubject, enableAccountSubject, disableAccountSubject, getAccountSubjectTree, type AccountSubjectEntity } from '@/api/accountSubject'
 
 const tableData = ref<AccountSubjectEntity[]>([])
@@ -22,7 +22,8 @@ const pagination = ref({
 
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增会计科目')
-const form = ref<Partial<AccountSubjectEntity>>({
+const formRef = reactive({
+  id: undefined as number | undefined,
   code: '',
   name: '',
   parent_id: undefined,
@@ -79,7 +80,10 @@ const loadData = async () => {
     const res = await listAccountSubjects({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...searchForm.value
+      code: searchForm.value.code,
+      name: searchForm.value.name,
+      category: searchForm.value.category,
+      type: searchForm.value.type
     })
     tableData.value = res.data.list
     total.value = res.data.total
@@ -127,7 +131,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = () => {
   dialogTitle.value = '新增会计科目'
-  form.value = {
+  Object.assign(formRef, {
     code: '',
     name: '',
     parent_id: undefined,
@@ -137,13 +141,13 @@ const openAddDialog = () => {
     balance_type: 'debit',
     description: '',
     is_enabled: true
-  }
+  })
   dialogVisible.value = true
 }
 
 const openEditDialog = (row: AccountSubjectEntity) => {
   dialogTitle.value = '编辑会计科目'
-  form.value = { ...row }
+  Object.assign(formRef, { ...row })
   dialogVisible.value = true
 }
 
@@ -158,16 +162,16 @@ const openViewDialog = async (row: AccountSubjectEntity) => {
 }
 
 const handleSubmit = async () => {
-  if (!form.value.code || !form.value.name || !form.value.category || !form.value.type) {
+  if (!formRef.code || !formRef.name || !formRef.category || !formRef.type) {
     ElMessage.warning('请填写必填字段')
     return
   }
   try {
-    if (form.value.id) {
-      await updateAccountSubject(form.value.id, form.value)
+    if (formRef.id) {
+      await updateAccountSubject(formRef.id, formRef as any)
       ElMessage.success('更新成功')
     } else {
-      await createAccountSubject(form.value)
+      await createAccountSubject(formRef as any)
       ElMessage.success('新增成功')
     }
     dialogVisible.value = false
@@ -287,7 +291,7 @@ loadTree()
           :highlight-current="true"
           @node-click="(data: any) => searchForm.code = data.code; handleSearch()"
         >
-          <template #default="{ node, data }">
+          <template #default="{ data }">
             <span class="tree-node">
               <span>{{ data.code }} - {{ data.name }}</span>
             </span>
@@ -341,7 +345,7 @@ loadTree()
           <ElTableColumn label="操作" width="200" align="center">
             <template #default="scope">
               <ElButton size="small" @click="openViewDialog(scope.row)">
-                <Eye />
+                <View />
               </ElButton>
               <ElButton size="small" type="primary" @click="openEditDialog(scope.row)">
                 <Edit />
@@ -363,7 +367,7 @@ loadTree()
                 启用
               </ElButton>
               <ElButton size="small" type="danger" @click="handleDelete(scope.row)">
-                <Trash2 />
+                <Delete />
               </ElButton>
             </template>
           </ElTableColumn>
@@ -372,12 +376,12 @@ loadTree()
     </div>
 
     <ElDialog :title="dialogTitle" :visible="dialogVisible" width="600px" @close="dialogVisible = false">
-      <ElForm :model="form" label-width="120px">
+      <ElForm :model="formRef" label-width="120px">
         <ElFormItem label="科目编码" prop="code">
-          <ElInput v-model="form.code" placeholder="请输入科目编码" />
+          <ElInput v-model="formRef.code" placeholder="请输入科目编码" />
         </ElFormItem>
         <ElFormItem label="科目名称" prop="name">
-          <ElInput v-model="form.name" placeholder="请输入科目名称" />
+          <ElInput v-model="formRef.name" placeholder="请输入科目名称" />
         </ElFormItem>
         <ElFormItem label="上级科目" prop="parent_id">
           <ElTree
@@ -385,33 +389,33 @@ loadTree()
             :props="treeProps"
             show-checkbox
             check-strictly
-            :default-checked-keys="form.parent_id ? [form.parent_id] : []"
-            @check-change="(data: any, checked: boolean) => { form.parent_id = checked ? data.id : undefined; form.level = data.level + 1 }"
+            :default-checked-keys="formRef.parent_id ? [formRef.parent_id] : []"
+            @check-change="(data: any, checked: boolean) => { formRef.parent_id = checked ? data.id : undefined; formRef.level = data.level + 1 }"
           />
         </ElFormItem>
         <ElFormItem label="级别" prop="level">
-          <ElInput v-model.number="form.level" disabled />
+          <ElInput v-model.number="formRef.level" disabled />
         </ElFormItem>
         <ElFormItem label="科目类别" prop="category">
-          <ElSelect v-model="form.category" placeholder="请选择科目类别">
+          <ElSelect v-model="formRef.category" placeholder="请选择科目类别">
             <ElOption v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="科目类型" prop="type">
-          <ElSelect v-model="form.type" placeholder="请选择科目类型">
+          <ElSelect v-model="formRef.type" placeholder="请选择科目类型">
             <ElOption v-for="t in types" :key="t.value" :label="t.label" :value="t.value" />
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="余额方向" prop="balance_type">
-          <ElSelect v-model="form.balance_type" placeholder="请选择余额方向">
+          <ElSelect v-model="formRef.balance_type" placeholder="请选择余额方向">
             <ElOption v-for="b in balanceTypes" :key="b.value" :label="b.label" :value="b.value" />
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="状态" prop="is_enabled">
-          <ElSwitch v-model="form.is_enabled" active-text="启用" inactive-text="禁用" />
+          <ElSwitch v-model="formRef.is_enabled" active-text="启用" inactive-text="禁用" />
         </ElFormItem>
         <ElFormItem label="备注" prop="description">
-          <ElInput v-model="form.description" type="textarea" rows="3" />
+          <el-input v-model="formRef.description" type="textarea" />
         </ElFormItem>
       </ElForm>
       <template #footer>

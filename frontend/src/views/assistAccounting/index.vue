@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElDescriptions, ElTabs, ElTabPane, ElCard, ElDivider } from 'element-plus'
-import { Search, View, Refresh, Key } from '@element-plus/icons-vue'
-import { listAssistDimensions, queryAssistRecords, getAssistRecordsByFiveDimension, getAssistSummary, type AssistDimensionResponse, type AssistRecordResponse, type AssistSummaryResponse } from '@/api/assistAccounting'
+import { ElTable, ElTableColumn, ElButton, ElDialog, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElDescriptions, ElTabs, ElTabPane } from 'element-plus'
+import { View } from '@element-plus/icons-vue'
+import { listAssistDimensions, queryAssistRecords, getAssistSummary, type AssistDimensionResponse, type AssistRecordResponse, type AssistSummaryResponse } from '@/api/assistAccounting'
 
 const activeTab = ref('records')
 const dimensions = ref<AssistDimensionResponse[]>([])

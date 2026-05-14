@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { dashboardApi, type DashboardStats, type SalesTrend, type ChartData } from '@/api/dashboard'
+import { dashboardApi, type DashboardOverview, type SalesStatistics, type InventoryStatistics } from '@/api/dashboard'
 
 export const useDashboardStore = defineStore('dashboard', () => {
-  const stats = ref<DashboardStats>({
+  const stats = ref<DashboardOverview>({
     fabricCount: 0,
     inventoryTotal: 0,
     monthOrders: 0,
@@ -15,14 +15,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
     recentActivities: [],
   })
 
-  const salesTrend = ref<SalesTrend[]>([])
-  const inventoryDistribution = ref<ChartData[]>([])
+  const salesStatistics = ref<SalesStatistics>({})
+  const inventoryStatistics = ref<InventoryStatistics>({})
   const loading = ref(false)
 
   const fetchStats = async () => {
     loading.value = true
     try {
-      const res = await dashboardApi.getStats()
+      const res = await dashboardApi.getOverview()
       stats.value = res.data
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error)
@@ -31,31 +31,31 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
-  const fetchSalesTrend = async (days = 7) => {
+  const fetchSalesStats = async () => {
     try {
-      const res = await dashboardApi.getSalesTrend(days)
-      salesTrend.value = res.data
+      const res = await dashboardApi.getSalesStats()
+      salesStatistics.value = res.data
     } catch (error) {
-      console.error('Failed to fetch sales trend:', error)
+      console.error('Failed to fetch sales stats:', error)
     }
   }
 
-  const fetchInventoryDistribution = async () => {
+  const fetchInventoryStats = async () => {
     try {
-      const res = await dashboardApi.getInventoryDistribution()
-      inventoryDistribution.value = res.data
+      const res = await dashboardApi.getInventoryStats()
+      inventoryStatistics.value = res.data
     } catch (error) {
-      console.error('Failed to fetch inventory distribution:', error)
+      console.error('Failed to fetch inventory stats:', error)
     }
   }
 
   return {
     stats,
-    salesTrend,
-    inventoryDistribution,
+    salesStatistics,
+    inventoryStatistics,
     loading,
     fetchStats,
-    fetchSalesTrend,
-    fetchInventoryDistribution,
+    fetchSalesStats,
+    fetchInventoryStats,
   }
 })

@@ -53,7 +53,7 @@
       
       <el-pagination
         v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
+        v-model:page-size="pagination.page_size"
         :total="pagination.total"
         layout="total, prev, pager, next, jumper"
         @current-change="fetchCredits"
@@ -152,13 +152,13 @@ import {
   releaseCredit,
   deactivateCredit,
   type CustomerCredit
-} from '@/api/customerCredit'
+} from '@/api/customer-credit'
 
 const creditList = ref<CustomerCredit[]>([])
 
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  page_size: 20,
   total: 0
 })
 
@@ -214,8 +214,8 @@ const fetchCredits = async () => {
   try {
     const res: any = await listCredits({
       page: pagination.page,
-      pageSize: pagination.pageSize
-    })
+      page_size: pagination.page_size
+    } as any)
     if (res.data) {
       creditList.value = res.data.list || res.data || []
       pagination.total = res.data.total || res.data?.length || 0

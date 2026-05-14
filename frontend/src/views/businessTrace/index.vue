@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider, ElSteps, ElStep, ElResult } from 'element-plus'
-import { Search, ArrowRightBold, ArrowLeftBold, Camera, Refresh } from '@element-plus/icons-vue'
-import { getTraceByFiveDimension, forwardTrace, backwardTrace, createTraceSnapshot, type FullTraceChainResponse, type TraceChainResponse, type TraceStageDetail } from '@/api/businessTrace'
+import { ref } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider, ElSteps, ElStep, ElResult } from 'element-plus'
+import { Search, ArrowRightBold, ArrowLeftBold, Camera } from '@element-plus/icons-vue'
+import { getTraceByFiveDimension, forwardTrace, backwardTrace, createTraceSnapshot, type FullTraceChainResponse, type TraceChainResponse } from '@/api/businessTrace'
 
 const traceMode = ref<'five_dimension' | 'forward' | 'backward'>('five_dimension')
 const fiveDimensionId = ref('')
@@ -13,12 +13,12 @@ const loading = ref(false)
 const snapshotMessage = ref('')
 
 const forwardForm = ref({
-  supplier_id: '',
+  supplier_id: 0,
   batch_no: ''
 })
 
 const backwardForm = ref({
-  customer_id: '',
+  customer_id: 0,
   batch_no: ''
 })
 
@@ -29,18 +29,6 @@ const stageStatusMap: Record<string, string> = {
   PRODUCTION_OUTPUT: 'process',
   INVENTORY_OUT: 'process',
   SALES_DELIVERY: 'success'
-}
-
-const getStageIcon = (stageType: string) => {
-  switch (stageType) {
-    case 'PURCHASE_RECEIPT': return 'ShoppingCart'
-    case 'INVENTORY_IN': return 'Warehouse'
-    case 'PRODUCTION_INPUT': return 'Factory'
-    case 'PRODUCTION_OUTPUT': return 'Package'
-    case 'INVENTORY_OUT': return 'Truck'
-    case 'SALES_DELIVERY': return 'User'
-    default: return 'Circle'
-  }
 }
 
 const handleFiveDimensionTrace = async () => {
@@ -169,7 +157,7 @@ const handleCreateSnapshot = async () => {
                 :key="stage.stage_id"
                 :title="stage.stage_name"
                 :description="stage.bill_no"
-                :status="stageStatusMap[stage.stage_type] || 'wait'"
+                :status="(stageStatusMap[stage.stage_type] || 'wait') as any"
               >
                 <template #icon>
                   <div class="stage-icon">
@@ -199,7 +187,7 @@ const handleCreateSnapshot = async () => {
 
         <ElResult
           v-else
-          icon="Search"
+          icon="primary"
           title="请输入五维ID进行追溯"
           sub-title="输入五维ID后点击追溯按钮，查看完整的业务追溯链"
         />
@@ -249,7 +237,7 @@ const handleCreateSnapshot = async () => {
 
         <ElResult
           v-else
-          icon="ArrowRight"
+          icon="primary"
           title="请输入查询条件"
           sub-title="输入供应商ID和批次号，正向追溯物料流向"
         />
@@ -299,7 +287,7 @@ const handleCreateSnapshot = async () => {
 
         <ElResult
           v-else
-          icon="ArrowLeft"
+          icon="primary"
           title="请输入查询条件"
           sub-title="输入客户ID和批次号，反向追溯物料来源"
         />

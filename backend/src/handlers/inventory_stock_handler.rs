@@ -12,7 +12,7 @@ use axum::{
 use chrono::Utc;
 use rust_decimal::Decimal;
 use crate::utils::app_state::AppState;
-use crate::models::{inventory_stock, product};
+use crate::models::{product};
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 

@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElTabs, ElTabPane, ElResult, ElQrCode } from 'element-plus'
-import { Search, Box, Clock, Refresh, Key } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElTabs, ElTabPane, ElResult } from 'element-plus'
+import { Search, Box, Refresh } from '@element-plus/icons-vue'
 import { scanToShip, scanInventory, getScanHistory, type ScanData, type ScanHistory } from '@/api/barcodeScanner'
 
 const activeTab = ref('scan')
 const barcodeInput = ref('')
-const orderId = ref('')
+const orderId = ref(0)
 const scanResult = ref<ScanData | null>(null)
 const scanMessage = ref('')
 const scanSuccess = ref(false)
 const loading = ref(false)
+
+const shipForm = ref({
+  orderId: 0,
+  barcode: ''
+})
 
 const historyData = ref<ScanHistory[]>([])
 const total = ref(0)
@@ -148,7 +153,7 @@ loadHistory()
 
           <ElResult
             v-if="!scanMessage && !scanResult"
-            icon="Key"
+            icon="info"
             title="扫码查询"
             sub-title="扫描或输入条码查询布卷信息"
           />
@@ -157,17 +162,17 @@ loadHistory()
 
       <ElTabPane label="扫码发货" name="ship">
         <ElCard title="扫码出库" class="scan-card">
-          <ElForm :model="orderId" label-width="100px">
+          <ElForm :model="shipForm" label-width="100px">
             <ElRow :gutter="20">
               <ElCol :span="8">
                 <ElFormItem label="订单ID">
-                  <ElInputNumber v-model="orderId" placeholder="请输入订单ID" class="w-full" />
+                  <ElInputNumber v-model="shipForm.orderId" placeholder="请输入订单ID" class="w-full" />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="12">
                 <ElFormItem label="条码">
                   <ElInput
-                    v-model="barcodeInput"
+                    v-model="shipForm.barcode"
                     placeholder="扫描或输入条码"
                     class="w-full"
                     @keyup.enter="handleScanToShip"
@@ -188,7 +193,7 @@ loadHistory()
 
           <ElResult
             v-if="!scanMessage"
-            icon="Package"
+            icon="success"
             title="扫码发货"
             sub-title="输入订单ID后扫描条码完成出库"
           />

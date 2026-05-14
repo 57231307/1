@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
-import { Plus, Edit, Trash2, Eye, Refresh, Check } from '@element-plus/icons-vue'
-import { listInventoryAdjustments, getInventoryAdjustment, createInventoryAdjustment, updateInventoryAdjustment, deleteInventoryAdjustment, approveInventoryAdjustment, getAdjustmentItems, addAdjustmentItem, deleteAdjustmentItem, type InventoryAdjustmentEntity, type AdjustmentItem } from '@/api/inventoryAdjustment'
+import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
+import { listInventoryAdjustments, getInventoryAdjustment, createInventoryAdjustment, updateInventoryAdjustment, deleteInventoryAdjustment, approveInventoryAdjustment, getAdjustmentItems, type InventoryAdjustmentEntity, type AdjustmentItem } from '@/api/inventoryAdjustment'
+import { request } from '@/api/request'
 
 const tableData = ref<InventoryAdjustmentEntity[]>([])
 const total = ref(0)
@@ -55,7 +56,9 @@ const loadData = async () => {
     const res = await listInventoryAdjustments({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...searchForm.value
+      adjust_no: searchForm.value.adjust_no,
+      warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
+      status: searchForm.value.status
     })
     tableData.value = res.data.list
     total.value = res.data.total
@@ -287,7 +290,7 @@ loadProducts()
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <Eye />
+            <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
@@ -311,7 +314,7 @@ loadProducts()
             type="danger"
             @click="handleDelete(scope.row)"
           >
-            <Trash2 />
+            <Delete />
           </ElButton>
         </template>
       </ElTableColumn>
