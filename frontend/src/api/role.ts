@@ -39,33 +39,33 @@ export interface AssignPermissionRequest {
 }
 
 export function listRoles(params?: QueryParams): Promise<ApiResponse<Role[]>> {
-  return request.get('/api/v1/erp/roles', { params })
+  return request.get('/roles', { params })
 }
 
 export function getRole(id: number): Promise<ApiResponse<Role>> {
-  return request.get(`/api/v1/erp/roles/${id}`)
+  return request.get(`/roles/${id}`)
 }
 
 export function createRole(data: RoleCreateRequest): Promise<ApiResponse<Role>> {
-  return request.post('/api/v1/erp/roles', data)
+  return request.post('/roles', data)
 }
 
 export function updateRole(id: number, data: RoleUpdateRequest): Promise<ApiResponse<Role>> {
-  return request.put(`/api/v1/erp/roles/${id}`, data)
+  return request.put(`/roles/${id}`, data)
 }
 
 export function deleteRole(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/roles/${id}`)
+  return request.delete(`/roles/${id}`)
 }
 
 export function getRolePermissions(id: number): Promise<ApiResponse<Permission[]>> {
-  return request.get(`/api/v1/erp/roles/${id}/permissions`)
+  return request.get(`/roles/${id}/permissions`)
 }
 
 export function assignPermission(id: number, data: AssignPermissionRequest): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/roles/${id}/permissions`, data)
+  return request.post(`/roles/${id}/permissions`, data)
 }
 
 export function removePermission(_roleId: number, permissionId: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/roles/permissions/${permissionId}`)
+  return request.delete(`/roles/permissions/${permissionId}`)
 }

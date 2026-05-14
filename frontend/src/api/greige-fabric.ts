@@ -21,33 +21,33 @@ export interface GreigeFabric {
 }
 
 export function listGreigeFabrics(params?: QueryParams): Promise<ApiResponse<GreigeFabric[]>> {
-  return request.get('/api/v1/erp/greige-fabrics', { params })
+  return request.get('/greige-fabrics', { params })
 }
 
 export function getGreigeFabric(id: number): Promise<ApiResponse<GreigeFabric>> {
-  return request.get(`/api/v1/erp/greige-fabrics/${id}`)
+  return request.get(`/greige-fabrics/${id}`)
 }
 
 export function createGreigeFabric(data: Partial<GreigeFabric>): Promise<ApiResponse<GreigeFabric>> {
-  return request.post('/api/v1/erp/greige-fabrics', data)
+  return request.post('/greige-fabrics', data)
 }
 
 export function updateGreigeFabric(id: number, data: Partial<GreigeFabric>): Promise<ApiResponse<GreigeFabric>> {
-  return request.put(`/api/v1/erp/greige-fabrics/${id}`, data)
+  return request.put(`/greige-fabrics/${id}`, data)
 }
 
 export function deleteGreigeFabric(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/greige-fabrics/${id}`)
+  return request.delete(`/greige-fabrics/${id}`)
 }
 
 export function stockInGreigeFabric(id: number, data: { quantity: number; remark?: string }): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/greige-fabrics/${id}/stock-in`, data)
+  return request.post(`/greige-fabrics/${id}/stock-in`, data)
 }
 
 export function stockOutGreigeFabric(id: number, data: { quantity: number; remark?: string }): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/greige-fabrics/${id}/stock-out`, data)
+  return request.post(`/greige-fabrics/${id}/stock-out`, data)
 }
 
 export function getGreigeBySupplier(supplierId: number): Promise<ApiResponse<GreigeFabric[]>> {
-  return request.get(`/api/v1/erp/greige-fabrics/by-supplier/${supplierId}`)
+  return request.get(`/greige-fabrics/by-supplier/${supplierId}`)
 }

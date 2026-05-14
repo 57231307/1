@@ -35,33 +35,33 @@ export interface ContractItem {
 }
 
 export function listSalesContracts(params?: QueryParams): Promise<ApiResponse<SalesContract[]>> {
-  return request.get('/api/v1/erp/sales-contracts', { params })
+  return request.get('/sales-contracts', { params })
 }
 
 export function getSalesContract(id: number): Promise<ApiResponse<SalesContract>> {
-  return request.get(`/api/v1/erp/sales-contracts/${id}`)
+  return request.get(`/sales-contracts/${id}`)
 }
 
 export function createSalesContract(data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
-  return request.post('/api/v1/erp/sales-contracts', data)
+  return request.post('/sales-contracts', data)
 }
 
 export function updateSalesContract(id: number, data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
-  return request.put(`/api/v1/erp/sales-contracts/${id}`, data)
+  return request.put(`/sales-contracts/${id}`, data)
 }
 
 export function deleteSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/sales-contracts/${id}`)
+  return request.delete(`/sales-contracts/${id}`)
 }
 
 export function approveSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/sales-contracts/${id}/approve`)
+  return request.post(`/sales-contracts/${id}/approve`)
 }
 
 export function executeSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/sales-contracts/${id}/execute`)
+  return request.put(`/sales-contracts/${id}/execute`)
 }
 
 export function cancelSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/api/v1/erp/sales-contracts/${id}/cancel`)
+  return request.put(`/sales-contracts/${id}/cancel`)
 }

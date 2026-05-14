@@ -30,27 +30,27 @@ export interface AccountSubjectUpdateRequest {
 }
 
 export function listSubjects(params?: QueryParams): Promise<ApiResponse<AccountSubject[]>> {
-  return request.get('/api/v1/erp/gl/subjects', { params })
+  return request.get('/gl/subjects', { params })
 }
 
 export function getSubjectTree(): Promise<ApiResponse<AccountSubject[]>> {
-  return request.get('/api/v1/erp/gl/subjects/tree')
+  return request.get('/gl/subjects/tree')
 }
 
 export function getSubject(id: number): Promise<ApiResponse<AccountSubject>> {
-  return request.get(`/api/v1/erp/gl/subjects/${id}`)
+  return request.get(`/gl/subjects/${id}`)
 }
 
 export function createSubject(data: AccountSubjectCreateRequest): Promise<ApiResponse<AccountSubject>> {
-  return request.post('/api/v1/erp/gl/subjects', data)
+  return request.post('/gl/subjects', data)
 }
 
 export function updateSubject(id: number, data: AccountSubjectUpdateRequest): Promise<ApiResponse<AccountSubject>> {
-  return request.put(`/api/v1/erp/gl/subjects/${id}`, data)
+  return request.put(`/gl/subjects/${id}`, data)
 }
 
 export function deleteSubject(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/gl/subjects/${id}`)
+  return request.delete(`/gl/subjects/${id}`)
 }
 
 export interface Voucher {
@@ -92,25 +92,25 @@ export interface VoucherCreateRequest {
 }
 
 export function listVouchers(params?: QueryParams): Promise<ApiResponse<Voucher[]>> {
-  return request.get('/api/v1/erp/gl/vouchers', { params })
+  return request.get('/gl/vouchers', { params })
 }
 
 export function getVoucher(id: number): Promise<ApiResponse<Voucher>> {
-  return request.get(`/api/v1/erp/gl/vouchers/${id}`)
+  return request.get(`/gl/vouchers/${id}`)
 }
 
 export function createVoucher(data: VoucherCreateRequest): Promise<ApiResponse<Voucher>> {
-  return request.post('/api/v1/erp/gl/vouchers', data)
+  return request.post('/gl/vouchers', data)
 }
 
 export function submitVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/gl/vouchers/${id}/submit`)
+  return request.post(`/gl/vouchers/${id}/submit`)
 }
 
 export function reviewVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/gl/vouchers/${id}/review`)
+  return request.post(`/gl/vouchers/${id}/review`)
 }
 
 export function postVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/gl/vouchers/${id}/post`)
+  return request.post(`/gl/vouchers/${id}/post`)
 }

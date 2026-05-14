@@ -31,25 +31,25 @@ export interface DepartmentUpdateRequest {
 }
 
 export function listDepartments(params?: QueryParams): Promise<ApiResponse<Department[]>> {
-  return request.get('/api/v1/erp/departments', { params })
+  return request.get('/departments', { params })
 }
 
 export function getDepartment(id: number): Promise<ApiResponse<Department>> {
-  return request.get(`/api/v1/erp/departments/${id}`)
+  return request.get(`/departments/${id}`)
 }
 
 export function createDepartment(data: DepartmentCreateRequest): Promise<ApiResponse<Department>> {
-  return request.post('/api/v1/erp/departments', data)
+  return request.post('/departments', data)
 }
 
 export function updateDepartment(id: number, data: DepartmentUpdateRequest): Promise<ApiResponse<Department>> {
-  return request.put(`/api/v1/erp/departments/${id}`, data)
+  return request.put(`/departments/${id}`, data)
 }
 
 export function deleteDepartment(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/departments/${id}`)
+  return request.delete(`/departments/${id}`)
 }
 
 export function getDepartmentTree(): Promise<ApiResponse<Department[]>> {
-  return request.get('/api/v1/erp/departments/tree')
+  return request.get('/departments/tree')
 }

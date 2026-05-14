@@ -21,13 +21,13 @@ export interface ReportParameter {
 }
 
 export function listReportTemplates(params?: QueryParams): Promise<ApiResponse<ReportTemplate[]>> {
-  return request.get('/api/v1/erp/reports/templates', { params })
+  return request.get('/reports/templates', { params })
 }
 
 export function executeReport(templateCode: string, params?: Record<string, any>): Promise<ApiResponse<any>> {
-  return request.get('/api/v1/erp/reports/execute', { params: { template_code: templateCode, ...params } })
+  return request.get('/reports/execute', { params: { template_code: templateCode, ...params } })
 }
 
 export function exportReport(templateCode: string, format: 'pdf' | 'excel', params?: Record<string, any>): Promise<Blob> {
-  return request.get('/api/v1/erp/reports/export', { params: { template_code: templateCode, format, ...params }, responseType: 'blob' })
+  return request.get('/reports/export', { params: { template_code: templateCode, format, ...params }, responseType: 'blob' })
 }

@@ -23,25 +23,25 @@ export const BUDGET_STATUS = {
 }
 
 export function listBudgets(params?: QueryParams): Promise<ApiResponse<{ list: Budget[]; total: number }>> {
-  return request.get('/api/v1/erp/budgets', { params })
+  return request.get('/budgets', { params })
 }
 
 export function getBudget(id: number): Promise<ApiResponse<Budget>> {
-  return request.get(`/api/v1/erp/budgets/${id}`)
+  return request.get(`/budgets/${id}`)
 }
 
 export function createBudget(data: Partial<Budget>): Promise<ApiResponse<Budget>> {
-  return request.post('/api/v1/erp/budgets', data)
+  return request.post('/budgets', data)
 }
 
 export function updateBudget(id: number, data: Partial<Budget>): Promise<ApiResponse<Budget>> {
-  return request.put(`/api/v1/erp/budgets/${id}`, data)
+  return request.put(`/budgets/${id}`, data)
 }
 
 export function deleteBudget(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/budgets/${id}`)
+  return request.delete(`/budgets/${id}`)
 }
 
 export function approveBudget(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/api/v1/erp/budgets/${id}/approve`)
+  return request.post(`/budgets/${id}/approve`)
 }

@@ -41,25 +41,25 @@ export interface ChangePasswordRequest {
 }
 
 export function listUsers(params?: QueryParams): Promise<ApiResponse<User[]>> {
-  return request.get('/api/v1/erp/users', { params })
+  return request.get('/users', { params })
 }
 
 export function getUser(id: number): Promise<ApiResponse<User>> {
-  return request.get(`/api/v1/erp/users/${id}`)
+  return request.get(`/users/${id}`)
 }
 
 export function createUser(data: UserCreateRequest): Promise<ApiResponse<User>> {
-  return request.post('/api/v1/erp/users', data)
+  return request.post('/users', data)
 }
 
 export function updateUser(id: number, data: UserUpdateRequest): Promise<ApiResponse<User>> {
-  return request.put(`/api/v1/erp/users/${id}`, data)
+  return request.put(`/users/${id}`, data)
 }
 
 export function deleteUser(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/api/v1/erp/users/${id}`)
+  return request.delete(`/users/${id}`)
 }
 
 export function changePassword(data: ChangePasswordRequest): Promise<ApiResponse<void>> {
-  return request.post('/api/v1/erp/users/change-password', data)
+  return request.post('/users/change-password', data)
 }

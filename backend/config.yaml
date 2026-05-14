@@ -18,7 +18,8 @@ database:
   port: 5432
   name: "bingxi"
   username: "bingxi"
-  password: "bingxi"
+  # ⚠️ 安全警告：生产环境必须通过环境变量 DATABASE_PASSWORD 设置
+  password: ""
   max_connections: 50
   min_connections: 5
   acquire_timeout_ms: 30000
@@ -28,8 +29,10 @@ database:
   ssl_ca: null
 
 auth:
-  jwt_secret: "local-dev-secret-key-for-test-environments-only-32-bytes"
-  cookie_secret: "local-dev-cookie-secret-key-must-be-at-least-32-bytes-long"
+  # ⚠️ 安全警告：生产环境必须通过环境变量 JWT_SECRET 设置至少 32 字节的强随机密钥
+  jwt_secret: ""
+  # ⚠️ 安全警告：生产环境必须通过环境变量 COOKIE_SECRET 设置至少 32 字节的强随机密钥
+  cookie_secret: ""
   token_expiry_hours: 24
 
 grpc:
@@ -37,14 +40,14 @@ grpc:
   port: 50051
 
 log:
-  level: "debug"
+  # ⚠️ 生产环境建议设置为 info 或 warn
+  level: "info"
   dir: "./logs"
 
 cors:
+  # ⚠️ 生产环境必须配置实际域名，移除所有 localhost
   allowed_origins:
     - "http://localhost:3000"
     - "http://127.0.0.1:3000"
-    - "http://localhost:8080"
-    - "http://127.0.0.1:8080"
 
 env: "development"
