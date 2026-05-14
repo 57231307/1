@@ -192,6 +192,36 @@ const routes = [
     meta: { title: '批次管理', requiresAuth: true }
   },
   {
+    path: '/five-dimension',
+    name: 'FiveDimension',
+    component: () => import('@/views/fiveDimension/index.vue'),
+    meta: { title: '五维管理', requiresAuth: true }
+  },
+  {
+    path: '/assist-accounting',
+    name: 'AssistAccounting',
+    component: () => import('@/views/assistAccounting/index.vue'),
+    meta: { title: '辅助核算', requiresAuth: true }
+  },
+  {
+    path: '/business-trace',
+    name: 'BusinessTrace',
+    component: () => import('@/views/businessTrace/index.vue'),
+    meta: { title: '业务追溯', requiresAuth: true }
+  },
+  {
+    path: '/barcode-scanner',
+    name: 'BarcodeScanner',
+    component: () => import('@/views/barcodeScanner/index.vue'),
+    meta: { title: '扫码功能', requiresAuth: true }
+  },
+  {
+    path: '/omni-audit',
+    name: 'OmniAudit',
+    component: () => import('@/views/omniAudit/index.vue'),
+    meta: { title: '全量审计', requiresAuth: true }
+  },
+  {
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),
