@@ -5,6 +5,27 @@
 #![allow(dead_code)]
 
 use regex::Regex;
+use once_cell::sync::Lazy;
+
+// 预编译正则表达式，避免运行时重复编译和 unwrap 风险
+static PASSWORD_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#""password"\s*:\s*"[^"]*""#).expect("密码脱敏正则表达式编译失败")
+});
+static PHONE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#""phone"\s*:\s*"([^"]*)""#).expect("手机号脱敏正则表达式编译失败")
+});
+static EMAIL_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#""email"\s*:\s*"([^"]*)""#).expect("邮箱脱敏正则表达式编译失败")
+});
+static ID_CARD_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#""id_card"\s*:\s*"([^"]*)""#).expect("身份证脱敏正则表达式编译失败")
+});
+static BANK_CARD_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#""bank_card"\s*:\s*"([^"]*)""#).expect("银行卡脱敏正则表达式编译失败")
+});
+static PASSWORD_PARAM_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(password|passwd|pwd)=([^&\s]+)").expect("密码参数脱敏正则表达式编译失败")
+});
 
 /// 脱敏规则类型
 #[derive(Debug, Clone)]
@@ -93,7 +114,7 @@ impl DataMasker {
         if name.is_empty() {
             return String::new();
         }
-        let first = name.chars().next().unwrap();
+        let first = name.chars().next().unwrap_or('*');
         format!("{}**", first)
     }
 
@@ -113,33 +134,28 @@ impl DataMasker {
         let mut result = json_str.to_string();
 
         // 密码字段脱敏
-        let password_re = Regex::new(r#""password"\s*:\s*"[^"]*""#).unwrap();
-        result = password_re.replace_all(&result, r#""password":"********""#).to_string();
+        result = PASSWORD_RE.replace_all(&result, r#""password":"********""#).to_string();
 
         // 手机号字段脱敏
-        let phone_re = Regex::new(r#""phone"\s*:\s*"([^"]*)""#).unwrap();
-        result = phone_re.replace_all(&result, |caps: &regex::Captures| {
+        result = PHONE_RE.replace_all(&result, |caps: &regex::Captures| {
             let masked = Self::mask_phone(&caps[1]);
             format!(r#""phone":"{}""#, masked)
         }).to_string();
 
         // 邮箱字段脱敏
-        let email_re = Regex::new(r#""email"\s*:\s*"([^"]*)""#).unwrap();
-        result = email_re.replace_all(&result, |caps: &regex::Captures| {
+        result = EMAIL_RE.replace_all(&result, |caps: &regex::Captures| {
             let masked = Self::mask_email(&caps[1]);
             format!(r#""email":"{}""#, masked)
         }).to_string();
 
         // 身份证号字段脱敏
-        let id_card_re = Regex::new(r#""id_card"\s*:\s*"([^"]*)""#).unwrap();
-        result = id_card_re.replace_all(&result, |caps: &regex::Captures| {
+        result = ID_CARD_RE.replace_all(&result, |caps: &regex::Captures| {
             let masked = Self::mask_id_card(&caps[1]);
             format!(r#""id_card":"{}""#, masked)
         }).to_string();
 
         // 银行卡号字段脱敏
-        let bank_card_re = Regex::new(r#""bank_card"\s*:\s*"([^"]*)""#).unwrap();
-        result = bank_card_re.replace_all(&result, |caps: &regex::Captures| {
+        result = BANK_CARD_RE.replace_all(&result, |caps: &regex::Captures| {
             let masked = Self::mask_bank_card(&caps[1]);
             format!(r#""bank_card":"{}""#, masked)
         }).to_string();
@@ -162,8 +178,7 @@ impl DataMasker {
         let mut result = body.to_string();
 
         // 隐藏可能的密码参数
-        let password_param_re = Regex::new(r"(password|passwd|pwd)=([^&\s]+)").unwrap();
-        result = password_param_re.replace_all(&result, "$1=********").to_string();
+        result = PASSWORD_PARAM_RE.replace_all(&result, "$1=********").to_string();
 
         result
     }

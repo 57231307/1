@@ -15,6 +15,7 @@ use crate::models::sales_order_item;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 查询参数 - 销售订单列表
 #[derive(Debug, Deserialize)]
@@ -105,8 +106,9 @@ pub async fn list_fabric_orders(
     }
 
     if let Some(no) = query.order_no {
+        let pattern = safe_like_pattern(&no);
         query_builder =
-            query_builder.filter(sales_order::Column::OrderNo.like(format!("%{}%", no)));
+            query_builder.filter(sales_order::Column::OrderNo.like(&pattern));
     }
 
     if let Some(status) = query.status {

@@ -7,6 +7,23 @@ use crate::utils::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// HTML 特殊字符转义，防止 XSS 攻击
+fn escape_html(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '&' => result.push_str("&amp;"),
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
+            '"' => result.push_str("&quot;"),
+            '\'' => result.push_str("&#x27;"),
+            '/' => result.push_str("&#x2F;"),
+            _ => result.push(ch),
+        }
+    }
+    result
+}
+
 /// 邮件配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct EmailConfig {
@@ -256,13 +273,19 @@ pub struct EmailTemplate;
 
 impl EmailTemplate {
     /// 生成通知邮件 HTML 模板
+    /// 所有用户输入参数都会自动进行 HTML 转义，防止 XSS 攻击
     pub fn notification_template(title: &str, content: &str, action_url: Option<&str>) -> String {
-        let action_button = action_url.map(|url| format!(
-            r#"<div style="margin-top: 20px;">
-                <a href="{}" style="background-color: #1890ff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">查看详情</a>
-            </div>"#,
-            url
-        )).unwrap_or_default();
+        let safe_title = escape_html(title);
+        let safe_content = escape_html(content);
+        let action_button = action_url.map(|url| {
+            let safe_url = escape_html(url);
+            format!(
+                r#"<div style="margin-top: 20px;">
+                    <a href="{}" style="background-color: #1890ff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">查看详情</a>
+                </div>"#,
+                safe_url
+            )
+        }).unwrap_or_default();
 
         format!(
             r#"<!DOCTYPE html>
@@ -288,41 +311,48 @@ impl EmailTemplate {
     </div>
 </body>
 </html>"#,
-            title, title, content, action_button
+            safe_title, safe_title, safe_content, action_button
         )
     }
 
     /// 生成订单通知邮件
     pub fn order_notification(order_no: &str, status: &str, detail_url: &str) -> String {
+        let safe_order_no = escape_html(order_no);
+        let safe_status = escape_html(status);
         let content = format!(
             r#"<p>您好，</p>
             <p>您的订单 <strong>{}</strong> 状态已更新为 <strong>{}</strong>。</p>
             <p>请登录系统查看详细信息。</p>"#,
-            order_no, status
+            safe_order_no, safe_status
         );
         Self::notification_template("订单状态更新", &content, Some(detail_url))
     }
 
     /// 生成审批通知邮件
     pub fn approval_notification(task_title: &str, applicant: &str, approval_url: &str) -> String {
+        let safe_task_title = escape_html(task_title);
+        let safe_applicant = escape_html(applicant);
         let content = format!(
             r#"<p>您好，</p>
             <p><strong>{}</strong> 提交了一个审批任务需要您处理。</p>
             <p>任务标题：{}</p>"#,
-            applicant, task_title
+            safe_applicant, safe_task_title
         );
         Self::notification_template("待审批任务提醒", &content, Some(approval_url))
     }
 
     /// 生成库存预警邮件
     pub fn inventory_alert(product_name: &str, current_stock: &str, threshold: &str) -> String {
+        let safe_product_name = escape_html(product_name);
+        let safe_current_stock = escape_html(current_stock);
+        let safe_threshold = escape_html(threshold);
         let content = format!(
             r#"<p>您好，</p>
             <p>产品 <strong>{}</strong> 的库存已达到预警线。</p>
             <p>当前库存：{}</p>
             <p>预警阈值：{}</p>
             <p style="color: #ff4d4f;">请及时补货！</p>"#,
-            product_name, current_stock, threshold
+            safe_product_name, safe_current_stock, safe_threshold
         );
         Self::notification_template("库存预警通知", &content, None)
     }

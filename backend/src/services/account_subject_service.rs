@@ -12,6 +12,7 @@ use tracing::{info, warn};
 
 use crate::models::{account_balance, account_subject, voucher_item};
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 use serde::{Deserialize, Serialize};
 
 /// 创建科目请求
@@ -195,10 +196,11 @@ impl AccountSubjectService {
         }
 
         if let Some(keyword) = params.keyword {
+            let pattern = safe_like_pattern(&keyword);
             query = query.filter(
                 account_subject::Column::Code
-                    .like(format!("%{}%", keyword))
-                    .or(account_subject::Column::Name.like(format!("%{}%", keyword))),
+                    .like(&pattern)
+                    .or(account_subject::Column::Name.like(&pattern)),
             );
         }
 

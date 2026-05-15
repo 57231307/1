@@ -7,6 +7,7 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 仓库服务
 pub struct WarehouseService {
@@ -31,10 +32,11 @@ impl WarehouseService {
         }
 
         if let Some(keyword) = query.search {
+            let pattern = safe_like_pattern(&keyword);
             q = q.filter(
                 warehouse::Column::Name
-                    .like(format!("%{}%", keyword))
-                    .or(warehouse::Column::WarehouseCode.like(format!("%{}%", keyword))),
+                    .like(&pattern)
+                    .or(warehouse::Column::WarehouseCode.like(&pattern)),
             );
         }
 

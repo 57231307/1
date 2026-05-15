@@ -3,6 +3,7 @@ use crate::models::{
     inventory_stock, inventory_transaction, purchase_receipt_item, sales_delivery_item,
 };
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
+use crate::utils::sql_escape::safe_like_pattern;
 use sea_orm::{ColumnTrait, QueryFilter};
 
 /// 五维查询服务
@@ -56,15 +57,18 @@ impl FiveDimensionQueryService {
         }
 
         if let Some(batch) = batch_no {
-            query = query.filter(inventory_stock::Column::BatchNo.like(format!("%{}%", batch)));
+            let pattern = safe_like_pattern(&batch);
+            query = query.filter(inventory_stock::Column::BatchNo.like(&pattern));
         }
 
         if let Some(color) = color_no {
-            query = query.filter(inventory_stock::Column::ColorNo.like(format!("%{}%", color)));
+            let pattern = safe_like_pattern(&color);
+            query = query.filter(inventory_stock::Column::ColorNo.like(&pattern));
         }
 
         if let Some(dye_lot) = dye_lot_no {
-            query = query.filter(inventory_stock::Column::DyeLotNo.like(format!("%{}%", dye_lot)));
+            let pattern = safe_like_pattern(&dye_lot);
+            query = query.filter(inventory_stock::Column::DyeLotNo.like(&pattern));
         }
 
         if let Some(g) = grade {

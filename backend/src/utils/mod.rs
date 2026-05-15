@@ -15,3 +15,4 @@ pub mod crud_macro;
 pub mod number_generator;
 pub mod field_mask;
 pub mod import_export;
+pub mod sql_escape;
