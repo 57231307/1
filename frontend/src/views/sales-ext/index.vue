@@ -440,11 +440,9 @@
           </el-table-column>
           <el-table-column label="操作" width="80">
             <template #default="{ $index }">
-              <el-button type="danger" link size="small" @click="removeReturnItem($index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
-        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem">添加产品</el-button>
       </el-form>
       <template #footer>
         <el-button @click="returnDialogVisible = false">取消</el-button>
@@ -519,7 +517,6 @@ import {
   createSalesReturn,
   getSalesReturn,
   type SalesReturn,
-  type ReturnItem
 } from '@/api/sales-return'
 
 const activeTab = ref('contract')
@@ -857,7 +854,6 @@ const returnForm = reactive({
   totalAmount: 0,
   reason: '',
   status: 'draft' as 'draft' | 'pending' | 'approved' | 'rejected' | 'completed',
-  items: [] as ReturnItem[]
 })
 
 const returnRules: FormRules = {
@@ -913,10 +909,9 @@ const viewReturn = async (row: SalesReturn) => {
 }
 
 const addReturnItem = () => {
-  returnForm.items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' })
 }
-
 const removeReturnItem = (index: number) => {
+
   if (returnForm.items.length > 1) {
     returnForm.items.splice(index, 1)
   }

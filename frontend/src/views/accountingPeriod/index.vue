@@ -72,7 +72,7 @@ const generatePeriodDates = () => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listAccountingPeriods({
+    const res: any = await listAccountingPeriods({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       year: searchForm.value.year ? Number(searchForm.value.year) : undefined,
@@ -90,7 +90,7 @@ const loadData = async () => {
 
 const loadCurrentPeriod = async () => {
   try {
-    const res = await getCurrentPeriod()
+    const res: any = await getCurrentPeriod()
     currentPeriod.value = res.data
   } catch (error) {
     console.warn('获取当前期间失败')
@@ -144,7 +144,7 @@ const openEditDialog = (row: AccountingPeriodEntity) => {
 
 const openViewDialog = async (row: AccountingPeriodEntity) => {
   try {
-    const res = await getAccountingPeriod(row.id!)
+    const res: any = await getAccountingPeriod(row.id!)
     viewData.value = res.data
     viewDialogVisible.value = true
   } catch (error) {

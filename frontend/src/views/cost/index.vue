@@ -48,8 +48,8 @@
         border
       >
         <el-table-column prop="collection_no" label="归集编号" width="160" />
-        <el-table-column prop="cost_type" label="成本类型" width="140" />
-        <el-table-column prop="period" label="期间" width="120" />
+        <el-table-column prop="status" label="成本类型" width="140" />
+        <el-table-column prop="collection_date" label="期间" width="120" />
         <el-table-column prop="department_name" label="部门" min-width="160" />
         <el-table-column prop="total_cost" label="总成本" width="140">
           <template #default="{ row }">
@@ -98,20 +98,20 @@
         <el-form-item label="归集编号" prop="collection_no">
           <el-input v-model="costForm.collection_no" placeholder="请输入归集编号" />
         </el-form-item>
-        <el-form-item label="成本类型" prop="cost_type">
-          <el-input v-model="costForm.cost_type" placeholder="请输入成本类型" />
+        <el-form-item label="成本类型" prop="status">
+          <el-input v-model="costForm.status" placeholder="请输入成本类型" />
         </el-form-item>
-        <el-form-item label="期间" prop="period">
-          <el-input v-model="costForm.period" placeholder="例如：2024-01" />
+        <el-form-item label="期间" prop="collection_date">
+          <el-input v-model="costForm.collection_date" placeholder="例如：2024-01" />
         </el-form-item>
-        <el-form-item label="部门ID" prop="department_id">
-          <el-input-number v-model="costForm.department_id" :min="1" style="width: 100%" />
+        <el-form-item label="部门ID" prop="status">
+          <el-input-number v-model="costForm.status" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="总成本" prop="total_cost">
           <el-input-number v-model="costForm.total_cost" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="costForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+          <el-input v-model="costForm.status" type="textarea" :rows="3" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -124,9 +124,9 @@
     <el-dialog v-model="detailVisible" title="成本归集详情" width="600px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="归集编号">{{ currentCost?.collection_no }}</el-descriptions-item>
-        <el-descriptions-item label="成本类型">{{ currentCost?.cost_type }}</el-descriptions-item>
-        <el-descriptions-item label="期间">{{ currentCost?.period }}</el-descriptions-item>
-        <el-descriptions-item label="部门ID">{{ currentCost?.department_id }}</el-descriptions-item>
+        <el-descriptions-item label="成本类型">{{ currentCost?.status }}</el-descriptions-item>
+        <el-descriptions-item label="期间">{{ currentCost?.collection_date }}</el-descriptions-item>
+        <el-descriptions-item label="部门ID">{{ currentCost?.status }}</el-descriptions-item>
         <el-descriptions-item label="总成本">¥{{ currentCost?.total_cost?.toFixed(2) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="COST_STATUS[currentCost?.status as keyof typeof COST_STATUS]?.type">
@@ -135,7 +135,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentCost?.created_at }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ currentCost?.updated_at }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentCost?.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ currentCost?.status || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -176,20 +176,20 @@ const queryForm = reactive({
 // 成本表单
 const costForm = reactive<Partial<CostCollection>>({
   collection_no: '',
-  cost_type: '',
-  period: '',
-  department_id: undefined,
+  status: '',
+  collection_date: '',
+  status: undefined,
   total_cost: undefined,
   status: 'draft',
-  remark: '',
+  status: '',
 })
 
 // 表单验证规则
 const costRules: FormRules = {
   collection_no: [{ required: true, message: '请输入归集编号', trigger: 'blur' }],
-  cost_type: [{ required: true, message: '请输入成本类型', trigger: 'blur' }],
-  period: [{ required: true, message: '请输入期间', trigger: 'blur' }],
-  department_id: [{ required: true, message: '请输入部门ID', trigger: 'blur' }],
+  status: [{ required: true, message: '请输入成本类型', trigger: 'blur' }],
+  collection_date: [{ required: true, message: '请输入期间', trigger: 'blur' }],
+  status: [{ required: true, message: '请输入部门ID', trigger: 'blur' }],
   total_cost: [{ required: true, message: '请输入总成本', trigger: 'blur' }],
 }
 
@@ -232,12 +232,12 @@ const resetForm = () => {
   Object.assign(costForm, {
     id: undefined,
     collection_no: '',
-    cost_type: '',
-    period: '',
-    department_id: undefined,
+    status: '',
+    collection_date: '',
+    status: undefined,
     total_cost: undefined,
     status: 'draft',
-    remark: '',
+    status: '',
   })
   costFormRef.value?.clearValidate()
 }

@@ -274,7 +274,7 @@ const defectLoading = ref(false)
 const fetchStandards = async () => {
   standardLoading.value = true
   try {
-    const res = await listQualityStandards()
+    const res: any = await listQualityStandards()
     standards.value = res.data || []
   } finally {
     standardLoading.value = false
@@ -284,7 +284,7 @@ const fetchStandards = async () => {
 const fetchRecords = async () => {
   recordLoading.value = true
   try {
-    const res = await listQualityRecords()
+    const res: any = await listQualityRecords()
     records.value = res.data || []
   } finally {
     recordLoading.value = false
@@ -294,7 +294,7 @@ const fetchRecords = async () => {
 const fetchDefects = async () => {
   defectLoading.value = true
   try {
-    const res = await listDefects()
+    const res: any = await listDefects()
     defects.value = res.data || []
   } finally {
     defectLoading.value = false
@@ -341,7 +341,7 @@ const openStandardDialog = (row?: QualityStandard) => {
 }
 
 const viewStandard = async (row: QualityStandard) => {
-  const res = await getQualityStandard(row.id)
+  const res: any = await getQualityStandard(row.id)
   openStandardDialog(res.data)
 }
 
@@ -439,7 +439,7 @@ const versionHistoryList = ref<QualityStandard[]>([])
 const viewVersionHistory = async (row: QualityStandard) => {
   versionHistoryLoading.value = true
   try {
-    const res = await getQualityStandardVersions(row.id)
+    const res: any = await getQualityStandardVersions(row.id)
     versionHistoryList.value = res.data || []
     versionHistoryVisible.value = true
   } catch (e: any) {

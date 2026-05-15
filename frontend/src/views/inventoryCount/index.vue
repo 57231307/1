@@ -125,9 +125,8 @@ const openViewDialog = async (row: InventoryCountEntity) => {
   }
 }
 
-  if (!form.value.warehouse_id) {
 const handleSubmit = async () => {
-    ElMessage.warning('请选择仓库')
+  if (!form.value.warehouse_id) {
     return
   }
   try {

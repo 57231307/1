@@ -293,7 +293,7 @@ const loadSalesOrders = async () => {
 const loadCustomers = async () => {
   try {
     const res = await listCustomers()
-    customerList.value = res.data || []
+  customerList.value = (res.data as any).list || []
   } catch (error) {
     // 忽略错误
   }
@@ -301,8 +301,8 @@ const loadCustomers = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await productApi.listProducts()
-    productList.value = res.data || []
+    const res = await productApi.list()
+  productList.value = (res.data as any).list || []
   } catch (error) {
     // 忽略错误
   }
@@ -398,7 +398,7 @@ const handleRemoveItem = (index: number) => {
 }
 
 const calculateTotal = () => {
-  formData.totalAmount = formData.items.reduce((sum, item) => {
+  formData.totalAmount = formData.items.reduce((sum: number, item: any) => {
     return sum + (item.quantity * item.unitPrice)
   }, 0)
 }

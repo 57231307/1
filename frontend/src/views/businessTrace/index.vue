@@ -38,7 +38,7 @@ const handleFiveDimensionTrace = async () => {
   }
   loading.value = true
   try {
-    const res = await getTraceByFiveDimension(fiveDimensionId.value)
+    const res: any = await getTraceByFiveDimension(fiveDimensionId.value)
     traceResult.value = res.data
     snapshotMessage.value = ''
   } catch (error) {
@@ -55,7 +55,7 @@ const handleForwardTrace = async () => {
   }
   loading.value = true
   try {
-    const res = await forwardTrace({
+    const res: any = await forwardTrace({
       supplier_id: Number(forwardForm.value.supplier_id),
       batch_no: forwardForm.value.batch_no
     })
@@ -74,7 +74,7 @@ const handleBackwardTrace = async () => {
   }
   loading.value = true
   try {
-    const res = await backwardTrace({
+    const res: any = await backwardTrace({
       customer_id: Number(backwardForm.value.customer_id),
       batch_no: backwardForm.value.batch_no
     })
@@ -93,7 +93,7 @@ const handleCreateSnapshot = async () => {
   }
   loading.value = true
   try {
-    const res = await createTraceSnapshot(traceResult.value.trace_chain_id)
+    const res: any = await createTraceSnapshot(traceResult.value.trace_chain_id)
     snapshotMessage.value = res.data
     ElMessage.success('快照创建成功')
   } catch (error) {

@@ -54,7 +54,7 @@ const getStatusClass = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listInventoryTransfers({
+    const res: any = await listInventoryTransfers({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       transfer_no: searchForm.value.transfer_no,
@@ -73,7 +73,7 @@ const loadData = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await request.get('/warehouses/select')
+    const res: any = await request.get('/warehouses/select')
     warehouseOptions.value = res.data
   } catch (error) {
     console.warn('加载仓库失败')
@@ -82,7 +82,7 @@ const loadWarehouses = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await request.get('/products/select')
+    const res: any = await request.get('/products/select')
     productOptions.value = res.data
   } catch (error) {
     console.warn('加载产品失败')
@@ -116,7 +116,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增调拨'
-  const res = await request.get('/api/v1/inventory-transfer/generate-no')
+  const res: any = await request.get('/api/v1/inventory-transfer/generate-no')
   form.value = {
     transfer_no: res.data,
     transfer_date: new Date().toISOString().split('T')[0],
@@ -130,17 +130,17 @@ const openAddDialog = async () => {
 
 const openEditDialog = async (row: InventoryTransferEntity) => {
   dialogTitle.value = '编辑调拨'
-  const res = await getInventoryTransfer(row.id!)
-  const itemsRes = await getTransferItems(row.id!)
+  const res: any = await getInventoryTransfer(row.id!)
+  const itemsRes: any = await getTransferItems(row.id!)
   form.value = { ...res.data, items: itemsRes.data }
   dialogVisible.value = true
 }
 
 const openViewDialog = async (row: InventoryTransferEntity) => {
   try {
-    const res = await getInventoryTransfer(row.id!)
+    const res: any = await getInventoryTransfer(row.id!)
     viewData.value = res.data
-    const itemsRes = await getTransferItems(row.id!)
+    const itemsRes: any = await getTransferItems(row.id!)
     detailData.value = itemsRes.data
     viewDialogVisible.value = true
   } catch (error) {

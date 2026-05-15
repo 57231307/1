@@ -55,7 +55,7 @@ const getStatusClass = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listPurchaseReceipts({
+    const res: any = await listPurchaseReceipts({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       receipt_no: searchForm.value.receipt_no,
@@ -74,7 +74,7 @@ const loadData = async () => {
 
 const loadSuppliers = async () => {
   try {
-    const res = await request.get('/api/v1/suppliers/select')
+    const res: any = await request.get('/api/v1/suppliers/select')
     supplierOptions.value = res.data
   } catch (error) {
     console.warn('加载供应商失败')
@@ -83,7 +83,7 @@ const loadSuppliers = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await request.get('/api/v1/warehouses/select')
+    const res: any = await request.get('/api/v1/warehouses/select')
     warehouseOptions.value = res.data
   } catch (error) {
     console.warn('加载仓库失败')
@@ -92,7 +92,7 @@ const loadWarehouses = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await request.get('/api/v1/products/select')
+    const res: any = await request.get('/api/v1/products/select')
     productOptions.value = res.data
   } catch (error) {
     console.warn('加载产品失败')
@@ -126,7 +126,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增入库'
-  const res = await request.get('/api/v1/purchase-receipt/generate-no')
+  const res: any = await request.get('/api/v1/purchase-receipt/generate-no')
   form.value = {
     receipt_no: res.data,
     receipt_date: new Date().toISOString().split('T')[0],
@@ -140,17 +140,17 @@ const openAddDialog = async () => {
 
 const openEditDialog = async (row: PurchaseReceiptEntity) => {
   dialogTitle.value = '编辑入库'
-  const res = await getPurchaseReceipt(row.id!)
-  const itemsRes = await getReceiptItems(row.id!)
+  const res: any = await getPurchaseReceipt(row.id!)
+  const itemsRes: any = await getReceiptItems(row.id!)
   form.value = { ...res.data, items: itemsRes.data }
   dialogVisible.value = true
 }
 
 const openViewDialog = async (row: PurchaseReceiptEntity) => {
   try {
-    const res = await getPurchaseReceipt(row.id!)
+    const res: any = await getPurchaseReceipt(row.id!)
     viewData.value = res.data
-    const itemsRes = await getReceiptItems(row.id!)
+    const itemsRes: any = await getReceiptItems(row.id!)
     detailData.value = itemsRes.data
     viewDialogVisible.value = true
   } catch (error) {

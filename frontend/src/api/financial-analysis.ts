@@ -36,6 +36,12 @@ export interface ReportExecutionRequest {
   parameters?: Record<string, any>
 }
 
+export const listReports = (params?: any) => request.get("/financial-analysis/reports", { params })
+export const createReport = (data: any) => request.post("/financial-analysis/reports", data)
+export const updateReport = (id: number, data: any) => request.put(`/financial-analysis/reports/${id}`, data)
+export const deleteReport = (id: number) => request.delete(`/financial-analysis/reports/${id}`)
+export const executeFinancialReport = (id: number) => request.post(`/financial-analysis/reports/${id}/execute`)
+
 export const financialAnalysisApi = {
   listReports: (params?: any) =>
     request.get<ApiResponse<{ list: FinancialReport[]; total: number }>>('/financial-analysis/reports', { params }),
