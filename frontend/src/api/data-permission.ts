@@ -1,53 +1,40 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
 export interface DataPermission {
-  id: number
-  roleId: number
+  id?: number
+  roleId?: number
+  roleName?: string
   resourceType: string
-  scopeType: string
-  scopeValues: string[]
-  createdAt: string
+  resourceName?: string
+  permissionType: 'all' | 'custom' | 'none'
+  customCondition?: string
+  allowedFields?: string[]
+  hiddenFields?: string[]
+  description?: string
+  createdBy?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
-export interface DataPermissionQueryParams extends QueryParams {
+export interface DataPermissionQueryParams {
   roleId?: number
   resourceType?: string
 }
 
-export interface SetDataPermissionRequest {
-  roleId: number
-  resourceType: string
-  scopeType: string
-  scopeValues: string[]
-}
+export const dataPermissionApi = {
+  list: (params?: DataPermissionQueryParams) =>
+    request.get<ApiResponse<{ list: DataPermission[]; total: number }>>('/data-permissions', { params }),
 
-export interface ScopeType {
-  type: string
-  name: string
-  description: string
-}
+  getByRole: (roleId: number) =>
+    request.get<ApiResponse<{ permissions: DataPermission[] }>>(`/data-permissions/role/${roleId}`),
 
-export function listDataPermissions(params?: DataPermissionQueryParams): Promise<ApiResponse<{ list: DataPermission[]; total: number }>> {
-  return request.get('/data-permissions', { params })
-}
+  create: (data: Partial<DataPermission>) =>
+    request.post<ApiResponse<DataPermission>>('/data-permissions', data),
 
-export function getDataPermission(roleId: number, resourceType: string): Promise<ApiResponse<DataPermission>> {
-  return request.get(`/data-permissions/${roleId}/${resourceType}`)
-}
+  update: (id: number, data: Partial<DataPermission>) =>
+    request.put<ApiResponse<DataPermission>>(`/data-permissions/${id}`, data),
 
-export function setDataPermission(data: SetDataPermissionRequest): Promise<ApiResponse<DataPermission>> {
-  return request.post('/data-permissions', data)
-}
-
-export function deleteDataPermission(roleId: number, resourceType: string): Promise<ApiResponse<void>> {
-  return request.delete(`/data-permissions/${roleId}/${resourceType}`)
-}
-
-export function listScopeTypes(): Promise<ApiResponse<ScopeType[]>> {
-  return request.get('/data-permissions/scope-types')
-}
-
-export function getRoleDataPermissions(roleId: number): Promise<ApiResponse<DataPermission[]>> {
-  return request.get(`/data-permissions/roles/${roleId}`)
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/data-permissions/${id}`),
 }

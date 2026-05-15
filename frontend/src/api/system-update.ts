@@ -1,56 +1,33 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
-export interface SystemUpdate {
-  id: number
-  version: string
-  releaseDate: string
-  description: string
-  status: 'available' | 'downloading' | 'installed' | 'failed'
-  size: number
-  checksum: string
-}
-
-export interface UpdateLog {
-  id: number
-  updateId: number
-  action: string
-  status: 'success' | 'failed'
-  message: string
-  createdAt: string
-}
-
-export interface UpdateCheckResult {
-  available: boolean
-  latestVersion: string
+export interface SystemUpdateInfo {
   currentVersion: string
-  changelog: string[]
+  latestVersion: string
+  updateAvailable: boolean
+  releaseNotes?: string
+  downloadUrl?: string
+  fileSize?: number
+  publishedAt?: string
 }
 
-export function checkUpdate(): Promise<ApiResponse<UpdateCheckResult>> {
-  return request.get('/system-update/check')
+export interface UpdateStatus {
+  status: 'idle' | 'checking' | 'downloading' | 'installing' | 'completed' | 'failed'
+  progress?: number
+  message?: string
+  error?: string
 }
 
-export function listUpdates(): Promise<ApiResponse<{ list: SystemUpdate[]; total: number }>> {
-  return request.get('/system-update/versions')
-}
+export const systemUpdateApi = {
+  checkForUpdates: () =>
+    request.get<ApiResponse<SystemUpdateInfo>>('/system-update/check'),
 
-export function getUpdateDetail(id: number): Promise<ApiResponse<SystemUpdate>> {
-  return request.get(`/system-update/versions/${id}`)
-}
+  downloadAndUpdate: () =>
+    request.post<ApiResponse<{ message: string }>>('/system-update/update'),
 
-export function downloadUpdate(id: number): Promise<ApiResponse<{ downloadUrl: string }>> {
-  return request.post(`/system-update/versions/${id}/download`)
-}
+  getVersion: () =>
+    request.get<ApiResponse<{ version: string }>>('/system-update/version'),
 
-export function installUpdate(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/system-update/versions/${id}/install`)
-}
-
-export function rollbackUpdate(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/system-update/versions/${id}/rollback`)
-}
-
-export function getUpdateLogs(params?: QueryParams): Promise<ApiResponse<{ list: UpdateLog[]; total: number }>> {
-  return request.get('/system-update/logs', { params })
+  getStatus: () =>
+    request.get<ApiResponse<UpdateStatus>>('/system-update/status'),
 }

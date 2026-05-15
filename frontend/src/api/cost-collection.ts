@@ -1,65 +1,69 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
 export interface CostCollection {
-  id: number
-  cost_type: string
-  amount: number
-  source_id: number
-  source_type: string
-  allocation_rule?: string
-  created_at?: string
-  updated_at?: string
+  id?: number
+  collectionName: string
+  costType: string
+  batchNo?: string
+  productId?: number
+  productName?: string
+  totalCost?: number
+  materialCost?: number
+  laborCost?: number
+  overheadCost?: number
+  quantity?: number
+  unitCost?: number
+  status?: string
+  collectionDate?: string
+  createdBy?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
-export interface CostAllocationRequest {
-  source_id: number
-  target_ids: number[]
-  allocation_method: string
+export interface CostAnalysisSummary {
+  totalCost: number
+  materialCost: number
+  laborCost: number
+  overheadCost: number
+  unitCost: number
+  costByType: Array<{ type: string; amount: number }>
+  costByBatch: Array<{ batch: string; amount: number }>
 }
 
-export interface CostSummary {
-  total_cost: number
-  direct_cost: number
-  indirect_cost: number
-  allocated_cost: number
-  unallocated_cost: number
+export interface CostByBatch {
+  batchNo: string
+  productId: number
+  productName: string
+  quantity: number
+  totalCost: number
+  unitCost: number
+  costBreakdown: {
+    materialCost: number
+    laborCost: number
+    overheadCost: number
+  }
 }
 
-export interface CostCollectionQueryParams extends QueryParams {
-  cost_type?: string
-  source_id?: number
-  source_type?: string
-}
+export const costCollectionApi = {
+  list: (params?: any) =>
+    request.get<ApiResponse<{ list: CostCollection[]; total: number }>>('/cost-collections', { params }),
 
-export function listCostCollections(params?: CostCollectionQueryParams): Promise<ApiResponse<{ list: CostCollection[]; total: number }>> {
-  return request.get('/cost-collections', { params })
-}
+  getById: (id: number) =>
+    request.get<ApiResponse<CostCollection>>(`/cost-collections/${id}`),
 
-export function getCostCollection(id: number): Promise<ApiResponse<CostCollection>> {
-  return request.get(`/cost-collections/${id}`)
-}
+  create: (data: Partial<CostCollection>) =>
+    request.post<ApiResponse<CostCollection>>('/cost-collections', data),
 
-export function createCostCollection(data: Partial<CostCollection>): Promise<ApiResponse<CostCollection>> {
-  return request.post('/cost-collections', data)
-}
+  update: (id: number, data: Partial<CostCollection>) =>
+    request.put<ApiResponse<CostCollection>>(`/cost-collections/${id}`, data),
 
-export function updateCostCollection(id: number, data: Partial<CostCollection>): Promise<ApiResponse<CostCollection>> {
-  return request.put(`/cost-collections/${id}`, data)
-}
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/cost-collections/${id}`),
 
-export function deleteCostCollection(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/cost-collections/${id}`)
-}
+  getCostAnalysisSummary: (params?: any) =>
+    request.get<ApiResponse<CostAnalysisSummary>>('/cost-collections/analysis/summary', { params }),
 
-export function calculateCost(id: number): Promise<ApiResponse<{ calculated_amount: number }>> {
-  return request.post(`/cost-collections/${id}/calculate`)
-}
-
-export function allocateCost(data: CostAllocationRequest): Promise<ApiResponse<{ allocated_ids: number[] }>> {
-  return request.post('/cost-collections/allocate', data)
-}
-
-export function getCostSummary(params?: { period_start?: string; period_end?: string }): Promise<ApiResponse<CostSummary>> {
-  return request.get('/cost-collections/summary', { params })
+  getCostByBatch: (params?: any) =>
+    request.get<ApiResponse<{ batches: CostByBatch[] }>>('/cost-collections/analysis/by-batch', { params }),
 }

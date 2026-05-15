@@ -1,76 +1,85 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
 export interface SalesReturn {
-  id: number
+  id?: number
   returnNo: string
-  customerId: number
-  customerName: string
-  orderId: number
-  orderNo: string
-  returnDate: string
-  totalAmount: number
-  reason: string
-  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'completed'
-  items: ReturnItem[]
+  salesOrderId?: number
+  salesOrderNo?: string
+  customerId?: number
+  customerName?: string
+  returnDate?: string
+  reason?: string
+  status?: string
+  totalAmount?: number
+  items?: SalesReturnItem[]
+  remarks?: string
   createdBy?: number
-  createdByName?: string
-  approvedBy?: number
-  approvedByName?: string
-  approvedAt?: string
   createdAt?: string
   updatedAt?: string
 }
 
-export interface ReturnItem {
+export interface SalesReturnItem {
   id?: number
   returnId?: number
-  productId: number
+  productId?: number
   productName?: string
   productCode?: string
   quantity: number
-  unit?: string
-  price: number
-  amount: number
-  reason: string
+  returnedQuantity?: number
+  unitPrice?: number
+  amount?: number
+  reason?: string
+  batchNo?: string
 }
 
-export interface SalesReturnQueryParams extends QueryParams {
+export interface SalesReturnQueryParams {
+  page?: number
+  pageSize?: number
+  salesOrderId?: number
   customerId?: number
-  orderId?: number
   status?: string
-  returnDateStart?: string
-  returnDateEnd?: string
+  startDate?: string
+  endDate?: string
 }
 
-export function listSalesReturns(params?: SalesReturnQueryParams): Promise<ApiResponse<{ list: SalesReturn[]; total: number }>> {
-  return request.get('/sales-returns', { params })
-}
+export const salesReturnApi = {
+  list: (params?: SalesReturnQueryParams) =>
+    request.get<ApiResponse<{ list: SalesReturn[]; total: number }>>('/sales-returns', { params }),
 
-export function getSalesReturn(id: number): Promise<ApiResponse<SalesReturn>> {
-  return request.get(`/sales-returns/${id}`)
-}
+  create: (data: Partial<SalesReturn>) =>
+    request.post<ApiResponse<SalesReturn>>('/sales-returns', data),
 
-export function createSalesReturn(data: Partial<SalesReturn>): Promise<ApiResponse<SalesReturn>> {
-  return request.post('/sales-returns', data)
-}
+  getById: (id: number) =>
+    request.get<ApiResponse<SalesReturn>>(`/sales-returns/${id}`),
 
-export function updateSalesReturn(id: number, data: Partial<SalesReturn>): Promise<ApiResponse<SalesReturn>> {
-  return request.put(`/sales-returns/${id}`, data)
-}
+  update: (id: number, data: Partial<SalesReturn>) =>
+    request.put<ApiResponse<SalesReturn>>(`/sales-returns/${id}`, data),
 
-export function submitSalesReturn(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales-returns/${id}/submit`)
-}
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/sales-returns/${id}`),
 
-export function approveSalesReturn(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales-returns/${id}/approve`)
-}
+  submit: (id: number) =>
+    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/submit`),
 
-export function rejectSalesReturn(id: number, reason: string): Promise<ApiResponse<void>> {
-  return request.post(`/sales-returns/${id}/reject`, { reason })
-}
+  approve: (id: number) =>
+    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/approve`),
 
-export function completeSalesReturn(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales-returns/${id}/complete`)
+  reject: (id: number, reason?: string) =>
+    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/reject`, { reason }),
+
+  execute: (id: number) =>
+    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/execute`),
+
+  listItems: (id: number) =>
+    request.get<ApiResponse<{ items: SalesReturnItem[] }>>(`/sales-returns/${id}/items`),
+
+  createItem: (id: number, data: Partial<SalesReturnItem>) =>
+    request.post<ApiResponse<SalesReturnItem>>(`/sales-returns/${id}/items`, data),
+
+  updateItem: (id: number, itemId: number, data: Partial<SalesReturnItem>) =>
+    request.put<ApiResponse<SalesReturnItem>>(`/sales-returns/${id}/items/${itemId}`, data),
+
+  deleteItem: (id: number, itemId: number) =>
+    request.delete<ApiResponse<void>>(`/sales-returns/${id}/items/${itemId}`),
 }

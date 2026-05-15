@@ -1,58 +1,58 @@
 import { request } from './request'
 import type { ApiResponse } from './request'
 
-export interface BusinessTrace {
-  id: number
-  five_dimension_id: string
-  node_type: string
-  node_id: string
-  node_name: string
-  operation_time: string
-  operator: string
-  description?: string
-}
-
 export interface TraceNode {
   id: number
-  type: string
-  name: string
-  status: string
-  data: any
+  businessType: string
+  businessId: number
+  action: string
+  timestamp: string
+  operator?: string
+  data?: Record<string, any>
+  children?: TraceNode[]
 }
 
 export interface TraceChain {
   id: number
-  five_dimension_id: string
+  chainId: string
+  rootType: string
+  rootId: number
   nodes: TraceNode[]
-  links: any[]
+  createdAt: string
+  updatedAt: string
 }
 
-export interface ForwardTraceParams {
-  five_dimension_id: string
-  max_depth?: number
+export interface TraceSnapshot {
+  id?: number
+  traceChainId?: number
+  snapshotData: Record<string, any>
+  snapshotType: string
+  version?: number
+  createdAt?: string
 }
 
-export interface BackwardTraceParams {
-  five_dimension_id: string
-  max_depth?: number
+export interface BusinessTraceQueryParams {
+  fiveDimensionId?: number
+  businessType?: string
+  businessId?: number
+  startDate?: string
+  endDate?: string
 }
 
-export function getTraceByFiveDimension(fiveDimensionId: string): Promise<ApiResponse<BusinessTrace[]>> {
-  return request.get(`/business-trace/${encodeURIComponent(fiveDimensionId)}`)
-}
+export const businessTraceApi = {
+  getByFiveDimension: (fiveDimensionId: number) =>
+    request.get<ApiResponse<TraceChain>>(`/business-trace/five-dimension/${fiveDimensionId}`),
 
-export function forwardTrace(params: ForwardTraceParams): Promise<ApiResponse<TraceChain>> {
-  return request.get('/business-trace/forward', { params })
-}
+  forwardTrace: (businessType: string, businessId: number) =>
+    request.get<ApiResponse<{ trace: TraceNode[] }>>(`/business-trace/forward`, {
+      params: { businessType, businessId }
+    }),
 
-export function backwardTrace(params: BackwardTraceParams): Promise<ApiResponse<TraceChain>> {
-  return request.get('/business-trace/backward', { params })
-}
+  backwardTrace: (businessType: string, businessId: number) =>
+    request.get<ApiResponse<{ trace: TraceNode[] }>>(`/business-trace/backward`, {
+      params: { businessType, businessId }
+    }),
 
-export function createTraceSnapshot(traceChainId: number): Promise<ApiResponse<TraceChain>> {
-  return request.post(`/business-trace/${traceChainId}/snapshot`)
-}
-
-export function getTraceChain(id: number): Promise<ApiResponse<TraceChain>> {
-  return request.get(`/business-trace/chain/${id}`)
+  createSnapshot: (traceChainId: number, data: Partial<TraceSnapshot>) =>
+    request.post<ApiResponse<TraceSnapshot>>(`/business-trace/snapshot/${traceChainId}`, data),
 }

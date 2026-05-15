@@ -38,37 +38,37 @@ export interface UpdateSettingRequest {
 }
 
 export function listNotifications(params?: NotificationQueryParams): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
-  return request.get('/notifications', { params })
+  return request.get('/erp/notifications', { params })
 }
 
 export function getNotification(id: number): Promise<ApiResponse<Notification>> {
-  return request.get(`/notifications/${id}`)
+  return request.get(`/erp/notifications/${id}`)
 }
 
 export function getUnreadCount(): Promise<ApiResponse<number>> {
-  return request.get('/notifications/unread-count')
+  return request.get('/erp/notifications/unread-count')
 }
 
 export function markAsRead(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/notifications/${id}/read`)
+  return request.post(`/erp/notifications/${id}/read`)
 }
 
 export function batchMarkAsRead(data: BatchOperationRequest): Promise<ApiResponse<void>> {
-  return request.post('/notifications/batch-read', data)
+  return request.post('/erp/notifications/batch-read', data)
 }
 
 export function markAllAsRead(): Promise<ApiResponse<void>> {
-  return request.post('/notifications/mark-all-read')
+  return request.post('/erp/notifications/mark-all-read')
 }
 
 export function deleteNotification(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/notifications/${id}`)
+  return request.delete(`/erp/notifications/${id}`)
 }
 
 export function getSettings(): Promise<ApiResponse<NotificationSetting[]>> {
-  return request.get('/notifications/settings')
+  return request.get('/erp/notifications/settings')
 }
 
 export function updateSetting(data: UpdateSettingRequest): Promise<ApiResponse<NotificationSetting>> {
-  return request.put('/notifications/settings', data)
+  return request.put('/erp/notifications/settings', data)
 }
