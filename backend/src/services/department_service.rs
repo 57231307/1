@@ -9,6 +9,7 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::models::department::{self, Entity as DepartmentEntity};
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 部门树节点（用于返回树形结构）
 #[derive(Debug, Serialize, Clone)]
@@ -43,10 +44,11 @@ impl DepartmentService {
         }
 
         if let Some(keyword) = query.search {
+            let pattern = safe_like_pattern(&keyword);
             q = q.filter(
                 department::Column::Name
-                    .like(format!("%{}%", keyword))
-                    .or(department::Column::Description.like(format!("%{}%", keyword))),
+                    .like(&pattern)
+                    .or(department::Column::Description.like(&pattern)),
             );
         }
 

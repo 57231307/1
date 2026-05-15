@@ -36,6 +36,7 @@ pub struct UserPermissionDto {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
     pub token: String,
+    pub csrf_token: String,
     pub user: UserInfo,
     pub permissions: Vec<UserPermissionDto>,
 }
@@ -124,8 +125,13 @@ pub async fn login(
                 role_id: user.role_id,
             };
 
+            // 生成 CSRF Token，基于 JWT token 前32字节作为会话标识
+            let session_id = format!("jwt:{}", &token[..token.len().min(32)]);
+            let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+
             let response = LoginResponse {
                 token: token.clone(),
+                csrf_token,
                 user: user_info,
                 permissions,
             };
@@ -208,6 +214,7 @@ pub async fn logout(
 #[derive(Debug, Serialize)]
 pub struct RefreshTokenResponse {
     pub token: String,
+    pub csrf_token: String,
     pub expires_in: u64,
 }
 
@@ -223,6 +230,15 @@ pub async fn refresh_token(
             StatusCode::UNAUTHORIZED,
             Json(ApiResponse::error("缺少认证令牌")),
         ))?;
+
+    // 检查 Token 是否在黑名单中
+    let is_blacklisted = state.cache.get_token_blacklist().get(token).is_some();
+    if is_blacklisted {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ApiResponse::error("令牌已被吊销，请重新登录")),
+        ));
+    }
 
     let claims = AuthService::validate_token_static(token, &state.jwt_secret)
         .map_err(|_| (
@@ -249,8 +265,13 @@ pub async fn refresh_token(
             )
         })?;
 
+    // 生成新的 CSRF Token
+    let session_id = format!("jwt:{}", &new_token[..new_token.len().min(32)]);
+    let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+
     Ok(Json(ApiResponse::success(RefreshTokenResponse {
         token: new_token,
+        csrf_token,
         expires_in: 7200, // 2 hours
     })))
 }
@@ -292,4 +313,41 @@ pub async fn enable_totp(
         Ok(false) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error("验证码不正确".to_string())))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
     }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CsrfTokenResponse {
+    pub csrf_token: String,
+}
+
+/// 获取 CSRF Token（公开接口，无需认证）
+/// 前端在登录前或需要时调用此接口获取 CSRF Token
+#[utoipa::path(
+    get,
+    path = "/api/v1/erp/auth/csrf-token",
+    responses(
+        (status = 200, description = "获取成功", body = ApiResponse<CsrfTokenResponse>)
+    ),
+    tags = ["Auth"]
+)]
+pub async fn get_csrf_token(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Json<ApiResponse<CsrfTokenResponse>> {
+    // 使用 IP + User-Agent 作为会话标识
+    let ip = headers
+        .get("X-Forwarded-For")
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| headers.get("X-Real-IP").and_then(|h| h.to_str().ok()))
+        .unwrap_or("unknown");
+
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("unknown");
+
+    let session_id = format!("client:{}:{}", ip, &user_agent[..user_agent.len().min(50)]);
+    let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+
+    Json(ApiResponse::success(CsrfTokenResponse { csrf_token }))
 }

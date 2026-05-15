@@ -30,14 +30,20 @@ impl RateLimitStore {
 
     /// 检查是否超过限流阈值
     pub fn is_allowed(&self, key: &str, max_requests: usize, window: Duration) -> bool {
-        let mut requests = self.requests.lock().unwrap();
+        let mut requests = match self.requests.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                tracing::error!("限流存储锁被污染，尝试恢复: {}", poisoned);
+                poisoned.into_inner()
+            }
+        };
         let now = Instant::now();
-        
+
         let entries = requests.entry(key.to_string()).or_insert_with(Vec::new);
-        
+
         // 清理过期的请求记录
         entries.retain(|&t| now.duration_since(t) < window);
-        
+
         if entries.len() >= max_requests {
             false
         } else {

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_color::{self, Entity as ProductColorEntity};
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 创建产品色号输入结构体
 #[derive(Debug, Clone)]
@@ -56,10 +57,11 @@ impl ProductService {
         }
 
         if let Some(keyword) = search {
+            let pattern = safe_like_pattern(&keyword);
             query = query.filter(
                 product::Column::Name
-                    .like(format!("%{}%", keyword))
-                    .or(product::Column::Code.like(format!("%{}%", keyword))),
+                    .like(&pattern)
+                    .or(product::Column::Code.like(&pattern)),
             );
         }
 

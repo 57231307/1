@@ -3,8 +3,7 @@ use axum::{
     Router,
     middleware,
 };
-use axum::http::{Method, header};
-use tower_http::cors::{CorsLayer, Any};
+use axum::http::header;
 use crate::utils::app_state::AppState;
 use crate::middleware::rate_limit;
 use utoipa::OpenApi;
@@ -100,6 +99,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/login", post(auth_handler::login))
         .route("/logout", post(auth_handler::logout))
         .route("/refresh", post(auth_handler::refresh_token))
+        .route("/csrf-token", get(auth_handler::get_csrf_token))
         .route("/totp/setup", get(auth_handler::setup_totp))
         .route("/totp/enable", post(auth_handler::enable_totp))
         .layer(middleware::from_fn(rate_limit::anti_brute_force));
@@ -111,7 +111,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(user_handler::get_user))
         .route("/:id", put(user_handler::update_user))
         .route("/:id", delete(user_handler::delete_user))
-        .route("/change-password", post(user_handler::change_password));
+        .route("/change-password", post(user_handler::change_password))
+        .route("/reset-password", post(init_handler::reset_admin_password));
 
     // 角色管理路由
     let role_routes = Router::new()
@@ -822,8 +823,7 @@ pub fn create_router(state: AppState) -> Router {
     let init_routes = Router::new()
         .route("/status", get(init_handler::get_init_status))
         .route("/test-database", post(init_handler::test_database_connection))
-        .route("/initialize-with-db", post(init_handler::initialize_system_with_db))
-        .route("/reset-password", post(init_handler::reset_admin_password));
+        .route("/initialize-with-db", post(init_handler::initialize_system_with_db));
 
     Router::new()
         .nest("/api/v1/erp/auth", auth_routes)
@@ -1058,11 +1058,6 @@ pub fn create_router(state: AppState) -> Router {
                 Ok(res)
             }
         }))
-        .layer(CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
-            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT])
-            .allow_credentials(true))
         .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
         .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))
         .with_state(state)

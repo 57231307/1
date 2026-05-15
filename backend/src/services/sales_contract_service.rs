@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::models::sales_contract;
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -85,7 +86,7 @@ impl SalesContractService {
 
         // 关键词筛选
         if let Some(keyword) = &params.keyword {
-            let keyword_pattern = format!("%{}%", keyword);
+            let keyword_pattern = safe_like_pattern(keyword);
             query = query.filter(
                 sales_contract::Column::ContractNo
                     .like(&keyword_pattern)

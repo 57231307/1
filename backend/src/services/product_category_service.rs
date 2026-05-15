@@ -8,6 +8,7 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::product_category::{self, Entity as ProductCategoryEntity};
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 产品类别服务
 pub struct ProductCategoryService {
@@ -32,7 +33,8 @@ impl ProductCategoryService {
         }
 
         if let Some(keyword) = query.search {
-            q = q.filter(product_category::Column::Name.like(format!("%{}%", keyword)));
+            let pattern = safe_like_pattern(&keyword);
+            q = q.filter(product_category::Column::Name.like(&pattern));
         }
 
         // 获取总数

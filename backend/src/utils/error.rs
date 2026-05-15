@@ -103,8 +103,49 @@ impl IntoResponse for AppError {
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
-        tracing::error!("数据库错误：{:?}", err);
-        AppError::DatabaseError(format!("Query Error: {:?}", err))
+        let error_kind = match &err {
+            sea_orm::DbErr::Conn(msg) => "数据库连接失败",
+            sea_orm::DbErr::Exec(msg) => {
+                if msg.contains("unique constraint") || msg.contains("duplicate") {
+                    "数据重复"
+                } else if msg.contains("foreign key constraint") || msg.contains("references") {
+                    "数据关联错误"
+                } else {
+                    "数据库执行错误"
+                }
+            }
+            sea_orm::DbErr::Query(msg) => {
+                if msg.contains("syntax error") {
+                    "查询语法错误"
+                } else {
+                    "数据库查询错误"
+                }
+            }
+            sea_orm::DbErr::RecordNotFound => "记录不存在",
+            sea_orm::DbErr::Custom(msg) => {
+                if msg.contains("timeout") {
+                    "数据库操作超时"
+                } else {
+                    "数据库自定义错误"
+                }
+            }
+            sea_orm::DbErr::Type(msg) => {
+                tracing::error!("数据库类型错误：{}", msg);
+                "数据库类型错误"
+            }
+            sea_orm::DbErr::Json(msg) => {
+                tracing::error!("数据库 JSON 错误：{}", msg);
+                "数据库 JSON 处理错误"
+            }
+            sea_orm::DbErr::Migration(msg) => {
+                tracing::error!("数据库迁移错误：{}", msg);
+                "数据库迁移错误"
+            }
+            _ => "数据库操作失败",
+        };
+
+        tracing::error!("数据库错误 [{}]: {}", error_kind, err);
+        AppError::DatabaseError(error_kind.to_string())
     }
 }
 
