@@ -279,7 +279,7 @@
             {{ getContractStatusLabel(currentContract?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentContract?.createdBy_name }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ currentContract?.created_by_name }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>合同明细</el-divider>
       <el-table :data="currentContract?.items || []" stripe>
@@ -463,7 +463,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approvedBy }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by_name }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
