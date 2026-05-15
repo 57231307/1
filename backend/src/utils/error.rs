@@ -103,27 +103,28 @@ impl IntoResponse for AppError {
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
+        let err_str = err.to_string();
         let error_kind = match &err {
-            sea_orm::DbErr::Conn(msg) => "数据库连接失败",
-            sea_orm::DbErr::Exec(msg) => {
-                if msg.contains("unique constraint") || msg.contains("duplicate") {
+            sea_orm::DbErr::Conn(_) => "数据库连接失败",
+            sea_orm::DbErr::Exec(_) => {
+                if err_str.contains("unique constraint") || err_str.contains("duplicate") {
                     "数据重复"
-                } else if msg.contains("foreign key constraint") || msg.contains("references") {
+                } else if err_str.contains("foreign key constraint") || err_str.contains("references") {
                     "数据关联错误"
                 } else {
                     "数据库执行错误"
                 }
             }
-            sea_orm::DbErr::Query(msg) => {
-                if msg.contains("syntax error") {
+            sea_orm::DbErr::Query(_) => {
+                if err_str.contains("syntax error") {
                     "查询语法错误"
                 } else {
                     "数据库查询错误"
                 }
             }
             sea_orm::DbErr::RecordNotFound => "记录不存在",
-            sea_orm::DbErr::Custom(msg) => {
-                if msg.contains("timeout") {
+            sea_orm::DbErr::Custom(_) => {
+                if err_str.contains("timeout") {
                     "数据库操作超时"
                 } else {
                     "数据库自定义错误"

@@ -7,7 +7,7 @@ use axum::{
 };
 use crate::utils::app_state::AppState;
 use tracing::{warn, debug};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, KeyInit};
 use sha2::Sha256;
 use hex;
 
