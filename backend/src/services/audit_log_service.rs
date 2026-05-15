@@ -78,7 +78,11 @@ impl AuditLogService {
         <E as EntityTrait>::Model: Serialize + serde::de::DeserializeOwned + Sync + Send + Clone + IntoActiveModel<A>,
     {
         // 获取主键
-        let pk_col = E::PrimaryKey::iter().next().unwrap().into_column();
+        let pk_col = E::PrimaryKey::iter()
+            .next()
+            .ok_or_else(|| DbErr::Custom("Entity has no primary key".to_string()))?
+            .into_column();
+        
         let pk_val = active_model.get(pk_col.clone());
         
         let pk_val_unwrapped = pk_val.into_value().unwrap_or(sea_orm::Value::Int(None));
@@ -89,18 +93,21 @@ impl AuditLogService {
             0
         };
 
-        // 获取旧数据
-        
         let old_data = E::find()
             .filter(sea_orm::sea_query::Expr::col(pk_col).eq(pk_val_unwrapped))
             .one(db)
             .await?;
             
-        let old_json = old_data.as_ref().map(|d| serde_json::to_value(d).unwrap());
+        let old_json = old_data.as_ref()
+            .map(|d| serde_json::to_value(d)
+                .map_err(|e| DbErr::Custom(format!("Failed to serialize old data: {}", e)))
+            )
+            .transpose()?;
 
-        // 执行更新
         let new_model = active_model.update(db).await?;
-        let new_json = Some(serde_json::to_value(&new_model).unwrap());
+        
+        let new_json = Some(serde_json::to_value(&new_model)
+            .map_err(|e| DbErr::Custom(format!("Failed to serialize new data: {}", e)))?);
 
         // 记录审计日志
         let mut changed_fields = serde_json::Map::new();
