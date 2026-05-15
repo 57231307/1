@@ -84,6 +84,8 @@ use crate::handlers::{
     user_notification_setting_handler,
     data_permission_handler,
     tracking_handler,
+    trading_handler,
+    advanced_handler,
 };
 
 use crate::services::metrics_service::create_metrics_router;
@@ -953,6 +955,43 @@ pub fn create_router(state: AppState) -> Router {
         // 用户通知偏好设置路由
         .nest("/api/v1/erp/user/notification-setting", Router::new()
             .route("/", get(user_notification_setting_handler::get_setting).put(user_notification_setting_handler::update_setting))
+        )
+        // 交易管理路由
+        .nest("/api/v1/erp/trading", Router::new()
+            // 采购合同
+            .route("/purchase-contracts", get(advanced_handler::list_purchase_contracts).post(advanced_handler::create_purchase_contract))
+            .route("/purchase-contracts/:id", get(advanced_handler::get_purchase_contract).put(advanced_handler::update_purchase_contract).delete(advanced_handler::delete_purchase_contract))
+            .route("/purchase-contracts/:id/approve", post(advanced_handler::approve_purchase_contract))
+            .route("/purchase-contracts/:id/execute", post(advanced_handler::execute_purchase_contract))
+            // 采购价格
+            .route("/purchase-prices", get(advanced_handler::list_purchase_prices).post(advanced_handler::create_purchase_price))
+            .route("/purchase-prices/:id", put(advanced_handler::update_purchase_price).delete(advanced_handler::delete_purchase_price))
+            .route("/purchase-prices/:id/approve", post(advanced_handler::approve_purchase_price))
+            // 销售合同
+            .route("/sales-contracts", get(advanced_handler::list_sales_contracts).post(advanced_handler::create_sales_contract))
+            .route("/sales-contracts/:id", get(advanced_handler::get_sales_contract).put(advanced_handler::update_sales_contract).delete(advanced_handler::delete_sales_contract))
+            .route("/sales-contracts/:id/approve", post(advanced_handler::approve_sales_contract))
+            // 销售价格
+            .route("/sales-prices", get(advanced_handler::list_sales_prices).post(advanced_handler::create_sales_price))
+            .route("/sales-prices/:id", put(advanced_handler::update_sales_price).delete(advanced_handler::delete_sales_price))
+            .route("/sales-prices/:id/approve", post(advanced_handler::approve_sales_price))
+            // 销售退货
+            .route("/sales-returns", get(advanced_handler::list_sales_returns).post(advanced_handler::create_sales_return))
+            .route("/sales-returns/:id", get(advanced_handler::get_sales_return).put(advanced_handler::update_sales_return).delete(advanced_handler::delete_sales_return))
+        )
+        // Advanced AI 分析路由
+        .nest("/api/v1/erp/advanced", Router::new()
+            .route("/ai/sales-forecast", post(advanced_handler::sales_forecast))
+            .route("/ai/inventory-optimization", post(advanced_handler::inventory_optimization))
+            .route("/ai/anomaly-detection", post(advanced_handler::anomaly_detection))
+            .route("/ai/recommendations", post(advanced_handler::recommendations))
+            // 报表引擎
+            .route("/reports/templates", get(advanced_handler::list_report_templates))
+            .route("/reports/execute", post(advanced_handler::execute_report))
+            .route("/reports/export", post(advanced_handler::export_report))
+            // 多租户
+            .route("/tenants", get(advanced_handler::list_tenants).post(advanced_handler::create_tenant))
+            .route("/tenants/:id", get(advanced_handler::get_tenant).put(advanced_handler::update_tenant))
         )
         // 页面访问统计路由
         .nest("/api/tracking", Router::new()

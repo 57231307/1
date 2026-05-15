@@ -1,250 +1,133 @@
-import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import request from './request'
 
 // 采购合同
 export interface PurchaseContract {
   id: number
   contract_no: string
-  supplier_id: number
   supplier_name: string
   contract_date: string
-  start_date: string
-  end_date: string
   total_amount: number
-  currency: string
-  status: 'draft' | 'pending' | 'active' | 'completed' | 'cancelled'
-  items: ContractItem[]
-  payment_terms: string
-  delivery_terms: string
-  created_by: number
-  created_by_name: string
-  created_at: string
-  updated_at: string
+  status: string
 }
 
-export interface ContractItem {
+export const listPurchaseContracts = () => 
+  request.get('/trading/purchase-contracts')
+
+export const createPurchaseContract = (data: any) => 
+  request.post('/trading/purchase-contracts', data)
+
+export const updatePurchaseContract = (id: number, data: any) => 
+  request.put(`/trading/purchase-contracts/${id}`, data)
+
+export const deletePurchaseContract = (id: number) => 
+  request.delete(`/trading/purchase-contracts/${id}`)
+
+export const approvePurchaseContract = (id: number) => 
+  request.post(`/trading/purchase-contracts/${id}/approve`)
+
+export const executePurchaseContract = (id: number) => 
+  request.post(`/trading/purchase-contracts/${id}/execute`)
+
+// 采购价格
+export interface PurchasePrice {
   id: number
-  contract_id: number
-  product_id: number
   product_name: string
-  product_code: string
-  quantity: number
-  unit: string
+  supplier_name: string
   price: number
-  amount: number
-  remark: string
+  currency: string
+  unit: string
+  effective_date: string
+  expiry_date: string
+  status: string
 }
 
-export function listPurchaseContracts(params?: QueryParams): Promise<ApiResponse<PurchaseContract[]>> {
-  return request.get('/purchase-contracts', { params })
-}
+export const listPurchasePrices = () => 
+  request.get('/trading/purchase-prices')
 
-export function getPurchaseContract(id: number): Promise<ApiResponse<PurchaseContract>> {
-  return request.get(`/purchase-contracts/${id}`)
-}
+export const createPurchasePrice = (data: any) => 
+  request.post('/trading/purchase-prices', data)
 
-export function createPurchaseContract(data: Partial<PurchaseContract>): Promise<ApiResponse<PurchaseContract>> {
-  return request.post('/purchase-contracts', data)
-}
+export const updatePurchasePrice = (id: number, data: any) => 
+  request.put(`/trading/purchase-prices/${id}`, data)
 
-export function updatePurchaseContract(id: number, data: Partial<PurchaseContract>): Promise<ApiResponse<PurchaseContract>> {
-  return request.put(`/purchase-contracts/${id}`, data)
-}
+export const deletePurchasePrice = (id: number) => 
+  request.delete(`/trading/purchase-prices/${id}`)
 
-export function deletePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchase-contracts/${id}`)
-}
-
-export function approvePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/purchase-contracts/${id}/approve`)
-}
-
-export function executePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/purchase-contracts/${id}/execute`)
-}
-
-export function cancelPurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/purchase-contracts/${id}/cancel`)
-}
+export const approvePurchasePrice = (id: number) => 
+  request.post(`/trading/purchase-prices/${id}/approve`)
 
 // 销售合同
 export interface SalesContract {
   id: number
   contract_no: string
-  customer_id: number
   customer_name: string
   contract_date: string
-  start_date: string
-  end_date: string
   total_amount: number
-  currency: string
-  status: 'draft' | 'pending' | 'active' | 'completed' | 'cancelled'
-  items: ContractItem[]
-  payment_terms: string
-  delivery_terms: string
-  created_by: number
-  created_by_name: string
-  created_at: string
-  updated_at: string
+  status: string
 }
 
-export function listSalesContracts(params?: QueryParams): Promise<ApiResponse<SalesContract[]>> {
-  return request.get('/sales-contracts', { params })
-}
+export const listSalesContracts = () => 
+  request.get('/trading/sales-contracts')
 
-export function getSalesContract(id: number): Promise<ApiResponse<SalesContract>> {
-  return request.get(`/sales-contracts/${id}`)
-}
+export const createSalesContract = (data: any) => 
+  request.post('/trading/sales-contracts', data)
 
-export function createSalesContract(data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
-  return request.post('/sales-contracts', data)
-}
+export const updateSalesContract = (id: number, data: any) => 
+  request.put(`/trading/sales-contracts/${id}`, data)
 
-export function updateSalesContract(id: number, data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
-  return request.put(`/sales-contracts/${id}`, data)
-}
+export const deleteSalesContract = (id: number) => 
+  request.delete(`/trading/sales-contracts/${id}`)
 
-export function deleteSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/sales-contracts/${id}`)
-}
-
-export function approveSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales-contracts/${id}/approve`)
-}
-
-export function executeSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/sales-contracts/${id}/execute`)
-}
-
-export function cancelSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/sales-contracts/${id}/cancel`)
-}
-
-// 采购价格
-export interface PurchasePrice {
-  id: number
-  product_id: number
-  product_name: string
-  product_code: string
-  supplier_id: number
-  supplier_name: string
-  price: number
-  currency: string
-  unit: string
-  effective_date: string
-  expiry_date: string
-  status: 'active' | 'inactive'
-  remark: string
-  created_at: string
-  updated_at: string
-}
-
-export function listPurchasePrices(params?: QueryParams): Promise<ApiResponse<PurchasePrice[]>> {
-  return request.get('/purchase-prices', { params })
-}
-
-export function getPurchasePrice(id: number): Promise<ApiResponse<PurchasePrice>> {
-  return request.get(`/purchase-prices/${id}`)
-}
-
-export function createPurchasePrice(data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
-  return request.post('/purchase-prices', data)
-}
-
-export function updatePurchasePrice(id: number, data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
-  return request.put(`/purchase-prices/${id}`, data)
-}
-
-export function deletePurchasePrice(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchase-prices/${id}`)
-}
+export const approveSalesContract = (id: number) => 
+  request.post(`/trading/sales-contracts/${id}/approve`)
 
 // 销售价格
 export interface SalesPrice {
   id: number
-  product_id: number
   product_name: string
-  product_code: string
-  customer_id: number
   customer_name: string
   price: number
   currency: string
   unit: string
   effective_date: string
-  expiry_date: string
-  status: 'active' | 'inactive'
-  remark: string
-  created_at: string
-  updated_at: string
+  status: string
 }
 
-export function listSalesPrices(params?: QueryParams): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get('/sales-prices', { params })
-}
+export const listSalesPrices = () => 
+  request.get('/trading/sales-prices')
 
-export function getSalesPrice(id: number): Promise<ApiResponse<SalesPrice>> {
-  return request.get(`/sales-prices/${id}`)
-}
+export const createSalesPrice = (data: any) => 
+  request.post('/trading/sales-prices', data)
 
-export function createSalesPrice(data: Partial<SalesPrice>): Promise<ApiResponse<SalesPrice>> {
-  return request.post('/sales-prices', data)
-}
+export const updateSalesPrice = (id: number, data: any) => 
+  request.put(`/trading/sales-prices/${id}`, data)
 
-export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales-prices/${id}/approve`)
-}
+export const deleteSalesPrice = (id: number) => 
+  request.delete(`/trading/sales-prices/${id}`)
 
-export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get(`/sales-prices/history/${productId}`)
-}
-
-export function listPricingStrategies(): Promise<ApiResponse<any[]>> {
-  return request.get('/sales-prices/strategies')
-}
+export const approveSalesPrice = (id: number) => 
+  request.post(`/trading/sales-prices/${id}/approve`)
 
 // 销售退货
 export interface SalesReturn {
   id: number
   return_no: string
-  customer_id: number
   customer_name: string
-  order_id: number
   order_no: string
   return_date: string
   total_amount: number
   reason: string
-  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'completed'
-  items: ReturnItem[]
-  created_by: number
-  created_by_name: string
-  approved_by: number
-  approved_by_name: string
-  approved_at: string
-  created_at: string
-  updated_at: string
+  status: string
 }
 
-export interface ReturnItem {
-  id: number
-  return_id: number
-  product_id: number
-  product_name: string
-  product_code: string
-  quantity: number
-  unit: string
-  price: number
-  amount: number
-  reason: string
-}
+export const listSalesReturns = () => 
+  request.get('/trading/sales-returns')
 
-export function listSalesReturns(params?: QueryParams): Promise<ApiResponse<SalesReturn[]>> {
-  return request.get('/sales-returns', { params })
-}
+export const createSalesReturn = (data: any) => 
+  request.post('/trading/sales-returns', data)
 
-export function getSalesReturn(id: number): Promise<ApiResponse<SalesReturn>> {
-  return request.get(`/sales-returns/${id}`)
-}
+export const updateSalesReturn = (id: number, data: any) => 
+  request.put(`/trading/sales-returns/${id}`, data)
 
-export function createSalesReturn(data: Partial<SalesReturn>): Promise<ApiResponse<SalesReturn>> {
-  return request.post('/sales-returns', data)
-}
+export const deleteSalesReturn = (id: number) => 
+  request.delete(`/trading/sales-returns/${id}`)
