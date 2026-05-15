@@ -304,3 +304,69 @@ impl FixedAssetService {
         Ok(())
     }
 }
+
+    /// 批量计算折旧
+    pub async fn batch_calculate_depreciation(
+        &self,
+        asset_ids: Vec<i32>,
+        calculation_date: String,
+        user_id: i32,
+    ) -> Result<Vec<super::fixed_asset_handler::DepreciationResult>, AppError> {
+        use chrono::NaiveDate;
+        
+        let calc_date = calculation_date.parse::<NaiveDate>()
+            .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
+        
+        let mut results = Vec::new();
+        
+        for asset_id in asset_ids {
+            let asset = fixed_asset::Entity::find_by_id(asset_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::NotFoundError("固定资产".to_string()))?;
+            
+            // 计算折旧
+            let depreciation = self.calculate_asset_depreciation(&asset, calc_date)?;
+            
+            results.push(super::fixed_asset_handler::DepreciationResult {
+                asset_id: asset.id,
+                asset_no: asset.asset_no,
+                original_value: asset.purchase_price,
+                accumulated_depreciation: asset.accumulated_depreciation + depreciation,
+                current_depreciation: depreciation,
+                net_value: asset.purchase_price - asset.accumulated_depreciation - depreciation,
+                depreciation_method: asset.depreciation_method.unwrap_or_default(),
+            });
+        }
+        
+        Ok(results)
+    }
+    
+    /// 计算单项资产折旧
+    fn calculate_asset_depreciation(
+        &self,
+        asset: &fixed_asset::Model,
+        calc_date: NaiveDate,
+    ) -> Result<rust_decimal::Decimal, AppError> {
+        let purchase_date = asset.purchase_date;
+        let useful_life = asset.useful_life_months as i32;
+        let original_value = asset.purchase_price;
+        let residual_value = asset.expected_residual_value;
+        
+        // 计算已使用月数
+        let months_used = (calc_date.year() - purchase_date.year()) * 12 
+            + (calc_date.month() as i32 - purchase_date.month() as i32);
+        
+        if months_used <= 0 {
+            return Ok(rust_decimal::Decimal::ZERO);
+        }
+        
+        // 直线法折旧
+        let depreciable_amount = original_value - residual_value;
+        let monthly_depreciation = depreciable_amount / rust_decimal::Decimal::from(useful_life);
+        
+        let total_depreciation = monthly_depreciation * rust_decimal::Decimal::from(months_used.min(useful_life));
+        
+        Ok(total_depreciation - asset.accumulated_depreciation)
+    }
+}

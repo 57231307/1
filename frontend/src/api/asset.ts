@@ -146,3 +146,6 @@ export function adjustBudget(data: { budget_id: number; adjustment_amount: numbe
 export function listBudgetItems(params?: QueryParams): Promise<ApiResponse<BudgetItem[]>> {
   return request.get('/budgets/items', { params })
 }
+
+export const batchDepreciateAssets = (data: { asset_ids: number[]; calculation_date: string; user_id: number }) =>
+  request.post('/fixed-assets/batch-depreciate', data)

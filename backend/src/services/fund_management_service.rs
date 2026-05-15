@@ -300,3 +300,42 @@ impl FundManagementService {
         Ok(record)
     }
 }
+
+    /// 查询转账记录列表
+    pub async fn list_transfer_records(
+        &self,
+        from_account_id: Option<i32>,
+        to_account_id: Option<i32>,
+        status: Option<String>,
+        page: u64,
+        page_size: u64,
+    ) -> Result<Vec<fund_transfer_record::Model>, AppError> {
+        let mut query = fund_transfer_record::Entity::find();
+
+        if let Some(from_id) = from_account_id {
+            query = query.filter(fund_transfer_record::Column::FromAccountId.eq(from_id));
+        }
+        if let Some(to_id) = to_account_id {
+            query = query.filter(fund_transfer_record::Column::ToAccountId.eq(to_id));
+        }
+        if let Some(s) = status {
+            query = query.filter(fund_transfer_record::Column::Status.eq(s));
+        }
+
+        let records = query
+            .order_by(fund_transfer_record::Column::TransferDate, Order::Desc)
+            .paginate(&*self.db, page - 1, page_size)
+            .fetch()
+            .await?;
+
+        Ok(records)
+    }
+
+    /// 查询转账记录详情
+    pub async fn get_transfer_record(&self, id: i32) -> Result<fund_transfer_record::Model, AppError> {
+        fund_transfer_record::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFoundError("资金转账记录".to_string()))
+    }
+}
