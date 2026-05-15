@@ -313,10 +313,53 @@ const userForm = reactive({
   status: 1
 })
 
+const validateEmail = (rule: any, value: string, callback: any) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (value && !emailRegex.test(value)) {
+    callback(new Error('请输入有效的邮箱地址'))
+  } else {
+    callback()
+  }
+}
+
+const validatePhone = (rule: any, value: string, callback: any) => {
+  const phoneRegex = /^1[3-9]\d{9}$/
+  if (value && !phoneRegex.test(value)) {
+    callback(new Error('请输入有效的手机号'))
+  } else {
+    callback()
+  }
+}
+
+const validatePassword = (rule: any, value: string, callback: any) => {
+  if (value && value.length < 8) {
+    callback(new Error('密码长度至少 8 位'))
+  } else if (value && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(value)) {
+    callback(new Error('密码需包含大小写字母和数字'))
+  } else {
+    callback()
+  }
+}
+
 const userRules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  real_name: [{ required: true, message: '请输入姓名', trigger: 'blur' }]
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度 3-20 位', trigger: 'blur' },
+    { pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字和下划线', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, validator: validatePassword, trigger: 'blur' }
+  ],
+  real_name: [
+    { required: true, message: '请输入姓名', trigger: 'blur' },
+    { max: 50, message: '姓名长度不超过 50 位', trigger: 'blur' }
+  ],
+  email: [
+    { validator: validateEmail, trigger: 'blur' }
+  ],
+  phone: [
+    { validator: validatePhone, trigger: 'blur' }
+  ]
 }
 
 const openUserDialog = (row?: User) => {

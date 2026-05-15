@@ -19,11 +19,12 @@ pub async fn request_logger_middleware(
     let uri = req.uri().clone();
     let start_time = Instant::now();
 
-    // 记录请求开始
+    let query = sanitize_query(uri.query());
+
     info!(
         method = %method,
         path = %uri.path(),
-        query = ?uri.query(),
+        query = %query,
         timestamp = %Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"),
         "收到请求"
     );
@@ -124,19 +125,37 @@ pub async fn request_id_middleware(
     mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // 生成请求 ID
     let request_id = uuid::Uuid::new_v4().to_string();
 
-    // 注入到请求头
     req.headers_mut()
         .insert("X-Request-ID", request_id.parse().expect("valid header value"));
 
     let mut response = next.run(req).await;
 
-    // 在响应中也添加请求 ID
     response
         .headers_mut()
         .insert("X-Request-ID", request_id.parse().expect("valid header value"));
 
     Ok(response)
+}
+
+fn sanitize_query(query: Option<&str>) -> String {
+    const SENSITIVE_PARAMS: [&str; 6] = ["password", "token", "secret", "key", "auth", "access_token"];
+    
+    query.map(|q| {
+        q.split('&')
+            .map(|pair| {
+                if let Some((key, _)) = pair.split_once('=') {
+                    let key_lower = key.to_lowercase();
+                    for sensitive in &SENSITIVE_PARAMS {
+                        if key_lower.contains(sensitive) {
+                            return format!("{}=***", key);
+                        }
+                    }
+                }
+                pair.to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("&")
+    }).unwrap_or_default()
 }

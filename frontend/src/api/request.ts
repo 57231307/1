@@ -1,8 +1,21 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
-import { getToken, removeToken } from '@/utils/storage'
+import { getToken, removeToken, getRefreshToken, setToken } from '@/utils/storage'
 import router from '@/router'
+import { refreshToken as refreshApi } from './auth'
+
+let isRefreshing = false
+let refreshSubscribers: ((token: string) => void)[] = []
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb)
+}
+
+function onTokenRefreshed(token: string) {
+  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers = []
+}
 
 export interface ApiResponse<T = any> {
   code: number
@@ -50,34 +63,66 @@ class Request {
       (response: AxiosResponse<ApiResponse>) => {
         const res = response.data
         if (res.code !== 200 && res.code !== 0) {
-          ElMessage.error(res.message || '请求失败')
+          const safeMessage = getSafeErrorMessage(res.code)
+          ElMessage.error(safeMessage)
           if (res.code === 401) {
             removeToken()
             router.push('/login')
           }
-          return Promise.reject(new Error(res.message || '请求失败'))
+          return Promise.reject(new Error(safeMessage))
         }
         return response
       },
       async (error) => {
         const originalRequest = error.config
         
-        if (shouldRetry(error) && originalRequest && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest?._retry) {
+          if (isRefreshing) {
+            return new Promise((resolve) => {
+              subscribeTokenRefresh((token) => {
+                originalRequest.headers.Authorization = `Bearer ${token}`
+                resolve(this.instance(originalRequest))
+              })
+            })
+          }
+          
           originalRequest._retry = true
+          isRefreshing = true
+          
+          try {
+            const refreshToken = getRefreshToken()
+            if (!refreshToken) {
+              throw new Error('No refresh token')
+            }
+            
+            const { data } = await refreshApi(refreshToken)
+            setToken(data.token)
+            onTokenRefreshed(data.token)
+            originalRequest.headers.Authorization = `Bearer ${data.token}`
+            return this.instance(originalRequest)
+          } catch (refreshError) {
+            removeToken()
+            router.push('/login')
+            return Promise.reject(refreshError)
+          } finally {
+            isRefreshing = false
+          }
+        }
+        
+        if (originalRequest?._retry && shouldRetry(error)) {
           originalRequest._retryCount = originalRequest._retryCount || 0
           
           if (originalRequest._retryCount < 3) {
             originalRequest._retryCount++
-            const delay = Math.pow(2, originalRequest._retryCount) * 1000
+            const delay = Math.min(1000 * originalRequest._retryCount + Math.random() * 1000, 5000)
             await new Promise(resolve => setTimeout(resolve, delay))
-            
-            console.log(`请求重试 ${originalRequest._retryCount}/3:`, originalRequest.url)
             return this.instance(originalRequest)
           }
         }
         
-        const message = error.response?.data?.message || error.message || '网络错误'
-        ElMessage.error(message)
+        const safeMessage = getSafeErrorMessage(error.response?.status)
+        ElMessage.error(safeMessage)
+        
         if (error.response?.status === 401) {
           removeToken()
           router.push('/login')
@@ -113,6 +158,27 @@ function shouldRetry(error: any): boolean {
     return [502, 503, 504].includes(error.response.status)
   }
   return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
+}
+
+const SAFE_ERROR_MESSAGES: Record<number, string> = {
+  400: '请求参数错误',
+  401: '未授权，请重新登录',
+  403: '拒绝访问',
+  404: '资源不存在',
+  429: '请求过于频繁',
+  500: '服务器内部错误',
+  502: '网关错误',
+  503: '服务暂时不可用'
+}
+
+function getSafeErrorMessage(codeOrStatus?: number): string {
+  if (codeOrStatus && SAFE_ERROR_MESSAGES[codeOrStatus]) {
+    return SAFE_ERROR_MESSAGES[codeOrStatus]
+  }
+  if (codeOrStatus === 401) {
+    return '未授权，请重新登录'
+  }
+  return '请求失败，请稍后重试'
 }
 
 export const request = new Request()
