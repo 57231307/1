@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol } from 'element-plus'
 import { Plus, Edit, Delete, View, Calendar } from '@element-plus/icons-vue'
-import { listAccountingPeriods, getAccountingPeriod, createAccountingPeriod, updateAccountingPeriod, deleteAccountingPeriod, closePeriod, reopenPeriod, getCurrentPeriod, type AccountingPeriodEntity } from '@/api/accountingPeriod'
+import { listAccountingPeriods, getAccountingPeriod, createAccountingPeriod, updateAccountingPeriod, deleteAccountingPeriod, closePeriod, reopenPeriod, getCurrentPeriod, type AccountingPeriodEntity } from '@/api/accounting-period'
 
 const tableData = ref<AccountingPeriodEntity[]>([])
 const total = ref(0)

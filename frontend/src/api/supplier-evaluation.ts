@@ -1,80 +1,110 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
 
-export interface SupplierEvaluation {
-  id?: number
-  supplierId?: number
-  supplierName?: string
-  evaluationDate?: string
-  score?: number
-  level?: string
+export interface QueryParams {
+  page?: number
+  pageSize?: number
+  category?: string
   status?: string
-  items?: EvaluationItem[]
-  remarks?: string
-  evaluatorId?: number
-  evaluatorName?: string
-  createdAt?: string
-  updatedAt?: string
-}
-
-export interface EvaluationItem {
-  indicatorId?: number
-  indicatorName?: string
-  weight?: number
-  score?: number
-  weightedScore?: number
-  comment?: string
+  supplierId?: number
+  period?: string
 }
 
 export interface EvaluationIndicator {
   id?: number
-  indicatorName: string
-  indicatorCode: string
+  indicatorCode?: string
+  indicatorName?: string
   category?: string
   weight?: number
-  description?: string
-  isActive?: boolean
-}
-
-export interface SupplierRanking {
-  supplierId: number
-  supplierName: string
-  totalScore: number
-  rank: number
-  level: string
-}
-
-export interface SupplierEvaluationQueryParams {
-  page?: number
-  pageSize?: number
-  supplierId?: number
+  maxScore?: number
   status?: string
-  startDate?: string
-  endDate?: string
+  description?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
-export const supplierEvaluationApi = {
-  list: (params?: SupplierEvaluationQueryParams) =>
-    request.get<ApiResponse<{ list: SupplierEvaluation[]; total: number }>>('/supplier-evaluation/evaluations', { params }),
+export interface EvaluationRecord {
+  id?: number
+  supplierId?: number
+  supplierName?: string
+  evaluationDate?: string
+  period?: string
+  totalScore?: number
+  rating?: string
+  status?: string
+  evaluatorId?: number
+  evaluatorName?: string
+  remark?: string
+  createdAt?: string
+  updatedAt?: string
+}
 
-  create: (data: Partial<SupplierEvaluation>) =>
-    request.post<ApiResponse<SupplierEvaluation>>('/supplier-evaluation/evaluations', data),
+export interface SupplierScore {
+  supplierId?: number
+  supplierName?: string
+  totalScore?: number
+  rating?: string
+  rank?: number
+}
 
-  getById: (id: number) =>
-    request.get<ApiResponse<SupplierEvaluation>>(`/supplier-evaluation/evaluations/${id}`),
+export interface CreateEvaluationIndicatorRequest {
+  indicatorCode: string
+  indicatorName: string
+  category: string
+  weight: number
+  maxScore: number
+  description?: string
+}
 
-  update: (id: number, data: Partial<SupplierEvaluation>) =>
-    request.put<ApiResponse<SupplierEvaluation>>(`/supplier-evaluation/evaluations/${id}`, data),
+export interface CreateEvaluationRequest {
+  supplierId: number
+  period: string
+  remark?: string
+}
 
-  delete: (id: number) =>
-    request.delete<ApiResponse<void>>(`/supplier-evaluation/evaluations/${id}`),
+export function listIndicators(params?: QueryParams) {
+  return request.get('/supplier-evaluation/indicators', { params })
+}
 
-  listIndicators: () =>
-    request.get<ApiResponse<{ indicators: EvaluationIndicator[] }>>('/supplier-evaluation/indicators'),
+export function createIndicator(data: CreateEvaluationIndicatorRequest) {
+  return request.post('/supplier-evaluation/indicators', data)
+}
 
-  getRankings: (params?: any) =>
-    request.get<ApiResponse<{ rankings: SupplierRanking[] }>>('/supplier-evaluation/rankings', { params }),
+export function listEvaluationRecords(params?: QueryParams) {
+  return request.get('/supplier-evaluation/records', { params })
+}
 
-  listRecords: (params?: any) =>
-    request.get<ApiResponse<{ records: any[]; total: number }>>('/supplier-evaluation/records', { params }),
+export function getEvaluationRecord(id: number) {
+  return request.get(`/supplier-evaluation/records/${id}`)
+}
+
+export function createEvaluationRecord(data: CreateEvaluationRequest) {
+  return request.post('/supplier-evaluation/records', data)
+}
+
+export function getSupplierScore(supplierId: number) {
+  return request.get(`/supplier-evaluation/suppliers/${supplierId}/score`)
+}
+
+export function getSupplierRankings(params?: { limit?: number }) {
+  return request.get('/supplier-evaluation/rankings', { params })
+}
+
+export function listEvaluations(params?: QueryParams) {
+  return request.get('/supplier-evaluation/evaluations', { params })
+}
+
+export function getEvaluation(id: number) {
+  return request.get(`/supplier-evaluation/evaluations/${id}`)
+}
+
+export function createEvaluation(data: CreateEvaluationRequest) {
+  return request.post('/supplier-evaluation/evaluations', data)
+}
+
+export function updateEvaluation(id: number, data: Partial<EvaluationRecord>) {
+  return request.put(`/supplier-evaluation/evaluations/${id}`, data)
+}
+
+export function deleteEvaluation(id: number) {
+  return request.delete(`/supplier-evaluation/evaluations/${id}`)
 }

@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElTabs, ElTabPane, ElResult } from 'element-plus'
 import { Search, Box, Refresh } from '@element-plus/icons-vue'
-import { scanToShip, scanInventory, getScanHistory, type ScanData, type ScanHistory } from '@/api/barcodeScanner'
+import { scanToShip, scanInventory, getScanHistory, type ScanData, type ScanHistory } from '@/api/barcode-scanner'
 
 const activeTab = ref('scan')
 const barcodeInput = ref('')

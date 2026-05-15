@@ -97,6 +97,30 @@ const routes = [
         meta: { title: '仓库管理', requiresAuth: true }
       },
       {
+        path: 'departments',
+        name: 'Departments',
+        component: () => import('@/views/departments/index.vue'),
+        meta: { title: '部门管理', requiresAuth: true }
+      },
+      {
+        path: 'greige-fabrics',
+        name: 'GreigeFabrics',
+        component: () => import('@/views/greige-fabrics/index.vue'),
+        meta: { title: '坯布管理', requiresAuth: true }
+      },
+      {
+        path: 'sales-returns',
+        name: 'SalesReturns',
+        component: () => import('@/views/sales-returns/index.vue'),
+        meta: { title: '销售退货管理', requiresAuth: true }
+      },
+      {
+        path: 'fixed-assets',
+        name: 'FixedAssets',
+        component: () => import('@/views/fixed-assets/index.vue'),
+        meta: { title: '固定资产管理', requiresAuth: true }
+      },
+      {
         path: 'bpm',
         name: 'BPM',
         component: () => import('@/views/bpm/index.vue'),

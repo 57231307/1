@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElDescriptions, ElTabs, ElTabPane } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
-import { listAssistDimensions, queryAssistRecords, getAssistSummary, type AssistDimensionResponse, type AssistRecordResponse, type AssistSummaryResponse } from '@/api/assistAccounting'
+import { listAssistDimensions, queryAssistRecords, getAssistSummary, type AssistDimensionResponse, type AssistRecordResponse, type AssistSummaryResponse } from '@/api/assist-accounting'
 
 const activeTab = ref('records')
 const dimensions = ref<AssistDimensionResponse[]>([])
