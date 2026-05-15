@@ -144,7 +144,8 @@ impl DashboardService {
         // 本月销售额
         let now = Utc::now();
         use chrono::Datelike;
-        let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap();
+        let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
+            .ok_or_else(|| AppError::InternalServerError("Failed to calculate month start date".to_string()))?;
         let monthly_sales_dec = sales_order::Entity::find()
             .filter(sales_order::Column::IsDeleted.eq(false))
             .filter(sales_order::Column::OrderDate.gte(start_of_month))
