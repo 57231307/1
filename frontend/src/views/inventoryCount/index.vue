@@ -72,7 +72,7 @@ const loadWarehouses = async () => {
     const res = await request.get('/api/v1/warehouses/select')
     warehouseOptions.value = res.data
   } catch (error) {
-    console.log('加载仓库失败')
+    console.warn('加载仓库失败')
   }
 }
 
