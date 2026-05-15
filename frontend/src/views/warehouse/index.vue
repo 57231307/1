@@ -162,7 +162,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus, OfficeBuilding, CircleCheck, Location, Box, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 
@@ -251,6 +251,9 @@ const handleExport = () => {
 const handleQuery = () => { fetchData() }
 const handleReset = () => { queryParams.keyword = ''; queryParams.warehouse_type = ''; queryParams.status = ''; handleQuery() }
 const handleView = (row: any) => { ElMessage.info(`查看仓库 ${row.warehouse_name}`) }
+const handleCreate = () => { ElMessage.info('新建仓库功能开发中') }
+const handleEdit = (row: any) => { ElMessage.info(`编辑仓库 ${row.warehouse_name}`) }
+const handleDelete = (row: any) => { ElMessage.info(`删除仓库 ${row.warehouse_name}`) }
 
 onMounted(() => { fetchData() })
 </script>

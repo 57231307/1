@@ -166,8 +166,8 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { fixedAssetApi } from '@/api/asset'
-import { departmentApi } from '@/api/department'
+import { listAssets, createAsset, updateAsset, deleteAsset, type FixedAsset } from '@/api/asset'
+import { listDepartments, type Department } from '@/api/department'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -223,8 +223,8 @@ const getStatusLabel = (status: string) => {
 const loadAssets = async () => {
   loading.value = true
   try {
-    const res = await fixedAssetApi.list()
-    assetList.value = res.data.list || []
+    const res = await listAssets()
+    assetList.value = res.data || []
   } catch (error) {
     ElMessage.error('加载资产列表失败')
   } finally {
@@ -234,8 +234,8 @@ const loadAssets = async () => {
 
 const loadDepartments = async () => {
   try {
-    const res = await departmentApi.list()
-    departmentList.value = res.data.list || []
+    const res = await listDepartments()
+    departmentList.value = res.data || []
   } catch (error) {
     // 部门加载失败不影响主功能
   }
@@ -287,7 +287,7 @@ const handleDelete = async (row: any) => {
   if (!row.id) return
   
   try {
-    await fixedAssetApi.delete(row.id)
+    await deleteAsset(row.id)
     ElMessage.success('删除成功')
     await loadAssets()
   } catch (error) {
@@ -304,10 +304,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {
-        await fixedAssetApi.create(formData)
+        await createAsset(formData)
         ElMessage.success('创建成功')
       } else {
-        await fixedAssetApi.update(formData.id, formData)
+        await updateAsset(formData.id, formData)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false

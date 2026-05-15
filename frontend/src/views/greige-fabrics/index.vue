@@ -87,8 +87,8 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { greigeFabricApi } from '@/api/greige-fabric'
-import { warehouseApi } from '@/api/warehouse'
+import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, deleteGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
+import { listWarehouses, type Warehouse } from '@/api/warehouse'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -119,8 +119,8 @@ const formRules: FormRules = {
 const loadGreigeFabrics = async () => {
   loading.value = true
   try {
-    const res = await greigeFabricApi.list()
-    greigeList.value = res.data.list || []
+    const res = await listGreigeFabrics()
+    greigeList.value = res.data || []
   } catch (error) {
     ElMessage.error('加载坯布列表失败')
   } finally {
@@ -130,8 +130,8 @@ const loadGreigeFabrics = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await warehouseApi.list()
-    warehouseList.value = res.data.list || []
+    const res = await listWarehouses()
+    warehouseList.value = res.data || []
   } catch (error) {
     ElMessage.error('加载仓库列表失败')
   }
@@ -169,7 +169,7 @@ const handleDelete = async (row: any) => {
   if (!row.id) return
   
   try {
-    await greigeFabricApi.delete(row.id)
+    await deleteGreigeFabric(row.id)
     ElMessage.success('删除成功')
     await loadGreigeFabrics()
   } catch (error) {
@@ -186,10 +186,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {
-        await greigeFabricApi.create(formData)
+        await createGreigeFabric(formData)
         ElMessage.success('创建成功')
       } else {
-        await greigeFabricApi.update(formData.id, formData)
+        await updateGreigeFabric(formData.id, formData)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false

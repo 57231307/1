@@ -212,9 +212,9 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
-import { salesOrderApi } from '@/api/sales'
-import { customerApi } from '@/api/customer'
-import { productApi } from '@/api/product'
+import { salesApi, type SalesOrder } from '@/api/sales'
+import { listCustomers, type Customer } from '@/api/customer'
+import { listProducts, type Product } from '@/api/product'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -283,7 +283,7 @@ const loadReturns = async () => {
 
 const loadSalesOrders = async () => {
   try {
-    const res = await salesOrderApi.list({ status: 'completed' })
+    const res = await salesApi.getOrderList({ status: 'completed' })
     salesOrderList.value = res.data.list || []
   } catch (error) {
     // 忽略错误
@@ -292,8 +292,8 @@ const loadSalesOrders = async () => {
 
 const loadCustomers = async () => {
   try {
-    const res = await customerApi.list()
-    customerList.value = res.data.list || []
+    const res = await listCustomers()
+    customerList.value = res.data || []
   } catch (error) {
     // 忽略错误
   }
@@ -301,8 +301,8 @@ const loadCustomers = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await productApi.list()
-    productList.value = res.data.list || []
+    const res = await listProducts()
+    productList.value = res.data || []
   } catch (error) {
     // 忽略错误
   }
