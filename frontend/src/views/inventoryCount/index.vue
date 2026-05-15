@@ -157,6 +157,20 @@ const handleDelete = async (row: InventoryCountEntity) => {
   }
 }
 
+const handleApprove = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm('确定要审批通过这个盘点吗？', '提示', {
+      type: 'warning'
+    })
+    await approveInventoryCount(row.id!)
+    ElMessage.success('盘点已审批')
+    loadData()
+  } catch (error) {
+    ElMessage.info('取消操作')
+  }
+}
+
+const handleComplete = async (row: InventoryCountEntity) => {
 const handleComplete = async (row: InventoryCountEntity) => {
   try {
     await ElMessageBox.confirm('确定要完成这个盘点吗？', '提示', {
@@ -248,12 +262,19 @@ loadWarehouses()
       <ElTableColumn prop="created_at" label="创建时间" width="150" />
       <ElTableColumn prop="completed_at" label="完成时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
-        <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row)">
-            <View />
+            <View /> 查看
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
+            size="small"
+            type="primary"
+            @click="handleApprove(scope.row)"
+          >
+            <Check /> 审批
+          </ElButton>
+          <ElButton
+            v-if="scope.row.status === 'approved'"
             size="small"
             type="warning"
             @click="handleComplete(scope.row)"
@@ -265,6 +286,7 @@ loadWarehouses()
             size="small"
             type="danger"
             @click="handleDelete(scope.row)"
+          >删除</ElButton>
           >删除</ElButton>
         </template>
       </ElTableColumn>

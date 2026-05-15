@@ -663,7 +663,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/accounts/:id/freeze", post(fund_management_handler::freeze_funds))
         .route("/accounts/:id/unfreeze", post(fund_management_handler::unfreeze_funds))
         .route("/accounts/:id", delete(fund_management_handler::delete_account))
-        .route("/transfer", post(fund_management_handler::transfer));
+        .route("/transfer", post(fund_management_handler::transfer))
+        .route("/transfers", get(fund_management_handler::list_transfer_records))
+        .route("/transfers/:id", get(fund_management_handler::get_transfer_record));
 
     // 质量检验路由
     let quality_inspection_routes = Router::new()

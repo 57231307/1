@@ -232,3 +232,36 @@ pub async fn transfer(
     let res = service.transfer_fund(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(res).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)))
 }
+
+/// 查询转账记录列表
+pub async fn list_transfer_records(
+    Query(params): Query<FundTransferQuery>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<crate::models::fund_transfer_record::Model>>>, AppError> {
+    info!("用户查询资金转账记录列表");
+    let service = FundManagementService::new(state.db.clone());
+    let records = service.list_transfer_records(params.from_account_id, params.to_account_id, params.status, params.page.unwrap_or(1), params.page_size.unwrap_or(20)).await?;
+    Ok(Json(ApiResponse::success(records)))
+}
+
+/// 查询转账记录详情
+pub async fn get_transfer_record(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<crate::models::fund_transfer_record::Model>>, AppError> {
+    let service = FundManagementService::new(state.db.clone());
+    let record = service.get_transfer_record(id).await?;
+    Ok(Json(ApiResponse::success(record)))
+}
+
+/// 资金转账查询参数
+#[derive(Debug, Deserialize)]
+pub struct FundTransferQuery {
+    pub from_account_id: Option<i32>,
+    pub to_account_id: Option<i32>,
+    pub status: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
