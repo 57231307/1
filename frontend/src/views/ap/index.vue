@@ -4,10 +4,20 @@
       <el-tab-pane label="应付发票" name="invoice">
         <div class="page-header">
           <h2 class="page-title">应付发票</h2>
-          <el-button type="primary" @click="openInvoiceDialog()">
-            <el-icon><Plus /></el-icon>
-            新建发票
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openInvoiceDialog()">
+              <el-icon><Plus /></el-icon>
+              新建发票
+            </el-button>
+            <el-button @click="handlePrintInvoices">
+              <el-icon><Printer /></el-icon>
+              打印
+            </el-button>
+            <el-button @click="handleExportInvoices">
+              <el-icon><Download /></el-icon>
+              导出
+            </el-button>
+          </div>
         </div>
 
         <el-card shadow="hover" class="filter-card">
@@ -325,7 +335,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Printer, Download } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
 import { listAPInvoices, createAPInvoice, approveAPInvoice, cancelAPInvoice, type APInvoice } from '@/api/ap'
 import { listAPPayments, createAPPayment, confirmAPPayment, type APPayment } from '@/api/ap'
@@ -359,6 +370,11 @@ const formatMoney = (amount: number) => {
 }
 
 const getInvoiceStatusLabel = (status: string) => {
+  const map: Record<string, string> = { pending: '待审核', approved: '已审核', verified: '已核销', cancelled: '已取消' }
+  return map[status] || status
+}
+
+const getAPInvoiceStatusText = (status: string) => {
   const map: Record<string, string> = { pending: '待审核', approved: '已审核', verified: '已核销', cancelled: '已取消' }
   return map[status] || status
 }
@@ -663,6 +679,41 @@ const disputeReconciliation = async (row: APReconciliation) => {
       ElMessage.error(error.message || '操作失败')
     }
   }
+}
+
+const handlePrintInvoices = () => {
+  const printData = invoices.value.map((item: any, index: number) => ({
+    '序号': index + 1,
+    '发票号': item.invoice_no,
+    '供应商': item.supplier_name,
+    '发票金额': `¥${item.invoice_amount}`,
+    '税额': `¥${item.tax_amount}`,
+    '状态': getAPInvoiceStatusText(item.status),
+    '发票日期': item.invoice_date
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}),
+    type: 'table' as any,
+    header: '应付发票列表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;'
+  })
+}
+
+const handleExportInvoices = () => {
+  const csvContent = [
+    ['发票号', '供应商', '发票金额', '税额', '状态', '发票日期'],
+    ...invoices.value.map((item: any) => [item.invoice_no, item.supplier_name, item.invoice_amount, item.tax_amount, getAPInvoiceStatusText(item.status), item.invoice_date])
+  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `应付发票_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
 }
 
 onMounted(() => {

@@ -14,6 +14,14 @@
           <el-icon><Plus /></el-icon>
           新建仓库
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
       </div>
     </div>
 
@@ -155,7 +163,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, OfficeBuilding, CircleCheck, Location, Box } from '@element-plus/icons-vue'
+import { Plus, OfficeBuilding, CircleCheck, Location, Box, Printer, Download } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 
 const loading = ref(false)
 const warehouses = ref<any[]>([])
@@ -204,18 +213,44 @@ const fetchData = async () => {
   }
 }
 
-const handleQuery = () => { fetchData() }
-const handleReset = () => { queryParams.keyword = ''; queryParams.warehouse_type = ''; queryParams.status = ''; fetchData() }
-const handleCreate = () => { ElMessage.info('新建仓库功能开发中') }
-const handleView = (row: any) => { ElMessage.info(`查看仓库 ${row.warehouse_name}`) }
-const handleEdit = (row: any) => { ElMessage.info(`编辑仓库 ${row.warehouse_name}`) }
-const handleDelete = async (row: any) => {
-  try {
-    await ElMessageBox.confirm(`确定删除仓库 "${row.warehouse_name}" 吗？`, '删除确认', { type: 'warning' })
-    ElMessage.success('删除成功')
-    fetchData()
-  } catch {}
+const handlePrint = () => {
+  const printData = warehouses.value.map((item: any, index: number) => ({
+    '序号': index + 1,
+    '仓库编码': item.warehouse_code,
+    '仓库名称': item.warehouse_name,
+    '地址': item.address,
+    '负责人': item.manager,
+    '容量': item.capacity,
+    '状态': item.status === 1 ? '启用' : '停用'
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}),
+    type: 'table' as any,
+    header: '仓库列表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;'
+  })
 }
+
+const handleExport = () => {
+  const csvContent = [
+    ['仓库编码', '仓库名称', '地址', '负责人', '容量', '状态'],
+    ...warehouses.value.map((item: any) => [item.warehouse_code, item.warehouse_name, item.address, item.manager, item.capacity, item.status === 1 ? '启用' : '停用'])
+  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `仓库列表_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handleQuery = () => { fetchData() }
+const handleReset = () => { queryParams.keyword = ''; queryParams.warehouse_type = ''; queryParams.status = ''; handleQuery() }
+const handleView = (row: any) => { ElMessage.info(`查看仓库 ${row.warehouse_name}`) }
 
 onMounted(() => { fetchData() })
 </script>

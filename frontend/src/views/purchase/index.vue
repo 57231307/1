@@ -14,6 +14,14 @@
           <el-icon><Plus /></el-icon>
           新建采购单
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
       </div>
     </div>
 
@@ -166,7 +174,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Document, Money, Clock, OfficeBuilding } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh, Document, Money, Clock, OfficeBuilding, Printer, Download } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 
 const loading = ref(false)
 const orders = ref<any[]>([])
@@ -260,6 +269,39 @@ const handleQuery = () => { queryParams.page = 1; fetchData() }
 const handleReset = () => { queryParams.keyword = ''; queryParams.supplier_id = undefined; queryParams.status = ''; handleQuery() }
 
 const handleCreate = () => { ElMessage.info('新建采购单功能开发中') }
+const handlePrint = () => {
+  const printData = orders.value.map((item: any, index: number) => ({
+    '序号': index + 1,
+    '订单号': item.order_no,
+    '供应商': item.supplier_name,
+    '金额': `¥${item.total_amount}`,
+    '状态': getStatusText(item.status),
+    '创建时间': item.created_at
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}),
+    type: 'table' as any,
+    header: '采购订单列表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;'
+  })
+}
+
+const handleExport = () => {
+  const csvContent = [
+    ['订单号', '供应商', '金额', '状态', '创建时间'],
+    ...orders.value.map((item: any) => [item.order_no, item.supplier_name, item.total_amount, getStatusText(item.status), item.created_at])
+  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `采购订单_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
 const handleView = (row: any) => {
   ElMessageBox({
     title: '采购单详情',

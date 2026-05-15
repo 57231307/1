@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElInputNumber } from 'element-plus'
-import { Plus, Edit, Delete, View, Refresh, Check } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, View, Refresh, Check, Printer, Download } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 import { listVouchers, getVoucher, createVoucher, updateVoucher, deleteVoucher, approveVoucher, postVoucher, unpostVoucher, getVoucherTypes, generateVoucherNo, type VoucherEntity } from '@/api/voucher'
 import { getAccountSubjectTree } from '@/api/accountSubject'
 
@@ -59,98 +60,40 @@ const getStatusClass = (value: string) => {
   }
 }
 
-const getTypeLabel = (value: string) => {
-  return voucherTypes.value.find(t => t.value === value)?.label || value
+const handlePrint = () => {
+  const printData = tableData.value.map((item: any, index: number) => ({
+    '序号': index + 1,
+    '凭证号': item.voucher_no,
+    '日期': item.voucher_date,
+    '类型': item.type === 'general' ? '通用' : '自定义',
+    '摘要': item.description || '-',
+    '借方金额': `¥${item.total_debit}`,
+    '贷方金额': `¥${item.total_credit}`,
+    '状态': getStatusLabel(item.status)
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}),
+    type: 'table' as any,
+    header: '会计凭证列表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;'
+  })
 }
 
-const calculateTotals = () => {
-  const entries = form.value.entries || []
-  form.value.total_debit = entries.reduce((sum, e) => sum + (e.debit_amount || 0), 0)
-  form.value.total_credit = entries.reduce((sum, e) => sum + (e.credit_amount || 0), 0)
-}
-
-const addEntry = () => {
-  if (!form.value.entries) form.value.entries = []
-  form.value.entries.push({ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' })
-  calculateTotals()
-}
-
-const removeEntry = (index: number) => {
-  if ((form.value.entries || []).length > 1) {
-    form.value.entries!.splice(index, 1)
-    calculateTotals()
-  }
-}
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await listVouchers({
-      page: pagination.value.page,
-      pageSize: pagination.value.pageSize,
-      ...searchForm.value
-    })
-    tableData.value = res.data.list
-    total.value = res.data.total
-  } catch (error) {
-    ElMessage.error('加载失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadVoucherTypes = async () => {
-  try {
-    const res = await getVoucherTypes()
-    voucherTypes.value = res.data
-  } catch (error) {
-    console.log('加载凭证类型失败')
-  }
-}
-
-const loadAccountSubjects = async () => {
-  try {
-    const res = await getAccountSubjectTree()
-    const flatten = (nodes: any[]): { label: string; value: number }[] => {
-      let result: { label: string; value: number }[] = []
-      for (const node of nodes) {
-        result.push({ label: `${node.code} - ${node.name}`, value: node.id })
-        if (node.children && node.children.length > 0) {
-          result = [...result, ...flatten(node.children)]
-        }
-      }
-      return result
-    }
-    accountSubjectOptions.value = flatten(res.data)
-  } catch (error) {
-    console.log('加载科目失败')
-  }
-}
-
-const handleSearch = () => {
-  pagination.value.page = 1
-  loadData()
-}
-
-const handleReset = () => {
-  searchForm.value = {
-    voucher_no: '',
-    voucher_date_start: '',
-    voucher_date_end: '',
-    type: '',
-    status: ''
-  }
-  handleSearch()
-}
-
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
-  loadData()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize
-  loadData()
+const handleExport = () => {
+  const csvContent = [
+    ['凭证号', '日期', '类型', '摘要', '借方金额', '贷方金额', '状态'],
+    ...tableData.value.map((item: any) => [item.voucher_no, item.voucher_date, item.type === 'general' ? '通用' : '自定义', item.description || '-', item.total_debit, item.total_credit, getStatusLabel(item.status)])
+  ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `会计凭证_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
 }
 
 const openAddDialog = async () => {
@@ -324,6 +267,12 @@ loadAccountSubjects()
         <ElButton @click="handleReset">重置</ElButton>
         <ElButton type="success" @click="openAddDialog">
           <Plus /> 新增凭证
+        </ElButton>
+        <ElButton @click="handlePrint">
+          <Printer /> 打印
+        </ElButton>
+        <ElButton @click="handleExport">
+          <Download /> 导出
         </ElButton>
       </div>
     </div>

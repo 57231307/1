@@ -18,6 +18,10 @@
           <el-icon><RefreshRight /></el-icon>
           库存调拨
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
           导出
@@ -227,9 +231,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  Box, Warning, Edit, RefreshRight, Download, Search, Refresh,
+  Box, Warning, Edit, RefreshRight, Download, Search, Refresh, Printer,
   OfficeBuilding, WarningFilled, Plus
 } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 
 const loading = ref(false)
 const activeTab = ref('stock')
@@ -406,8 +411,40 @@ const handleTransfer = () => {
   activeTab.value = 'transfer'
 }
 
+const handlePrint = () => {
+  const printData = stocks.value.map((item: any, index: number) => ({
+    '序号': index + 1,
+    '产品编码': item.product_code,
+    '产品名称': item.product_name,
+    '规格': item.specification,
+    '单位': item.unit,
+    '库存数量': item.quantity,
+    '仓库': item.warehouse_name,
+    '库存金额': `¥${item.stock_value}`
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}),
+    type: 'table' as any,
+    header: '库存台账列表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;'
+  })
+}
+
 const handleExport = () => {
-  ElMessage.info('导出功能开发中')
+  const csvContent = [
+    ['产品编码', '产品名称', '规格', '单位', '库存数量', '仓库', '库存金额'],
+    ...stocks.value.map((item: any) => [item.product_code, item.product_name, item.specification, item.unit, item.quantity, item.warehouse_name, item.stock_value])
+  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `库存台账_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
 }
 
 const handleView = (row: any) => {
