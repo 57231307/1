@@ -93,7 +93,7 @@ const loadCurrentPeriod = async () => {
     const res = await getCurrentPeriod()
     currentPeriod.value = res.data
   } catch (error) {
-    console.log('获取当前期间失败')
+    console.warn('获取当前期间失败')
   }
 }
 

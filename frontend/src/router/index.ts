@@ -115,6 +115,54 @@ const routes = [
         meta: { title: '销售退货管理', requiresAuth: true }
       },
       {
+        path: 'supplier-evaluation',
+        name: 'SupplierEvaluation',
+        component: () => import('@/views/supplierEvaluation/index.vue'),
+        meta: { title: '供应商评估', requiresAuth: true }
+      },
+      {
+        path: 'customer-credit',
+        name: 'CustomerCredit',
+        component: () => import('@/views/customerCredit/index.vue'),
+        meta: { title: '客户信用管理', requiresAuth: true }
+      },
+      {
+        path: 'inventory-count',
+        name: 'InventoryCount',
+        component: () => import('@/views/inventoryCount/index.vue'),
+        meta: { title: '库存盘点', requiresAuth: true }
+      },
+      {
+        path: 'inventory-transfer',
+        name: 'InventoryTransfer',
+        component: () => import('@/views/inventoryTransfer/index.vue'),
+        meta: { title: '库存调拨', requiresAuth: true }
+      },
+      {
+        path: 'inventory-adjustment',
+        name: 'InventoryAdjustment',
+        component: () => import('@/views/inventoryAdjustment/index.vue'),
+        meta: { title: '库存调整', requiresAuth: true }
+      },
+      {
+        path: 'ar-reconciliation',
+        name: 'ArReconciliation',
+        component: () => import('@/views/arReconciliation/index.vue'),
+        meta: { title: '应收对账', requiresAuth: true }
+      },
+      {
+        path: 'finance-report',
+        name: 'FinanceReport',
+        component: () => import('@/views/financeReport/index.vue'),
+        meta: { title: '财务报表', requiresAuth: true }
+      },
+      {
+        path: 'purchase-receipt',
+        name: 'PurchaseReceipt',
+        component: () => import('@/views/purchaseReceipt/index.vue'),
+        meta: { title: '采购入库', requiresAuth: true }
+      },
+      {
         path: 'fixed-assets',
         name: 'FixedAssets',
         component: () => import('@/views/fixed-assets/index.vue'),

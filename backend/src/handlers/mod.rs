@@ -91,3 +91,7 @@ pub mod notification_handler;
 pub mod user_notification_setting_handler;
 // 数据权限模块
 pub mod data_permission_handler;
+// 交易管理模块
+pub mod trading_handler;
+// AI 高级分析模块
+pub mod advanced_handler;
