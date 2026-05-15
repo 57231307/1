@@ -23,7 +23,6 @@ pub struct FundAccountQuery {
 
 /// 创建资金账户请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct CreateFundAccountRequest {
     pub account_name: String,
     pub account_no: String,
@@ -36,7 +35,6 @@ pub struct CreateFundAccountRequest {
 
 /// 存款/取款请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct FundTransactionRequest {
     pub amount: Decimal,
     pub remark: Option<String>,
@@ -44,10 +42,19 @@ pub struct FundTransactionRequest {
 
 /// 冻结资金请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct FreezeFundsRequest {
     pub amount: Decimal,
     pub reason: String,
+}
+
+/// 资金转账查询参数
+#[derive(Debug, Deserialize)]
+pub struct FundTransferQuery {
+    pub from_account_id: Option<i32>,
+    pub to_account_id: Option<i32>,
+    pub status: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
 }
 
 /// 获取资金账户列表
@@ -254,14 +261,4 @@ pub async fn get_transfer_record(
     let service = FundManagementService::new(state.db.clone());
     let record = service.get_transfer_record(id).await?;
     Ok(Json(ApiResponse::success(record)))
-}
-
-/// 资金转账查询参数
-#[derive(Debug, Deserialize)]
-pub struct FundTransferQuery {
-    pub from_account_id: Option<i32>,
-    pub to_account_id: Option<i32>,
-    pub status: Option<String>,
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
 }

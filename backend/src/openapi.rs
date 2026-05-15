@@ -1,5 +1,5 @@
 //! OpenAPI 文档配置
-//! 
+//!
 //! 使用 utoipa 生成 OpenAPI/Swagger 文档
 
 use utoipa::OpenApi;
@@ -43,11 +43,34 @@ use utoipa::OpenApi;
         crate::handlers::fixed_asset_handler::delete_fixed_asset,
         
         // 预算管理
-        crate::handlers::budget_management_handler::get_budget_items,
-        crate::handlers::budget_management_handler::get_budget_item_by_id,
-        crate::handlers::budget_management_handler::create_budget_item,
-        crate::handlers::budget_management_handler::update_budget_item,
-        crate::handlers::budget_management_handler::delete_budget_item,
+      crate::handlers::budget_management_handler::get_budget_items,
+      crate::handlers::budget_management_handler::get_budget_item_by_id,
+      crate::handlers::budget_management_handler::create_budget_item,
+      crate::handlers::budget_management_handler::update_budget_item,
+      crate::handlers::budget_management_handler::delete_budget_item,
+      
+      // 质量标准
+      crate::handlers::quality_standard_handler::list_standards,
+      crate::handlers::quality_standard_handler::get_standard,
+      crate::handlers::quality_standard_handler::create_standard,
+      crate::handlers::quality_standard_handler::update_standard,
+      crate::handlers::quality_standard_handler::approve_standard,
+      crate::handlers::quality_standard_handler::publish_standard,
+      crate::handlers::quality_standard_handler::list_versions,
+      crate::handlers::quality_standard_handler::create_version_history,
+      
+      // 资金管理
+      crate::handlers::fund_management_handler::list_accounts,
+      crate::handlers::fund_management_handler::get_account,
+      crate::handlers::fund_management_handler::create_account,
+      crate::handlers::fund_management_handler::deposit,
+      crate::handlers::fund_management_handler::withdraw,
+      crate::handlers::fund_management_handler::freeze_funds,
+      crate::handlers::fund_management_handler::unfreeze_funds,
+      crate::handlers::fund_management_handler::delete_account,
+      crate::handlers::fund_management_handler::transfer,
+      crate::handlers::fund_management_handler::list_transfer_records,
+      crate::handlers::fund_management_handler::get_transfer_record
     ),
     components(
         schemas(
@@ -56,7 +79,7 @@ use utoipa::OpenApi;
             crate::handlers::auth_handler::LoginResponse,
             
             // 通用响应
-            crate::handlers::ApiResponse<String>,
+            crate::utils::response::ApiResponse<String>,
             
             // 采购合同
             crate::models::purchase_contract::Model,
@@ -68,20 +91,22 @@ use utoipa::OpenApi;
             crate::models::fixed_asset::Model,
             
             // 预算管理
-            crate::models::budget_management::Model,
+            crate::models::budget_management::Model
         )
     ),
     tags(
         (name = "认证", description = "用户认证和授权"),
-        (name = "用户管理", description = "用户 CRUD 操作"),
-        (name = "采购合同", description = "采购合同管理"),
-        (name = "销售合同", description = "销售合同管理"),
-        (name = "固定资产", description = "固定资产管理"),
-        (name = "预算管理", description = "预算管理"),
+      (name = "用户管理", description = "用户 CRUD 操作"),
+      (name = "采购合同", description = "采购合同管理"),
+      (name = "销售合同", description = "销售合同管理"),
+      (name = "固定资产", description = "固定资产管理"),
+      (name = "预算管理", description = "预算管理"),
+      (name = "质量标准", description = "质量标准管理及审批流程"),
+      (name = "资金管理", description = "资金账户管理、转账、存取款")
     ),
     info(
         title = "秉羲面料管理 API",
-        description = "秉羲面料管理的 RESTful API 文档",
+        description = "秉羲面料管理的 RESTful API 文档\n\n主要功能模块：\n- 用户认证与授权\n- 采购合同管理\n- 销售合同管理\n- 固定资产管理\n- 预算管理\n- 质量标准与审批流程\n- 资金账户与转账",
         version = "1.0.0",
         contact(
             name = "秉羲团队",

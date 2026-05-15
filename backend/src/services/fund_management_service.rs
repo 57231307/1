@@ -299,7 +299,6 @@ impl FundManagementService {
         txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(record)
     }
-}
 
     /// 查询转账记录列表
     pub async fn list_transfer_records(

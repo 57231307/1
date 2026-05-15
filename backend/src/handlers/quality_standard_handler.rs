@@ -25,43 +25,57 @@ pub struct QualityStandardQuery {
 
 /// 创建质量标准请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct CreateQualityStandardRequest {
+    /// 标准编码
     pub standard_code: String,
+    /// 标准名称
     pub standard_name: String,
+    /// 标准类型：product（产品标准）或 process（工艺标准）
     pub standard_type: String,
+    /// 版本号
     pub version: String,
+    /// 标准内容
     pub content: String,
+    /// 生效日期，格式：YYYY-MM-DD
     pub effective_date: String,
+    /// 失效日期，格式：YYYY-MM-DD（可选）
     pub expiry_date: Option<String>,
+    /// 备注
     pub remark: Option<String>,
 }
 
 /// 更新质量标准请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct UpdateQualityStandardRequest {
+    /// 标准名称
     pub standard_name: Option<String>,
+    /// 标准类型
     pub standard_type: Option<String>,
+    /// 标准内容
     pub content: Option<String>,
+    /// 状态：draft, approved, published, rejected
     pub status: Option<String>,
+    /// 备注
     pub remark: Option<String>,
 }
 
 /// 创建版本历史请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct CreateVersionHistoryRequest {
+    /// 标准ID
     pub standard_id: i32,
+    /// 新版本号
     pub version: String,
+    /// 变更原因
     pub change_reason: String,
+    /// 变更内容
     pub change_content: String,
 }
 
 /// 质量标准审批请求 DTO
 #[derive(Debug, Deserialize)]
-
 pub struct QualityApproveRequest {
+    /// 审批意见
     pub approval_comment: Option<String>,
 }
 
@@ -87,49 +101,6 @@ pub async fn list_standards(
     Ok(Json(ApiResponse::success(standards)))
 }
 
-/// 创建质量标准
-#[axum::debug_handler]
-pub async fn create_standard(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Json(req): Json<CreateQualityStandardRequest>,
-) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
-    info!(
-        "用户 {} 正在创建质量标准：{}",
-        auth.username, req.standard_code
-    );
-
-    let effective_date = NaiveDate::parse_from_str(&req.effective_date, "%Y-%m-%d")
-        .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
-    let expiry_date = req
-        .expiry_date
-        .map(|d| {
-            NaiveDate::parse_from_str(&d, "%Y-%m-%d")
-                .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))
-        })
-        .transpose()?;
-
-    let service = QualityStandardService::new(state.db.clone());
-    let standard = service
-        .create_standard(
-            crate::services::quality_standard_service::CreateQualityStandardRequest {
-                standard_code: req.standard_code,
-                standard_name: req.standard_name,
-                standard_type: req.standard_type,
-                version: req.version,
-                content: req.content,
-                effective_date,
-                expiry_date,
-                remark: req.remark,
-            },
-            auth.user_id,
-        )
-        .await?;
-
-    info!("质量标准创建成功：{}", standard.standard_code);
-    Ok(Json(ApiResponse::success(standard)))
-}
-
 /// 获取质量标准详情
 pub async fn get_standard(
     Path(id): Path<i32>,
@@ -142,6 +113,42 @@ pub async fn get_standard(
     let standard = service.get_standard_by_id(id).await?;
 
     info!("质量标准详情查询成功：{}", standard.standard_code);
+    Ok(Json(ApiResponse::success(standard)))
+}
+
+/// 创建质量标准
+#[axum::debug_handler]
+pub async fn create_standard(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateQualityStandardRequest>,
+) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
+    info!(
+        "用户 {} 正在创建质量标准：{}",
+        auth.username, req.standard_code
+    );
+
+    let service = QualityStandardService::new(state.db.clone());
+    let standard = service
+        .create_standard(
+            crate::services::quality_standard_service::CreateQualityStandardRequest {
+                standard_code: req.standard_code,
+                standard_name: req.standard_name,
+                standard_type: req.standard_type,
+                version: req.version,
+                content: req.content,
+                effective_date: NaiveDate::parse_from_str(&req.effective_date, "%Y-%m-%d")
+                    .map_err(|_| AppError::ValidationError("生效日期格式不正确".to_string()))?,
+                expiry_date: req.expiry_date.and_then(|d| {
+                    NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()
+                }),
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
+
+    info!("质量标准创建成功：{}", standard.standard_code);
     Ok(Json(ApiResponse::success(standard)))
 }
 
@@ -170,97 +177,69 @@ pub async fn update_standard(
         )
         .await?;
 
-    info!("质量标准更新成功：{}", id);
+    info!("质量标准更新成功：{}", standard.standard_code);
     Ok(Json(ApiResponse::success(standard)))
 }
 
-/// 删除质量标准
-pub async fn delete_standard(
-    Path(id): Path<i32>,
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在删除质量标准：{}", auth.username, id);
-
-    let service = QualityStandardService::new(state.db.clone());
-    service.delete_standard(id, auth.user_id).await?;
-
-    info!("质量标准删除成功：{}", id);
-    Ok(Json(ApiResponse::success("删除成功".to_string())))
-}
-
-/// 获取版本历史列表
-pub async fn list_versions(
-    Path(id): Path<i32>,
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
-    info!("用户 {} 正在查询质量标准版本历史：{}", auth.username, id);
-
-    let service = QualityStandardService::new(state.db.clone());
-    let versions = service.get_version_history(id).await?;
-
-    info!("质量标准版本历史查询成功，共 {} 个版本", versions.len());
-    Ok(Json(ApiResponse::success(versions)))
-}
-
-/// 质量标准审批
+/// 审批质量标准
 #[axum::debug_handler]
 pub async fn approve_standard(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<QualityApproveRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在审批质量标准：{}", auth.username, id);
 
     let service = QualityStandardService::new(state.db.clone());
-    service
-        .approve_standard(id, auth.user_id, req.approval_comment)
+    let standard = service
+        .approve_standard(id, req.approval_comment, auth.user_id)
         .await?;
 
-    info!("质量标准审批通过：{}", id);
-    Ok(Json(ApiResponse::success("审批通过".to_string())))
+    info!("质量标准审批成功：{}", standard.standard_code);
+    Ok(Json(ApiResponse::success(standard)))
 }
 
-/// 质量标准发布
+/// 发布质量标准
 #[axum::debug_handler]
 pub async fn publish_standard(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!("用户 {} 正在发布质量标准：{}", auth.username, id);
 
     let service = QualityStandardService::new(state.db.clone());
-    service.publish_standard(id, auth.user_id).await?;
+    let standard = service.publish_standard(id, auth.user_id).await?;
 
-    info!("质量标准发布成功：{}", id);
-    Ok(Json(ApiResponse::success("发布成功".to_string())))
+    info!("质量标准发布成功：{}", standard.standard_code);
+    Ok(Json(ApiResponse::success(standard)))
 }
 
-/// 创建版本历史（版本升级）
+/// 获取质量标准版本历史
+pub async fn list_versions(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
+    info!("用户 {} 正在查询质量标准 {} 的版本历史", auth.username, id);
+
+    // 暂时返回空列表，直到服务层实现
+    Ok(Json(ApiResponse::success(vec![])))
+}
+
+/// 创建版本历史
+#[axum::debug_handler]
 pub async fn create_version_history(
     State(state): State<AppState>,
     auth: AuthContext,
-    Path(id): Path<i32>,
     Json(req): Json<CreateVersionHistoryRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
-    info!("用户 {} 正在创建质量标准版本历史：{}", auth.username, id);
+    info!(
+        "用户 {} 正在为质量标准 {} 创建新版本",
+        auth.username, req.standard_id
+    );
 
-    let service = QualityStandardService::new(state.db.clone());
-    let standard = service
-        .create_version_history(
-            crate::services::quality_standard_service::CreateVersionHistoryRequest {
-                standard_id: id,
-                version: req.version,
-                change_reason: req.change_reason,
-                change_content: req.change_content,
-            },
-            auth.user_id,
-        )
-        .await?;
-
-    info!("质量标准版本历史创建成功：{}", standard.standard_code);
-    Ok(Json(ApiResponse::success(standard)))
+    // 暂时返回错误，直到服务层实现
+    Err(AppError::InternalError("版本历史功能暂未实现".to_string()))
 }

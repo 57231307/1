@@ -369,4 +369,3 @@ impl FixedAssetService {
         
         Ok(total_depreciation - asset.accumulated_depreciation)
     }
-}

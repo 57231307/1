@@ -211,7 +211,6 @@ pub async fn upload_and_update(
             update_file_path = Some(save_path);
         }
     }
-    }
 
     let update_file = update_file_path.ok_or((
         StatusCode::BAD_REQUEST,

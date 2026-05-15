@@ -516,4 +516,3 @@ impl CustomerCreditService {
             ("C".to_string(), Decimal::new(10000, 2))    // 1 万
         }
     }
-}

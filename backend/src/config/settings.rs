@@ -98,19 +98,6 @@ impl AppSettings {
         if env == "production" && app_settings.auth.cookie_secret.is_none() {
             panic!("生产环境必须配置独立的 auth.cookie_secret，不能降级使用 jwt_secret");
         }
-        };
-
-        app_settings.load_sensitive_from_env();
-
-        let jwt_secret = &app_settings.auth.jwt_secret;
-        let secret_len = jwt_secret.len();
-        let contains_weak_patterns = jwt_secret.contains("change-in-production") || 
-           jwt_secret.contains("change-this") ||
-           jwt_secret.contains("local-dev");
-        
-        if secret_len < 32 || contains_weak_patterns {
-            panic!("致命错误: JWT 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥。");
-        }
 
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {
             app_settings.cors.allowed_origins = origins_str
@@ -193,6 +180,5 @@ impl AppSettings {
         let unique_chars: std::collections::HashSet<char> = secret.chars().collect();
         let entropy_ratio = unique_chars.len() as f64 / secret.len() as f64;
         entropy_ratio > 0.3
-    }
     }
 }
