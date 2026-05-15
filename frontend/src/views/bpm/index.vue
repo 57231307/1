@@ -94,6 +94,7 @@
                 <el-button type="primary" link size="small" @click="handleApprove(row)">审批</el-button>
                 <el-button type="warning" link size="small" @click="handleDetail(row)">详情</el-button>
                 <el-button type="info" link size="small" @click="handleTransfer(row)">转交</el-button>
+                <el-button type="danger" link size="small" @click="handleUrge(row)">催办</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -181,8 +182,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
+import { approveTask, transferTask, urgeTask, type BpmTask } from '@/api/bpm'
 
 const activeTab = ref('pending')
 
@@ -264,12 +266,42 @@ const fetchProcessInstances = () => {
   ]
 }
 
-const handleApprove = (row: any) => { ElMessage.info(`审批任务: ${row.task_name}`) }
-const handleDetail = (row: any) => { ElMessage.info(`查看详情: ${row.business_key}`) }
-const handleTransfer = (row: any) => { ElMessage.info(`转交任务: ${row.task_name}`) }
-const handleTrace = (row: any) => { ElMessage.info(`追溯流程: ${row.instance_id}`) }
-const handleCancel = (row: any) => { ElMessage.info(`撤回流程: ${row.instance_id}`) }
-const handleViewProcess = (row: any) => { ElMessage.info(`查看流程: ${row.instance_id}`) }
+const handleApprove = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定审批通过此任务吗？', '确认', { type: 'info' })
+    await approveTask({ task_id: row.task_id, comment: '同意' })
+    ElMessage.success('审批成功')
+    fetchPendingTasks()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+const handleDetail = (row: any) => { ElMessage.info(`查看详情：${row.business_key}`) }
+
+const handleTransfer = async (row: any) => {
+  try {
+    const { value: targetUserId } = await ElMessageBox.prompt('请输入接收人的用户 ID', '转交任务', {
+      type: 'info',
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入有效的用户 ID'
+    })
+    await transferTask(row.task_id, parseInt(targetUserId), '工作转交')
+    ElMessage.success('任务转交成功')
+    fetchPendingTasks()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+const handleUrge = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定催办此任务吗？', '确认', { type: 'warning' })
+    await urgeTask(row.task_id)
+    ElMessage.success('催办成功')
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+const handleTrace = (row: any) => { ElMessage.info(`追溯流程：${row.instance_id}`) }
+const handleCancel = (row: any) => { ElMessage.info(`撤回流程：${row.instance_id}`) }
+const handleViewProcess = (row: any) => { ElMessage.info(`查看流程：${row.instance_id}`) }
+const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图：${row.instance_id}`) }
 const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图: ${row.instance_id}`) }
 
 onMounted(() => { fetchPendingTasks() })

@@ -198,3 +198,26 @@ pub async fn get_cost_by_batch(
 
     Ok(Json(ApiResponse::success(analyses)))
 }
+
+/// 审核成本归集
+pub async fn audit_collection(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<AuditCostRequest>,
+) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let service = CostCollectionService::new(state.db.clone());
+    let collection = service.audit(id, req.approved, req.comment, auth.user_id).await?;
+    
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(collection).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        if req.approved { "成本归集审核通过" } else { "成本归集已拒绝" },
+    )))
+}
+
+/// 审核请求
+#[derive(Debug, Deserialize)]
+pub struct AuditCostRequest {
+    pub approved: bool,
+    pub comment: Option<String>,
+}
