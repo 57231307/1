@@ -29,7 +29,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_by_name" label="创建人" width="100" />
+            <el-table-column prop="createdBy_name" label="创建人" width="100" />
             <el-table-column label="操作" width="240" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="viewContract(row)">查看</el-button>
@@ -140,7 +140,7 @@
           <el-table :data="purchaseReturns" v-loading="returnLoading" stripe>
             <el-table-column prop="returnNo" label="退货单号" width="140" />
             <el-table-column prop="supplierName" label="供应商" min-width="150" />
-            <el-table-column prop="orderNo" label="订单号" width="140" />
+            <el-table-column prop="purchaseOrderNo" label="订单号" width="140" />
             <el-table-column prop="returnDate" label="退货日期" width="120" />
             <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
               <template #default="{ row }">
@@ -154,7 +154,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="createdByName" label="创建人" width="100" />
+            <el-table-column prop="createdBy" label="创建人" width="100" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="viewReturn(row)">查看</el-button>
@@ -278,7 +278,7 @@
             {{ getContractStatusLabel(currentContract?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentContract?.created_by_name }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ currentContract?.createdBy_name }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>合同明细</el-divider>
       <el-table :data="currentContract?.items || []" stripe>
@@ -387,8 +387,8 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="关联订单号" prop="orderNo">
-              <el-input v-model="returnForm.orderNo" placeholder="订单号" />
+            <el-form-item label="关联订单号" prop="purchaseOrderNo">
+              <el-input v-model="returnForm.purchaseOrderNo" placeholder="订单号" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -455,7 +455,7 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="退货单号">{{ currentReturn?.returnNo }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ currentReturn?.supplierName }}</el-descriptions-item>
-        <el-descriptions-item label="关联订单">{{ currentReturn?.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="关联订单">{{ currentReturn?.purchaseOrderNo }}</el-descriptions-item>
         <el-descriptions-item label="退货日期">{{ currentReturn?.returnDate }}</el-descriptions-item>
         <el-descriptions-item label="总金额">{{ formatMoney(currentReturn?.totalAmount || 0) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
@@ -463,8 +463,8 @@
             {{ getReturnStatusLabel(currentReturn?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentReturn?.createdByName }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approvedByName }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approvedBy }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
@@ -846,7 +846,7 @@ const returnForm = reactive({
   supplierId: 0,
   supplierName: '',
   orderId: 0,
-  orderNo: '',
+  purchaseOrderNo: '',
   returnDate: '',
   totalAmount: 0,
   reason: '',
@@ -872,7 +872,7 @@ const openReturnDialog = async (row?: PurchaseReturn) => {
       supplierId: 0,
       supplierName: '',
       orderId: 0,
-      orderNo: '',
+      purchaseOrderNo: '',
       returnDate: '',
       totalAmount: 0,
       reason: '',

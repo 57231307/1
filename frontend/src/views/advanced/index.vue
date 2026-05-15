@@ -233,7 +233,7 @@ const runInventoryOptimization = async () => {
 const runAnomalyDetection = async () => {
   anomalyLoading.value = true
   try {
-    const res: any = await detectAnomalies({ type: anomalyType.value })
+    const res: any = await detectAnomalies({ data_type: anomalyType.value })
     anomalyResult.value = res.data
     ElMessage.success('检测完成')
   } catch (e: any) {

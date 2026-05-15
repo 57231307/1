@@ -386,19 +386,19 @@ const approveFormRules: FormRules = {
 }
 
 const approveStandard = async (row: QualityStandard) => {
-  approveStandardItem.value = row
+  approveStandardItem.value! = row
   approveForm.approval_comment = ''
   approveDialogVisible.value = true
 }
 
 const confirmApprove = async () => {
-  if (!approveFormRef.value || !approveStandardItem.value) return
+  if (!approveFormRef.value || !approveStandardItem.value!) return
   await approveFormRef.value.validate(async (valid) => {
     if (!valid) return
     
     approveSubmitLoading.value = true
     try {
-      await approveQualityStandard(approveStandardItem.value.id)
+      await approveQualityStandard(approveStandardItem.value!.id)
       ElMessage.success('审批成功')
       approveDialogVisible.value = false
       fetchStandards()
@@ -411,7 +411,7 @@ const confirmApprove = async () => {
 }
 
 const rejectStandard = async () => {
-  if (!approveStandardItem.value) return
+  if (!approveStandardItem.value!) return
   try {
     await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
     ElMessage.info('驳回功能待后端实现')

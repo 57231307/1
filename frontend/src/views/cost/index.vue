@@ -197,7 +197,7 @@ const costRules: FormRules = {
 const fetchCollections = async () => {
   loading.value = true
   try {
-    const res = await listCostCollections(queryForm)
+    const res: any = await listCostCollections(queryForm)
     collectionList.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (e: any) {
