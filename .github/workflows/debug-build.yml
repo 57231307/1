@@ -1,0 +1,45 @@
+name: Debug Build Check
+
+on:
+  push:
+    branches:
+      - 260515-fix-security-issues
+
+jobs:
+  debug-backend:
+    name: Debug Backend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
+
+      - name: Show Rust info
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Check backend files
+        run: |
+          echo "=== Backend Directory ==="
+          ls -la backend/
+          echo "=== Cargo.toml ==="
+          head -20 backend/Cargo.toml
+
+      - name: Try cargo check
+        working-directory: backend
+        run: |
+          echo "=== Running cargo check ==="
+          cargo check 2>&1 | head -100
+        continue-on-error: true
+
+      - name: Try cargo build
+        working-directory: backend
+        run: |
+          echo "=== Running cargo build ==="
+          cargo build 2>&1 | tail -50
+        continue-on-error: true
