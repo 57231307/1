@@ -464,7 +464,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by_name }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approvedByName }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
@@ -513,14 +513,7 @@ import {
   updatePurchasePrice,
   type PurchasePrice
 } from '@/api/purchase-price'
-import {
-  listPurchaseReturns,
-  createPurchaseReturn,
-  getPurchaseReturn,
-  updatePurchaseReturn,
-  type PurchaseReturn,
-  type PurchaseReturnItem
-} from '@/api/purchase-return'
+import { purchaseReturnApi, type PurchaseReturn, type PurchaseReturnItem } from '@/api/purchase-return'
 
 const activeTab = ref('contract')
 
@@ -574,7 +567,7 @@ const fetchPurchasePrices = async () => {
 const fetchPurchaseReturns = async () => {
   returnLoading.value = true
   try {
-    const res = await listPurchaseReturns(returnQuery)
+    const res = await purchaseReturnApi.list(returnQuery)
     purchaseReturns.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购退货失败')
@@ -863,7 +856,7 @@ const returnRules: FormRules = {
 
 const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
-    const res = await getPurchaseReturn(row.id)
+    const res = await purchaseReturnApi.getById(row.id)
     Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
@@ -890,10 +883,10 @@ const submitReturn = async () => {
   returnSubmitLoading.value = true
   try {
     if (returnForm.id) {
-      await updatePurchaseReturn(returnForm.id, returnForm)
+      await purchaseReturnApi.update(returnForm.id, returnForm)
       ElMessage.success('更新成功')
     } else {
-      await createPurchaseReturn(returnForm)
+      await purchaseReturnApi.create(returnForm)
       ElMessage.success('创建成功')
     }
     returnDialogVisible.value = false
@@ -906,7 +899,7 @@ const submitReturn = async () => {
 }
 
 const viewReturn = async (row: PurchaseReturn) => {
-  const res = await getPurchaseReturn(row.id)
+  const res = await purchaseReturnApi.getById(row.id)
   currentReturn.value = res.data
   returnViewVisible.value = true
 }

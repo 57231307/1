@@ -238,7 +238,7 @@ const handleSaveRating = async () => {
     
     submitLoading.value = true
     try {
-      await setCreditRating(ratingForm as any)
+      await setCreditRating(ratingForm.customer_id as number, ratingForm as any)
       ElMessage.success('设置成功')
       ratingDialogVisible.value = false
       fetchCredits()

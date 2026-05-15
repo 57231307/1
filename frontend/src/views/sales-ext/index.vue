@@ -463,7 +463,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by_name }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approvedByName }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
@@ -512,13 +512,7 @@ import {
   approveSalesPrice,
   type SalesPrice
 } from '@/api/sales-price'
-import {
-  listSalesReturns,
-  createSalesReturn,
-  getSalesReturn,
-  type SalesReturn,
-} from '@/api/sales-return'
-
+import { salesReturnApi, type SalesReturn } from '@/api/sales-return'
 const activeTab = ref('contract')
 
 const salesContracts = ref<SalesContract[]>([])
@@ -571,7 +565,7 @@ const fetchSalesPrices = async () => {
 const fetchSalesReturns = async () => {
   returnLoading.value = true
   try {
-    const res = await listSalesReturns(returnQuery)
+    const res = await salesReturnApi.list(returnQuery)
     salesReturns.value = res.data?.list || res.data || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取销售退货失败')
@@ -865,7 +859,7 @@ const returnRules: FormRules = {
 
 const openReturnDialog = async (row?: SalesReturn) => {
   if (row) {
-    const res = await getSalesReturn(row.id)
+    const res = await salesReturnApi.getById(row.id)
     Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
@@ -891,7 +885,7 @@ const submitReturn = async () => {
 
   returnSubmitLoading.value = true
   try {
-    await createSalesReturn(returnForm)
+    await salesReturnApi.create(returnForm)
     ElMessage.success('创建成功')
     returnDialogVisible.value = false
     fetchSalesReturns()
@@ -903,7 +897,7 @@ const submitReturn = async () => {
 }
 
 const viewReturn = async (row: SalesReturn) => {
-  const res = await getSalesReturn(row.id)
+  const res = await salesReturnApi.getById(row.id)
   currentReturn.value = res.data
   returnViewVisible.value = true
 }
