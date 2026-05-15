@@ -32,10 +32,16 @@ impl AccountingPeriodService {
             return Ok(p);
         }
 
-        let start_date = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).unwrap();
+        let start_date = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0)
+            .single()
+            .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {}-{:02}-01", year, month)))?;
+        
         let next_month = if month == 12 { 1 } else { month + 1 };
         let next_month_year = if month == 12 { year + 1 } else { year };
-        let end_date = Utc.with_ymd_and_hms(next_month_year, next_month, 1, 0, 0, 0).unwrap() - chrono::Duration::seconds(1);
+        let end_date = Utc.with_ymd_and_hms(next_month_year, next_month, 1, 0, 0, 0)
+            .single()
+            .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {}-{:02}-01", next_month_year, next_month)))?
+            - chrono::Duration::seconds(1);
 
         let active_model = accounting_period::ActiveModel {
             year: Set(year),
@@ -81,7 +87,8 @@ impl AccountingPeriodService {
 
     /// 校验指定日期是否在已结账的期间内（防止篡改历史数据）
     pub async fn check_date_locked(&self, date: chrono::NaiveDate) -> Result<(), AppError> {
-        let dt = Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap());
+        let dt = Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0)
+            .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {:?}", date)))?);
         
         let period = accounting_period::Entity::find()
             .filter(accounting_period::Column::StartDate.lte(dt))
