@@ -201,3 +201,37 @@ pub async fn update_asset(
     info!("用户 {} 正在固定资产更新功能尚未实现", auth.user_id);
     Err(AppError::ValidationError("固定资产更新功能尚未实现".to_string()))
 }
+
+/// 批量折旧计算
+pub async fn batch_depreciate(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<BatchDepreciateRequest>,
+) -> Result<Json<ApiResponse<Vec<DepreciationResult>>>, AppError> {
+    info!("用户 {} 正在批量计算折旧", auth.username);
+    
+    let service = FixedAssetService::new(state.db.clone());
+    let results = service.batch_calculate_depreciation(req.asset_ids, req.calculation_date, req.user_id).await?;
+    
+    Ok(Json(ApiResponse::success(results)))
+}
+
+/// 折旧计算请求
+#[derive(Debug, Deserialize)]
+pub struct BatchDepreciateRequest {
+    pub asset_ids: Vec<i32>,
+    pub calculation_date: String,
+    pub user_id: i32,
+}
+
+/// 折旧计算结果
+#[derive(Debug, Serialize)]
+pub struct DepreciationResult {
+    pub asset_id: i32,
+    pub asset_no: String,
+    pub original_value: rust_decimal::Decimal,
+    pub accumulated_depreciation: rust_decimal::Decimal,
+    pub current_depreciation: rust_decimal::Decimal,
+    pub net_value: rust_decimal::Decimal,
+    pub depreciation_method: String,
+}

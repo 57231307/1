@@ -605,7 +605,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(fixed_asset_handler::get_asset))
         .route("/:id", put(fixed_asset_handler::update_asset))
         .route("/:id", delete(fixed_asset_handler::delete_asset))
-        .route("/:id/depreciate", post(fixed_asset_handler::depreciate_asset));
+        .route("/:id/depreciate", post(fixed_asset_handler::depreciate_asset))
+        .route("/batch-depreciate", post(fixed_asset_handler::batch_depreciate));
 
     // 预算管理路由
     let budget_management_routes = Router::new()
@@ -642,7 +643,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id/occupy", post(customer_credit_handler::occupy_credit))
         .route("/:id/release", post(customer_credit_handler::release_credit))
         .route("/:id/adjust", post(customer_credit_handler::adjust_credit_limit))
-        .route("/:id/deactivate", post(customer_credit_handler::deactivate_credit));
+        .route("/:id/deactivate", post(customer_credit_handler::deactivate_credit))
+        .route("/evaluate", post(customer_credit_handler::evaluate_credit));
 
     // 财务分析路由
     let financial_analysis_routes = Router::new()
