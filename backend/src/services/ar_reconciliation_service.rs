@@ -469,6 +469,11 @@ impl ArReconciliationService {
         use sea_orm::QuerySelect;
         use crate::models::finance_payment::Column as PaymentColumn;
 
+        let start_datetime = start_date.and_hms_opt(0, 0, 0)
+            .ok_or_else(|| AppError::BadRequest("Invalid start date".to_string()))?;
+        let end_datetime = end_date.and_hms_opt(23, 59, 59)
+            .ok_or_else(|| AppError::BadRequest("Invalid end date".to_string()))?;
+
         let total: Option<Option<Decimal>> = PaymentEntity::find()
             .select_only()
             .column_as(
@@ -476,8 +481,8 @@ impl ArReconciliationService {
                 "total"
             )
             .filter(PaymentColumn::CustomerId.eq(customer_id))
-            .filter(PaymentColumn::PaymentDate.gte(start_date.and_hms_opt(0, 0, 0).unwrap()))
-            .filter(PaymentColumn::PaymentDate.lte(end_date.and_hms_opt(23, 59, 59).unwrap()))
+            .filter(PaymentColumn::PaymentDate.gte(start_datetime))
+            .filter(PaymentColumn::PaymentDate.lte(end_datetime))
             .filter(PaymentColumn::IsDeleted.eq(false))
             .filter(PaymentColumn::Status.eq("COMPLETED"))
             .into_tuple::<Option<Decimal>>()
@@ -560,10 +565,15 @@ impl ArReconciliationService {
         }
 
         // 添加收款明细
+        let start_datetime = start_date.and_hms_opt(0, 0, 0)
+            .ok_or_else(|| AppError::BadRequest("Invalid start date".to_string()))?;
+        let end_datetime = end_date.and_hms_opt(23, 59, 59)
+            .ok_or_else(|| AppError::BadRequest("Invalid end date".to_string()))?;
+
         let payments: Vec<PaymentModel> = PaymentEntity::find()
             .filter(PaymentColumn::CustomerId.eq(customer_id))
-            .filter(PaymentColumn::PaymentDate.gte(start_date.and_hms_opt(0, 0, 0).unwrap()))
-            .filter(PaymentColumn::PaymentDate.lte(end_date.and_hms_opt(23, 59, 59).unwrap()))
+            .filter(PaymentColumn::PaymentDate.gte(start_datetime))
+            .filter(PaymentColumn::PaymentDate.lte(end_datetime))
             .filter(PaymentColumn::IsDeleted.eq(false))
             .filter(PaymentColumn::Status.eq("COMPLETED"))
             .all(txn)
