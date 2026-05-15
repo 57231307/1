@@ -1,25 +1,20 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
 export interface PurchaseReturn {
-  id: number
+  id?: number
   returnNo: string
-  supplierId: number
-  supplierName: string
-  orderId?: number
-  orderNo?: string
-  receiptId?: number
-  receiptNo?: string
-  returnDate: string
-  totalAmount: number
-  reason: string
-  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'completed'
-  items: PurchaseReturnItem[]
+  purchaseOrderId?: number
+  purchaseOrderNo?: string
+  supplierId?: number
+  supplierName?: string
+  returnDate?: string
+  reason?: string
+  status?: string
+  totalAmount?: number
+  items?: PurchaseReturnItem[]
+  remarks?: string
   createdBy?: number
-  createdByName?: string
-  approvedBy?: number
-  approvedByName?: string
-  approvedAt?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -27,68 +22,61 @@ export interface PurchaseReturn {
 export interface PurchaseReturnItem {
   id?: number
   returnId?: number
-  productId: number
+  productId?: number
   productName?: string
   productCode?: string
   quantity: number
-  unit?: string
-  price: number
-  amount: number
-  reason: string
+  returnedQuantity?: number
+  unitPrice?: number
+  amount?: number
+  reason?: string
+  batchNo?: string
 }
 
-export interface PurchaseReturnQueryParams extends QueryParams {
+export interface PurchaseReturnQueryParams {
+  page?: number
+  pageSize?: number
+  purchaseOrderId?: number
   supplierId?: number
-  orderId?: number
   status?: string
-  returnDateStart?: string
-  returnDateEnd?: string
+  startDate?: string
+  endDate?: string
 }
 
-export function listPurchaseReturns(params?: PurchaseReturnQueryParams): Promise<ApiResponse<{ list: PurchaseReturn[]; total: number }>> {
-  return request.get('/purchases/returns', { params })
-}
+export const purchaseReturnApi = {
+  list: (params?: PurchaseReturnQueryParams) =>
+    request.get<ApiResponse<{ list: PurchaseReturn[]; total: number }>>('/purchases/returns', { params }),
 
-export function getPurchaseReturn(id: number): Promise<ApiResponse<PurchaseReturn>> {
-  return request.get(`/purchases/returns/${id}`)
-}
+  create: (data: Partial<PurchaseReturn>) =>
+    request.post<ApiResponse<PurchaseReturn>>('/purchases/returns', data),
 
-export function createPurchaseReturn(data: Partial<PurchaseReturn>): Promise<ApiResponse<PurchaseReturn>> {
-  return request.post('/purchases/returns', data)
-}
+  getById: (id: number) =>
+    request.get<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}`),
 
-export function updatePurchaseReturn(id: number, data: Partial<PurchaseReturn>): Promise<ApiResponse<PurchaseReturn>> {
-  return request.put(`/purchases/returns/${id}`, data)
-}
+  update: (id: number, data: Partial<PurchaseReturn>) =>
+    request.put<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}`, data),
 
-export function deletePurchaseReturn(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchases/returns/${id}`)
-}
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/purchases/returns/${id}`),
 
-export function submitPurchaseReturn(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/purchases/returns/${id}/submit`)
-}
+  submit: (id: number) =>
+    request.post<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}/submit`),
 
-export function approvePurchaseReturn(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/purchases/returns/${id}/approve`)
-}
+  approve: (id: number) =>
+    request.post<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}/approve`),
 
-export function rejectPurchaseReturn(id: number, reason: string): Promise<ApiResponse<void>> {
-  return request.post(`/purchases/returns/${id}/reject`, { reason })
-}
+  reject: (id: number, reason?: string) =>
+    request.post<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}/reject`, { reason }),
 
-export function listPurchaseReturnItems(returnId: number): Promise<ApiResponse<PurchaseReturnItem[]>> {
-  return request.get(`/purchases/returns/${returnId}/items`)
-}
+  listItems: (id: number) =>
+    request.get<ApiResponse<{ items: PurchaseReturnItem[] }>>(`/purchases/returns/${id}/items`),
 
-export function createPurchaseReturnItem(returnId: number, data: Partial<PurchaseReturnItem>): Promise<ApiResponse<PurchaseReturnItem>> {
-  return request.post(`/purchases/returns/${returnId}/items`, data)
-}
+  createItem: (id: number, data: Partial<PurchaseReturnItem>) =>
+    request.post<ApiResponse<PurchaseReturnItem>>(`/purchases/returns/${id}/items`, data),
 
-export function updatePurchaseReturnItem(returnId: number, itemId: number, data: Partial<PurchaseReturnItem>): Promise<ApiResponse<PurchaseReturnItem>> {
-  return request.put(`/purchases/returns/${returnId}/items/${itemId}`, data)
-}
+  updateItem: (id: number, itemId: number, data: Partial<PurchaseReturnItem>) =>
+    request.put<ApiResponse<PurchaseReturnItem>>(`/purchases/returns/${id}/items/${itemId}`, data),
 
-export function deletePurchaseReturnItem(returnId: number, itemId: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchases/returns/${returnId}/items/${itemId}`)
+  deleteItem: (id: number, itemId: number) =>
+    request.delete<ApiResponse<void>>(`/purchases/returns/${id}/items/${itemId}`),
 }

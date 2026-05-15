@@ -1,33 +1,45 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import type { ApiResponse } from './request'
 
-export interface ReportTemplate {
-  id: number
-  template_name: string
-  template_code: string
-  category: string
-  description: string
-  parameters: ReportParameter[]
-  created_at: string
-  updated_at: string
+export interface ReportDefinition {
+  id?: number
+  reportName: string
+  reportCode: string
+  reportType: string
+  template?: string
+  parameters?: ReportParameter[]
+  columns?: ReportColumn[]
+  filters?: ReportFilter[]
+  isActive?: boolean
+  createdBy?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ReportParameter {
   name: string
+  label: string
   type: string
-  required: boolean
-  default_value: any
-  description: string
+  defaultValue?: string
+  required?: boolean
+  options?: string[]
 }
 
-export function listReportTemplates(params?: QueryParams): Promise<ApiResponse<ReportTemplate[]>> {
-  return request.get('/reports/templates', { params })
+export interface ReportColumn {
+  field: string
+  label: string
+  width?: number
+  format?: string
+  visible?: boolean
 }
 
-export function executeReport(templateCode: string, params?: Record<string, any>): Promise<ApiResponse<any>> {
-  return request.get('/reports/execute', { params: { template_code: templateCode, ...params } })
-}
+export const reportApi = {
+  list: (params?: any) =>
+    request.get<ApiResponse<{ list: ReportDefinition[]; total: number }>>('/reports', { params }),
 
-export function exportReport(templateCode: string, format: 'pdf' | 'excel', params?: Record<string, any>): Promise<Blob> {
-  return request.get('/reports/export', { params: { template_code: templateCode, format, ...params }, responseType: 'blob' })
+  execute: (reportCode: string, parameters?: Record<string, any>) =>
+    request.post<ApiResponse<{ data: any[] }>>(`/reports/${reportCode}/execute`, parameters),
+
+  export: (reportCode: string, parameters?: Record<string, any>, format?: string) =>
+    request.post<ApiResponse<{ url: string }>>(`/reports/${reportCode}/export`, { ...parameters, format }),
 }

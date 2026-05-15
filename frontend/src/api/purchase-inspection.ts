@@ -1,48 +1,67 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
-export interface PurchaseInspectionRecord {
-  id: number
-  recordNo: string
-  purchaseOrderId: number
-  purchaseOrderNo: string
-  productId: number
-  productName: string
-  batchNo: string
-  inspectionDate: string
-  inspector: string
-  result: 'pass' | 'fail' | 'pending'
-  sampleQuantity: number
-  qualifiedQuantity: number
-  remark: string
-  createdAt?: string
-}
-
-export interface PurchaseInspectionQueryParams extends QueryParams {
+export interface PurchaseInspection {
+  id?: number
+  inspectionNo: string
   purchaseOrderId?: number
+  purchaseOrderNo?: string
+  receiptId?: number
+  receiptNo?: string
+  supplierId?: number
+  supplierName?: string
+  inspectionDate?: string
+  inspectorId?: number
+  inspectorName?: string
+  status?: string
+  result?: 'PASS' | 'FAIL' | 'CONDITIONAL_PASS'
+  passQuantity?: number
+  failQuantity?: number
+  defectRate?: number
+  defectDescription?: string
+  remarks?: string
+  items?: PurchaseInspectionItem[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface PurchaseInspectionItem {
+  id?: number
+  inspectionId?: number
   productId?: number
-  batchNo?: string
-  result?: string
-  inspectionDateStart?: string
-  inspectionDateEnd?: string
+  productName?: string
+  productCode?: string
+  quantity: number
+  passQuantity?: number
+  failQuantity?: number
+  defectQuantity?: number
+  unit?: string
+  defectType?: string
 }
 
-export function listPurchaseInspectionRecords(params?: PurchaseInspectionQueryParams): Promise<ApiResponse<{ list: PurchaseInspectionRecord[]; total: number }>> {
-  return request.get('/purchases/inspections', { params })
+export interface PurchaseInspectionQueryParams {
+  page?: number
+  pageSize?: number
+  purchaseOrderId?: number
+  supplierId?: number
+  status?: string
+  startDate?: string
+  endDate?: string
 }
 
-export function getPurchaseInspectionRecord(id: number): Promise<ApiResponse<PurchaseInspectionRecord>> {
-  return request.get(`/purchases/inspections/${id}`)
-}
+export const purchaseInspectionApi = {
+  list: (params?: PurchaseInspectionQueryParams) =>
+    request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>('/purchases/inspections', { params }),
 
-export function createPurchaseInspectionRecord(data: Partial<PurchaseInspectionRecord>): Promise<ApiResponse<PurchaseInspectionRecord>> {
-  return request.post('/purchases/inspections', data)
-}
+  create: (data: Partial<PurchaseInspection>) =>
+    request.post<ApiResponse<PurchaseInspection>>('/purchases/inspections', data),
 
-export function updatePurchaseInspectionRecord(id: number, data: Partial<PurchaseInspectionRecord>): Promise<ApiResponse<PurchaseInspectionRecord>> {
-  return request.put(`/purchases/inspections/${id}`, data)
-}
+  getById: (id: number) =>
+    request.get<ApiResponse<PurchaseInspection>>(`/purchases/inspections/${id}`),
 
-export function deletePurchaseInspectionRecord(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchases/inspections/${id}`)
+  update: (id: number, data: Partial<PurchaseInspection>) =>
+    request.put<ApiResponse<PurchaseInspection>>(`/purchases/inspections/${id}`, data),
+
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/purchases/inspections/${id}`),
 }

@@ -1,77 +1,69 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse } from './request'
 
 export interface CustomerCredit {
-  id: number
-  customerId: number
+  id?: number
+  customerId?: number
   customerName?: string
-  creditLimit: number
-  usedAmount?: number
-  availableAmount?: number
+  creditLimit?: number
+  usedCredit?: number
+  availableCredit?: number
   creditRating?: string
-  status: string
+  status?: string
+  validFrom?: string
+  validTo?: string
+  remarks?: string
   createdAt?: string
   updatedAt?: string
 }
 
-export interface CustomerCreditQueryParams extends QueryParams {
-  customerId?: number
-  creditRating?: string
-  status?: string
-}
-
-export interface CreditRatingRequest {
-  customerId: number
+export interface CreditRating {
   rating: string
-  effectiveDate?: string
+  creditLimit: number
+  reason?: string
 }
 
-export interface CreditAmountRequest {
+export interface CreditAdjustment {
   amount: number
-  orderId?: string
-}
-
-export interface CreditLimitAdjustmentRequest {
-  newLimit: number
   reason: string
+  type: 'increase' | 'decrease'
 }
 
-export function listCredits(params?: CustomerCreditQueryParams): Promise<ApiResponse<{ list: CustomerCredit[]; total: number }>> {
-  return request.get('/customer-credits', { params })
+export interface CreditOccupation {
+  amount: number
+  businessType: string
+  businessId: number
+  remarks?: string
 }
 
-export function getCredit(customerId: number): Promise<ApiResponse<CustomerCredit>> {
-  return request.get(`/customer-credits/${customerId}`)
-}
+export const customerCreditApi = {
+  list: (params?: any) =>
+    request.get<ApiResponse<{ list: CustomerCredit[]; total: number }>>('/customer-credits', { params }),
 
-export function createCredit(data: Partial<CustomerCredit>): Promise<ApiResponse<CustomerCredit>> {
-  return request.post('/customer-credits', data)
-}
+  getById: (id: number) =>
+    request.get<ApiResponse<CustomerCredit>>(`/customer-credits/${id}`),
 
-export function updateCredit(id: number, data: Partial<CustomerCredit>): Promise<ApiResponse<CustomerCredit>> {
-  return request.put(`/customer-credits/${id}`, data)
-}
+  create: (data: Partial<CustomerCredit>) =>
+    request.post<ApiResponse<CustomerCredit>>('/customer-credits', data),
 
-export function deleteCredit(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/customer-credits/${id}`)
-}
+  update: (id: number, data: Partial<CustomerCredit>) =>
+    request.put<ApiResponse<CustomerCredit>>(`/customer-credits/${id}`, data),
 
-export function setCreditRating(data: CreditRatingRequest): Promise<ApiResponse<CustomerCredit>> {
-  return request.post('/customer-credits/rating', data)
-}
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/customer-credits/${id}`),
 
-export function occupyCredit(customerId: number, data: CreditAmountRequest): Promise<ApiResponse<string>> {
-  return request.post(`/customer-credits/${customerId}/occupy`, data)
-}
+  setCreditRating: (id: number, data: CreditRating) =>
+    request.post<ApiResponse<CustomerCredit>>(`/customer-credits/${id}/rating`, data),
 
-export function releaseCredit(customerId: number, data: CreditAmountRequest): Promise<ApiResponse<string>> {
-  return request.post(`/customer-credits/${customerId}/release`, data)
-}
+  occupyCredit: (id: number, data: CreditOccupation) =>
+    request.post<ApiResponse<CustomerCredit>>(`/customer-credits/${id}/occupy`, data),
 
-export function adjustCreditLimit(customerId: number, data: CreditLimitAdjustmentRequest): Promise<ApiResponse<string>> {
-  return request.post(`/customer-credits/${customerId}/adjust`, data)
-}
+  releaseCredit: (id: number, occupationId: number) =>
+    request.post<ApiResponse<CustomerCredit>>(`/customer-credits/${id}/release`, { occupationId }),
 
-export function deactivateCredit(customerId: number): Promise<ApiResponse<string>> {
-  return request.post(`/customer-credits/${customerId}/deactivate`)
+  adjustCreditLimit: (id: number, data: CreditAdjustment) =>
+    request.post<ApiResponse<CustomerCredit>>(`/customer-credits/${id}/adjust`, data),
+
+  deactivateCredit: (id: number) =>
+    request.post<ApiResponse<CustomerCredit>>(`/customer-credits/${id}/deactivate`),
 }
