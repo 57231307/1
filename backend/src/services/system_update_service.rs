@@ -395,10 +395,17 @@ impl SystemUpdateService {
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).map_err(|e| UpdateError::UnzipError(e.to_string()))?;
-            let outpath = match file.enclosed_name() {
-                Some(path) => extract_dir.join(path),
-                None => continue,
-            };
+            
+            let filepath = file.enclosed_name()
+                .ok_or_else(|| UpdateError::ValidationError("更新包中包含无效的文件路径".to_string()))?;
+            
+            let outpath = extract_dir.join(filepath);
+            
+            if !outpath.starts_with(&extract_dir) {
+                return Err(UpdateError::ValidationError(
+                    "检测到路径遍历攻击，更新包中包含不安全的路径".to_string()
+                ));
+            }
 
             if file.name().ends_with('/') {
                 fs::create_dir_all(&outpath)?;

@@ -84,8 +84,20 @@ impl AppSettings {
         let mut app_settings: AppSettings = match settings.try_deserialize() {
             Ok(s) => s,
             Err(e) => {
-                panic!("配置解析失败: {}", e);
+                panic!("配置解析失败：{}", e);
             }
+        };
+
+        app_settings.load_sensitive_from_env();
+
+        if !Self::validate_jwt_secret(&app_settings.auth.jwt_secret) {
+            panic!("致命错误：JWT 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+        }
+
+        let env = app_settings.env.to_lowercase();
+        if env == "production" && app_settings.auth.cookie_secret.is_none() {
+            panic!("生产环境必须配置独立的 auth.cookie_secret，不能降级使用 jwt_secret");
+        }
         };
 
         app_settings.load_sensitive_from_env();
@@ -148,5 +160,39 @@ impl AppSettings {
         if let Ok(prev_secret) = std::env::var("PREVIOUS_JWT_SECRET") {
             self.auth.previous_jwt_secret = Some(prev_secret);
         }
+
+        if let Ok(audit_secret) = std::env::var("AUDIT_SECRET_KEY") {
+            if audit_secret.len() < 32 {
+                panic!("AUDIT_SECRET_KEY 必须至少 32 字节");
+            }
+        }
+    }
+
+    fn validate_jwt_secret(secret: &str) -> bool {
+        if secret.len() < 32 {
+            return false;
+        }
+        
+        let weak_patterns = [
+            "change-in-production",
+            "change-this",
+            "local-dev",
+            "your_secure",
+            "default",
+            "test",
+            "example",
+        ];
+        
+        let secret_lower = secret.to_lowercase();
+        for pattern in &weak_patterns {
+            if secret_lower.contains(pattern) {
+                return false;
+            }
+        }
+        
+        let unique_chars: std::collections::HashSet<char> = secret.chars().collect();
+        let entropy_ratio = unique_chars.len() as f64 / secret.len() as f64;
+        entropy_ratio > 0.3
+    }
     }
 }

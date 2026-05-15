@@ -10,6 +10,10 @@ use std::path::PathBuf;
 use tokio::fs;
 use crate::services::system_update_service::{SystemUpdateService, UpdateError, LocalRelease};
 
+fn verify_zip_magic(data: &[u8]) -> bool {
+    data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct VersionResponse {
     pub version: String,
@@ -154,35 +158,59 @@ pub async fn upload_and_update(
 ) -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)> {
     let mut update_file_path: Option<PathBuf> = None;
 
+    const MAX_UPDATE_SIZE: usize = 100 * 1024 * 1024;
+
     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
         let file_name = field.file_name().unwrap_or("update.zip").to_string();
 
         if file_name.ends_with(".zip") {
+            let safe_filename = format!("update_{}.zip", uuid::Uuid::new_v4());
             let temp_dir = std::env::temp_dir();
-            let save_path = temp_dir.join(&file_name);
+            let save_path = temp_dir.join(&safe_filename);
 
             let data = field.bytes().await.map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
                     Json(ErrorResponse {
                         error: "upload_failed".to_string(),
-                        message: format!("文件上传失败: {}", e),
+                        message: format!("文件上传失败：{}", e),
                     }),
                 )
             })?;
+
+            if data.len() > MAX_UPDATE_SIZE {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: "file_too_large".to_string(),
+                        message: format!("文件大小超过限制 ({}MB)", MAX_UPDATE_SIZE / 1024 / 1024),
+                    }),
+                ));
+            }
+
+            if !verify_zip_magic(&data) {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: "invalid_file_type".to_string(),
+                        message: "上传的文件不是有效的 ZIP 格式".to_string(),
+                    }),
+                ));
+            }
 
             fs::write(&save_path, &data).await.map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ErrorResponse {
                         error: "save_failed".to_string(),
-                        message: format!("文件保存失败: {}", e),
+                        message: format!("文件保存失败：{}", e),
                     }),
                 )
             })?;
 
             update_file_path = Some(save_path);
         }
+    }
     }
 
     let update_file = update_file_path.ok_or((
