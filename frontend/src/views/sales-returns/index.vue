@@ -214,7 +214,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
 import { salesApi, type SalesOrder } from '@/api/sales'
 import { listCustomers, type Customer } from '@/api/customer'
-import { listProducts, type Product } from '@/api/product'
+import { productApi } from '@/api/product'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -301,7 +301,7 @@ const loadCustomers = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await listProducts()
+    const res = await productApi.listProducts()
     productList.value = res.data || []
   } catch (error) {
     // 忽略错误

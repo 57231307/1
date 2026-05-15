@@ -63,8 +63,8 @@
     <!-- 设置评级对话框 -->
     <el-dialog v-model="ratingDialogVisible" title="设置信用评级" width="500px">
       <el-form :model="ratingForm" :rules="ratingRules" ref="ratingFormRef" label-width="120px">
-        <el-form-item label="客户" prop="customerId">
-          <el-select v-model="ratingForm.customerId" placeholder="请选择客户" style="width: 100%">
+        <el-form-item label="客户" prop="customer_id">
+          <el-select v-model="ratingForm.customer_id" placeholder="请选择客户" style="width: 100%">
             <el-option label="客户A" :value="1" />
             <el-option label="客户B" :value="2" />
             <el-option label="客户C" :value="3" />
@@ -174,7 +174,7 @@ const adjustFormRef = ref()
 const amountFormRef = ref()
 
 const ratingForm = reactive({
-  customerId: undefined as number | undefined,
+  customer_id: undefined as number | undefined,
   creditLevel: '',
   creditScore: 0,
   creditLimit: 0,
@@ -193,7 +193,7 @@ const amountForm = reactive({
 })
 
 const ratingRules = {
-  customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
+  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
   creditLevel: [{ required: true, message: '请选择信用等级', trigger: 'change' }],
   creditScore: [{ required: true, message: '请输入信用分', trigger: 'blur' }],
   creditLimit: [{ required: true, message: '请输入信用额度', trigger: 'blur' }],
@@ -226,7 +226,7 @@ const fetchCredits = async () => {
 }
 
 const handleSetRating = () => {
-  Object.assign(ratingForm, { customerId: undefined, creditLevel: '', creditScore: 0, creditLimit: 0, creditDays: 0, remark: '' })
+  Object.assign(ratingForm, { customer_id: undefined, creditLevel: '', creditScore: 0, creditLimit: 0, creditDays: 0, remark: '' })
   ratingDialogVisible.value = true
 }
 
@@ -251,8 +251,8 @@ const handleSaveRating = async () => {
 }
 
 const handleAdjustLimit = (row: CustomerCredit) => {
-  if (!row.customerId) return
-  currentCustomerId.value = row.customerId
+  if (!row.customer_id) return
+  currentCustomerId.value = row.customer_id
   Object.assign(adjustForm, { adjustmentType: 'increase', amount: 0, reason: '' })
   adjustDialogVisible.value = true
 }
@@ -278,16 +278,16 @@ const handleSaveAdjust = async () => {
 }
 
 const handleOccupy = (row: CustomerCredit) => {
-  if (!row.customerId) return
-  currentCustomerId.value = row.customerId
+  if (!row.customer_id) return
+  currentCustomerId.value = row.customer_id
   amountOperationType.value = 'occupy'
   Object.assign(amountForm, { amount: 0 })
   amountDialogVisible.value = true
 }
 
 const handleRelease = (row: CustomerCredit) => {
-  if (!row.customerId) return
-  currentCustomerId.value = row.customerId
+  if (!row.customer_id) return
+  currentCustomerId.value = row.customer_id
   amountOperationType.value = 'release'
   Object.assign(amountForm, { amount: 0 })
   amountDialogVisible.value = true
@@ -315,7 +315,7 @@ const handleSaveAmount = async () => {
 }
 
 const handleDeactivate = async (row: CustomerCredit) => {
-  if (!row.customerId) return
+  if (!row.customer_id) return
   
   try {
     await ElMessageBox.confirm('确认停用该客户信用？', '提示', {
@@ -324,7 +324,7 @@ const handleDeactivate = async (row: CustomerCredit) => {
       type: 'warning'
     })
     
-    await deactivateCredit(row.customerId)
+    await deactivateCredit(row.customer_id)
     ElMessage.success('停用成功')
     fetchCredits()
   } catch (e: any) {
