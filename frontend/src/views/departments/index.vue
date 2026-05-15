@@ -80,7 +80,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { departmentApi } from '@/api/department'
+import { listDepartments, createDepartment, updateDepartment, deleteDepartment, getDepartmentTree, type Department } from '@/api/department'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -106,10 +106,10 @@ const formRules: FormRules = {
 const loadDepartments = async () => {
   loading.value = true
   try {
-    const res = await departmentApi.list()
-    departmentList.value = res.data.list || []
-  } catch (error) {
-    ElMessage.error('加载部门列表失败')
+    const res = await listDepartments()
+    departmentList.value = res.data || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载部门列表失败')
   } finally {
     loading.value = false
   }
@@ -145,7 +145,7 @@ const handleDelete = async (row: any) => {
   if (!row.id) return
   
   try {
-    await departmentApi.delete(row.id)
+    await deleteDepartment(row.id)
     ElMessage.success('删除成功')
     await loadDepartments()
   } catch (error) {
@@ -162,10 +162,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {
-        await departmentApi.create(formData)
+        await createDepartment(formData)
         ElMessage.success('创建成功')
       } else {
-        await departmentApi.update(formData.id, formData)
+        await updateDepartment(formData.id, formData)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
