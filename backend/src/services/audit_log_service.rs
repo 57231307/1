@@ -98,15 +98,12 @@ impl AuditLogService {
             .one(db)
             .await?;
             
-        let old_json = old_data.as_ref()
-            .map(|d| serde_json::to_value(d)
-                .map_err(|e| DbErr::Custom(format!("Failed to serialize old data: {}", e)))
-            )
-            .transpose()?;
+        let old_json: Option<serde_json::Value> = old_data.as_ref()
+            .and_then(|d| serde_json::to_value(d).ok());
 
         let new_model = active_model.update(db).await?;
         
-        let new_json = Some(serde_json::to_value(&new_model)
+        let new_json: Option<serde_json::Value> = Some(serde_json::to_value(&new_model)
             .map_err(|e| DbErr::Custom(format!("Failed to serialize new data: {}", e)))?);
 
         // 记录审计日志
