@@ -1,4 +1,4 @@
-import request from './request'
+import { request } from './request'
 
 // 采购合同
 export interface PurchaseContract {

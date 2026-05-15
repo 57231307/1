@@ -95,10 +95,10 @@ class Request {
               throw new Error('No refresh token')
             }
             
-            const { data } = await refreshApi(refreshToken)
-            setToken(data.token)
-            onTokenRefreshed(data.token)
-            originalRequest.headers.Authorization = `Bearer ${data.token}`
+            const tokenData = await refreshApi(refreshToken)
+            setToken(tokenData.token)
+            onTokenRefreshed(tokenData.token)
+            originalRequest.headers.Authorization = `Bearer ${tokenData.token}`
             return this.instance(originalRequest)
           } catch (refreshError) {
             removeToken()

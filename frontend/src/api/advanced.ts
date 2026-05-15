@@ -1,4 +1,4 @@
-import request from './request'
+import { request } from './request'
 
 // Advanced AI 分析 API
 export const forecastSales = (data: { period: string; product_id?: number }) => 

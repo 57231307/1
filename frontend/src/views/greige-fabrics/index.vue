@@ -88,7 +88,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, deleteGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
-import { listWarehouses, type Warehouse } from '@/api/warehouse'
+import { warehouseApi, type Warehouse } from '@/api/warehouse'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -130,7 +130,6 @@ const loadGreigeFabrics = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await listWarehouses()
     warehouseList.value = res.data || []
   } catch (error) {
     ElMessage.error('加载仓库列表失败')

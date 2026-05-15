@@ -184,7 +184,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
-import { approveTask, transferTask, urgeTask, type BpmTask } from '@/api/bpm'
+import { bpmApi, type BPMTask } from '@/api/bpm'
 
 const activeTab = ref('pending')
 
@@ -269,7 +269,7 @@ const fetchProcessInstances = () => {
 const handleApprove = async (row: any) => {
   try {
     await ElMessageBox.confirm('确定审批通过此任务吗？', '确认', { type: 'info' })
-    await approveTask({ task_id: row.task_id, comment: '同意' })
+    await bpmApi.approveTask({ task_id: row.task_id, comment: '同意' })
     ElMessage.success('审批成功')
     fetchPendingTasks()
   } catch (e) { if (e !== 'cancel') console.error(e) }
@@ -284,7 +284,7 @@ const handleTransfer = async (row: any) => {
       inputPattern: /^\d+$/,
       inputErrorMessage: '请输入有效的用户 ID'
     })
-    await transferTask(row.task_id, parseInt(targetUserId), '工作转交')
+    await bpmApi.transferTask(row.task_id, parseInt(targetUserId), '工作转交')
     ElMessage.success('任务转交成功')
     fetchPendingTasks()
   } catch (e) { if (e !== 'cancel') console.error(e) }
@@ -293,7 +293,7 @@ const handleTransfer = async (row: any) => {
 const handleUrge = async (row: any) => {
   try {
     await ElMessageBox.confirm('确定催办此任务吗？', '确认', { type: 'warning' })
-    await urgeTask(row.task_id)
+    await bpmApi.urgeTask(row.task_id)
     ElMessage.success('催办成功')
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
@@ -302,7 +302,6 @@ const handleTrace = (row: any) => { ElMessage.info(`追溯流程：${row.instanc
 const handleCancel = (row: any) => { ElMessage.info(`撤回流程：${row.instance_id}`) }
 const handleViewProcess = (row: any) => { ElMessage.info(`查看流程：${row.instance_id}`) }
 const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图：${row.instance_id}`) }
-const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图: ${row.instance_id}`) }
 
 onMounted(() => { fetchPendingTasks() })
 </script>

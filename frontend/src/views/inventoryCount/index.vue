@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
+import { ElTable, ElTableColumn, ElButton, ElInput, ElSelect, ElMessageBox, ElMessage, ElRow, ElCol,  } from 'element-plus'
 import { Plus, Check } from '@element-plus/icons-vue'
 import { listInventoryCounts, getInventoryCount, createInventoryCount, deleteInventoryCount, completeInventoryCount, getCountItems, updateCountItem, type InventoryCountEntity, type CountItem } from '@/api/inventoryCount'
 import { request } from '@/api/request'
@@ -125,8 +125,8 @@ const openViewDialog = async (row: InventoryCountEntity) => {
   }
 }
 
-const handleSubmit = async () => {
   if (!form.value.warehouse_id) {
+const handleSubmit = async () => {
     ElMessage.warning('请选择仓库')
     return
   }
@@ -162,7 +162,7 @@ const handleApprove = async (row: InventoryCountEntity) => {
     await ElMessageBox.confirm('确定要审批通过这个盘点吗？', '提示', {
       type: 'warning'
     })
-    await approveInventoryCount(row.id!)
+    await completeInventoryCount(row.id!)
     ElMessage.success('盘点已审批')
     loadData()
   } catch (error) {
@@ -170,7 +170,6 @@ const handleApprove = async (row: InventoryCountEntity) => {
   }
 }
 
-const handleComplete = async (row: InventoryCountEntity) => {
 const handleComplete = async (row: InventoryCountEntity) => {
   try {
     await ElMessageBox.confirm('确定要完成这个盘点吗？', '提示', {
@@ -253,8 +252,8 @@ loadWarehouses()
       <ElTableColumn prop="warehouse_name" label="仓库" width="120" />
       <ElTableColumn prop="status" label="状态" width="100">
         <template #default="scope">
-          <span :class="['status-tag', getStatusClass(scope.row.status)]">
-            {{ getStatusLabel(scope.row.status) }}
+          <span :class="['status-tag', getStatusClass(row.status)]">
+            {{ getStatusLabel(row.status) }}
           </span>
         </template>
       </ElTableColumn>
@@ -262,30 +261,30 @@ loadWarehouses()
       <ElTableColumn prop="created_at" label="创建时间" width="150" />
       <ElTableColumn prop="completed_at" label="完成时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
-          <ElButton size="small" @click="openViewDialog(scope.row)">
+          <ElButton size="small" @click="openViewDialog(row)">
             <View /> 查看
           </ElButton>
           <ElButton
-            v-if="scope.row.status === 'draft'"
+            v-if="row.status === 'draft'"
             size="small"
             type="primary"
-            @click="handleApprove(scope.row)"
+            @click="handleApprove(row)"
           >
             <Check /> 审批
           </ElButton>
           <ElButton
-            v-if="scope.row.status === 'approved'"
+            v-if="row.status === 'approved'"
             size="small"
             type="warning"
-            @click="handleComplete(scope.row)"
+            @click="handleComplete(row)"
           >
             <Check /> 完成盘点
           </ElButton>
           <ElButton
-            v-if="scope.row.status === 'draft'"
+            v-if="row.status === 'draft'"
             size="small"
             type="danger"
-            @click="handleDelete(scope.row)"
+            @click="handleDelete(row)"
           >删除</ElButton>
           >删除</ElButton>
         </template>
@@ -314,15 +313,15 @@ loadWarehouses()
 
     <ElDialog title="盘点详情" :visible="viewDialogVisible" width="900px" @close="viewDialogVisible = false">
       <div v-if="viewData">
-        <ElDescriptions :column="4" border>
-          <ElDescriptionsItem label="盘点单号">{{ viewData.count_no }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="盘点日期">{{ viewData.count_date }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="仓库">{{ viewData.warehouse_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="创建人">{{ viewData.created_by_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="完成时间">{{ viewData.completed_at || '-' }}</ElDescriptionsItem>
-        </ElDescriptions>
+        < :column="4" border>
+          <Item label="盘点单号">{{ viewData.count_no }}</Item>
+          <Item label="盘点日期">{{ viewData.count_date }}</Item>
+          <Item label="仓库">{{ viewData.warehouse_name }}</Item>
+          <Item label="状态">{{ getStatusLabel(viewData.status) }}</Item>
+          <Item label="创建人">{{ viewData.created_by_name }}</Item>
+          <Item label="创建时间">{{ viewData.created_at }}</Item>
+          <Item label="完成时间">{{ viewData.completed_at || '-' }}</Item>
+        </>
         <div style="margin-top: 20px">
           <h4>盘点明细</h4>
           <ElTable :data="editableDetailData" border style="width: 100%">
@@ -336,24 +335,24 @@ loadWarehouses()
               <template #default="scope">
                 <ElInputNumber
                   v-if="viewData.status === 'draft'"
-                  v-model="scope.row.actual_qty"
-                  @change="updateActualQty(scope.row)"
+                  v-model="row.actual_qty"
+                  @change="updateActualQty(row)"
                   :precision="0"
                 />
-                <span v-else>{{ scope.row.actual_qty }}</span>
+                <span v-else>{{ row.actual_qty }}</span>
               </template>
             </ElTableColumn>
             <ElTableColumn prop="diff_qty" label="差异数量" width="120" align="right">
               <template #default="scope">
-                <span :class="{ 'positive': scope.row.diff_qty > 0, 'negative': scope.row.diff_qty < 0 }">
-                  {{ scope.row.diff_qty }}
+                <span :class="{ 'positive': row.diff_qty > 0, 'negative': row.diff_qty < 0 }">
+                  {{ row.diff_qty }}
                 </span>
               </template>
             </ElTableColumn>
             <ElTableColumn prop="diff_amount" label="差异金额" width="120" align="right">
               <template #default="scope">
-                <span :class="{ 'positive': scope.row.diff_amount > 0, 'negative': scope.row.diff_amount < 0 }">
-                  {{ scope.row.diff_amount.toFixed(2) }}
+                <span :class="{ 'positive': row.diff_amount > 0, 'negative': row.diff_amount < 0 }">
+                  {{ row.diff_amount.toFixed(2) }}
                 </span>
               </template>
             </ElTableColumn>
