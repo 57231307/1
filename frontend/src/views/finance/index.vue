@@ -4,10 +4,20 @@
       <el-tab-pane label="科目管理" name="subject">
         <div class="page-header">
           <h2 class="page-title">会计科目</h2>
-          <el-button type="primary" @click="openSubjectDialog()">
-            <el-icon><Plus /></el-icon>
-            新建科目
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openSubjectDialog()">
+              <el-icon><Plus /></el-icon>
+              新建科目
+            </el-button>
+            <el-button @click="handlePrintSubjects">
+              <el-icon><Printer /></el-icon>
+              打印
+            </el-button>
+            <el-button @click="handleExportSubjects">
+              <el-icon><Download /></el-icon>
+              导出
+            </el-button>
+          </div>
         </div>
 
         <el-card shadow="hover">
@@ -278,7 +288,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Printer, Download } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getSubjectTree, createSubject, updateSubject, deleteSubject as deleteSubjectApi, type AccountSubject } from '@/api/finance'
 import { listVouchers, createVoucher, submitVoucher as submitVoucherApi, reviewVoucher as reviewVoucherApi, postVoucher as postVoucherApi, type Voucher } from '@/api/finance'
@@ -577,6 +588,40 @@ const postVoucher = async (row: Voucher) => {
       ElMessage.error(error.message || '操作失败')
     }
   }
+}
+
+const handlePrintSubjects = () => {
+  const printData = subjects.value.map((item: any, index: number) => ({
+    '序号': index + 1,
+    '科目编码': item.code,
+    '科目名称': item.name,
+    '科目类别': getCategoryLabel(item.category),
+    '余额方向': item.direction === 'debit' ? '借方' : '贷方',
+    '级次': `L${item.level}`
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}),
+    type: 'table' as any,
+    header: '会计科目表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;'
+  })
+}
+
+const handleExportSubjects = () => {
+  const csvContent = [
+    ['科目编码', '科目名称', '科目类别', '余额方向', '级次'],
+    ...subjects.value.map((item: any) => [item.code, item.name, getCategoryLabel(item.category), item.direction === 'debit' ? '借方' : '贷方', `L${item.level}`])
+  ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `会计科目表_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
 }
 
 onMounted(() => {
