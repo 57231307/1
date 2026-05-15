@@ -130,6 +130,7 @@ const loadGreigeFabrics = async () => {
 
 const loadWarehouses = async () => {
   try {
+    const res = await warehouseApi.list()
     warehouseList.value = res.data || []
   } catch (error) {
     ElMessage.error('加载仓库列表失败')
