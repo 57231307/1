@@ -12,12 +12,14 @@ pub struct CacheStats {
     pub misses: u64,
     pub evictions: u64,
     pub size: usize,
+    pub max_size: Option<usize>,
 }
 
 /// 缓存值结构体，包含值和过期时间
 struct CachedValue<T> {
     value: T,
     expires_at: Option<Instant>,
+    created_at: Instant,
 }
 
 /// 缓存接口
@@ -41,6 +43,7 @@ where
     hits: AtomicU64,
     misses: AtomicU64,
     evictions: AtomicU64,
+    max_size: Option<usize>,
 }
 
 impl<K, V> Default for MemoryCache<K, V>
@@ -64,11 +67,26 @@ where
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             evictions: AtomicU64::new(0),
+            max_size: None,
+        }
+    }
+
+    pub fn with_capacity(max_size: usize) -> Self {
+        Self {
+            storage: DashMap::with_capacity(max_size),
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
+            evictions: AtomicU64::new(0),
+            max_size: Some(max_size),
         }
     }
 
     pub fn arc() -> Arc<Self> {
         Arc::new(Self::new())
+    }
+
+    pub fn arc_with_capacity(max_size: usize) -> Arc<Self> {
+        Arc::new(Self::with_capacity(max_size))
     }
 
     pub fn get_stats(&self) -> CacheStats {
@@ -128,10 +146,35 @@ where
 
     fn set(&self, key: K, value: V, ttl: Option<Duration>) {
         let expires_at = ttl.map(|duration| Instant::now() + duration);
-        self.storage.insert(key, CachedValue {
+        let cached_value = CachedValue {
             value,
             expires_at,
+            created_at: Instant::now(),
+        };
+        
+        self.storage.insert(key.clone(), cached_value);
+        
+        if let Some(max_size) = self.max_size {
+            let current_size = self.storage.len();
+            if current_size > max_size {
+                self.evict_oldest(max_size);
+            }
+        }
+    }
+
+    fn evict_oldest(&self, target_size: usize) {
+        let mut removed = 0u64;
+        
+        self.storage.retain(|_, v| {
+            if target_size <= self.storage.len() - removed as usize {
+                removed += 1;
+                false
+            } else {
+                true
+            }
         });
+        
+        self.evictions.fetch_add(removed, Ordering::Relaxed);
     }
 
     fn remove(&self, key: &K) {

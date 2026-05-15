@@ -17,13 +17,13 @@ function onTokenRefreshed(token: string) {
   refreshSubscribers = []
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number
   message: string
   data: T
 }
 
-export interface PageResult<T = any> {
+export interface PageResult<T = unknown> {
   list: T[]
   total: number
   page: number
@@ -132,32 +132,25 @@ class Request {
     )
   }
 
-  public get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return this.instance.get(url, config).then((res) => res.data)
   }
 
-  public post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  public post<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     return this.instance.post(url, data, config).then((res) => res.data)
   }
 
-  public put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  public put<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     return this.instance.put(url, data, config).then((res) => res.data)
   }
 
-  public delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  public delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return this.instance.delete(url, config).then((res) => res.data)
   }
 
-  public patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  public patch<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     return this.instance.patch(url, data, config).then((res) => res.data)
   }
-}
-
-function shouldRetry(error: any): boolean {
-  if (error.response) {
-    return [502, 503, 504].includes(error.response.status)
-  }
-  return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
 }
 
 const SAFE_ERROR_MESSAGES: Record<number, string> = {
@@ -169,6 +162,13 @@ const SAFE_ERROR_MESSAGES: Record<number, string> = {
   500: '服务器内部错误',
   502: '网关错误',
   503: '服务暂时不可用'
+}
+
+function shouldRetry(error: any): boolean {
+  if (error.response) {
+    return [502, 503, 504].includes(error.response.status)
+  }
+  return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
 }
 
 function getSafeErrorMessage(codeOrStatus?: number): string {

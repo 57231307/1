@@ -238,19 +238,21 @@ impl ApReconciliationService {
         &self,
         supplier_id: Option<i32>,
     ) -> Result<Vec<SupplierApSummary>, AppError> {
-        // 使用 SQL 查询物化视图
-        let _sql = if let Some(sid) = supplier_id {
-            format!(
-                "SELECT * FROM mv_supplier_ap_summary WHERE supplier_id = {}",
-                sid
-            )
-        } else {
-            "SELECT * FROM mv_supplier_ap_summary".to_string()
-        };
-
-        // 这里简化处理，实际应该使用 SeaORM 的 query 方法
-        // 由于物化视图查询较复杂，暂时返回空结果
-        Ok(vec![])
+        use sea_orm::QueryTrait;
+        
+        let mut query = sea_orm::Entity::find()
+            .from_raw_sql("SELECT * FROM mv_supplier_ap_summary");
+        
+        if let Some(sid) = supplier_id {
+            query = query.filter(sea_orm::Condition::all().add(sea_orm::Expr::col("supplier_id").eq(sid)));
+        }
+        
+        let items = query
+            .into_model::<SupplierApSummary>()
+            .all(&*self.db)
+            .await?;
+        
+        Ok(items)
     }
 
     /// 自动对账 - 为所有供应商自动生成对账单
