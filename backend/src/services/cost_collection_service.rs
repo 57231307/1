@@ -360,6 +360,39 @@ impl CostCollectionService {
 
         Ok(result)
     }
+
+    /// 审核成本归集
+    pub async fn audit(
+        &self,
+        id: i32,
+        approved: bool,
+        comment: Option<String>,
+        user_id: i32,
+    ) -> Result<cost_collection::Model, AppError> {
+        let collection = cost_collection::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFoundError("成本归集".to_string()))?;
+
+        // 只有草稿状态才能审核
+        if collection.status != "draft" {
+            return Err(AppError::ValidationError("只有草稿状态的成本归集才能审核".to_string()));
+        }
+
+        let status = if approved { "approved" } else { "rejected" };
+        
+        let active_model = cost_collection::ActiveModel {
+            id: sea_orm::ActiveValue::Unchanged(collection.id),
+            status: sea_orm::ActiveValue::Set(status.to_string()),
+            auditor_id: sea_orm::ActiveValue::Set(Some(user_id)),
+            audit_comment: sea_orm::ActiveValue::Set(comment),
+            audit_time: sea_orm::ActiveValue::Set(Some(chrono::Utc::now().naive_utc())),
+            ..Default::default()
+        };
+
+        let updated = active_model.update(&*self.db).await?;
+        Ok(updated)
+    }
 }
 
 /// 成本分析汇总

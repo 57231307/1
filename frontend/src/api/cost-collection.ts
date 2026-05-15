@@ -1,69 +1,60 @@
-import { request } from './request'
-import type { ApiResponse } from './request'
+import request from './request'
 
 export interface CostCollection {
   id?: number
-  collectionName: string
-  costType: string
-  batchNo?: string
-  productId?: number
-  productName?: string
-  totalCost?: number
-  materialCost?: number
-  laborCost?: number
-  overheadCost?: number
-  quantity?: number
-  unitCost?: number
-  status?: string
-  collectionDate?: string
-  createdBy?: number
-  createdAt?: string
-  updatedAt?: string
+  collection_no: string
+  collection_date: string
+  cost_object_type?: string
+  cost_object_id?: number
+  cost_object_no?: string
+  batch_no?: string
+  color_no?: string
+  workshop?: string
+  direct_material: number
+  direct_labor: number
+  manufacturing_overhead: number
+  processing_fee: number
+  dyeing_fee: number
+  output_quantity_meters?: number
+  output_quantity_kg?: number
+  total_cost?: number
+  unit_cost_meters?: number
+  unit_cost_kg?: number
+  status: string
+  auditor_id?: number
+  audit_comment?: string
+  audit_time?: string
+  created_at?: string
+  updated_at?: string
 }
 
-export interface CostAnalysisSummary {
-  totalCost: number
-  materialCost: number
-  laborCost: number
-  overheadCost: number
-  unitCost: number
-  costByType: Array<{ type: string; amount: number }>
-  costByBatch: Array<{ batch: string; amount: number }>
+export interface QueryParams {
+  batch_no?: string
+  color_no?: string
+  page?: number
+  page_size?: number
 }
 
-export interface CostByBatch {
-  batchNo: string
-  productId: number
-  productName: string
-  quantity: number
-  totalCost: number
-  unitCost: number
-  costBreakdown: {
-    materialCost: number
-    laborCost: number
-    overheadCost: number
-  }
-}
+export const listCollections = (params?: QueryParams) =>
+  request.get('/cost-collections', { params })
 
-export const costCollectionApi = {
-  list: (params?: any) =>
-    request.get<ApiResponse<{ list: CostCollection[]; total: number }>>('/cost-collections', { params }),
+export const getCollection = (id: number) =>
+  request.get(`/cost-collections/${id}`)
 
-  getById: (id: number) =>
-    request.get<ApiResponse<CostCollection>>(`/cost-collections/${id}`),
+export const createCollection = (data: Partial<CostCollection>) =>
+  request.post('/cost-collections', data)
 
-  create: (data: Partial<CostCollection>) =>
-    request.post<ApiResponse<CostCollection>>('/cost-collections', data),
+export const updateCollection = (id: number, data: Partial<CostCollection>) =>
+  request.put(`/cost-collections/${id}`, data)
 
-  update: (id: number, data: Partial<CostCollection>) =>
-    request.put<ApiResponse<CostCollection>>(`/cost-collections/${id}`, data),
+export const deleteCollection = (id: number) =>
+  request.delete(`/cost-collections/${id}`)
 
-  delete: (id: number) =>
-    request.delete<ApiResponse<void>>(`/cost-collections/${id}`),
+export const auditCollection = (id: number, approved: boolean, comment?: string) =>
+  request.post(`/cost-collections/${id}/audit`, { approved, comment })
 
-  getCostAnalysisSummary: (params?: any) =>
-    request.get<ApiResponse<CostAnalysisSummary>>('/cost-collections/analysis/summary', { params }),
+export const getCostAnalysisSummary = (params?: { start_date?: string; end_date?: string }) =>
+  request.get('/cost-collections/analysis/summary', { params })
 
-  getCostByBatch: (params?: any) =>
-    request.get<ApiResponse<{ batches: CostByBatch[] }>>('/cost-collections/analysis/by-batch', { params }),
-}
+export const getCostByBatch = (batch_no?: string) =>
+  request.get('/cost-collections/analysis/by-batch', { params: { batch_no } })

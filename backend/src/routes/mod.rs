@@ -695,6 +695,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", get(cost_collection_handler::get_collection))
         .route("/:id", put(cost_collection_handler::update_collection))
         .route("/:id", delete(cost_collection_handler::delete_collection))
+        .route("/:id/audit", post(cost_collection_handler::audit_collection))
         .route("/analysis/summary", get(cost_collection_handler::get_cost_analysis_summary))
         .route("/analysis/by-batch", get(cost_collection_handler::get_cost_by_batch));
 
