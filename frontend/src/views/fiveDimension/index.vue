@@ -2,7 +2,7 @@
 import { ref, reactive } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider } from 'element-plus'
 import { Search, View, Refresh, Key } from '@element-plus/icons-vue'
-import { listFiveDimensionStats, getStatsByFiveDimensionId, parseFiveDimensionId, searchFiveDimension, type FiveDimensionStatsResponse, type FiveDimensionItem } from '@/api/fiveDimension'
+import { listFiveDimensionStats, getStatsByFiveDimensionId, parseFiveDimensionId, searchFiveDimension, type FiveDimensionStatsResponse, type FiveDimensionItem } from '@/api/five-dimension'
 
 const tableData = ref<FiveDimensionStatsResponse[]>([])
 const total = ref(0)

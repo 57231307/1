@@ -119,7 +119,7 @@ import {
   createEvaluationRecord,
   getSupplierRankings,
   type EvaluationRecord
-} from '@/api/supplierEvaluation'
+} from '@/api/supplier-evaluation'
 
 const activeTab = ref('records')
 const recordList = ref<EvaluationRecord[]>([])

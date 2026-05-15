@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider, ElSteps, ElStep, ElResult } from 'element-plus'
 import { Search, ArrowRightBold, ArrowLeftBold, Camera } from '@element-plus/icons-vue'
-import { getTraceByFiveDimension, forwardTrace, backwardTrace, createTraceSnapshot, type FullTraceChainResponse, type TraceChainResponse } from '@/api/businessTrace'
+import { getTraceByFiveDimension, forwardTrace, backwardTrace, createTraceSnapshot, type FullTraceChainResponse, type TraceChainResponse } from '@/api/business-trace'
 
 const traceMode = ref<'five_dimension' | 'forward' | 'backward'>('five_dimension')
 const fiveDimensionId = ref('')

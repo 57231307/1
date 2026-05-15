@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
-import { listArReconciliations, getArReconciliation, createArReconciliation, updateArReconciliation, deleteArReconciliation, confirmReconciliation, getReconciliationDetails, type ArReconciliationEntity, type ReconciliationDetail } from '@/api/arReconciliation'
+import { listArReconciliations, getArReconciliation, createArReconciliation, updateArReconciliation, deleteArReconciliation, confirmReconciliation, getReconciliationDetails, type ArReconciliationEntity, type ReconciliationDetail } from '@/api/ar-reconciliation'
 import { request } from '@/api/request'
 
 const tableData = ref<ArReconciliationEntity[]>([])

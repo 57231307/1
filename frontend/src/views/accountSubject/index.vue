@@ -2,7 +2,7 @@
 import { ref, reactive } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElSwitch, ElTree, ElMessageBox, ElMessage, ElRow, ElCol } from 'element-plus'
 import { Plus, Edit, Delete, View, Refresh } from '@element-plus/icons-vue'
-import { listAccountSubjects, getAccountSubject, createAccountSubject, updateAccountSubject, deleteAccountSubject, enableAccountSubject, disableAccountSubject, getAccountSubjectTree, type AccountSubjectEntity } from '@/api/accountSubject'
+import { listAccountSubjects, getAccountSubject, createAccountSubject, updateAccountSubject, deleteAccountSubject, enableAccountSubject, disableAccountSubject, getAccountSubjectTree, type AccountSubjectEntity } from '@/api/account-subject'
 
 const tableData = ref<AccountSubjectEntity[]>([])
 const treeData = ref<any[]>([])
