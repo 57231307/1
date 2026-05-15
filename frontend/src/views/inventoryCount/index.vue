@@ -51,7 +51,7 @@ const getStatusClass = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listInventoryCounts({
+    const res: any = await listInventoryCounts({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       count_no: searchForm.value.count_no,
@@ -69,7 +69,7 @@ const loadData = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await request.get('/api/v1/warehouses/select')
+    const res: any = await request.get('/api/v1/warehouses/select')
     warehouseOptions.value = res.data
   } catch (error) {
     console.warn('加载仓库失败')
@@ -102,7 +102,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增盘点'
-  const res = await request.get('/api/v1/inventory-count/generate-no')
+  const res: any = await request.get('/api/v1/inventory-count/generate-no')
   form.value = {
     count_no: res.data,
     count_date: new Date().toISOString().split('T')[0],
@@ -114,9 +114,9 @@ const openAddDialog = async () => {
 
 const openViewDialog = async (row: InventoryCountEntity) => {
   try {
-    const res = await getInventoryCount(row.id!)
+    const res: any = await getInventoryCount(row.id!)
     viewData.value = res.data
-    const itemsRes = await getCountItems(row.id!)
+    const itemsRes: any = await getCountItems(row.id!)
     detailData.value = itemsRes.data
     editableDetailData.value = JSON.parse(JSON.stringify(itemsRes.data))
     viewDialogVisible.value = true
@@ -251,7 +251,7 @@ loadWarehouses()
       <ElTableColumn prop="count_date" label="盘点日期" width="120" />
       <ElTableColumn prop="warehouse_name" label="仓库" width="120" />
       <ElTableColumn prop="status" label="状态" width="100">
-        <template #default="scope">
+        <template #default="{ row }">
           <span :class="['status-tag', getStatusClass(row.status)]">
             {{ getStatusLabel(row.status) }}
           </span>
@@ -261,6 +261,7 @@ loadWarehouses()
       <ElTableColumn prop="created_at" label="创建时间" width="150" />
       <ElTableColumn prop="completed_at" label="完成时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
+        <template #default="{ row }">
           <ElButton size="small" @click="openViewDialog(row)">
             <View /> 查看
           </ElButton>
@@ -285,7 +286,6 @@ loadWarehouses()
             size="small"
             type="danger"
             @click="handleDelete(row)"
-          >删除</ElButton>
           >删除</ElButton>
         </template>
       </ElTableColumn>
@@ -332,7 +332,7 @@ loadWarehouses()
             <ElTableColumn prop="unit" label="单位" width="80" />
             <ElTableColumn prop="system_qty" label="系统数量" width="100" align="right" />
             <ElTableColumn prop="actual_qty" label="实际数量" width="120" align="center">
-              <template #default="scope">
+              <template #default="{ row }">
                 <ElInputNumber
                   v-if="viewData.status === 'draft'"
                   v-model="row.actual_qty"
@@ -343,14 +343,14 @@ loadWarehouses()
               </template>
             </ElTableColumn>
             <ElTableColumn prop="diff_qty" label="差异数量" width="120" align="right">
-              <template #default="scope">
+              <template #default="{ row }">
                 <span :class="{ 'positive': row.diff_qty > 0, 'negative': row.diff_qty < 0 }">
                   {{ row.diff_qty }}
                 </span>
               </template>
             </ElTableColumn>
             <ElTableColumn prop="diff_amount" label="差异金额" width="120" align="right">
-              <template #default="scope">
+              <template #default="{ row }">
                 <span :class="{ 'positive': row.diff_amount > 0, 'negative': row.diff_amount < 0 }">
                   {{ row.diff_amount.toFixed(2) }}
                 </span>
