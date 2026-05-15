@@ -302,7 +302,6 @@ const handleTrace = (row: any) => { ElMessage.info(`追溯流程：${row.instanc
 const handleCancel = (row: any) => { ElMessage.info(`撤回流程：${row.instance_id}`) }
 const handleViewProcess = (row: any) => { ElMessage.info(`查看流程：${row.instance_id}`) }
 const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图：${row.instance_id}`) }
-const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图: ${row.instance_id}`) }
 
 onMounted(() => { fetchPendingTasks() })
 </script>
