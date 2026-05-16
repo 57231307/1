@@ -27,6 +27,7 @@ jobs:
   test:
     name: 运行测试
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -62,15 +63,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
 
-      - name: 运行后端测试
+      - name: 运行后端单元测试
         working-directory: backend
         run: |
-          cargo test --all --jobs 2
+          cargo test --lib --jobs 2
+
+      - name: 运行后端集成测试
+        working-directory: backend
+        run: |
+          cargo test --tests --jobs 2
 
   build-backend:
     name: 构建后端
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -131,6 +138,7 @@ jobs:
     name: 构建前端
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: 检出代码
         uses: actions/checkout@v5

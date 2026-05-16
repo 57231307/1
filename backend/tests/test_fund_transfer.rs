@@ -79,7 +79,7 @@ fn test_transfer_id_uniqueness() {
 #[test]
 fn test_fund_transfer_remark_handling() {
     // 测试备注处理
-    let empty_remark = None;
+    let empty_remark: Option<String> = None;
     let short_remark = Some("测试转账".to_string());
     let long_remark = Some("这是一条很长的转账备注，用于测试备注处理功能是否正常工作".to_string());
     
