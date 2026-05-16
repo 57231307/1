@@ -151,13 +151,13 @@
     <el-dialog v-model="approveDialogVisible" title="审批质量标准" width="500px">
       <el-form ref="approveFormRef" :model="approveForm" :rules="approveFormRules" label-width="80px">
         <el-form-item label="标准编号">
-          <el-input v-model="approveStandardItem?.standard_code" disabled />
+          <el-input :model-value="approveStandardItem?.standard_code" disabled />
         </el-form-item>
         <el-form-item label="标准名称">
-          <el-input v-model="approveStandardItem?.standard_name" disabled />
+          <el-input :model-value="approveStandardItem?.standard_name" disabled />
         </el-form-item>
         <el-form-item label="当前版本">
-          <el-input v-model="approveStandardItem?.version" disabled />
+          <el-input :model-value="approveStandardItem?.version" disabled />
         </el-form-item>
         <el-form-item label="审批意见" prop="approval_comment">
           <el-input v-model="approveForm.approval_comment" type="textarea" :rows="4" placeholder="请输入审批意见" />
