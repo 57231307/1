@@ -1,0 +1,40 @@
+# 测试环境配置文件
+# 用于集成测试
+
+server:
+  host: "127.0.0.1"
+  port: "8083"
+
+database:
+  connection_string: "postgres://bingxi:bingxi123@localhost:5432/bingxi"
+  host: "localhost"
+  port: 5432
+  name: "bingxi"
+  username: "bingxi"
+  password: "bingxi123"
+  max_connections: 5
+  min_connections: 1
+  acquire_timeout_ms: 10000
+  idle_timeout_ms: 60000
+  max_lifetime_ms: 300000
+  ssl_mode: "disable"
+  ssl_ca: null
+
+auth:
+  jwt_secret: "test-jwt-secret-key-at-least-32-bytes-long-for-testing"
+  cookie_secret: "test-cookie-secret-key-at-least-32-bytes-long-for-testing"
+  token_expiry_hours: 24
+
+grpc:
+  host: "127.0.0.1"
+  port: 50052
+
+log:
+  level: "debug"
+  dir: "./test_logs"
+
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+
+env: "test"
