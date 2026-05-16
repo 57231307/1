@@ -58,7 +58,8 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="COST_STATUS[row.status as keyof typeof COST_STATUS]?">
+            <el-tag 
+            :type="row.status === 'draft' ? 'warning' : row.status === 'pending' ? 'processing' : row.status === 'approved' ? 'success' : 'danger'"
               {{ COST_STATUS[row.status as keyof typeof COST_STATUS]? }}
             </el-tag>
           </template>
@@ -129,7 +130,7 @@
         <el-descriptions-item label="部门ID">{{ currentCost?.warehouse_id }}</el-descriptions-item>
         <el-descriptions-item label="总成本">¥{{ currentCost?.total_cost?.toFixed(2) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="COST_STATUS[currentCost?.status as keyof typeof COST_STATUS]?">
+            {{ currentCost?.status || '未知' }}
             {{ COST_STATUS[currentCost?.status as keyof typeof COST_STATUS]? }}
           </el-tag>
         </el-descriptions-item>
