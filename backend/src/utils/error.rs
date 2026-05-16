@@ -122,7 +122,7 @@ impl From<sea_orm::DbErr> for AppError {
                     "数据库查询错误"
                 }
             }
-            sea_orm::DbErr::RecordNotFound => "记录不存在",
+            sea_orm::DbErr::RecordNotFound(_) => "记录不存在",
             sea_orm::DbErr::Custom(_) => {
                 if err_str.contains("timeout") {
                     "数据库操作超时"

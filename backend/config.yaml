@@ -13,13 +13,13 @@ server:
   port: "8082"
 
 database:
-  connection_string: ""
+  connection_string: "postgres://bingxi:bingxi123@localhost:5432/bingxi"
   host: "localhost"
   port: 5432
   name: "bingxi"
   username: "bingxi"
   # ⚠️ 安全警告：生产环境必须通过环境变量 DATABASE_PASSWORD 设置
-  password: ""
+  password: "bingxi123"
   max_connections: 50
   min_connections: 5
   acquire_timeout_ms: 30000
@@ -30,9 +30,9 @@ database:
 
 auth:
   # ⚠️ 安全警告：生产环境必须通过环境变量 JWT_SECRET 设置至少 32 字节的强随机密钥
-  jwt_secret: ""
+  jwt_secret: "dev-jwt-secret-key-at-least-32-bytes-long-for-testing"
   # ⚠️ 安全警告：生产环境必须通过环境变量 COOKIE_SECRET 设置至少 32 字节的强随机密钥
-  cookie_secret: ""
+  cookie_secret: "dev-cookie-secret-key-at-least-32-bytes-long-for-testing"
   token_expiry_hours: 24
 
 grpc:
@@ -49,5 +49,6 @@ cors:
   allowed_origins:
     - "http://localhost:3000"
     - "http://127.0.0.1:3000"
+    - "https://3000-6e8e9218ecb12940.monkeycode-ai.online"
 
 env: "development"

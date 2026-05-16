@@ -1,7 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
-use crate::{database::AppState, models::common::ApiResponse};
+use crate::utils::response::ApiResponse;
 
 // Advanced AI 分析 Handler
 
