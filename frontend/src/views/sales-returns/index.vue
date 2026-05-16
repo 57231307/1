@@ -161,12 +161,12 @@
               </template>
             </el-table-column>
             <el-table-column label="数量" width="120">
-              <template #default="{ row, $index }">
+              <template #default="{ row }">
                 <el-input-number v-model="row.quantity" :min="1" :precision="2" style="width: 100%" @change="calculateTotal" />
               </template>
             </el-table-column>
             <el-table-column label="单价" width="120">
-              <template #default="{ row, $index }">
+              <template #default="{ row }">
                 <el-input-number v-model="row.unitPrice" :min="0" :precision="2" style="width: 100%" @change="calculateTotal" />
               </template>
             </el-table-column>
@@ -212,8 +212,8 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
-import { salesApi, type SalesOrder } from '@/api/sales'
-import { listCustomers, type Customer } from '@/api/customer'
+import { salesApi } from '@/api/sales'
+import { listCustomers } from '@/api/customer'
 import { productApi } from '@/api/product'
 
 const loading = ref(false)
@@ -418,7 +418,7 @@ const handleSubmit = async () => {
     try {
       const submitData = {
         ...formData,
-        items: formData.items.map(item => ({
+        items: formData.items.map((item: any) => ({
           productId: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,

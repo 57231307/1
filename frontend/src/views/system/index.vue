@@ -313,7 +313,7 @@ const userForm = reactive({
   status: 1
 })
 
-const validateEmail = (rule: any, value: string, callback: any) => {
+const validateEmail = (_rule: any, value: string, callback: any) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (value && !emailRegex.test(value)) {
     callback(new Error('请输入有效的邮箱地址'))
@@ -322,7 +322,7 @@ const validateEmail = (rule: any, value: string, callback: any) => {
   }
 }
 
-const validatePhone = (rule: any, value: string, callback: any) => {
+const validatePhone = (_rule: any, value: string, callback: any) => {
   const phoneRegex = /^1[3-9]\d{9}$/
   if (value && !phoneRegex.test(value)) {
     callback(new Error('请输入有效的手机号'))
@@ -331,7 +331,7 @@ const validatePhone = (rule: any, value: string, callback: any) => {
   }
 }
 
-const validatePassword = (rule: any, value: string, callback: any) => {
+const validatePassword = (_rule: any, value: string, callback: any) => {
   if (value && value.length < 8) {
     callback(new Error('密码长度至少 8 位'))
   } else if (value && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(value)) {

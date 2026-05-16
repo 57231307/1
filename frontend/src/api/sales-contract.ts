@@ -13,6 +13,7 @@ export interface SalesContract {
   currency: string
   status: 'draft' | 'pending' | 'active' | 'completed' | 'cancelled'
   items: ContractItem[]
+  return_items?: ContractItem[]
   payment_terms: string
   delivery_terms: string
   created_by: number

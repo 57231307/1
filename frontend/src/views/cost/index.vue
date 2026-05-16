@@ -157,15 +157,15 @@ import {
 } from '../../api/cost'
 
 // 响应式数据
-const loading = ref(false)
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const detailVisible = ref(false)
+const loading = ref<boolean>(false)
+const submitLoading = ref<boolean>(false)
+const dialogVisible = ref<boolean>(false)
+const detailVisible = ref<boolean>(false)
 const dialogType = ref<'create' | 'edit'>('create')
 const collectionList = ref<CostCollection[]>([])
 const currentCost = ref<CostCollection | null>(null)
 const costFormRef = ref<FormInstance>()
-const total = ref(0)
+const total = ref<number>(0)
 
 // 查询表单
 const queryForm = reactive({
@@ -196,15 +196,15 @@ const costRules: FormRules = {
 
 // 获取成本归集列表
 const fetchCollections = async () => {
-  loading = true
+  loading.value = true
   try {
     const res: any = await listCostCollections(queryForm)
-    collectionList = res.data?.list || []
-    total = res.data?.total || 0
+    collectionList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (e: any) {
     ElMessage.error(e.message || '获取成本归集列表失败')
   } finally {
-    loading = false
+    loading.value = false
   }
 }
 
@@ -218,14 +218,14 @@ const resetQuery = () => {
 
 // 打开对话框
 const openDialog = (type: 'create' | 'edit', row?: CostCollection) => {
-  dialogType = type
+  dialogType.value = type
   resetForm()
   
   if (type === 'edit' && row) {
     Object.assign(costForm, row)
   }
   
-  dialogVisible = true
+  dialogVisible.value = true
 }
 
 // 重置表单
@@ -239,19 +239,19 @@ const resetForm = () => {
     total_cost: undefined,
     notes: '',
   })
-  costFormRef?.clearValidate()
+  costFormRef.value?.clearValidate()
 }
 
 // 提交表单
 const handleSubmitForm = async () => {
-  if (!costFormRef) return
+  if (!costFormRef.value) return
   
-  await costFormRef.validate(async (valid) => {
+  await costFormRef.value.validate(async (valid) => {
     if (!valid) return
     
-    submitLoading = true
+    submitLoading.value = true
     try {
-      if (dialogType === 'create') {
+      if (dialogType.value === 'create') {
         await createCostCollection(costForm)
         ElMessage.success('创建成功')
       } else {
@@ -261,20 +261,20 @@ const handleSubmitForm = async () => {
         }
       }
       
-      dialogVisible = false
+      dialogVisible.value = false
       fetchCollections()
     } catch (e: any) {
       ElMessage.error(e.message || '操作失败')
     } finally {
-      submitLoading = false
+      submitLoading.value = false
     }
   })
 }
 
 // 查看详情
 const viewDetail = (row: CostCollection) => {
-  currentCost = row
-  detailVisible = true
+  currentCost.value = row
+  detailVisible.value = true
 }
 
 // 提交审核

@@ -10,6 +10,7 @@ export interface FinancialReport {
   status?: string
   createdBy?: number
   createdAt?: string
+  updatedAt?: string
   executedAt?: string
   data?: Record<string, any>
 }

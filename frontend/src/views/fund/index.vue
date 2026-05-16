@@ -358,7 +358,7 @@ const transferRules: FormRules = {
   amount: [
     { required: true, message: '请输入转账金额', trigger: 'blur' },
     { 
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (value <= 0) {
           callback(new Error('转账金额必须大于0'))
         } else if (value > availableBalance) {

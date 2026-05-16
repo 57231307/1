@@ -98,7 +98,7 @@ const handleExport = () => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增凭证'
-  const res = await generateVoucherNo()
+  const res: any = await generateVoucherNo()
   form.value = {
     voucher_no: res.data,
     voucher_date: new Date().toISOString().split('T')[0],
@@ -114,14 +114,14 @@ const openAddDialog = async () => {
 
 const openEditDialog = async (row: VoucherEntity) => {
   dialogTitle.value = '编辑凭证'
-  const res = await getVoucher(row.id!)
+  const res: any = await getVoucher(row.id!)
   form.value = { ...res.data }
   dialogVisible.value = true
 }
 
 const openViewDialog = async (row: VoucherEntity) => {
   try {
-    const res = await getVoucher(row.id!)
+    const res: any = await getVoucher(row.id!)
     viewData.value = res.data
     viewDialogVisible.value = true
   } catch (error) {
@@ -214,6 +214,111 @@ const handleUnpost = async (row: VoucherEntity) => {
     loadData()
   } catch (error) {
     ElMessage.info('取消操作')
+  }
+}
+
+const calculateTotals = () => {
+  if (!form.value.entries) return
+  let totalDebit = 0
+  let totalCredit = 0
+  form.value.entries.forEach(entry => {
+    totalDebit += entry.debit_amount || 0
+    totalCredit += entry.credit_amount || 0
+  })
+  form.value.total_debit = totalDebit
+  form.value.total_credit = totalCredit
+}
+
+const loadData = async () => {
+  loading.value = true
+  try {
+    const params = {
+      ...searchForm.value,
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    }
+    const res: any = await listVouchers(params)
+    tableData.value = res.data?.list || []
+    total.value = res.data?.total || 0
+  } catch (error) {
+    ElMessage.error('获取凭证列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadVoucherTypes = async () => {
+  try {
+    const res: any = await getVoucherTypes()
+    voucherTypes.value = res.data || []
+  } catch (error) {
+    console.error('获取凭证类型失败', error)
+  }
+}
+
+const loadAccountSubjects = async () => {
+  try {
+    const res: any = await getAccountSubjectTree()
+    const flattenOptions = (items: any[]): { label: string; value: number }[] => {
+      const result: { label: string; value: number }[] = []
+      const traverse = (nodes: any[]) => {
+        nodes.forEach(node => {
+          result.push({ label: node.name, value: node.id })
+          if (node.children && node.children.length > 0) {
+            traverse(node.children)
+          }
+        })
+      }
+      traverse(items)
+      return result
+    }
+    accountSubjectOptions.value = flattenOptions(res.data || [])
+  } catch (error) {
+    console.error('获取科目列表失败', error)
+  }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  loadData()
+}
+
+const handleReset = () => {
+  searchForm.value = {
+    voucher_no: '',
+    voucher_date_start: '',
+    voucher_date_end: '',
+    type: '',
+    status: ''
+  }
+  handleSearch()
+}
+
+const handlePageChange = (page: number) => {
+  pagination.value.page = page
+  loadData()
+}
+
+const handlePageSizeChange = (pageSize: number) => {
+  pagination.value.pageSize = pageSize
+  pagination.value.page = 1
+  loadData()
+}
+
+const getTypeLabel = (type: string) => {
+  return voucherTypes.value.find(t => t.value === type)?.label || type
+}
+
+const addEntry = () => {
+  if (!form.value.entries) {
+    form.value.entries = []
+  }
+  form.value.entries.push({ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' })
+}
+
+const removeEntry = (index: number) => {
+  if (form.value.entries && form.value.entries.length > 1) {
+    form.value.entries.splice(index, 1)
   }
 }
 

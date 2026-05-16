@@ -10,7 +10,25 @@ export interface TraceRecord {
   created_at?: string
 }
 
-export const getTraceByFiveDimension = (fiveDimensionId: number) =>
+export interface TraceChainResponse {
+  id?: number
+  trace_chain_id: string
+  five_dimension_id: number
+  business_type: string
+  business_id: number
+  relation_type: string
+  created_at?: string
+  [key: string]: any
+}
+
+export interface FullTraceChainResponse {
+  trace_chain_id: string
+  five_dimension_id: number
+  traces: TraceChainResponse[]
+  [key: string]: any
+}
+
+export const getTraceByFiveDimension = (fiveDimensionId: number | string) =>
   request.get(`/business-trace/five-dimension/${fiveDimensionId}`)
 
 export const forwardTrace = (params?: any) =>
