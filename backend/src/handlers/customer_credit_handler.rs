@@ -1,7 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::customer_credit;
 use crate::services::customer_credit_service::{
-    CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCreditService,
+    CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCreditService,
 };
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
@@ -254,28 +254,8 @@ pub struct CreditEvaluationRequest {
     pub evaluation_date: String,
 }
 
-/// 信用评估结果
-#[derive(Debug, Serialize)]
-pub struct CreditEvaluationResult {
-    pub customer_id: i32,
-    pub customer_name: String,
-    pub credit_score: i32,
-    pub credit_rating: String,
-    pub recommended_limit: rust_decimal::Decimal,
-    pub evaluation_factors: Vec<EvaluationFactor>,
-    pub evaluation_date: String,
-}
-
-/// 评估因子
-#[derive(Debug, Serialize)]
-pub struct EvaluationFactor {
-    pub factor_name: String,
-    pub weight: f64,
-    pub score: i32,
-    pub description: String,
-}
-
 /// 信用评估
+#[axum::debug_handler]
 pub async fn evaluate_credit(
     State(state): State<AppState>,
     auth: AuthContext,

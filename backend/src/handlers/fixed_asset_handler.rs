@@ -3,7 +3,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fixed_asset;
 use crate::services::fixed_asset_service::{
-    CreateAssetRequest, DisposalRequest, FixedAssetService,
+    CreateAssetRequest, DisposalRequest, FixedAssetService, DepreciationResult,
 };
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
@@ -222,16 +222,4 @@ pub struct BatchDepreciateRequest {
     pub asset_ids: Vec<i32>,
     pub calculation_date: String,
     pub user_id: i32,
-}
-
-/// 折旧计算结果
-#[derive(Debug, Serialize)]
-pub struct DepreciationResult {
-    pub asset_id: i32,
-    pub asset_no: String,
-    pub original_value: rust_decimal::Decimal,
-    pub accumulated_depreciation: rust_decimal::Decimal,
-    pub current_depreciation: rust_decimal::Decimal,
-    pub net_value: rust_decimal::Decimal,
-    pub depreciation_method: String,
 }

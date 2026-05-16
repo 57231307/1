@@ -1,0 +1,19 @@
+# 构建输出
+dist/
+build/
+node_modules/
+
+# 自动生成的文件
+auto-imports.d.ts
+components.d.ts
+
+# 配置文件
+*.config.js
+*.config.ts
+
+# 其他
+*.md
+*.json
+*.yaml
+*.yml
+package-lock.json

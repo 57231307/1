@@ -31,6 +31,7 @@ pub trait Cache<K, V> {
     fn contains_key(&self, key: &K) -> bool;
     fn stats(&self) -> CacheStats;
     fn cleanup_expired(&self);
+    fn evict_oldest(&self, target_size: usize);
 }
 
 /// 内存缓存实现
@@ -95,6 +96,7 @@ where
             misses: self.misses.load(Ordering::Relaxed),
             evictions: self.evictions.load(Ordering::Relaxed),
             size: self.storage.len(),
+            max_size: self.max_size,
         }
     }
 
@@ -198,6 +200,7 @@ where
             misses: self.misses.load(Ordering::Relaxed),
             evictions: self.evictions.load(Ordering::Relaxed),
             size: self.storage.len(),
+            max_size: self.max_size,
         }
     }
 

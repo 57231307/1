@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{database::AppState, models::common::ApiResponse};
+use crate::utils::response::ApiResponse;
 
 // Trading Handler - 交易管理
 
@@ -39,21 +39,21 @@ pub async fn list_purchase_contracts(
 pub async fn create_purchase_contract(
     Json(_payload): Json<PurchaseContractCreate>,
 ) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message("合同创建成功"))
+    Json(ApiResponse::success_with_message((), "合同创建成功"))
 }
 
 /// 审批采购合同
 pub async fn approve_purchase_contract(
     Path(id): Path<u32>,
 ) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message(&format!("合同 {} 审批成功", id)))
+    Json(ApiResponse::success_with_message((), &format!("合同 {} 审批成功", id)))
 }
 
 /// 执行采购合同
 pub async fn execute_purchase_contract(
     Path(id): Path<u32>,
 ) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message(&format!("合同 {} 执行成功", id)))
+    Json(ApiResponse::success_with_message((), &format!("合同 {} 执行成功", id)))
 }
 
 // 销售合同相关
@@ -76,13 +76,13 @@ pub async fn list_sales_contracts(
 pub async fn create_sales_contract(
     Json(_payload): Json<SalesContractCreate>,
 ) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message("销售合同创建成功"))
+    Json(ApiResponse::success_with_message((), "销售合同创建成功"))
 }
 
 pub async fn approve_sales_contract(
     Path(id): Path<u32>,
 ) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message(&format!("销售合同 {} 审批成功", id)))
+    Json(ApiResponse::success_with_message((), &format!("销售合同 {} 审批成功", id)))
 }
 
 // 价格管理

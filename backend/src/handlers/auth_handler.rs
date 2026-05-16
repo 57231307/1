@@ -232,7 +232,7 @@ pub async fn refresh_token(
         ))?;
 
     // 检查 Token 是否在黑名单中
-    let is_blacklisted = state.cache.get_token_blacklist().get(token).is_some();
+    let is_blacklisted = state.cache.get_token_blacklist().get(&token.to_string()).is_some();
     if is_blacklisted {
         return Err((
             StatusCode::UNAUTHORIZED,

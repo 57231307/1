@@ -1,4 +1,5 @@
 use crate::models::fund_management;
+use crate::models::fund_transfer_record;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -323,8 +324,8 @@ impl FundManagementService {
 
         let records = query
             .order_by(fund_transfer_record::Column::TransferDate, Order::Desc)
-            .paginate(&*self.db, page - 1, page_size)
-            .fetch()
+            .paginate(&*self.db, page_size)
+            .fetch_page(page - 1)
             .await?;
 
         Ok(records)
@@ -335,6 +336,6 @@ impl FundManagementService {
         fund_transfer_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFoundError("资金转账记录".to_string()))
+            .ok_or_else(|| AppError::NotFound("资金转账记录".to_string()))
     }
 }

@@ -303,7 +303,6 @@ impl FixedAssetService {
         info!("资产 {} 删除成功", asset_id);
         Ok(())
     }
-}
 
     /// 批量计算折旧
     pub async fn batch_calculate_depreciation(
@@ -311,8 +310,8 @@ impl FixedAssetService {
         asset_ids: Vec<i32>,
         calculation_date: String,
         user_id: i32,
-    ) -> Result<Vec<super::fixed_asset_handler::DepreciationResult>, AppError> {
-        use chrono::NaiveDate;
+    ) -> Result<Vec<DepreciationResult>, AppError> {
+        use chrono::{NaiveDate, Datelike};
         
         let calc_date = calculation_date.parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
@@ -323,18 +322,18 @@ impl FixedAssetService {
             let asset = fixed_asset::Entity::find_by_id(asset_id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::NotFoundError("固定资产".to_string()))?;
+                .ok_or_else(|| AppError::NotFound("固定资产".to_string()))?;
             
             // 计算折旧
             let depreciation = self.calculate_asset_depreciation(&asset, calc_date)?;
             
-            results.push(super::fixed_asset_handler::DepreciationResult {
+            results.push(DepreciationResult {
                 asset_id: asset.id,
                 asset_no: asset.asset_no,
-                original_value: asset.purchase_price,
+                original_value: asset.original_value,
                 accumulated_depreciation: asset.accumulated_depreciation + depreciation,
                 current_depreciation: depreciation,
-                net_value: asset.purchase_price - asset.accumulated_depreciation - depreciation,
+                net_value: asset.original_value - asset.accumulated_depreciation - depreciation,
                 depreciation_method: asset.depreciation_method.unwrap_or_default(),
             });
         }
@@ -348,10 +347,12 @@ impl FixedAssetService {
         asset: &fixed_asset::Model,
         calc_date: NaiveDate,
     ) -> Result<rust_decimal::Decimal, AppError> {
-        let purchase_date = asset.purchase_date;
-        let useful_life = asset.useful_life_months as i32;
-        let original_value = asset.purchase_price;
-        let residual_value = asset.expected_residual_value;
+        use chrono::Datelike;
+        
+        let purchase_date = asset.purchase_date.unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
+        let useful_life = asset.useful_life.unwrap_or(0) as i32;
+        let original_value = asset.original_value;
+        let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
         
         // 计算已使用月数
         let months_used = (calc_date.year() - purchase_date.year()) * 12 
@@ -369,3 +370,16 @@ impl FixedAssetService {
         
         Ok(total_depreciation - asset.accumulated_depreciation)
     }
+}
+
+/// 折旧结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DepreciationResult {
+    pub asset_id: i32,
+    pub asset_no: String,
+    pub original_value: rust_decimal::Decimal,
+    pub accumulated_depreciation: rust_decimal::Decimal,
+    pub current_depreciation: rust_decimal::Decimal,
+    pub net_value: rust_decimal::Decimal,
+    pub depreciation_method: String,
+}

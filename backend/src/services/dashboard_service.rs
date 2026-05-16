@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::utils::cache::{AppCache, Cache};
+use crate::utils::error::AppError;
 
 /// 仪表板概览数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -145,7 +146,7 @@ impl DashboardService {
         let now = Utc::now();
         use chrono::Datelike;
         let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .ok_or_else(|| AppError::InternalServerError("Failed to calculate month start date".to_string()))?;
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
         let monthly_sales_dec = sales_order::Entity::find()
             .filter(sales_order::Column::IsDeleted.eq(false))
             .filter(sales_order::Column::OrderDate.gte(start_of_month))

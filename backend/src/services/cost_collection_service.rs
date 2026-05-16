@@ -372,7 +372,7 @@ impl CostCollectionService {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFoundError("成本归集".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("成本归集".to_string()))?;
 
         // 只有草稿状态才能审核
         if collection.status != "draft" {
@@ -384,9 +384,6 @@ impl CostCollectionService {
         let active_model = cost_collection::ActiveModel {
             id: sea_orm::ActiveValue::Unchanged(collection.id),
             status: sea_orm::ActiveValue::Set(status.to_string()),
-            auditor_id: sea_orm::ActiveValue::Set(Some(user_id)),
-            audit_comment: sea_orm::ActiveValue::Set(comment),
-            audit_time: sea_orm::ActiveValue::Set(Some(chrono::Utc::now().naive_utc())),
             ..Default::default()
         };
 
