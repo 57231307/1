@@ -464,7 +464,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approvedByName }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approvedBy }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
@@ -856,7 +856,7 @@ const returnRules: FormRules = {
 
 const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
-    const res = await purchaseReturnApi.getById(row.id)
+    const res = await purchaseReturnApi.getById(row.id!)
     Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
@@ -899,7 +899,7 @@ const submitReturn = async () => {
 }
 
 const viewReturn = async (row: PurchaseReturn) => {
-  const res = await purchaseReturnApi.getById(row.id)
+  const res = await purchaseReturnApi.getById(row.id!)
   currentReturn.value = res.data
   returnViewVisible.value = true
 }

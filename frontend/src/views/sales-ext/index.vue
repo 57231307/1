@@ -402,7 +402,7 @@
           <el-input v-model="returnForm.reason" type="textarea" />
         </el-form-item>
         <el-divider>退货明细</el-divider>
-        <el-table :data="returnForm.items" border style="width: 100%">
+        <el-table :data="returnForm.items || []" border style="width: 100%">
           <el-table-column prop="productName" label="产品名称" min-width="150">
             <template #default="{ row }">
               <el-input v-model="row.productName" placeholder="产品名称" />
@@ -859,7 +859,7 @@ const returnRules: FormRules = {
 
 const openReturnDialog = async (row?: SalesReturn) => {
   if (row) {
-    const res = await salesReturnApi.getById(row.id)
+    const res = await salesReturnApi.getById(row.id!)
     Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
@@ -897,7 +897,7 @@ const submitReturn = async () => {
 }
 
 const viewReturn = async (row: SalesReturn) => {
-  const res = await salesReturnApi.getById(row.id)
+  const res = await salesReturnApi.getById(row.id!)
   currentReturn.value = res.data
   returnViewVisible.value = true
 }
@@ -906,8 +906,8 @@ const addReturnItem = () => {
 }
 const removeReturnItem = (index: number) => {
 
-  if (returnForm.items.length > 1) {
-    returnForm.items.splice(index, 1)
+  if (returnForm.items || [].length > 1) {
+    returnForm.items || [].splice(index, 1)
   }
 }
 

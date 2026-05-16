@@ -14,7 +14,7 @@
           <el-input v-model="queryForm.collection_no" placeholder="请输入归集编号" clearable />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择状态" clearable>
+          <el-select v-model="queryForm.label" placeholder="请选择状态" clearable>
             <el-option
               v-for="(item, key) in COST_STATUS"
               :key="key"
@@ -58,17 +58,17 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="COST_STATUS[row.status as keyof typeof COST_STATUS]?.type">
-              {{ COST_STATUS[row.status as keyof typeof COST_STATUS]?.label }}
+            <el-tag :type="COST_STATUS[row.label as keyof typeof COST_STATUS]?.label">
+              {{ COST_STATUS[row.label as keyof typeof COST_STATUS]?.label }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
-            <el-button type="success" link size="small" @click="openDialog('edit', row)" v-if="row.status === 'draft'">编辑</el-button>
-            <el-button type="warning" link size="small" @click="handleSubmit(row)" v-if="row.status === 'draft'">提交</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
+            <el-button type="success" link size="small" @click="openDialog('edit', row)" v-if="row.label === 'draft'">编辑</el-button>
+            <el-button type="warning" link size="small" @click="handleSubmit(row)" v-if="row.label === 'draft'">提交</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.label === 'draft'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -99,19 +99,19 @@
           <el-input v-model="costForm.collection_no" placeholder="请输入归集编号" />
         </el-form-item>
         <el-form-item label="成本类型" prop="status">
-          <el-input v-model="costForm.status" placeholder="请输入成本类型" />
+          <el-input v-model="costForm.label" placeholder="请输入成本类型" />
         </el-form-item>
         <el-form-item label="期间" prop="collection_date">
           <el-input v-model="costForm.collection_date" placeholder="例如：2024-01" />
         </el-form-item>
         <el-form-item label="部门ID" prop="status">
-          <el-input-number v-model="costForm.status" :min="1" style="width: 100%" />
+          <el-input-number v-model="costForm.label" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="总成本" prop="total_cost">
           <el-input-number v-model="costForm.total_cost" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="costForm.status" type="textarea" :rows="3" placeholder="请输入备注" />
+          <el-input v-model="costForm.label" type="textarea" :rows="3" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -124,18 +124,18 @@
     <el-dialog v-model="detailVisible" title="成本归集详情" width="600px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="归集编号">{{ currentCost?.collection_no }}</el-descriptions-item>
-        <el-descriptions-item label="成本类型">{{ currentCost?.status }}</el-descriptions-item>
+        <el-descriptions-item label="成本类型">{{ currentCost?.label }}</el-descriptions-item>
         <el-descriptions-item label="期间">{{ currentCost?.collection_date }}</el-descriptions-item>
-        <el-descriptions-item label="部门ID">{{ currentCost?.status }}</el-descriptions-item>
+        <el-descriptions-item label="部门ID">{{ currentCost?.label }}</el-descriptions-item>
         <el-descriptions-item label="总成本">¥{{ currentCost?.total_cost?.toFixed(2) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="COST_STATUS[currentCost?.status as keyof typeof COST_STATUS]?.type">
-            {{ COST_STATUS[currentCost?.status as keyof typeof COST_STATUS]?.label }}
+          <el-tag :type="COST_STATUS[currentCost?.label as keyof typeof COST_STATUS]?.label">
+            {{ COST_STATUS[currentCost?.label as keyof typeof COST_STATUS]?.label }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentCost?.created_at }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ currentCost?.updated_at }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentCost?.status || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ currentCost?.label || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -170,26 +170,21 @@ const queryForm = reactive({
   page: 1,
   page_size: 20,
   collection_no: '',
-  status: '',
+  type: '',
 })
 
 // 成本表单
 const costForm = reactive<Partial<CostCollection>>({
   collection_no: '',
-  status: '',
+  type: '',
   collection_date: '',
-  status: undefined,
-  total_cost: undefined,
-  status: 'draft',
-  status: '',
 })
 
 // 表单验证规则
 const costRules: FormRules = {
   collection_no: [{ required: true, message: '请输入归集编号', trigger: 'blur' }],
-  status: [{ required: true, message: '请输入成本类型', trigger: 'blur' }],
+  statusOptions: [{ required: true, message: '请输入成本类型', trigger: 'blur' }],
   collection_date: [{ required: true, message: '请输入期间', trigger: 'blur' }],
-  status: [{ required: true, message: '请输入部门ID', trigger: 'blur' }],
   total_cost: [{ required: true, message: '请输入总成本', trigger: 'blur' }],
 }
 
@@ -211,7 +206,7 @@ const fetchCollections = async () => {
 const resetQuery = () => {
   queryForm.page = 1
   queryForm.collection_no = ''
-  queryForm.status = ''
+  queryForm.label = ''
   fetchCollections()
 }
 
@@ -232,12 +227,8 @@ const resetForm = () => {
   Object.assign(costForm, {
     id: undefined,
     collection_no: '',
-    status: '',
+    type: '',
     collection_date: '',
-    status: undefined,
-    total_cost: undefined,
-    status: 'draft',
-    status: '',
   })
   costFormRef.value?.clearValidate()
 }
@@ -284,7 +275,7 @@ const handleSubmit = async (row: CostCollection) => {
       type: 'warning',
     })
     
-    await updateCostCollection(row.id, { status: 'pending' })
+    await updateCostCollection(row.id!, { type: 'pending' })
     ElMessage.success('提交成功')
     fetchCollections()
   } catch (e: any) {
@@ -303,7 +294,7 @@ const handleDelete = async (row: CostCollection) => {
       cancelButtonText: '取消',
     })
     
-    await deleteCostCollection(row.id)
+    await deleteCostCollection(row.id!)
     ElMessage.success('删除成功')
     fetchCollections()
   } catch (e: any) {
