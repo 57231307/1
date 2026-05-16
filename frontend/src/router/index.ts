@@ -338,26 +338,27 @@ router.beforeEach((to, _from, next) => {
       return
     }
     
+    // 验证 token 格式（支持标准 JWT 和 mock token）
     try {
       const parts = token.split('.')
-      if (parts.length !== 3) {
-        throw new Error('Invalid token format')
+      if (parts.length === 3) {
+        // 标准 JWT 格式，验证过期时间
+        const tokenData = JSON.parse(atob(parts[1]))
+        const currentTime = Math.floor(Date.now() / 1000)
+        
+        if (tokenData.exp && tokenData.exp < currentTime) {
+          removeToken()
+          next({ path: '/login', query: { redirect: to.fullPath } })
+          return
+        }
+        
+        if (tokenData.iat && tokenData.iat > currentTime) {
+          removeToken()
+          next({ path: '/login', query: { redirect: to.fullPath } })
+          return
+        }
       }
-      
-      const tokenData = JSON.parse(atob(parts[1]))
-      const currentTime = Math.floor(Date.now() / 1000)
-      
-      if (tokenData.exp && tokenData.exp < currentTime) {
-        removeToken()
-        next({ path: '/login', query: { redirect: to.fullPath } })
-        return
-      }
-      
-      if (tokenData.iat && tokenData.iat > currentTime) {
-        removeToken()
-        next({ path: '/login', query: { redirect: to.fullPath } })
-        return
-      }
+      // 非标准 JWT 格式（如 mock token），跳过验证
     } catch (error) {
       console.error('Token validation failed:', error)
       removeToken()
