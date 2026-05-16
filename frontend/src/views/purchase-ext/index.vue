@@ -464,7 +464,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approvedBy }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
@@ -905,7 +905,7 @@ const viewReturn = async (row: PurchaseReturn) => {
 }
 
 const addReturnItem = () => {
-  returnForm.items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' })
+  returnForm.items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unitPrice: '', price: 0, amount: 0, reason: '' })
 }
 
 const removeReturnItem = (index: number) => {

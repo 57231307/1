@@ -215,7 +215,7 @@
           </el-col>
         </el-row>
         <el-divider>合同明细</el-divider>
-        <el-table :data="contractForm.items" border style="width: 100%">
+        <el-table :data="contractForm.return_items || []" border style="width: 100%">
           <el-table-column prop="product_name" label="产品名称" min-width="150">
             <template #default="{ row }">
               <el-input v-model="row.product_name" placeholder="产品名称" />
@@ -282,7 +282,7 @@
         <el-descriptions-item label="创建人">{{ currentContract?.created_by_name }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>合同明细</el-divider>
-      <el-table :data="currentContract?.items || []" stripe>
+      <el-table :data="currentContract?.return_items || [] || []" stripe>
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="product_code" label="产品编码" width="120" />
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
@@ -402,7 +402,7 @@
           <el-input v-model="returnForm.reason" type="textarea" />
         </el-form-item>
         <el-divider>退货明细</el-divider>
-        <el-table :data="returnForm.items || []" border style="width: 100%">
+        <el-table :data="returnForm.return_items || [] || []" border style="width: 100%">
           <el-table-column prop="productName" label="产品名称" min-width="150">
             <template #default="{ row }">
               <el-input v-model="row.productName" placeholder="产品名称" />
@@ -463,12 +463,12 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approvedByName }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
       <el-divider>退货明细</el-divider>
-      <el-table :data="currentReturn?.items || []" stripe>
+      <el-table :data="currentReturn?.return_items || [] || []" stripe>
         <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="productCode" label="产品编码" width="120" />
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
@@ -744,12 +744,12 @@ const cancelContract = async (row: SalesContract) => {
 }
 
 const addContractItem = () => {
-  contractForm.items.push({ id: 0, contract_id: 0, product_id: 0, product_name: '', product_code: '', quantity: 0, unit: '', price: 0, amount: 0, remark: '' })
+  contractForm.return_items || [].push({ id: 0, contract_id: 0, product_id: 0, product_name: '', product_code: '', quantity: 0, unit: '', price: 0, amount: 0, remark: '' })
 }
 
 const removeContractItem = (index: number) => {
-  if (contractForm.items.length > 1) {
-    contractForm.items.splice(index, 1)
+  if (contractForm.return_items || [].length > 1) {
+    contractForm.return_items || [].splice(index, 1)
   }
 }
 
@@ -906,8 +906,8 @@ const addReturnItem = () => {
 }
 const removeReturnItem = (index: number) => {
 
-  if (returnForm.items || [].length > 1) {
-    returnForm.items || [].splice(index, 1)
+  if (returnForm.return_items || [] || [].length > 1) {
+    returnForm.return_items || [] || [].splice(index, 1)
   }
 }
 

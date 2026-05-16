@@ -11,6 +11,12 @@ export interface CostCollection {
   manufacturing_overhead: number
   total_cost?: number
   status: string
+  type?: string
+  period?: string
+  department_id?: number
+  remark?: string
+  warehouse_id?: number
+  notes?: string
   created_at?: string
   updated_at?: string
 }

@@ -27,8 +27,8 @@ export const listFiveDimensionStats = (params?: any) => request.get("/five-dimen
 export const getStatsByFiveDimensionId = (id: number) => request.get(`/five-dimension/stats/${id}`)
 export const parseFiveDimensionId = (id: number) => request.get(`/five-dimension/parse/${id}`)
 export const searchFiveDimension = (params?: any) => request.get("/five-dimension/search", { params })
-export interface FiveDimensionStatsResponse { list: any[]; total: number }
-export interface FiveDimensionItem { id: number; name: string }
+export interface FiveDimensionStatsResponse { dimension: any; list: any[]; total: number }
+export interface FiveDimensionItem { id: number; name: string; product_id?: number; batch_no?: string; color_no?: string; grade?: string }
 
 export const fiveDimensionApi = {
   getStats: (dimensionId: number, params?: FiveDimensionQuery) =>
