@@ -225,24 +225,90 @@ function handleRequest(req, res) {
   
   // 产品列表
   if (path === '/api/v1/erp/products') {
-    response.data = { list: mockData.products, total: mockData.products.length };
+    const keyword = parsedUrl.query.keyword || '';
+    let filteredProducts = mockData.products;
+    if (keyword) {
+      filteredProducts = mockData.products.filter(p => 
+        p.name.includes(keyword) || p.code.includes(keyword)
+      );
+    }
+    response.data = { list: filteredProducts, total: filteredProducts.length };
     res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 产品详情
+  if (path.match(/^\/api\/v1\/erp\/products\/\d+$/)) {
+    const id = parseInt(path.split('/').pop());
+    const product = mockData.products.find(p => p.id === id);
+    if (product) {
+      response.data = product;
+    } else {
+      response.code = 404;
+      response.message = 'Product not found';
+    }
+    res.writeHead(response.code === 404 ? 404 : 200);
     res.end(JSON.stringify(response));
     return;
   }
   
   // 客户列表
   if (path === '/api/v1/erp/customers') {
-    response.data = { list: mockData.customers, total: mockData.customers.length };
+    const keyword = parsedUrl.query.keyword || '';
+    let filteredCustomers = mockData.customers;
+    if (keyword) {
+      filteredCustomers = mockData.customers.filter(c => 
+        c.name.includes(keyword) || c.contact.includes(keyword)
+      );
+    }
+    response.data = { list: filteredCustomers, total: filteredCustomers.length };
     res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 客户详情
+  if (path.match(/^\/api\/v1\/erp\/customers\/\d+$/)) {
+    const id = parseInt(path.split('/').pop());
+    const customer = mockData.customers.find(c => c.id === id);
+    if (customer) {
+      response.data = customer;
+    } else {
+      response.code = 404;
+      response.message = 'Customer not found';
+    }
+    res.writeHead(response.code === 404 ? 404 : 200);
     res.end(JSON.stringify(response));
     return;
   }
   
   // 供应商列表
   if (path === '/api/v1/erp/suppliers') {
-    response.data = { list: mockData.suppliers, total: mockData.suppliers.length };
+    const keyword = parsedUrl.query.keyword || '';
+    let filteredSuppliers = mockData.suppliers;
+    if (keyword) {
+      filteredSuppliers = mockData.suppliers.filter(s => 
+        s.name.includes(keyword) || s.contact.includes(keyword)
+      );
+    }
+    response.data = { list: filteredSuppliers, total: filteredSuppliers.length };
     res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 供应商详情
+  if (path.match(/^\/api\/v1\/erp\/suppliers\/\d+$/)) {
+    const id = parseInt(path.split('/').pop());
+    const supplier = mockData.suppliers.find(s => s.id === id);
+    if (supplier) {
+      response.data = supplier;
+    } else {
+      response.code = 404;
+      response.message = 'Supplier not found';
+    }
+    res.writeHead(response.code === 404 ? 404 : 200);
     res.end(JSON.stringify(response));
     return;
   }
@@ -255,25 +321,91 @@ function handleRequest(req, res) {
     return;
   }
   
+  // 仓库详情
+  if (path.match(/^\/api\/v1\/erp\/warehouses\/\d+$/)) {
+    const id = parseInt(path.split('/').pop());
+    const warehouse = mockData.warehouses.find(w => w.id === id);
+    if (warehouse) {
+      response.data = warehouse;
+    } else {
+      response.code = 404;
+      response.message = 'Warehouse not found';
+    }
+    res.writeHead(response.code === 404 ? 404 : 200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
   // 销售订单
   if (path === '/api/v1/erp/sales/orders') {
-    response.data = { list: mockData.salesOrders, total: mockData.salesOrders.length };
+    const keyword = parsedUrl.query.keyword || '';
+    let filteredOrders = mockData.salesOrders;
+    if (keyword) {
+      filteredOrders = mockData.salesOrders.filter(o => 
+        o.order_no.includes(keyword) || o.customer_name.includes(keyword)
+      );
+    }
+    response.data = { list: filteredOrders, total: filteredOrders.length };
     res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 销售订单详情
+  if (path.match(/^\/api\/v1\/erp\/sales\/orders\/\d+$/)) {
+    const id = parseInt(path.split('/').pop());
+    const order = mockData.salesOrders.find(o => o.id === id);
+    if (order) {
+      response.data = order;
+    } else {
+      response.code = 404;
+      response.message = 'Order not found';
+    }
+    res.writeHead(response.code === 404 ? 404 : 200);
     res.end(JSON.stringify(response));
     return;
   }
   
   // 采购订单
   if (path === '/api/v1/erp/purchase/orders') {
-    response.data = { list: mockData.purchaseOrders, total: mockData.purchaseOrders.length };
+    const keyword = parsedUrl.query.keyword || '';
+    let filteredOrders = mockData.purchaseOrders;
+    if (keyword) {
+      filteredOrders = mockData.purchaseOrders.filter(o => 
+        o.order_no.includes(keyword) || o.supplier_name.includes(keyword)
+      );
+    }
+    response.data = { list: filteredOrders, total: filteredOrders.length };
     res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 采购订单详情
+  if (path.match(/^\/api\/v1\/erp\/purchase\/orders\/\d+$/)) {
+    const id = parseInt(path.split('/').pop());
+    const order = mockData.purchaseOrders.find(o => o.id === id);
+    if (order) {
+      response.data = order;
+    } else {
+      response.code = 404;
+      response.message = 'Order not found';
+    }
+    res.writeHead(response.code === 404 ? 404 : 200);
     res.end(JSON.stringify(response));
     return;
   }
   
   // 库存
   if (path === '/api/v1/erp/inventory/stock') {
-    response.data = { list: mockData.inventory, total: mockData.inventory.length };
+    const keyword = parsedUrl.query.keyword || '';
+    let filteredInventory = mockData.inventory;
+    if (keyword) {
+      filteredInventory = mockData.inventory.filter(i => 
+        i.product_name.includes(keyword)
+      );
+    }
+    response.data = { list: filteredInventory, total: filteredInventory.length };
     res.writeHead(200);
     res.end(JSON.stringify(response));
     return;
