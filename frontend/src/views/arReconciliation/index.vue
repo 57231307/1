@@ -52,7 +52,7 @@ const getStatusClass = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listArReconciliations({
+    const res: any = await listArReconciliations({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       ...searchForm.value
@@ -68,7 +68,7 @@ const loadData = async () => {
 
 const loadCustomers = async () => {
   try {
-    const res = await request.get('/api/v1/customers/select')
+    const res: any = await request.get('/api/v1/customers/select')
     customerOptions.value = res.data
   } catch (error) {
     console.warn('加载客户失败')
@@ -120,9 +120,9 @@ const openEditDialog = (row: ArReconciliationEntity) => {
 
 const openViewDialog = async (row: ArReconciliationEntity) => {
   try {
-    const res = await getArReconciliation(row.id!)
+    const res: any = await getArReconciliation(row.id!)
     viewData.value = res.data
-    const detailRes = await getReconciliationDetails(row.id!)
+    const detailRes: any = await getReconciliationDetails(row.id!)
     detailData.value = detailRes.data
     viewDialogVisible.value = true
   } catch (error) {

@@ -45,7 +45,7 @@ const getStatusClass = (value: string) => {
 const loadStats = async () => {
   loading.value = true
   try {
-    const res = await getDashboardStats()
+    const res: any = await getDashboardStats()
     stats.value = res.data.data
   } catch (error) {
     ElMessage.error('加载统计数据失败')
@@ -57,7 +57,7 @@ const loadStats = async () => {
 const loadLogs = async () => {
   loading.value = true
   try {
-    const res = await searchLogs({
+    const res: any = await searchLogs({
       user_id: searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined,
       event_type: searchForm.value.event_type || undefined,
       resource: searchForm.value.resource || undefined,

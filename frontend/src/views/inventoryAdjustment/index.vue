@@ -53,7 +53,7 @@ const getStatusClass = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listInventoryAdjustments({
+    const res: any = await listInventoryAdjustments({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       adjust_no: searchForm.value.adjust_no,
@@ -71,7 +71,7 @@ const loadData = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await request.get('/api/v1/warehouses/select')
+    const res: any = await request.get('/api/v1/warehouses/select')
     warehouseOptions.value = res.data
   } catch (error) {
     console.warn('加载仓库失败')
@@ -80,7 +80,7 @@ const loadWarehouses = async () => {
 
 const loadProducts = async () => {
   try {
-    const res = await request.get('/api/v1/products/select')
+    const res: any = await request.get('/api/v1/products/select')
     productOptions.value = res.data
   } catch (error) {
     console.warn('加载产品失败')
@@ -113,7 +113,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增库存调整'
-  const res = await request.get('/api/v1/inventory-adjustment/generate-no')
+  const res: any = await request.get('/api/v1/inventory-adjustment/generate-no')
   form.value = {
     adjust_no: res.data,
     adjust_date: new Date().toISOString().split('T')[0],
@@ -127,17 +127,17 @@ const openAddDialog = async () => {
 
 const openEditDialog = async (row: InventoryAdjustmentEntity) => {
   dialogTitle.value = '编辑库存调整'
-  const res = await getInventoryAdjustment(row.id!)
-  const itemsRes = await getAdjustmentItems(row.id!)
+  const res: any = await getInventoryAdjustment(row.id!)
+  const itemsRes: any = await getAdjustmentItems(row.id!)
   form.value = { ...res.data, items: itemsRes.data }
   dialogVisible.value = true
 }
 
 const openViewDialog = async (row: InventoryAdjustmentEntity) => {
   try {
-    const res = await getInventoryAdjustment(row.id!)
+    const res: any = await getInventoryAdjustment(row.id!)
     viewData.value = res.data
-    const itemsRes = await getAdjustmentItems(row.id!)
+    const itemsRes: any = await getAdjustmentItems(row.id!)
     detailData.value = itemsRes.data
     viewDialogVisible.value = true
   } catch (error) {

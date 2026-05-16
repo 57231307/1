@@ -41,7 +41,7 @@ const handleScan = async () => {
   }
   loading.value = true
   try {
-    const res = await scanInventory(barcodeInput.value)
+    const res: any = await scanInventory(barcodeInput.value)
     scanResult.value = res.data.data
     scanSuccess.value = true
     scanMessage.value = '扫码成功'
@@ -65,7 +65,7 @@ const handleScanToShip = async () => {
   }
   loading.value = true
   try {
-    const res = await scanToShip({
+    const res: any = await scanToShip({
       barcode: barcodeInput.value,
       order_id: Number(orderId.value)
     })
@@ -84,7 +84,7 @@ const handleScanToShip = async () => {
 const loadHistory = async () => {
   loading.value = true
   try {
-    const res = await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)
+    const res: any = await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)
     historyData.value = res.data.items
     total.value = res.data.total
   } catch (error) {

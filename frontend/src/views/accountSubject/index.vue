@@ -77,7 +77,7 @@ const getBalanceTypeLabel = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listAccountSubjects({
+    const res: any = await listAccountSubjects({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       code: searchForm.value.code,
@@ -96,7 +96,7 @@ const loadData = async () => {
 
 const loadTree = async () => {
   try {
-    const res = await getAccountSubjectTree()
+    const res: any = await getAccountSubjectTree()
     treeData.value = res.data
   } catch (error) {
     ElMessage.error('加载树结构失败')
@@ -153,7 +153,7 @@ const openEditDialog = (row: AccountSubjectEntity) => {
 
 const openViewDialog = async (row: AccountSubjectEntity) => {
   try {
-    const res = await getAccountSubject(row.id!)
+    const res: any = await getAccountSubject(row.id!)
     viewData.value = res.data
     viewDialogVisible.value = true
   } catch (error) {

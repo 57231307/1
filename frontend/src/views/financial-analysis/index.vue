@@ -148,7 +148,7 @@ const reportRules: FormRules = {
 const fetchReports = async () => {
   loading.value = true
   try {
-    const res = await listReports(queryForm)
+    const res: any = await listReports(queryForm)
     reportList.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (e: any) {

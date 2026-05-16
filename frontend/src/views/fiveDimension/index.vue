@@ -49,7 +49,7 @@ const searchTypeOptions = [
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listFiveDimensionStats({
+    const res: any = await listFiveDimensionStats({
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize,
       product_id: searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined,
@@ -93,7 +93,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
-    const res = await getStatsByFiveDimensionId(item.dimension.five_dimension_id)
+    const res: any = await getStatsByFiveDimensionId(item.dimension.five_dimension_id)
     viewData.value = res.data
     viewDialogVisible.value = true
   } catch (error) {
@@ -107,7 +107,7 @@ const handleParse = async () => {
     return
   }
   try {
-    const res = await parseFiveDimensionId(parseInput.value)
+    const res: any = await parseFiveDimensionId(parseInput.value)
     if (res.data.success) {
       parseResult.value = res.data.dimension
       parseError.value = ''
@@ -127,7 +127,7 @@ const handleQuickSearch = async () => {
     return
   }
   try {
-    const res = await searchFiveDimension({
+    const res: any = await searchFiveDimension({
       keyword: searchKeyword.value,
       search_type: searchType.value,
       page: 0,

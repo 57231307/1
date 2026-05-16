@@ -45,7 +45,7 @@ const getBusinessTypeLabel = (value: string) => {
 
 const loadDimensions = async () => {
   try {
-    const res = await listAssistDimensions()
+    const res: any = await listAssistDimensions()
     dimensions.value = res.data.data
   } catch (error) {
     ElMessage.error('加载维度失败')
@@ -55,7 +55,7 @@ const loadDimensions = async () => {
 const loadRecords = async () => {
   loading.value = true
   try {
-    const res = await queryAssistRecords({
+    const res: any = await queryAssistRecords({
       accounting_period: searchForm.value.accounting_period || undefined,
       dimension_code: searchForm.value.dimension_code || undefined,
       business_type: searchForm.value.business_type || undefined,
@@ -76,7 +76,7 @@ const loadSummary = async () => {
   loading.value = true
   try {
     const period = searchForm.value.accounting_period || new Date().toISOString().slice(0, 7)
-    const res = await getAssistSummary({
+    const res: any = await getAssistSummary({
       accounting_period: period,
       dimension_code: searchForm.value.dimension_code || undefined
     })

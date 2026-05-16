@@ -207,7 +207,7 @@ const formatMoney = (amount: number) => '¥' + (amount?.toLocaleString('zh-CN', 
 const runSalesForecast = async () => {
   forecastLoading.value = true
   try {
-    const res = await forecastSales({ period: forecastPeriod.value })
+    const res: any = await forecastSales({ period: forecastPeriod.value })
     forecastResult.value = res.data
     ElMessage.success('预测完成')
   } catch (e: any) {
@@ -220,7 +220,7 @@ const runSalesForecast = async () => {
 const runInventoryOptimization = async () => {
   inventoryLoading.value = true
   try {
-    const res = await optimizeInventory()
+    const res: any = await optimizeInventory()
     inventoryResult.value = res.data
     ElMessage.success('优化建议生成完成')
   } catch (e: any) {
@@ -233,7 +233,7 @@ const runInventoryOptimization = async () => {
 const runAnomalyDetection = async () => {
   anomalyLoading.value = true
   try {
-    const res = await detectAnomalies({ type: anomalyType.value })
+    const res: any = await detectAnomalies({ data_type: anomalyType.value })
     anomalyResult.value = res.data
     ElMessage.success('检测完成')
   } catch (e: any) {
@@ -246,7 +246,7 @@ const runAnomalyDetection = async () => {
 const getRecommendations = async () => {
   recommendLoading.value = true
   try {
-    const res = await getRecommendationsApi()
+    const res: any = await getRecommendationsApi()
     recommendationResult.value = res.data
     ElMessage.success('推荐获取完成')
   } catch (e: any) {
@@ -259,7 +259,7 @@ const getRecommendations = async () => {
 const fetchReportTemplates = async () => {
   reportLoading.value = true
   try {
-    const res = await listReportTemplates()
+    const res: any = await listReportTemplates()
     reportTemplates.value = res.data || []
   } finally {
     reportLoading.value = false
@@ -268,7 +268,7 @@ const fetchReportTemplates = async () => {
 
 const executeReport = async (row: any) => {
   try {
-    const res = await executeReportApi(row.template_code)
+    const res: any = await executeReportApi(row.template_code)
     reportData.value = res.data?.data
     reportColumns.value = res.data?.columns || []
     reportResultVisible.value = true
@@ -288,7 +288,7 @@ const exportReport = async (_row: any, _format: string) => {
 const fetchTenants = async () => {
   tenantLoading.value = true
   try {
-    const res = await listTenants()
+    const res: any = await listTenants()
     tenants.value = res.data || []
   } finally {
     tenantLoading.value = false

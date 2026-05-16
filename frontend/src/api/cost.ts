@@ -11,6 +11,14 @@ export interface CostCollection {
   manufacturing_overhead: number
   total_cost?: number
   status: string
+  type?: string
+  period?: string
+  department_id?: number
+  remark?: string
+  warehouse_id?: number
+  notes?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export const listCollections = (params?: any) =>
@@ -30,3 +38,16 @@ export const deleteCollection = (id: number) =>
 
 export const auditCollection = (id: number, approved: boolean, comment?: string) =>
   request.post(`/cost-collections/${id}/audit`, { approved, comment })
+
+export const listCostCollections = listCollections
+export const createCostCollection = createCollection
+export const updateCostCollection = updateCollection
+export const deleteCostCollection = deleteCollection
+export const auditCostCollection = auditCollection
+
+export const COST_STATUS = {
+  DRAFT: 'draft',
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected'
+}
