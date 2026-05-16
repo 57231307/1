@@ -174,6 +174,55 @@ function handleRequest(req, res) {
     return;
   }
   
+  if (path === '/api/v1/erp/dashboard/sales-stats') {
+    response.data = {
+      totalAmount: 1250000,
+      orderCount: 89,
+      customerCount: 45,
+      avgOrderAmount: 14044,
+      trends: [
+        { date: '2026-05-01', amount: 45000, count: 3 },
+        { date: '2026-05-02', amount: 52000, count: 4 },
+        { date: '2026-05-03', amount: 38000, count: 2 },
+        { date: '2026-05-04', amount: 61000, count: 5 },
+        { date: '2026-05-05', amount: 48000, count: 3 },
+        { date: '2026-05-06', amount: 55000, count: 4 },
+        { date: '2026-05-07', amount: 42000, count: 3 }
+      ]
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  if (path === '/api/v1/erp/dashboard/inventory-stats') {
+    response.data = {
+      totalItems: 156,
+      totalValue: 3200000,
+      warehouseCount: 2,
+      categoryDistribution: [
+        { label: '棉布', value: 45 },
+        { label: '涤纶', value: 38 },
+        { label: '丝绸', value: 28 },
+        { label: '混纺', value: 25 },
+        { label: '其他', value: 20 }
+      ]
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  if (path === '/api/v1/erp/dashboard/low-stock-alerts') {
+    response.data = [
+      { id: 1, productId: 2, productName: '涤纶布 B', productCode: 'DL001', warehouseId: 1, warehouseName: '主仓库', currentQuantity: 500, minQuantity: 1000, unit: '米', alertLevel: 'warning' },
+      { id: 2, productId: 3, productName: '丝绸 C', productCode: 'SC001', warehouseId: 2, warehouseName: '分仓库', currentQuantity: 200, minQuantity: 500, unit: '米', alertLevel: 'danger' }
+    ];
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
   // 产品列表
   if (path === '/api/v1/erp/products') {
     response.data = { list: mockData.products, total: mockData.products.length };
@@ -262,6 +311,203 @@ function handleRequest(req, res) {
       list: [
         { id: 1, voucher_no: 'PZ20260515001', date: '2026-05-15', type: '收款', amount: 25500, status: 'approved' },
         { id: 2, voucher_no: 'PZ20260515002', date: '2026-05-15', type: '付款', amount: 15000, status: 'pending' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 用户列表
+  if (path === '/api/v1/erp/users') {
+    response.data = {
+      list: [
+        { id: 1, username: 'admin', real_name: '管理员', email: 'admin@example.com', phone: '13800138000', status: 'active', department_name: '总经办' },
+        { id: 2, username: 'sales01', real_name: '张三', email: 'zhangsan@example.com', phone: '13900139000', status: 'active', department_name: '销售部' },
+        { id: 3, username: 'purchase01', real_name: '李四', email: 'lisi@example.com', phone: '13700137000', status: 'active', department_name: '采购部' }
+      ],
+      total: 3
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 销售合同
+  if (path === '/api/v1/erp/sales-contracts') {
+    response.data = {
+      list: [
+        { id: 1, contract_no: 'SC20260515001', customer_name: '服装厂 A', contract_date: '2026-05-15', total_amount: 50000, status: 'active' },
+        { id: 2, contract_no: 'SC20260515002', customer_name: '贸易公司 B', contract_date: '2026-05-15', total_amount: 30000, status: 'draft' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 采购合同
+  if (path === '/api/v1/erp/purchase-contracts') {
+    response.data = {
+      list: [
+        { id: 1, contract_no: 'PC20260515001', supplier_name: '纺织原料供应商 A', contract_date: '2026-05-15', total_amount: 40000, status: 'active' },
+        { id: 2, contract_no: 'PC20260515002', supplier_name: '染料供应商 B', contract_date: '2026-05-15', total_amount: 20000, status: 'draft' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 销售退货
+  if (path === '/api/v1/erp/sales-returns') {
+    response.data = {
+      list: [
+        { id: 1, return_no: 'SR20260515001', customer_name: '服装厂 A', return_date: '2026-05-15', total_amount: 5000, status: 'pending' },
+        { id: 2, return_no: 'SR20260515002', customer_name: '贸易公司 B', return_date: '2026-05-15', total_amount: 3000, status: 'approved' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 采购退货
+  if (path === '/api/v1/erp/purchase-returns') {
+    response.data = {
+      list: [
+        { id: 1, return_no: 'PR20260515001', supplier_name: '纺织原料供应商 A', return_date: '2026-05-15', total_amount: 4000, status: 'pending' },
+        { id: 2, return_no: 'PR20260515002', supplier_name: '染料供应商 B', return_date: '2026-05-15', total_amount: 2000, status: 'approved' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 库存盘点
+  if (path === '/api/v1/erp/inventory-counts') {
+    response.data = {
+      list: [
+        { id: 1, count_no: 'IC20260515001', warehouse_name: '主仓库', count_date: '2026-05-15', status: 'draft' },
+        { id: 2, count_no: 'IC20260515002', warehouse_name: '分仓库', count_date: '2026-05-15', status: 'completed' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 库存调拨
+  if (path === '/api/v1/erp/inventory-transfers') {
+    response.data = {
+      list: [
+        { id: 1, transfer_no: 'IT20260515001', from_warehouse_name: '主仓库', to_warehouse_name: '分仓库', transfer_date: '2026-05-15', status: 'draft' },
+        { id: 2, transfer_no: 'IT20260515002', from_warehouse_name: '分仓库', to_warehouse_name: '主仓库', transfer_date: '2026-05-15', status: 'approved' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 库存调整
+  if (path === '/api/v1/erp/inventory-adjustments') {
+    response.data = {
+      list: [
+        { id: 1, adjust_no: 'IA20260515001', warehouse_name: '主仓库', adjust_date: '2026-05-15', reason: '盘点差异', status: 'draft' },
+        { id: 2, adjust_no: 'IA20260515002', warehouse_name: '分仓库', adjust_date: '2026-05-15', reason: '损耗', status: 'approved' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 应付发票
+  if (path === '/api/v1/erp/ap/invoices') {
+    response.data = {
+      list: [
+        { id: 1, invoice_no: 'API20260515001', supplier_name: '纺织原料供应商 A', invoice_date: '2026-05-15', invoice_amount: 40000, status: 'pending' },
+        { id: 2, invoice_no: 'API20260515002', supplier_name: '染料供应商 B', invoice_date: '2026-05-15', invoice_amount: 20000, status: 'approved' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 应收发票
+  if (path === '/api/v1/erp/ar/invoices') {
+    response.data = {
+      list: [
+        { id: 1, invoice_no: 'ARI20260515001', customer_name: '服装厂 A', invoice_date: '2026-05-15', invoice_amount: 50000, status: 'pending' },
+        { id: 2, invoice_no: 'ARI20260515002', customer_name: '贸易公司 B', invoice_date: '2026-05-15', invoice_amount: 30000, status: 'approved' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 固定资产
+  if (path === '/api/v1/erp/fixed-assets') {
+    response.data = {
+      list: [
+        { id: 1, asset_code: 'FA001', asset_name: '电脑', category: '电子设备', original_value: 5000, net_value: 3000, status: 'in_use' },
+        { id: 2, asset_code: 'FA002', asset_name: '打印机', category: '电子设备', original_value: 2000, net_value: 1200, status: 'in_use' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 审批任务
+  if (path === '/api/v1/erp/bpm/tasks') {
+    response.data = {
+      list: [
+        { id: 1, task_name: '销售订单审批', process_name: '销售流程', assignee_name: '张三', status: 'pending', priority: 'high' },
+        { id: 2, task_name: '采购订单审批', process_name: '采购流程', assignee_name: '李四', status: 'pending', priority: 'medium' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 质量标准
+  if (path === '/api/v1/erp/quality/standards') {
+    response.data = {
+      list: [
+        { id: 1, standard_code: 'QS001', standard_name: '面料质量标准', type: 'product', version: '1.0', status: 'approved' },
+        { id: 2, standard_code: 'QS002', standard_name: '染色工艺标准', type: 'process', version: '1.0', status: 'draft' }
+      ],
+      total: 2
+    };
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
+    return;
+  }
+  
+  // 通知列表
+  if (path === '/api/v1/erp/notifications') {
+    response.data = {
+      list: [
+        { id: 1, title: '系统更新通知', content: '系统将于今晚进行维护更新', notificationType: 'SYSTEM', status: 'UNREAD', createdAt: '2026-05-15 10:00:00' },
+        { id: 2, title: '新订单提醒', content: '您有新的销售订单待处理', notificationType: 'INTERNAL', status: 'READ', createdAt: '2026-05-15 09:00:00' }
       ],
       total: 2
     };
