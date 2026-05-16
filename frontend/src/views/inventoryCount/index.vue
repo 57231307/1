@@ -312,7 +312,7 @@ loadWarehouses()
 
     <ElDialog title="盘点详情" :visible="viewDialogVisible" width="900px" @close="viewDialogVisible = false">
       <div v-if="viewData">
-        < :column="4" border>
+        <el-descriptions :column="4" border>
           <Item label="盘点单号">{{ viewData.count_no }}</Item>
           <Item label="盘点日期">{{ viewData.count_date }}</Item>
           <Item label="仓库">{{ viewData.warehouse_name }}</Item>
@@ -320,7 +320,7 @@ loadWarehouses()
           <Item label="创建人">{{ viewData.created_by_name }}</Item>
           <Item label="创建时间">{{ viewData.created_at }}</Item>
           <Item label="完成时间">{{ viewData.completed_at || '-' }}</Item>
-        </>
+        </el-descriptions>
         <div style="margin-top: 20px">
           <h4>盘点明细</h4>
           <ElTable :data="editableDetailData" border style="width: 100%">

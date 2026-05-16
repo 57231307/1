@@ -163,7 +163,7 @@ jobs:
       - name: 构建前端 (生产模式)
         working-directory: frontend
         run: |
-          npm run build
+          npx vite build
 
       - name: 验证前端构建产物
         run: |

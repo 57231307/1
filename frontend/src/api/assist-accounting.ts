@@ -10,6 +10,17 @@ export interface AssistRecord {
   created_at?: string
 }
 
+export interface AssistDimension {
+  id: number
+  name: string
+  type: string
+}
+
+export const listAssistDimensions = (params?: any) =>
+  request.get('/assist-accounting/dimensions', { params })
+
+export const queryAssistRecords = listAssistRecords
+
 export const listAssistRecords = (params?: any) =>
   request.get('/assist-accounting/records', { params })
 
