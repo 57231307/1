@@ -13,8 +13,10 @@ export interface SalesReturn {
   status?: string
   totalAmount?: number
   items?: SalesReturnItem[]
+  return_items?: SalesReturnItem[]
   remarks?: string
   createdBy?: number
+  approved_by?: number
   createdAt?: string
   updatedAt?: string
 }

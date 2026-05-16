@@ -440,9 +440,11 @@
           </el-table-column>
           <el-table-column label="操作" width="80">
             <template #default="{ $index }">
+              <el-button type="danger" link size="small" @click="removeReturnItem($index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
+        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem">添加明细</el-button>
       </el-form>
       <template #footer>
         <el-button @click="returnDialogVisible = false">取消</el-button>
@@ -647,6 +649,7 @@ const contractForm = reactive({
   currency: 'CNY',
   status: 'draft' as 'draft' | 'pending' | 'active' | 'completed' | 'cancelled',
   items: [] as SalesContractItem[],
+  return_items: [] as SalesContractItem[],
   payment_terms: '',
   delivery_terms: ''
 })
@@ -744,12 +747,15 @@ const cancelContract = async (row: SalesContract) => {
 }
 
 const addContractItem = () => {
-  contractForm.return_items || [].push({ id: 0, contract_id: 0, product_id: 0, product_name: '', product_code: '', quantity: 0, unit: '', price: 0, amount: 0, remark: '' })
+  if (!contractForm.return_items) {
+    contractForm.return_items = []
+  }
+  contractForm.return_items.push({ id: 0, contract_id: 0, product_id: 0, product_name: '', product_code: '', quantity: 0, unit: '', price: 0, amount: 0, remark: '' })
 }
 
 const removeContractItem = (index: number) => {
-  if (contractForm.return_items || [].length > 1) {
-    contractForm.return_items || [].splice(index, 1)
+  if (contractForm.return_items && contractForm.return_items.length > 1) {
+    contractForm.return_items.splice(index, 1)
   }
 }
 
@@ -848,6 +854,7 @@ const returnForm = reactive({
   totalAmount: 0,
   reason: '',
   status: 'draft' as 'draft' | 'pending' | 'approved' | 'rejected' | 'completed',
+  return_items: [] as any[],
 })
 
 const returnRules: FormRules = {
@@ -903,11 +910,14 @@ const viewReturn = async (row: SalesReturn) => {
 }
 
 const addReturnItem = () => {
+  if (!returnForm.return_items) {
+    returnForm.return_items = []
+  }
+  returnForm.return_items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unit: '', price: 0, amount: 0, reason: '' })
 }
 const removeReturnItem = (index: number) => {
-
-  if (returnForm.return_items || [] || [].length > 1) {
-    returnForm.return_items || [] || [].splice(index, 1)
+  if (returnForm.return_items && returnForm.return_items.length > 1) {
+    returnForm.return_items.splice(index, 1)
   }
 }
 

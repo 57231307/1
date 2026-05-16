@@ -905,7 +905,7 @@ const viewReturn = async (row: PurchaseReturn) => {
 }
 
 const addReturnItem = () => {
-  returnForm.items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unitPrice: '', price: 0, amount: 0, reason: '' })
+  returnForm.items.push({ id: 0, returnId: 0, productId: 0, productName: '', productCode: '', quantity: 0, unitPrice: 0, amount: 0, reason: '' })
 }
 
 const removeReturnItem = (index: number) => {

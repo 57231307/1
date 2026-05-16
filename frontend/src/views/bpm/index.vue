@@ -184,7 +184,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
-import { bpmApi, type BPMTask } from '@/api/bpm'
+import { bpmApi } from '@/api/bpm'
 
 const activeTab = ref('pending')
 

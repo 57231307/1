@@ -87,8 +87,8 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, deleteGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
-import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, deleteGreigeFabric } from '@/api/greige-fabric'
+import { warehouseApi } from '@/api/warehouse'
 
 const loading = ref(false)
 const submitLoading = ref(false)

@@ -140,9 +140,9 @@ const handleQuickSearch = async () => {
 }
 
 const selectFromSearch = (item: FiveDimensionItem) => {
-  searchForm.value.batch_no = item.batch_no
-  searchForm.value.color_no = item.color_no
-  searchForm.value.grade = item.grade
+  searchForm.value.batch_no = item.batch_no || ''
+  searchForm.value.color_no = item.color_no || ''
+  searchForm.value.grade = item.grade || ''
   searchDialogVisible.value = false
   handleSearch()
 }

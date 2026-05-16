@@ -166,8 +166,8 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listAssets, createAsset, updateAsset, deleteAsset, type FixedAsset } from '@/api/asset'
-import { listDepartments, type Department } from '@/api/department'
+import { listAssets, createAsset, updateAsset, deleteAsset } from '@/api/asset'
+import { listDepartments } from '@/api/department'
 
 const loading = ref(false)
 const submitLoading = ref(false)

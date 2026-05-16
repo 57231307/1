@@ -15,6 +15,7 @@ export interface PurchaseReturn {
   items?: PurchaseReturnItem[]
   remarks?: string
   createdBy?: number
+  approved_by?: number
   createdAt?: string
   updatedAt?: string
 }

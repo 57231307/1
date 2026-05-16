@@ -80,7 +80,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listDepartments, createDepartment, updateDepartment, deleteDepartment, getDepartmentTree, type Department } from '@/api/department'
+import { listDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/api/department'
 
 const loading = ref(false)
 const submitLoading = ref(false)

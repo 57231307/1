@@ -216,7 +216,7 @@ const viewDetail = (row: FinancialReport) => {
 const handleExecute = async (row: FinancialReport) => {
   try {
     await ElMessageBox.confirm(`确认执行财务报告 ${row.reportName} 吗？`, '确认', { type: 'info' })
-    await executeFinancialReport(row.id)
+    await executeFinancialReport(row.id!)
     ElMessage.success('执行成功，报告已完成')
     fetchReports()
   } catch (e: any) {
@@ -232,7 +232,7 @@ const handleDelete = async (row: FinancialReport) => {
       cancelButtonText: '取消',
     })
     
-    await deleteReport(row.id)
+    await deleteReport(row.id!)
     ElMessage.success('删除成功')
     fetchReports()
   } catch (e: any) {
