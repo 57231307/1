@@ -72,11 +72,26 @@ pub struct Model {
     pub created_by: Option<i32>,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+
+    /// 客户行业
+    pub customer_industry: Option<String>,
+
+    /// 主营产品
+    pub main_products: Option<String>,
+
+    /// 年采购额
+    #[sea_orm(column_type = "Decimal(Some((14, 2)))")]
+    pub annual_purchase: Option<Decimal>,
+
+    /// 质量要求
+    pub quality_requirement: Option<String>,
+
+    /// 验货标准
+    pub inspection_standard: Option<String>,
 }
 
 /// 客户 Relation
