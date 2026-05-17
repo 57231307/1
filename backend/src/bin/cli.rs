@@ -677,7 +677,7 @@ async fn cmd_hash_password(password: &str) -> Result<(), Box<dyn std::error::Err
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     let hash = argon2.hash_password(password.as_bytes(), &salt)
-        .map_err(|e| format!("密码哈希失败：{}", e))?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("密码哈希失败：{}", e)))?;
     
     println!("密码：{}", password);
     println!("哈希：{}\n", hash);
