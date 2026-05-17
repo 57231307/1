@@ -106,7 +106,8 @@ async fn cmd_status() -> Result<(), Box<dyn std::error::Error>> {
     // 检查后端服务
     match Command::new("systemctl").args(["is-active", "bingxi"]).output() {
         Ok(output) => {
-            let status = String::from_utf8_lossy(&output.stdout).trim();
+            let status = String::from_utf8_lossy(&output.stdout);
+            let status = status.trim();
             if status == "active" {
                 println!("✅ 后端服务：运行中");
             } else {
@@ -119,7 +120,8 @@ async fn cmd_status() -> Result<(), Box<dyn std::error::Error>> {
     // 检查 Nginx
     match Command::new("systemctl").args(["is-active", "nginx"]).output() {
         Ok(output) => {
-            let status = String::from_utf8_lossy(&output.stdout).trim();
+            let status = String::from_utf8_lossy(&output.stdout);
+            let status = status.trim();
             if status == "active" {
                 println!("✅ Nginx 服务：运行中");
             } else {
@@ -132,7 +134,8 @@ async fn cmd_status() -> Result<(), Box<dyn std::error::Error>> {
     // 检查 PostgreSQL
     match Command::new("systemctl").args(["is-active", "postgresql"]).output() {
         Ok(output) => {
-            let status = String::from_utf8_lossy(&output.stdout).trim();
+            let status = String::from_utf8_lossy(&output.stdout);
+            let status = status.trim();
             if status == "active" {
                 println!("✅ PostgreSQL 服务：运行中");
             } else {
@@ -192,10 +195,11 @@ async fn cmd_logs(
     use std::process::{Command, Stdio};
     
     let log_type = log_type.as_deref().unwrap_or("backend");
+    let lines_str = lines.to_string();
     
     match log_type {
         "backend" => {
-            let mut args = vec!["-u", "bingxi", "-n", &lines.to_string()];
+            let mut args = vec!["-u", "bingxi", "-n", &lines_str];
             if follow {
                 args.push("-f");
             }
@@ -436,11 +440,12 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
             
             for mirror in &mirror_urls {
                 println!("🌐 尝试从 {} 获取版本...", mirror);
+                let api_url = format!("{}/https://api.github.com/repos/57231307/1/releases/latest", mirror);
                 let output = Command::new("curl")
                     .args([
                         "-s", "-m", "10", // 10 秒超时
                         "-H", "Accept: application/vnd.github.v3+json",
-                        &format!("{}/https://api.github.com/repos/57231307/1/releases/latest", mirror)
+                        &api_url
                     ])
                     .output();
                 
@@ -671,7 +676,8 @@ async fn cmd_hash_password(password: &str) -> Result<(), Box<dyn std::error::Err
     
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    let hash = argon2.hash_password(password.as_bytes(), &salt)?;
+    let hash = argon2.hash_password(password.as_bytes(), &salt)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("密码哈希失败：{}", e)))?;
     
     println!("密码：{}", password);
     println!("哈希：{}\n", hash);
