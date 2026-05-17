@@ -18,9 +18,11 @@ function onTokenRefreshed(token: string) {
 }
 
 export interface ApiResponse<T = unknown> {
-  code: number
-  message: string
-  data: T
+  code?: number
+  message?: string
+  data?: T
+  success?: boolean
+  status?: number
 }
 
 export interface PageResult<T = unknown> {
