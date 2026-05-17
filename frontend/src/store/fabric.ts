@@ -14,8 +14,8 @@ export const useFabricStore = defineStore('fabric', () => {
     loading.value = true
     try {
       const res = await fabricApi.list(params)
-      fabrics.value = res.data.list
-      total.value = res.data.total
+      fabrics.value = res.data!.list
+      total.value = res.data!.total
     } catch (error) {
       console.error('Failed to fetch fabrics:', error)
     } finally {
@@ -26,7 +26,7 @@ export const useFabricStore = defineStore('fabric', () => {
   const fetchCategories = async () => {
     try {
       const res = await fabricApi.getCategories()
-      categories.value = res.data
+      categories.value = res.data!
     } catch (error) {
       console.error('Failed to fetch categories:', error)
     }
@@ -35,8 +35,8 @@ export const useFabricStore = defineStore('fabric', () => {
   const getFabricById = async (id: number) => {
     try {
       const res = await fabricApi.getById(id)
-      currentFabric.value = res.data
-      return res.data
+      currentFabric.value = res.data!
+      return res.data!
     } catch (error) {
       console.error('Failed to fetch fabric:', error)
       return null

@@ -23,7 +23,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = true
     try {
       const res = await dashboardApi.getOverview()
-      stats.value = res.data
+      stats.value = res.data!
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error)
     } finally {
@@ -34,7 +34,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const fetchSalesStats = async () => {
     try {
       const res = await dashboardApi.getSalesStats()
-      salesStatistics.value = res.data
+      salesStatistics.value = res.data!
     } catch (error) {
       console.error('Failed to fetch sales stats:', error)
     }
@@ -43,7 +43,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const fetchInventoryStats = async () => {
     try {
       const res = await dashboardApi.getInventoryStats()
-      inventoryStatistics.value = res.data
+      inventoryStatistics.value = res.data!
     } catch (error) {
       console.error('Failed to fetch inventory stats:', error)
     }
