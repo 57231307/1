@@ -1,7 +1,7 @@
 //! 成本归集模块单元测试
 
 use rust_decimal::Decimal;
-use bingxi_backend::services::cost_collection_service::{CreateCostCollectionRequest, CostCollectionService};
+use bingxi_backend::services::cost_collection_service::CreateCostCollectionRequest;
 
 #[test]
 fn test_create_cost_collection_request() {
