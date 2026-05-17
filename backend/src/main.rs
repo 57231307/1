@@ -329,7 +329,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::HeaderName::from_static("permissions-policy"),
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
-                ));
+                ))
+                .layer(axum::middleware::from_fn(crate::middleware::timeout::timeout_middleware));
             (app, Some(grpc_db))
         }
         Err(e) => {
