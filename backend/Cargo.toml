@@ -122,3 +122,7 @@ lto = false
 [[bin]]
 name = "test_perms"
 path = "src/bin/test_perms.rs"
+
+[[bin]]
+name = "hash_password"
+path = "src/bin/hash_password.rs"

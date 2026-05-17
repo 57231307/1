@@ -167,7 +167,7 @@ where
     fn evict_oldest(&self, target_size: usize) {
         let mut removed = 0u64;
         
-        self.storage.retain(|_, v| {
+        self.storage.retain(|_, _v| {
             if target_size <= self.storage.len() - removed as usize {
                 removed += 1;
                 false

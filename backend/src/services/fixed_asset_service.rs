@@ -309,9 +309,9 @@ impl FixedAssetService {
         &self,
         asset_ids: Vec<i32>,
         calculation_date: String,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<Vec<DepreciationResult>, AppError> {
-        use chrono::{NaiveDate, Datelike};
+        use chrono::NaiveDate;
         
         let calc_date = calculation_date.parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;

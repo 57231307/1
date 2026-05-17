@@ -366,8 +366,8 @@ impl CostCollectionService {
         &self,
         id: i32,
         approved: bool,
-        comment: Option<String>,
-        user_id: i32,
+        _comment: Option<String>,
+        _user_id: i32,
     ) -> Result<cost_collection::Model, AppError> {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)

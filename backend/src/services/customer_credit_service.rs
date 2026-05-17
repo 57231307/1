@@ -345,21 +345,21 @@ impl CustomerCreditService {
         &self,
         customer_id: i32,
         evaluation_date: String,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<CreditEvaluationResult, AppError> {
-        use chrono::{NaiveDate, Utc};
+        use chrono::NaiveDate;
         
-        let eval_date = evaluation_date.parse::<NaiveDate>()
+        let _eval_date = evaluation_date.parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
         
         // 获取客户信息
-        let customer = customer_credit::Entity::find_by_id(customer_id)
+        let _customer = customer_credit::Entity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::NotFound("客户".to_string()))?;
         
         // 获取历史信用记录
-        let credit_history = customer_credit::Entity::find()
+        let _credit_history = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .all(&*self.db)
             .await?;
@@ -423,25 +423,25 @@ impl CustomerCreditService {
     }
     
     /// 评估付款历史
-    async fn evaluate_payment_history(&self, customer_id: i32, eval_date: NaiveDate) -> Result<i32, AppError> {
+    async fn evaluate_payment_history(&self, _customer_id: i32, _eval_date: NaiveDate) -> Result<i32, AppError> {
         // 简化实现
         Ok(80)
     }
     
     /// 评估合作时长
-    fn evaluate_cooperation_duration(&self, created_at: String, eval_date: NaiveDate) -> i32 {
+    fn evaluate_cooperation_duration(&self, _created_at: String, _eval_date: NaiveDate) -> i32 {
         // 简化实现
         70
     }
     
     /// 评估订单规模
-    async fn evaluate_order_volume(&self, customer_id: i32, eval_date: NaiveDate) -> Result<i32, AppError> {
+    async fn evaluate_order_volume(&self, _customer_id: i32, _eval_date: NaiveDate) -> Result<i32, AppError> {
         // 简化实现
         Ok(75)
     }
     
     /// 评估信用历史
-    fn evaluate_credit_history(&self, credit_history: &[customer_credit::Model]) -> i32 {
+    fn evaluate_credit_history(&self, _credit_history: &[customer_credit::Model]) -> i32 {
         // 简化实现
         85
     }

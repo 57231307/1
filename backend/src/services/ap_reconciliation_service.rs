@@ -236,9 +236,9 @@ impl ApReconciliationService {
     /// 获取供应商应付汇总（从物化视图）
     pub async fn get_supplier_summary(
         &self,
-        supplier_id: Option<i32>,
+        _supplier_id: Option<i32>,
     ) -> Result<Vec<SupplierApSummary>, AppError> {
-        use sea_orm::QueryTrait;
+        
         
         // 简化实现：返回空列表
         Ok(Vec::new())

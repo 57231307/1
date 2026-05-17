@@ -14,7 +14,8 @@ fn test_api_response_success() {
 fn test_api_response_error() {
     let response: ApiResponse<()> = ApiResponse::error("Something went wrong");
     assert!(!response.success);
-    assert_eq!(response.message.unwrap(), "Something went wrong");
+    assert_eq!(response.error.unwrap(), "Something went wrong");
+    assert!(response.message.is_none());
 }
 
 #[test]
@@ -38,7 +39,8 @@ fn test_api_response_json_serialization() {
 fn test_api_response_empty_data() {
     let response: ApiResponse<()> = ApiResponse::success(());
     assert!(response.success);
-    assert!(response.data.is_none());
+    // ApiResponse::success wraps the data in Some, so data is Some(())
+    assert!(response.data.is_some());
 }
 
 #[test]
