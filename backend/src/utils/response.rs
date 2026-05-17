@@ -10,12 +10,11 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ApiResponse<T> {
-    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<u16>,
     pub data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    pub error: Option<String>,
-    #[serde(skip)]
-    pub status_code: Option<StatusCode>,
 }
 
 pub type LoginApiResponse = ApiResponse<crate::handlers::auth_handler::LoginResponse>;
@@ -23,11 +22,9 @@ pub type LoginApiResponse = ApiResponse<crate::handlers::auth_handler::LoginResp
 impl<T> Default for ApiResponse<T> {
     fn default() -> Self {
         Self {
-            success: false,
+            code: Some(500),
             data: None,
             message: None,
-            error: None,
-            status_code: None,
         }
     }
 }
@@ -76,28 +73,24 @@ impl<T: Clone> PaginatedResponse<T> {
     }
 }
 
-// 为 PaginatedResponse 实现 Into<ApiResponse<Vec<T>>> 用于列表响应
-impl<T> From<PaginatedResponse<T>> for ApiResponse<Vec<T>> {
-    fn from(paginated: PaginatedResponse<T>) -> Self {
-        ApiResponse {
-            success: true,
-            data: Some(paginated.data),
-            message: None,
-            error: None,
-            status_code: None,
-        }
-    }
-}
-
 // 实现 ApiResponse<PaginatedResponse<T>> 到 ApiResponse<Vec<T>> 的转换
 impl<T: Clone> From<ApiResponse<PaginatedResponse<T>>> for ApiResponse<Vec<T>> {
     fn from(response: ApiResponse<PaginatedResponse<T>>) -> Self {
         ApiResponse {
-            success: response.success,
+            code: response.code,
             data: response.data.map(|p| p.data),
             message: response.message,
-            error: response.error,
-            status_code: response.status_code,
+        }
+    }
+}
+
+// 为 PaginatedResponse 实现 Into<ApiResponse<Vec<T>>> 用于列表响应
+impl<T> From<PaginatedResponse<T>> for ApiResponse<Vec<T>> {
+    fn from(paginated: PaginatedResponse<T>) -> Self {
+        ApiResponse {
+            code: Some(200),
+            data: Some(paginated.data),
+            message: None,
         }
     }
 }
@@ -105,11 +98,9 @@ impl<T: Clone> From<ApiResponse<PaginatedResponse<T>>> for ApiResponse<Vec<T>> {
 impl<T: Serialize> ApiResponse<T> {
     pub fn success(data: T) -> Self {
         Self {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message: None,
-            error: None,
-            status_code: None,
         }
     }
 
@@ -121,102 +112,82 @@ impl<T: Serialize> ApiResponse<T> {
         page_size: u64,
     ) -> ApiResponse<Vec<T>> {
         ApiResponse {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message: Some(format!("共 {} 条记录，第 {}/{} 页", total, page, page_size)),
-            error: None,
-            status_code: None,
         }
     }
 
     pub fn success_opt(data: T, message: Option<String>) -> Self {
         Self {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message,
-            error: None,
-            status_code: None,
         }
     }
 
     pub fn ok(data: T) -> Self {
         Self {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message: None,
-            error: None,
-            status_code: None,
         }
     }
 
     pub fn success_with_message(data: T, message: &str) -> Self {
         Self {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message: Some(message.to_string()),
-            error: None,
-            status_code: None,
         }
     }
 
     pub fn success_with_msg(data: T, message: &str) -> Self {
         Self {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message: Some(message.to_string()),
-            error: None,
-            status_code: None,
         }
     }
 
     pub fn success_with_data(data: T) -> Self {
         Self {
-            success: true,
+            code: Some(200),
             data: Some(data),
             message: None,
-            error: None,
-            status_code: None,
         }
     }
 
     pub fn error(message: impl Into<String>) -> Self {
         Self {
-            success: false,
+            code: Some(500),
             data: None,
-            message: None,
-            error: Some(message.into()),
-            status_code: None,
+            message: Some(message.into()),
         }
     }
 
     pub fn error_msg(message: &str) -> Self {
         Self {
-            success: false,
+            code: Some(500),
             data: None,
-            message: None,
-            error: Some(message.to_string()),
-            status_code: None,
+            message: Some(message.to_string()),
         }
     }
 
     pub fn error_with_status(status: StatusCode, message: impl Into<String>) -> Self {
         Self {
-            success: false,
+            code: Some(status.as_u16()),
             data: None,
-            message: None,
-            error: Some(message.into()),
-            status_code: Some(status),
+            message: Some(message.into()),
         }
     }
 
     /// 创建错误响应（泛型版本，用于与成功响应配对）
     pub fn error_response(message: impl Into<String>) -> Self {
         Self {
-            success: false,
+            code: Some(500),
             data: None,
-            message: None,
-            error: Some(message.into()),
-            status_code: None,
+            message: Some(message.into()),
         }
     }
 }
@@ -225,14 +196,12 @@ impl<T: Serialize> ApiResponse<T> {
 impl<T: Serialize> IntoResponse for PaginatedResponse<T> {
     fn into_response(self) -> Response {
         ApiResponse {
-            success: true,
+            code: Some(200),
             data: Some(self.data),
             message: Some(format!(
                 "共 {} 条记录，第 {}/{} 页",
                 self.total, self.page, self.page_size
             )),
-            error: None,
-            status_code: None,
         }
         .into_response()
     }
@@ -247,13 +216,7 @@ impl<T: Serialize> From<T> for ApiResponse<T> {
 // 实现 IntoResponse trait，让 ApiResponse 可以直接作为返回值
 impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        let status_code = self.status_code.unwrap_or({
-            if self.success {
-                StatusCode::OK
-            } else {
-                StatusCode::BAD_REQUEST
-            }
-        });
+        let status_code = StatusCode::from_u16(self.code.unwrap_or(200)).unwrap_or(StatusCode::OK);
         (status_code, Json(self)).into_response()
     }
 }
@@ -265,6 +228,7 @@ pub fn build_paginated_response<T: serde::Serialize>(
     page_size: u64,
 ) -> serde_json::Value {
     serde_json::json!({
+        "code": 200,
         "items": items,
         "total": total,
         "page": page,
