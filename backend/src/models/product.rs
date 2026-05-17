@@ -61,6 +61,14 @@ pub struct Model {
     pub min_order_quantity: Option<Decimal>,
     /// 交货期（天）
     pub lead_time: Option<i32>,
+    /// 供应商产品编码
+    pub supplier_product_code: Option<String>,
+    /// 供应商 ID
+    pub supplier_id: Option<i32>,
+    /// 是否批次管理
+    pub is_batch_managed: Option<bool>,
+    /// 批次级别：four_level-四级批次管理
+    pub batch_level: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -71,6 +79,12 @@ pub enum Relation {
         to = "super::product_category::Column::Id"
     )]
     Category,
+    #[sea_orm(
+        belongs_to = "super::supplier::Entity",
+        from = "Column::SupplierId",
+        to = "super::supplier::Column::Id"
+    )]
+    Supplier,
     #[sea_orm(has_many = "super::sales_order_item::Entity")]
     SalesOrderItems,
     #[sea_orm(has_many = "super::inventory_stock::Entity")]
@@ -80,6 +94,12 @@ pub enum Relation {
 impl Related<super::product_category::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Category.def()
+    }
+}
+
+impl Related<super::supplier::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Supplier.def()
     }
 }
 

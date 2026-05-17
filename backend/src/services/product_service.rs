@@ -66,14 +66,33 @@ impl ProductService {
         }
 
         // 获取总数
-        let total = query.clone().count(&*self.db).await?;
+        let total = match query.clone().count(&*self.db).await {
+            Ok(count) => {
+                tracing::info!("产品查询总数: {}", count);
+                count
+            }
+            Err(e) => {
+                tracing::error!("查询产品总数失败: {:?}", e);
+                return Err(e);
+            }
+        };
 
         // 应用分页和排序
-        let products = query
+        let products = match query
             .order_by(product::Column::Code, Order::Asc)
             .into_model::<product::Model>()
             .all(&*self.db)
-            .await?;
+            .await
+        {
+            Ok(products) => {
+                tracing::info!("查询到 {} 个产品", products.len());
+                products
+            }
+            Err(e) => {
+                tracing::error!("查询产品列表失败: {:?}", e);
+                return Err(e);
+            }
+        };
 
         Ok((products, total))
     }

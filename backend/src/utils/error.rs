@@ -47,38 +47,64 @@ impl std::error::Error for AppError {}
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_type, error_message) = match &self {
-            AppError::DatabaseError(msg) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "DatabaseError",
-                msg.clone(),
-            ),
-            AppError::ValidationError(_) => (
-                StatusCode::BAD_REQUEST,
-                "ValidationError",
-                "请求参数验证失败".to_string(),
-            ),
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound", "未找到".to_string()),
-            AppError::ResourceNotFound(_) => {
+            AppError::DatabaseError(msg) => {
+                tracing::error!("数据库错误: {}", msg);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "DatabaseError",
+                    msg.clone(),
+                )
+            }
+            AppError::ValidationError(msg) => {
+                tracing::warn!("验证错误: {}", msg);
+                (
+                    StatusCode::BAD_REQUEST,
+                    "ValidationError",
+                    "请求参数验证失败".to_string(),
+                )
+            }
+            AppError::NotFound(msg) => {
+                tracing::warn!("资源未找到: {}", msg);
+                (StatusCode::NOT_FOUND, "NotFound", "未找到".to_string())
+            }
+            AppError::ResourceNotFound(msg) => {
+                tracing::warn!("资源不存在: {}", msg);
                 (StatusCode::NOT_FOUND, "ResourceNotFound", "资源不存在".to_string())
             }
-            AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError", "业务错误".to_string()),
-            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized", "未授权访问".to_string()),
-            AppError::InternalError(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "InternalError",
-                "系统内部错误".to_string(),
-            ),
-            AppError::PermissionDenied(_) => (
-                StatusCode::FORBIDDEN,
-                "PermissionDenied",
-                "权限不足".to_string(),
-            ),
-            AppError::BadRequest(_) => (
-                StatusCode::BAD_REQUEST,
-                "BadRequest",
-                "请求错误".to_string(),
-            ),
+            AppError::BusinessError(msg) => {
+                tracing::warn!("业务错误: {}", msg);
+                (StatusCode::BAD_REQUEST, "BusinessError", "业务错误".to_string())
+            }
+            AppError::Unauthorized(msg) => {
+                tracing::warn!("未授权访问: {}", msg);
+                (StatusCode::UNAUTHORIZED, "Unauthorized", "未授权访问".to_string())
+            }
+            AppError::InternalError(msg) => {
+                tracing::error!("内部错误: {}", msg);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "InternalError",
+                    "系统内部错误".to_string(),
+                )
+            }
+            AppError::PermissionDenied(msg) => {
+                tracing::warn!("权限不足: {}", msg);
+                (
+                    StatusCode::FORBIDDEN,
+                    "PermissionDenied",
+                    "权限不足".to_string(),
+                )
+            }
+            AppError::BadRequest(msg) => {
+                tracing::warn!("请求错误: {}", msg);
+                (
+                    StatusCode::BAD_REQUEST,
+                    "BadRequest",
+                    "请求错误".to_string(),
+                )
+            }
             AppError::TooManyRequests { retry_after, message } => {
+                tracing::warn!("请求过多: {}", message);
                 let retry_msg = if let Some(seconds) = retry_after {
                     format!("{}，请{}秒后再试", message, seconds)
                 } else {
