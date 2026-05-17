@@ -224,7 +224,7 @@ const fetchOrders = async () => {
   loading.value = true
   try {
     const res = await listProductionOrders(queryForm)
-    orderList.value = res.data?.list || []
+    orderList.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (e: any) {
     ElMessage.error(e.message || '获取订单列表失败')

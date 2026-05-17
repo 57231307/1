@@ -62,8 +62,8 @@ const loadData = async () => {
       to_warehouse_id: searchForm.value.to_warehouse_id ? Number(searchForm.value.to_warehouse_id) : undefined,
       status: searchForm.value.status
     })
-    tableData.value = res.data.list
-    total.value = res.data.total
+    tableData.value = res.data!.list
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -74,7 +74,7 @@ const loadData = async () => {
 const loadWarehouses = async () => {
   try {
     const res: any = await request.get('/warehouses/select')
-    warehouseOptions.value = res.data
+    warehouseOptions.value = res.data!
   } catch (error) {
     console.warn('加载仓库失败')
   }
@@ -83,7 +83,7 @@ const loadWarehouses = async () => {
 const loadProducts = async () => {
   try {
     const res: any = await request.get('/products/select')
-    productOptions.value = res.data
+    productOptions.value = res.data!
   } catch (error) {
     console.warn('加载产品失败')
   }
@@ -139,7 +139,7 @@ const openEditDialog = async (row: InventoryTransferEntity) => {
 const openViewDialog = async (row: InventoryTransferEntity) => {
   try {
     const res: any = await getInventoryTransfer(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     const itemsRes: any = await getTransferItems(row.id!)
     detailData.value = itemsRes.data
     viewDialogVisible.value = true

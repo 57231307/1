@@ -181,7 +181,7 @@ const fetchPurchaseContracts = async () => {
   purchaseContractLoading.value = true
   try {
     const res: any = await listPurchaseContracts()
-    purchaseContracts.value = res.data || []
+    purchaseContracts.value = res.data! || []
   } finally {
     purchaseContractLoading.value = false
   }
@@ -191,7 +191,7 @@ const fetchPurchasePrices = async () => {
   purchasePriceLoading.value = true
   try {
     const res: any = await listPurchasePrices()
-    purchasePrices.value = res.data || []
+    purchasePrices.value = res.data! || []
   } finally {
     purchasePriceLoading.value = false
   }
@@ -201,7 +201,7 @@ const fetchSalesContracts = async () => {
   salesContractLoading.value = true
   try {
     const res: any = await listSalesContracts()
-    salesContracts.value = res.data || []
+    salesContracts.value = res.data! || []
   } finally {
     salesContractLoading.value = false
   }
@@ -211,7 +211,7 @@ const fetchSalesPrices = async () => {
   salesPriceLoading.value = true
   try {
     const res: any = await listSalesPrices()
-    salesPrices.value = res.data || []
+    salesPrices.value = res.data! || []
   } finally {
     salesPriceLoading.value = false
   }
@@ -221,7 +221,7 @@ const fetchSalesReturns = async () => {
   returnLoading.value = true
   try {
     const res: any = await listSalesReturns()
-    salesReturns.value = res.data || []
+    salesReturns.value = res.data! || []
   } finally {
     returnLoading.value = false
   }

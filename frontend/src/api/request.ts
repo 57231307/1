@@ -63,12 +63,10 @@ class Request {
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
         const res = response.data
-        // 兼容两种响应格式：{code: 200, ...} 和 {success: true, ...}
-        const isSuccess = (res.code === 200 || res.code === 0) || res.success === true
-        if (!isSuccess) {
+        if (res.code !== 200 && res.code !== 0) {
           const safeMessage = getSafeErrorMessage(res.code)
           ElMessage.error(safeMessage)
-          if (res.code === 401 || res.status === 401) {
+          if (res.code === 401) {
             removeToken()
             router.push('/login')
           }
@@ -136,23 +134,23 @@ class Request {
   }
 
   public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.get(url, config).then((res) => res.data)
+    return this.instance.get(url, config).then((res) => res.data!)
   }
 
   public post<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.post(url, data, config).then((res) => res.data)
+    return this.instance.post(url, data, config).then((res) => res.data!)
   }
 
   public put<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.put(url, data, config).then((res) => res.data)
+    return this.instance.put(url, data, config).then((res) => res.data!)
   }
 
   public delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.delete(url, config).then((res) => res.data)
+    return this.instance.delete(url, config).then((res) => res.data!)
   }
 
   public patch<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.patch(url, data, config).then((res) => res.data)
+    return this.instance.patch(url, data, config).then((res) => res.data!)
   }
 }
 

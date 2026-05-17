@@ -413,7 +413,7 @@ const fetchInvoices = async () => {
   invoiceLoading.value = true
   try {
     const res = await listARInvoices(invoiceQuery)
-    invoices.value = res.data || []
+    invoices.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取发票列表失败')
   } finally {
@@ -432,7 +432,7 @@ const fetchReconciliations = async () => {
   reconciliationLoading.value = true
   try {
     const res = await listARReconciliations()
-    reconciliations.value = res.data || []
+    reconciliations.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取对账列表失败')
   } finally {
@@ -444,7 +444,7 @@ const fetchFunds = async () => {
   fundLoading.value = true
   try {
     const res = await listFundAccounts()
-    funds.value = res.data || []
+    funds.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取资金账户列表失败')
   } finally {
@@ -455,7 +455,7 @@ const fetchFunds = async () => {
 const fetchCustomers = async () => {
   try {
     const res = await listCustomers()
-    customers.value = res.data?.list || []
+    customers.value = res.data!.list || []
   } catch (error: any) {
     console.error('获取客户列表失败:', error)
   }

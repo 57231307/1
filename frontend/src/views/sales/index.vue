@@ -400,7 +400,7 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await salesApi.getOrderList(queryParams)
-    orders.value = res.data?.list || []
+    orders.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取订单列表失败')
@@ -414,7 +414,7 @@ const fetchData = async () => {
 const fetchCustomers = async () => {
   try {
     const res = await customerApi.list({ page_size: 1000 })
-    customers.value = res.data?.list || []
+    customers.value = res.data!.list || []
   } catch (error) {
     console.error('获取客户列表失败:', error)
   }
@@ -423,7 +423,7 @@ const fetchCustomers = async () => {
 const fetchProducts = async () => {
   try {
     const res = await productApi.list({ page_size: 1000 })
-    products.value = res.data?.list || []
+    products.value = res.data!.list || []
   } catch (error) {
     console.error('获取产品列表失败:', error)
   }

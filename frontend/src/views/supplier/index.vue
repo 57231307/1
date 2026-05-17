@@ -258,7 +258,7 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await supplierApi.list(queryParams)
-    suppliers.value = res.data?.list || []
+    suppliers.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取供应商列表失败')

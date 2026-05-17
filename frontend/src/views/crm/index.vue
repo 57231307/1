@@ -132,7 +132,7 @@ const fetchLeads = async () => {
   leadLoading.value = true
   try {
     const res = await listLeads()
-    leads.value = res.data || []
+    leads.value = res.data! || []
   } finally {
     leadLoading.value = false
   }
@@ -142,7 +142,7 @@ const fetchOpportunities = async () => {
   opportunityLoading.value = true
   try {
     const res = await listOpportunities()
-    opportunities.value = res.data || []
+    opportunities.value = res.data! || []
   } finally {
     opportunityLoading.value = false
   }

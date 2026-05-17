@@ -120,7 +120,7 @@ const loadGreigeFabrics = async () => {
   loading.value = true
   try {
     const res = await listGreigeFabrics()
-    greigeList.value = res.data || []
+    greigeList.value = res.data! || []
   } catch (error) {
     ElMessage.error('加载坯布列表失败')
   } finally {

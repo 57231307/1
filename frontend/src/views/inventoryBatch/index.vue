@@ -298,8 +298,8 @@ const fetchBatches = async () => {
       ...queryParams
     })
     if (res.data) {
-      batchList.value = res.data.list || res.data || []
-      pagination.total = res.data.total || res.data?.length || 0
+      batchList.value = res.data!.list || res.data! || []
+      pagination.total = res.data!.total || res.data?.length || 0
     }
   } catch (e) {
     ElMessage.error('获取批次列表失败')
@@ -392,7 +392,7 @@ const handleView = async (row: InventoryBatch) => {
   try {
     const res: any = await getBatch(row.id)
     if (res.data) {
-      currentBatch.value = res.data
+      currentBatch.value = res.data!
       viewDialogVisible.value = true
     }
   } catch (e) {

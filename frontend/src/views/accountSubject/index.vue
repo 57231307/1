@@ -85,8 +85,8 @@ const loadData = async () => {
       category: searchForm.value.category,
       type: searchForm.value.type
     })
-    tableData.value = res.data.list
-    total.value = res.data.total
+    tableData.value = res.data!.list
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -97,7 +97,7 @@ const loadData = async () => {
 const loadTree = async () => {
   try {
     const res: any = await getAccountSubjectTree()
-    treeData.value = res.data
+    treeData.value = res.data!
   } catch (error) {
     ElMessage.error('加载树结构失败')
   }
@@ -154,7 +154,7 @@ const openEditDialog = (row: AccountSubjectEntity) => {
 const openViewDialog = async (row: AccountSubjectEntity) => {
   try {
     const res: any = await getAccountSubject(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')

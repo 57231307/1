@@ -58,8 +58,8 @@ const loadData = async () => {
       warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
       status: searchForm.value.status
     })
-    tableData.value = res.data.list
-    total.value = res.data.total
+    tableData.value = res.data!.list
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -70,7 +70,7 @@ const loadData = async () => {
 const loadWarehouses = async () => {
   try {
     const res: any = await request.get('/api/v1/warehouses/select')
-    warehouseOptions.value = res.data
+    warehouseOptions.value = res.data!
   } catch (error) {
     console.warn('加载仓库失败')
   }
@@ -115,7 +115,7 @@ const openAddDialog = async () => {
 const openViewDialog = async (row: InventoryCountEntity) => {
   try {
     const res: any = await getInventoryCount(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     const itemsRes: any = await getCountItems(row.id!)
     detailData.value = itemsRes.data
     editableDetailData.value = JSON.parse(JSON.stringify(itemsRes.data))

@@ -273,7 +273,7 @@ const loadReturns = async () => {
   loading.value = true
   try {
     const res = await salesReturnApi.list()
-    returnList.value = res.data.list || []
+    returnList.value = res.data!.list || []
   } catch (error) {
     ElMessage.error('加载退货列表失败')
   } finally {
@@ -284,7 +284,7 @@ const loadReturns = async () => {
 const loadSalesOrders = async () => {
   try {
     const res = await salesApi.getOrderList({ status: 'completed' })
-    salesOrderList.value = res.data.list || []
+    salesOrderList.value = res.data!.list || []
   } catch (error) {
     // 忽略错误
   }

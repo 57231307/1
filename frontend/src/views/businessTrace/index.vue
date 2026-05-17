@@ -39,7 +39,7 @@ const handleFiveDimensionTrace = async () => {
   loading.value = true
   try {
     const res: any = await getTraceByFiveDimension(fiveDimensionId.value)
-    traceResult.value = res.data
+    traceResult.value = res.data!
     snapshotMessage.value = ''
   } catch (error) {
     ElMessage.error('追溯失败')
@@ -94,7 +94,7 @@ const handleCreateSnapshot = async () => {
   loading.value = true
   try {
     const res: any = await createTraceSnapshot(traceResult.value.trace_chain_id)
-    snapshotMessage.value = res.data
+    snapshotMessage.value = res.data!
     ElMessage.success('快照创建成功')
   } catch (error) {
     ElMessage.error('创建快照失败')

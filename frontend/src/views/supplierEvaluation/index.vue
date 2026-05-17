@@ -156,8 +156,8 @@ const fetchRecords = async () => {
       pageSize: recordPagination.pageSize
     })
     if (res.data) {
-      recordList.value = res.data.list || res.data || []
-      recordPagination.total = res.data.total || res.data?.length || 0
+      recordList.value = res.data!.list || res.data! || []
+      recordPagination.total = res.data!.total || res.data?.length || 0
     }
   } catch (e) {
     ElMessage.error('获取评估记录失败')
@@ -168,7 +168,7 @@ const fetchRankings = async () => {
   try {
     const res: any = await getSupplierRankings({ limit: 20 })
     if (res.data) {
-      rankingList.value = (res.data || []).map((item: any, index: number) => ({
+      rankingList.value = (res.data! || []).map((item: any, index: number) => ({
         ...item,
         rank: index + 1
       }))

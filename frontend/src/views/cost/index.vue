@@ -199,7 +199,7 @@ const fetchCollections = async () => {
   loading.value = true
   try {
     const res: any = await listCostCollections(queryForm)
-    collectionList.value = res.data?.list || []
+    collectionList.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (e: any) {
     ElMessage.error(e.message || '获取成本归集列表失败')

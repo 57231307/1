@@ -12,8 +12,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     loading.value = true
     try {
       const res = await inventoryApi.getStockList(params)
-      stocks.value = res.data.list
-      total.value = res.data.total
+      stocks.value = res.data!.list
+      total.value = res.data!.total
     } catch (error) {
       console.error('Failed to fetch stocks:', error)
     } finally {
@@ -24,7 +24,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const fetchAlerts = async () => {
     try {
       const res = await inventoryApi.getStockAlerts()
-      alerts.value = res.data
+      alerts.value = res.data!
     } catch (error) {
       console.error('Failed to fetch alerts:', error)
     }

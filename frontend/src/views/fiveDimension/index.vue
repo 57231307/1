@@ -57,8 +57,8 @@ const loadData = async () => {
       color_no: searchForm.value.color_no || undefined,
       grade: searchForm.value.grade || undefined
     })
-    tableData.value = res.data.items
-    total.value = res.data.total
+    tableData.value = res.data!.items
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -94,7 +94,7 @@ const handlePageSizeChange = (pageSize: number) => {
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
     const res: any = await getStatsByFiveDimensionId(item.dimension.five_dimension_id)
-    viewData.value = res.data
+    viewData.value = res.data!
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')
@@ -133,7 +133,7 @@ const handleQuickSearch = async () => {
       page: 0,
       page_size: 50
     })
-    searchResults.value = res.data.items
+    searchResults.value = res.data!.items
   } catch (error) {
     ElMessage.error('搜索失败')
   }

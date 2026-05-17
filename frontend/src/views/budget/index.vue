@@ -157,7 +157,7 @@ const fetchBudgets = async () => {
   loading.value = true
   try {
     const res = await listBudgets(queryForm)
-    budgetList.value = res.data?.list || []
+    budgetList.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (e: any) {
     ElMessage.error(e.message || '获取预算列表失败')

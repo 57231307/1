@@ -122,7 +122,7 @@ const openEditDialog = async (row: VoucherEntity) => {
 const openViewDialog = async (row: VoucherEntity) => {
   try {
     const res: any = await getVoucher(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')
@@ -238,7 +238,7 @@ const loadData = async () => {
       pageSize: pagination.value.pageSize
     }
     const res: any = await listVouchers(params)
-    tableData.value = res.data?.list || []
+    tableData.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (error) {
     ElMessage.error('获取凭证列表失败')
@@ -250,7 +250,7 @@ const loadData = async () => {
 const loadVoucherTypes = async () => {
   try {
     const res: any = await getVoucherTypes()
-    voucherTypes.value = res.data || []
+    voucherTypes.value = res.data! || []
   } catch (error) {
     console.error('获取凭证类型失败', error)
   }
@@ -272,7 +272,7 @@ const loadAccountSubjects = async () => {
       traverse(items)
       return result
     }
-    accountSubjectOptions.value = flattenOptions(res.data || [])
+    accountSubjectOptions.value = flattenOptions(res.data! || [])
   } catch (error) {
     console.error('获取科目列表失败', error)
   }

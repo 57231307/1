@@ -42,7 +42,7 @@ const handleScan = async () => {
   loading.value = true
   try {
     const res: any = await scanInventory(barcodeInput.value)
-    scanResult.value = res.data.data
+    scanResult.value = res.data!.data
     scanSuccess.value = true
     scanMessage.value = '扫码成功'
   } catch (error: any) {
@@ -70,7 +70,7 @@ const handleScanToShip = async () => {
       order_id: Number(orderId.value)
     })
     scanSuccess.value = true
-    scanMessage.value = res.data.data.message
+    scanMessage.value = res.data!.data.message
     scanResult.value = null
     barcodeInput.value = ''
   } catch (error: any) {
@@ -85,8 +85,8 @@ const loadHistory = async () => {
   loading.value = true
   try {
     const res: any = await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)
-    historyData.value = res.data.items
-    total.value = res.data.total
+    historyData.value = res.data!.items
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载历史失败')
   } finally {

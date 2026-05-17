@@ -12,8 +12,8 @@ export const useSalesStore = defineStore('sales', () => {
     loading.value = true
     try {
       const res = await salesApi.getOrderList(params)
-      orders.value = res.data.list
-      total.value = res.data.total
+      orders.value = res.data!.list
+      total.value = res.data!.total
     } catch (error) {
       console.error('Failed to fetch orders:', error)
     } finally {
@@ -24,8 +24,8 @@ export const useSalesStore = defineStore('sales', () => {
   const getOrderById = async (id: number) => {
     try {
       const res = await salesApi.getOrderById(id)
-      currentOrder.value = res.data
-      return res.data
+      currentOrder.value = res.data!
+      return res.data!
     } catch (error) {
       console.error('Failed to fetch order:', error)
       return null

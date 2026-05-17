@@ -147,7 +147,7 @@ const fetchPermissions = async () => {
   try {
     const res: any = await listRoleDataPermissions(parseInt(selectedRoleId.value))
     if (res.data) {
-      permissionList.value = res.data || []
+      permissionList.value = res.data! || []
     }
   } catch (e) {
     ElMessage.error('获取权限列表失败')
@@ -158,7 +158,7 @@ const fetchScopeTypes = async () => {
   try {
     const res: any = await listScopeTypes()
     if (res.data) {
-      scopeTypeList.value = res.data || []
+      scopeTypeList.value = res.data! || []
     }
   } catch (e) {
     // 使用默认值

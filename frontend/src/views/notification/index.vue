@@ -120,8 +120,8 @@ const fetchNotifications = async () => {
       status: statusFilter.value || undefined
     } as any)
     if (res.data) {
-      notificationList.value = res.data.list || res.data || []
-      pagination.total = res.data.total || res.data?.length || 0
+      notificationList.value = res.data!.list || res.data! || []
+      pagination.total = res.data!.total || res.data?.length || 0
     }
   } catch (e) {
     ElMessage.error('获取通知列表失败')
@@ -132,7 +132,7 @@ const fetchUnreadCount = async () => {
   try {
     const res: any = await getUnreadCount()
     if (res.data !== undefined) {
-      unreadCount.value = res.data
+      unreadCount.value = res.data!
     }
   } catch (e) {
     // 忽略错误
@@ -145,7 +145,7 @@ const handleView = async (item: Notification) => {
   try {
     const res: any = await getNotification(item.id)
     if (res.data) {
-      currentNotification.value = res.data
+      currentNotification.value = res.data!
       detailDialogVisible.value = true
       fetchNotifications()
       fetchUnreadCount()

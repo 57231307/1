@@ -392,7 +392,7 @@ const fetchAccounts = async () => {
   loading.value = true
   try {
     const res = await listFundAccounts(queryForm)
-    accountList.value = res.data?.list || res.data || []
+    accountList.value = res.data!.list || res.data! || []
     total.value = res.data?.total || accountList.value.length
   } catch (e: any) {
     ElMessage.error(e.message || '获取账户列表失败')
@@ -405,7 +405,7 @@ const fetchTransfers = async () => {
   transferLoading.value = true
   try {
     const res = await listFundTransfers(transferQueryForm)
-    transferList.value = res.data || []
+    transferList.value = res.data! || []
     transferTotal.value = res.data?.length || 0
   } catch (e: any) {
     ElMessage.error(e.message || '获取转账记录失败')
