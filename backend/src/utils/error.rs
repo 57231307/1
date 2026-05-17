@@ -92,10 +92,12 @@ impl IntoResponse for AppError {
             }
         };
 
-        let body = ErrorResponse {
-            error: error_type.to_string(),
-            message: error_message.to_string(),
-        };
+        // 返回统一的 ApiResponse 格式 {code, data, message}
+        let body = serde_json::json!({
+            "code": status.as_u16(),
+            "data": null,
+            "message": error_message
+        });
 
         (status, Json(body)).into_response()
     }
