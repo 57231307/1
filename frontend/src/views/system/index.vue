@@ -392,7 +392,7 @@ const fetchUsers = async () => {
   userLoading.value = true
   try {
     const res = await listUsers(userQuery)
-    users.value = res.data || []
+    users.value = res.data! || []
     userTotal.value = res.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取用户列表失败')
@@ -412,7 +412,7 @@ const fetchRoles = async () => {
   roleLoading.value = true
   try {
     const res = await listRoles()
-    roles.value = res.data || []
+    roles.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取角色列表失败')
   } finally {
@@ -424,7 +424,7 @@ const fetchDepartments = async () => {
   deptLoading.value = true
   try {
     const res = await getDepartmentTree()
-    departments.value = res.data || []
+    departments.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取部门列表失败')
   } finally {

@@ -245,7 +245,7 @@ const fetchDyeBatches = async () => {
   dyeLoading.value = true
   try {
     const res = await listDyeBatches()
-    dyeBatches.value = res.data || []
+    dyeBatches.value = res.data! || []
   } finally {
     dyeLoading.value = false
   }
@@ -255,7 +255,7 @@ const fetchGreigeFabrics = async () => {
   greigeLoading.value = true
   try {
     const res = await listGreigeFabrics()
-    greigeFabrics.value = res.data || []
+    greigeFabrics.value = res.data! || []
   } finally {
     greigeLoading.value = false
   }
@@ -265,7 +265,7 @@ const fetchDyeRecipes = async () => {
   recipeLoading.value = true
   try {
     const res = await listDyeRecipes()
-    dyeRecipes.value = res.data || []
+    dyeRecipes.value = res.data! || []
   } finally {
     recipeLoading.value = false
   }
@@ -274,7 +274,7 @@ const fetchDyeRecipes = async () => {
 const fetchSuppliers = async () => {
   try {
     const res = await listSuppliers()
-    suppliers.value = res.data?.list || []
+    suppliers.value = res.data!.list || []
   } catch (e) {
     console.error(e)
   }
@@ -411,7 +411,7 @@ const openRecipeDialog = async (row?: DyeRecipe) => {
 
 const viewRecipe = async (row: DyeRecipe) => {
   const res = await getDyeRecipe(row.id)
-  openRecipeDialog(res.data)
+  openRecipeDialog(res.data!)
 }
 
 const submitRecipe = async () => {

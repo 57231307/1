@@ -37,7 +37,7 @@ const loadBalanceSheet = async () => {
   loading.value = true
   try {
     const res: any = await getBalanceSheet({ year: selectedYear.value, month: selectedMonth.value })
-    balanceSheetData.value = res.data
+    balanceSheetData.value = res.data!
   } catch (error) {
     ElMessage.error('加载资产负债表失败')
   } finally {
@@ -49,7 +49,7 @@ const loadProfitStatement = async () => {
   loading.value = true
   try {
     const res: any = await getProfitStatement({ year: selectedYear.value, month: selectedMonth.value })
-    profitStatementData.value = res.data
+    profitStatementData.value = res.data!
   } catch (error) {
     ElMessage.error('加载利润表失败')
   } finally {
@@ -61,7 +61,7 @@ const loadCashFlow = async () => {
   loading.value = true
   try {
     const res: any = await getCashFlowStatement({ year: selectedYear.value, month: selectedMonth.value })
-    cashFlowData.value = res.data
+    cashFlowData.value = res.data!
   } catch (error) {
     ElMessage.error('加载现金流量表失败')
   } finally {
@@ -73,7 +73,7 @@ const loadTrialBalance = async () => {
   loading.value = true
   try {
     const res: any = await getTrialBalance({ year: selectedYear.value, month: selectedMonth.value })
-    trialBalanceData.value = res.data
+    trialBalanceData.value = res.data!
   } catch (error) {
     ElMessage.error('加载试算平衡表失败')
   } finally {

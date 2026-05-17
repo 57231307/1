@@ -79,8 +79,8 @@ const loadData = async () => {
       month: searchForm.value.month ? Number(searchForm.value.month) : undefined,
       status: searchForm.value.status || undefined
     })
-    tableData.value = res.data.list
-    total.value = res.data.total
+    tableData.value = res.data!.list
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -91,7 +91,7 @@ const loadData = async () => {
 const loadCurrentPeriod = async () => {
   try {
     const res: any = await getCurrentPeriod()
-    currentPeriod.value = res.data
+    currentPeriod.value = res.data!
   } catch (error) {
     console.warn('获取当前期间失败')
   }
@@ -145,7 +145,7 @@ const openEditDialog = (row: AccountingPeriodEntity) => {
 const openViewDialog = async (row: AccountingPeriodEntity) => {
   try {
     const res: any = await getAccountingPeriod(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')

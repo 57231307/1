@@ -227,7 +227,7 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await purchaseApi.getOrderList(queryParams)
-    orders.value = res.data?.list || []
+    orders.value = res.data!.list || []
     total.value = res.data?.total || 0
     
     // 计算统计数据
@@ -246,7 +246,7 @@ const fetchData = async () => {
 const fetchSuppliers = async () => {
   try {
     const res = await supplierApi.list({ page_size: 1000 })
-    suppliers.value = res.data?.list || []
+    suppliers.value = res.data!.list || []
     stats.value.supplierCount = suppliers.value.length
   } catch (error) {
     console.error('获取供应商列表失败:', error)

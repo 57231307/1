@@ -197,7 +197,7 @@ const fetchCurrencies = async () => {
   try {
     const res: any = await listCurrencies()
     if (res.data) {
-      currencyList.value = res.data || []
+      currencyList.value = res.data! || []
     }
   } catch (e) {
     ElMessage.error('获取币种列表失败')
@@ -217,7 +217,7 @@ const fetchExchangeRate = async () => {
       date: rateQuery.date
     })
     if (res.data) {
-      currentRate.value = res.data
+      currentRate.value = res.data!
     }
   } catch (e) {
     ElMessage.error('获取汇率失败')

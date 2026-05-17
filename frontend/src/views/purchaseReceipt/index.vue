@@ -63,8 +63,8 @@ const loadData = async () => {
       warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
       status: searchForm.value.status
     })
-    tableData.value = res.data.list
-    total.value = res.data.total
+    tableData.value = res.data!.list
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -75,7 +75,7 @@ const loadData = async () => {
 const loadSuppliers = async () => {
   try {
     const res: any = await request.get('/api/v1/suppliers/select')
-    supplierOptions.value = res.data
+    supplierOptions.value = res.data!
   } catch (error) {
     console.warn('加载供应商失败')
   }
@@ -84,7 +84,7 @@ const loadSuppliers = async () => {
 const loadWarehouses = async () => {
   try {
     const res: any = await request.get('/api/v1/warehouses/select')
-    warehouseOptions.value = res.data
+    warehouseOptions.value = res.data!
   } catch (error) {
     console.warn('加载仓库失败')
   }
@@ -93,7 +93,7 @@ const loadWarehouses = async () => {
 const loadProducts = async () => {
   try {
     const res: any = await request.get('/api/v1/products/select')
-    productOptions.value = res.data
+    productOptions.value = res.data!
   } catch (error) {
     console.warn('加载产品失败')
   }
@@ -149,7 +149,7 @@ const openEditDialog = async (row: PurchaseReceiptEntity) => {
 const openViewDialog = async (row: PurchaseReceiptEntity) => {
   try {
     const res: any = await getPurchaseReceipt(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     const itemsRes: any = await getReceiptItems(row.id!)
     detailData.value = itemsRes.data
     viewDialogVisible.value = true

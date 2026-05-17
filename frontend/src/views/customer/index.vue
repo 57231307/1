@@ -266,7 +266,7 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await customerApi.list(queryParams)
-    customers.value = res.data?.list || []
+    customers.value = res.data!.list || []
     total.value = res.data?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取客户列表失败')

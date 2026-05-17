@@ -107,7 +107,7 @@ const loadDepartments = async () => {
   loading.value = true
   try {
     const res = await listDepartments()
-    departmentList.value = res.data || []
+    departmentList.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '加载部门列表失败')
   } finally {

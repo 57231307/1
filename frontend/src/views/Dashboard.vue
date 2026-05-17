@@ -249,7 +249,7 @@ const getActivityTypeColor = (type: string) => {
 const fetchDashboardData = async () => {
   try {
     const res = await dashboardApi.getOverview()
-    stats.value = res.data || {}
+    stats.value = res.data! || {}
   } catch (error) {
     stats.value = {
       fabricCount: 156,

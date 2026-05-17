@@ -544,7 +544,7 @@ const fetchPurchaseContracts = async () => {
   contractLoading.value = true
   try {
     const res = await listPurchaseContracts()
-    purchaseContracts.value = res.data || []
+    purchaseContracts.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购合同失败')
   } finally {
@@ -556,7 +556,7 @@ const fetchPurchasePrices = async () => {
   priceLoading.value = true
   try {
     const res = await listPurchasePrices(priceQuery)
-    purchasePrices.value = res.data || []
+    purchasePrices.value = res.data! || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购价格失败')
   } finally {
@@ -568,7 +568,7 @@ const fetchPurchaseReturns = async () => {
   returnLoading.value = true
   try {
     const res = await purchaseReturnApi.list(returnQuery)
-    purchaseReturns.value = res.data?.list || []
+    purchaseReturns.value = res.data!.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购退货失败')
   } finally {
@@ -663,7 +663,7 @@ const contractRules: FormRules = {
 const openContractDialog = async (row?: PurchaseContract) => {
   if (row) {
     const res = await getPurchaseContract(row.id)
-    Object.assign(contractForm, res.data)
+    Object.assign(contractForm, res.data!)
   } else {
     Object.assign(contractForm, {
       id: 0,
@@ -708,7 +708,7 @@ const submitContract = async () => {
 
 const viewContract = async (row: PurchaseContract) => {
   const res = await getPurchaseContract(row.id)
-  currentContract.value = res.data
+  currentContract.value = res.data!
   contractViewVisible.value = true
 }
 
@@ -787,7 +787,7 @@ const priceRules: FormRules = {
 const openPriceDialog = async (row?: PurchasePrice) => {
   if (row) {
     const res = await getPurchasePrice(row.id)
-    Object.assign(priceForm, res.data)
+    Object.assign(priceForm, res.data!)
   } else {
     Object.assign(priceForm, {
       id: 0,
@@ -857,7 +857,7 @@ const returnRules: FormRules = {
 const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
     const res = await purchaseReturnApi.getById(row.id!)
-    Object.assign(returnForm, res.data)
+    Object.assign(returnForm, res.data!)
   } else {
     Object.assign(returnForm, {
       id: 0,
@@ -900,7 +900,7 @@ const submitReturn = async () => {
 
 const viewReturn = async (row: PurchaseReturn) => {
   const res = await purchaseReturnApi.getById(row.id!)
-  currentReturn.value = res.data
+  currentReturn.value = res.data!
   returnViewVisible.value = true
 }
 

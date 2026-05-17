@@ -224,7 +224,7 @@ const loadAssets = async () => {
   loading.value = true
   try {
     const res = await listAssets()
-    assetList.value = res.data || []
+    assetList.value = res.data! || []
   } catch (error) {
     ElMessage.error('加载资产列表失败')
   } finally {
@@ -235,7 +235,7 @@ const loadAssets = async () => {
 const loadDepartments = async () => {
   try {
     const res = await listDepartments()
-    departmentList.value = res.data || []
+    departmentList.value = res.data! || []
   } catch (error) {
     // 部门加载失败不影响主功能
   }

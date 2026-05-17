@@ -46,7 +46,7 @@ const loadStats = async () => {
   loading.value = true
   try {
     const res: any = await getDashboardStats()
-    stats.value = res.data.data
+    stats.value = res.data!.data
   } catch (error) {
     ElMessage.error('加载统计数据失败')
   } finally {
@@ -68,8 +68,8 @@ const loadLogs = async () => {
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize
     })
-    logs.value = res.data.data.items
-    total.value = res.data.data.total
+    logs.value = res.data!.data.items
+    total.value = res.data!.data.total
   } catch (error) {
     ElMessage.error('加载日志失败')
   } finally {

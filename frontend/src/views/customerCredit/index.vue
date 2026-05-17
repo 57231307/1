@@ -217,8 +217,8 @@ const fetchCredits = async () => {
       page_size: pagination.page_size
     } as any)
     if (res.data) {
-      creditList.value = res.data.list || res.data || []
-      pagination.total = res.data.total || res.data?.length || 0
+      creditList.value = res.data!.list || res.data! || []
+      pagination.total = res.data!.total || res.data?.length || 0
     }
   } catch (e) {
     ElMessage.error('获取信用列表失败')

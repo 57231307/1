@@ -57,8 +57,8 @@ const loadData = async () => {
       pageSize: pagination.value.pageSize,
       ...searchForm.value
     })
-    tableData.value = res.data.list
-    total.value = res.data.total
+    tableData.value = res.data!.list
+    total.value = res.data!.total
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -69,7 +69,7 @@ const loadData = async () => {
 const loadCustomers = async () => {
   try {
     const res: any = await request.get('/api/v1/customers/select')
-    customerOptions.value = res.data
+    customerOptions.value = res.data!
   } catch (error) {
     console.warn('加载客户失败')
   }
@@ -121,7 +121,7 @@ const openEditDialog = (row: ArReconciliationEntity) => {
 const openViewDialog = async (row: ArReconciliationEntity) => {
   try {
     const res: any = await getArReconciliation(row.id!)
-    viewData.value = res.data
+    viewData.value = res.data!
     const detailRes: any = await getReconciliationDetails(row.id!)
     detailData.value = detailRes.data
     viewDialogVisible.value = true
