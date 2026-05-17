@@ -39,6 +39,7 @@ class Request {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
       },
     })
 
