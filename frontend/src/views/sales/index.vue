@@ -314,16 +314,19 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Download, Search, Refresh, Document, Money, Clock, Van
 } from '@element-plus/icons-vue'
+import { salesApi, type SalesOrder } from '@/api/sales'
+import { customerApi, type Customer } from '@/api/customer'
+import { productApi, type Product } from '@/api/product'
 
 const loading = ref(false)
-const orders = ref<any[]>([])
-const customers = ref<any[]>([])
-const products = ref<any[]>([])
+const orders = ref<SalesOrder[]>([])
+const customers = ref<Customer[]>([])
+const products = ref<Product[]>([])
 const total = ref(0)
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const dialogTitle = ref('')
-const currentOrder = ref<any>(null)
+const currentOrder = ref<SalesOrder | null>(null)
 const formRef = ref()
 const isEdit = ref(false)
 
@@ -396,63 +399,34 @@ const getStatusText = (status: string) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    orders.value = [
-      {
-        id: 1,
-        order_no: 'SO202603130001',
-        customer_name: '纺织公司A',
-        order_date: '2026-05-13',
-        required_date: '2026-05-20',
-        total_amount: 50000,
-        contact_person: '张经理',
-        contact_phone: '13800138000',
-        status: 'pending',
-        creator_name: '销售员A',
-        created_at: '2026-05-13 10:30:00',
-        items: [
-          { id: 1, product_id: 1, product_name: '纯棉斜纹布', product_code: 'FB001', quantity: 1000, unit: '米', unit_price: 25, subtotal: 25000 },
-          { id: 2, product_id: 2, product_name: '涤纶平纹布', product_code: 'FB002', quantity: 1000, unit: '米', unit_price: 25, subtotal: 25000 }
-        ]
-      },
-      {
-        id: 2,
-        order_no: 'SO202603120005',
-        customer_name: '服装厂B',
-        order_date: '2026-05-12',
-        required_date: '2026-05-25',
-        total_amount: 80000,
-        contact_person: '李总',
-        contact_phone: '13900139000',
-        status: 'approved',
-        creator_name: '销售员B',
-        created_at: '2026-05-12 14:20:00',
-        items: [
-          { id: 3, product_id: 1, product_name: '纯棉斜纹布', product_code: 'FB001', quantity: 2000, unit: '米', unit_price: 25, subtotal: 50000 },
-          { id: 4, product_id: 3, product_name: '真丝缎面', product_code: 'FB003', quantity: 200, unit: '米', unit_price: 150, subtotal: 30000 }
-        ]
-      }
-    ]
-    total.value = 2
-    ElMessage.info('使用演示数据')
+    const res = await salesApi.getOrderList(queryParams)
+    orders.value = res.data?.list || []
+    total.value = res.data?.total || 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取订单列表失败')
+    orders.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
 const fetchCustomers = async () => {
-  customers.value = [
-    { id: 1, name: '纺织公司A' },
-    { id: 2, name: '服装厂B' },
-    { id: 3, name: '面料贸易商C' }
-  ]
+  try {
+    const res = await customerApi.list({ page_size: 1000 })
+    customers.value = res.data?.list || []
+  } catch (error) {
+    console.error('获取客户列表失败:', error)
+  }
 }
 
 const fetchProducts = async () => {
-  products.value = [
-    { id: 1, name: '纯棉斜纹布', code: 'FB001', price: 25 },
-    { id: 2, name: '涤纶平纹布', code: 'FB002', price: 18 },
-    { id: 3, name: '真丝缎面', code: 'FB003', price: 180 }
-  ]
+  try {
+    const res = await productApi.list({ page_size: 1000 })
+    products.value = res.data?.list || []
+  } catch (error) {
+    console.error('获取产品列表失败:', error)
+  }
 }
 
 const handleQuery = () => {
@@ -503,27 +477,33 @@ const handleView = (row: any) => {
   viewDialogVisible.value = true
 }
 
-const handleApprove = async (row: any) => {
+const handleApprove = async (row: SalesOrder) => {
   try {
     await ElMessageBox.confirm(`确定审批通过订单 ${row.order_no} 吗？`, '审批确认', { type: 'success' })
+    await salesApi.approveOrder(row.id)
     ElMessage.success(`订单 ${row.order_no} 审批成功`)
     fetchData()
-  } catch {
-    // User cancelled
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '审批失败')
+    }
   }
 }
 
-const handleDeliver = (_row: any) => {
-  ElMessage.info(`创建发货单功能开发中`)
+const handleDeliver = (row: SalesOrder) => {
+  ElMessage.info(`创建发货单功能开发中: ${row.order_no}`)
 }
 
-const handleCancel = async (row: any) => {
+const handleCancel = async (row: SalesOrder) => {
   try {
     await ElMessageBox.confirm(`确定取消订单 ${row.order_no} 吗？`, '取消确认', { type: 'warning' })
+    await salesApi.cancelOrder(row.id)
     ElMessage.success(`订单 ${row.order_no} 已取消`)
     fetchData()
-  } catch {
-    // User cancelled
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '取消失败')
+    }
   }
 }
 
@@ -581,11 +561,21 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate()
     formData.total_amount = calculateTotal()
-    ElMessage.success(isEdit.value ? '订单更新成功' : '订单创建成功')
+    
+    if (isEdit.value && currentOrder.value) {
+      await salesApi.updateOrder(currentOrder.value.id, formData)
+      ElMessage.success('订单更新成功')
+    } else {
+      await salesApi.createOrder(formData)
+      ElMessage.success('订单创建成功')
+    }
+    
     dialogVisible.value = false
     fetchData()
-  } catch (error) {
-    console.error('Form validation failed:', error)
+  } catch (error: any) {
+    if (error.message) {
+      ElMessage.error(error.message || '操作失败')
+    }
   }
 }
 

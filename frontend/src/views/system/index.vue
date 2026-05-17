@@ -134,6 +134,141 @@
           </el-table>
         </el-card>
       </el-tab-pane>
+
+      <el-tab-pane label="公司信息" name="company">
+        <div class="page-header">
+          <h2 class="page-title">公司信息设置</h2>
+        </div>
+
+        <el-card shadow="hover">
+          <el-form
+            ref="companyFormRef"
+            :model="companyForm"
+            :rules="companyRules"
+            label-width="120px"
+            style="max-width: 800px"
+          >
+            <el-divider content-position="left">基本信息</el-divider>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="公司名称" prop="company_name">
+                  <el-input v-model="companyForm.company_name" placeholder="请输入公司名称" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="公司简称" prop="company_short_name">
+                  <el-input v-model="companyForm.company_short_name" placeholder="请输入公司简称" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="统一社会信用代码" prop="credit_code">
+                  <el-input v-model="companyForm.credit_code" placeholder="请输入统一社会信用代码" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="法定代表人" prop="legal_representative">
+                  <el-input v-model="companyForm.legal_representative" placeholder="请输入法定代表人" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="注册资本(万元)" prop="registered_capital">
+                  <el-input-number v-model="companyForm.registered_capital" :min="0" :precision="2" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="成立日期" prop="establishment_date">
+                  <el-date-picker
+                    v-model="companyForm.establishment_date"
+                    type="date"
+                    placeholder="选择日期"
+                    style="width: 100%"
+                    value-format="YYYY-MM-DD"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-divider content-position="left">联系方式</el-divider>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="联系电话" prop="phone">
+                  <el-input v-model="companyForm.phone" placeholder="请输入联系电话" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="传真" prop="fax">
+                  <el-input v-model="companyForm.fax" placeholder="请输入传真" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="电子邮箱" prop="email">
+                  <el-input v-model="companyForm.email" placeholder="请输入电子邮箱" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="公司网站" prop="website">
+                  <el-input v-model="companyForm.website" placeholder="请输入公司网站" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="公司地址" prop="address">
+              <el-input v-model="companyForm.address" placeholder="请输入公司地址" />
+            </el-form-item>
+
+            <el-divider content-position="left">银行信息</el-divider>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="开户银行" prop="bank_name">
+                  <el-input v-model="companyForm.bank_name" placeholder="请输入开户银行" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="银行账号" prop="bank_account">
+                  <el-input v-model="companyForm.bank_account" placeholder="请输入银行账号" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-divider content-position="left">税务信息</el-divider>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="纳税人类型" prop="taxpayer_type">
+                  <el-select v-model="companyForm.taxpayer_type" placeholder="请选择" style="width: 100%">
+                    <el-option label="一般纳税人" value="general" />
+                    <el-option label="小规模纳税人" value="small" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="税务登记号" prop="tax_registration_number">
+                  <el-input v-model="companyForm.tax_registration_number" placeholder="请输入税务登记号" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-divider content-position="left">其他信息</el-divider>
+            <el-form-item label="公司Logo" prop="logo">
+              <el-input v-model="companyForm.logo" placeholder="请输入Logo URL" />
+            </el-form-item>
+            <el-form-item label="备注" prop="remarks">
+              <el-input v-model="companyForm.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+            </el-form-item>
+
+            <el-form-item>
+              <el-button type="primary" :loading="companySubmitLoading" @click="saveCompanyInfo">
+                保存
+              </el-button>
+              <el-button @click="resetCompanyForm">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
 
     <el-dialog v-model="userDialogVisible" :title="userForm.id ? '编辑用户' : '新建用户'" width="500px">
@@ -514,6 +649,79 @@ const openPermissionDialog = (row: Role) => {
   ElMessage.info(`权限配置功能开发中: ${row.name}`)
 }
 
+// 公司信息表单
+const companyFormRef = ref<FormInstance>()
+const companySubmitLoading = ref(false)
+const companyForm = reactive({
+  company_name: '',
+  company_short_name: '',
+  credit_code: '',
+  legal_representative: '',
+  registered_capital: 0,
+  establishment_date: '',
+  phone: '',
+  fax: '',
+  email: '',
+  website: '',
+  address: '',
+  bank_name: '',
+  bank_account: '',
+  taxpayer_type: 'general',
+  tax_registration_number: '',
+  logo: '',
+  remarks: ''
+})
+
+const companyRules: FormRules = {
+  company_name: [
+    { required: true, message: '请输入公司名称', trigger: 'blur' }
+  ],
+  credit_code: [
+    { pattern: /^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$/, message: '请输入正确的统一社会信用代码', trigger: 'blur' }
+  ],
+  phone: [
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的联系电话', trigger: 'blur' }
+  ],
+  email: [
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+  ]
+}
+
+const fetchCompanyInfo = async () => {
+  try {
+    // 从本地存储或API获取公司信息
+    const savedInfo = localStorage.getItem('company_info')
+    if (savedInfo) {
+      Object.assign(companyForm, JSON.parse(savedInfo))
+    }
+  } catch (error) {
+    console.error('获取公司信息失败:', error)
+  }
+}
+
+const saveCompanyInfo = async () => {
+  if (!companyFormRef.value) return
+  
+  await companyFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    
+    companySubmitLoading.value = true
+    try {
+      // 保存到本地存储（实际项目中应该调用API）
+      localStorage.setItem('company_info', JSON.stringify(companyForm))
+      ElMessage.success('保存成功')
+    } catch (error: any) {
+      ElMessage.error(error.message || '保存失败')
+    } finally {
+      companySubmitLoading.value = false
+    }
+  })
+}
+
+const resetCompanyForm = () => {
+  companyFormRef.value?.resetFields()
+}
+
 const deptDialogVisible = ref(false)
 const deptFormRef = ref<FormInstance>()
 const deptSubmitLoading = ref(false)
@@ -599,6 +807,7 @@ onMounted(() => {
   fetchUsers()
   fetchRoles()
   fetchDepartments()
+  fetchCompanyInfo()
 })
 </script>
 

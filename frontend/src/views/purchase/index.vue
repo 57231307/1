@@ -176,17 +176,19 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Document, Money, Clock, OfficeBuilding, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
+import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
+import { supplierApi, type Supplier } from '@/api/supplier'
 
 const loading = ref(false)
-const orders = ref<any[]>([])
-const suppliers = ref<any[]>([])
+const orders = ref<PurchaseOrder[]>([])
+const suppliers = ref<Supplier[]>([])
 const total = ref(0)
 
 const stats = ref({
-  monthOrders: 45,
-  monthAmount: 850000,
-  pendingReceipt: 12,
-  supplierCount: 18
+  monthOrders: 0,
+  monthAmount: 0,
+  pendingReceipt: 0,
+  supplierCount: 0
 })
 
 const queryParams = reactive({
@@ -224,51 +226,60 @@ const getPaymentStatusText = (status: string) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    orders.value = [
-      {
-        id: 1,
-        order_no: 'PO202603130001',
-        supplier_name: '纺织原料供应商A',
-        order_date: '2026-05-13',
-        required_date: '2026-05-20',
-        total_amount: 60000,
-        received_amount: 0,
-        payment_status: 'unpaid',
-        status: 'pending',
-        creator_name: '采购员A'
-      },
-      {
-        id: 2,
-        order_no: 'PO202603120003',
-        supplier_name: '染料供应商B',
-        order_date: '2026-05-12',
-        required_date: '2026-05-18',
-        total_amount: 30000,
-        received_amount: 15000,
-        payment_status: 'partial',
-        status: 'partial',
-        creator_name: '采购员B'
-      }
-    ]
-    total.value = 2
-    ElMessage.info('使用演示数据')
+    const res = await purchaseApi.getOrderList(queryParams)
+    orders.value = res.data?.list || []
+    total.value = res.data?.total || 0
+    
+    // 计算统计数据
+    stats.value.monthOrders = total.value
+    stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0)
+    stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取采购单列表失败')
+    orders.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
 const fetchSuppliers = async () => {
-  suppliers.value = [
-    { id: 1, name: '纺织原料供应商A' },
-    { id: 2, name: '染料供应商B' },
-    { id: 3, name: '包装材料供应商C' }
-  ]
+  try {
+    const res = await supplierApi.list({ page_size: 1000 })
+    suppliers.value = res.data?.list || []
+    stats.value.supplierCount = suppliers.value.length
+  } catch (error) {
+    console.error('获取供应商列表失败:', error)
+  }
 }
 
 const handleQuery = () => { queryParams.page = 1; fetchData() }
 const handleReset = () => { queryParams.keyword = ''; queryParams.supplier_id = undefined; queryParams.status = ''; handleQuery() }
 
-const handleCreate = () => { ElMessage.info('新建采购单功能开发中') }
+const handleCreate = () => { 
+  ElMessage.info('新建采购单功能开发中') 
+}
+
+const handleView = (row: PurchaseOrder) => {
+  ElMessage.info(`查看采购单: ${row.order_no}`)
+}
+
+const handleApprove = async (row: PurchaseOrder) => {
+  try {
+    await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', { type: 'success' })
+    await purchaseApi.approveOrder(row.id)
+    ElMessage.success(`采购单 ${row.order_no} 审批成功`)
+    fetchData()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '审批失败')
+    }
+  }
+}
+
+const handleReceive = (row: PurchaseOrder) => {
+  ElMessage.info(`收货功能开发中: ${row.order_no}`)
+}
 const handlePrint = () => {
   const printData = orders.value.map((item: any, index: number) => ({
     '序号': index + 1,
