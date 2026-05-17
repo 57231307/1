@@ -44,7 +44,7 @@ fn test_quality_standard_validation() {
 #[test]
 fn test_approval_comment_validation() {
     // 测试审批意见验证
-    let empty_comment = None;
+    let empty_comment: Option<String> = None;
     let short_comment = Some("同意".to_string());
     let long_comment = Some("这个质量标准的内容符合要求，审批通过".to_string());
     
