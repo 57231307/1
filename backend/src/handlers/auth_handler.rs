@@ -36,6 +36,7 @@ pub struct UserPermissionDto {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
     pub token: String,
+    pub refresh_token: String,
     pub csrf_token: String,
     pub user: UserInfo,
     pub permissions: Vec<UserPermissionDto>,
@@ -129,8 +130,12 @@ pub async fn login(
             let session_id = format!("jwt:{}", &token[..token.len().min(32)]);
             let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
 
+            // 生成 refresh_token (简单的随机字符串)
+            let refresh_token = uuid::Uuid::new_v4().to_string();
+
             let response = LoginResponse {
                 token: token.clone(),
+                refresh_token,
                 csrf_token,
                 user: user_info,
                 permissions,
