@@ -414,6 +414,14 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
     
     println!("⬆️  系统升级...\n");
     
+    // 多个加速镜像源，自动切换
+    let mirror_urls = vec![
+        "https://ghproxy.net",
+        "https://github.moeyy.xyz",
+        "https://gh.api.99988866.xyz",
+        "https://mirror.ghproxy.com",
+    ];
+    
     // 1. 检查当前版本
     let current_version = env!("CARGO_PKG_VERSION");
     println!("📦 当前版本：v{}", current_version);
@@ -423,27 +431,42 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
         Some(v) => v.clone(),
         None => {
             println!("🔍 获取最新版本号...");
-            // 使用 GitHub API 获取最新版本（通过加速地址）
-            let output = Command::new("curl")
-                .args([
-                    "-s",
-                    "-H", "Accept: application/vnd.github.v3+json",
-                    "https://ghproxy.net/https://api.github.com/repos/57231307/1/releases/latest"
-                ])
-                .output();
+            // 尝试多个镜像源获取最新版本
+            let mut latest_version: Option<String> = None;
             
-            match output {
-                Ok(out) => {
+            for mirror in &mirror_urls {
+                println!("🌐 尝试从 {} 获取版本...", mirror);
+                let output = Command::new("curl")
+                    .args([
+                        "-s", "-m", "10", // 10 秒超时
+                        "-H", "Accept: application/vnd.github.v3+json",
+                        &format!("{}/https://api.github.com/repos/57231307/1/releases/latest", mirror)
+                    ])
+                    .output();
+                
+                if let Ok(out) = output {
                     let stdout = String::from_utf8_lossy(&out.stdout);
-                    if let Some(tag_name) = stdout.split('"').find(|s| s.starts_with("v2026")) {
-                        tag_name.to_string()
-                    } else {
-                        println!("⚠️  无法获取最新版本，请手动指定 --version");
-                        return Ok(());
+                    if stdout.contains("tag_name") {
+                        if let Some(tag_name) = stdout.split('"')
+                            .skip_while(|s| !s.starts_with("tag_name"))
+                            .nth(2)
+                            .map(|s| s.split('"').next().unwrap_or(""))
+                        {
+                            if tag_name.starts_with('v') {
+                                latest_version = Some(tag_name.to_string());
+                                println!("✅ 从 {} 获取成功：{}\n", mirror, tag_name);
+                                break;
+                            }
+                        }
                     }
                 }
-                Err(e) => {
-                    println!("❌ 获取版本失败：{}", e);
+            }
+            
+            match latest_version {
+                Some(v) => v,
+                None => {
+                    println!("❌ 所有镜像源都无法获取最新版本");
+                    println!("请手动指定版本：bingxi upgrade --version v2026.x.x.xxxx");
                     return Ok(());
                 }
             }
@@ -467,32 +490,59 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
         println!("✅ 备份完成：{}\n", backup_dir);
     }
     
-    // 4. 下载新版本
+    // 4. 下载新版本（尝试多个镜像源）
     println!("📥 下载新版本...");
-    let download_url = format!(
-        "https://ghproxy.net/https://github.com/57231307/1/releases/download/{}/release-{}.tar.gz",
+    let github_url = format!(
+        "https://github.com/57231307/1/releases/download/{}/release-{}.tar.gz",
         target_version, target_version
     );
     let download_path = format!("/tmp/release-{}.tar.gz", target_version);
     
+    let mut download_success = false;
+    
+    // 先尝试直连
+    println!("🌐 尝试直连 GitHub...");
     let download_result = Command::new("curl")
         .args([
-            "-fsSL",
+            "-fsSL", "-m", "30", // 30 秒超时
             "-o", &download_path,
-            &download_url
+            &github_url
         ])
         .status();
     
-    match download_result {
-        Ok(status) if status.success() => {
-            println!("✅ 下载完成：{}\n", download_path);
+    if download_result.is_ok() {
+        download_success = true;
+        println!("✅ 直连下载成功\n");
+    } else {
+        // 尝试镜像源
+        for mirror in &mirror_urls {
+            println!("🌐 尝试镜像源：{}...", mirror);
+            let mirror_url = format!("{}/{}", mirror, github_url);
+            
+            let download_result = Command::new("curl")
+                .args([
+                    "-fsSL", "-m", "30", // 30 秒超时
+                    "-o", &download_path,
+                    &mirror_url
+                ])
+                .status();
+            
+            if download_result.is_ok() {
+                download_success = true;
+                println!("✅ 从 {} 下载成功\n", mirror);
+                break;
+            } else {
+                println!("⚠️  {} 下载失败，尝试下一个...", mirror);
+            }
         }
-        _ => {
-            println!("❌ 下载失败");
-            println!("下载地址：{}", download_url);
-            println!("\n请检查网络连接或手动下载后上传到服务器");
-            return Ok(());
-        }
+    }
+    
+    if !download_success {
+        println!("❌ 所有下载方式都失败了");
+        println!("\n下载地址：{}", github_url);
+        println!("\n请检查网络连接或手动下载后上传到服务器：");
+        println!("  curl -fsSL -o /tmp/release-{}.tar.gz {}", target_version, github_url);
+        return Ok(());
     }
     
     // 5. 停止服务
