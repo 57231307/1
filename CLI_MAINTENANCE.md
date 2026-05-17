@@ -179,15 +179,25 @@ bingxi upgrade --no-backup
 ```
 
 **升级流程：**
-1. 获取最新版本号（通过 ghproxy.net 加速访问 GitHub API）
-2. 下载 Release 包（通过 ghproxy.net 加速下载）
+1. 获取最新版本号（自动尝试多个镜像源）
+2. 下载 Release 包（自动切换可用镜像源）
 3. 备份当前版本到 `/opt/bingxi/backups/pre_upgrade_<timestamp>/`
 4. 停止服务
 5. 替换文件
 6. 启动服务
 7. 自动执行健康检查
 
-**下载地址：** 使用 `https://ghproxy.net/https://github.com/...` 加速
+**加速镜像源**（自动检测可用性）：
+- `https://ghproxy.net`
+- `https://github.moeyy.xyz`
+- `https://gh.api.99988866.xyz`
+- `https://mirror.ghproxy.com`
+
+**智能切换机制**：
+- 每个镜像源超时时间：30 秒
+- 下载失败自动尝试下一个镜像源
+- 所有镜像源失败时提供手动下载指引
+- 优先尝试直连 GitHub
 
 ### 清理缓存
 
