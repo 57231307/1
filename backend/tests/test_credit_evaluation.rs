@@ -46,7 +46,8 @@ fn test_weighted_score_calculation() {
         + (order_score as f64 * 0.25) 
         + (credit_score as f64 * 0.25);
     
-    assert!((total_score - 81.25).abs() < f64::EPSILON);
+    // 90*0.3 + 80*0.2 + 70*0.25 + 85*0.25 = 27 + 16 + 17.5 + 21.25 = 81.75
+    assert!((total_score - 81.75).abs() < f64::EPSILON);
 }
 
 #[test]

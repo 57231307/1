@@ -4,14 +4,15 @@ use rust_decimal::Decimal;
 
 #[test]
 fn test_straight_line_depreciation() {
-    let original_value = Decimal::new(100000, 2); // 10 万
-    let residual_value = Decimal::new(10000, 2);  // 1 万
+    let original_value = Decimal::new(100000, 2); // 1000.00
+    let residual_value = Decimal::new(10000, 2);  // 100.00
     let useful_life_months = 120; // 10 年
     
     let depreciable_amount = original_value - residual_value;
     let monthly_depreciation = depreciable_amount / Decimal::from(useful_life_months);
     
-    assert_eq!(monthly_depreciation, Decimal::new(750, 0)); // 每月 750 元
+    // (1000.00 - 100.00) / 120 = 7.50
+    assert_eq!(monthly_depreciation, Decimal::new(750, 2)); // 每月 7.50 元
 }
 
 #[test]
