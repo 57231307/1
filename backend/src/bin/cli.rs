@@ -54,6 +54,13 @@ enum Commands {
         #[arg(short, long, help = "目标版本号")]
         version: Option<String>,
     },
+    /// 系统升级
+    Upgrade {
+        #[arg(short, long, help = "目标版本号，不指定则升级到最新版")]
+        version: Option<String>,
+        #[arg(short, long)]
+        no_backup: bool,
+    },
     /// 清理缓存
     Clean,
     /// 显示配置
@@ -82,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Health => cmd_health().await?,
         Commands::Migrate { direction } => cmd_migrate(&direction).await?,
         Commands::Rollback { version } => cmd_rollback(version).await?,
+        Commands::Upgrade { version, no_backup } => cmd_upgrade(version, no_backup).await?,
         Commands::Clean => cmd_clean().await?,
         Commands::Config => cmd_config().await?,
         Commands::HashPassword { password } => cmd_hash_password(&password).await?,
@@ -396,6 +404,154 @@ async fn cmd_rollback(version: Option<String>) -> Result<(), Box<dyn std::error:
             println!("⚠️  请指定目标版本：--version <版本号>");
         }
     }
+    
+    Ok(())
+}
+
+async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+    use std::time::SystemTime;
+    
+    println!("⬆️  系统升级...\n");
+    
+    // 1. 检查当前版本
+    let current_version = env!("CARGO_PKG_VERSION");
+    println!("📦 当前版本：v{}", current_version);
+    
+    // 2. 获取目标版本
+    let target_version = match &version {
+        Some(v) => v.clone(),
+        None => {
+            println!("🔍 获取最新版本号...");
+            // 使用 GitHub API 获取最新版本（通过加速地址）
+            let output = Command::new("curl")
+                .args([
+                    "-s",
+                    "-H", "Accept: application/vnd.github.v3+json",
+                    "https://ghproxy.net/https://api.github.com/repos/57231307/1/releases/latest"
+                ])
+                .output();
+            
+            match output {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout);
+                    if let Some(tag_name) = stdout.split('"').find(|s| s.starts_with("v2026")) {
+                        tag_name.to_string()
+                    } else {
+                        println!("⚠️  无法获取最新版本，请手动指定 --version");
+                        return Ok(());
+                    }
+                }
+                Err(e) => {
+                    println!("❌ 获取版本失败：{}", e);
+                    return Ok(());
+                }
+            }
+        }
+    };
+    
+    println!("🎯 目标版本：{}\n", target_version);
+    
+    // 3. 备份当前版本
+    if !no_backup {
+        println!("💾 备份当前版本...");
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        let backup_dir = format!("/opt/bingxi/backups/pre_upgrade_{}", timestamp);
+        
+        Command::new("mkdir").args(["-p", &backup_dir]).status()?;
+        Command::new("cp").args(["-r", "/opt/bingxi/backend", &backup_dir]).status()?;
+        Command::new("cp").args(["-r", "/opt/bingxi/frontend", &backup_dir]).status()?;
+        
+        println!("✅ 备份完成：{}\n", backup_dir);
+    }
+    
+    // 4. 下载新版本
+    println!("📥 下载新版本...");
+    let download_url = format!(
+        "https://ghproxy.net/https://github.com/57231307/1/releases/download/{}/release-{}.tar.gz",
+        target_version, target_version
+    );
+    let download_path = format!("/tmp/release-{}.tar.gz", target_version);
+    
+    let download_result = Command::new("curl")
+        .args([
+            "-fsSL",
+            "-o", &download_path,
+            &download_url
+        ])
+        .status();
+    
+    match download_result {
+        Ok(status) if status.success() => {
+            println!("✅ 下载完成：{}\n", download_path);
+        }
+        _ => {
+            println!("❌ 下载失败");
+            println!("下载地址：{}", download_url);
+            println!("\n请检查网络连接或手动下载后上传到服务器");
+            return Ok(());
+        }
+    }
+    
+    // 5. 停止服务
+    println!("🛑 停止服务...");
+    Command::new("systemctl").args(["stop", "bingxi"]).status()?;
+    println!("✅ 服务已停止\n");
+    
+    // 6. 解压并替换
+    println!("📦 解压新版本...");
+    Command::new("tar")
+        .args(["-xzf", &download_path, "-C", "/tmp"])
+        .status()?;
+    
+    println!("🔄 替换文件...");
+    
+    // 备份旧文件
+    Command::new("mv")
+        .args(["/opt/bingxi/backend/server", "/opt/bingxi/backend/server.old"])
+        .status()?;
+    Command::new("mv")
+        .args(["/opt/bingxi/frontend/dist", "/opt/bingxi/frontend/dist.old"])
+        .status()?;
+    
+    // 替换新文件
+    Command::new("cp")
+        .args(["/tmp/server", "/opt/bingxi/backend/server"])
+        .status()?;
+    Command::new("rm")
+        .args(["-rf", "/opt/bingxi/frontend/dist"])
+        .status()?;
+    Command::new("mv")
+        .args(["/tmp/frontend/dist", "/opt/bingxi/frontend/dist"])
+        .status()?;
+    
+    // 设置权限
+    Command::new("chmod")
+        .args(["+x", "/opt/bingxi/backend/server"])
+        .status()?;
+    
+    println!("✅ 文件替换完成\n");
+    
+    // 7. 清理临时文件
+    Command::new("rm").args(["-f", &download_path]).status()?;
+    Command::new("rm").args(["-rf", "/tmp/server", "/tmp/frontend"]).status()?;
+    
+    // 8. 启动服务
+    println!("🚀 启动服务...");
+    Command::new("systemctl").args(["start", "bingxi"]).status()?;
+    
+    // 9. 健康检查
+    println!("\n🏥 健康检查...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+    cmd_health().await?;
+    
+    println!("\n✅ 升级完成！");
+    println!("📦 新版本：{}", target_version);
+    println!("💾 备份位置：/opt/bingxi/backups/pre_upgrade_*");
+    println!("\n如需回滚，执行:");
+    println!("  bingxi rollback --version {}", current_version);
     
     Ok(())
 }
