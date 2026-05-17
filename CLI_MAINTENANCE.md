@@ -158,7 +158,38 @@ bingxi migrate --direction down
 bingxi rollback --version v2026.517.1040
 ```
 
-### 系统清理
+### 系统升级
+
+#### 升级到最新版本
+
+```bash
+bingxi upgrade
+```
+
+#### 升级到指定版本
+
+```bash
+bingxi upgrade --version v2026.517.1040
+```
+
+#### 升级（跳过备份）
+
+```bash
+bingxi upgrade --no-backup
+```
+
+**升级流程：**
+1. 获取最新版本号（通过 ghproxy.net 加速访问 GitHub API）
+2. 下载 Release 包（通过 ghproxy.net 加速下载）
+3. 备份当前版本到 `/opt/bingxi/backups/pre_upgrade_<timestamp>/`
+4. 停止服务
+5. 替换文件
+6. 启动服务
+7. 自动执行健康检查
+
+**下载地址：** 使用 `https://ghproxy.net/https://github.com/...` 加速
+
+### 清理缓存
 
 ```bash
 bingxi clean
@@ -202,6 +233,18 @@ bingxi logs --lines 50
 ```
 
 ### 部署新版本
+
+#### 方法一：使用 upgrade 命令（推荐）
+
+```bash
+# 自动升级到最新版
+bingxi upgrade
+
+# 或升级到指定版本
+bingxi upgrade --version v2026.517.1040
+```
+
+#### 方法二：手动部署
 
 ```bash
 # 1. 备份当前版本
@@ -277,3 +320,10 @@ sudo chmod 755 /usr/local/bin/bingxi
 ## 版本历史
 
 - **v2.0.0** (2026-05-17): 初始版本
+  - 服务管理
+  - 日志查看
+  - 数据备份/恢复
+  - 健康检查
+  - 数据库迁移
+  - **系统升级（ghproxy.net 加速）**
+  - 密码哈希
