@@ -3,7 +3,6 @@ use axum::{
     Router,
     middleware,
 };
-use axum::http::header;
 use crate::utils::app_state::AppState;
 use crate::middleware::rate_limit;
 use utoipa::OpenApi;
@@ -84,7 +83,6 @@ use crate::handlers::{
     user_notification_setting_handler,
     data_permission_handler,
     tracking_handler,
-    trading_handler,
     advanced_handler,
 };
 

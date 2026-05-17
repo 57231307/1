@@ -10,7 +10,6 @@ use std::time::Duration;
 
 use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::utils::cache::{AppCache, Cache};
-use crate::utils::error::AppError;
 
 /// 仪表板概览数据
 #[derive(Debug, Serialize, Clone, Deserialize)]

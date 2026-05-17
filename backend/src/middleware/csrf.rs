@@ -29,7 +29,7 @@ fn generate_csrf_token(session_id: &str, secret: &str) -> String {
 fn verify_csrf_token(token: &str, session_id: &str, secret: &str) -> bool {
     let expected = generate_csrf_token(session_id, secret);
     // 使用常量时间比较防止时序攻击
-    use std::cmp::Ordering;
+    
     if token.len() != expected.len() {
         return false;
     }

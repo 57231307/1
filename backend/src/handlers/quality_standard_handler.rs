@@ -219,7 +219,7 @@ pub async fn publish_standard(
 /// 获取质量标准版本历史
 pub async fn list_versions(
     Path(id): Path<i32>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
     info!("用户 {} 正在查询质量标准 {} 的版本历史", auth.username, id);
@@ -231,7 +231,7 @@ pub async fn list_versions(
 /// 创建版本历史
 #[axum::debug_handler]
 pub async fn create_version_history(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateVersionHistoryRequest>,
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
@@ -248,7 +248,7 @@ pub async fn create_version_history(
 #[axum::debug_handler]
 pub async fn delete_standard(
     Path(id): Path<i32>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 正在删除质量标准 {}", auth.username, id);
