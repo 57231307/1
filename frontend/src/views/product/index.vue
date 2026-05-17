@@ -159,25 +159,114 @@
         />
       </div>
     </el-card>
+
+    <!-- 新增/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="700px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+        :disabled="dialogMode === 'view'"
+      >
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="产品编码" prop="product_code">
+              <el-input v-model="formData.product_code" placeholder="请输入产品编码" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="产品名称" prop="product_name">
+              <el-input v-model="formData.product_name" placeholder="请输入产品名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="产品分类" prop="category_id">
+              <el-select v-model="formData.category_id" placeholder="请选择分类" style="width: 100%">
+                <el-option
+                  v-for="item in categories"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="规格" prop="specification">
+              <el-input v-model="formData.specification" placeholder="请输入规格" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="单位" prop="unit">
+              <el-input v-model="formData.unit" placeholder="请输入单位" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="条形码" prop="barcode">
+              <el-input v-model="formData.barcode" placeholder="请输入条形码" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="售价" prop="price">
+              <el-input-number v-model="formData.price" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="成本价" prop="cost_price">
+              <el-input-number v-model="formData.cost_price" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="描述" prop="description">
+          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+        </el-form-item>
+        <el-form-item label="状态" prop="is_active">
+          <el-switch v-model="formData.is_active" active-text="启用" inactive-text="禁用" />
+        </el-form-item>
+      </el-form>
+      <template #footer v-if="dialogMode !== 'view'">
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Upload, Download, Goods, CircleCheck, Collection, Money } from '@element-plus/icons-vue'
+import { productApi, type Product, type ProductCategory } from '@/api/product'
 
 const loading = ref(false)
-const products = ref<any[]>([])
-const categories = ref<any[]>([])
-const categoryTree = ref<any[]>([])
+const submitLoading = ref(false)
+const products = ref<Product[]>([])
+const categories = ref<ProductCategory[]>([])
+const categoryTree = ref<ProductCategory[]>([])
 const total = ref(0)
+const dialogVisible = ref(false)
+const dialogMode = ref<'create' | 'edit' | 'view'>('create')
+const formRef = ref<FormInstance>()
 
 const stats = ref({
-  totalProducts: 256,
-  activeProducts: 230,
-  totalCategories: 18,
-  avgPrice: 88.5
+  totalProducts: 0,
+  activeProducts: 0,
+  totalCategories: 0,
+  avgPrice: 0
 })
 
 const queryParams = reactive({
@@ -188,45 +277,203 @@ const queryParams = reactive({
   is_active: undefined as boolean | undefined
 })
 
-const formatCurrency = (amount: number) => `¥${amount.toFixed(2)}`
+const formData = reactive({
+  id: undefined as number | undefined,
+  product_code: '',
+  product_name: '',
+  category_id: undefined as number | undefined,
+  specification: '',
+  unit: '',
+  barcode: '',
+  price: 0,
+  cost_price: 0,
+  description: '',
+  is_active: true
+})
+
+const formRules: FormRules = {
+  product_code: [
+    { required: true, message: '请输入产品编码', trigger: 'blur' },
+    { max: 50, message: '长度不能超过50个字符', trigger: 'blur' }
+  ],
+  product_name: [
+    { required: true, message: '请输入产品名称', trigger: 'blur' },
+    { max: 200, message: '长度不能超过200个字符', trigger: 'blur' }
+  ],
+  category_id: [
+    { required: true, message: '请选择产品分类', trigger: 'change' }
+  ],
+  unit: [
+    { required: true, message: '请输入单位', trigger: 'blur' }
+  ]
+}
+
+const dialogTitle = computed(() => {
+  const titles = {
+    create: '新建产品',
+    edit: '编辑产品',
+    view: '查看产品'
+  }
+  return titles[dialogMode.value]
+})
+
+const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
 const fetchData = async () => {
   loading.value = true
   try {
-    products.value = [
-      { id: 1, product_code: 'P001', product_name: '纯棉斜纹布', category_name: '棉布', specification: '150cm/200g', unit: '米', price: 25.5, cost_price: 18.0, barcode: '6901234567890', is_active: true },
-      { id: 2, product_code: 'P002', product_name: '涤纶平纹布', category_name: '化纤', specification: '145cm/150g', unit: '米', price: 18.0, cost_price: 12.0, barcode: '6901234567891', is_active: true },
-      { id: 3, product_code: 'P003', product_name: '真丝缎面', category_name: '丝绸', specification: '110cm/80g', unit: '米', price: 180.0, cost_price: 120.0, barcode: '6901234567892', is_active: true }
-    ]
-    categories.value = [
-      { id: 1, name: '棉布', children: [] },
-      { id: 2, name: '化纤', children: [] },
-      { id: 3, name: '丝绸', children: [] }
-    ]
-    categoryTree.value = categories.value
-    total.value = 3
-    ElMessage.info('使用演示数据')
+    const res = await productApi.list(queryParams)
+    products.value = res.data?.list || []
+    total.value = res.data?.total || 0
+    
+    // 计算统计数据
+    stats.value.totalProducts = total.value
+    stats.value.activeProducts = products.value.filter(p => p.is_active).length
+    stats.value.avgPrice = products.value.length > 0
+      ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
+      : 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取产品列表失败')
+    products.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
-const handleQuery = () => { fetchData() }
-const handleReset = () => { queryParams.keyword = ''; queryParams.category_id = undefined; queryParams.is_active = undefined; fetchData() }
-const handleCreate = () => { ElMessage.info('新建产品功能开发中') }
-const handleImport = () => { ElMessage.info('导入功能开发中') }
-const handleExport = () => { ElMessage.info('导出功能开发中') }
-const handleView = (row: any) => { ElMessage.info(`查看产品 ${row.product_name}`) }
-const handleEdit = (row: any) => { ElMessage.info(`编辑产品 ${row.product_name}`) }
-const handleDelete = async (row: any) => {
+const fetchCategories = async () => {
   try {
-    await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', { type: 'warning' })
-    ElMessage.success('删除成功')
-    fetchData()
-  } catch {}
+    const res = await productApi.getCategories()
+    categories.value = res.data || []
+    categoryTree.value = buildTree(res.data || [])
+    stats.value.totalCategories = categories.value.length
+  } catch (error: any) {
+    console.error('获取分类失败:', error)
+  }
 }
 
-onMounted(() => { fetchData() })
+const buildTree = (items: ProductCategory[]): ProductCategory[] => {
+  const map = new Map<number, ProductCategory>()
+  const tree: ProductCategory[] = []
+  
+  items.forEach(item => {
+    map.set(item.id, { ...item, children: [] })
+  })
+  
+  items.forEach(item => {
+    const node = map.get(item.id)!
+    if (item.parent_id && map.has(item.parent_id)) {
+      map.get(item.parent_id)!.children!.push(node)
+    } else {
+      tree.push(node)
+    }
+  })
+  
+  return tree
+}
+
+const handleQuery = () => {
+  queryParams.page = 1
+  fetchData()
+}
+
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.category_id = undefined
+  queryParams.is_active = undefined
+  handleQuery()
+}
+
+const resetForm = () => {
+  formData.id = undefined
+  formData.product_code = ''
+  formData.product_name = ''
+  formData.category_id = undefined
+  formData.specification = ''
+  formData.unit = ''
+  formData.barcode = ''
+  formData.price = 0
+  formData.cost_price = 0
+  formData.description = ''
+  formData.is_active = true
+  formRef.value?.clearValidate()
+}
+
+const handleCreate = () => {
+  resetForm()
+  dialogMode.value = 'create'
+  dialogVisible.value = true
+}
+
+const handleView = (row: Product) => {
+  resetForm()
+  Object.assign(formData, row)
+  dialogMode.value = 'view'
+  dialogVisible.value = true
+}
+
+const handleEdit = (row: Product) => {
+  resetForm()
+  Object.assign(formData, row)
+  dialogMode.value = 'edit'
+  dialogVisible.value = true
+}
+
+const handleDelete = async (row: Product) => {
+  try {
+    await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', { type: 'warning' })
+    await productApi.delete(row.id)
+    ElMessage.success('删除成功')
+    fetchData()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
+}
+
+const handleSubmit = async () => {
+  if (!formRef.value) return
+  
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+    
+    submitLoading.value = true
+    try {
+      if (dialogMode.value === 'create') {
+        await productApi.create(formData)
+        ElMessage.success('创建成功')
+      } else {
+        await productApi.update(formData.id!, formData)
+        ElMessage.success('更新成功')
+      }
+      dialogVisible.value = false
+      fetchData()
+    } catch (error: any) {
+      ElMessage.error(error.message || '操作失败')
+    } finally {
+      submitLoading.value = false
+    }
+  })
+}
+
+const handleImport = () => {
+  ElMessage.info('导入功能开发中')
+}
+
+const handleExport = async () => {
+  try {
+    await productApi.export(queryParams)
+    ElMessage.success('导出成功')
+  } catch (error: any) {
+    ElMessage.error(error.message || '导出失败')
+  }
+}
+
+onMounted(() => {
+  fetchData()
+  fetchCategories()
+})
 </script>
 
 <style scoped>

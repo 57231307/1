@@ -74,6 +74,9 @@ export const salesApi = {
   rejectOrder: (id: number, reason: string) =>
     request.post<ApiResponse<null>>(`/sales/orders/${id}/reject`, { reason }),
 
+  cancelOrder: (id: number) =>
+    request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`),
+
   createDelivery: (orderId: number, data: any) =>
     request.post<ApiResponse<any>>(`/sales/orders/${orderId}/deliveries`, data),
 

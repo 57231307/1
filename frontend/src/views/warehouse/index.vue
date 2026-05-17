@@ -5,7 +5,7 @@
         <h1 class="page-title">仓库管理</h1>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>仓储管理</el-breadcrumb-item>
+          <el-breadcrumb-item>基础数据</el-breadcrumb-item>
           <el-breadcrumb-item>仓库管理</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
@@ -14,71 +14,8 @@
           <el-icon><Plus /></el-icon>
           新建仓库
         </el-button>
-        <el-button @click="handlePrint">
-          <el-icon><Printer /></el-icon>
-          打印
-        </el-button>
-        <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>
-          导出
-        </el-button>
       </div>
     </div>
-
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon total-icon">
-              <el-icon><OfficeBuilding /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">仓库总数</div>
-              <div class="stat-value">{{ stats.totalWarehouses }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon active-icon">
-              <el-icon><CircleCheck /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">启用仓库</div>
-              <div class="stat-value">{{ stats.activeWarehouses }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card highlight">
-          <div class="stat-content">
-            <div class="stat-icon location-icon">
-              <el-icon><Location /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">库位总数</div>
-              <div class="stat-value">{{ stats.totalLocations }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card warning">
-          <div class="stat-content">
-            <div class="stat-icon capacity-icon">
-              <el-icon><Box /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">总容量</div>
-              <div class="stat-value">{{ formatNumber(stats.totalCapacity) }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
 
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
@@ -87,10 +24,10 @@
         </el-form-item>
         <el-form-item label="仓库类型">
           <el-select v-model="queryParams.warehouse_type" placeholder="选择类型" clearable>
-            <el-option label="原材料仓库" value="raw_material" />
-            <el-option label="成品仓库" value="finished_goods" />
-            <el-option label="在制品仓库" value="wip" />
-            <el-option label="退货仓库" value="return" />
+            <el-option label="原料仓" value="raw" />
+            <el-option label="成品仓" value="finished" />
+            <el-option label="半成品仓" value="semi" />
+            <el-option label="退货仓" value="return" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -108,19 +45,21 @@
 
     <el-card shadow="hover" class="table-card">
       <el-table v-loading="loading" :data="warehouses" stripe>
-        <el-table-column prop="warehouse_code" label="仓库编码" width="140" fixed />
+        <el-table-column prop="warehouse_code" label="仓库编码" width="120" fixed />
         <el-table-column prop="warehouse_name" label="仓库名称" min-width="180" fixed />
-        <el-table-column prop="warehouse_type" label="仓库类型" width="120">
+        <el-table-column prop="warehouse_type" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag size="small">{{ getWarehouseTypeText(row.warehouse_type) }}</el-tag>
+            <el-tag :type="getWarehouseTypeTag(row.warehouse_type)" size="small">
+              {{ getWarehouseTypeLabel(row.warehouse_type) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="address" label="地址" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="contact_person" label="联系人" width="100" />
-        <el-table-column prop="phone" label="联系电话" width="130" />
+        <el-table-column prop="contact_person" label="负责人" width="100" />
+        <el-table-column prop="phone" label="电话" width="130" />
         <el-table-column prop="capacity" label="容量" width="100" align="right">
           <template #default="{ row }">
-            <span>{{ formatNumber(row.capacity || 0) }}</span>
+            {{ row.capacity ? `${row.capacity} m³` : '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="is_default" label="默认" width="80">
@@ -136,9 +75,8 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">详情</el-button>
             <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
@@ -157,25 +95,106 @@
         />
       </div>
     </el-card>
+
+    <!-- 新增/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="600px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+      >
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="仓库编码" prop="warehouse_code">
+              <el-input v-model="formData.warehouse_code" placeholder="请输入仓库编码" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="仓库名称" prop="warehouse_name">
+              <el-input v-model="formData.warehouse_name" placeholder="请输入仓库名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="仓库类型" prop="warehouse_type">
+              <el-select v-model="formData.warehouse_type" placeholder="请选择类型" style="width: 100%">
+                <el-option label="原料仓" value="raw" />
+                <el-option label="成品仓" value="finished" />
+                <el-option label="半成品仓" value="semi" />
+                <el-option label="退货仓" value="return" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="容量(m³)" prop="capacity">
+              <el-input-number v-model="formData.capacity" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="地址" prop="address">
+          <el-input v-model="formData.address" placeholder="请输入地址" />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="负责人" prop="contact_person">
+              <el-input v-model="formData.contact_person" placeholder="请输入负责人" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="电话" prop="phone">
+              <el-input v-model="formData.phone" placeholder="请输入电话" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="描述" prop="description">
+          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="设为默认" prop="is_default">
+              <el-switch v-model="formData.is_default" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态" prop="status">
+              <el-radio-group v-model="formData.status">
+                <el-radio value="active">启用</el-radio>
+                <el-radio value="inactive">禁用</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Plus, OfficeBuilding, CircleCheck, Location, Box, Printer, Download } from '@element-plus/icons-vue'
-import printJS from 'print-js'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { warehouseApi, type Warehouse } from '@/api/warehouse'
 
 const loading = ref(false)
-const warehouses = ref<any[]>([])
+const submitLoading = ref(false)
+const warehouses = ref<Warehouse[]>([])
 const total = ref(0)
-
-const stats = ref({
-  totalWarehouses: 5,
-  activeWarehouses: 4,
-  totalLocations: 128,
-  totalCapacity: 50000
-})
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+const formRef = ref<FormInstance>()
 
 const queryParams = reactive({
   page: 1,
@@ -185,77 +204,150 @@ const queryParams = reactive({
   status: ''
 })
 
-const formatNumber = (num: number) => num.toLocaleString()
+const formData = reactive({
+  id: undefined as number | undefined,
+  warehouse_code: '',
+  warehouse_name: '',
+  warehouse_type: 'finished',
+  address: '',
+  contact_person: '',
+  phone: '',
+  capacity: undefined as number | undefined,
+  description: '',
+  is_default: false,
+  status: 'active'
+})
 
-const getWarehouseTypeText = (type: string) => {
-  const map: Record<string, string> = {
-    raw_material: '原材料',
-    finished_goods: '成品',
-    wip: '在制品',
-    return: '退货'
+const formRules: FormRules = {
+  warehouse_code: [
+    { required: true, message: '请输入仓库编码', trigger: 'blur' }
+  ],
+  warehouse_name: [
+    { required: true, message: '请输入仓库名称', trigger: 'blur' }
+  ],
+  warehouse_type: [
+    { required: true, message: '请选择仓库类型', trigger: 'change' }
+  ]
+}
+
+const dialogTitle = computed(() => isEdit.value ? '编辑仓库' : '新建仓库')
+
+const getWarehouseTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    raw: '原料仓',
+    finished: '成品仓',
+    semi: '半成品仓',
+    return: '退货仓'
   }
-  return map[type] || type
+  return labels[type] || type
+}
+
+const getWarehouseTypeTag = (type: string) => {
+  const tags: Record<string, string> = {
+    raw: 'warning',
+    finished: 'success',
+    semi: 'info',
+    return: 'danger'
+  }
+  return tags[type] || ''
 }
 
 const fetchData = async () => {
   loading.value = true
   try {
-    warehouses.value = [
-      { id: 1, warehouse_code: 'WH001', warehouse_name: 'A仓库-原材料库', warehouse_type: 'raw_material', address: '上海市浦东新区XX路1号', contact_person: '张仓管', phone: '13800001001', capacity: 15000, is_default: true, status: 'active' },
-      { id: 2, warehouse_code: 'WH002', warehouse_name: 'B仓库-成品库', warehouse_type: 'finished_goods', address: '上海市浦东新区XX路2号', contact_person: '李仓管', phone: '13800001002', capacity: 20000, is_default: false, status: 'active' },
-      { id: 3, warehouse_code: 'WH003', warehouse_name: 'C仓库-在制品库', warehouse_type: 'wip', address: '上海市浦东新区XX路3号', contact_person: '王仓管', phone: '13800001003', capacity: 10000, is_default: false, status: 'active' },
-      { id: 4, warehouse_code: 'WH004', warehouse_name: 'D仓库-退货库', warehouse_type: 'return', address: '上海市浦东新区XX路4号', contact_person: '赵仓管', phone: '13800001004', capacity: 5000, is_default: false, status: 'inactive' }
-    ]
-    total.value = 4
-    ElMessage.info('使用演示数据')
+    const res = await warehouseApi.list(queryParams)
+    warehouses.value = res.data?.list || []
+    total.value = res.data?.total || 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取仓库列表失败')
+    warehouses.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
-const handlePrint = () => {
-  const printData = warehouses.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '仓库编码': item.warehouse_code,
-    '仓库名称': item.warehouse_name,
-    '地址': item.address,
-    '负责人': item.manager,
-    '容量': item.capacity,
-    '状态': item.status === 1 ? '启用' : '停用'
-  }))
-  printJS({
-    printable: printData,
-    properties: Object.keys(printData[0] || {}),
-    type: 'table' as any,
-    header: '仓库列表',
-    style: 'padding: 20px; font-size: 14px;',
-    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
-    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+const handleQuery = () => {
+  queryParams.page = 1
+  fetchData()
+}
+
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.warehouse_type = ''
+  queryParams.status = ''
+  handleQuery()
+}
+
+const resetForm = () => {
+  formData.id = undefined
+  formData.warehouse_code = ''
+  formData.warehouse_name = ''
+  formData.warehouse_type = 'finished'
+  formData.address = ''
+  formData.contact_person = ''
+  formData.phone = ''
+  formData.capacity = undefined
+  formData.description = ''
+  formData.is_default = false
+  formData.status = 'active'
+  formRef.value?.clearValidate()
+}
+
+const handleCreate = () => {
+  resetForm()
+  isEdit.value = false
+  dialogVisible.value = true
+}
+
+const handleEdit = (row: Warehouse) => {
+  resetForm()
+  Object.assign(formData, row)
+  isEdit.value = true
+  dialogVisible.value = true
+}
+
+const handleDelete = async (row: Warehouse) => {
+  try {
+    await ElMessageBox.confirm(`确定删除仓库 "${row.warehouse_name}" 吗？`, '删除确认', { type: 'warning' })
+    await warehouseApi.delete(row.id)
+    ElMessage.success('删除成功')
+    fetchData()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
+}
+
+const handleSubmit = async () => {
+  if (!formRef.value) return
+  
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+    
+    submitLoading.value = true
+    try {
+      if (isEdit.value) {
+        await warehouseApi.update(formData.id!, formData)
+        ElMessage.success('更新成功')
+      } else {
+        await warehouseApi.create(formData)
+        ElMessage.success('创建成功')
+      }
+      dialogVisible.value = false
+      fetchData()
+    } catch (error: any) {
+      ElMessage.error(error.message || '操作失败')
+    } finally {
+      submitLoading.value = false
+    }
   })
 }
 
-const handleExport = () => {
-  const csvContent = [
-    ['仓库编码', '仓库名称', '地址', '负责人', '容量', '状态'],
-    ...warehouses.value.map((item: any) => [item.warehouse_code, item.warehouse_name, item.address, item.manager, item.capacity, item.status === 1 ? '启用' : '停用'])
-  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `仓库列表_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
-}
-
-const handleQuery = () => { fetchData() }
-const handleReset = () => { queryParams.keyword = ''; queryParams.warehouse_type = ''; queryParams.status = ''; handleQuery() }
-const handleView = (row: any) => { ElMessage.info(`查看仓库 ${row.warehouse_name}`) }
-const handleCreate = () => { ElMessage.info('新建仓库功能开发中') }
-const handleEdit = (row: any) => { ElMessage.info(`编辑仓库 ${row.warehouse_name}`) }
-const handleDelete = (row: any) => { ElMessage.info(`删除仓库 ${row.warehouse_name}`) }
-
-onMounted(() => { fetchData() })
+onMounted(() => {
+  fetchData()
+})
 </script>
 
 <style scoped>
@@ -263,27 +355,7 @@ onMounted(() => { fetchData() })
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
 .header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
 .header-actions { display: flex; gap: 12px; }
-.stats-row { margin-bottom: 20px; }
-.stat-card { border-radius: 12px; transition: all 0.3s ease; }
-.stat-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
-.stat-card.highlight { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.stat-card.highlight .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.highlight .stat-label, .stat-card.highlight .stat-value { color: white; }
-.stat-card.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-card.warning .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.warning .stat-label, .stat-card.warning .stat-value { color: white; }
-.stat-content { display: flex; align-items: center; gap: 16px; }
-.stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-.stat-icon.total-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.stat-icon.active-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.stat-icon.location-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.capacity-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-info { flex: 1; }
-.stat-label { font-size: 14px; color: #909399; margin-bottom: 4px; }
-.stat-value { font-size: 28px; font-weight: 700; color: #303133; line-height: 1.2; }
 .filter-card { margin-bottom: 20px; }
 .table-card { margin-bottom: 20px; }
 .pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
-:deep(.el-card__header) { padding: 16px 20px; border-bottom: 1px solid #ebeef5; }
-:deep(.el-card__body) { padding: 20px; }
 </style>
