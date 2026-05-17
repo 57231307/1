@@ -16,26 +16,60 @@
           <el-icon><HomeFilled /></el-icon>
           <span>仪表盘</span>
         </el-menu-item>
+        
         <el-sub-menu index="fabric">
           <template #title>
             <el-icon><Goods /></el-icon>
             <span>面料管理</span>
           </template>
           <el-menu-item index="/fabric">面料列表</el-menu-item>
+          <el-menu-item index="/product">产品管理</el-menu-item>
         </el-sub-menu>
+        
         <el-sub-menu index="inventory">
           <template #title>
             <el-icon><Box /></el-icon>
             <span>库存管理</span>
           </template>
           <el-menu-item index="/inventory">库存列表</el-menu-item>
+          <el-menu-item index="/warehouse">仓库管理</el-menu-item>
         </el-sub-menu>
+        
         <el-sub-menu index="sales">
           <template #title>
             <el-icon><ShoppingCart /></el-icon>
             <span>销售管理</span>
           </template>
           <el-menu-item index="/sales">销售订单</el-menu-item>
+          <el-menu-item index="/customer">客户管理</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="purchase">
+          <template #title>
+            <el-icon><ShoppingCart /></el-icon>
+            <span>采购管理</span>
+          </template>
+          <el-menu-item index="/purchase">采购订单</el-menu-item>
+          <el-menu-item index="/supplier">供应商管理</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="finance">
+          <template #title>
+            <el-icon><Money /></el-icon>
+            <span>财务管理</span>
+          </template>
+          <el-menu-item index="/finance">财务总览</el-menu-item>
+          <el-menu-item index="/ap">应付管理</el-menu-item>
+          <el-menu-item index="/ar">应收管理</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="system">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统管理</span>
+          </template>
+          <el-menu-item index="/system">系统设置</el-menu-item>
+          <el-menu-item index="/departments">部门管理</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -51,7 +85,7 @@
         <div class="header-right">
           <el-dropdown>
             <span class="user-info">
-              {{ userStore.userInfo?.real_name || '用户' }}
+              {{ userStore.userInfo?.username || '用户' }}
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
@@ -74,7 +108,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { HomeFilled, Goods, Box, ShoppingCart, ArrowDown } from '@element-plus/icons-vue'
+import { HomeFilled, Goods, Box, ShoppingCart, ArrowDown, Money, Setting } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()

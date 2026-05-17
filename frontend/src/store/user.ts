@@ -9,14 +9,16 @@ export const useUserStore = defineStore('user', () => {
   const userInfo = ref<UserInfo | null>(null)
 
   async function login(loginData: LoginRequest) {
-    const res = await loginApi(loginData)
-    token.value = res.token
-    setToken(res.token)
-    if (res.refresh_token) {
-      setRefreshToken(res.refresh_token)
+    const res = await loginApi(loginData) as any
+    // 后端返回 {code, data: {token, refresh_token, user, ...}, message}
+    const responseData = res.data || res
+    token.value = responseData.token
+    setToken(responseData.token)
+    if (responseData.refresh_token) {
+      setRefreshToken(responseData.refresh_token)
     }
-    userInfo.value = res.user
-    return res
+    userInfo.value = responseData.user
+    return responseData
   }
 
   async function logout() {
