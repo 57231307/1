@@ -121,7 +121,7 @@ impl DashboardService {
         }
 
         // 缓存未命中，从数据库获取
-        let total_products = product::Entity::find().filter(product::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
+        let total_products = product::Entity::find().count(&*self.db).await? as i64;
         let total_warehouses = warehouse::Entity::find().filter(warehouse::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
         let total_orders = sales_order::Entity::find().filter(sales_order::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
 
@@ -371,7 +371,6 @@ impl DashboardService {
         for item in low_stock_items {
             // 获取产品信息
             let product = product::Entity::find_by_id(item.product_id)
-                .filter(product::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await?;
             // 获取仓库信息

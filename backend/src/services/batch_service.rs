@@ -122,7 +122,10 @@ impl BatchService {
                 finish: Set(req.finish.clone()),
                 min_order_quantity: Set(req.min_order_quantity),
                 lead_time: Set(req.lead_time),
-                is_deleted: sea_orm::ActiveValue::NotSet,
+                supplier_product_code: sea_orm::ActiveValue::NotSet,
+                supplier_id: sea_orm::ActiveValue::NotSet,
+                is_batch_managed: sea_orm::ActiveValue::NotSet,
+                batch_level: sea_orm::ActiveValue::NotSet,
             };
 
             match product.insert(self.db.as_ref()).await {

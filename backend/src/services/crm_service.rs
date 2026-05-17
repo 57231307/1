@@ -161,7 +161,11 @@ impl CrmService {
             created_by: Set(Some(user_id)),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-            is_deleted: Set(false),
+            customer_industry: Default::default(),
+            main_products: Default::default(),
+            annual_purchase: Default::default(),
+            quality_requirement: Default::default(),
+            inspection_standard: Default::default(),
         };
 
         let customer = customer_model.insert(&txn)

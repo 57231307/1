@@ -162,7 +162,10 @@ impl ProductService {
             lead_time: Set(lead_time),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
+            supplier_product_code: sea_orm::ActiveValue::NotSet,
+            supplier_id: sea_orm::ActiveValue::NotSet,
+            is_batch_managed: sea_orm::ActiveValue::NotSet,
+            batch_level: sea_orm::ActiveValue::NotSet,
         };
 
         let result = active_model.insert(&*self.db).await?;
