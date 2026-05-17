@@ -27,3 +27,37 @@ deploy/server2/
 # 忽略系统文件
 .DS_Store
 Thumbs.db
+
+# 敏感信息
+.env
+*.env
+.env.local
+.env.production
+config.local.yaml
+config.local.json
+credentials.json
+*.pem
+*.key
+*.crt
+id_rsa
+id_rsa.pub
+authorized_keys
+known_hosts
+
+# 部署临时文件
+*.tar.gz
+*.zip
+deploy.sh
+quick-deploy.sh
+backups/
+*.backup/
+
+# 日志文件
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
