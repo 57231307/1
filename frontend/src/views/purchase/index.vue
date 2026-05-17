@@ -313,21 +313,6 @@ const handleExport = () => {
   link.click()
   ElMessage.success('导出成功')
 }
-const handleView = (row: any) => {
-  ElMessageBox({
-    title: '采购单详情',
-    message: `订单号: ${row.order_no}`,
-    confirmButtonText: '关闭'
-  })
-}
-const handleApprove = async (row: any) => {
-  try {
-    await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', { type: 'success' })
-    ElMessage.success(`采购单 ${row.order_no} 审批成功`)
-    fetchData()
-  } catch {}
-}
-const handleReceive = (_row: any) => { ElMessage.info('创建收货单功能开发中') }
 
 onMounted(() => { fetchData(); fetchSuppliers() })
 </script>

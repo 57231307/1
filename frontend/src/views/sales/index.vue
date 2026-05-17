@@ -209,7 +209,7 @@
             <el-table-column label="产品" width="200">
               <template #default="{ row, $index }">
                 <el-select v-model="row.product_id" placeholder="选择产品" @change="handleProductSelect($index)">
-                  <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+                  <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
                 </el-select>
               </template>
             </el-table-column>
@@ -374,7 +374,7 @@ const formatCurrency = (amount: number) => {
   }).format(amount)
 }
 
-const getStatusType = (status: string) => {
+const getStatusType = (status: string | undefined) => {
   const typeMap: Record<string, any> = {
     pending: 'warning',
     approved: 'primary',
@@ -382,10 +382,10 @@ const getStatusType = (status: string) => {
     completed: 'info',
     cancelled: 'danger'
   }
-  return typeMap[status] || 'info'
+  return typeMap[status || ''] || 'info'
 }
 
-const getStatusText = (status: string) => {
+const getStatusText = (status: string | undefined) => {
   const textMap: Record<string, string> = {
     pending: '待审批',
     approved: '已审批',
@@ -393,7 +393,7 @@ const getStatusText = (status: string) => {
     completed: '已完成',
     cancelled: '已取消'
   }
-  return textMap[status] || status
+  return textMap[status || ''] || status || ''
 }
 
 const fetchData = async () => {
@@ -514,16 +514,16 @@ const handleRowClick = (row: any) => {
 const handleCustomerChange = (customerId: number) => {
   const customer = customers.value.find(c => c.id === customerId)
   if (customer) {
-    formData.customer_name = customer.name
+    formData.customer_name = customer.customer_name
   }
 }
 
 const handleProductSelect = (index: number) => {
   const product = products.value.find(p => p.id === formData.items[index].product_id)
   if (product) {
-    formData.items[index].product_name = product.name
-    formData.items[index].product_code = product.code
-    formData.items[index].unit_price = product.price
+    formData.items[index].product_name = product.product_name
+    formData.items[index].product_code = product.product_code
+    formData.items[index].unit_price = product.price || 0
     calculateSubtotal(formData.items[index])
   }
 }
