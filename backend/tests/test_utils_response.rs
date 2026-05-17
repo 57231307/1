@@ -5,7 +5,7 @@ use bingxi_backend::utils::response::ApiResponse;
 #[test]
 fn test_api_response_success() {
     let response = ApiResponse::success("test data");
-    assert!(response.success);
+    assert_eq!(response.code, Some(200));
     assert!(response.message.is_none());
     assert_eq!(response.data.unwrap(), "test data");
 }
@@ -13,15 +13,15 @@ fn test_api_response_success() {
 #[test]
 fn test_api_response_error() {
     let response: ApiResponse<()> = ApiResponse::error("Something went wrong");
-    assert!(!response.success);
-    assert_eq!(response.error.unwrap(), "Something went wrong");
-    assert!(response.message.is_none());
+    assert_eq!(response.code, Some(500));
+    assert_eq!(response.message.as_ref().unwrap(), "Something went wrong");
+    assert!(response.data.is_none());
 }
 
 #[test]
 fn test_api_response_with_message() {
     let response = ApiResponse::success_with_message(42, "custom message");
-    assert!(response.success);
+    assert_eq!(response.code, Some(200));
     assert_eq!(response.message.unwrap(), "custom message");
     assert_eq!(response.data.unwrap(), 42);
 }
@@ -31,15 +31,14 @@ fn test_api_response_json_serialization() {
     let response = ApiResponse::success(vec![1, 2, 3]);
     let json = serde_json::to_value(&response).unwrap();
     
-    assert_eq!(json["success"], true);
+    assert_eq!(json["code"], 200);
     assert_eq!(json["data"], serde_json::json!([1, 2, 3]));
 }
 
 #[test]
 fn test_api_response_empty_data() {
     let response: ApiResponse<()> = ApiResponse::success(());
-    assert!(response.success);
-    // ApiResponse::success wraps the data in Some, so data is Some(())
+    assert_eq!(response.code, Some(200));
     assert!(response.data.is_some());
 }
 
@@ -96,7 +95,7 @@ fn test_result_handling() {
 
 #[test]
 fn test_date_formatting() {
-    use chrono::{NaiveDate, Utc};
+    use chrono::Utc;
     
     let now = Utc::now();
     let date = now.date_naive();
