@@ -168,6 +168,7 @@ update() {
     install_deps
     download_latest
     run_deploy_script
+    setup_cli
     log "==========================================="
     log "系统更新成功，并已自动重启服务！"
     log "==========================================="

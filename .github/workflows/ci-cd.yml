@@ -210,6 +210,8 @@ jobs:
       - name: 生成版本号
         id: version
         run: |
+          # 设置中国时区
+          export TZ="Asia/Shanghai"
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
             TAG_NAME=${GITHUB_REF#refs/tags/}
