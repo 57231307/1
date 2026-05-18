@@ -6,12 +6,6 @@ use axum::{
 use serde::Serialize;
 use std::fmt;
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-}
-
 #[derive(Debug, Clone, Serialize)] pub enum AppError {
     DatabaseError(String),
     ValidationError(String),
@@ -46,7 +40,7 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_type, error_message) = match &self {
+        let (status, _error_type, error_message) = match &self {
             AppError::DatabaseError(msg) => {
                 tracing::error!("数据库错误: {}", msg);
                 (

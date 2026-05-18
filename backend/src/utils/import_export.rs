@@ -13,6 +13,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 /// 导入格式
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportFormat {
     /// CSV 格式
@@ -21,6 +22,7 @@ pub enum ImportFormat {
     Excel,
 }
 
+#[allow(dead_code)]
 impl ImportFormat {
     /// 从文件扩展名解析格式
     pub fn from_extension(ext: &str) -> Option<Self> {
@@ -235,8 +237,10 @@ impl CsvImporter {
 }
 
 /// 字段验证器
+#[allow(dead_code)]
 pub struct FieldValidator;
 
+#[allow(dead_code)]
 impl FieldValidator {
     /// 验证必填字段
     pub fn required(value: &str, field_name: &str) -> Result<(), String> {

@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::response::ApiResponse;
 
-// Trading Handler - 交易管理
+// Trading Handler - 交易管理（预留模块，待实现）
 
+#[allow(dead_code)]
 /// 获取采购合同列表
 pub async fn list_purchase_contracts(
     _params: Query<std::collections::HashMap<String, String>>,
@@ -35,6 +36,7 @@ pub async fn list_purchase_contracts(
 }
 
 /// 创建采购合同
+#[allow(dead_code)]
 pub async fn create_purchase_contract(
     Json(_payload): Json<PurchaseContractCreate>,
 ) -> impl IntoResponse {
@@ -42,6 +44,7 @@ pub async fn create_purchase_contract(
 }
 
 /// 审批采购合同
+#[allow(dead_code)]
 pub async fn approve_purchase_contract(
     Path(id): Path<u32>,
 ) -> impl IntoResponse {
@@ -49,6 +52,7 @@ pub async fn approve_purchase_contract(
 }
 
 /// 执行采购合同
+#[allow(dead_code)]
 pub async fn execute_purchase_contract(
     Path(id): Path<u32>,
 ) -> impl IntoResponse {
@@ -56,6 +60,7 @@ pub async fn execute_purchase_contract(
 }
 
 // 销售合同相关
+#[allow(dead_code)]
 pub async fn list_sales_contracts(
     _params: Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
@@ -72,12 +77,14 @@ pub async fn list_sales_contracts(
     Json(ApiResponse::success(contracts))
 }
 
+#[allow(dead_code)]
 pub async fn create_sales_contract(
     Json(_payload): Json<SalesContractCreate>,
 ) -> impl IntoResponse {
     Json(ApiResponse::success_with_message((), "销售合同创建成功"))
 }
 
+#[allow(dead_code)]
 pub async fn approve_sales_contract(
     Path(id): Path<u32>,
 ) -> impl IntoResponse {
@@ -85,6 +92,7 @@ pub async fn approve_sales_contract(
 }
 
 // 价格管理
+#[allow(dead_code)]
 pub async fn list_purchase_prices(
     _params: Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
@@ -104,6 +112,7 @@ pub async fn list_purchase_prices(
     Json(ApiResponse::success(prices))
 }
 
+#[allow(dead_code)]
 pub async fn list_sales_prices(
     _params: Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
@@ -124,6 +133,7 @@ pub async fn list_sales_prices(
 }
 
 // 数据结构
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurchaseContract {
     pub id: u32,
@@ -134,6 +144,7 @@ pub struct PurchaseContract {
     pub status: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurchaseContractCreate {
     pub contract_no: String,
@@ -142,6 +153,7 @@ pub struct PurchaseContractCreate {
     pub contract_date: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesContract {
     pub id: u32,
@@ -152,6 +164,7 @@ pub struct SalesContract {
     pub status: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesContractCreate {
     pub contract_no: String,
@@ -160,6 +173,7 @@ pub struct SalesContractCreate {
     pub contract_date: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurchasePrice {
     pub id: u32,
@@ -173,6 +187,7 @@ pub struct PurchasePrice {
     pub status: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesPrice {
     pub id: u32,
