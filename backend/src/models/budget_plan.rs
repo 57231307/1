@@ -20,28 +20,26 @@ pub struct Model {
     pub plan_name: String,
     /// 预算年度
     pub budget_year: i32,
+    /// 预算类型
+    pub budget_type: String,
     /// 部门ID
-    pub department_id: i32,
+    pub department_id: Option<i32>,
     /// 总金额
     pub total_amount: Decimal,
     /// 状态：draft-草稿、approved-已审批、rejected-已驳回、active-执行中、closed-已关闭
-    pub status: String,
-    /// 备注
-    pub remark: Option<String>,
+    pub status: Option<String>,
     /// 创建人
     pub prepared_by: Option<i32>,
     /// 审批人
     pub approved_by: Option<i32>,
     /// 审批时间
     pub approved_at: Option<DateTime<Utc>>,
-    #[sea_orm(column_type = "Timestamp")]
-    /// 审批时间
-    pub approved_at: Option<DateTime<Utc>>,
+    /// 备注
+    pub remark: Option<String>,
     /// 创建时间
-    pub created_at: DateTime<Utc>,
-    #[sea_orm(column_type = "Timestamp")]
+    pub created_at: Option<DateTime<Utc>>,
     /// 更新时间
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

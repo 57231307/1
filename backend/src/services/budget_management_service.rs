@@ -63,11 +63,10 @@ pub struct CreateBudgetPlanRequest {
     pub plan_no: String,
     pub plan_name: String,
     pub budget_year: i32,
+    pub budget_type: String,
     pub department_id: i32,
     pub total_amount: Decimal,
     pub items: Vec<BudgetPlanItemRequest>,
-    pub start_date: NaiveDate,
-    pub end_date: NaiveDate,
     pub remark: Option<String>,
 }
 
@@ -253,13 +252,12 @@ impl BudgetManagementService {
             plan_no: Set(req.plan_no.clone()),
             plan_name: Set(req.plan_name.clone()),
             budget_year: Set(req.budget_year),
-            department_id: Set(req.department_id),
+            budget_type: Set(req.budget_type.clone()),
+            department_id: Set(Some(req.department_id)),
             total_amount: Set(req.total_amount),
-            start_date: Set(req.start_date),
-            end_date: Set(req.end_date),
-            status: Set("draft".to_string()), // 草稿状态
+            status: Set(Some("draft".to_string())), // 草稿状态
             remark: Set(req.remark),
-            created_by: Set(Some(user_id)),
+            prepared_by: Set(Some(user_id)),
             ..Default::default()
         };
 
@@ -293,14 +291,14 @@ impl BudgetManagementService {
 
         let plan = self.get_plan_by_id(plan_id).await?;
 
-        if plan.status != "draft" && plan.status != "rejected" {
+        if plan.status.as_deref() != Some("draft") && plan.status.as_deref() != Some("rejected") {
             return Err(AppError::ValidationError(
                 "预算方案状态不允许审批".to_string(),
             ));
         }
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
-        plan_active.status = Set("approved".to_string());
+        plan_active.status = Set(Some("approved".to_string()));
         plan_active.save(&*self.db).await?;
 
         info!("预算方案审批通过：{}", plan_id);
@@ -317,7 +315,7 @@ impl BudgetManagementService {
 
         let plan = self.get_plan_by_id(req.plan_id).await?;
 
-        if plan.status != "approved" {
+        if plan.status.as_deref() != Some("approved") {
             return Err(AppError::ValidationError(
                 "预算方案未审批，无法执行".to_string(),
             ));

@@ -139,7 +139,6 @@ impl ApReconciliationService {
         reconciliation_active.reconciliation_status = Set("CONFIRMED".to_string());
         reconciliation_active.confirmed_by = Set(Some(user_id));
         reconciliation_active.confirmed_at = Set(Some(now));
-        reconciliation_active.updated_at = Set(now);
 
         let reconciliation = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", reconciliation_active, Some(0)).await?;
 
@@ -177,7 +176,6 @@ impl ApReconciliationService {
         reconciliation_active.disputed_by = Set(Some(user_id));
         reconciliation_active.disputed_at = Set(Some(now));
         reconciliation_active.disputed_reason = Set(Some(reason));
-        reconciliation_active.updated_at = Set(now);
 
         let reconciliation = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", reconciliation_active, Some(0)).await?;
 

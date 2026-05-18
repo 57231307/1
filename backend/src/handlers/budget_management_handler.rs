@@ -55,10 +55,9 @@ pub struct CreateBudgetPlanRequest {
     pub plan_no: String,
     pub plan_name: String,
     pub budget_year: i32,
+    pub budget_type: String,
     pub department_id: i32,
     pub total_amount: Decimal,
-    pub start_date: String,
-    pub end_date: String,
     pub remark: Option<String>,
 }
 
@@ -236,22 +235,16 @@ pub async fn create_plan(
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    let start_date = NaiveDate::parse_from_str(&req.start_date, "%Y-%m-%d")
-        .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
-    let end_date = NaiveDate::parse_from_str(&req.end_date, "%Y-%m-%d")
-        .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
-
     let plan = service
         .create_plan(
             crate::services::budget_management_service::CreateBudgetPlanRequest {
                 plan_no: req.plan_no,
                 plan_name: req.plan_name,
                 budget_year: req.budget_year,
+                budget_type: req.budget_type,
                 department_id: req.department_id,
                 total_amount: req.total_amount,
                 items: vec![],
-                start_date,
-                end_date,
                 remark: req.remark,
             },
             auth.user_id,
