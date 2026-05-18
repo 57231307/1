@@ -224,6 +224,86 @@
         </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 库存调整对话框 -->
+    <el-dialog
+      v-model="adjustmentDialogVisible"
+      title="库存调整"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="adjustmentForm" label-width="100px">
+        <el-form-item label="产品" v-if="adjustmentForm.product_name">
+          <el-input :value="adjustmentForm.product_name" disabled />
+        </el-form-item>
+        <el-form-item label="仓库" v-if="adjustmentForm.warehouse_name">
+          <el-input :value="adjustmentForm.warehouse_name" disabled />
+        </el-form-item>
+        <el-form-item label="当前库存" v-if="adjustmentForm.current_quantity">
+          <el-input :value="adjustmentForm.current_quantity" disabled />
+        </el-form-item>
+        <el-form-item label="调整类型">
+          <el-radio-group v-model="adjustmentForm.adjustment_type">
+            <el-radio value="increase">增加</el-radio>
+            <el-radio value="decrease">减少</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="调整数量">
+          <el-input-number v-model="adjustmentForm.adjustment_quantity" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="调整原因">
+          <el-input v-model="adjustmentForm.reason" type="textarea" :rows="3" placeholder="请输入调整原因" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="adjustmentDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmitAdjustment">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新建调拨单对话框 -->
+    <el-dialog
+      v-model="transferDialogVisible"
+      title="新建调拨单"
+      width="700px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="transferForm" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="调出仓库">
+              <el-select v-model="transferForm.from_warehouse_id" placeholder="请选择调出仓库" style="width: 100%">
+                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.name" :value="wh.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="调入仓库">
+              <el-select v-model="transferForm.to_warehouse_id" placeholder="请选择调入仓库" style="width: 100%">
+                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.name" :value="wh.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-divider content-position="left">调拨产品</el-divider>
+        <div v-for="(item, index) in transferForm.items" :key="index" style="display: flex; gap: 10px; margin-bottom: 10px;">
+          <el-input v-model="item.product_name" placeholder="产品名称" style="flex: 2" />
+          <el-input-number v-model="item.quantity" :min="1" placeholder="数量" style="flex: 1" />
+          <el-button type="danger" :icon="Delete" circle @click="handleRemoveTransferItem(index)" :disabled="transferForm.items.length <= 1" />
+        </div>
+        <el-button type="primary" link @click="handleAddTransferItem">
+          <el-icon><Plus /></el-icon>
+          添加产品
+        </el-button>
+        <el-form-item label="备注" style="margin-top: 16px;">
+          <el-input v-model="transferForm.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmitTransfer">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -232,7 +312,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Box, Warning, Edit, RefreshRight, Download, Search, Refresh, Printer,
-  OfficeBuilding, WarningFilled, Plus
+  OfficeBuilding, WarningFilled, Plus, Delete
 } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 
@@ -403,8 +483,75 @@ const handleTabChange = (tabName: string) => {
   }
 }
 
+const adjustmentDialogVisible = ref(false)
+const adjustmentForm = ref({
+  stock_id: null as number | null,
+  product_name: '',
+  warehouse_name: '',
+  current_quantity: 0,
+  adjustment_type: 'increase',
+  adjustment_quantity: 0,
+  reason: ''
+})
+
+const transferDialogVisible = ref(false)
+const transferForm = ref({
+  from_warehouse_id: null as number | null,
+  to_warehouse_id: null as number | null,
+  items: [{ product_id: null as number | null, product_name: '', quantity: 0 }],
+  remark: ''
+})
+
 const handleAdjustment = () => {
-  ElMessage.info('库存调整功能开发中')
+  adjustmentForm.value = {
+    stock_id: null,
+    product_name: '',
+    warehouse_name: '',
+    current_quantity: 0,
+    adjustment_type: 'increase',
+    adjustment_quantity: 0,
+    reason: ''
+  }
+  adjustmentDialogVisible.value = true
+}
+
+const handleAdjust = (row: any) => {
+  adjustmentForm.value = {
+    stock_id: row.id,
+    product_name: row.product_name,
+    warehouse_name: row.warehouse_name,
+    current_quantity: row.quantity,
+    adjustment_type: 'increase',
+    adjustment_quantity: 0,
+    reason: ''
+  }
+  adjustmentDialogVisible.value = true
+}
+
+const handleSubmitAdjustment = async () => {
+  if (!adjustmentForm.value.adjustment_quantity || adjustmentForm.value.adjustment_quantity <= 0) {
+    ElMessage.warning('请输入有效的调整数量')
+    return
+  }
+  if (!adjustmentForm.value.reason) {
+    ElMessage.warning('请输入调整原因')
+    return
+  }
+  
+  try {
+    const { inventoryApi } = await import('@/api/inventory')
+    await inventoryApi.createStockAdjustment({
+      stock_id: adjustmentForm.value.stock_id,
+      adjustment_type: adjustmentForm.value.adjustment_type,
+      quantity: adjustmentForm.value.adjustment_quantity,
+      reason: adjustmentForm.value.reason
+    })
+    ElMessage.success('库存调整成功')
+    adjustmentDialogVisible.value = false
+    fetchData()
+  } catch (error: any) {
+    ElMessage.error(error.message || '库存调整失败')
+  }
 }
 
 const handleTransfer = () => {
@@ -451,16 +598,64 @@ const handleView = (row: any) => {
   ElMessage.info(`查看 ${row.product_name} 详情`)
 }
 
-const handleAdjust = (row: any) => {
-  ElMessage.info(`调整 ${row.product_name} 库存`)
-}
-
 const handlePurchase = (row: any) => {
   ElMessage.info(`为 ${row.product_name} 创建采购单`)
 }
 
 const handleNewTransfer = () => {
-  ElMessage.info('新建调拨单功能开发中')
+  transferForm.value = {
+    from_warehouse_id: null,
+    to_warehouse_id: null,
+    items: [{ product_id: null, product_name: '', quantity: 0 }],
+    remark: ''
+  }
+  transferDialogVisible.value = true
+}
+
+const handleAddTransferItem = () => {
+  transferForm.value.items.push({ product_id: null, product_name: '', quantity: 0 })
+}
+
+const handleRemoveTransferItem = (index: number) => {
+  if (transferForm.value.items.length > 1) {
+    transferForm.value.items.splice(index, 1)
+  }
+}
+
+const handleSubmitTransfer = async () => {
+  if (!transferForm.value.from_warehouse_id) {
+    ElMessage.warning('请选择调出仓库')
+    return
+  }
+  if (!transferForm.value.to_warehouse_id) {
+    ElMessage.warning('请选择调入仓库')
+    return
+  }
+  if (transferForm.value.from_warehouse_id === transferForm.value.to_warehouse_id) {
+    ElMessage.warning('调出仓库和调入仓库不能相同')
+    return
+  }
+  
+  const validItems = transferForm.value.items.filter(item => item.product_id && item.quantity > 0)
+  if (validItems.length === 0) {
+    ElMessage.warning('请添加至少一个调拨产品')
+    return
+  }
+  
+  try {
+    const { inventoryApi } = await import('@/api/inventory')
+    await inventoryApi.createTransfer({
+      from_warehouse_id: transferForm.value.from_warehouse_id,
+      to_warehouse_id: transferForm.value.to_warehouse_id,
+      items: validItems,
+      remark: transferForm.value.remark
+    })
+    ElMessage.success('调拨单创建成功')
+    transferDialogVisible.value = false
+    fetchTransfers()
+  } catch (error: any) {
+    ElMessage.error(error.message || '创建调拨单失败')
+  }
 }
 
 const handleViewTransfer = (row: any) => {
