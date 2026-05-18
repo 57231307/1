@@ -16,6 +16,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 安全添加约束的函数（如果约束不存在则添加）
+CREATE OR REPLACE FUNCTION safe_add_constraint(
+    p_table_name TEXT,
+    p_constraint_name TEXT,
+    p_constraint_def TEXT
+) RETURNS VOID AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = p_constraint_name 
+        AND conrelid = p_table_name::regclass
+    ) THEN
+        EXECUTE 'ALTER TABLE ' || p_table_name || ' ADD CONSTRAINT ' || p_constraint_name || ' ' || p_constraint_def;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ========================================
 -- 1. 基础数据表
 -- ========================================
@@ -403,8 +420,7 @@ CREATE TABLE IF NOT EXISTS finance_invoices (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE finance_payments ADD CONSTRAINT fk_finance_payments_invoice
-    FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id);
+SELECT safe_add_constraint('finance_payments', 'fk_finance_payments_invoice', 'FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id)');
 
 COMMENT ON TABLE finance_invoices IS '发票表';
 COMMENT ON COLUMN finance_invoices.status IS '状态：draft-草稿，approved-已审核，verified-已核销，cancelled-已作废';
@@ -1105,9 +1121,9 @@ COMMENT ON COLUMN suppliers.assist_batch IS '是否启用批次核算';
 COMMENT ON COLUMN suppliers.assist_supplier IS '是否启用供应商核算';
 
 -- 唯一约束
-ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_code UNIQUE (supplier_code);
-ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_name UNIQUE (supplier_name);
-ALTER TABLE suppliers ADD CONSTRAINT uk_suppliers_credit_code UNIQUE (credit_code);
+SELECT safe_add_constraint('suppliers', 'uk_suppliers_code', 'UNIQUE (supplier_code)');
+SELECT safe_add_constraint('suppliers', 'uk_suppliers_name', 'UNIQUE (supplier_name)');
+SELECT safe_add_constraint('suppliers', 'uk_suppliers_credit_code', 'UNIQUE (credit_code)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_suppliers_type ON suppliers(supplier_type);
@@ -1167,7 +1183,7 @@ COMMENT ON TABLE supplier_categories IS '供应商分类表';
 COMMENT ON COLUMN supplier_categories.level IS '分类层级（1-3）';
 
 -- 唯一约束
-ALTER TABLE supplier_categories ADD CONSTRAINT uk_categories_code UNIQUE (category_code);
+SELECT safe_add_constraint('supplier_categories', 'uk_categories_code', 'UNIQUE (category_code)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_supplier_categories_parent ON supplier_categories(parent_id);
@@ -1194,7 +1210,7 @@ CREATE TABLE IF NOT EXISTS supplier_grades (
 COMMENT ON TABLE supplier_grades IS '供应商等级表';
 
 -- 唯一约束
-ALTER TABLE supplier_grades ADD CONSTRAINT uk_grades_code UNIQUE (grade_code);
+SELECT safe_add_constraint('supplier_grades', 'uk_grades_code', 'UNIQUE (grade_code)');
 
 -- 初始化数据
 INSERT INTO supplier_grades (grade_code, grade_name, min_score, max_score, color_code, permission_desc) VALUES
@@ -1268,7 +1284,7 @@ COMMENT ON COLUMN supplier_evaluations.delivery_on_time_rate IS '交货及时率
 COMMENT ON COLUMN supplier_evaluations.order_completion_rate IS '订单完成率（%）';
 
 -- 唯一约束
-ALTER TABLE supplier_evaluations ADD CONSTRAINT uk_supplier_quarter UNIQUE (supplier_id, evaluation_year, evaluation_quarter);
+SELECT safe_add_constraint('supplier_evaluations', 'uk_supplier_quarter', 'UNIQUE (supplier_id, evaluation_year, evaluation_quarter)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_supplier_evaluations_supplier ON supplier_evaluations(supplier_id);
@@ -1454,20 +1470,13 @@ CREATE TABLE purchase_order (
 );
 
 -- 外键约束
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_warehouse
-    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_department
-    FOREIGN KEY (department_id) REFERENCES departments(id);
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_purchaser
-    FOREIGN KEY (purchaser_id) REFERENCES users(id);
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
-ALTER TABLE purchase_order ADD CONSTRAINT fk_po_approved_by
-    FOREIGN KEY (approved_by) REFERENCES users(id);
+SELECT safe_add_constraint('purchase_order', 'fk_po_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('purchase_order', 'fk_po_warehouse', 'FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)');
+SELECT safe_add_constraint('purchase_order', 'fk_po_department', 'FOREIGN KEY (department_id) REFERENCES departments(id)');
+SELECT safe_add_constraint('purchase_order', 'fk_po_purchaser', 'FOREIGN KEY (purchaser_id) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_order', 'fk_po_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_order', 'fk_po_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_order', 'fk_po_approved_by', 'FOREIGN KEY (approved_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_po_order_no ON purchase_order(order_no);
@@ -1521,16 +1530,12 @@ CREATE TABLE purchase_order_item (
 );
 
 -- 外键约束
-ALTER TABLE purchase_order_item ADD CONSTRAINT fk_poi_order
-    FOREIGN KEY (order_id) REFERENCES purchase_order(id) ON DELETE CASCADE;
-ALTER TABLE purchase_order_item ADD CONSTRAINT fk_poi_material
-    FOREIGN KEY (product_id) REFERENCES products(id);
-ALTER TABLE purchase_order_item ADD CONSTRAINT fk_poi_warehouse
-    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
+SELECT safe_add_constraint('purchase_order_item', 'fk_poi_order', 'FOREIGN KEY (order_id) REFERENCES purchase_order(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('purchase_order_item', 'fk_poi_material', 'FOREIGN KEY (product_id) REFERENCES products(id)');
+SELECT safe_add_constraint('purchase_order_item', 'fk_poi_warehouse', 'FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)');
 
 -- 唯一约束
-ALTER TABLE purchase_order_item ADD CONSTRAINT uk_poi_order_line
-    UNIQUE (order_id, line_no);
+SELECT safe_add_constraint('purchase_order_item', 'uk_poi_order_line', 'UNIQUE (order_id, line_no)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_poi_order_id ON purchase_order_item(order_id);
@@ -1601,24 +1606,15 @@ CREATE TABLE purchase_receipt (
 );
 
 -- 外键约束
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_order
-    FOREIGN KEY (order_id) REFERENCES purchase_order(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_warehouse
-    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_department
-    FOREIGN KEY (department_id) REFERENCES departments(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_receiver
-    FOREIGN KEY (receiver_id) REFERENCES users(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_inspector
-    FOREIGN KEY (inspector_id) REFERENCES users(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
-ALTER TABLE purchase_receipt ADD CONSTRAINT fk_pr_confirmed_by
-    FOREIGN KEY (confirmed_by) REFERENCES users(id);
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_order', 'FOREIGN KEY (order_id) REFERENCES purchase_order(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_warehouse', 'FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_department', 'FOREIGN KEY (department_id) REFERENCES departments(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_receiver', 'FOREIGN KEY (receiver_id) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_inspector', 'FOREIGN KEY (inspector_id) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_receipt', 'fk_pr_confirmed_by', 'FOREIGN KEY (confirmed_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pr_receipt_no ON purchase_receipt(receipt_no);
@@ -1666,16 +1662,12 @@ CREATE TABLE purchase_receipt_item (
 );
 
 -- 外键约束
-ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_receipt
-    FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id) ON DELETE CASCADE;
-ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_order_item
-    FOREIGN KEY (order_item_id) REFERENCES purchase_order_item(id);
-ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_material
-    FOREIGN KEY (product_id) REFERENCES products(id);
+SELECT safe_add_constraint('purchase_receipt_item', 'fk_pri_receipt', 'FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('purchase_receipt_item', 'fk_pri_order_item', 'FOREIGN KEY (order_item_id) REFERENCES purchase_order_item(id)');
+SELECT safe_add_constraint('purchase_receipt_item', 'fk_pri_material', 'FOREIGN KEY (product_id) REFERENCES products(id)');
 
 -- 唯一约束
-ALTER TABLE purchase_receipt_item ADD CONSTRAINT uk_pri_receipt_line
-    UNIQUE (receipt_id, line_no);
+SELECT safe_add_constraint('purchase_receipt_item', 'uk_pri_receipt_line', 'UNIQUE (receipt_id, line_no)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pri_receipt_id ON purchase_receipt_item(receipt_id);
@@ -1736,22 +1728,14 @@ CREATE TABLE purchase_return (
 );
 
 -- 外键约束
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_receipt
-    FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_order
-    FOREIGN KEY (order_id) REFERENCES purchase_order(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_warehouse
-    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_department
-    FOREIGN KEY (department_id) REFERENCES departments(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
-ALTER TABLE purchase_return ADD CONSTRAINT fk_pret_approved_by
-    FOREIGN KEY (approved_by) REFERENCES users(id);
+SELECT safe_add_constraint('purchase_return', 'fk_pret_receipt', 'FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_order', 'FOREIGN KEY (order_id) REFERENCES purchase_order(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_warehouse', 'FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_department', 'FOREIGN KEY (department_id) REFERENCES departments(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_return', 'fk_pret_approved_by', 'FOREIGN KEY (approved_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pret_return_no ON purchase_return(return_no);
@@ -1796,16 +1780,11 @@ CREATE TABLE purchase_inspection (
 );
 
 -- 外键约束
-ALTER TABLE purchase_inspection ADD CONSTRAINT fk_pi_receipt
-    FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id);
-ALTER TABLE purchase_inspection ADD CONSTRAINT fk_pi_order
-    FOREIGN KEY (order_id) REFERENCES purchase_order(id);
-ALTER TABLE purchase_inspection ADD CONSTRAINT fk_pi_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE purchase_inspection ADD CONSTRAINT fk_pi_inspector
-    FOREIGN KEY (inspector_id) REFERENCES users(id);
-ALTER TABLE purchase_inspection ADD CONSTRAINT fk_pi_completed_by
-    FOREIGN KEY (completed_by) REFERENCES users(id);
+SELECT safe_add_constraint('purchase_inspection', 'fk_pi_receipt', 'FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id)');
+SELECT safe_add_constraint('purchase_inspection', 'fk_pi_order', 'FOREIGN KEY (order_id) REFERENCES purchase_order(id)');
+SELECT safe_add_constraint('purchase_inspection', 'fk_pi_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('purchase_inspection', 'fk_pi_inspector', 'FOREIGN KEY (inspector_id) REFERENCES users(id)');
+SELECT safe_add_constraint('purchase_inspection', 'fk_pi_completed_by', 'FOREIGN KEY (completed_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pi_inspection_no ON purchase_inspection(inspection_no);
@@ -1963,16 +1942,11 @@ CREATE TABLE ap_invoice (
 );
 
 -- 外键约束
-ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoice_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoice_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoice_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
-ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoice_approved_by
-    FOREIGN KEY (approved_by) REFERENCES users(id);
-ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoice_cancelled_by
-    FOREIGN KEY (cancelled_by) REFERENCES users(id);
+SELECT safe_add_constraint('ap_invoice', 'fk_ap_invoice_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('ap_invoice', 'fk_ap_invoice_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_invoice', 'fk_ap_invoice_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_invoice', 'fk_ap_invoice_approved_by', 'FOREIGN KEY (approved_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_invoice', 'fk_ap_invoice_cancelled_by', 'FOREIGN KEY (cancelled_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_ap_invoice_no ON ap_invoice(invoice_no);
@@ -2051,18 +2025,12 @@ CREATE TABLE ap_payment_request (
 );
 
 -- 外键约束
-ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
-ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_submitted_by
-    FOREIGN KEY (submitted_by) REFERENCES users(id);
-ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_approved_by
-    FOREIGN KEY (approved_by) REFERENCES users(id);
-ALTER TABLE ap_payment_request ADD CONSTRAINT fk_ap_request_rejected_by
-    FOREIGN KEY (rejected_by) REFERENCES users(id);
+SELECT safe_add_constraint('ap_payment_request', 'fk_ap_request_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('ap_payment_request', 'fk_ap_request_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_payment_request', 'fk_ap_request_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_payment_request', 'fk_ap_request_submitted_by', 'FOREIGN KEY (submitted_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_payment_request', 'fk_ap_request_approved_by', 'FOREIGN KEY (approved_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_payment_request', 'fk_ap_request_rejected_by', 'FOREIGN KEY (rejected_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_ap_request_no ON ap_payment_request(request_no);
@@ -2127,16 +2095,11 @@ CREATE TABLE ap_payment (
 );
 
 -- 外键约束
-ALTER TABLE ap_payment ADD CONSTRAINT fk_ap_payment_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE ap_payment ADD CONSTRAINT fk_ap_payment_request
-    FOREIGN KEY (request_id) REFERENCES ap_payment_request(id);
-ALTER TABLE ap_payment ADD CONSTRAINT fk_ap_payment_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE ap_payment ADD CONSTRAINT fk_ap_payment_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
-ALTER TABLE ap_payment ADD CONSTRAINT fk_ap_payment_confirmed_by
-    FOREIGN KEY (confirmed_by) REFERENCES users(id);
+SELECT safe_add_constraint('ap_payment', 'fk_ap_payment_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('ap_payment', 'fk_ap_payment_request', 'FOREIGN KEY (request_id) REFERENCES ap_payment_request(id)');
+SELECT safe_add_constraint('ap_payment', 'fk_ap_payment_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_payment', 'fk_ap_payment_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_payment', 'fk_ap_payment_confirmed_by', 'FOREIGN KEY (confirmed_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_ap_payment_no ON ap_payment(payment_no);
@@ -2172,12 +2135,9 @@ CREATE TABLE ap_verification (
 );
 
 -- 外键约束
-ALTER TABLE ap_verification ADD CONSTRAINT fk_ap_verification_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE ap_verification ADD CONSTRAINT fk_ap_verification_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE ap_verification ADD CONSTRAINT fk_ap_verification_cancelled_by
-    FOREIGN KEY (cancelled_by) REFERENCES users(id);
+SELECT safe_add_constraint('ap_verification', 'fk_ap_verification_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('ap_verification', 'fk_ap_verification_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_verification', 'fk_ap_verification_cancelled_by', 'FOREIGN KEY (cancelled_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_ap_verification_no ON ap_verification(verification_no);
@@ -2242,14 +2202,10 @@ CREATE TABLE ap_reconciliation (
 );
 
 -- 外键约束
-ALTER TABLE ap_reconciliation ADD CONSTRAINT fk_ap_reconciliation_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE ap_reconciliation ADD CONSTRAINT fk_ap_reconciliation_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE ap_reconciliation ADD CONSTRAINT fk_ap_reconciliation_confirmed_by
-    FOREIGN KEY (confirmed_by) REFERENCES users(id);
-ALTER TABLE ap_reconciliation ADD CONSTRAINT fk_ap_reconciliation_disputed_by
-    FOREIGN KEY (disputed_by) REFERENCES users(id);
+SELECT safe_add_constraint('ap_reconciliation', 'fk_ap_reconciliation_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('ap_reconciliation', 'fk_ap_reconciliation_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_reconciliation', 'fk_ap_reconciliation_confirmed_by', 'FOREIGN KEY (confirmed_by) REFERENCES users(id)');
+SELECT safe_add_constraint('ap_reconciliation', 'fk_ap_reconciliation_disputed_by', 'FOREIGN KEY (disputed_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_ap_reconciliation_no ON ap_reconciliation(reconciliation_no);
@@ -4329,10 +4285,8 @@ CREATE TABLE purchase_return_item (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE purchase_return_item ADD CONSTRAINT fk_pret_item_return
-    FOREIGN KEY (return_id) REFERENCES purchase_return(id) ON DELETE CASCADE;
-ALTER TABLE purchase_return_item ADD CONSTRAINT fk_pret_item_product
-    FOREIGN KEY (product_id) REFERENCES products(id);
+SELECT safe_add_constraint('purchase_return_item', 'fk_pret_item_return', 'FOREIGN KEY (return_id) REFERENCES purchase_return(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('purchase_return_item', 'fk_pret_item_product', 'FOREIGN KEY (product_id) REFERENCES products(id)');
 -- P2 级模块：销售价格管理
 -- 创建时间：2026-03-15
 -- 功能：销售价格管理、价格审批、价格策略
@@ -4766,16 +4720,13 @@ COMMENT ON COLUMN batch_dye_lot.quality_status IS '质检状态（pending/inspec
 COMMENT ON COLUMN batch_dye_lot.is_active IS '是否启用';
 
 -- 外键约束
-ALTER TABLE batch_dye_lot ADD CONSTRAINT fk_dye_lot_product
-    FOREIGN KEY (product_id) REFERENCES products(id);
-ALTER TABLE batch_dye_lot ADD CONSTRAINT fk_dye_lot_color
-    FOREIGN KEY (color_id) REFERENCES product_colors(id);
-ALTER TABLE batch_dye_lot ADD CONSTRAINT fk_dye_lot_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
+SELECT safe_add_constraint('batch_dye_lot', 'fk_dye_lot_product', 'FOREIGN KEY (product_id) REFERENCES products(id)');
+SELECT safe_add_constraint('batch_dye_lot', 'fk_dye_lot_color', 'FOREIGN KEY (color_id) REFERENCES product_colors(id)');
+SELECT safe_add_constraint('batch_dye_lot', 'fk_dye_lot_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
 
 -- 唯一约束
-ALTER TABLE batch_dye_lot ADD CONSTRAINT uk_dye_lot_no UNIQUE (dye_lot_no);
-ALTER TABLE batch_dye_lot ADD CONSTRAINT uk_dye_lot_product_color_supplier UNIQUE (product_id, color_id, supplier_id, dye_lot_no);
+SELECT safe_add_constraint('batch_dye_lot', 'uk_dye_lot_no', 'UNIQUE (dye_lot_no)');
+SELECT safe_add_constraint('batch_dye_lot', 'uk_dye_lot_product_color_supplier', 'UNIQUE (product_id, color_id, supplier_id, dye_lot_no)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_batch_dye_lot_product ON batch_dye_lot(product_id);
@@ -4824,10 +4775,8 @@ COMMENT ON COLUMN inventory_piece.quality_status IS '质检状态（pending/insp
 COMMENT ON COLUMN inventory_piece.inventory_status IS '库存状态（available/reserved/locked/sold）';
 
 -- 外键约束
-ALTER TABLE inventory_piece ADD CONSTRAINT fk_piece_dye_lot
-    FOREIGN KEY (dye_lot_id) REFERENCES batch_dye_lot(id);
-ALTER TABLE inventory_piece ADD CONSTRAINT fk_piece_warehouse
-    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
+SELECT safe_add_constraint('inventory_piece', 'fk_piece_dye_lot', 'FOREIGN KEY (dye_lot_id) REFERENCES batch_dye_lot(id)');
+SELECT safe_add_constraint('inventory_piece', 'fk_piece_warehouse', 'FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_inventory_piece_piece_no ON inventory_piece(piece_no);
@@ -4867,13 +4816,12 @@ COMMENT ON COLUMN product_code_mapping.supplier_id IS '供应商 ID';
 COMMENT ON COLUMN product_code_mapping.validation_status IS '验证状态（pending/validated/failed）';
 
 -- 外键约束
-ALTER TABLE product_code_mapping ADD CONSTRAINT fk_pcm_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
+SELECT safe_add_constraint('product_code_mapping', 'fk_pcm_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
 
 -- 唯一约束
-ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_internal_supplier UNIQUE (internal_product_code, supplier_product_code, supplier_id);
-ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_internal UNIQUE (internal_product_code, supplier_id);
-ALTER TABLE product_code_mapping ADD CONSTRAINT uk_pcm_supplier UNIQUE (supplier_product_code, supplier_id);
+SELECT safe_add_constraint('product_code_mapping', 'uk_pcm_internal_supplier', 'UNIQUE (internal_product_code, supplier_product_code, supplier_id)');
+SELECT safe_add_constraint('product_code_mapping', 'uk_pcm_internal', 'UNIQUE (internal_product_code, supplier_id)');
+SELECT safe_add_constraint('product_code_mapping', 'uk_pcm_supplier', 'UNIQUE (supplier_product_code, supplier_id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pcm_internal_code ON product_code_mapping(internal_product_code);
@@ -4907,13 +4855,12 @@ COMMENT ON COLUMN color_code_mapping.supplier_color_code IS '供应商色号';
 COMMENT ON COLUMN color_code_mapping.color_difference_notes IS '色差说明';
 
 -- 外键约束
-ALTER TABLE color_code_mapping ADD CONSTRAINT fk_ccm_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
+SELECT safe_add_constraint('color_code_mapping', 'fk_ccm_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
 
 -- 唯一约束
-ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_internal_supplier UNIQUE (internal_color_no, supplier_color_code, supplier_id);
-ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_internal UNIQUE (internal_color_no, supplier_id);
-ALTER TABLE color_code_mapping ADD CONSTRAINT uk_ccm_supplier UNIQUE (supplier_color_code, supplier_id);
+SELECT safe_add_constraint('color_code_mapping', 'uk_ccm_internal_supplier', 'UNIQUE (internal_color_no, supplier_color_code, supplier_id)');
+SELECT safe_add_constraint('color_code_mapping', 'uk_ccm_internal', 'UNIQUE (internal_color_no, supplier_id)');
+SELECT safe_add_constraint('color_code_mapping', 'uk_ccm_supplier', 'UNIQUE (supplier_color_code, supplier_id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_ccm_internal_color ON color_code_mapping(internal_color_no);
@@ -4946,13 +4893,11 @@ COMMENT ON TABLE dye_lot_mapping IS '缸号映射表（内部缸号 <-> 供应�
 COMMENT ON COLUMN dye_lot_mapping.batch_dye_lot_id IS '内部缸号 ID（关联 batch_dye_lot）';
 
 -- 外键约束
-ALTER TABLE dye_lot_mapping ADD CONSTRAINT fk_dlm_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE dye_lot_mapping ADD CONSTRAINT fk_dlm_batch_dye_lot
-    FOREIGN KEY (batch_dye_lot_id) REFERENCES batch_dye_lot(id);
+SELECT safe_add_constraint('dye_lot_mapping', 'fk_dlm_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('dye_lot_mapping', 'fk_dlm_batch_dye_lot', 'FOREIGN KEY (batch_dye_lot_id) REFERENCES batch_dye_lot(id)');
 
 -- 唯一约束
-ALTER TABLE dye_lot_mapping ADD CONSTRAINT uk_dlm_internal_supplier UNIQUE (internal_dye_lot_no, supplier_dye_lot_no, supplier_id);
+SELECT safe_add_constraint('dye_lot_mapping', 'uk_dlm_internal_supplier', 'UNIQUE (internal_dye_lot_no, supplier_dye_lot_no, supplier_id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_dlm_internal_dye_lot ON dye_lot_mapping(internal_dye_lot_no);
@@ -4984,13 +4929,11 @@ COMMENT ON TABLE piece_mapping IS '匹号映射表（内部匹号 <-> 供应商�
 COMMENT ON COLUMN piece_mapping.inventory_piece_id IS '内部匹号 ID（关联 inventory_piece）';
 
 -- 外键约束
-ALTER TABLE piece_mapping ADD CONSTRAINT fk_pm_supplier
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
-ALTER TABLE piece_mapping ADD CONSTRAINT fk_pm_inventory_piece
-    FOREIGN KEY (inventory_piece_id) REFERENCES inventory_piece(id);
+SELECT safe_add_constraint('piece_mapping', 'fk_pm_supplier', 'FOREIGN KEY (supplier_id) REFERENCES suppliers(id)');
+SELECT safe_add_constraint('piece_mapping', 'fk_pm_inventory_piece', 'FOREIGN KEY (inventory_piece_id) REFERENCES inventory_piece(id)');
 
 -- 唯一约束
-ALTER TABLE piece_mapping ADD CONSTRAINT uk_pm_internal_supplier UNIQUE (internal_piece_no, supplier_piece_no, supplier_id);
+SELECT safe_add_constraint('piece_mapping', 'uk_pm_internal_supplier', 'UNIQUE (internal_piece_no, supplier_piece_no, supplier_id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pm_internal_piece ON piece_mapping(internal_piece_no);
@@ -5049,8 +4992,7 @@ COMMENT ON COLUMN batch_trace_log.validation_result IS '验证结果（pending/s
 COMMENT ON COLUMN batch_trace_log.operation_type IS '操作类型（create/update/convert/validate）';
 
 -- 外键约束
-ALTER TABLE batch_trace_log ADD CONSTRAINT fk_btl_operator
-    FOREIGN KEY (operator_id) REFERENCES users(id);
+SELECT safe_add_constraint('batch_trace_log', 'fk_btl_operator', 'FOREIGN KEY (operator_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_btl_trace_no ON batch_trace_log(trace_no);
@@ -5292,16 +5234,11 @@ CREATE TABLE IF NOT EXISTS sales_delivery (
 COMMENT ON TABLE sales_delivery IS '销售发货单表';
 
 -- 外键约束
-ALTER TABLE sales_delivery ADD CONSTRAINT fk_sd_sales_order
-    FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id);
-ALTER TABLE sales_delivery ADD CONSTRAINT fk_sd_customer
-    FOREIGN KEY (customer_id) REFERENCES customers(id);
-ALTER TABLE sales_delivery ADD CONSTRAINT fk_sd_warehouse
-    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
-ALTER TABLE sales_delivery ADD CONSTRAINT fk_sd_created_by
-    FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE sales_delivery ADD CONSTRAINT fk_sd_updated_by
-    FOREIGN KEY (updated_by) REFERENCES users(id);
+SELECT safe_add_constraint('sales_delivery', 'fk_sd_sales_order', 'FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id)');
+SELECT safe_add_constraint('sales_delivery', 'fk_sd_customer', 'FOREIGN KEY (customer_id) REFERENCES customers(id)');
+SELECT safe_add_constraint('sales_delivery', 'fk_sd_warehouse', 'FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)');
+SELECT safe_add_constraint('sales_delivery', 'fk_sd_created_by', 'FOREIGN KEY (created_by) REFERENCES users(id)');
+SELECT safe_add_constraint('sales_delivery', 'fk_sd_updated_by', 'FOREIGN KEY (updated_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_sd_delivery_no ON sales_delivery(delivery_no);
@@ -5345,20 +5282,14 @@ COMMENT ON COLUMN sales_delivery_item.piece_ids IS '匹号 ID 列表';
 COMMENT ON COLUMN sales_delivery_item.piece_nos IS '匹号列表';
 
 -- 外键约束
-ALTER TABLE sales_delivery_item ADD CONSTRAINT fk_sdi_delivery
-    FOREIGN KEY (delivery_id) REFERENCES sales_delivery(id) ON DELETE CASCADE;
-ALTER TABLE sales_delivery_item ADD CONSTRAINT fk_sdi_sales_order_item
-    FOREIGN KEY (sales_order_item_id) REFERENCES sales_order_items(id);
-ALTER TABLE sales_delivery_item ADD CONSTRAINT fk_sdi_product
-    FOREIGN KEY (product_id) REFERENCES products(id);
-ALTER TABLE sales_delivery_item ADD CONSTRAINT fk_sdi_color
-    FOREIGN KEY (color_id) REFERENCES product_colors(id);
-ALTER TABLE sales_delivery_item ADD CONSTRAINT fk_sdi_dye_lot
-    FOREIGN KEY (dye_lot_id) REFERENCES batch_dye_lot(id);
+SELECT safe_add_constraint('sales_delivery_item', 'fk_sdi_delivery', 'FOREIGN KEY (delivery_id) REFERENCES sales_delivery(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('sales_delivery_item', 'fk_sdi_sales_order_item', 'FOREIGN KEY (sales_order_item_id) REFERENCES sales_order_items(id)');
+SELECT safe_add_constraint('sales_delivery_item', 'fk_sdi_product', 'FOREIGN KEY (product_id) REFERENCES products(id)');
+SELECT safe_add_constraint('sales_delivery_item', 'fk_sdi_color', 'FOREIGN KEY (color_id) REFERENCES product_colors(id)');
+SELECT safe_add_constraint('sales_delivery_item', 'fk_sdi_dye_lot', 'FOREIGN KEY (dye_lot_id) REFERENCES batch_dye_lot(id)');
 
 -- 唯一约束
-ALTER TABLE sales_delivery_item ADD CONSTRAINT uk_sdi_delivery_line
-    UNIQUE (delivery_id, line_no);
+SELECT safe_add_constraint('sales_delivery_item', 'uk_sdi_delivery_line', 'UNIQUE (delivery_id, line_no)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_sdi_delivery ON sales_delivery_item(delivery_id);
@@ -5405,10 +5336,8 @@ COMMENT ON COLUMN purchase_receipt_item.supplier_piece_nos IS '供应商匹号�
 COMMENT ON COLUMN purchase_receipt_item.batch_conversion_log_id IS '批次转换日志 ID';
 
 -- 外键约束
-ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_internal_dye_lot
-    FOREIGN KEY (internal_dye_lot_id) REFERENCES batch_dye_lot(id);
-ALTER TABLE purchase_receipt_item ADD CONSTRAINT fk_pri_conversion_log
-    FOREIGN KEY (batch_conversion_log_id) REFERENCES batch_trace_log(id);
+SELECT safe_add_constraint('purchase_receipt_item', 'fk_pri_internal_dye_lot', 'FOREIGN KEY (internal_dye_lot_id) REFERENCES batch_dye_lot(id)');
+SELECT safe_add_constraint('purchase_receipt_item', 'fk_pri_conversion_log', 'FOREIGN KEY (batch_conversion_log_id) REFERENCES batch_trace_log(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pri_internal_dye_lot ON purchase_receipt_item(internal_dye_lot_id);
@@ -5504,7 +5433,7 @@ COMMENT ON COLUMN bpm_process_definition.visible_roles IS '可见角色 ID 列�
 COMMENT ON COLUMN bpm_process_definition.initiator_roles IS '发起人角色 ID 列表';
 
 -- 唯一约束
-ALTER TABLE bpm_process_definition ADD CONSTRAINT uk_process_key_version UNIQUE (process_key, process_version);
+SELECT safe_add_constraint('bpm_process_definition', 'uk_process_key_version', 'UNIQUE (process_key, process_version)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_pd_process_key ON bpm_process_definition(process_key);
@@ -5562,10 +5491,8 @@ COMMENT ON COLUMN bpm_process_instance.form_data IS '表单数据（JSON 格式�
 COMMENT ON COLUMN bpm_process_instance.variables IS '流程变量（JSON 格式）';
 
 -- 外键约束
-ALTER TABLE bpm_process_instance ADD CONSTRAINT fk_pi_process_definition
-    FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id);
-ALTER TABLE bpm_process_instance ADD CONSTRAINT fk_pi_initiator
-    FOREIGN KEY (initiator_id) REFERENCES users(id);
+SELECT safe_add_constraint('bpm_process_instance', 'fk_pi_process_definition', 'FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id)');
+SELECT safe_add_constraint('bpm_process_instance', 'fk_pi_initiator', 'FOREIGN KEY (initiator_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_pi_instance_no ON bpm_process_instance(instance_no);
@@ -5636,12 +5563,9 @@ COMMENT ON COLUMN bpm_task.action IS '操作（approve/reject/withdraw/terminate
 COMMENT ON COLUMN bpm_task.approval_opinion IS '审批意见';
 
 -- 外键约束
-ALTER TABLE bpm_task ADD CONSTRAINT fk_bpm_task_instance
-    FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE;
-ALTER TABLE bpm_task ADD CONSTRAINT fk_bpm_task_process_definition
-    FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id);
-ALTER TABLE bpm_task ADD CONSTRAINT fk_bpm_task_actual_handler
-    FOREIGN KEY (actual_handler_id) REFERENCES users(id);
+SELECT safe_add_constraint('bpm_task', 'fk_bpm_task_instance', 'FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('bpm_task', 'fk_bpm_task_process_definition', 'FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id)');
+SELECT safe_add_constraint('bpm_task', 'fk_bpm_task_actual_handler', 'FOREIGN KEY (actual_handler_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_task_task_no ON bpm_task(task_no);
@@ -5696,12 +5620,9 @@ COMMENT ON COLUMN bpm_operation_log.operation_type IS '操作类型（start/appr
 COMMENT ON COLUMN bpm_operation_log.approval_opinion IS '审批意见';
 
 -- 外键约束
-ALTER TABLE bpm_operation_log ADD CONSTRAINT fk_bpm_log_instance
-    FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE;
-ALTER TABLE bpm_operation_log ADD CONSTRAINT fk_bpm_log_task
-    FOREIGN KEY (task_id) REFERENCES bpm_task(id);
-ALTER TABLE bpm_operation_log ADD CONSTRAINT fk_bpm_log_operator
-    FOREIGN KEY (operator_id) REFERENCES users(id);
+SELECT safe_add_constraint('bpm_operation_log', 'fk_bpm_log_instance', 'FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('bpm_operation_log', 'fk_bpm_log_task', 'FOREIGN KEY (task_id) REFERENCES bpm_task(id)');
+SELECT safe_add_constraint('bpm_operation_log', 'fk_bpm_log_operator', 'FOREIGN KEY (operator_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_log_instance ON bpm_operation_log(instance_id);
@@ -5754,11 +5675,10 @@ COMMENT ON COLUMN bpm_node_config.approval_type IS '审批类型（or_sign/and_s
 COMMENT ON COLUMN bpm_node_config.assignee_type IS '指派人类型（user/role/department/variable）';
 
 -- 外键约束
-ALTER TABLE bpm_node_config ADD CONSTRAINT fk_bpm_nc_process_definition
-    FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('bpm_node_config', 'fk_bpm_nc_process_definition', 'FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE');
 
 -- 唯一约束
-ALTER TABLE bpm_node_config ADD CONSTRAINT uk_nc_process_node UNIQUE (process_definition_id, node_id);
+SELECT safe_add_constraint('bpm_node_config', 'uk_nc_process_node', 'UNIQUE (process_definition_id, node_id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_nc_process_definition ON bpm_node_config(process_definition_id);
@@ -5794,8 +5714,7 @@ COMMENT ON COLUMN bpm_transition_condition.condition_expression IS '条件表达
 COMMENT ON COLUMN bpm_transition_condition.condition_type IS '条件类型（expression/script/default）';
 
 -- 外键约束
-ALTER TABLE bpm_transition_condition ADD CONSTRAINT fk_bpm_tc_process_definition
-    FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('bpm_transition_condition', 'fk_bpm_tc_process_definition', 'FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_tc_process_definition ON bpm_transition_condition(process_definition_id);
@@ -5834,12 +5753,9 @@ COMMENT ON TABLE bpm_task_delegation IS '流程委托表';
 COMMENT ON COLUMN bpm_task_delegation.delegation_type IS '委托类型（temporary/permanent）';
 
 -- 外键约束
-ALTER TABLE bpm_task_delegation ADD CONSTRAINT fk_bpm_td_task
-    FOREIGN KEY (task_id) REFERENCES bpm_task(id) ON DELETE CASCADE;
-ALTER TABLE bpm_task_delegation ADD CONSTRAINT fk_bpm_td_delegator
-    FOREIGN KEY (delegator_id) REFERENCES users(id);
-ALTER TABLE bpm_task_delegation ADD CONSTRAINT fk_bpm_td_delegatee
-    FOREIGN KEY (delegatee_id) REFERENCES users(id);
+SELECT safe_add_constraint('bpm_task_delegation', 'fk_bpm_td_task', 'FOREIGN KEY (task_id) REFERENCES bpm_task(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('bpm_task_delegation', 'fk_bpm_td_delegator', 'FOREIGN KEY (delegator_id) REFERENCES users(id)');
+SELECT safe_add_constraint('bpm_task_delegation', 'fk_bpm_td_delegatee', 'FOREIGN KEY (delegatee_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_td_task ON bpm_task_delegation(task_id);
@@ -5874,10 +5790,8 @@ COMMENT ON TABLE bpm_task_urge IS '流程催办表';
 COMMENT ON COLUMN bpm_task_urge.urge_type IS '催办类型（system/manual）';
 
 -- 外键约束
-ALTER TABLE bpm_task_urge ADD CONSTRAINT fk_bpm_urge_task
-    FOREIGN KEY (task_id) REFERENCES bpm_task(id) ON DELETE CASCADE;
-ALTER TABLE bpm_task_urge ADD CONSTRAINT fk_bpm_urge_instance
-    FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('bpm_task_urge', 'fk_bpm_urge_task', 'FOREIGN KEY (task_id) REFERENCES bpm_task(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('bpm_task_urge', 'fk_bpm_urge_instance', 'FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_urge_task ON bpm_task_urge(task_id);
@@ -5992,12 +5906,9 @@ COMMENT ON COLUMN bpm_task_notification.notification_type IS '通知类型（new
 COMMENT ON COLUMN bpm_task_notification.status IS '状态（unread/read/deleted）';
 
 -- 外键约束
-ALTER TABLE bpm_task_notification ADD CONSTRAINT fk_bpm_tn_task
-    FOREIGN KEY (task_id) REFERENCES bpm_task(id) ON DELETE CASCADE;
-ALTER TABLE bpm_task_notification ADD CONSTRAINT fk_bpm_tn_instance
-    FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE;
-ALTER TABLE bpm_task_notification ADD CONSTRAINT fk_bpm_tn_user
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('bpm_task_notification', 'fk_bpm_tn_task', 'FOREIGN KEY (task_id) REFERENCES bpm_task(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('bpm_task_notification', 'fk_bpm_tn_instance', 'FOREIGN KEY (instance_id) REFERENCES bpm_process_instance(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('bpm_task_notification', 'fk_bpm_tn_user', 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_tn_task ON bpm_task_notification(task_id);
@@ -6041,11 +5952,10 @@ CREATE TABLE bpm_statistics_daily (
 COMMENT ON TABLE bpm_statistics_daily IS '流程统计表（按天）';
 
 -- 外键约束
-ALTER TABLE bpm_statistics_daily ADD CONSTRAINT fk_bpm_sd_process_definition
-    FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id);
+SELECT safe_add_constraint('bpm_statistics_daily', 'fk_bpm_sd_process_definition', 'FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id)');
 
 -- 唯一约束
-ALTER TABLE bpm_statistics_daily ADD CONSTRAINT uk_sd_date_process UNIQUE (statistics_date, process_definition_id);
+SELECT safe_add_constraint('bpm_statistics_daily', 'uk_sd_date_process', 'UNIQUE (statistics_date, process_definition_id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_sd_date ON bpm_statistics_daily(statistics_date);
@@ -6087,8 +5997,7 @@ COMMENT ON COLUMN bpm_timeout_config.timeout_type IS '超时类型（working_hou
 COMMENT ON COLUMN bpm_timeout_config.action_type IS '动作类型（notify/auto_approve/auto_reject/escalate）';
 
 -- 外键约束
-ALTER TABLE bpm_timeout_config ADD CONSTRAINT fk_bpm_tc_process_definition
-    FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('bpm_timeout_config', 'fk_bpm_tc_process_definition', 'FOREIGN KEY (process_definition_id) REFERENCES bpm_process_definition(id) ON DELETE CASCADE');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_bpm_tc_process_definition ON bpm_timeout_config(process_definition_id);
@@ -6552,10 +6461,8 @@ COMMENT ON COLUMN crm_lead.lead_source IS '线索来源（website/referral/exhib
 COMMENT ON COLUMN crm_lead.lead_status IS '线索状态（new/contacted/qualified/converted/lost）';
 
 -- 外键约束
-ALTER TABLE crm_lead ADD CONSTRAINT fk_crm_lead_owner
-    FOREIGN KEY (owner_id) REFERENCES users(id);
-ALTER TABLE crm_lead ADD CONSTRAINT fk_crm_lead_converted_customer
-    FOREIGN KEY (converted_customer_id) REFERENCES customers(id);
+SELECT safe_add_constraint('crm_lead', 'fk_crm_lead_owner', 'FOREIGN KEY (owner_id) REFERENCES users(id)');
+SELECT safe_add_constraint('crm_lead', 'fk_crm_lead_converted_customer', 'FOREIGN KEY (converted_customer_id) REFERENCES customers(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_crm_lead_lead_no ON crm_lead(lead_no);
@@ -6628,12 +6535,9 @@ COMMENT ON COLUMN crm_opportunity.win_probability IS '成功概率（%）';
 COMMENT ON COLUMN crm_opportunity.opportunity_status IS '状态（open/won/lost/cancelled）';
 
 -- 外键约束
-ALTER TABLE crm_opportunity ADD CONSTRAINT fk_crm_opp_customer
-    FOREIGN KEY (customer_id) REFERENCES customers(id);
-ALTER TABLE crm_opportunity ADD CONSTRAINT fk_crm_opp_lead
-    FOREIGN KEY (lead_id) REFERENCES crm_lead(id);
-ALTER TABLE crm_opportunity ADD CONSTRAINT fk_crm_opp_owner
-    FOREIGN KEY (owner_id) REFERENCES users(id);
+SELECT safe_add_constraint('crm_opportunity', 'fk_crm_opp_customer', 'FOREIGN KEY (customer_id) REFERENCES customers(id)');
+SELECT safe_add_constraint('crm_opportunity', 'fk_crm_opp_lead', 'FOREIGN KEY (lead_id) REFERENCES crm_lead(id)');
+SELECT safe_add_constraint('crm_opportunity', 'fk_crm_opp_owner', 'FOREIGN KEY (owner_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_crm_opp_opportunity_no ON crm_opportunity(opportunity_no);
@@ -6690,14 +6594,10 @@ COMMENT ON TABLE crm_follow_up IS '客户跟进记录表';
 COMMENT ON COLUMN crm_follow_up.follow_up_type IS '跟进类型（phone_call/meeting/email/wechat/other）';
 
 -- 外键约束
-ALTER TABLE crm_follow_up ADD CONSTRAINT fk_crm_fu_lead
-    FOREIGN KEY (lead_id) REFERENCES crm_lead(id);
-ALTER TABLE crm_follow_up ADD CONSTRAINT fk_crm_fu_opportunity
-    FOREIGN KEY (opportunity_id) REFERENCES crm_opportunity(id);
-ALTER TABLE crm_follow_up ADD CONSTRAINT fk_crm_fu_customer
-    FOREIGN KEY (customer_id) REFERENCES customers(id);
-ALTER TABLE crm_follow_up ADD CONSTRAINT fk_crm_fu_owner
-    FOREIGN KEY (owner_id) REFERENCES users(id);
+SELECT safe_add_constraint('crm_follow_up', 'fk_crm_fu_lead', 'FOREIGN KEY (lead_id) REFERENCES crm_lead(id)');
+SELECT safe_add_constraint('crm_follow_up', 'fk_crm_fu_opportunity', 'FOREIGN KEY (opportunity_id) REFERENCES crm_opportunity(id)');
+SELECT safe_add_constraint('crm_follow_up', 'fk_crm_fu_customer', 'FOREIGN KEY (customer_id) REFERENCES customers(id)');
+SELECT safe_add_constraint('crm_follow_up', 'fk_crm_fu_owner', 'FOREIGN KEY (owner_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_crm_fu_lead ON crm_follow_up(lead_id);
@@ -6738,8 +6638,7 @@ COMMENT ON TABLE crm_contact IS '客户联系人表';
 COMMENT ON COLUMN crm_contact.is_decision_maker IS '是否决策者';
 
 -- 外键约束
-ALTER TABLE crm_contact ADD CONSTRAINT fk_crm_contact_customer
-    FOREIGN KEY (customer_id) REFERENCES customers(id);
+SELECT safe_add_constraint('crm_contact', 'fk_crm_contact_customer', 'FOREIGN KEY (customer_id) REFERENCES customers(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_crm_contact_customer ON crm_contact(customer_id);
@@ -6778,12 +6677,9 @@ COMMENT ON TABLE crm_customer_sea IS '客户公海表';
 COMMENT ON COLUMN crm_customer_sea.reason_type IS '进入公海原因（no_follow_up/active_release/passive_release）';
 
 -- 外键约束
-ALTER TABLE crm_customer_sea ADD CONSTRAINT fk_crm_cs_customer
-    FOREIGN KEY (customer_id) REFERENCES customers(id);
-ALTER TABLE crm_customer_sea ADD CONSTRAINT fk_crm_cs_released_by
-    FOREIGN KEY (released_by) REFERENCES users(id);
-ALTER TABLE crm_customer_sea ADD CONSTRAINT fk_crm_cs_claimed_by
-    FOREIGN KEY (claimed_by) REFERENCES users(id);
+SELECT safe_add_constraint('crm_customer_sea', 'fk_crm_cs_customer', 'FOREIGN KEY (customer_id) REFERENCES customers(id)');
+SELECT safe_add_constraint('crm_customer_sea', 'fk_crm_cs_released_by', 'FOREIGN KEY (released_by) REFERENCES users(id)');
+SELECT safe_add_constraint('crm_customer_sea', 'fk_crm_cs_claimed_by', 'FOREIGN KEY (claimed_by) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_crm_cs_customer ON crm_customer_sea(customer_id);
@@ -6941,8 +6837,7 @@ COMMENT ON COLUMN oa_announcement.visible_scope IS '可见范围（all/company/d
 COMMENT ON COLUMN oa_announcement.status IS '状态（draft/published/archived/cancelled）';
 
 -- 外键约束
-ALTER TABLE oa_announcement ADD CONSTRAINT fk_oa_ann_publisher
-    FOREIGN KEY (publisher_id) REFERENCES users(id);
+SELECT safe_add_constraint('oa_announcement', 'fk_oa_ann_publisher', 'FOREIGN KEY (publisher_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_oa_ann_announcement_no ON oa_announcement(announcement_no);
@@ -6977,10 +6872,8 @@ CREATE TABLE oa_announcement_read (
 COMMENT ON TABLE oa_announcement_read IS '公告阅读记录表';
 
 -- 外键约束
-ALTER TABLE oa_announcement_read ADD CONSTRAINT fk_oa_ar_announcement
-    FOREIGN KEY (announcement_id) REFERENCES oa_announcement(id) ON DELETE CASCADE;
-ALTER TABLE oa_announcement_read ADD CONSTRAINT fk_oa_ar_user
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('oa_announcement_read', 'fk_oa_ar_announcement', 'FOREIGN KEY (announcement_id) REFERENCES oa_announcement(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('oa_announcement_read', 'fk_oa_ar_user', 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_oa_ar_announcement ON oa_announcement_read(announcement_id);
@@ -7032,8 +6925,7 @@ COMMENT ON COLUMN oa_message.message_type IS '消息类型（system/task/approva
 COMMENT ON COLUMN oa_message.receiver_type IS '接收者类型（user/department/role/all）';
 
 -- 外键约束
-ALTER TABLE oa_message ADD CONSTRAINT fk_oa_msg_sender
-    FOREIGN KEY (sender_id) REFERENCES users(id);
+SELECT safe_add_constraint('oa_message', 'fk_oa_msg_sender', 'FOREIGN KEY (sender_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_oa_msg_message_no ON oa_message(message_no);
@@ -7069,10 +6961,8 @@ CREATE TABLE oa_user_message_status (
 COMMENT ON TABLE oa_user_message_status IS '用户消息状态表';
 
 -- 外键约束
-ALTER TABLE oa_user_message_status ADD CONSTRAINT fk_oa_ums_message
-    FOREIGN KEY (message_id) REFERENCES oa_message(id) ON DELETE CASCADE;
-ALTER TABLE oa_user_message_status ADD CONSTRAINT fk_oa_ums_user
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('oa_user_message_status', 'fk_oa_ums_message', 'FOREIGN KEY (message_id) REFERENCES oa_message(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('oa_user_message_status', 'fk_oa_ums_user', 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_oa_ums_message ON oa_user_message_status(message_id);
@@ -7173,7 +7063,7 @@ COMMENT ON COLUMN report_definition.columns_config IS '列配置（JSON 格式�
 COMMENT ON COLUMN report_definition.filter_config IS '筛选器配置（JSON 格式）';
 
 -- 唯一约束
-ALTER TABLE report_definition ADD CONSTRAINT uk_report_key UNIQUE (report_key);
+SELECT safe_add_constraint('report_definition', 'uk_report_key', 'UNIQUE (report_key)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_report_def_category ON report_definition(report_category);
@@ -7216,7 +7106,7 @@ COMMENT ON COLUMN report_dashboard.layout_config IS '布局配置（JSON 格式�
 COMMENT ON COLUMN report_dashboard.widgets_config IS '组件配置（JSON 格式）';
 
 -- 唯一约束
-ALTER TABLE report_dashboard ADD CONSTRAINT uk_dashboard_code UNIQUE (dashboard_code);
+SELECT safe_add_constraint('report_dashboard', 'uk_dashboard_code', 'UNIQUE (dashboard_code)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_report_dash_status ON report_dashboard(status);
@@ -7298,13 +7188,11 @@ COMMENT ON COLUMN report_subscription.subscription_type IS '订阅类型（email
 COMMENT ON COLUMN report_subscription.frequency IS '频率（daily/weekly/monthly/custom）';
 
 -- 外键约束
-ALTER TABLE report_subscription ADD CONSTRAINT fk_report_sub_report
-    FOREIGN KEY (report_id) REFERENCES report_definition(id) ON DELETE CASCADE;
-ALTER TABLE report_subscription ADD CONSTRAINT fk_report_sub_user
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+SELECT safe_add_constraint('report_subscription', 'fk_report_sub_report', 'FOREIGN KEY (report_id) REFERENCES report_definition(id) ON DELETE CASCADE');
+SELECT safe_add_constraint('report_subscription', 'fk_report_sub_user', 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
 
 -- 唯一约束
-ALTER TABLE report_subscription ADD CONSTRAINT uk_report_sub_user UNIQUE (report_id, user_id, subscription_type);
+SELECT safe_add_constraint('report_subscription', 'uk_report_sub_user', 'UNIQUE (report_id, user_id, subscription_type)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_report_sub_report ON report_subscription(report_id);
@@ -7349,10 +7237,8 @@ COMMENT ON COLUMN report_export_history.export_format IS '导出格式（pdf/exc
 COMMENT ON COLUMN report_export_history.export_status IS '导出状态（pending/processing/completed/failed）';
 
 -- 外键约束
-ALTER TABLE report_export_history ADD CONSTRAINT fk_report_exp_report
-    FOREIGN KEY (report_id) REFERENCES report_definition(id);
-ALTER TABLE report_export_history ADD CONSTRAINT fk_report_exp_user
-    FOREIGN KEY (user_id) REFERENCES users(id);
+SELECT safe_add_constraint('report_export_history', 'fk_report_exp_report', 'FOREIGN KEY (report_id) REFERENCES report_definition(id)');
+SELECT safe_add_constraint('report_export_history', 'fk_report_exp_user', 'FOREIGN KEY (user_id) REFERENCES users(id)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_report_exp_export_no ON report_export_history(export_no);
@@ -7879,7 +7765,7 @@ COMMENT ON COLUMN supplier_products.product_code IS '供应商产品编码';
 COMMENT ON COLUMN supplier_products.product_name IS '供应商产品名称';
 
 -- 唯一约束
-ALTER TABLE supplier_products ADD CONSTRAINT uk_supplier_product_code UNIQUE (supplier_id, product_code);
+SELECT safe_add_constraint('supplier_products', 'uk_supplier_product_code', 'UNIQUE (supplier_id, product_code)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_supplier_products_supplier_id ON supplier_products(supplier_id);
@@ -7908,7 +7794,7 @@ COMMENT ON TABLE supplier_product_colors IS '供应商产品颜色表';
 COMMENT ON COLUMN supplier_product_colors.color_no IS '供应商色号编码';
 
 -- 唯一约束
-ALTER TABLE supplier_product_colors ADD CONSTRAINT uk_supplier_product_color UNIQUE (supplier_product_id, color_no);
+SELECT safe_add_constraint('supplier_product_colors', 'uk_supplier_product_color', 'UNIQUE (supplier_product_id, color_no)');
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_supplier_product_colors_product_id ON supplier_product_colors(supplier_product_id);
