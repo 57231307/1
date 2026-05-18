@@ -305,6 +305,62 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <!-- 发货对话框 -->
+    <el-dialog v-model="deliveryDialogVisible" title="销售发货" width="800px">
+      <el-form :model="deliveryForm" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="销售单号">
+              <el-input v-model="deliveryForm.order_no" readonly />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户">
+              <el-input v-model="deliveryForm.customer_name" readonly />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="发货日期" required>
+              <el-date-picker v-model="deliveryForm.delivery_date" type="date" placeholder="选择日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="仓库" required>
+              <el-select v-model="deliveryForm.warehouse_id" placeholder="选择仓库" style="width: 100%">
+                <el-option v-for="w in warehouses" :key="w.id" :label="w.name" :value="w.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="发货明细">
+          <el-table :data="deliveryForm.items" border style="width: 100%">
+            <el-table-column prop="product_name" label="产品" width="150" />
+            <el-table-column prop="quantity" label="订单数量" width="100" />
+            <el-table-column prop="delivered_quantity" label="已发货" width="100" />
+            <el-table-column label="本次发货" width="120">
+              <template #default="{ row }">
+                <el-input-number v-model="row.deliver_quantity" :min="0" :max="row.quantity - (row.delivered_quantity || 0)" size="small" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="unit_price" label="单价" width="100" />
+            <el-table-column label="备注" min-width="150">
+              <template #default="{ row }">
+                <el-input v-model="row.remarks" size="small" placeholder="备注" />
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="deliveryDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitDelivery">确定发货</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -317,6 +373,7 @@ import {
 import { salesApi, type SalesOrder } from '@/api/sales'
 import { customerApi, type Customer } from '@/api/customer'
 import { productApi, type Product } from '@/api/product'
+import { warehouseApi } from '@/api/warehouse'
 
 const loading = ref(false)
 const orders = ref<SalesOrder[]>([])
@@ -491,7 +548,19 @@ const handleApprove = async (row: SalesOrder) => {
 }
 
 const handleDeliver = (row: SalesOrder) => {
-  ElMessage.info(`创建发货单功能开发中: ${row.order_no}`)
+  deliveryForm.value = {
+    order_id: row.id,
+    order_no: row.order_no,
+    customer_name: row.customer_name,
+    delivery_date: new Date().toISOString().split('T')[0],
+    warehouse_id: undefined,
+    items: (row.items || []).map((item: any) => ({
+      ...item,
+      deliver_quantity: 0,
+      remarks: ''
+    }))
+  }
+  deliveryDialogVisible.value = true
 }
 
 const handleCancel = async (row: SalesOrder) => {
@@ -580,13 +649,73 @@ const handleSubmit = async () => {
 }
 
 const handleExport = () => {
-  ElMessage.info('导出功能开发中')
+  const csvContent = [
+    ['订单号', '客户', '订单日期', '金额', '状态', '创建时间'],
+    ...orders.value.map((item: any) => [item.order_no, item.customer_name, item.order_date, item.total_amount, getStatusText(item.status), item.created_at])
+  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `销售订单_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+// 发货相关
+const deliveryDialogVisible = ref(false)
+const deliveryForm = ref({
+  order_id: 0,
+  order_no: '',
+  customer_name: '',
+  delivery_date: new Date().toISOString().split('T')[0],
+  warehouse_id: undefined as number | undefined,
+  items: [] as any[]
+})
+
+const warehouses = ref<any[]>([])
+
+const fetchWarehouses = async () => {
+  try {
+    const res = await warehouseApi.list({ page_size: 1000 })
+    warehouses.value = res.data!.list || []
+  } catch (error) {
+    console.error('获取仓库列表失败:', error)
+  }
+}
+
+const submitDelivery = async () => {
+  if (!deliveryForm.value.warehouse_id) {
+    ElMessage.warning('请选择发货仓库')
+    return
+  }
+  const validItems = deliveryForm.value.items.filter(item => item.deliver_quantity > 0)
+  if (validItems.length === 0) {
+    ElMessage.warning('请填写至少一项发货数量')
+    return
+  }
+  try {
+    await salesApi.createDelivery(deliveryForm.value.order_id, {
+      delivery_date: deliveryForm.value.delivery_date,
+      warehouse_id: deliveryForm.value.warehouse_id,
+      items: validItems.map(item => ({
+        product_id: item.product_id,
+        quantity: item.deliver_quantity,
+        remarks: item.remarks
+      }))
+    })
+    ElMessage.success('发货成功')
+    deliveryDialogVisible.value = false
+    fetchData()
+  } catch (error: any) {
+    ElMessage.error(error.message || '发货失败')
+  }
 }
 
 onMounted(() => {
   fetchData()
   fetchCustomers()
   fetchProducts()
+  fetchWarehouses()
 })
 </script>
 

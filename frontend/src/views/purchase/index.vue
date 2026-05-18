@@ -168,6 +168,157 @@
         />
       </div>
     </el-card>
+
+    <!-- 新建采购单对话框 -->
+    <el-dialog v-model="createDialogVisible" title="新建采购单" width="800px">
+      <el-form :model="createForm" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="供应商" required>
+              <el-select v-model="createForm.supplier_id" placeholder="选择供应商" style="width: 100%">
+                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="订单日期" required>
+              <el-date-picker v-model="createForm.order_date" type="date" placeholder="选择日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="要求交货日期">
+              <el-date-picker v-model="createForm.required_date" type="date" placeholder="选择日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="备注">
+              <el-input v-model="createForm.remarks" placeholder="请输入备注" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="采购明细">
+          <div class="items-table">
+            <div class="items-header">
+              <span class="col-product">产品</span>
+              <span class="col-qty">数量</span>
+              <span class="col-price">单价</span>
+              <span class="col-amount">金额</span>
+              <span class="col-action">操作</span>
+            </div>
+            <div v-for="(item, index) in createForm.items" :key="index" class="items-row">
+              <el-select v-model="item.product_id" placeholder="选择产品" class="col-product" @change="handleProductSelect(index)">
+                <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+              </el-select>
+              <el-input-number v-model="item.quantity" :min="1" class="col-qty" @change="calculateSubtotal(item)" />
+              <el-input-number v-model="item.unit_price" :min="0" :precision="2" class="col-price" @change="calculateSubtotal(item)" />
+              <el-input-number v-model="item.subtotal" :precision="2" class="col-amount" readonly />
+              <el-button v-if="createForm.items.length > 1" size="small" type="danger" @click="removeItem(index)">删除</el-button>
+            </div>
+            <el-button type="text" @click="addItem">+ 添加明细</el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="合计金额">
+          <span class="total-amount">¥{{ calculateTotal().toLocaleString() }}</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitCreate">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 收货对话框 -->
+    <el-dialog v-model="receiveDialogVisible" title="采购收货" width="800px">
+      <el-form :model="receiveForm" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="采购单号">
+              <el-input v-model="receiveForm.order_no" readonly />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="供应商">
+              <el-input v-model="receiveForm.supplier_name" readonly />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="收货日期" required>
+              <el-date-picker v-model="receiveForm.receive_date" type="date" placeholder="选择日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="仓库" required>
+              <el-select v-model="receiveForm.warehouse_id" placeholder="选择仓库" style="width: 100%">
+                <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouse_name" :value="w.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="收货明细">
+          <el-table :data="receiveForm.items" border style="width: 100%">
+            <el-table-column prop="product_name" label="产品" width="150" />
+            <el-table-column prop="ordered_quantity" label="订购数量" width="100" />
+            <el-table-column prop="received_quantity" label="已收货" width="100" />
+            <el-table-column label="本次收货" width="120">
+              <template #default="{ row }">
+                <el-input-number v-model="row.receive_quantity" :min="0" :max="row.ordered_quantity - row.received_quantity" size="small" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="unit_price" label="单价" width="100" />
+            <el-table-column label="备注" min-width="150">
+              <template #default="{ row }">
+                <el-input v-model="row.remarks" size="small" placeholder="备注" />
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="receiveDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReceive">确定收货</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 查看采购单对话框 -->
+    <el-dialog v-model="viewDialogVisible" title="采购单详情" width="800px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="采购单号">{{ viewData.order_no }}</el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
+        <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
+        <el-descriptions-item label="要求交货日期">{{ viewData.required_date }}</el-descriptions-item>
+        <el-descriptions-item label="订单金额">¥{{ viewData.total_amount?.toLocaleString() }}</el-descriptions-item>
+        <el-descriptions-item label="已收货金额">¥{{ (viewData.received_amount || 0).toLocaleString() }}</el-descriptions-item>
+        <el-descriptions-item label="付款状态">
+          <el-tag :type="getPaymentStatusType(viewData.payment_status)">{{ getPaymentStatusText(viewData.payment_status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="订单状态">
+          <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ viewData.creator_name }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ viewData.created_at }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ viewData.remarks || '无' }}</el-descriptions-item>
+      </el-descriptions>
+      <div style="margin-top: 20px">
+        <h4>采购明细</h4>
+        <el-table :data="viewData.items || []" border style="width: 100%">
+          <el-table-column prop="product_name" label="产品" width="150" />
+          <el-table-column prop="product_code" label="产品编码" width="120" />
+          <el-table-column prop="quantity" label="数量" width="100" />
+          <el-table-column prop="unit_price" label="单价" width="100" />
+          <el-table-column prop="subtotal" label="金额" width="120" />
+          <el-table-column prop="received_quantity" label="已收货" width="100" />
+          <el-table-column prop="remarks" label="备注" />
+        </el-table>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -178,10 +329,14 @@ import { Plus, Search, Refresh, Document, Money, Clock, OfficeBuilding, Printer,
 import printJS from 'print-js'
 import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
 import { supplierApi, type Supplier } from '@/api/supplier'
+import { productApi, type Product } from '@/api/product'
+import { warehouseApi, type Warehouse } from '@/api/warehouse'
 
 const loading = ref(false)
 const orders = ref<PurchaseOrder[]>([])
 const suppliers = ref<Supplier[]>([])
+const products = ref<Product[]>([])
+const warehouses = ref<Warehouse[]>([])
 const total = ref(0)
 
 const stats = ref({
@@ -198,6 +353,31 @@ const queryParams = reactive({
   supplier_id: undefined as number | undefined,
   status: ''
 })
+
+// 新建采购单对话框
+const createDialogVisible = ref(false)
+const createForm = ref({
+  supplier_id: undefined as number | undefined,
+  order_date: new Date().toISOString().split('T')[0],
+  required_date: '',
+  remarks: '',
+  items: [{ product_id: undefined as number | undefined, quantity: 1, unit_price: 0, subtotal: 0 }]
+})
+
+// 收货对话框
+const receiveDialogVisible = ref(false)
+const receiveForm = ref({
+  order_id: 0,
+  order_no: '',
+  supplier_name: '',
+  receive_date: new Date().toISOString().split('T')[0],
+  warehouse_id: undefined as number | undefined,
+  items: [] as any[]
+})
+
+// 查看对话框
+const viewDialogVisible = ref(false)
+const viewData = ref<any>({})
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 0 }).format(amount)
@@ -253,15 +433,41 @@ const fetchSuppliers = async () => {
   }
 }
 
+const fetchProducts = async () => {
+  try {
+    const res = await productApi.list({ page_size: 1000 })
+    products.value = res.data!.list || []
+  } catch (error) {
+    console.error('获取产品列表失败:', error)
+  }
+}
+
+const fetchWarehouses = async () => {
+  try {
+    const res = await warehouseApi.list({ page_size: 1000 })
+    warehouses.value = res.data!.list || []
+  } catch (error) {
+    console.error('获取仓库列表失败:', error)
+  }
+}
+
 const handleQuery = () => { queryParams.page = 1; fetchData() }
 const handleReset = () => { queryParams.keyword = ''; queryParams.supplier_id = undefined; queryParams.status = ''; handleQuery() }
 
-const handleCreate = () => { 
-  ElMessage.info('新建采购单功能开发中') 
+const handleCreate = () => {
+  createForm.value = {
+    supplier_id: undefined,
+    order_date: new Date().toISOString().split('T')[0],
+    required_date: '',
+    remarks: '',
+    items: [{ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 }]
+  }
+  createDialogVisible.value = true
 }
 
 const handleView = (row: PurchaseOrder) => {
-  ElMessage.info(`查看采购单: ${row.order_no}`)
+  viewData.value = row
+  viewDialogVisible.value = true
 }
 
 const handleApprove = async (row: PurchaseOrder) => {
@@ -278,8 +484,21 @@ const handleApprove = async (row: PurchaseOrder) => {
 }
 
 const handleReceive = (row: PurchaseOrder) => {
-  ElMessage.info(`收货功能开发中: ${row.order_no}`)
+  receiveForm.value = {
+    order_id: row.id,
+    order_no: row.order_no,
+    supplier_name: row.supplier_name,
+    receive_date: new Date().toISOString().split('T')[0],
+    warehouse_id: undefined,
+    items: (row.items || []).map((item: any) => ({
+      ...item,
+      receive_quantity: 0,
+      remarks: ''
+    }))
+  }
+  receiveDialogVisible.value = true
 }
+
 const handlePrint = () => {
   const printData = orders.value.map((item: any, index: number) => ({
     '序号': index + 1,
@@ -314,7 +533,104 @@ const handleExport = () => {
   ElMessage.success('导出成功')
 }
 
-onMounted(() => { fetchData(); fetchSuppliers() })
+// 新建采购单相关函数
+const addItem = () => {
+  createForm.value.items.push({ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 })
+}
+
+const removeItem = (index: number) => {
+  if (createForm.value.items.length > 1) {
+    createForm.value.items.splice(index, 1)
+  }
+}
+
+const handleProductSelect = (index: number) => {
+  const product = products.value.find(p => p.id === createForm.value.items[index].product_id)
+  if (product) {
+    createForm.value.items[index].unit_price = product.price || 0
+    calculateSubtotal(createForm.value.items[index])
+  }
+}
+
+const calculateSubtotal = (item: any) => {
+  item.subtotal = (item.quantity || 0) * (item.unit_price || 0)
+}
+
+const calculateTotal = () => {
+  return createForm.value.items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0)
+}
+
+const submitCreate = async () => {
+  if (!createForm.value.supplier_id) {
+    ElMessage.warning('请选择供应商')
+    return
+  }
+  if (!createForm.value.order_date) {
+    ElMessage.warning('请选择订单日期')
+    return
+  }
+  const validItems = createForm.value.items.filter(item => item.product_id && item.quantity > 0)
+  if (validItems.length === 0) {
+    ElMessage.warning('请至少添加一条有效的采购明细')
+    return
+  }
+  try {
+    await purchaseApi.createOrder({
+      ...createForm.value,
+      items: validItems.map(item => ({
+        id: 0,
+        product_id: item.product_id!,
+        product_name: '',
+        product_code: '',
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal
+      })),
+      total_amount: calculateTotal()
+    })
+    ElMessage.success('采购单创建成功')
+    createDialogVisible.value = false
+    fetchData()
+  } catch (error: any) {
+    ElMessage.error(error.message || '创建失败')
+  }
+}
+
+const submitReceive = async () => {
+  if (!receiveForm.value.warehouse_id) {
+    ElMessage.warning('请选择收货仓库')
+    return
+  }
+  const validItems = receiveForm.value.items.filter(item => item.receive_quantity > 0)
+  if (validItems.length === 0) {
+    ElMessage.warning('请填写至少一项收货数量')
+    return
+  }
+  try {
+    await purchaseApi.createReceipt({
+      order_id: receiveForm.value.order_id,
+      receive_date: receiveForm.value.receive_date,
+      warehouse_id: receiveForm.value.warehouse_id,
+      items: validItems.map(item => ({
+        product_id: item.product_id,
+        quantity: item.receive_quantity,
+        remarks: item.remarks
+      }))
+    })
+    ElMessage.success('收货成功')
+    receiveDialogVisible.value = false
+    fetchData()
+  } catch (error: any) {
+    ElMessage.error(error.message || '收货失败')
+  }
+}
+
+onMounted(() => { 
+  fetchData(); 
+  fetchSuppliers()
+  fetchProducts()
+  fetchWarehouses()
+})
 </script>
 
 <style scoped>
@@ -346,4 +662,11 @@ onMounted(() => { fetchData(); fetchSuppliers() })
 .amount { font-weight: 600; color: #f56c6c; }
 :deep(.el-card__header) { padding: 16px 20px; border-bottom: 1px solid #ebeef5; }
 :deep(.el-card__body) { padding: 20px; }
+.items-table { border: 1px solid #ebeef5; border-radius: 4px; }
+.items-header { display: flex; background: #f5f7fa; padding: 10px; font-weight: bold; }
+.items-row { display: flex; padding: 10px; border-top: 1px solid #ebeef5; }
+.col-product { flex: 2; margin-right: 10px; }
+.col-qty, .col-price, .col-amount { width: 100px; margin-right: 10px; }
+.col-action { width: 60px; }
+.total-amount { font-size: 20px; font-weight: 600; color: #f56c6c; }
 </style>

@@ -329,6 +329,29 @@
         <el-button type="primary" :loading="verificationSubmitLoading" @click="submitVerification">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 生成对账单对话框 -->
+    <el-dialog v-model="reconciliationDialogVisible" title="生成对账单" width="500px">
+      <el-form :model="reconciliationForm" label-width="100px">
+        <el-form-item label="供应商" required>
+          <el-select v-model="reconciliationForm.supplier_id" placeholder="选择供应商" style="width: 100%">
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="开始日期" required>
+          <el-date-picker v-model="reconciliationForm.start_date" type="date" placeholder="选择开始日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="结束日期" required>
+          <el-date-picker v-model="reconciliationForm.end_date" type="date" placeholder="选择结束日期" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="reconciliationDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReconciliation">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -341,7 +364,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { listAPInvoices, createAPInvoice, approveAPInvoice, cancelAPInvoice, type APInvoice } from '@/api/ap'
 import { listAPPayments, createAPPayment, confirmAPPayment, type APPayment } from '@/api/ap'
 import { listAPVerifications, manualVerifyAP, type APVerification } from '@/api/ap'
-import { listAPReconciliations, confirmAPReconciliation, disputeAPReconciliation, type APReconciliation } from '@/api/ap'
+import { listAPReconciliations, confirmAPReconciliation, disputeAPReconciliation, generateAPReconciliation, type APReconciliation } from '@/api/ap'
 import { listSuppliers, type Supplier } from '@/api/supplier'
 
 const activeTab = ref('invoice')
@@ -651,8 +674,39 @@ const submitVerification = async () => {
   }
 }
 
-const generateReconciliation = () => {
-  ElMessage.info('生成对账单功能开发中')
+const generateReconciliation = async () => {
+  reconciliationForm.value = {
+    supplier_id: undefined,
+    start_date: '',
+    end_date: ''
+  }
+  reconciliationDialogVisible.value = true
+}
+
+const reconciliationDialogVisible = ref(false)
+const reconciliationForm = ref({
+  supplier_id: undefined as number | undefined,
+  start_date: '',
+  end_date: ''
+})
+
+const submitReconciliation = async () => {
+  if (!reconciliationForm.value.supplier_id || !reconciliationForm.value.start_date || !reconciliationForm.value.end_date) {
+    ElMessage.warning('请填写完整信息')
+    return
+  }
+  try {
+    await generateAPReconciliation({
+      supplier_id: reconciliationForm.value.supplier_id,
+      start_date: reconciliationForm.value.start_date,
+      end_date: reconciliationForm.value.end_date
+    })
+    ElMessage.success('对账单生成成功')
+    reconciliationDialogVisible.value = false
+    fetchReconciliations()
+  } catch (error: any) {
+    ElMessage.error(error.message || '生成失败')
+  }
 }
 
 const confirmReconciliation = async (row: APReconciliation) => {

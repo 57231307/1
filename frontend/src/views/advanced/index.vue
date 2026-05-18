@@ -165,23 +165,62 @@
             </el-table-column>
             <el-table-column prop="subscription_start_date" label="开始日期" width="120" />
             <el-table-column prop="subscription_end_date" label="结束日期" width="120" />
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="updateTenantStatus(row)">更新状态</el-button>
+                <el-button type="primary" link size="small" @click="openTenantDialog(row)">编辑</el-button>
+                <el-button type="warning" link size="small" @click="updateTenantStatus(row)">更新状态</el-button>
+                <el-button type="danger" link size="small" @click="deleteTenant(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
         </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 租户对话框 -->
+    <el-dialog v-model="tenantDialogVisible" :title="tenantDialogTitle" width="600px">
+      <el-form :model="tenantForm" label-width="100px">
+        <el-form-item label="租户名称" required>
+          <el-input v-model="tenantForm.name" placeholder="请输入租户名称" />
+        </el-form-item>
+        <el-form-item label="租户编码" required>
+          <el-input v-model="tenantForm.code" placeholder="请输入租户编码" />
+        </el-form-item>
+        <el-form-item label="联系人">
+          <el-input v-model="tenantForm.contact_person" placeholder="请输入联系人" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="tenantForm.contact_phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="tenantForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="地址">
+          <el-input v-model="tenantForm.address" placeholder="请输入地址" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="tenantForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="正常" value="active" />
+            <el-option label="停用" value="inactive" />
+            <el-option label="暂停" value="suspended" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="tenantDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitTenant">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { forecastSales, optimizeInventory, detectAnomalies, getRecommendations as getRecommendationsApi, listReportTemplates, executeReport as executeReportApi, listTenants } from '@/api/advanced'
+import { forecastSales, optimizeInventory, detectAnomalies, getRecommendations as getRecommendationsApi, listReportTemplates, executeReport as executeReportApi, listTenants, createTenant, updateTenant, deleteTenant as deleteTenantApi } from '@/api/advanced'
 
 const activeTab = ref('ai')
 const forecastPeriod = ref('3m')
@@ -295,8 +334,73 @@ const fetchTenants = async () => {
   }
 }
 
-const openTenantDialog = () => ElMessage.info('新建租户功能开发中')
-const updateTenantStatus = (_row: any) => ElMessage.info('更新租户状态功能开发中')
+const openTenantDialog = (row?: any) => {
+  if (row) {
+    tenantDialogTitle.value = '编辑租户'
+    tenantForm.value = { ...row }
+  } else {
+    tenantDialogTitle.value = '新建租户'
+    tenantForm.value = {
+      id: null,
+      name: '',
+      code: '',
+      contact_person: '',
+      contact_phone: '',
+      email: '',
+      address: '',
+      status: 'active'
+    }
+  }
+  tenantDialogVisible.value = true
+}
+
+const updateTenantStatus = async (row: any) => {
+  try {
+    const newStatus = row.status === 'active' ? 'inactive' : 'active'
+    await ElMessageBox.confirm(`确定${newStatus === 'active' ? '启用' : '禁用'}租户 "${row.name}" 吗？`, '确认', { type: 'warning' })
+    await updateTenant(row.id, { status: newStatus })
+    ElMessage.success('状态更新成功')
+    fetchTenants()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+const tenantDialogVisible = ref(false)
+const tenantDialogTitle = ref('新建租户')
+const tenantForm = ref({
+  id: null as number | null,
+  name: '',
+  code: '',
+  contact_person: '',
+  contact_phone: '',
+  email: '',
+  address: '',
+  status: 'active'
+})
+
+const submitTenant = async () => {
+  try {
+    if (tenantForm.value.id) {
+      await updateTenant(tenantForm.value.id, tenantForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createTenant(tenantForm.value)
+      ElMessage.success('创建成功')
+    }
+    tenantDialogVisible.value = false
+    fetchTenants()
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
+  }
+}
+
+const deleteTenant = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定删除租户 "${row.name}" 吗？`, '确认', { type: 'warning' })
+    await deleteTenantApi(row.id)
+    ElMessage.success('删除成功')
+    fetchTenants()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
 
 onMounted(() => {
   fetchReportTemplates()
