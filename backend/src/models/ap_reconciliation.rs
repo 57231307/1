@@ -63,10 +63,6 @@ pub struct Model {
     #[sea_orm(auto_time_on_create = true)]
     pub created_at: DateTime<Utc>,
 
-    /// 更新时间
-    #[sea_orm(auto_time_on_update = true)]
-    pub updated_at: DateTime<Utc>,
-
     /// 确认人 ID（供应商确认）
     pub confirmed_by: Option<i32>,
 
