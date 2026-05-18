@@ -16,20 +16,32 @@ impl CrmService {
 
     // --- Lead Methods ---
     pub async fn create_lead(&self, req: CreateLeadRequest, user_id: i32) -> Result<crm_lead::Model, AppError> {
-        let lead_no = format!("LD{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        let lead_no = req.lead_no.unwrap_or_else(|| format!("LD{}", chrono::Local::now().format("%Y%m%d%H%M%S")));
         
         let model = crm_lead::ActiveModel {
             lead_no: Set(lead_no),
-            name: Set(req.name),
-            customer_name: Set(req.customer_name),
-            contact_person: Set(req.contact_person),
-            contact_phone: Set(req.contact_phone),
+            lead_source: Set(req.lead_source),
+            lead_status: Set(req.lead_status.or_else(|| Some("new".to_string()))),
+            company_name: Set(req.company_name),
+            contact_name: Set(req.contact_name),
+            contact_title: Set(req.contact_title),
+            mobile_phone: Set(req.mobile_phone),
+            tel_phone: Set(req.tel_phone),
             email: Set(req.email),
+            wechat: Set(req.wechat),
+            qq: Set(req.qq),
             address: Set(req.address),
-            source: Set(req.source),
-            status: Set("NEW".to_string()),
-            remarks: Set(req.remarks),
-            created_by: Set(user_id),
+            product_interest: Set(req.product_interest),
+            estimated_quantity: Set(req.estimated_quantity),
+            estimated_amount: Set(req.estimated_amount),
+            expected_delivery_date: Set(req.expected_delivery_date),
+            requirement_desc: Set(req.requirement_desc),
+            owner_id: Set(user_id),
+            owner_name: Set("admin".to_string()),
+            priority: Set(req.priority.or_else(|| Some("medium".to_string()))),
+            rating: Set(req.rating.or_else(|| Some(0))),
+            tags: Set(req.tags),
+            created_by: Set(Some(user_id)),
             ..Default::default()
         };
 
@@ -42,8 +54,8 @@ impl CrmService {
         
         let mut stmt = crm_lead::Entity::find().order_by_desc(crm_lead::Column::CreatedAt);
         
-        if let Some(status) = query.status {
-            stmt = stmt.filter(crm_lead::Column::Status.eq(status));
+        if let Some(status) = query.lead_status {
+            stmt = stmt.filter(crm_lead::Column::LeadStatus.eq(status));
         }
         
         let paginator = stmt.paginate(&*self.db, page_size);
@@ -68,32 +80,65 @@ impl CrmService {
 
         let mut active: crm_lead::ActiveModel = lead.into();
 
-        if let Some(name) = req.name {
-            active.name = Set(name);
+        if let Some(lead_source) = req.lead_source {
+            active.lead_source = Set(lead_source);
         }
-        if let Some(customer_name) = req.customer_name {
-            active.customer_name = Set(Some(customer_name));
+        if let Some(lead_status) = req.lead_status {
+            active.lead_status = Set(Some(lead_status));
         }
-        if let Some(contact_person) = req.contact_person {
-            active.contact_person = Set(Some(contact_person));
+        if let Some(company_name) = req.company_name {
+            active.company_name = Set(Some(company_name));
         }
-        if let Some(contact_phone) = req.contact_phone {
-            active.contact_phone = Set(Some(contact_phone));
+        if let Some(contact_name) = req.contact_name {
+            active.contact_name = Set(contact_name);
+        }
+        if let Some(contact_title) = req.contact_title {
+            active.contact_title = Set(Some(contact_title));
+        }
+        if let Some(mobile_phone) = req.mobile_phone {
+            active.mobile_phone = Set(Some(mobile_phone));
+        }
+        if let Some(tel_phone) = req.tel_phone {
+            active.tel_phone = Set(Some(tel_phone));
         }
         if let Some(email) = req.email {
             active.email = Set(Some(email));
         }
+        if let Some(wechat) = req.wechat {
+            active.wechat = Set(Some(wechat));
+        }
+        if let Some(qq) = req.qq {
+            active.qq = Set(Some(qq));
+        }
         if let Some(address) = req.address {
             active.address = Set(Some(address));
         }
-        if let Some(source) = req.source {
-            active.source = Set(source);
+        if let Some(product_interest) = req.product_interest {
+            active.product_interest = Set(Some(product_interest));
         }
-        if let Some(remarks) = req.remarks {
-            active.remarks = Set(Some(remarks));
+        if let Some(estimated_quantity) = req.estimated_quantity {
+            active.estimated_quantity = Set(Some(estimated_quantity));
+        }
+        if let Some(estimated_amount) = req.estimated_amount {
+            active.estimated_amount = Set(Some(estimated_amount));
+        }
+        if let Some(expected_delivery_date) = req.expected_delivery_date {
+            active.expected_delivery_date = Set(Some(expected_delivery_date));
+        }
+        if let Some(requirement_desc) = req.requirement_desc {
+            active.requirement_desc = Set(Some(requirement_desc));
+        }
+        if let Some(priority) = req.priority {
+            active.priority = Set(Some(priority));
+        }
+        if let Some(rating) = req.rating {
+            active.rating = Set(Some(rating));
+        }
+        if let Some(tags) = req.tags {
+            active.tags = Set(Some(tags));
         }
 
-        active.updated_at = Set(chrono::Utc::now());
+        active.updated_at = Set(Some(chrono::Utc::now()));
         active.update(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
@@ -102,10 +147,8 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
-        let mut active: crm_lead::ActiveModel = lead.into();
-        active.is_deleted = Set(true);
-        active.updated_at = Set(chrono::Utc::now());
-        active.update(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let active: crm_lead::ActiveModel = lead.into();
+        active.delete(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(())
     }
 
@@ -115,8 +158,8 @@ impl CrmService {
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         let mut active: crm_lead::ActiveModel = lead.into();
-        active.status = Set(status.to_string());
-        active.updated_at = Set(chrono::Utc::now());
+        active.lead_status = Set(Some(status.to_string()));
+        active.updated_at = Set(Some(chrono::Utc::now()));
         active.update(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(())
     }
@@ -130,20 +173,20 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
-        if lead.status == "CONVERTED" {
+        if lead.lead_status.as_deref() == Some("converted") {
             return Err(AppError::BusinessError("该线索已转化".to_string()));
         }
 
         let customer_code = format!("CUST{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
-        let customer_name = lead.customer_name.clone().unwrap_or_else(|| lead.name.clone());
+        let customer_name = lead.company_name.clone().unwrap_or_else(|| lead.contact_name.clone());
         let customer_type = req.customer_type.unwrap_or_else(|| "retail".to_string());
 
         let customer_model = customer::ActiveModel {
             id: Default::default(),
             customer_code: Set(customer_code),
             customer_name: Set(customer_name),
-            contact_person: Set(lead.contact_person.clone()),
-            contact_phone: Set(lead.contact_phone.clone()),
+            contact_person: Set(Some(lead.contact_name.clone())),
+            contact_phone: Set(lead.mobile_phone.clone()),
             contact_email: Set(lead.email.clone()),
             address: Set(lead.address.clone()),
             city: Default::default(),
@@ -173,9 +216,10 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let mut lead_active: crm_lead::ActiveModel = lead.into();
-        lead_active.customer_id = Set(Some(customer.id));
-        lead_active.status = Set("CONVERTED".to_string());
-        lead_active.updated_at = Set(chrono::Utc::now());
+        lead_active.converted_customer_id = Set(Some(customer.id));
+        lead_active.lead_status = Set(Some("converted".to_string()));
+        lead_active.converted_at = Set(Some(chrono::Utc::now()));
+        lead_active.updated_at = Set(Some(chrono::Utc::now()));
         lead_active.update(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -187,21 +231,33 @@ impl CrmService {
 
     // --- Opportunity Methods ---
     pub async fn create_opportunity(&self, req: CreateOpportunityRequest, user_id: i32) -> Result<crm_opportunity::Model, AppError> {
-        let opp_no = format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        let opp_no = req.opportunity_no.unwrap_or_else(|| format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S")));
         
         let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let model = crm_opportunity::ActiveModel {
             opportunity_no: Set(opp_no),
-            name: Set(req.name),
+            opportunity_name: Set(req.opportunity_name),
             customer_id: Set(req.customer_id),
             lead_id: Set(req.lead_id),
-            amount: Set(req.amount),
+            opportunity_type: Set(req.opportunity_type),
+            opportunity_stage: Set(req.opportunity_stage.or_else(|| Some("prospecting".to_string()))),
+            win_probability: Set(req.win_probability),
+            estimated_amount: Set(req.estimated_amount),
+            actual_amount: Set(req.actual_amount),
+            currency: Set(req.currency.or_else(|| Some("CNY".to_string()))),
             expected_close_date: Set(req.expected_close_date),
-            stage: Set(req.stage),
-            source: Set(req.source),
-            remarks: Set(req.remarks),
-            created_by: Set(user_id),
+            actual_close_date: Set(req.actual_close_date),
+            product_ids: Set(req.product_ids),
+            product_names: Set(req.product_names),
+            product_desc: Set(req.product_desc),
+            owner_id: Set(user_id),
+            owner_name: Set("admin".to_string()),
+            opportunity_status: Set(Some("open".to_string())),
+            priority: Set(req.priority.or_else(|| Some("medium".to_string()))),
+            rating: Set(req.rating.or_else(|| Some(0))),
+            tags: Set(req.tags),
+            created_by: Set(Some(user_id)),
             ..Default::default()
         };
 
@@ -211,7 +267,9 @@ impl CrmService {
         if let Some(lead_id) = req.lead_id {
             if let Some(lead) = crm_lead::Entity::find_by_id(lead_id).one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))? {
                 let mut active_lead: crm_lead::ActiveModel = lead.into();
-                active_lead.status = Set("CONVERTED".to_string());
+                active_lead.lead_status = Set(Some("converted".to_string()));
+                active_lead.converted_opportunity_id = Set(Some(opp.id));
+                active_lead.updated_at = Set(Some(chrono::Utc::now()));
                 active_lead.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
             }
         }
@@ -226,8 +284,8 @@ impl CrmService {
         
         let mut stmt = crm_opportunity::Entity::find().order_by_desc(crm_opportunity::Column::CreatedAt);
         
-        if let Some(stage) = query.stage {
-            stmt = stmt.filter(crm_opportunity::Column::Stage.eq(stage));
+        if let Some(stage) = query.opportunity_stage {
+            stmt = stmt.filter(crm_opportunity::Column::OpportunityStage.eq(stage));
         }
         
         let paginator = stmt.paginate(&*self.db, page_size);
@@ -252,32 +310,59 @@ impl CrmService {
 
         let mut active: crm_opportunity::ActiveModel = opp.into();
 
-        if let Some(name) = req.name {
-            active.name = Set(name);
+        if let Some(opportunity_name) = req.opportunity_name {
+            active.opportunity_name = Set(opportunity_name);
         }
         if let Some(customer_id) = req.customer_id {
-            active.customer_id = Set(Some(customer_id));
+            active.customer_id = Set(customer_id);
         }
         if let Some(lead_id) = req.lead_id {
             active.lead_id = Set(Some(lead_id));
         }
-        if let Some(amount) = req.amount {
-            active.amount = Set(amount);
+        if let Some(opportunity_type) = req.opportunity_type {
+            active.opportunity_type = Set(Some(opportunity_type));
+        }
+        if let Some(opportunity_stage) = req.opportunity_stage {
+            active.opportunity_stage = Set(Some(opportunity_stage));
+        }
+        if let Some(win_probability) = req.win_probability {
+            active.win_probability = Set(Some(win_probability));
+        }
+        if let Some(estimated_amount) = req.estimated_amount {
+            active.estimated_amount = Set(Some(estimated_amount));
+        }
+        if let Some(actual_amount) = req.actual_amount {
+            active.actual_amount = Set(Some(actual_amount));
+        }
+        if let Some(currency) = req.currency {
+            active.currency = Set(Some(currency));
         }
         if let Some(expected_close_date) = req.expected_close_date {
             active.expected_close_date = Set(Some(expected_close_date));
         }
-        if let Some(stage) = req.stage {
-            active.stage = Set(stage);
+        if let Some(actual_close_date) = req.actual_close_date {
+            active.actual_close_date = Set(Some(actual_close_date));
         }
-        if let Some(source) = req.source {
-            active.source = Set(Some(source));
+        if let Some(product_ids) = req.product_ids {
+            active.product_ids = Set(Some(product_ids));
         }
-        if let Some(remarks) = req.remarks {
-            active.remarks = Set(Some(remarks));
+        if let Some(product_names) = req.product_names {
+            active.product_names = Set(Some(product_names));
+        }
+        if let Some(product_desc) = req.product_desc {
+            active.product_desc = Set(Some(product_desc));
+        }
+        if let Some(priority) = req.priority {
+            active.priority = Set(Some(priority));
+        }
+        if let Some(rating) = req.rating {
+            active.rating = Set(Some(rating));
+        }
+        if let Some(tags) = req.tags {
+            active.tags = Set(Some(tags));
         }
 
-        active.updated_at = Set(chrono::Utc::now());
+        active.updated_at = Set(Some(chrono::Utc::now()));
         active.update(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))
     }
 
@@ -286,10 +371,8 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
 
-        let mut active: crm_opportunity::ActiveModel = opp.into();
-        active.is_deleted = Set(true);
-        active.updated_at = Set(chrono::Utc::now());
-        active.update(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let active: crm_opportunity::ActiveModel = opp.into();
+        active.delete(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(())
     }
 
@@ -306,22 +389,22 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total_amount: rust_decimal::Decimal = opportunities.iter()
-            .map(|o| o.amount)
+            .filter_map(|o| o.estimated_amount)
             .sum();
 
         Ok(LeadRelationInfo {
             lead_id: lead.id,
             lead_no: lead.lead_no,
-            lead_name: lead.name,
-            lead_status: lead.status,
+            lead_name: lead.contact_name,
+            lead_status: lead.lead_status.unwrap_or_default(),
             opportunity_count: opportunities.len() as i32,
             total_opportunity_amount: total_amount,
             opportunities: opportunities.into_iter().map(|o| OpportunityBrief {
                 id: o.id,
                 opportunity_no: o.opportunity_no,
-                name: o.name,
-                amount: Some(o.amount),
-                stage: Some(o.stage),
+                name: o.opportunity_name,
+                amount: o.estimated_amount,
+                stage: o.opportunity_stage,
                 expected_close_date: o.expected_close_date,
             }).collect(),
         })
@@ -335,12 +418,12 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total_amount: rust_decimal::Decimal = opportunities.iter()
-            .map(|o| o.amount)
+            .filter_map(|o| o.estimated_amount)
             .sum();
 
         let won_amount: rust_decimal::Decimal = opportunities.iter()
-            .filter(|o| o.stage == "WON")
-            .map(|o| o.amount)
+            .filter(|o| o.opportunity_stage.as_deref() == Some("closed_won"))
+            .filter_map(|o| o.estimated_amount)
             .sum();
 
         Ok(CustomerRelationSummary {
@@ -348,10 +431,10 @@ impl CrmService {
             opportunity_count: opportunities.len() as i32,
             total_amount,
             won_amount,
-            won_count: opportunities.iter().filter(|o| o.stage == "WON").count() as i32,
-            lost_count: opportunities.iter().filter(|o| o.stage == "LOST").count() as i32,
+            won_count: opportunities.iter().filter(|o| o.opportunity_stage.as_deref() == Some("closed_won")).count() as i32,
+            lost_count: opportunities.iter().filter(|o| o.opportunity_stage.as_deref() == Some("closed_lost")).count() as i32,
             open_count: opportunities.iter().filter(|o| {
-                o.stage != "WON" && o.stage != "LOST"
+                o.opportunity_stage.as_deref() != Some("closed_won") && o.opportunity_stage.as_deref() != Some("closed_lost")
             }).count() as i32,
         })
     }
