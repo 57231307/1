@@ -297,6 +297,10 @@ const routes = [
     ]
   },
   {
+    path: '/workflow',
+    redirect: '/bpm'
+  },
+  {
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),

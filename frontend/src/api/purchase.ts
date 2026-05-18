@@ -47,37 +47,37 @@ export interface PurchaseOrderQueryParams {
 
 export const purchaseApi = {
   getOrderList: (params?: PurchaseOrderQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchase/orders', {
+    request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchases/orders', {
       params,
     }),
 
   getOrderById: (id: number) =>
-    request.get<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`),
+    request.get<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`),
 
   createOrder: (data: Partial<PurchaseOrder>) =>
-    request.post<ApiResponse<PurchaseOrder>>('/purchase/orders', data),
+    request.post<ApiResponse<PurchaseOrder>>('/purchases/orders', data),
 
   updateOrder: (id: number, data: Partial<PurchaseOrder>) =>
-    request.put<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`, data),
+    request.put<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`, data),
 
   deleteOrder: (id: number) =>
-    request.delete<ApiResponse<null>>(`/purchase/orders/${id}`),
+    request.delete<ApiResponse<null>>(`/purchases/orders/${id}`),
 
   submitOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/purchase/orders/${id}/submit`),
+    request.post<ApiResponse<null>>(`/purchases/orders/${id}/submit`),
 
   approveOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/purchase/orders/${id}/approve`),
+    request.post<ApiResponse<null>>(`/purchases/orders/${id}/approve`),
 
   rejectOrder: (id: number, reason: string) =>
-    request.post<ApiResponse<null>>(`/purchase/orders/${id}/reject`, { reason }),
+    request.post<ApiResponse<null>>(`/purchases/orders/${id}/reject`, { reason }),
 
   getReceipts: (params?: any) =>
-    request.get<ApiResponse<{ list: any[]; total: number }>>('/purchase/receipts', { params }),
+    request.get<ApiResponse<{ list: any[]; total: number }>>('/purchases/receipts', { params }),
 
   createReceipt: (data: any) =>
-    request.post<ApiResponse<any>>('/purchase/receipts', data),
+    request.post<ApiResponse<any>>('/purchases/receipts', data),
 
   receiveItems: (receiptId: number, data: any) =>
-    request.post<ApiResponse<any>>(`/purchase/receipts/${receiptId}/receive`, data),
+    request.post<ApiResponse<any>>(`/purchases/receipts/${receiptId}/receive`, data),
 }

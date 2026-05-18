@@ -49,41 +49,41 @@ export interface QueryParams {
 }
 
 export function listPurchaseReceipts(params?: QueryParams) {
-  return request.get('/purchase-receipt', { params })
+  return request.get('/purchases/receipts', { params })
 }
 
 export function getPurchaseReceipt(id: number) {
-  return request.get(`/purchase-receipt/${id}`)
+  return request.get(`/purchases/receipts/${id}`)
 }
 
 export function createPurchaseReceipt(data: Partial<PurchaseReceiptEntity>) {
-  return request.post('/purchase-receipt', data)
+  return request.post('/purchases/receipts', data)
 }
 
 export function updatePurchaseReceipt(id: number, data: Partial<PurchaseReceiptEntity>) {
-  return request.put(`/purchase-receipt/${id}`, data)
+  return request.put(`/purchases/receipts/${id}`, data)
 }
 
 export function deletePurchaseReceipt(id: number) {
-  return request.delete(`/purchase-receipt/${id}`)
+  return request.delete(`/purchases/receipts/${id}`)
 }
 
 export function approvePurchaseReceipt(id: number) {
-  return request.patch(`/purchase-receipt/${id}/approve`)
+  return request.patch(`/purchases/receipts/${id}/approve`)
 }
 
 export function getReceiptItems(id: number) {
-  return request.get(`/purchase-receipt/${id}/items`)
+  return request.get(`/purchases/receipts/${id}/items`)
 }
 
 export function addReceiptItem(id: number, data: Partial<ReceiptItem>) {
-  return request.post(`/purchase-receipt/${id}/items`, data)
+  return request.post(`/purchases/receipts/${id}/items`, data)
 }
 
 export function updateReceiptItem(itemId: number, data: Partial<ReceiptItem>) {
-  return request.put(`/purchase-receipt/items/${itemId}`, data)
+  return request.put(`/purchases/receipts/items/${itemId}`, data)
 }
 
 export function deleteReceiptItem(itemId: number) {
-  return request.delete(`/purchase-receipt/items/${itemId}`)
+  return request.delete(`/purchases/receipts/items/${itemId}`)
 }

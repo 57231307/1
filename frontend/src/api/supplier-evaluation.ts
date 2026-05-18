@@ -62,31 +62,31 @@ export interface CreateEvaluationRequest {
 }
 
 export function listIndicators(params?: QueryParams) {
-  return request.get('/supplier-evaluation/indicators', { params })
+  return request.get('/supplier-evaluation/evaluations/indicators', { params })
 }
 
 export function createIndicator(data: CreateEvaluationIndicatorRequest) {
-  return request.post('/supplier-evaluation/indicators', data)
+  return request.post('/supplier-evaluation/evaluations/indicators', data)
 }
 
 export function listEvaluationRecords(params?: QueryParams) {
-  return request.get('/supplier-evaluation/records', { params })
+  return request.get('/supplier-evaluation/evaluations/records', { params })
 }
 
 export function getEvaluationRecord(id: number) {
-  return request.get(`/supplier-evaluation/records/${id}`)
+  return request.get(`/supplier-evaluation/evaluations/records/${id}`)
 }
 
 export function createEvaluationRecord(data: CreateEvaluationRequest) {
-  return request.post('/supplier-evaluation/records', data)
+  return request.post('/supplier-evaluation/evaluations/records', data)
 }
 
 export function getSupplierScore(supplierId: number) {
-  return request.get(`/supplier-evaluation/suppliers/${supplierId}/score`)
+  return request.get(`/supplier-evaluation/evaluations/suppliers/${supplierId}/score`)
 }
 
 export function getSupplierRankings(params?: { limit?: number }) {
-  return request.get('/supplier-evaluation/rankings', { params })
+  return request.get('/supplier-evaluation/evaluations/rankings', { params })
 }
 
 export function listEvaluations(params?: QueryParams) {
