@@ -5,7 +5,6 @@
 //! 仓库库位管理模块
 
 use chrono::{DateTime, Utc};
-use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -23,26 +22,20 @@ pub struct Model {
     /// 库位编码
     pub location_code: String,
 
-    /// 货架编号
-    pub shelf_no: String,
+    /// 库位类型
+    pub location_type: Option<String>,
 
-    /// 层编号
-    pub layer_no: String,
+    /// 最大承重
+    pub max_weight: Option<rust_decimal::Decimal>,
 
-    /// 位置编号
-    pub position_no: String,
+    /// 最大高度
+    pub max_height: Option<rust_decimal::Decimal>,
 
-    /// 最大容量
-    pub max_capacity: Decimal,
+    /// 是否批次管理
+    pub is_batch_managed: Option<bool>,
 
-    /// 当前使用量
-    pub current_usage: Decimal,
-
-    /// 备注
-    pub remarks: Option<String>,
-
-    /// 是否启用
-    pub is_active: bool,
+    /// 是否色号管理
+    pub is_color_managed: Option<bool>,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,

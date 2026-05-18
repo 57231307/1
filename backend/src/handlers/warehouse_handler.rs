@@ -75,11 +75,9 @@ pub struct LocationListQuery {
 pub struct CreateLocationRequest {
     pub warehouse_id: i32,
     pub location_code: String,
-    pub shelf_no: String,
-    pub layer_no: String,
-    pub position_no: String,
-    pub max_capacity: f64,
-    pub remarks: Option<String>,
+    pub location_type: Option<String>,
+    pub max_weight: Option<f64>,
+    pub max_height: Option<f64>,
 }
 
 /// 更新库位请求
@@ -137,15 +135,11 @@ pub async fn create_location(
         id: Default::default(),
         warehouse_id: sea_orm::ActiveValue::Set(req.warehouse_id),
         location_code: sea_orm::ActiveValue::Set(req.location_code),
-        shelf_no: sea_orm::ActiveValue::Set(req.shelf_no),
-        layer_no: sea_orm::ActiveValue::Set(req.layer_no),
-        position_no: sea_orm::ActiveValue::Set(req.position_no),
-        max_capacity: sea_orm::ActiveValue::Set(
-            rust_decimal::Decimal::from_f64_retain(req.max_capacity).unwrap_or_default(),
-        ),
-        current_usage: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-        remarks: sea_orm::ActiveValue::Set(req.remarks),
-        is_active: sea_orm::ActiveValue::Set(true),
+        location_type: sea_orm::ActiveValue::Set(req.location_type),
+        max_weight: sea_orm::ActiveValue::Set(req.max_weight.and_then(|v| rust_decimal::Decimal::from_f64_retain(v))),
+        max_height: sea_orm::ActiveValue::Set(req.max_height.and_then(|v| rust_decimal::Decimal::from_f64_retain(v))),
+        is_batch_managed: sea_orm::ActiveValue::Set(Some(true)),
+        is_color_managed: sea_orm::ActiveValue::Set(Some(true)),
         created_at: Default::default(),
         updated_at: Default::default(),
     };

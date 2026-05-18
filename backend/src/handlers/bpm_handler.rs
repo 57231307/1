@@ -94,8 +94,8 @@ pub async fn get_process_visualization(
             "business_type": instance.business_type,
             "business_id": instance.business_id,
             "status": instance.status,
-            "start_time": instance.start_time,
-            "end_time": instance.end_time,
+            "start_time": instance.started_at,
+            "end_time": instance.completed_at,
         },
         "definition": definition.map(|d| serde_json::json!({
             "id": d.id,

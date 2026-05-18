@@ -29,15 +29,14 @@ impl BpmService {
         let instance_model = bpm_process_instance::ActiveModel {
             process_definition_id: Set(definition.id),
             instance_no: Set(instance_no.clone()),
-            business_type: Set(Some(req.business_type.clone())),
-            business_id: Set(Some(req.business_id)),
-            business_no: Set(Some(req.business_id.to_string())),
+            business_type: Set(req.business_type.clone()),
+            business_id: Set(req.business_id),
+            title: Set(format!("流程审批-{}", req.business_id)),
             initiator_id: Set(req.initiator_id),
-            status: Set("PROCESSING".to_string()),
+            initiator_name: Set("".to_string()),
+            status: Set(Some("PROCESSING".to_string())),
             variables: Set(req.variables),
-            start_time: Set(chrono::Utc::now()),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
+            started_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
         };
         
@@ -86,8 +85,8 @@ impl BpmService {
                 } else {
                     // No task found, auto complete
                     let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
-                    instance_active.status = Set("COMPLETED".to_string());
-                    instance_active.end_time = Set(Some(chrono::Utc::now()));
+                    instance_active.status = Set(Some("COMPLETED".to_string()));
+                    instance_active.completed_at = Set(Some(chrono::Utc::now()));
                     instance_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
                     
                     crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::BpmProcessFinished {
@@ -143,12 +142,12 @@ impl BpmService {
         if req.action == "reject" {
             // End instance if rejected
             let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
-            instance_active.status = Set("TERMINATED".to_string());
-            instance_active.end_time = Set(Some(chrono::Utc::now()));
-            instance_active.updated_at = Set(chrono::Utc::now());
+            instance_active.status = Set(Some("TERMINATED".to_string()));
+            instance_active.completed_at = Set(Some(chrono::Utc::now()));
+            instance_active.updated_at = Set(Some(chrono::Utc::now()));
             instance_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
             
-            if let (Some(b_type), Some(b_id)) = (instance.business_type.clone(), instance.business_id) {
+            if let (Some(b_type), Some(b_id)) = (Some(instance.business_type.clone()), Some(instance.business_id)) {
                 crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                     business_type: b_type,
                     business_id: b_id,
@@ -198,12 +197,11 @@ impl BpmService {
             if !next_task_created {
                 // No more user tasks, instance is completed
                 let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
-                instance_active.status = Set("COMPLETED".to_string());
-                instance_active.end_time = Set(Some(chrono::Utc::now()));
-                instance_active.updated_at = Set(chrono::Utc::now());
+                instance_active.status = Set(Some("COMPLETED".to_string()));
+                instance_active.completed_at = Set(Some(chrono::Utc::now()));
                 instance_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
                 
-                if let (Some(b_type), Some(b_id)) = (instance.business_type.clone(), instance.business_id) {
+                if let (Some(b_type), Some(b_id)) = (Some(instance.business_type.clone()), Some(instance.business_id)) {
                     crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                         business_type: b_type,
                         business_id: b_id,
@@ -262,9 +260,9 @@ impl BpmService {
                 has_process: true,
                 instance_id: inst.id,
                 instance_no: inst.instance_no,
-                process_status: inst.status,
-                start_time: inst.start_time,
-                end_time: inst.end_time,
+                process_status: inst.status.unwrap_or_default(),
+                started_at: inst.started_at.unwrap_or_default(),
+                completed_at: inst.completed_at,
                 task_count: tasks.len() as i32,
                 completed_tasks: tasks.iter().filter(|t| t.status == "COMPLETED").count() as i32,
                 pending_tasks: tasks.iter().filter(|t| t.status == "PENDING").count() as i32,
@@ -275,8 +273,8 @@ impl BpmService {
                 instance_id: 0,
                 instance_no: String::new(),
                 process_status: "NONE".to_string(),
-                start_time: chrono::Utc::now(),
-                end_time: None,
+                started_at: chrono::Utc::now(),
+                completed_at: None,
                 task_count: 0,
                 completed_tasks: 0,
                 pending_tasks: 0,
@@ -418,10 +416,10 @@ impl BpmService {
         // 计算平均流程处理时长（分钟）
         let avg_duration = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
-            .filter(bpm_process_instance::Column::EndTime.is_not_null())
+            .filter(bpm_process_instance::Column::CompletedAt.is_not_null())
             .select_only()
             .column_as(
-                sea_orm::sea_query::Expr::cust("AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60)"),
+                sea_orm::sea_query::Expr::cust("AVG(EXTRACT(EPOCH FROM (completed_at - started_at)) / 60)"),
                 "avg_duration"
             )
             .into_tuple::<Option<f64>>()
@@ -576,8 +574,8 @@ pub struct BpmBusinessRelation {
     pub instance_id: i32,
     pub instance_no: String,
     pub process_status: String,
-    pub start_time: chrono::DateTime<chrono::Utc>,
-    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub task_count: i32,
     pub completed_tasks: i32,
     pub pending_tasks: i32,
