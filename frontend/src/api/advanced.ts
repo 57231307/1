@@ -21,3 +21,12 @@ export const executeReport = (template_code: string) =>
 
 export const listTenants = () => 
   request.get('/advanced/tenants')
+
+export const createTenant = (data: any) => 
+  request.post('/advanced/tenants', data)
+
+export const updateTenant = (id: number, data: any) => 
+  request.put(`/advanced/tenants/${id}`, data)
+
+export const deleteTenant = (id: number) => 
+  request.delete(`/advanced/tenants/${id}`)

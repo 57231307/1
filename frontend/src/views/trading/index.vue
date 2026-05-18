@@ -4,7 +4,7 @@
       <el-tab-pane label="采购合同" name="purchase-contract">
         <div class="page-header">
           <h2 class="page-title">采购合同管理</h2>
-          <el-button type="primary" @click="openPurchaseContractDialog">
+          <el-button type="primary" @click="openPurchaseContractDialog()">
             <el-icon><Plus /></el-icon>
             新建合同
           </el-button>
@@ -24,10 +24,11 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
-              <template #default>
-                <el-button type="primary" link size="small" @click="viewPurchaseContract">查看</el-button>
-                <el-button type="success" link size="small" @click="approvePurchaseContract">审批</el-button>
-                <el-button type="warning" link size="small" @click="executePurchaseContract">执行</el-button>
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="viewPurchaseContract(row)">查看</el-button>
+                <el-button type="success" link size="small" @click="approvePurchaseContract(row)" v-if="row.status === 'draft'">审批</el-button>
+                <el-button type="warning" link size="small" @click="executePurchaseContract(row)" v-if="row.status === 'approved'">执行</el-button>
+                <el-button type="danger" link size="small" @click="deletePurchaseContract(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -37,7 +38,7 @@
       <el-tab-pane label="采购价格" name="purchase-price">
         <div class="page-header">
           <h2 class="page-title">采购价格管理</h2>
-          <el-button type="primary" @click="openPurchasePriceDialog">
+          <el-button type="primary" @click="openPurchasePriceDialog()">
             <el-icon><Plus /></el-icon>
             新建价格
           </el-button>
@@ -59,6 +60,12 @@
                 <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '有效' : '无效' }}</el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="操作" width="120">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openPurchasePriceDialog(row)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="deletePurchasePrice(row)">删除</el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-tab-pane>
@@ -66,7 +73,7 @@
       <el-tab-pane label="销售合同" name="sales-contract">
         <div class="page-header">
           <h2 class="page-title">销售合同管理</h2>
-          <el-button type="primary" @click="openSalesContractDialog">
+          <el-button type="primary" @click="openSalesContractDialog()">
             <el-icon><Plus /></el-icon>
             新建合同
           </el-button>
@@ -86,9 +93,10 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
-              <template #default>
-                <el-button type="primary" link size="small" @click="viewSalesContract">查看</el-button>
-                <el-button type="success" link size="small" @click="approveSalesContract">审批</el-button>
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="viewSalesContract(row)">查看</el-button>
+                <el-button type="success" link size="small" @click="approveSalesContract(row)" v-if="row.status === 'draft'">审批</el-button>
+                <el-button type="danger" link size="small" @click="deleteSalesContract(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -98,7 +106,7 @@
       <el-tab-pane label="销售价格" name="sales-price">
         <div class="page-header">
           <h2 class="page-title">销售价格管理</h2>
-          <el-button type="primary" @click="openSalesPriceDialog">
+          <el-button type="primary" @click="openSalesPriceDialog()">
             <el-icon><Plus /></el-icon>
             新建价格
           </el-button>
@@ -120,8 +128,9 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="120">
-              <template #default>
-                <el-button type="success" link size="small" @click="approveSalesPrice">审批</el-button>
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openSalesPriceDialog(row)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="deleteSalesPrice(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -131,7 +140,7 @@
       <el-tab-pane label="销售退货" name="sales-return">
         <div class="page-header">
           <h2 class="page-title">销售退货管理</h2>
-          <el-button type="primary" @click="openReturnDialog">
+          <el-button type="primary" @click="openReturnDialog()">
             <el-icon><Plus /></el-icon>
             新建退货
           </el-button>
@@ -152,10 +161,212 @@
                 <el-tag :type="getStatusType(row.status)" size="small">{{ getReturnStatusLabel(row.status) }}</el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="操作" width="120">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openReturnDialog(row)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="deleteSalesReturn(row)">删除</el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 采购合同对话框 -->
+    <el-dialog v-model="purchaseContractDialogVisible" :title="purchaseContractDialogTitle" width="600px">
+      <el-form :model="purchaseContractForm" label-width="100px">
+        <el-form-item label="合同编号">
+          <el-input v-model="purchaseContractForm.contract_no" placeholder="请输入合同编号" />
+        </el-form-item>
+        <el-form-item label="供应商">
+          <el-input v-model="purchaseContractForm.supplier_name" placeholder="请输入供应商名称" />
+        </el-form-item>
+        <el-form-item label="合同日期">
+          <el-date-picker v-model="purchaseContractForm.contract_date" type="date" placeholder="选择日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="总金额">
+          <el-input-number v-model="purchaseContractForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="purchaseContractForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="草稿" value="draft" />
+            <el-option label="待审批" value="pending" />
+            <el-option label="已审批" value="approved" />
+            <el-option label="执行中" value="active" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="purchaseContractForm.remarks" type="textarea" placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="purchaseContractDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitPurchaseContract">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 采购价格对话框 -->
+    <el-dialog v-model="purchasePriceDialogVisible" :title="purchasePriceDialogTitle" width="600px">
+      <el-form :model="purchasePriceForm" label-width="100px">
+        <el-form-item label="产品">
+          <el-input v-model="purchasePriceForm.product_name" placeholder="请输入产品名称" />
+        </el-form-item>
+        <el-form-item label="供应商">
+          <el-input v-model="purchasePriceForm.supplier_name" placeholder="请输入供应商名称" />
+        </el-form-item>
+        <el-form-item label="价格">
+          <el-input-number v-model="purchasePriceForm.price" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="币种">
+          <el-select v-model="purchasePriceForm.currency" placeholder="请选择币种" style="width: 100%">
+            <el-option label="人民币" value="CNY" />
+            <el-option label="美元" value="USD" />
+            <el-option label="欧元" value="EUR" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="单位">
+          <el-input v-model="purchasePriceForm.unit" placeholder="请输入单位" />
+        </el-form-item>
+        <el-form-item label="生效日期">
+          <el-date-picker v-model="purchasePriceForm.effective_date" type="date" placeholder="选择日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="失效日期">
+          <el-date-picker v-model="purchasePriceForm.expiry_date" type="date" placeholder="选择日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="purchasePriceForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="有效" value="active" />
+            <el-option label="无效" value="inactive" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="purchasePriceDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitPurchasePrice">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 销售合同对话框 -->
+    <el-dialog v-model="salesContractDialogVisible" :title="salesContractDialogTitle" width="600px">
+      <el-form :model="salesContractForm" label-width="100px">
+        <el-form-item label="合同编号">
+          <el-input v-model="salesContractForm.contract_no" placeholder="请输入合同编号" />
+        </el-form-item>
+        <el-form-item label="客户">
+          <el-input v-model="salesContractForm.customer_name" placeholder="请输入客户名称" />
+        </el-form-item>
+        <el-form-item label="合同日期">
+          <el-date-picker v-model="salesContractForm.contract_date" type="date" placeholder="选择日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="总金额">
+          <el-input-number v-model="salesContractForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="salesContractForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="草稿" value="draft" />
+            <el-option label="待审批" value="pending" />
+            <el-option label="已审批" value="approved" />
+            <el-option label="执行中" value="active" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="salesContractForm.remarks" type="textarea" placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="salesContractDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitSalesContract">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 销售价格对话框 -->
+    <el-dialog v-model="salesPriceDialogVisible" :title="salesPriceDialogTitle" width="600px">
+      <el-form :model="salesPriceForm" label-width="100px">
+        <el-form-item label="产品">
+          <el-input v-model="salesPriceForm.product_name" placeholder="请输入产品名称" />
+        </el-form-item>
+        <el-form-item label="客户">
+          <el-input v-model="salesPriceForm.customer_name" placeholder="请输入客户名称" />
+        </el-form-item>
+        <el-form-item label="价格">
+          <el-input-number v-model="salesPriceForm.price" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="币种">
+          <el-select v-model="salesPriceForm.currency" placeholder="请选择币种" style="width: 100%">
+            <el-option label="人民币" value="CNY" />
+            <el-option label="美元" value="USD" />
+            <el-option label="欧元" value="EUR" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="单位">
+          <el-input v-model="salesPriceForm.unit" placeholder="请输入单位" />
+        </el-form-item>
+        <el-form-item label="生效日期">
+          <el-date-picker v-model="salesPriceForm.effective_date" type="date" placeholder="选择日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="salesPriceForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="有效" value="active" />
+            <el-option label="无效" value="inactive" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="salesPriceDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitSalesPrice">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 销售退货对话框 -->
+    <el-dialog v-model="returnDialogVisible" :title="returnDialogTitle" width="600px">
+      <el-form :model="returnForm" label-width="100px">
+        <el-form-item label="退货单号">
+          <el-input v-model="returnForm.return_no" placeholder="请输入退货单号" />
+        </el-form-item>
+        <el-form-item label="客户">
+          <el-input v-model="returnForm.customer_name" placeholder="请输入客户名称" />
+        </el-form-item>
+        <el-form-item label="销售单号">
+          <el-input v-model="returnForm.order_no" placeholder="请输入销售单号" />
+        </el-form-item>
+        <el-form-item label="退货日期">
+          <el-date-picker v-model="returnForm.return_date" type="date" placeholder="选择日期" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="退货金额">
+          <el-input-number v-model="returnForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="退货原因">
+          <el-input v-model="returnForm.reason" type="textarea" placeholder="请输入退货原因" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="returnForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="草稿" value="draft" />
+            <el-option label="待审批" value="pending" />
+            <el-option label="已审批" value="approved" />
+            <el-option label="已拒绝" value="rejected" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="returnDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReturn">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -163,7 +374,36 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { listPurchaseContracts, type PurchaseContract, listPurchasePrices, type PurchasePrice, listSalesContracts, type SalesContract, listSalesPrices, type SalesPrice, listSalesReturns, type SalesReturn } from '@/api/trading'
+import { 
+  listPurchaseContracts, 
+  createPurchaseContract, 
+  updatePurchaseContract, 
+  deletePurchaseContract as apiDeletePurchaseContract,
+  approvePurchaseContract as apiApprovePurchaseContract,
+  executePurchaseContract as apiExecutePurchaseContract,
+  type PurchaseContract, 
+  listPurchasePrices, 
+  createPurchasePrice, 
+  updatePurchasePrice, 
+  deletePurchasePrice as apiDeletePurchasePrice,
+  type PurchasePrice, 
+  listSalesContracts, 
+  createSalesContract, 
+  updateSalesContract, 
+  deleteSalesContract as apiDeleteSalesContract,
+  approveSalesContract as apiApproveSalesContract,
+  type SalesContract, 
+  listSalesPrices, 
+  createSalesPrice, 
+  updateSalesPrice, 
+  deleteSalesPrice as apiDeleteSalesPrice,
+  type SalesPrice, 
+  listSalesReturns, 
+  createSalesReturn, 
+  updateSalesReturn, 
+  deleteSalesReturn as apiDeleteSalesReturn,
+  type SalesReturn 
+} from '@/api/trading'
 
 const activeTab = ref('purchase-contract')
 const purchaseContracts = ref<PurchaseContract[]>([])
@@ -176,6 +416,75 @@ const purchasePriceLoading = ref(false)
 const salesContractLoading = ref(false)
 const salesPriceLoading = ref(false)
 const returnLoading = ref(false)
+
+// 对话框状态
+const purchaseContractDialogVisible = ref(false)
+const purchasePriceDialogVisible = ref(false)
+const salesContractDialogVisible = ref(false)
+const salesPriceDialogVisible = ref(false)
+const returnDialogVisible = ref(false)
+
+// 对话框标题
+const purchaseContractDialogTitle = ref('新建采购合同')
+const purchasePriceDialogTitle = ref('新建采购价格')
+const salesContractDialogTitle = ref('新建销售合同')
+const salesPriceDialogTitle = ref('新建销售价格')
+const returnDialogTitle = ref('新建销售退货')
+
+// 表单数据
+const purchaseContractForm = ref({
+  id: null as number | null,
+  contract_no: '',
+  supplier_name: '',
+  contract_date: '',
+  total_amount: 0,
+  status: 'draft',
+  remarks: ''
+})
+
+const purchasePriceForm = ref({
+  id: null as number | null,
+  product_name: '',
+  supplier_name: '',
+  price: 0,
+  currency: 'CNY',
+  unit: '',
+  effective_date: '',
+  expiry_date: '',
+  status: 'active'
+})
+
+const salesContractForm = ref({
+  id: null as number | null,
+  contract_no: '',
+  customer_name: '',
+  contract_date: '',
+  total_amount: 0,
+  status: 'draft',
+  remarks: ''
+})
+
+const salesPriceForm = ref({
+  id: null as number | null,
+  product_name: '',
+  customer_name: '',
+  price: 0,
+  currency: 'CNY',
+  unit: '',
+  effective_date: '',
+  status: 'active'
+})
+
+const returnForm = ref({
+  id: null as number | null,
+  return_no: '',
+  customer_name: '',
+  order_no: '',
+  return_date: '',
+  total_amount: 0,
+  reason: '',
+  status: 'draft'
+})
 
 const fetchPurchaseContracts = async () => {
   purchaseContractLoading.value = true
@@ -246,41 +555,269 @@ const getReturnStatusLabel = (status: string) => {
   return map[status] || status
 }
 
-const openPurchaseContractDialog = () => ElMessage.info('功能开发中')
-const viewPurchaseContract = () => ElMessage.info('功能开发中')
-const approvePurchaseContract = async (_row: PurchaseContract) => {
+// 采购合同操作
+const openPurchaseContractDialog = (row?: PurchaseContract) => {
+  if (row) {
+    purchaseContractDialogTitle.value = '编辑采购合同'
+    purchaseContractForm.value = { ...row, remarks: '' }
+  } else {
+    purchaseContractDialogTitle.value = '新建采购合同'
+    purchaseContractForm.value = {
+      id: null,
+      contract_no: '',
+      supplier_name: '',
+      contract_date: '',
+      total_amount: 0,
+      status: 'draft',
+      remarks: ''
+    }
+  }
+  purchaseContractDialogVisible.value = true
+}
+
+const viewPurchaseContract = (row: PurchaseContract) => {
+  openPurchaseContractDialog(row)
+}
+
+const submitPurchaseContract = async () => {
+  try {
+    if (purchaseContractForm.value.id) {
+      await updatePurchaseContract(purchaseContractForm.value.id, purchaseContractForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createPurchaseContract(purchaseContractForm.value)
+      ElMessage.success('创建成功')
+    }
+    purchaseContractDialogVisible.value = false
+    fetchPurchaseContracts()
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const approvePurchaseContract = async (row: PurchaseContract) => {
   try {
     await ElMessageBox.confirm('确定审批此采购合同吗？', '确认', { type: 'info' })
+    await apiApprovePurchaseContract(row.id)
     ElMessage.success('审批成功')
     fetchPurchaseContracts()
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
-const executePurchaseContract = async (_row: PurchaseContract) => {
+
+const executePurchaseContract = async (row: PurchaseContract) => {
   try {
     await ElMessageBox.confirm('确定执行此采购合同吗？', '确认', { type: 'info' })
+    await apiExecutePurchaseContract(row.id)
     ElMessage.success('执行成功')
     fetchPurchaseContracts()
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
-const openPurchasePriceDialog = () => ElMessage.info('功能开发中')
-const openSalesContractDialog = () => ElMessage.info('功能开发中')
-const viewSalesContract = () => ElMessage.info('功能开发中')
-const approveSalesContract = async (_row: SalesContract) => {
+
+const deletePurchaseContract = async (row: PurchaseContract) => {
+  try {
+    await ElMessageBox.confirm('确定删除此采购合同吗？', '确认', { type: 'warning' })
+    await apiDeletePurchaseContract(row.id)
+    ElMessage.success('删除成功')
+    fetchPurchaseContracts()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+// 采购价格操作
+const openPurchasePriceDialog = (row?: PurchasePrice) => {
+  if (row) {
+    purchasePriceDialogTitle.value = '编辑采购价格'
+    purchasePriceForm.value = { ...row }
+  } else {
+    purchasePriceDialogTitle.value = '新建采购价格'
+    purchasePriceForm.value = {
+      id: null,
+      product_name: '',
+      supplier_name: '',
+      price: 0,
+      currency: 'CNY',
+      unit: '',
+      effective_date: '',
+      expiry_date: '',
+      status: 'active'
+    }
+  }
+  purchasePriceDialogVisible.value = true
+}
+
+const submitPurchasePrice = async () => {
+  try {
+    if (purchasePriceForm.value.id) {
+      await updatePurchasePrice(purchasePriceForm.value.id, purchasePriceForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createPurchasePrice(purchasePriceForm.value)
+      ElMessage.success('创建成功')
+    }
+    purchasePriceDialogVisible.value = false
+    fetchPurchasePrices()
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const deletePurchasePrice = async (row: PurchasePrice) => {
+  try {
+    await ElMessageBox.confirm('确定删除此采购价格吗？', '确认', { type: 'warning' })
+    await apiDeletePurchasePrice(row.id)
+    ElMessage.success('删除成功')
+    fetchPurchasePrices()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+// 销售合同操作
+const openSalesContractDialog = (row?: SalesContract) => {
+  if (row) {
+    salesContractDialogTitle.value = '编辑销售合同'
+    salesContractForm.value = { ...row, remarks: '' }
+  } else {
+    salesContractDialogTitle.value = '新建销售合同'
+    salesContractForm.value = {
+      id: null,
+      contract_no: '',
+      customer_name: '',
+      contract_date: '',
+      total_amount: 0,
+      status: 'draft',
+      remarks: ''
+    }
+  }
+  salesContractDialogVisible.value = true
+}
+
+const viewSalesContract = (row: SalesContract) => {
+  openSalesContractDialog(row)
+}
+
+const submitSalesContract = async () => {
+  try {
+    if (salesContractForm.value.id) {
+      await updateSalesContract(salesContractForm.value.id, salesContractForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createSalesContract(salesContractForm.value)
+      ElMessage.success('创建成功')
+    }
+    salesContractDialogVisible.value = false
+    fetchSalesContracts()
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const approveSalesContract = async (row: SalesContract) => {
   try {
     await ElMessageBox.confirm('确定审批此销售合同吗？', '确认', { type: 'info' })
+    await apiApproveSalesContract(row.id)
     ElMessage.success('审批成功')
     fetchSalesContracts()
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
-const openSalesPriceDialog = () => ElMessage.info('功能开发中')
-const approveSalesPrice = async (_row: SalesPrice) => {
+
+const deleteSalesContract = async (row: SalesContract) => {
   try {
-    await ElMessageBox.confirm('确定审批此销售价格吗？', '确认', { type: 'info' })
-    ElMessage.success('审批成功')
+    await ElMessageBox.confirm('确定删除此销售合同吗？', '确认', { type: 'warning' })
+    await apiDeleteSalesContract(row.id)
+    ElMessage.success('删除成功')
+    fetchSalesContracts()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+
+// 销售价格操作
+const openSalesPriceDialog = (row?: SalesPrice) => {
+  if (row) {
+    salesPriceDialogTitle.value = '编辑销售价格'
+    salesPriceForm.value = { ...row }
+  } else {
+    salesPriceDialogTitle.value = '新建销售价格'
+    salesPriceForm.value = {
+      id: null,
+      product_name: '',
+      customer_name: '',
+      price: 0,
+      currency: 'CNY',
+      unit: '',
+      effective_date: '',
+      status: 'active'
+    }
+  }
+  salesPriceDialogVisible.value = true
+}
+
+const submitSalesPrice = async () => {
+  try {
+    if (salesPriceForm.value.id) {
+      await updateSalesPrice(salesPriceForm.value.id, salesPriceForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createSalesPrice(salesPriceForm.value)
+      ElMessage.success('创建成功')
+    }
+    salesPriceDialogVisible.value = false
+    fetchSalesPrices()
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const deleteSalesPrice = async (row: SalesPrice) => {
+  try {
+    await ElMessageBox.confirm('确定删除此销售价格吗？', '确认', { type: 'warning' })
+    await apiDeleteSalesPrice(row.id)
+    ElMessage.success('删除成功')
     fetchSalesPrices()
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
-const openReturnDialog = () => ElMessage.info('功能开发中')
+
+// 销售退货操作
+const openReturnDialog = (row?: SalesReturn) => {
+  if (row) {
+    returnDialogTitle.value = '编辑销售退货'
+    returnForm.value = { ...row }
+  } else {
+    returnDialogTitle.value = '新建销售退货'
+    returnForm.value = {
+      id: null,
+      return_no: '',
+      customer_name: '',
+      order_no: '',
+      return_date: '',
+      total_amount: 0,
+      reason: '',
+      status: 'draft'
+    }
+  }
+  returnDialogVisible.value = true
+}
+
+const submitReturn = async () => {
+  try {
+    if (returnForm.value.id) {
+      await updateSalesReturn(returnForm.value.id, returnForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createSalesReturn(returnForm.value)
+      ElMessage.success('创建成功')
+    }
+    returnDialogVisible.value = false
+    fetchSalesReturns()
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const deleteSalesReturn = async (row: SalesReturn) => {
+  try {
+    await ElMessageBox.confirm('确定删除此销售退货吗？', '确认', { type: 'warning' })
+    await apiDeleteSalesReturn(row.id)
+    ElMessage.success('删除成功')
+    fetchSalesReturns()
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
 
 onMounted(() => {
   fetchPurchaseContracts()

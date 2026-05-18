@@ -359,6 +359,23 @@
         <el-button type="primary" :loading="deptSubmitLoading" @click="submitDept">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 权限配置对话框 -->
+    <el-dialog v-model="permissionDialogVisible" :title="`权限配置 - ${currentRoleName}`" width="600px">
+      <el-tree
+        v-loading="permissionLoading"
+        :data="permissionTree"
+        show-checkbox
+        node-key="id"
+        :default-checked-keys="checkedPermissions"
+        :props="{ label: 'name', children: 'children' }"
+        @check="handlePermissionCheck"
+      />
+      <template #footer>
+        <el-button @click="permissionDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitPermissions">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -368,7 +385,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { listUsers, createUser, updateUser, deleteUser as deleteUserApi, type User } from '@/api/user'
-import { listRoles, createRole, updateRole, deleteRole as deleteRoleApi, type Role } from '@/api/role'
+import { listRoles, createRole, updateRole, deleteRole as deleteRoleApi, getRolePermissions, assignPermission, type Role } from '@/api/role'
 import { createDepartment, updateDepartment, deleteDepartment as deleteDeptApi, getDepartmentTree, type Department } from '@/api/department'
 
 const activeTab = ref('user')
@@ -646,7 +663,45 @@ const deleteRole = async (row: Role) => {
 }
 
 const openPermissionDialog = (row: Role) => {
-  ElMessage.info(`权限配置功能开发中: ${row.name}`)
+  currentRoleId.value = row.id
+  currentRoleName.value = row.name
+  // 获取角色权限
+  fetchRolePermissions(row.id)
+  permissionDialogVisible.value = true
+}
+
+const permissionDialogVisible = ref(false)
+const currentRoleId = ref(0)
+const currentRoleName = ref('')
+const permissionTree = ref<any[]>([])
+const checkedPermissions = ref<number[]>([])
+const permissionLoading = ref(false)
+
+const fetchRolePermissions = async (roleId: number) => {
+  permissionLoading.value = true
+  try {
+    // 获取角色已有的权限
+    const roleRes: any = await getRolePermissions(roleId)
+    checkedPermissions.value = roleRes.data || []
+  } catch (error) {
+    console.error('获取权限失败:', error)
+  } finally {
+    permissionLoading.value = false
+  }
+}
+
+const submitPermissions = async () => {
+  try {
+    await assignPermission(currentRoleId.value, { permission_ids: checkedPermissions.value })
+    ElMessage.success('权限配置成功')
+    permissionDialogVisible.value = false
+  } catch (error: any) {
+    ElMessage.error(error.message || '配置失败')
+  }
+}
+
+const handlePermissionCheck = (_data: any, { checkedKeys }: any) => {
+  checkedPermissions.value = checkedKeys
 }
 
 // 公司信息表单

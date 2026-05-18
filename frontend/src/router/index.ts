@@ -241,18 +241,6 @@ const routes = [
         meta: { title: '财务分析', requiresAuth: true }
       },
       {
-        path: 'supplier-evaluation',
-        name: 'SupplierEvaluation',
-        component: () => import('@/views/supplierEvaluation/index.vue'),
-        meta: { title: '供应商评估', requiresAuth: true }
-      },
-      {
-        path: 'customer-credit',
-        name: 'CustomerCredit',
-        component: () => import('@/views/customerCredit/index.vue'),
-        meta: { title: '客户信用管理', requiresAuth: true }
-      },
-      {
         path: 'currency',
         name: 'Currency',
         component: () => import('@/views/currency/index.vue'),
