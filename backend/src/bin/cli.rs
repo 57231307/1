@@ -366,8 +366,6 @@ async fn cmd_health() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn cmd_migrate(direction: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use std::process::Command;
-    
     println!("🔄 执行数据库迁移 (方向：{})...", direction);
     
     let migration_dir = "/opt/bingxi/database/migration";
