@@ -68,7 +68,7 @@ pub async fn get_process_visualization(
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let tasks = bpm_task::Entity::find()
-        .filter(bpm_task::Column::ProcessInstanceId.eq(instance_id))
+        .filter(bpm_task::Column::InstanceId.eq(instance_id))
         .order_by_asc(bpm_task::Column::CreatedAt)
         .all(state.db.as_ref()).await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -80,10 +80,10 @@ pub async fn get_process_visualization(
             "node_id": t.node_id,
             "node_name": t.node_name,
             "status": t.status,
-            "assignee_id": t.assignee_id,
+            "assignee_id": t.actual_handler_id,
             "created_at": t.created_at,
-            "completed_at": t.completed_at,
-            "comment": t.comment,
+            "completed_at": t.handled_at,
+            "comment": t.approval_opinion,
         })
     }).collect();
 

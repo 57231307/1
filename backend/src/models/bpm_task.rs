@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 
 //! BPM 任务 Model
-//!
-//! BPM 任务模块
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -12,66 +10,72 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "bpm_task")]
 pub struct Model {
-    /// 任务 ID（主键）
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 流程实例 ID（外键）
-    pub process_instance_id: i32,
-
-    /// 任务编码
     pub task_no: String,
 
-    /// 任务名称
-    pub name: String,
+    pub instance_id: i32,
 
-    /// 任务类型
-    pub task_type: String,
+    pub process_definition_id: i32,
 
-    /// 节点 ID
     pub node_id: String,
 
-    /// 节点名称
     pub node_name: String,
 
-    /// 处理人 ID
-    pub assignee_id: Option<i32>,
+    pub node_type: String,
 
-    /// 候选用户 IDs（JSON 数组）
-    pub candidate_ids: Option<serde_json::Value>,
+    pub task_type: Option<String>,
 
-    /// 任务状态：PENDING=待处理，COMPLETED=已完成，REJECTED=已拒绝
-    pub status: String,
+    pub status: Option<String>,
 
-    /// 业务类型
-    pub business_type: Option<String>,
+    pub priority: Option<String>,
 
-    /// 业务 ID
-    pub business_id: Option<i32>,
+    pub assignee_ids: Option<Vec<i32>>,
 
-    /// 处理意见
-    pub comment: Option<String>,
+    pub assignee_names: Option<Vec<String>>,
 
-    /// 处理时间
-    pub completed_at: Option<DateTime<Utc>>,
+    pub candidate_role_ids: Option<Vec<i32>>,
 
-    /// 到期时间
-    pub due_time: Option<DateTime<Utc>>,
+    pub candidate_user_ids: Option<Vec<i32>>,
 
-    /// 创建时间
-    pub created_at: DateTime<Utc>,
+    pub actual_handler_id: Option<i32>,
 
-    /// 更新时间
-    pub updated_at: DateTime<Utc>,
+    pub actual_handler_name: Option<String>,
+
+    pub action: Option<String>,
+
+    pub approval_opinion: Option<String>,
+
+    pub attachment_urls: Option<Vec<String>>,
+
+    pub handled_at: Option<DateTime<Utc>>,
+
+    pub duration_seconds: Option<i64>,
+
+    pub due_date: Option<DateTime<Utc>>,
+
+    pub is_overdue: Option<bool>,
+
+    pub overdue_days: Option<i32>,
+
+    pub form_data: Option<serde_json::Value>,
+
+    pub task_variables: Option<serde_json::Value>,
+
+    pub created_at: Option<DateTime<Utc>>,
+
+    pub updated_at: Option<DateTime<Utc>>,
+
+    pub remarks: Option<String>,
 }
 
 /// BPM 任务关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    /// 任务 - 流程实例（多对一）
     #[sea_orm(
         belongs_to = "super::bpm_process_instance::Entity",
-        from = "Column::ProcessInstanceId",
+        from = "Column::InstanceId",
         to = "super::bpm_process_instance::Column::Id"
     )]
     ProcessInstance,

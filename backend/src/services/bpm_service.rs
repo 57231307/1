@@ -66,18 +66,17 @@ impl BpmService {
 
                 if let Some(first_task) = first_task_node {
                     let task_model = bpm_task::ActiveModel {
-                        process_instance_id: Set(instance.id),
+                        instance_id: Set(instance.id),
+                        process_definition_id: Set(definition.id),
                         task_no: Set(format!("TSK{}{}", chrono::Local::now().format("%Y%m%d%H%M%S"), instance.id)),
                         node_id: Set(first_task.get("id").and_then(|i| i.as_str()).unwrap_or("unknown").to_string()),
                         node_name: Set(first_task.get("name").and_then(|n| n.as_str()).unwrap_or("Task").to_string()),
-                        name: Set(first_task.get("name").and_then(|n| n.as_str()).unwrap_or("Task").to_string()),
-                        task_type: Set("user_task".to_string()),
-                        assignee_id: Set(first_task.get("assignee_value").and_then(|a| a.as_str()).and_then(|s| s.parse::<i32>().ok())),
-                        status: Set("PENDING".to_string()),
-                        business_type: Set(Some(req.business_type.clone())),
-                        business_id: Set(Some(req.business_id)),
-                        created_at: Set(chrono::Utc::now()),
-                        updated_at: Set(chrono::Utc::now()),
+                        node_type: Set("user_task".to_string()),
+                        task_type: Set(Some("user_task".to_string())),
+                        actual_handler_id: Set(first_task.get("assignee_value").and_then(|a| a.as_str()).and_then(|s| s.parse::<i32>().ok())),
+                        status: Set(Some("pending".to_string())),
+                        created_at: Set(Some(chrono::Utc::now())),
+                        updated_at: Set(Some(chrono::Utc::now())),
                         ..Default::default()
                     };
                     let task = task_model.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -115,11 +114,11 @@ impl BpmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("Task not found".to_string()))?;
 
-        if task.status != "PENDING" {
+        if task.status.as_deref() != Some("pending") {
             return Err(AppError::ValidationError("Task is not pending".to_string()));
         }
 
-        let process_instance_id = task.process_instance_id;
+        let process_instance_id = task.instance_id;
         let instance = bpm_process_instance::Entity::find_by_id(process_instance_id)
             .one(&txn).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
@@ -132,11 +131,11 @@ impl BpmService {
 
         // 1. Update current task status
         let mut task_active: bpm_task::ActiveModel = task.clone().into();
-        task_active.status = Set(if req.action == "approve" { "COMPLETED".to_string() } else { "REJECTED".to_string() });
-        task_active.assignee_id = Set(Some(req.handler_id));
-        task_active.comment = Set(req.approval_opinion);
-        task_active.completed_at = Set(Some(chrono::Utc::now()));
-        task_active.updated_at = Set(chrono::Utc::now());
+        task_active.status = Set(Some(if req.action == "approve" { "completed".to_string() } else { "rejected".to_string() }));
+        task_active.actual_handler_id = Set(Some(req.handler_id));
+        task_active.approval_opinion = Set(req.approval_opinion);
+        task_active.handled_at = Set(Some(chrono::Utc::now()));
+        task_active.updated_at = Set(Some(chrono::Utc::now()));
         task_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         if req.action == "reject" {
@@ -170,18 +169,17 @@ impl BpmService {
                             let node_type = next_node.get("type").and_then(|t| t.as_str()).unwrap_or("");
                             if node_type == "user_task" {
                                 let new_task = bpm_task::ActiveModel {
-                                    process_instance_id: Set(instance.id),
+                                    instance_id: Set(instance.id),
+                                    process_definition_id: Set(definition.id),
                                     task_no: Set(format!("TSK{}{}", chrono::Local::now().format("%Y%m%d%H%M%S"), instance.id)),
                                     node_id: Set(next_node.get("id").and_then(|i| i.as_str()).unwrap_or("unknown").to_string()),
                                     node_name: Set(next_node.get("name").and_then(|n| n.as_str()).unwrap_or("Task").to_string()),
-                                    name: Set(next_node.get("name").and_then(|n| n.as_str()).unwrap_or("Task").to_string()),
-                                    task_type: Set("user_task".to_string()),
-                                    assignee_id: Set(next_node.get("assignee_value").and_then(|a| a.as_str()).and_then(|s| s.parse::<i32>().ok())),
-                                    status: Set("PENDING".to_string()),
-                                    business_type: Set(task.business_type.clone()),
-                                    business_id: Set(task.business_id),
-                                    created_at: Set(chrono::Utc::now()),
-                                    updated_at: Set(chrono::Utc::now()),
+                                    node_type: Set("user_task".to_string()),
+                                    task_type: Set(Some("user_task".to_string())),
+                                    actual_handler_id: Set(next_node.get("assignee_value").and_then(|a| a.as_str()).and_then(|s| s.parse::<i32>().ok())),
+                                    status: Set(Some("pending".to_string())),
+                                    created_at: Set(Some(chrono::Utc::now())),
+                                    updated_at: Set(Some(chrono::Utc::now())),
                                     ..Default::default()
                                 };
                                 new_task.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -221,7 +219,7 @@ impl BpmService {
         
         let mut stmt = bpm_task::Entity::find();
         
-        stmt = stmt.filter(bpm_task::Column::AssigneeId.eq(query.user_id));
+        stmt = stmt.filter(bpm_task::Column::ActualHandlerId.eq(query.user_id));
         
         if let Some(status) = query.status {
             stmt = stmt.filter(bpm_task::Column::Status.eq(status));
@@ -252,7 +250,7 @@ impl BpmService {
 
         if let Some(inst) = instance {
             let tasks = bpm_task::Entity::find()
-                .filter(bpm_task::Column::ProcessInstanceId.eq(inst.id))
+                .filter(bpm_task::Column::InstanceId.eq(inst.id))
                 .all(&*self.db).await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -264,8 +262,8 @@ impl BpmService {
                 started_at: inst.started_at.unwrap_or_default(),
                 completed_at: inst.completed_at,
                 task_count: tasks.len() as i32,
-                completed_tasks: tasks.iter().filter(|t| t.status == "COMPLETED").count() as i32,
-                pending_tasks: tasks.iter().filter(|t| t.status == "PENDING").count() as i32,
+                completed_tasks: tasks.iter().filter(|t| t.status.as_deref() == Some("completed")).count() as i32,
+                pending_tasks: tasks.iter().filter(|t| t.status.as_deref() == Some("pending")).count() as i32,
             })
         } else {
             Ok(BpmBusinessRelation {
@@ -307,7 +305,7 @@ impl BpmService {
             .ok_or_else(|| AppError::NotFound("流程定义不存在".to_string()))?;
 
         let tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::ProcessInstanceId.eq(instance_id))
+            .filter(bpm_task::Column::InstanceId.eq(instance_id))
             .order_by_asc(bpm_task::Column::CreatedAt)
             .all(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -328,12 +326,12 @@ impl BpmService {
                         node_id: node_id.clone(),
                         node_name,
                         node_type,
-                        assignee_id: task.and_then(|t| t.assignee_id),
+                        assignee_id: task.and_then(|t| t.actual_handler_id),
                         assignee_name: None, // 可以通过关联查询获取用户名
-                        status: task.map(|t| t.status.clone()).unwrap_or_else(|| "PENDING".to_string()),
-                        comment: task.and_then(|t| t.comment.clone()),
-                        completed_at: task.and_then(|t| t.completed_at),
-                        due_time: task.and_then(|t| t.due_time),
+                        status: task.map(|t| t.status.clone()).unwrap_or_else(|| Some("pending".to_string())).unwrap_or_default(),
+                        comment: task.and_then(|t| t.approval_opinion.clone()),
+                        completed_at: task.and_then(|t| t.handled_at),
+                        due_time: task.and_then(|t| t.due_date),
                     });
                 }
             }
@@ -354,7 +352,7 @@ impl BpmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::ProcessInstanceId.eq(instance_id))
+            .filter(bpm_task::Column::InstanceId.eq(instance_id))
             .order_by_asc(bpm_task::Column::CreatedAt)
             .all(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -506,14 +504,14 @@ impl BpmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
 
-        if task.status != "PENDING" {
+        if task.status.as_deref() != Some("pending") {
             return Err(AppError::ValidationError("只能转办待处理任务".to_string()));
         }
 
         let mut task_active: bpm_task::ActiveModel = task.into();
-        task_active.assignee_id = Set(Some(new_assignee_id));
-        task_active.comment = Set(Some(format!("[转办] {}", transfer_reason)));
-        task_active.updated_at = Set(chrono::Utc::now());
+        task_active.actual_handler_id = Set(Some(new_assignee_id));
+        task_active.approval_opinion = Set(Some(format!("[转办] {}", transfer_reason)));
+        task_active.updated_at = Set(Some(chrono::Utc::now()));
         task_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -531,7 +529,7 @@ impl BpmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
 
-        if task.status != "PENDING" {
+        if task.status.as_deref() != Some("pending") {
             return Err(AppError::ValidationError("只能催办待处理任务".to_string()));
         }
 
@@ -539,23 +537,23 @@ impl BpmService {
         tracing::info!(
             "催办任务 {}: {}, 处理人: {:?}, 消息: {}",
             task_id,
-            task.name,
-            task.assignee_id,
+            task.task_no,
+            task.actual_handler_id,
             urge_message
         );
 
         // 发送催办通知给处理人
-        if let Some(assignee_id) = task.assignee_id {
+        if let Some(assignee_id) = task.actual_handler_id {
             let notification_service = crate::services::notification_service::NotificationService::new(self.db.clone());
             let _ = notification_service.create_notification(
                 crate::services::notification_service::CreateNotificationRequest {
                     user_id: assignee_id,
                     notification_type: crate::models::notification::NotificationType::Internal,
                     title: "任务催办".to_string(),
-                    content: format!("任务 '{}' 需要您尽快处理。催办消息: {}", task.name, urge_message),
+                    content: format!("任务 '{}' 需要您尽快处理。催办消息: {}", task.task_no, urge_message),
                     priority: crate::models::notification::NotificationPriority::High,
                     business_type: Some("BPM".to_string()),
-                    business_id: Some(task.process_instance_id),
+                    business_id: Some(task.instance_id),
                     action_url: Some(format!("/bpm/tasks/{}", task_id)),
                     sender_id: Some(0),
                     sender_name: Some("系统".to_string()),
