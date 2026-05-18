@@ -331,29 +331,47 @@ const router = createRouter({
   routes
 })
 
+let initStatus: boolean | null = null
+
+async function checkInitStatus(): Promise<boolean> {
+  if (initStatus !== null) return initStatus
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    const response = await fetch('/api/v1/erp/init/status', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (response.ok) {
+      const data = await response.json()
+      initStatus = !!data.initialized
+      return initStatus
+    }
+  } catch (error) {
+    console.error('检查系统状态失败:', error)
+  }
+  initStatus = true
+  return initStatus
+}
+
 router.beforeEach(async (to, _from, next) => {
   const title = to.meta.title as string
   if (title) {
     document.title = `${title} - 秉羲面料管理系统`
   }
 
-  // 如果是引导页面，直接放行
   if (to.path === '/setup') {
     next()
     return
   }
 
-  // 检查系统是否已初始化（排除登录和 404 页面）
   if (to.path !== '/login' && to.path !== '/404' && to.path !== '/403') {
-    try {
-      const response = await fetch('/api/v1/erp/init/status')
-      const data = await response.json()
-      if (!data.initialized) {
-        next({ path: '/setup' })
-        return
-      }
-    } catch (error) {
-      console.error('检查系统状态失败:', error)
+    const initialized = await checkInitStatus()
+    if (!initialized) {
+      next({ path: '/setup' })
+      return
     }
   }
 
@@ -364,11 +382,9 @@ router.beforeEach(async (to, _from, next) => {
       return
     }
     
-    // 验证 token 格式（支持标准 JWT 和 mock token）
     try {
       const parts = token.split('.')
       if (parts.length === 3) {
-        // 标准 JWT 格式，验证过期时间
         const tokenData = JSON.parse(atob(parts[1]))
         const currentTime = Math.floor(Date.now() / 1000)
         
@@ -384,7 +400,6 @@ router.beforeEach(async (to, _from, next) => {
           return
         }
       }
-      // 非标准 JWT 格式（如 mock token），跳过验证
     } catch (error) {
       console.error('Token validation failed:', error)
       removeToken()
