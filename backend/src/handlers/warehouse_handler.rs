@@ -95,7 +95,7 @@ pub async fn list_locations(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<LocationListQuery>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(10);
 
@@ -120,9 +120,7 @@ pub async fn list_locations(
         .map(|l| serde_json::to_value(l).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(
-        PaginatedResponse::new(locations_json, total, page, page_size).into(),
-    ))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(locations_json, total, page, page_size))))
 }
 
 /// 创建库位

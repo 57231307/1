@@ -73,24 +73,25 @@ impl<T: Clone> PaginatedResponse<T> {
     }
 }
 
-// 为 PaginatedResponse 实现 Into<ApiResponse<Vec<T>>> 用于列表响应
+// 为 PaginatedResponse 实现 Into<ApiResponse<PaginatedResponse<T>>> 用于列表响应
+// 保留分页元数据（total, page, page_size）供前端使用
+impl<T> From<PaginatedResponse<T>> for ApiResponse<PaginatedResponse<T>> {
+    fn from(paginated: PaginatedResponse<T>) -> Self {
+        ApiResponse {
+            code: Some(200),
+            data: Some(paginated),
+            message: None,
+        }
+    }
+}
+
+// 兼容旧代码：将 PaginatedResponse 转换为 ApiResponse<Vec<T>>（丢弃分页元数据）
 impl<T> From<PaginatedResponse<T>> for ApiResponse<Vec<T>> {
     fn from(paginated: PaginatedResponse<T>) -> Self {
         ApiResponse {
             code: Some(200),
             data: Some(paginated.data),
             message: None,
-        }
-    }
-}
-
-// 实现 ApiResponse<PaginatedResponse<T>> 到 ApiResponse<Vec<T>> 的转换
-impl<T: Clone> From<ApiResponse<PaginatedResponse<T>>> for ApiResponse<Vec<T>> {
-    fn from(response: ApiResponse<PaginatedResponse<T>>) -> Self {
-        ApiResponse {
-            code: response.code,
-            data: response.data.map(|p| p.data),
-            message: response.message,
         }
     }
 }

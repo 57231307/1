@@ -124,7 +124,7 @@ pub async fn list_products(
     Extension(auth): Extension<AuthContext>,
     State(state): State<AppState>,
     Query(query): Query<ProductListQuery>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
@@ -149,9 +149,7 @@ pub async fn list_products(
         })
         .collect();
 
-    Ok(Json(
-        PaginatedResponse::new(masked_products, total, page, page_size).into(),
-    ))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(masked_products, total, page, page_size))))
 }
 
 /// 获取产品详情
