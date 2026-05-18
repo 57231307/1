@@ -23,7 +23,7 @@ use utoipa::OpenApi;
     info(
         title = "Bingxi ERP API",
         version = "1.0.0",
-        description = "秉羲面料管理系统 (Bingxi ERP) 官方 API 文档"
+        description = "面料管理系统 (Bingxi ERP) 官方 API 文档"
     )
 )]
 pub struct ApiDoc;

@@ -2,7 +2,7 @@
   <el-container class="main-layout">
     <el-aside width="220px" class="aside">
       <div class="logo">
-        <h2>秉羲面料管理</h2>
+        <h2>面料管理</h2>
       </div>
       <el-menu
         :default-active="activeMenu"

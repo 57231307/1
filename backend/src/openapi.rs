@@ -105,11 +105,11 @@ use utoipa::OpenApi;
       (name = "资金管理", description = "资金账户管理、转账、存取款")
     ),
     info(
-        title = "秉羲面料管理 API",
-        description = "秉羲面料管理的 RESTful API 文档\n\n主要功能模块：\n- 用户认证与授权\n- 采购合同管理\n- 销售合同管理\n- 固定资产管理\n- 预算管理\n- 质量标准与审批流程\n- 资金账户与转账",
+        title = "面料管理 API",
+        description = "面料管理的 RESTful API 文档\n\n主要功能模块：\n- 用户认证与授权\n- 采购合同管理\n- 销售合同管理\n- 固定资产管理\n- 预算管理\n- 质量标准与审批流程\n- 资金账户与转账",
         version = "1.0.0",
         contact(
-            name = "秉羲团队",
+            name = "面料管理团队",
             email = "support@bingxi.com"
         )
     ),

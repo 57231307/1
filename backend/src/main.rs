@@ -173,7 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     info!("===========================================");
-    info!("启动秉羲面料管理 Rust 版");
+    info!("启动面料管理 Rust 版");
     info!("运行环境：{}", settings.env);
     info!("===========================================");
 

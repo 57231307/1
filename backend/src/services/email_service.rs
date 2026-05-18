@@ -306,7 +306,7 @@ impl EmailTemplate {
         </div>
         <div style="background-color: #f8f9fa; padding: 15px; text-align: center; color: #666; font-size: 12px;">
             <p style="margin: 0;">此邮件由系统自动发送，请勿回复</p>
-            <p style="margin: 5px 0 0 0;">秉羲面料管理系统</p>
+            <p style="margin: 5px 0 0 0;">面料管理系统</p>
         </div>
     </div>
 </body>

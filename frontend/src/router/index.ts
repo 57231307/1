@@ -347,7 +347,7 @@ async function checkInitStatus(): Promise<boolean> {
 router.beforeEach(async (to, _from, next) => {
   const title = to.meta.title as string
   if (title) {
-    document.title = `${title} - 秉羲面料管理系统`
+    document.title = `${title} - 面料管理系统`
   }
 
   if (to.path === '/setup') {

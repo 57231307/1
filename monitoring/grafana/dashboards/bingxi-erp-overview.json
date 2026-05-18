@@ -2,7 +2,7 @@
   "dashboard": {
     "id": null,
     "uid": "bingxi-erp-overview",
-    "title": "秉羲 ERP 系统监控总览",
+    "title": "ERP 系统监控总览",
     "tags": ["bingxi", "erp", "rust"],
     "timezone": "Asia/Shanghai",
     "schemaVersion": 16,

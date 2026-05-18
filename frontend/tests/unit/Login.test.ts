@@ -29,7 +29,7 @@ const LoginMock = {
   `,
   data() {
     return {
-      title: '秉羲面料管理系统',
+      title: '面料管理系统',
       form: {
         username: '',
         password: '',
@@ -59,7 +59,7 @@ describe('Login 组件测试', () => {
 
   it('应该正确渲染登录页面', () => {
     const wrapper = mount(LoginMock)
-    expect(wrapper.find('.login-title').text()).toBe('秉羲面料管理系统')
+    expect(wrapper.find('.login-title').text()).toBe('面料管理系统')
     expect(wrapper.find('[data-testid="username-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="login-button"]').exists()).toBe(true)

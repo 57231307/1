@@ -1,5 +1,5 @@
 # ========================================
-# 秉羲 ERP 系统 - Prometheus 告警规则配置
+# ERP 系统 - Prometheus 告警规则配置
 # ========================================
 
 groups:
@@ -212,7 +212,7 @@ groups:
           service: application
         annotations:
           summary: "服务宕机"
-          description: "秉羲 ERP 后端服务已宕机，请立即检查！"
+          description: "ERP 后端服务已宕机，请立即检查！"
           
       # Prometheus 目标抓取失败
       - alert: TargetDown

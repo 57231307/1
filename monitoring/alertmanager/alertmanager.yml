@@ -1,5 +1,5 @@
 # ========================================
-# 秉羲 ERP 系统 - Alertmanager 告警通知配置
+# ERP 系统 - Alertmanager 告警通知配置
 # ========================================
 # 此配置文件用于配置告警通知方式
 # 包括：邮件、企业微信、钉钉、短信等
@@ -40,7 +40,7 @@ receivers:
             <p><strong>告警时间:</strong> {{ .StartAt | date "2006-01-02 15:04:05" }}</p>
             <p><strong>告警详情:</strong> {{ .CommonAnnotations.description }}</p>
             <hr>
-            <p style="color: #999;">此邮件由秉羲 ERP 监控系统自动发送</p>
+            <p style="color: #999;">此邮件由ERP 监控系统自动发送</p>
           </body>
           </html>
 
@@ -175,7 +175,7 @@ inhibit_rules:
 # {
 #   "msgtype": "markdown",
 #   "markdown": {
-#     "title": "秉羲 ERP 告警通知",
+#     "title": "ERP 告警通知",
 #     "text": "## 告警通知\n- **告警名称**: {{ .CommonLabels.alertname }}\n- **告警级别**: {{ .CommonLabels.severity }}\n- **告警详情**: {{ .CommonAnnotations.description }}"
 #   },
 #   "at": {

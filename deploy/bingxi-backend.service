@@ -1,5 +1,5 @@
 [Unit]
-# 秉羲ERP系统 - 后端服务单元配置
+# ERP系统 - 后端服务单元配置
 Description=Bingxi ERP Backend Service (Axum)
 Documentation=https://github.com/bingxi-erp/backend
 After=network.target postgresql.service

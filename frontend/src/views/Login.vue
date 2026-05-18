@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h2 class="login-title">秉羲面料管理系统</h2>
+      <h2 class="login-title">面料管理系统</h2>
       <el-form ref="formRef" :model="loginForm" :rules="rules" @submit.prevent="handleLogin">
         <el-form-item prop="username">
           <el-input

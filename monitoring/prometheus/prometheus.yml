@@ -1,5 +1,5 @@
 # Prometheus 配置文件
-# 用于收集秉羲 ERP 系统的各项指标
+# 用于收集ERP 系统的各项指标
 
 global:
   scrape_interval: 15s      # 默认抓取间隔

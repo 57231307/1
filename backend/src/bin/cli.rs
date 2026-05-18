@@ -1,4 +1,4 @@
-//! 秉羲 ERP 命令行工具
+//! ERP 命令行工具
 //! 用途：系统运维和管理
 
 use clap::{Parser, Subcommand};
@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 #[command(name = "bingxi")]
 #[command(author = "Bingxi Team")]
 #[command(version = "2.0.0")]
-#[command(about = "秉羲 ERP 系统命令行工具", long_about = None)]
+#[command(about = "ERP 系统命令行工具", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

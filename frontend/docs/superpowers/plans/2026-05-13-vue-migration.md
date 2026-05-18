@@ -1,4 +1,4 @@
-# 秉羲前端迁移至 Vue 实现计划
+# 前端迁移至 Vue 实现计划
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
@@ -186,7 +186,7 @@ export default defineConfig({
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>秉羲面料管理系统</title>
+    <title>面料管理系统</title>
   </head>
   <body>
     <div id="app"></div>
@@ -644,7 +644,7 @@ router.beforeEach(async (to) => {
 
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - 秉羲面料管理`
+    document.title = `${to.meta.title} - 面料管理`
   }
 
   return true
@@ -700,7 +700,7 @@ git commit -m "feat: implement router with auth and permission guards"
   <el-container class="main-layout">
     <el-aside width="220px" class="aside">
       <div class="logo">
-        <h2>秉羲面料管理</h2>
+        <h2>面料管理</h2>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -851,7 +851,7 @@ git commit -m "feat: implement main layout with sidebar and header"
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h2 class="login-title">秉羲面料管理系统</h2>
+      <h2 class="login-title">面料管理系统</h2>
       <el-form ref="formRef" :model="loginForm" :rules="rules" @submit.prevent="handleLogin">
         <el-form-item prop="username">
           <el-input

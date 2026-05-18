@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秉羲ERP系统 - 一键安装与管理脚本
+# ERP系统 - 一键安装与管理脚本
 # 使用方法: curl -fsSL --http1.1 --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s {install|update|start|stop|status}
 
 set -e
@@ -90,7 +90,7 @@ setup_cli() {
     log "配置命令行工具 (bingxi)..."
     cat << 'CLIEOF' > $CLI_PATH
 #!/bin/bash
-# 秉羲系统管理 CLI
+# 系统管理 CLI
 
 case "$1" in
     start)
@@ -115,7 +115,7 @@ case "$1" in
         curl -fsSL --http1.1 --ipv4 --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
         ;;
     *)
-        echo "秉羲面料管理 CLI 工具"
+        echo "面料管理 CLI 工具"
         echo "用法: bingxi {start|stop|restart|status|update}"
         ;;
 esac
@@ -146,7 +146,7 @@ run_deploy_script() {
 
 install() {
     check_root
-    log "开始全新安装 秉羲ERP 系统..."
+    log "开始全新安装 ERP 系统..."
     install_deps
     download_latest
     run_deploy_script
@@ -164,7 +164,7 @@ install() {
 
 update() {
     check_root
-    log "开始在线更新 秉羲ERP 系统..."
+    log "开始在线更新 ERP 系统..."
     install_deps
     download_latest
     run_deploy_script
@@ -181,7 +181,7 @@ case "$1" in
     status) sudo systemctl status bingxi-backend --no-pager ;;
     restart) sudo systemctl restart bingxi-backend; sudo systemctl restart nginx ;;
     *) 
-        echo "秉羲面料管理 - 一键管理脚本"
+        echo "面料管理 - 一键管理脚本"
         echo "使用方法: $0 {install|update|start|stop|status|restart}"
         ;;
 esac
