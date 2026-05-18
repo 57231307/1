@@ -22,38 +22,97 @@ pub struct Model {
     pub opportunity_no: String,
 
     /// 商机名称
-    pub name: String,
+    pub opportunity_name: String,
 
     /// 客户 ID（外键）
-    pub customer_id: Option<i32>,
+    pub customer_id: i32,
 
     /// 线索 ID（外键）
     pub lead_id: Option<i32>,
 
-    /// 商机金额
-    pub amount: Decimal,
+    /// 商机类型
+    pub opportunity_type: Option<String>,
+
+    /// 商机阶段
+    pub opportunity_stage: Option<String>,
+
+    /// 成交概率
+    pub win_probability: Option<Decimal>,
+
+    /// 预估金额
+    pub estimated_amount: Option<Decimal>,
+
+    /// 实际金额
+    pub actual_amount: Option<Decimal>,
+
+    /// 币种
+    pub currency: Option<String>,
 
     /// 预计成交日期
     pub expected_close_date: Option<NaiveDate>,
 
-    /// 商机阶段：PROSPECT=意向，NEGOTIATION=谈判中，CLOSED_WON=成交，CLOSED_LOST=失败
-    pub stage: String,
+    /// 实际成交日期
+    pub actual_close_date: Option<NaiveDate>,
 
-    /// 商机来源
-    pub source: Option<String>,
+    /// 产品 IDs
+    pub product_ids: Option<Vec<i32>>,
 
-    /// 备注
-    pub remarks: Option<String>,
+    /// 产品名称
+    pub product_names: Option<Vec<String>>,
 
-    /// 创建人 ID
-    pub created_by: i32,
+    /// 产品描述
+    pub product_desc: Option<String>,
+
+    /// 负责人 ID
+    pub owner_id: i32,
+
+    /// 负责人姓名
+    pub owner_name: String,
+
+    /// 最近跟进日期
+    pub last_follow_up_date: Option<NaiveDate>,
+
+    /// 下次跟进日期
+    pub next_follow_up_date: Option<NaiveDate>,
+
+    /// 跟进计划
+    pub follow_up_plan: Option<String>,
+
+    /// 竞争对手
+    pub competitor_names: Option<Vec<String>>,
+
+    /// 竞争优势
+    pub competitive_advantage: Option<String>,
+
+    /// 商机状态
+    pub opportunity_status: Option<String>,
+
+    /// 成交原因
+    pub won_reason: Option<String>,
+
+    /// 流失原因
+    pub lost_reason: Option<String>,
+
+    /// 优先级
+    pub priority: Option<String>,
+
+    /// 评分
+    pub rating: Option<i32>,
+
+    /// 标签
+    pub tags: Option<Vec<String>>,
 
     /// 创建时间
-    pub is_deleted: bool,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
 
     /// 更新时间
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+
+    /// 创建人 ID
+    pub created_by: Option<i32>,
+
+    /// 更新人 ID
+    pub updated_by: Option<i32>,
 }
 
 /// CRM 商机关联关系
