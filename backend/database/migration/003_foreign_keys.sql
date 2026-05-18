@@ -52,7 +52,7 @@ END $$;
 
 -- 添加索引
 CREATE INDEX IF NOT EXISTS idx_crm_lead_customer_id ON crm_lead(customer_id) WHERE customer_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_crm_lead_status ON crm_lead(status);
+CREATE INDEX IF NOT EXISTS idx_crm_lead_status ON crm_lead(lead_status);
 
 -- ========================================================
 -- DB-003: 成本归集添加批次外键
