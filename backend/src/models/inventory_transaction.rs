@@ -60,7 +60,6 @@ pub struct Model {
     /// 创建人 ID
     pub created_by: Option<i32>,
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

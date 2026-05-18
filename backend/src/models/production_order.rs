@@ -81,7 +81,6 @@ pub struct Model {
     pub created_by: i32,
 
     /// 是否删除
-    pub is_deleted: bool,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,

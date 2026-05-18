@@ -58,7 +58,6 @@ pub struct Model {
 
     /// 快照时间
     pub snapshot_time: DateTime<Utc>,
-    pub is_deleted: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

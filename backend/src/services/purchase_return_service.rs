@@ -461,7 +461,6 @@ impl PurchaseReturnService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         }
         .insert(&txn)
         .await?;

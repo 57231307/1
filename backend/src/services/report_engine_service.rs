@@ -159,7 +159,6 @@ impl ReportEngineService {
         page_size: u64,
     ) -> Result<ReportData, AppError> {
         let paginator = SalesOrderEntity::find()
-            .filter(crate::models::sales_order::Column::IsDeleted.eq(false))
             .order_by_desc(crate::models::sales_order::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
@@ -169,7 +168,6 @@ impl ReportEngineService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total = SalesOrderEntity::find()
-            .filter(crate::models::sales_order::Column::IsDeleted.eq(false))
             .count(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -210,7 +208,6 @@ impl ReportEngineService {
         page_size: u64,
     ) -> Result<ReportData, AppError> {
         let paginator = InventoryStockEntity::find()
-            .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
             .order_by_desc(crate::models::inventory_stock::Column::QuantityAvailable)
             .paginate(&*self.db, page_size);
 
@@ -220,7 +217,6 @@ impl ReportEngineService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total = InventoryStockEntity::find()
-            .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
             .count(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -261,7 +257,6 @@ impl ReportEngineService {
         page_size: u64,
     ) -> Result<ReportData, AppError> {
         let paginator = PurchaseOrderEntity::find()
-            .filter(crate::models::purchase_order::Column::IsDeleted.eq(false))
             .order_by_desc(crate::models::purchase_order::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
@@ -271,7 +266,6 @@ impl ReportEngineService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total = PurchaseOrderEntity::find()
-            .filter(crate::models::purchase_order::Column::IsDeleted.eq(false))
             .count(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;

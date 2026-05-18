@@ -71,7 +71,6 @@ impl CurrencyService {
             is_base: Set(req.is_base),
             precision: Set(req.precision),
             is_active: Set(true),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -88,7 +87,6 @@ impl CurrencyService {
     /// 获取所有币种
     pub async fn list_currencies(&self) -> Result<Vec<CurrencyModel>, AppError> {
         let models = CurrencyEntity::find()
-            .filter(crate::models::currency::Column::IsDeleted.eq(false))
             .order_by_asc(crate::models::currency::Column::Code)
             .all(&*self.db)
             .await
@@ -101,7 +99,6 @@ impl CurrencyService {
     pub async fn get_base_currency(&self) -> Result<Option<CurrencyModel>, AppError> {
         let model = CurrencyEntity::find()
             .filter(crate::models::currency::Column::IsBase.eq(true))
-            .filter(crate::models::currency::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -157,7 +154,6 @@ impl CurrencyService {
             rate: Set(req.rate),
             effective_date: Set(req.effective_date),
             source: Set(req.source),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -182,7 +178,6 @@ impl CurrencyService {
             .filter(crate::models::exchange_rate::Column::FromCurrency.eq(from_currency))
             .filter(crate::models::exchange_rate::Column::ToCurrency.eq(to_currency))
             .filter(crate::models::exchange_rate::Column::EffectiveDate.lte(date))
-            .filter(crate::models::exchange_rate::Column::IsDeleted.eq(false))
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .one(&*self.db)
             .await
@@ -198,8 +193,7 @@ impl CurrencyService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<RateModel>, u64), AppError> {
-        let mut select = RateEntity::find()
-            .filter(crate::models::exchange_rate::Column::IsDeleted.eq(false));
+        let mut select = RateEntity::find();
 
         if let Some(from) = from_currency {
             select = select.filter(crate::models::exchange_rate::Column::FromCurrency.eq(from));
@@ -316,7 +310,6 @@ impl CurrencyService {
     ) -> Result<Vec<RateModel>, AppError> {
         let models = RateEntity::find()
             .filter(crate::models::exchange_rate::Column::EffectiveDate.lte(date))
-            .filter(crate::models::exchange_rate::Column::IsDeleted.eq(false))
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .all(&*self.db)
             .await
@@ -345,7 +338,6 @@ impl CurrencyService {
             .ok_or_else(|| AppError::NotFound("汇率不存在".to_string()))?;
 
         let mut active_model: RateActiveModel = model.into();
-        active_model.is_deleted = Set(true);
         active_model.updated_at = Set(Utc::now());
 
         active_model

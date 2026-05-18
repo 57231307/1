@@ -12,7 +12,6 @@ pub struct Model {
     pub id: i32,
     pub dye_batch_id: i32,
     pub lot_no: String,
-    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
 }
 

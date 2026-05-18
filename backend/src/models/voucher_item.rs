@@ -44,7 +44,6 @@ pub struct Model {
     pub quantity_kg: Option<Decimal>,
     pub unit_price: Option<Decimal>,
 
-    pub is_deleted: bool,
 
     pub created_at: DateTime<Utc>,
 }

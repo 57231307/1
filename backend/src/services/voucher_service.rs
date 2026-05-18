@@ -286,7 +286,6 @@ impl VoucherService {
                     quantity_kg: sea_orm::Set(item_req.quantity_kg),
                     unit_price: sea_orm::Set(item_req.unit_price),
                     created_at: sea_orm::Set(chrono::Utc::now()),
-                    is_deleted: sea_orm::Set(false),
                 };
                 item_active
                     .insert(&txn)

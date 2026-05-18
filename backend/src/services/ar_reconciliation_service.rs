@@ -94,7 +94,6 @@ impl ArReconciliationService {
             confirmed_date: Set(None),
             dispute_reason: Set(None),
             remarks: Set(req.remarks),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -123,8 +122,7 @@ impl ArReconciliationService {
         &self,
         query: ReconciliationQuery,
     ) -> Result<(Vec<ReconciliationModel>, u64), AppError> {
-        let mut select = ReconciliationEntity::find()
-            .filter(crate::models::ar_reconciliation::Column::IsDeleted.eq(false));
+        let mut select = ReconciliationEntity::find();
 
         if let Some(status) = query.status {
             select = select.filter(crate::models::ar_reconciliation::Column::Status.eq(status));
@@ -204,7 +202,6 @@ impl ArReconciliationService {
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.is_deleted = Set(true);
         active_model.updated_at = Set(Utc::now());
 
         active_model
@@ -378,7 +375,6 @@ impl ArReconciliationService {
             confirmed_date: Set(None),
             dispute_reason: Set(None),
             remarks: Set(None),
-            is_deleted: Set(false),
             created_by: Set(created_by),
             confirmed_by: Set(None),
             created_at: Set(Utc::now()),
@@ -412,7 +408,6 @@ impl ArReconciliationService {
             .filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id))
             .filter(crate::models::ar_reconciliation::Column::Status.eq("CONFIRMED"))
             .filter(crate::models::ar_reconciliation::Column::EndDate.lt(before_date))
-            .filter(crate::models::ar_reconciliation::Column::IsDeleted.eq(false))
             .order_by_desc(crate::models::ar_reconciliation::Column::EndDate)
             .one(&*self.db)
             .await
@@ -447,7 +442,6 @@ impl ArReconciliationService {
             .filter(ArInvoiceColumn::CustomerId.eq(customer_id))
             .filter(ArInvoiceColumn::InvoiceDate.gte(start_date))
             .filter(ArInvoiceColumn::InvoiceDate.lte(end_date))
-            .filter(ArInvoiceColumn::IsDeleted.eq(false))
             .filter(ArInvoiceColumn::Status.eq("CONFIRMED"))
             .into_tuple::<Option<Decimal>>()
             .one(&*self.db)
@@ -483,7 +477,6 @@ impl ArReconciliationService {
             .filter(PaymentColumn::CustomerId.eq(customer_id))
             .filter(PaymentColumn::PaymentDate.gte(start_datetime))
             .filter(PaymentColumn::PaymentDate.lte(end_datetime))
-            .filter(PaymentColumn::IsDeleted.eq(false))
             .filter(PaymentColumn::Status.eq("COMPLETED"))
             .into_tuple::<Option<Decimal>>()
             .one(&*self.db)
@@ -535,7 +528,6 @@ impl ArReconciliationService {
             .filter(ArInvoiceColumn::CustomerId.eq(customer_id))
             .filter(ArInvoiceColumn::InvoiceDate.gte(start_date))
             .filter(ArInvoiceColumn::InvoiceDate.lte(end_date))
-            .filter(ArInvoiceColumn::IsDeleted.eq(false))
             .filter(ArInvoiceColumn::Status.eq("CONFIRMED"))
             .all(txn)
             .await
@@ -574,7 +566,6 @@ impl ArReconciliationService {
             .filter(PaymentColumn::CustomerId.eq(customer_id))
             .filter(PaymentColumn::PaymentDate.gte(start_datetime))
             .filter(PaymentColumn::PaymentDate.lte(end_datetime))
-            .filter(PaymentColumn::IsDeleted.eq(false))
             .filter(PaymentColumn::Status.eq("COMPLETED"))
             .all(txn)
             .await
@@ -739,7 +730,6 @@ impl ArReconciliationService {
 
         // 查询所有未完全收款的应收单
         let mut query = ArInvoiceEntity::find()
-            .filter(ArInvoiceColumn::IsDeleted.eq(false))
             .filter(ArInvoiceColumn::Status.eq("CONFIRMED"))
             .filter(ArInvoiceColumn::UnpaidAmount.gt(Decimal::zero()));
 

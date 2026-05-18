@@ -36,7 +36,6 @@ pub struct Model {
     pub created_by: Option<i32>,
     #[sea_orm(column_type = "Timestamp")]
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_type = "Timestamp")]
     /// 更新时间

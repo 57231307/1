@@ -19,7 +19,6 @@ pub struct Model {
     pub expected_arrival: Option<DateTime<Utc>>,
     pub actual_arrival: Option<DateTime<Utc>>,
     pub notes: Option<String>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

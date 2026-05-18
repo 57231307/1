@@ -176,7 +176,6 @@ pub async fn create_greige_fabric(
         created_by: Set(req.created_by),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     match fabric.insert(&*state.db).await {

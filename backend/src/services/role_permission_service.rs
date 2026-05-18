@@ -163,7 +163,6 @@ impl RolePermissionService {
             is_system: sea_orm::ActiveValue::Set(request.is_system.unwrap_or(false)),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let role_entity = role.insert(&*self.db).await?;
@@ -311,7 +310,6 @@ impl RolePermissionService {
                 allowed: sea_orm::ActiveValue::Set(request.allowed),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             let perm_entity = permission.insert(&*self.db).await?;

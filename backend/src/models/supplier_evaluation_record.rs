@@ -39,7 +39,6 @@ pub struct Model {
     /// 创建时间
     #[sea_orm(column_type = "Timestamp")]
     #[sea_orm(column_name = "created_at")]
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

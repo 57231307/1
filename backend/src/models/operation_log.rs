@@ -55,7 +55,6 @@ pub struct Model {
     pub extra_data: Option<Json>,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

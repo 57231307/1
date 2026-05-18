@@ -78,7 +78,6 @@ impl AiAnalysisService {
         
         let orders = SalesOrderEntity::find()
             .filter(crate::models::sales_order::Column::CreatedAt.gte(start_date))
-            .filter(crate::models::sales_order::Column::IsDeleted.eq(false))
             .order_by_asc(crate::models::sales_order::Column::CreatedAt)
             .all(&*self.db)
             .await
@@ -133,8 +132,7 @@ impl AiAnalysisService {
         &self,
         product_id: Option<i32>,
     ) -> Result<Vec<InventorySuggestion>, AppError> {
-        let mut select = InventoryStockEntity::find()
-            .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false));
+        let mut select = InventoryStockEntity::find();
 
         if let Some(pid) = product_id {
             select = select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
@@ -195,7 +193,6 @@ impl AiAnalysisService {
         // 检测销售异常（销量突降）
         let _sales_orders = SalesOrderEntity::find()
             .filter(crate::models::sales_order::Column::CreatedAt.gte(check_date))
-            .filter(crate::models::sales_order::Column::IsDeleted.eq(false))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -203,7 +200,6 @@ impl AiAnalysisService {
         // 检测零库存产品
         let zero_stock = InventoryStockEntity::find()
             .filter(crate::models::inventory_stock::Column::QuantityAvailable.eq(Decimal::ZERO))
-            .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -221,7 +217,6 @@ impl AiAnalysisService {
 
         // 检测滞销产品（30天无销售）
         let all_stock = InventoryStockEntity::find()
-            .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -275,7 +270,6 @@ impl AiAnalysisService {
             "PRICE_ADJUST" => {
                 // 推荐价格调整（简化版：基于库存水平）
                 let stocks = InventoryStockEntity::find()
-                    .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
                     .all(&*self.db)
                     .await
                     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -304,7 +298,6 @@ impl AiAnalysisService {
 
         let orders = SalesOrderEntity::find()
             .filter(crate::models::sales_order::Column::CreatedAt.gte(start_date))
-            .filter(crate::models::sales_order::Column::IsDeleted.eq(false))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;

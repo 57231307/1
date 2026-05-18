@@ -53,7 +53,6 @@ pub struct Model {
     pub error_message: Option<String>,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

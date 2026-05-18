@@ -21,7 +21,6 @@ pub struct Model {
     pub quality_grade: Option<String>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
-    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

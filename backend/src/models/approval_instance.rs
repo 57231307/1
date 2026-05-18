@@ -12,7 +12,6 @@ pub struct Model {
     pub status: String,
     pub current_step_order: i32,
     pub applicant_id: i32,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

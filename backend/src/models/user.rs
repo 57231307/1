@@ -22,7 +22,6 @@ pub struct Model {
     pub is_totp_enabled: bool,
     
     pub last_login_at: Option<DateTime<Utc>>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

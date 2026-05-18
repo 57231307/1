@@ -88,7 +88,6 @@ impl ProductCategoryService {
             is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let result = active_model.insert(&*self.db).await?;

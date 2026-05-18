@@ -17,7 +17,6 @@ pub struct Model {
     pub received_quantity: Decimal,
     pub unit_cost: Option<Decimal>,
     pub notes: Option<String>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

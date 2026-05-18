@@ -33,7 +33,6 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((18, 2)))")]
     pub total_amount: Decimal,
     pub notes: Option<String>,
-    pub is_deleted: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

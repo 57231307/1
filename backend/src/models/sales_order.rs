@@ -29,7 +29,6 @@ pub struct Model {
     pub created_by: Option<i32>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

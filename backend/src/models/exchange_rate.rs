@@ -32,7 +32,6 @@ pub struct Model {
     pub source: Option<String>,
 
     /// 是否删除
-    pub is_deleted: bool,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,

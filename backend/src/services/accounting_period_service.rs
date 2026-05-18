@@ -19,7 +19,6 @@ impl AccountingPeriodService {
     pub async fn get_current_period(&self) -> Result<Option<accounting_period::Model>, AppError> {
         let period = accounting_period::Entity::find()
             .filter(accounting_period::Column::Status.eq("OPEN"))
-            .filter(accounting_period::Column::IsDeleted.eq(false))
             .one(self.db.as_ref())
             .await?;
         Ok(period)
@@ -50,7 +49,6 @@ impl AccountingPeriodService {
             start_date: Set(start_date),
             end_date: Set(end_date),
             status: Set("OPEN".to_string()),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             ..Default::default()
         };
@@ -93,7 +91,6 @@ impl AccountingPeriodService {
         let period = accounting_period::Entity::find()
             .filter(accounting_period::Column::StartDate.lte(dt))
             .filter(accounting_period::Column::EndDate.gte(dt))
-            .filter(accounting_period::Column::IsDeleted.eq(false))
             .one(self.db.as_ref())
             .await?;
 

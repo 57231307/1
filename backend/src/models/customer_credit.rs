@@ -22,7 +22,6 @@ pub struct Model {
     pub next_assessment_date: Option<NaiveDate>,
     pub status: String,
     pub created_by: i32,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

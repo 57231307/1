@@ -26,7 +26,6 @@ pub struct Model {
     pub purchase_date: Option<DateTimeUtc>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
-    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

@@ -39,7 +39,6 @@ pub struct Model {
 
     /// 登录时间
     pub login_time: DateTime<Utc>,
-    pub is_deleted: bool,
 }
 
 /// 登录日志关联关系

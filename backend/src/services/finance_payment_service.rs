@@ -71,7 +71,6 @@ impl FinancePaymentService {
             created_by: Set(created_by),
             approved_by: Set(None),
             approved_at: Set(None),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };

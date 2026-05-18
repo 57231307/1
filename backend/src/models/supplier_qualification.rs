@@ -34,7 +34,6 @@ pub struct Model {
     /// 备注
     pub remarks: Option<String>,
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间
     pub updated_at: DateTimeWithTimeZone,

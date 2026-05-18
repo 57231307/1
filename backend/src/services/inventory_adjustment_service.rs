@@ -82,7 +82,6 @@ impl InventoryAdjustmentService {
             status: Set("pending".to_string()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let adjustment_model = adjustment.insert(&txn).await?;
@@ -121,7 +120,6 @@ impl InventoryAdjustmentService {
                 notes: Set(item_req.notes),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
-                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             let item_model = item.insert(&txn).await?;
@@ -334,7 +332,6 @@ mod tests {
                 approved_by: None,
                 approved_at: None,
                 status: "pending".to_string(),
-                is_deleted: false,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },

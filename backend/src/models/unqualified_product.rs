@@ -30,7 +30,6 @@ pub struct Model {
     pub handling_at: Option<chrono::NaiveDateTime>,
     pub remark: Option<String>,
     #[sea_orm(column_name = "created_at")]
-    pub is_deleted: bool,
     pub created_at: chrono::NaiveDateTime,
     #[sea_orm(column_name = "updated_at")]
     pub updated_at: chrono::NaiveDateTime,

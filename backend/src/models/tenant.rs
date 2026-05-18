@@ -18,7 +18,6 @@ pub struct Model {
     pub admin_user_id: Option<i32>,
     pub db_schema: Option<String>,
     pub custom_domain: Option<String>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub expired_at: Option<DateTime<Utc>>,

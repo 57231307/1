@@ -44,7 +44,6 @@ impl AssistAccountingService {
                 sort_order: Set((i + 1) as i32),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
-                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             // 如果不存在则插入
@@ -110,7 +109,6 @@ impl AssistAccountingService {
             remarks: Set(remarks),
             created_at: Set(Utc::now()),
             created_by: Set(created_by),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         active_record.insert(&*self.db).await
@@ -286,7 +284,6 @@ impl AssistAccountingService {
                             record_count: sea_orm::Set(record_count),
                             created_at: sea_orm::Set(chrono::Utc::now()),
                             updated_at: sea_orm::Set(chrono::Utc::now()),
-                            is_deleted: sea_orm::ActiveValue::NotSet,
                         };
                         new_summary.insert(&*self.db).await?;
                     }

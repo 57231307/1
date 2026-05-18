@@ -51,7 +51,6 @@ pub struct Model {
     pub record_count: i64,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

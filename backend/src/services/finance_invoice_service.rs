@@ -91,7 +91,6 @@ impl FinanceInvoiceService {
             paid_date: Set(None),
             payment_method: Set(req.payment_method),
             notes: Set(req.notes),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
