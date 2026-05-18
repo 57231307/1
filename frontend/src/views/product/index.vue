@@ -160,6 +160,46 @@
       </div>
     </el-card>
 
+    <!-- 导入对话框 -->
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入产品"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div style="margin-bottom: 16px;">
+        <el-alert type="info" :closable="false">
+          <template #title>
+            <div>请先下载导入模板，按照模板格式填写数据后上传。</div>
+          </template>
+        </el-alert>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <el-button type="primary" link @click="handleDownloadTemplate">
+          <el-icon><Download /></el-icon>
+          下载导入模板
+        </el-button>
+      </div>
+      <el-upload
+        ref="uploadRef"
+        :auto-upload="false"
+        :limit="1"
+        accept=".xlsx,.xls,.csv"
+        :on-change="handleImportFileChange"
+        drag
+      >
+        <el-icon class="el-icon--upload"><Upload /></el-icon>
+        <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+        <template #tip>
+          <div class="el-upload__tip">支持 .xlsx、.xls、.csv 格式文件</div>
+        </template>
+      </el-upload>
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="importLoading" @click="handleImportSubmit">确定导入</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -457,8 +497,45 @@ const handleSubmit = async () => {
   })
 }
 
+const importDialogVisible = ref(false)
+const importFile = ref<File | null>(null)
+const importLoading = ref(false)
+
 const handleImport = () => {
-  ElMessage.info('导入功能开发中')
+  importFile.value = null
+  importDialogVisible.value = true
+}
+
+const handleImportFileChange = (file: any) => {
+  importFile.value = file.raw
+}
+
+const handleImportSubmit = async () => {
+  if (!importFile.value) {
+    ElMessage.warning('请选择要导入的文件')
+    return
+  }
+  
+  importLoading.value = true
+  try {
+    const res = await productApi.importProducts(importFile.value)
+    ElMessage.success(`导入成功: ${res.data?.success || 0} 条，失败: ${res.data?.failed || 0} 条`)
+    importDialogVisible.value = false
+    fetchData()
+  } catch (error: any) {
+    ElMessage.error(error.message || '导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+const handleDownloadTemplate = async () => {
+  try {
+    await productApi.getImportTemplate()
+    ElMessage.success('模板下载成功')
+  } catch (error: any) {
+    ElMessage.error(error.message || '模板下载失败')
+  }
 }
 
 const handleExport = async () => {

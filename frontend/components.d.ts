@@ -60,6 +60,7 @@ declare module 'vue' {
     ElTimelineItem: typeof import('element-plus/es')['ElTimelineItem']
     ElTree: typeof import('element-plus/es')['ElTree']
     ElTreeSelect: typeof import('element-plus/es')['ElTreeSelect']
+    ElUpload: typeof import('element-plus/es')['ElUpload']
     FormDialog: typeof import('./src/components/FormDialog.vue')['default']
     MainLayout: typeof import('./src/components/Layout/MainLayout.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
