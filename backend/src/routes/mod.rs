@@ -231,9 +231,9 @@ pub fn create_router(state: AppState) -> Router {
             post(finance_invoice_handler::verify_invoice),
         )
         // Accounting Period Routes
-        .route("/finance/accounting-periods/current", get(accounting_period_handler::get_current_period))
-        .route("/finance/accounting-periods/init", post(accounting_period_handler::init_period))
-        .route("/finance/accounting-periods/:id/close", post(accounting_period_handler::close_period))
+        .route("/accounting-periods/current", get(accounting_period_handler::get_current_period))
+        .route("/accounting-periods/init", post(accounting_period_handler::init_period))
+        .route("/accounting-periods/:id/close", post(accounting_period_handler::close_period))
         // Omni Audit Tracker & Queries
         .route("/audit/track", post(omni_audit_handler::track_event))
         .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))

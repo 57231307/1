@@ -39,7 +39,7 @@ log_info() {
 test_health() {
     log_info "测试健康检查..."
     RESPONSE=$(curl -s "${BASE_URL}/health")
-    if echo "$RESPONSE" | jq -e '.code' > /dev/null; then
+    if echo "$RESPONSE" | jq -e '.status' > /dev/null; then
         log_pass "GET /health"
     else
         log_fail "GET /health - 响应格式错误：$RESPONSE"
@@ -276,12 +276,12 @@ test_suppliers() {
     fi
     
     # 获取供应商评估
-    RESPONSE=$(curl -s "${BASE_URL}/supplier-evaluations" \
+    RESPONSE=$(curl -s "${BASE_URL}/supplier-evaluation/evaluations" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /supplier-evaluations"
+        log_pass "GET /supplier-evaluation/evaluations"
     else
-        log_fail "GET /supplier-evaluations - $RESPONSE"
+        log_fail "GET /supplier-evaluation/evaluations - $RESPONSE"
     fi
 }
 
@@ -299,12 +299,12 @@ test_ar() {
     fi
     
     # 获取账龄分析
-    RESPONSE=$(curl -s "${BASE_URL}/ar-aging" \
+    RESPONSE=$(curl -s "${BASE_URL}/ap/invoices/aging" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /ar-aging"
+        log_pass "GET /ap/invoices/aging"
     else
-        log_fail "GET /ar-aging - $RESPONSE"
+        log_fail "GET /ap/invoices/aging - $RESPONSE"
     fi
 }
 
@@ -322,12 +322,12 @@ test_currency() {
     fi
     
     # 获取汇率列表
-    RESPONSE=$(curl -s "${BASE_URL}/exchange-rates" \
+    RESPONSE=$(curl -s "${BASE_URL}/exchange-rates/query" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /exchange-rates"
+        log_pass "GET /exchange-rates/query"
     else
-        log_fail "GET /exchange-rates - $RESPONSE"
+        log_fail "GET /exchange-rates/query - $RESPONSE"
     fi
 }
 
@@ -336,30 +336,30 @@ test_system() {
     log_info "测试系统管理..."
     
     # 获取用户列表
-    RESPONSE=$(curl -s "${BASE_URL}/system/users" \
+    RESPONSE=$(curl -s "${BASE_URL}/users" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /system/users"
+        log_pass "GET /users"
     else
-        log_fail "GET /system/users - $RESPONSE"
+        log_fail "GET /users - $RESPONSE"
     fi
     
     # 获取角色列表
-    RESPONSE=$(curl -s "${BASE_URL}/system/roles" \
+    RESPONSE=$(curl -s "${BASE_URL}/roles" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /system/roles"
+        log_pass "GET /roles"
     else
-        log_fail "GET /system/roles - $RESPONSE"
+        log_fail "GET /roles - $RESPONSE"
     fi
     
     # 获取会计期间
-    RESPONSE=$(curl -s "${BASE_URL}/system/accounting-periods" \
+    RESPONSE=$(curl -s "${BASE_URL}/accounting-periods/current" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /system/accounting-periods"
+        log_pass "GET /accounting-periods/current"
     else
-        log_fail "GET /system/accounting-periods - $RESPONSE"
+        log_fail "GET /accounting-periods/current - $RESPONSE"
     fi
 }
 
@@ -396,30 +396,30 @@ test_advanced() {
     log_info "测试高级功能..."
     
     # 获取批次管理
-    RESPONSE=$(curl -s "${BASE_URL}/advanced/batches" \
+    RESPONSE=$(curl -s "${BASE_URL}/batches" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /advanced/batches"
+        log_pass "GET /batches"
     else
-        log_fail "GET /advanced/batches - $RESPONSE"
+        log_fail "GET /batches - $RESPONSE"
     fi
     
     # 获取染色配方
-    RESPONSE=$(curl -s "${BASE_URL}/advanced/dye-recipes" \
+    RESPONSE=$(curl -s "${BASE_URL}/dye-recipes" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /advanced/dye-recipes"
+        log_pass "GET /dye-recipes"
     else
-        log_fail "GET /advanced/dye-recipes - $RESPONSE"
+        log_fail "GET /dye-recipes - $RESPONSE"
     fi
     
     # 获取坯布管理
-    RESPONSE=$(curl -s "${BASE_URL}/advanced/greige-fabrics" \
+    RESPONSE=$(curl -s "${BASE_URL}/greige-fabrics" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     if echo "$RESPONSE" | jq -e '.data' > /dev/null; then
-        log_pass "GET /advanced/greige-fabrics"
+        log_pass "GET /greige-fabrics"
     else
-        log_fail "GET /advanced/greige-fabrics - $RESPONSE"
+        log_fail "GET /greige-fabrics - $RESPONSE"
     fi
 }
 
