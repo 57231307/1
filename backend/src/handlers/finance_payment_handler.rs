@@ -18,15 +18,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct CreatePaymentRequest {
     pub payment_no: String,
-    pub payment_type: String,
-    pub order_type: String,
-    pub order_id: Option<i32>,
-    pub customer_id: Option<i32>,
-    pub supplier_id: Option<i32>,
+    pub invoice_id: Option<i32>,
     pub amount: Decimal,
     pub payment_date: DateTime<Utc>,
     pub payment_method: Option<String>,
-    pub reference_no: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -34,7 +29,6 @@ pub struct CreatePaymentRequest {
 pub struct PaymentResponse {
     pub id: i32,
     pub payment_no: String,
-    pub payment_type: String,
     pub amount: Decimal,
     pub status: String,
     pub payment_date: DateTime<Utc>,
@@ -59,7 +53,6 @@ pub async fn get_payment(
         Ok(payment) => Ok(Json(PaymentResponse {
             id: payment.id,
             payment_no: payment.payment_no,
-            payment_type: payment.payment_type,
             amount: payment.amount,
             status: payment.status,
             payment_date: payment.payment_date,
@@ -79,15 +72,10 @@ pub async fn create_payment(
     match service
         .create_payment(
             payload.payment_no,
-            payload.payment_type,
-            payload.order_type,
-            payload.order_id,
-            payload.customer_id,
-            payload.supplier_id,
+            payload.invoice_id,
             payload.amount,
             payload.payment_date,
             payload.payment_method,
-            payload.reference_no,
             payload.notes,
             Some(auth.user_id),
         )
@@ -96,7 +84,6 @@ pub async fn create_payment(
         Ok(payment) => Ok(Json(PaymentResponse {
             id: payment.id,
             payment_no: payment.payment_no,
-            payment_type: payment.payment_type,
             amount: payment.amount,
             status: payment.status,
             payment_date: payment.payment_date,
@@ -126,7 +113,6 @@ pub async fn list_payments(
                 .map(|payment| PaymentResponse {
                     id: payment.id,
                     payment_no: payment.payment_no,
-                    payment_type: payment.payment_type,
                     amount: payment.amount,
                     status: payment.status,
                     payment_date: payment.payment_date,

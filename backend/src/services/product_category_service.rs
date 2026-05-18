@@ -80,12 +80,9 @@ impl ProductCategoryService {
 
         let active_model = product_category::ActiveModel {
             id: NotSet,
-            category_code: Set(req.name.chars().take(10).collect()),
             name: Set(req.name),
             parent_id: Set(req.parent_id),
             description: Set(req.description),
-            sort_order: Set(0),
-            is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };

@@ -116,7 +116,7 @@ impl CostCollectionService {
             unit_cost_meters: sea_orm::Set(unit_cost_meters),
             unit_cost_kg: sea_orm::Set(unit_cost_kg),
             status: sea_orm::Set("draft".to_string()),
-            created_by: sea_orm::Set(user_id),
+            created_by: sea_orm::Set(Some(user_id)),
             ..Default::default()
         };
 

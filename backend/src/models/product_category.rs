@@ -9,12 +9,9 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub category_code: String,
     pub name: String,
     pub parent_id: Option<i32>,
     pub description: Option<String>,
-    pub sort_order: i32,
-    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -29,14 +26,6 @@ pub enum Relation {
     Parent,
     #[sea_orm(has_many = "super::product_category::Entity")]
     Children,
-    #[sea_orm(has_many = "super::product::Entity")]
-    Products,
-}
-
-impl Related<super::product::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Products.def()
-    }
 }
 
 impl Related<super::product_category::Entity> for Entity {

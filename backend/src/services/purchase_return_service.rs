@@ -48,28 +48,32 @@ impl PurchaseReturnService {
 
         let return_no = self.generate_return_no().await?;
 
-        // 将 reason_type 和 reason_detail 组合成 reason 字段
-        let reason = if let Some(detail) = &req.reason_detail {
-            format!("{}: {}", req.reason_type, detail)
-        } else {
-            req.reason_type.clone()
-        };
-
         let return_order = purchase_return::ActiveModel {
+            id: Set(0),
             return_no: Set(return_no),
-            purchase_order_id: Set(req.order_id),
+            receipt_id: Set(req.receipt_id),
+            order_id: Set(req.order_id),
             supplier_id: Set(req.supplier_id),
             return_date: Set(req.return_date),
             warehouse_id: Set(req.warehouse_id),
-            reason: Set(reason),
-            status: Set("DRAFT".to_string()),
-            total_amount: Set(Decimal::ZERO),
-            remarks: Set(req.notes),
-            created_by: Set(user_id),
-            ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
+            department_id: Set(req.department_id),
+            reason_type: Set(Some(req.reason_type)),
+            reason_detail: Set(req.reason_detail),
+            return_status: Set(Some("draft".to_string())),
+            total_quantity: Set(None),
+            total_quantity_alt: Set(None),
+            total_amount: Set(None),
+            notes: Set(req.notes),
+            created_by: Set(Some(user_id)),
+            updated_by: Set(None),
+            approved_by: Set(None),
+            approved_at: Set(None),
+            rejected_reason: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        };
+
+        let return_order = return_order.insert(&txn).await?;
 
         txn.commit().await?;
 
@@ -91,27 +95,25 @@ impl PurchaseReturnService {
                 return_id
             )))?;
 
-        if return_order.status != "DRAFT" {
+        if return_order.return_status.as_deref() != Some("draft") {
             return Err(AppError::BusinessError(format!(
-                "退货单状态不允许修改，当前状态：{}",
-                return_order.status
+                "退货单状态不允许修改，当前状态：{:?}",
+                return_order.return_status
             )));
         }
 
-        // 保留 reason 字段的引用，避免 moved value
-        let reason_value = return_order.reason.clone();
-
         let mut return_active: purchase_return::ActiveModel = return_order.into();
 
+        if let Some(reason_type) = req.reason_type {
+            return_active.reason_type = Set(Some(reason_type));
+        }
         if let Some(reason_detail) = req.reason_detail {
-            // 更新 reason 字段，保留原有的 reason_type
-            let current_reason = &reason_value;
-            let reason_type = current_reason.split(':').next().unwrap_or("其他");
-            return_active.reason = Set(format!("{}: {}", reason_type, reason_detail));
+            return_active.reason_detail = Set(Some(reason_detail));
         }
         if let Some(notes) = req.notes {
-            return_active.remarks = Set(Some(notes));
+            return_active.notes = Set(Some(notes));
         }
+        return_active.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
 
@@ -132,15 +134,16 @@ impl PurchaseReturnService {
                 return_id
             )))?;
 
-        if return_order.status != "DRAFT" {
+        if return_order.return_status.as_deref() != Some("draft") {
             return Err(AppError::BusinessError(format!(
-                "退货单状态不允许提交，当前状态：{}",
-                return_order.status
+                "退货单状态不允许提交，当前状态：{:?}",
+                return_order.return_status
             )));
         }
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
-        return_active.status = Set("SUBMITTED".to_string());
+        return_active.return_status = Set(Some("submitted".to_string()));
+        return_active.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
 
@@ -161,10 +164,10 @@ impl PurchaseReturnService {
                 return_id
             )))?;
 
-        if return_order.status != "SUBMITTED" {
+        if return_order.return_status.as_deref() != Some("submitted") {
             return Err(AppError::BusinessError(format!(
-                "退货单状态不允许审批，当前状态：{}",
-                return_order.status
+                "退货单状态不允许审批，当前状态：{:?}",
+                return_order.return_status
             )));
         }
 
@@ -172,7 +175,8 @@ impl PurchaseReturnService {
         let txn = (*self.db).begin().await?;
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
-        return_active.status = Set("APPROVED".to_string());
+        return_active.return_status = Set(Some("approved".to_string()));
+        return_active.updated_at = Set(Utc::now());
         
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", return_active, Some(0)).await?;
 
@@ -261,16 +265,17 @@ impl PurchaseReturnService {
                 return_id
             )))?;
 
-        if return_order.status != "SUBMITTED" {
+        if return_order.return_status.as_deref() != Some("submitted") {
             return Err(AppError::BusinessError(format!(
-                "退货单状态不允许拒绝，当前状态：{}",
-                return_order.status
+                "退货单状态不允许拒绝，当前状态：{:?}",
+                return_order.return_status
             )));
         }
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
-        return_active.status = Set("REJECTED".to_string());
-        return_active.reason = Set(reason);
+        return_active.return_status = Set(Some("rejected".to_string()));
+        return_active.reason_detail = Set(Some(reason));
+        return_active.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
 
@@ -290,7 +295,7 @@ impl PurchaseReturnService {
         let mut query = purchase_return::Entity::find();
 
         if let Some(status) = status {
-            query = query.filter(purchase_return::Column::Status.eq(&status));
+            query = query.filter(purchase_return::Column::ReturnStatus.eq(&status));
         }
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_return::Column::SupplierId.eq(supplier_id));
@@ -327,6 +332,9 @@ impl PurchaseReturnService {
 /// 创建采购退货单请求
 #[derive(Debug, Validate, Deserialize)]
 pub struct CreatePurchaseReturnRequest {
+    /// 入库单 ID
+    pub receipt_id: Option<i32>,
+
     /// 采购订单 ID
     pub order_id: Option<i32>,
 
@@ -337,7 +345,10 @@ pub struct CreatePurchaseReturnRequest {
     pub return_date: chrono::NaiveDate,
 
     /// 仓库 ID
-    pub warehouse_id: i32,
+    pub warehouse_id: Option<i32>,
+
+    /// 部门 ID
+    pub department_id: Option<i32>,
 
     /// 退货原因类型
     pub reason_type: String,
@@ -352,6 +363,7 @@ pub struct CreatePurchaseReturnRequest {
 /// 更新采购退货单请求
 #[derive(Debug, Default, Deserialize)]
 pub struct UpdatePurchaseReturnRequest {
+    pub reason_type: Option<String>,
     pub reason_detail: Option<String>,
     pub notes: Option<String>,
 }
@@ -428,7 +440,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
 
-        if return_record.status != "DRAFT" {
+        if return_record.return_status.as_deref() != Some("draft") {
             return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
         }
 
@@ -485,7 +497,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
 
-        if return_record.status != "DRAFT" {
+        if return_record.return_status.as_deref() != Some("draft") {
             return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
         }
 
@@ -542,7 +554,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
 
-        if return_record.status != "DRAFT" {
+        if return_record.return_status.as_deref() != Some("draft") {
             return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
         }
 
@@ -558,7 +570,7 @@ impl PurchaseReturnService {
         let txn = self.db.begin().await?;
         
         let ret = purchase_return::Entity::find_by_id(id).one(&txn).await?.ok_or(AppError::ResourceNotFound("Return not found".to_string()))?;
-        if ret.status != "DRAFT" {
+        if ret.return_status.as_deref() != Some("draft") {
             return Err(AppError::BusinessError("Only DRAFT returns can be deleted".to_string()));
         }
         
@@ -596,7 +608,9 @@ impl PurchaseReturnService {
             .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
 
         let mut active_return: purchase_return::ActiveModel = return_record.into();
-        active_return.total_amount = Set(total_amount);
+        active_return.total_quantity = Set(Some(total_quantity));
+        active_return.total_quantity_alt = Set(Some(total_quantity_alt));
+        active_return.total_amount = Set(Some(total_amount));
         active_return.updated_at = Set(Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_return, Some(0)).await?;

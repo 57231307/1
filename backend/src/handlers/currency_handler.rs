@@ -7,21 +7,9 @@ use serde::{Deserialize, Serialize};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
-use crate::middleware::auth_context::AuthContext;
-use crate::services::currency_service::{
-    CurrencyService, CreateCurrencyRequest, CreateExchangeRateRequest,
-};
+use crate::services::currency_service::CurrencyService;
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
-
-#[derive(Debug, Deserialize)]
-pub struct CreateCurrencyApiRequest {
-    pub code: String,
-    pub name: String,
-    pub symbol: Option<String>,
-    pub is_base: bool,
-    pub precision: i32,
-}
 
 #[derive(Debug, Serialize)]
 pub struct CurrencyResponse {
@@ -29,9 +17,9 @@ pub struct CurrencyResponse {
     pub code: String,
     pub name: String,
     pub symbol: Option<String>,
-    pub is_base: bool,
-    pub precision: i32,
-    pub is_active: bool,
+    pub is_base: Option<bool>,
+    pub decimal_places: Option<i32>,
+    pub status: Option<String>,
 }
 
 impl From<crate::models::currency::Model> for CurrencyResponse {
@@ -42,38 +30,14 @@ impl From<crate::models::currency::Model> for CurrencyResponse {
             name: model.name,
             symbol: model.symbol,
             is_base: model.is_base,
-            precision: model.precision,
-            is_active: model.is_active,
-        }
-    }
-}
-
-pub async fn create_currency(
-    State(state): State<AppState>,
-    _auth: AuthContext,
-    Json(req): Json<CreateCurrencyApiRequest>,
-) -> Result<Json<ApiResponse<CurrencyResponse>>, StatusCode> {
-    let service = CurrencyService::new(state.db);
-    let create_req = CreateCurrencyRequest {
-        code: req.code,
-        name: req.name,
-        symbol: req.symbol,
-        is_base: req.is_base,
-        precision: req.precision,
-    };
-
-    match service.create_currency(create_req).await {
-        Ok(model) => Ok(Json(ApiResponse::success(CurrencyResponse::from(model)))),
-        Err(e) => {
-            tracing::error!("创建币种失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            decimal_places: model.decimal_places,
+            status: model.status,
         }
     }
 }
 
 pub async fn list_currencies(
     State(state): State<AppState>,
-    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<CurrencyResponse>>>, StatusCode> {
     let service = CurrencyService::new(state.db);
 
@@ -91,7 +55,6 @@ pub async fn list_currencies(
 
 pub async fn get_base_currency(
     State(state): State<AppState>,
-    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<CurrencyResponse>>, StatusCode> {
     let service = CurrencyService::new(state.db);
 
@@ -111,7 +74,6 @@ pub struct CreateExchangeRateApiRequest {
     pub to_currency: String,
     pub rate: Decimal,
     pub effective_date: NaiveDate,
-    pub source: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -137,19 +99,11 @@ impl From<crate::models::exchange_rate::Model> for ExchangeRateResponse {
 
 pub async fn create_exchange_rate(
     State(state): State<AppState>,
-    _auth: AuthContext,
     Json(req): Json<CreateExchangeRateApiRequest>,
 ) -> Result<Json<ApiResponse<ExchangeRateResponse>>, StatusCode> {
     let service = CurrencyService::new(state.db);
-    let create_req = CreateExchangeRateRequest {
-        from_currency: req.from_currency,
-        to_currency: req.to_currency,
-        rate: req.rate,
-        effective_date: req.effective_date,
-        source: req.source,
-    };
 
-    match service.create_exchange_rate(create_req).await {
+    match service.create_exchange_rate(req.from_currency, req.to_currency, req.rate, req.effective_date).await {
         Ok(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model)))),
         Err(e) => {
             tracing::error!("创建汇率失败: {}", e);
@@ -162,18 +116,15 @@ pub async fn create_exchange_rate(
 pub struct GetExchangeRateQuery {
     pub from_currency: String,
     pub to_currency: String,
-    pub date: Option<NaiveDate>,
 }
 
 pub async fn get_exchange_rate(
     State(state): State<AppState>,
-    _auth: AuthContext,
     Query(query): Query<GetExchangeRateQuery>,
 ) -> Result<Json<ApiResponse<ExchangeRateResponse>>, StatusCode> {
     let service = CurrencyService::new(state.db);
-    let date = query.date.unwrap_or_else(|| chrono::Local::now().naive_local().date());
 
-    match service.get_exchange_rate(&query.from_currency, &query.to_currency, date).await {
+    match service.get_exchange_rate(&query.from_currency, &query.to_currency).await {
         Ok(Some(model)) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model)))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {

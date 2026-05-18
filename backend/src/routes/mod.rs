@@ -901,7 +901,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         // 多币种路由
         .nest("/api/v1/erp/currencies", Router::new()
-            .route("/", get(currency_handler::list_currencies).post(currency_handler::create_currency))
+            .route("/", get(currency_handler::list_currencies))
             .route("/base", get(currency_handler::get_base_currency))
         )
         .nest("/api/v1/erp/exchange-rates", Router::new()

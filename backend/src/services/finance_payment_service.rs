@@ -37,15 +37,10 @@ impl FinancePaymentService {
     pub async fn create_payment(
         &self,
         payment_no: String,
-        payment_type: String,
-        order_type: String,
-        order_id: Option<i32>,
-        customer_id: Option<i32>,
-        supplier_id: Option<i32>,
+        invoice_id: Option<i32>,
         amount: Decimal,
         payment_date: DateTime<Utc>,
         payment_method: Option<String>,
-        reference_no: Option<String>,
         notes: Option<String>,
         created_by: Option<i32>,
     ) -> Result<finance_payment::Model, sea_orm::DbErr> {
@@ -55,22 +50,13 @@ impl FinancePaymentService {
         let active_payment = finance_payment::ActiveModel {
             id: Set(0),
             payment_no: Set(payment_no),
-            payment_type: Set(payment_type),
-            order_type: Set(order_type),
-            order_id: Set(order_id),
-            customer_id: Set(customer_id),
-            supplier_id: Set(supplier_id),
+            invoice_id: Set(invoice_id),
             amount: Set(amount),
-            paid_amount: Set(Decimal::ZERO),
-            balance_amount: Set(amount),
             payment_date: Set(payment_date),
             payment_method: Set(payment_method),
-            reference_no: Set(reference_no),
             notes: Set(notes),
             status: Set("pending".to_string()),
             created_by: Set(created_by),
-            approved_by: Set(None),
-            approved_at: Set(None),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
@@ -82,7 +68,6 @@ impl FinancePaymentService {
         &self,
         id: i32,
         status: String,
-        approved_by: Option<i32>,
     ) -> Result<finance_payment::Model, sea_orm::DbErr> {
         let mut payment: finance_payment::ActiveModel = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
@@ -91,8 +76,6 @@ impl FinancePaymentService {
             .into();
 
         payment.status = Set(status);
-        payment.approved_by = Set(approved_by);
-        payment.approved_at = Set(Some(Utc::now()));
         payment.updated_at = Set(Utc::now());
 
         payment.update(&*self.db).await

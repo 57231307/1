@@ -48,21 +48,31 @@ impl PurchaseInspectionService {
         let inspection_no = self.generate_inspection_no().await?;
 
         let inspection = purchase_inspection::ActiveModel {
+            id: Set(0),
             inspection_no: Set(inspection_no),
-            purchase_order_id: Set(req.order_id),
+            receipt_id: Set(req.receipt_id),
+            order_id: Set(req.order_id),
             supplier_id: Set(req.supplier_id),
             inspection_date: Set(req.inspection_date),
             inspector_id: Set(req.inspector_id),
-            result: Set("PENDING".to_string()),
-            qualified_quantity: Set(Decimal::ZERO),
-            unqualified_quantity: Set(Decimal::ZERO),
-            unqualified_reason: Set(req.notes.clone()),
-            remarks: Set(req.notes),
-            created_by: Set(user_id),
-            ..Default::default()
-        }
-        .insert(&*self.db)
-        .await?;
+            inspection_type: Set(req.inspection_type),
+            sample_size: Set(req.sample_size),
+            defect_count: Set(Some(0)),
+            pass_quantity: Set(None),
+            reject_quantity: Set(None),
+            inspection_status: Set(Some("pending".to_string())),
+            inspection_result: Set(None),
+            quality_score: Set(None),
+            defect_description: Set(None),
+            attachment_urls: Set(None),
+            notes: Set(req.notes),
+            completed_at: Set(None),
+            completed_by: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        };
+
+        let inspection = inspection.insert(&*self.db).await?;
 
         Ok(inspection)
     }
@@ -82,21 +92,25 @@ impl PurchaseInspectionService {
                 inspection_id
             )))?;
 
-        if inspection.result != "PENDING" {
+        if inspection.inspection_status.as_deref() != Some("pending") {
             return Err(AppError::BusinessError(format!(
-                "质检单状态不允许修改，当前状态：{}",
-                inspection.result
+                "质检单状态不允许修改，当前状态：{:?}",
+                inspection.inspection_status
             )));
         }
 
         let mut inspection_active: purchase_inspection::ActiveModel = inspection.into();
 
-        if let Some(notes) = req.notes {
-            // 使用 clone 避免 moved value 错误
-            let notes_clone = notes.clone();
-            inspection_active.remarks = Set(Some(notes));
-            inspection_active.unqualified_reason = Set(Some(notes_clone));
+        if let Some(sample_size) = req.sample_size {
+            inspection_active.sample_size = Set(Some(sample_size));
         }
+        if let Some(defect_description) = req.defect_description {
+            inspection_active.defect_description = Set(Some(defect_description));
+        }
+        if let Some(notes) = req.notes {
+            inspection_active.notes = Set(Some(notes));
+        }
+        inspection_active.updated_at = Set(Utc::now());
 
         let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", inspection_active, Some(0)).await?;
 
@@ -120,28 +134,25 @@ impl PurchaseInspectionService {
                 inspection_id
             )))?;
 
-        if inspection.result != "PENDING" {
+        if inspection.inspection_status.as_deref() != Some("pending") {
             return Err(AppError::BusinessError(format!(
-                "质检单状态不允许完成，当前状态：{}",
-                inspection.result
+                "质检单状态不允许完成，当前状态：{:?}",
+                inspection.inspection_status
             )));
         }
 
         // 计算质量得分
-        let _quality_score = self
+        let quality_score = self
             .calculate_quality_score(req.pass_quantity, req.reject_quantity)
             .await?;
 
-        let now = Utc::now().naive_utc();
         let mut inspection_active: purchase_inspection::ActiveModel = inspection.into();
-        inspection_active.qualified_quantity = Set(req.pass_quantity);
-        inspection_active.unqualified_quantity = Set(req.reject_quantity);
-        if req.reject_quantity > Decimal::ZERO {
-            inspection_active.unqualified_reason =
-                Set(Some(format!("不合格数量：{}", req.reject_quantity)));
-        }
-        inspection_active.result = Set(req.inspection_result);
-        inspection_active.inspection_date = Set(now.date());
+        inspection_active.pass_quantity = Set(Some(req.pass_quantity));
+        inspection_active.reject_quantity = Set(Some(req.reject_quantity));
+        inspection_active.inspection_result = Set(Some(req.inspection_result));
+        inspection_active.inspection_status = Set(Some("completed".to_string()));
+        inspection_active.quality_score = Set(Some(quality_score));
+        inspection_active.updated_at = Set(Utc::now());
 
         let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", inspection_active, Some(0)).await?;
 
@@ -180,7 +191,7 @@ impl PurchaseInspectionService {
         let mut query = purchase_inspection::Entity::find();
 
         if let Some(status) = status {
-            query = query.filter(purchase_inspection::Column::Result.eq(&status));
+            query = query.filter(purchase_inspection::Column::InspectionStatus.eq(&status));
         }
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_inspection::Column::SupplierId.eq(supplier_id));
@@ -221,7 +232,7 @@ impl PurchaseInspectionService {
 #[derive(Debug, Validate, Deserialize)]
 pub struct CreatePurchaseInspectionRequest {
     /// 入库单 ID
-    pub receipt_id: i32,
+    pub receipt_id: Option<i32>,
 
     /// 采购订单 ID
     pub order_id: Option<i32>,
@@ -238,6 +249,9 @@ pub struct CreatePurchaseInspectionRequest {
     /// 质检类型
     pub inspection_type: Option<String>,
 
+    /// 样品大小
+    pub sample_size: Option<Decimal>,
+
     /// 备注
     pub notes: Option<String>,
 }
@@ -245,7 +259,7 @@ pub struct CreatePurchaseInspectionRequest {
 /// 更新采购质检单请求
 #[derive(Debug, Default, Deserialize)]
 pub struct UpdatePurchaseInspectionRequest {
-    pub sample_size: Option<i32>,
+    pub sample_size: Option<Decimal>,
     pub defect_description: Option<String>,
     pub notes: Option<String>,
 }

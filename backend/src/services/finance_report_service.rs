@@ -42,9 +42,8 @@ impl FinanceReportService {
     pub async fn get_balance_sheet(&self) -> Result<BalanceSheet, sea_orm::DbErr> {
         // 简化实现：资产 = 应收账款, 负债 = 应付账款, 所有者权益 = 资产 - 负债
         
-        // 1. 应收账款 (未结清的AR发票)
+        // 1. 应收账款 (未结清的发票)
         let ar_total = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::InvoiceType.eq("AR"))
             .filter(finance_invoice::Column::Status.ne("CANCELLED"))
             .filter(finance_invoice::Column::Status.ne("COMPLETED"))
             .select_only()
@@ -55,22 +54,8 @@ impl FinanceReportService {
             .flatten()
             .unwrap_or(Decimal::ZERO);
 
-        // 2. 应付账款 (未结清的AP发票)
-        let ap_total = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::InvoiceType.eq("AP"))
-            .filter(finance_invoice::Column::Status.ne("CANCELLED"))
-            .filter(finance_invoice::Column::Status.ne("COMPLETED"))
-            .select_only()
-            .column_as(Expr::col(finance_invoice::Column::TotalAmount).sum(), "unpaid")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
-
-        // 3. 现金/银行存款 (收款总额 - 付款总额)
+        // 2. 现金/银行存款 (收款总额)
         let total_received = finance_payment::Entity::find()
-            .filter(finance_payment::Column::PaymentType.eq("RECEIPT"))
             .filter(finance_payment::Column::Status.eq("COMPLETED"))
             .select_only()
             .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
@@ -80,48 +65,31 @@ impl FinanceReportService {
             .flatten()
             .unwrap_or(Decimal::ZERO);
 
-        let total_paid = finance_payment::Entity::find()
-            .filter(finance_payment::Column::PaymentType.eq("PAYMENT"))
-            .filter(finance_payment::Column::Status.eq("COMPLETED"))
-            .select_only()
-            .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
-
-        let cash_total = total_received - total_paid;
-
+        let cash_total = total_received;
         let total_assets = ar_total + cash_total;
-        let total_liabilities = ap_total;
+        let total_liabilities = Decimal::ZERO;
         let total_equity = total_assets - total_liabilities;
 
         Ok(BalanceSheet {
             assets: vec![
-                ReportItem { name: "货币资金".to_string(), amount: cash_total },
                 ReportItem { name: "应收账款".to_string(), amount: ar_total },
+                ReportItem { name: "现金及银行存款".to_string(), amount: cash_total },
             ],
             total_assets,
-            liabilities: vec![
-                ReportItem { name: "应付账款".to_string(), amount: ap_total },
-            ],
+            liabilities: vec![],
             total_liabilities,
             equity: vec![
-                ReportItem { name: "未分配利润".to_string(), amount: total_equity },
+                ReportItem { name: "所有者权益".to_string(), amount: total_equity },
             ],
             total_equity,
         })
     }
 
     /// 利润表 (简化版)
-    pub async fn get_income_statement(&self, start_date: chrono::NaiveDate, end_date: chrono::NaiveDate) -> Result<IncomeStatement, sea_orm::DbErr> {
-        // 1. 营业收入 (销售发票总额)
-        let revenue = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::InvoiceType.eq("AR"))
-            .filter(finance_invoice::Column::Status.ne("CANCELLED"))
-            .filter(finance_invoice::Column::InvoiceDate.gte(start_date))
-            .filter(finance_invoice::Column::InvoiceDate.lte(end_date))
+    pub async fn get_income_statement(&self, _start_date: chrono::NaiveDate, _end_date: chrono::NaiveDate) -> Result<IncomeStatement, sea_orm::DbErr> {
+        // 简化实现
+        let total_revenue = finance_invoice::Entity::find()
+            .filter(finance_invoice::Column::Status.eq("COMPLETED"))
             .select_only()
             .column_as(Expr::col(finance_invoice::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
@@ -130,31 +98,27 @@ impl FinanceReportService {
             .flatten()
             .unwrap_or(Decimal::ZERO);
 
-        // 2. 营业成本 (采购发票总额)
-        let cogs = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::InvoiceType.eq("AP"))
-            .filter(finance_invoice::Column::Status.ne("CANCELLED"))
-            .filter(finance_invoice::Column::InvoiceDate.gte(start_date))
-            .filter(finance_invoice::Column::InvoiceDate.lte(end_date))
+        let total_expenses = finance_payment::Entity::find()
+            .filter(finance_payment::Column::Status.eq("COMPLETED"))
             .select_only()
-            .column_as(Expr::col(finance_invoice::Column::TotalAmount).sum(), "total")
+            .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
             .one(self.db.as_ref())
             .await?
             .flatten()
             .unwrap_or(Decimal::ZERO);
 
-        let net_income = revenue - cogs;
+        let net_income = total_revenue - total_expenses;
 
         Ok(IncomeStatement {
             revenue: vec![
-                ReportItem { name: "主营业务收入".to_string(), amount: revenue },
+                ReportItem { name: "营业收入".to_string(), amount: total_revenue },
             ],
-            total_revenue: revenue,
+            total_revenue,
             expenses: vec![
-                ReportItem { name: "主营业务成本".to_string(), amount: cogs },
+                ReportItem { name: "营业支出".to_string(), amount: total_expenses },
             ],
-            total_expenses: cogs,
+            total_expenses,
             net_income,
         })
     }

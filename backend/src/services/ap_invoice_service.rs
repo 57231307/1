@@ -149,7 +149,7 @@ impl ApInvoiceService {
         let due_date = invoice_date;
 
         // 退货金额为负数
-        let amount = -return_doc.total_amount;
+        let amount = -return_doc.total_amount.unwrap_or(Decimal::ZERO);
 
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),

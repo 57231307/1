@@ -132,15 +132,17 @@ pub async fn reject_purchase_return(
 
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
-        let _ = event_service
-            .notify_approval_result(
-                return_order.created_by,
-                &return_order.return_no,
-                false,
-                &auth.username,
-                Some(&req.reason),
-            )
-            .await;
+        if let Some(created_by) = return_order.created_by {
+            let _ = event_service
+                .notify_approval_result(
+                    created_by,
+                    &return_order.return_no,
+                    false,
+                    &auth.username,
+                    Some(&req.reason),
+                )
+                .await;
+        }
     }
 
     Ok(Json(ApiResponse::success_with_message(

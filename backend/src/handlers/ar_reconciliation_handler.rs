@@ -18,12 +18,12 @@ use crate::utils::response::ApiResponse;
 pub struct CreateReconciliationApiRequest {
     pub reconciliation_no: String,
     pub customer_id: i32,
-    pub start_date: NaiveDate,
-    pub end_date: NaiveDate,
+    pub customer_name: Option<String>,
+    pub period_start: NaiveDate,
+    pub period_end: NaiveDate,
     pub opening_balance: Decimal,
-    pub current_receivable: Decimal,
-    pub current_received: Decimal,
-    pub remarks: Option<String>,
+    pub total_invoices: Decimal,
+    pub total_collections: Decimal,
 }
 
 #[derive(Debug, Serialize)]
@@ -31,13 +31,14 @@ pub struct ReconciliationResponse {
     pub id: i32,
     pub reconciliation_no: String,
     pub customer_id: i32,
-    pub start_date: String,
-    pub end_date: String,
+    pub customer_name: Option<String>,
+    pub period_start: String,
+    pub period_end: String,
     pub opening_balance: String,
-    pub current_receivable: String,
-    pub current_received: String,
+    pub total_invoices: String,
+    pub total_collections: String,
     pub closing_balance: String,
-    pub status: String,
+    pub reconciliation_status: Option<String>,
     pub created_at: String,
 }
 
@@ -47,13 +48,14 @@ impl From<crate::models::ar_reconciliation::Model> for ReconciliationResponse {
             id: model.id,
             reconciliation_no: model.reconciliation_no,
             customer_id: model.customer_id,
-            start_date: model.start_date.to_string(),
-            end_date: model.end_date.to_string(),
+            customer_name: model.customer_name,
+            period_start: model.period_start.to_string(),
+            period_end: model.period_end.to_string(),
             opening_balance: model.opening_balance.to_string(),
-            current_receivable: model.current_receivable.to_string(),
-            current_received: model.current_received.to_string(),
+            total_invoices: model.total_invoices.to_string(),
+            total_collections: model.total_collections.to_string(),
             closing_balance: model.closing_balance.to_string(),
-            status: model.status,
+            reconciliation_status: model.reconciliation_status,
             created_at: model.created_at.to_rfc3339(),
         }
     }
@@ -68,12 +70,13 @@ pub async fn create_reconciliation(
     let create_req = CreateReconciliationRequest {
         reconciliation_no: req.reconciliation_no,
         customer_id: req.customer_id,
-        start_date: req.start_date,
-        end_date: req.end_date,
+        customer_name: req.customer_name,
+        period_start: req.period_start,
+        period_end: req.period_end,
         opening_balance: req.opening_balance,
-        current_receivable: req.current_receivable,
-        current_received: req.current_received,
-        remarks: req.remarks,
+        total_invoices: req.total_invoices,
+        total_collections: req.total_collections,
+        notes: None,
     };
 
     match service.create(create_req).await {
