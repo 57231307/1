@@ -381,12 +381,6 @@ router.beforeEach(async (to, _from, next) => {
           next({ path: '/login', query: { redirect: to.fullPath } })
           return
         }
-        
-        if (tokenData.iat && tokenData.iat > currentTime) {
-          removeToken()
-          next({ path: '/login', query: { redirect: to.fullPath } })
-          return
-        }
       }
     } catch (error) {
       console.error('Token validation failed:', error)
