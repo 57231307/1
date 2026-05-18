@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 /// 库位 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "locations")]
+#[sea_orm(table_name = "warehouse_locations")]
 pub struct Model {
     /// 库位 ID（主键）
     #[sea_orm(primary_key)]

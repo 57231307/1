@@ -32,7 +32,7 @@ impl BpmService {
             business_type: Set(Some(req.business_type.clone())),
             business_id: Set(Some(req.business_id)),
             business_no: Set(Some(req.business_id.to_string())),
-            applicant_id: Set(req.initiator_id),
+            initiator_id: Set(req.initiator_id),
             status: Set("PROCESSING".to_string()),
             variables: Set(req.variables),
             start_time: Set(chrono::Utc::now()),

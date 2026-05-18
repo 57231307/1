@@ -22,8 +22,8 @@ pub struct Model {
     /// 实例编码
     pub instance_no: String,
 
-    /// 申请人 ID
-    pub applicant_id: i32,
+    /// 发起人 ID
+    pub initiator_id: i32,
 
     /// 当前状态：PENDING=待处理，PROCESSING=处理中，COMPLETED=已完成，TERMINATED=已终止
     pub status: String,
