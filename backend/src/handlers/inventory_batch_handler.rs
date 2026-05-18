@@ -178,7 +178,6 @@ pub async fn create_batch(
         shelf_no: Set(None),
         layer_no: Set(None),
         bin_location: Set(None),
-        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     match batch.insert(&*state.db).await {
@@ -423,7 +422,6 @@ pub async fn transfer_batch(
                 location_id: Set(None),
                 shelf_no: Set(None),
                 layer_no: Set(None),
-                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             if let Err(e) = new_batch.insert(&txn).await {

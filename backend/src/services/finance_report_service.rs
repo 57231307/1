@@ -44,7 +44,6 @@ impl FinanceReportService {
         
         // 1. 应收账款 (未结清的AR发票)
         let ar_total = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::IsDeleted.eq(false))
             .filter(finance_invoice::Column::InvoiceType.eq("AR"))
             .filter(finance_invoice::Column::Status.ne("CANCELLED"))
             .filter(finance_invoice::Column::Status.ne("COMPLETED"))
@@ -58,7 +57,6 @@ impl FinanceReportService {
 
         // 2. 应付账款 (未结清的AP发票)
         let ap_total = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::IsDeleted.eq(false))
             .filter(finance_invoice::Column::InvoiceType.eq("AP"))
             .filter(finance_invoice::Column::Status.ne("CANCELLED"))
             .filter(finance_invoice::Column::Status.ne("COMPLETED"))
@@ -72,7 +70,6 @@ impl FinanceReportService {
 
         // 3. 现金/银行存款 (收款总额 - 付款总额)
         let total_received = finance_payment::Entity::find()
-            .filter(finance_payment::Column::IsDeleted.eq(false))
             .filter(finance_payment::Column::PaymentType.eq("RECEIPT"))
             .filter(finance_payment::Column::Status.eq("COMPLETED"))
             .select_only()
@@ -84,7 +81,6 @@ impl FinanceReportService {
             .unwrap_or(Decimal::ZERO);
 
         let total_paid = finance_payment::Entity::find()
-            .filter(finance_payment::Column::IsDeleted.eq(false))
             .filter(finance_payment::Column::PaymentType.eq("PAYMENT"))
             .filter(finance_payment::Column::Status.eq("COMPLETED"))
             .select_only()
@@ -122,7 +118,6 @@ impl FinanceReportService {
     pub async fn get_income_statement(&self, start_date: chrono::NaiveDate, end_date: chrono::NaiveDate) -> Result<IncomeStatement, sea_orm::DbErr> {
         // 1. 营业收入 (销售发票总额)
         let revenue = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::IsDeleted.eq(false))
             .filter(finance_invoice::Column::InvoiceType.eq("AR"))
             .filter(finance_invoice::Column::Status.ne("CANCELLED"))
             .filter(finance_invoice::Column::InvoiceDate.gte(start_date))
@@ -137,7 +132,6 @@ impl FinanceReportService {
 
         // 2. 营业成本 (采购发票总额)
         let cogs = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::IsDeleted.eq(false))
             .filter(finance_invoice::Column::InvoiceType.eq("AP"))
             .filter(finance_invoice::Column::Status.ne("CANCELLED"))
             .filter(finance_invoice::Column::InvoiceDate.gte(start_date))

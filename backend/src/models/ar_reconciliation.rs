@@ -75,7 +75,6 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 是否删除
-    pub is_deleted: bool,
 
     /// 创建人 ID
     pub created_by: Option<i32>,

@@ -144,7 +144,6 @@ pub async fn create_dye_batch(
         created_by: Set(req.created_by),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     match batch.insert(&*state.db).await {

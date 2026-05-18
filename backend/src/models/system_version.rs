@@ -14,7 +14,6 @@ pub struct Model {
     pub release_date: DateTimeUtc,
     pub changelog: Option<String>,
     pub is_current: bool,
-    pub is_deleted: bool,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

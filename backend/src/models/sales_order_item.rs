@@ -22,7 +22,6 @@ pub struct Model {
     pub total_amount: Decimal,
     pub shipped_quantity: Decimal,
     pub notes: Option<String>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[sea_orm(column_separator = '_')]

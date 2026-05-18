@@ -31,7 +31,6 @@ pub struct Model {
     pub sort_order: i32,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

@@ -28,7 +28,6 @@ pub struct Model {
     pub approved_at: Option<DateTime<Utc>>,
     pub created_by: Option<i32>,
     #[sea_orm(column_type = "Timestamp")]
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,

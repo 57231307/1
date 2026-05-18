@@ -378,55 +378,46 @@ impl BpmService {
         use sea_orm::QuerySelect;
 
         let total_instances = bpm_process_instance::Entity::find()
-            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let processing_instances = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("PROCESSING"))
-            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let completed_instances = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
-            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let terminated_instances = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("TERMINATED"))
-            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total_tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let pending_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("PENDING"))
-            .filter(bpm_task::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let completed_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("COMPLETED"))
-            .filter(bpm_task::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let rejected_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("REJECTED"))
-            .filter(bpm_task::Column::IsDeleted.eq(false))
             .count(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 计算平均流程处理时长（分钟）
         let avg_duration = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
-            .filter(bpm_process_instance::Column::IsDeleted.eq(false))
             .filter(bpm_process_instance::Column::EndTime.is_not_null())
             .select_only()
             .column_as(
@@ -458,8 +449,7 @@ impl BpmService {
         page_size: u64,
     ) -> Result<PageResponse<bpm_task::Model>, AppError> {
         let stmt = bpm_task::Entity::find()
-            .filter(bpm_task::Column::Status.eq("PENDING"))
-            .filter(bpm_task::Column::IsDeleted.eq(false));
+            .filter(bpm_task::Column::Status.eq("PENDING"));
 
         let paginator = stmt.paginate(&*self.db, page_size);
         let total = paginator.num_items().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -482,8 +472,7 @@ impl BpmService {
         page: u64,
         page_size: u64,
     ) -> Result<PageResponse<bpm_process_instance::Model>, AppError> {
-        let mut stmt = bpm_process_instance::Entity::find()
-            .filter(bpm_process_instance::Column::IsDeleted.eq(false));
+        let mut stmt = bpm_process_instance::Entity::find();
 
         if let Some(s) = status {
             stmt = stmt.filter(bpm_process_instance::Column::Status.eq(s));

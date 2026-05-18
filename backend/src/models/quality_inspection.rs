@@ -19,7 +19,6 @@ pub struct Model {
     pub acceptance_criteria: Option<String>,
     pub status: String,
     #[sea_orm(column_type = "Timestamp")]
-    pub is_deleted: bool,
     pub created_at: chrono::NaiveDateTime,
     #[sea_orm(column_type = "Timestamp")]
     pub updated_at: chrono::NaiveDateTime,

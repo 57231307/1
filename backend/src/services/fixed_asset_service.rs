@@ -263,7 +263,6 @@ impl FixedAssetService {
             created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         disposal.insert(&txn).await?;
@@ -424,7 +423,6 @@ mod tests {
             supplier_id: None,
             supplier_name: None,
             created_by: 1,
-            is_deleted: false,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }

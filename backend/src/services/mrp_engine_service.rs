@@ -62,7 +62,6 @@ impl MrpEngineService {
         // 查询当前库存
         let stock = InventoryStockEntity::find()
             .filter(crate::models::inventory_stock::Column::ProductId.eq(product_id))
-            .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -98,7 +97,6 @@ impl MrpEngineService {
 
         // 查询BOM明细
         let bom_items = BomItemEntity::find()
-            .filter(crate::models::bom_item::Column::IsDeleted.eq(false))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -115,7 +113,6 @@ impl MrpEngineService {
             // 查询子物料库存
             let stock = InventoryStockEntity::find()
                 .filter(crate::models::inventory_stock::Column::ProductId.eq(item.material_id))
-                .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -174,7 +171,6 @@ impl MrpEngineService {
             planned_order_quantity: Set(Some(main_req.shortage_quantity)),
             planned_order_date: Set(Some(main_req.required_date - Duration::days(14))),
             status: Set("PLANNED".to_string()),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -208,7 +204,6 @@ impl MrpEngineService {
                     planned_order_quantity: Set(Some(req.shortage_quantity)),
                     planned_order_date: Set(Some(req.required_date - Duration::days(14))),
                     status: Set("PLANNED".to_string()),
-                    is_deleted: Set(false),
                     created_at: Set(Utc::now()),
                     updated_at: Set(Utc::now()),
                     ..Default::default()
@@ -233,7 +228,6 @@ impl MrpEngineService {
         let alert_date = Utc::now().date_naive() + Duration::days(days_ahead);
 
         let mrp_results = MrpResultEntity::find()
-            .filter(crate::models::mrp_result::Column::IsDeleted.eq(false))
             .filter(crate::models::mrp_result::Column::RequiredDate.lte(alert_date))
             .filter(crate::models::mrp_result::Column::Status.eq("PLANNED"))
             .all(&*self.db)
@@ -244,7 +238,6 @@ impl MrpEngineService {
         for result in mrp_results {
             let stock = InventoryStockEntity::find()
                 .filter(crate::models::inventory_stock::Column::ProductId.eq(result.product_id))
-                .filter(crate::models::inventory_stock::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;

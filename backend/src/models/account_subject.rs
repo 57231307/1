@@ -53,7 +53,6 @@ pub struct Model {
 
     // 状态
     pub status: String,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

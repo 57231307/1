@@ -34,7 +34,6 @@ pub struct Model {
     pub supplier_id: Option<i32>,
     pub supplier_name: Option<String>,
     pub created_by: i32,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

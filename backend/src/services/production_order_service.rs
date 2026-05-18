@@ -78,7 +78,6 @@ impl ProductionOrderService {
             work_center_id: Set(req.work_center_id),
             remarks: Set(req.remarks),
             created_by: Set(req.created_by),
-            is_deleted: Set(false),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -110,8 +109,7 @@ impl ProductionOrderService {
         &self,
         query: ProductionOrderQuery,
     ) -> Result<(Vec<ProductionOrderModel>, u64), AppError> {
-        let mut select = ProductionOrderEntity::find()
-            .filter(crate::models::production_order::Column::IsDeleted.eq(false));
+        let mut select = ProductionOrderEntity::find();
 
         if let Some(status) = query.status {
             select = select.filter(crate::models::production_order::Column::Status.eq(status));
@@ -191,7 +189,6 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.is_deleted = Set(true);
         active_model.updated_at = Set(Utc::now());
 
         active_model

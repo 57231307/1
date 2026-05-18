@@ -23,7 +23,6 @@ pub struct Model {
     pub paid_date: Option<DateTime<Utc>>,
     pub payment_method: Option<String>,
     pub notes: Option<String>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

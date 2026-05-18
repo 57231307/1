@@ -35,7 +35,6 @@ pub struct Model {
     pub remarks: Option<String>,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

@@ -122,17 +122,13 @@ impl DashboardService {
 
         // 缓存未命中，从数据库获取
         let total_products = product::Entity::find().count(&*self.db).await? as i64;
-        let total_warehouses = warehouse::Entity::find().filter(warehouse::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
-        let total_orders = sales_order::Entity::find().filter(sales_order::Column::IsDeleted.eq(false)).count(&*self.db).await? as i64;
 
         let pending_orders = sales_order::Entity::find()
-            .filter(sales_order::Column::IsDeleted.eq(false))
             .filter(sales_order::Column::Status.eq("pending"))
             .count(&*self.db)
             .await? as i64;
             
         let low_stock_count = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::IsDeleted.eq(false))
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
@@ -147,7 +143,6 @@ impl DashboardService {
         let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
             .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
         let monthly_sales_dec = sales_order::Entity::find()
-            .filter(sales_order::Column::IsDeleted.eq(false))
             .filter(sales_order::Column::OrderDate.gte(start_of_month))
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
@@ -159,7 +154,6 @@ impl DashboardService {
             
         // 总销售额
         let total_sales_dec = sales_order::Entity::find()
-            .filter(sales_order::Column::IsDeleted.eq(false))
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
@@ -167,6 +161,9 @@ impl DashboardService {
             .await?
             .flatten()
             .unwrap_or(Decimal::ZERO);
+
+        let total_warehouses = warehouse::Entity::find().count(&*self.db).await? as i64;
+        let total_orders = sales_order::Entity::find().count(&*self.db).await? as i64;
 
         let overview = DashboardOverview {
             total_products,
@@ -205,7 +202,8 @@ impl DashboardService {
             }
         }
 
-        let mut query = sales_order::Entity::find().filter(sales_order::Column::IsDeleted.eq(false));
+
+        let mut query = sales_order::Entity::find();
 
         // 应用日期范围过滤
         if let Some(start) = start_date {
@@ -268,7 +266,6 @@ impl DashboardService {
 
         // 总库存数量 - 暂时使用简单查询
         let total_quantity = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::IsDeleted.eq(false))
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
             .column_as(
@@ -300,7 +297,6 @@ impl DashboardService {
 
         // 仓库分布统计 - 暂时简化处理
         let warehouse_distribution = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::IsDeleted.eq(false))
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
             .column(inventory_stock::Column::WarehouseId)
@@ -317,7 +313,6 @@ impl DashboardService {
         for (wh_id, qty) in warehouse_distribution {
             // 获取仓库名称
             let wh = warehouse::Entity::find_by_id(wh_id)
-                .filter(warehouse::Column::IsDeleted.eq(false))
                 .one(self.db.as_ref())
                 .await?;
             if let Some(warehouse_model) = wh {
@@ -358,7 +353,6 @@ impl DashboardService {
         }
 
         let low_stock_items = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::IsDeleted.eq(false))
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
@@ -375,7 +369,6 @@ impl DashboardService {
                 .await?;
             // 获取仓库信息
             let wh = warehouse::Entity::find_by_id(item.warehouse_id)
-                .filter(warehouse::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await?;
 

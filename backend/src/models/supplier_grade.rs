@@ -25,7 +25,6 @@ pub struct Model {
     /// 是否启用
     pub is_enabled: bool,
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间
     pub updated_at: DateTimeWithTimeZone,

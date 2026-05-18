@@ -40,7 +40,6 @@ pub struct Model {
     pub production_date: Option<NaiveDate>,
     pub shelf_life: Option<i32>,
     pub notes: Option<String>,
-    pub is_deleted: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub internal_dye_lot_id: Option<i32>,
     pub internal_dye_lot_no: Option<String>,

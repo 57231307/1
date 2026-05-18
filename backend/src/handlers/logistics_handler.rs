@@ -56,7 +56,6 @@ pub async fn create_waybill(
         notes: Set(req.notes),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-        is_deleted: sea_orm::ActiveValue::NotSet,
     };
 
     let inserted = new_waybill.insert(&txn).await?;

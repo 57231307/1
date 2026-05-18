@@ -29,7 +29,6 @@ pub struct Model {
     /// 结账人 ID
     pub closed_by: Option<i32>,
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

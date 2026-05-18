@@ -490,7 +490,6 @@ mod tests {
             next_assessment_date: Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()),
             status: status.to_string(),
             created_by: 1,
-            is_deleted: false,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }

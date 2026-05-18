@@ -12,7 +12,6 @@ pub struct Model {
     pub approver_id: i32,
     pub action: String,
     pub comments: Option<String>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 }
 

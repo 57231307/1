@@ -252,7 +252,6 @@ impl InventoryCountService {
             completed_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let count_entity = count.insert(&txn).await?;
@@ -279,7 +278,6 @@ impl InventoryCountService {
                     notes: sea_orm::ActiveValue::Set(item_req.notes),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    is_deleted: sea_orm::ActiveValue::NotSet,
                 };
 
                 item.insert(&txn).await?;
@@ -492,7 +490,6 @@ impl InventoryCountService {
                     bin_location: sea_orm::ActiveValue::NotSet,
                     stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
                     quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
-                    is_deleted: sea_orm::ActiveValue::NotSet,
                 };
                 new_stock.insert(&txn).await?;
             }

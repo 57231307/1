@@ -350,7 +350,6 @@ impl SalesService {
             approved_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            is_deleted: sea_orm::ActiveValue::NotSet,
         };
 
         let order_entity = order.insert(&txn).await?;
@@ -433,7 +432,6 @@ impl SalesService {
                 shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
                 is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
-                is_deleted: sea_orm::ActiveValue::NotSet,
             };
 
             item.insert(&txn).await?;
@@ -583,7 +581,6 @@ impl SalesService {
                         shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                         paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
                         is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
-                        is_deleted: sea_orm::ActiveValue::NotSet,
                     };
 
                 item.insert(&txn).await?;
@@ -731,7 +728,6 @@ impl SalesService {
                     created_by: sea_orm::ActiveValue::NotSet,
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    is_deleted: sea_orm::ActiveValue::NotSet,
                 };
                 reservation.insert(txn).await?;
             } else {

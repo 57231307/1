@@ -14,7 +14,6 @@ pub struct Model {
     pub description: Option<String>,
     pub permissions: Option<String>,
     pub is_system: bool,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -13,7 +13,6 @@ pub struct Model {
     pub approver_user_id: Option<i32>,
     #[sea_orm(column_type = "JsonBinary", nullable)]
     pub condition_expr: Option<serde_json::Value>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

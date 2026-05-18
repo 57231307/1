@@ -50,7 +50,6 @@ pub struct Model {
     pub end_time: Option<DateTime<Utc>>,
 
     /// 创建时间
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 更新时间

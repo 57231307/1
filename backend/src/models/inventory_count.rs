@@ -21,7 +21,6 @@ pub struct Model {
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

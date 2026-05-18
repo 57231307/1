@@ -15,7 +15,6 @@ pub struct Model {
     pub description: Option<String>,
     pub sort_order: i32,
     pub is_active: bool,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

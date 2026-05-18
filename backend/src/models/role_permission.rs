@@ -14,7 +14,6 @@ pub struct Model {
     pub resource_id: Option<i32>,
     pub action: String,
     pub allowed: bool,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

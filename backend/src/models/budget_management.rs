@@ -16,7 +16,6 @@ pub struct Model {
     pub level: i32,
     pub status: String,
     #[sea_orm(column_type = "Timestamp")]
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,

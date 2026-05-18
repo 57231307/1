@@ -50,7 +50,6 @@ pub struct Model {
 
     /// 创建时间
     #[sea_orm(auto_time_on_create = true)]
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
 
     /// 取消人 ID

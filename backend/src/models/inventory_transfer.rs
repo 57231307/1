@@ -22,7 +22,6 @@ pub struct Model {
     pub approved_at: Option<DateTime<Utc>>,
     pub shipped_at: Option<DateTime<Utc>>,
     pub received_at: Option<DateTime<Utc>>,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

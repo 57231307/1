@@ -12,7 +12,6 @@ pub struct Model {
     pub resource_type: String,
     pub description: Option<String>,
     pub is_active: bool,
-    pub is_deleted: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -34,7 +34,6 @@ impl TenantService {
             admin_user_id: Set(None),
             db_schema: Set(None),
             custom_domain: Set(None),
-            is_deleted: Set(false),
             created_at: Set(now),
             updated_at: Set(now),
             expired_at: Set(None),
@@ -83,7 +82,6 @@ impl TenantService {
         page_size: u64,
     ) -> Result<(Vec<tenant::Model>, u64), DbErr> {
         let paginator = Tenant::find()
-            .filter(tenant::Column::IsDeleted.eq(false))
             .order_by_desc(tenant::Column::CreatedAt)
             .paginate(self.db.as_ref(), page_size);
 

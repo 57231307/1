@@ -90,7 +90,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
             match event {
                 BusinessEvent::PurchaseReceiptCompleted { order_id, .. } => {
                     tracing::info!("Event received: PurchaseReceiptCompleted for order {}", order_id);
-                    if let Ok(Some(order)) = crate::models::purchase_order::Entity::find_by_id(order_id).filter(crate::models::purchase_order::Column::IsDeleted.eq(false)).one(db.as_ref()).await {
+                    if let Ok(Some(order)) = crate::models::purchase_order::Entity::find_by_id(order_id).one(db.as_ref()).await {
                         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
                         active_order.order_status = Set("RECEIVED".to_string());
                         if let Err(e) = active_order.update(db.as_ref()).await {
@@ -105,7 +105,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 }
                 BusinessEvent::PaymentCompleted { invoice_id, .. } => {
                     tracing::info!("Event received: PaymentCompleted for invoice {}", invoice_id);
-                    if let Ok(Some(invoice)) = crate::models::ap_invoice::Entity::find_by_id(invoice_id).filter(crate::models::ap_invoice::Column::IsDeleted.eq(false)).one(db.as_ref()).await {
+                    if let Ok(Some(invoice)) = crate::models::ap_invoice::Entity::find_by_id(invoice_id).one(db.as_ref()).await {
                         let mut active_invoice: crate::models::ap_invoice::ActiveModel = invoice.into();
                         active_invoice.invoice_status = Set("PAID".to_string());
                         if let Err(e) = active_invoice.update(db.as_ref()).await {
@@ -124,7 +124,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 BusinessEvent::CollectionCompleted { invoice_id, .. } => {
                     if let Some(inv_id) = invoice_id {
                         tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
-                        if let Ok(Some(invoice)) = crate::models::ar_invoice::Entity::find_by_id(inv_id).filter(crate::models::ar_invoice::Column::IsDeleted.eq(false)).one(db.as_ref()).await {
+                        if let Ok(Some(invoice)) = crate::models::ar_invoice::Entity::find_by_id(inv_id).one(db.as_ref()).await {
                             let mut active_invoice: crate::models::ar_invoice::ActiveModel = invoice.into();
                             active_invoice.status = Set("PAID".to_string());
                             if let Err(e) = active_invoice.update(db.as_ref()).await {
@@ -164,7 +164,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                                 tracing::info!("Successfully approved sales_order {} via BPM", business_id);
                             }
                         } else {
-                            if let Ok(Some(order)) = crate::models::sales_order::Entity::find_by_id(business_id).filter(crate::models::sales_order::Column::IsDeleted.eq(false)).one(db.as_ref()).await {
+                            if let Ok(Some(order)) = crate::models::sales_order::Entity::find_by_id(business_id).one(db.as_ref()).await {
                                 let mut active_order: crate::models::sales_order::ActiveModel = order.into();
                                 active_order.status = Set("rejected".to_string());
                                 if let Err(e) = active_order.update(db.as_ref()).await {
