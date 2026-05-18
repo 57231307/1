@@ -23,6 +23,7 @@
             <span>面料管理</span>
           </template>
           <el-menu-item index="/fabric">面料列表</el-menu-item>
+          <el-menu-item index="/greige-fabrics">坯布管理</el-menu-item>
           <el-menu-item index="/product">产品管理</el-menu-item>
         </el-sub-menu>
         
@@ -33,6 +34,10 @@
           </template>
           <el-menu-item index="/inventory">库存列表</el-menu-item>
           <el-menu-item index="/warehouse">仓库管理</el-menu-item>
+          <el-menu-item index="/inventory-batch">批次管理</el-menu-item>
+          <el-menu-item index="/inventory-count">库存盘点</el-menu-item>
+          <el-menu-item index="/inventory-transfer">库存调拨</el-menu-item>
+          <el-menu-item index="/inventory-adjustment">库存调整</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="sales">
@@ -41,7 +46,10 @@
             <span>销售管理</span>
           </template>
           <el-menu-item index="/sales">销售订单</el-menu-item>
+          <el-menu-item index="/sales-returns">销售退货</el-menu-item>
+          <el-menu-item index="/sales-ext">销售扩展</el-menu-item>
           <el-menu-item index="/customer">客户管理</el-menu-item>
+          <el-menu-item index="/customer-credit">客户信用</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="purchase">
@@ -50,7 +58,27 @@
             <span>采购管理</span>
           </template>
           <el-menu-item index="/purchase">采购订单</el-menu-item>
+          <el-menu-item index="/purchase-receipt">采购入库</el-menu-item>
+          <el-menu-item index="/purchase-ext">采购扩展</el-menu-item>
           <el-menu-item index="/supplier">供应商管理</el-menu-item>
+          <el-menu-item index="/supplier-evaluation">供应商评估</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="crm">
+          <template #title>
+            <el-icon><User /></el-icon>
+            <span>客户关系</span>
+          </template>
+          <el-menu-item index="/crm">CRM 管理</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="production">
+          <template #title>
+            <el-icon><Cpu /></el-icon>
+            <span>生产管理</span>
+          </template>
+          <el-menu-item index="/production">生产计划</el-menu-item>
+          <el-menu-item index="/quality">质量管理</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="finance">
@@ -61,6 +89,25 @@
           <el-menu-item index="/finance">财务总览</el-menu-item>
           <el-menu-item index="/ap">应付管理</el-menu-item>
           <el-menu-item index="/ar">应收管理</el-menu-item>
+          <el-menu-item index="/ar-reconciliation">应收对账</el-menu-item>
+          <el-menu-item index="/finance-report">财务报表</el-menu-item>
+          <el-menu-item index="/cost">成本归集</el-menu-item>
+          <el-menu-item index="/budget">预算管理</el-menu-item>
+          <el-menu-item index="/fund">资金管理</el-menu-item>
+          <el-menu-item index="/fixed-assets">固定资产</el-menu-item>
+          <el-menu-item index="/currency">多币种</el-menu-item>
+          <el-menu-item index="/financial-analysis">财务分析</el-menu-item>
+          <el-menu-item index="/assist-accounting">辅助核算</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="workflow">
+          <template #title>
+            <el-icon><List /></el-icon>
+            <span>工作流</span>
+          </template>
+          <el-menu-item index="/bpm">审批管理</el-menu-item>
+          <el-menu-item index="/business-trace">业务追溯</el-menu-item>
+          <el-menu-item index="/barcode-scanner">扫码功能</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="system">
@@ -70,6 +117,11 @@
           </template>
           <el-menu-item index="/system">系统设置</el-menu-item>
           <el-menu-item index="/departments">部门管理</el-menu-item>
+          <el-menu-item index="/five-dimension">五维管理</el-menu-item>
+          <el-menu-item index="/data-permission">数据权限</el-menu-item>
+          <el-menu-item index="/advanced">高级功能</el-menu-item>
+          <el-menu-item index="/notification">通知中心</el-menu-item>
+          <el-menu-item index="/omni-audit">全量审计</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -108,7 +160,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { HomeFilled, Goods, Box, ShoppingCart, ArrowDown, Money, Setting } from '@element-plus/icons-vue'
+import { HomeFilled, Goods, Box, ShoppingCart, ArrowDown, Money, Setting, User, Cpu, List } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
