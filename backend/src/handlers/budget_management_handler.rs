@@ -214,8 +214,8 @@ pub async fn list_plans(
     let service = BudgetManagementService::new(state.db.clone());
     let (plans, _total) = service
         .get_plans_list(
-            params.item_type.and_then(|y| y.parse().ok()),
-            params.status.and_then(|s| s.parse().ok()),
+            None,
+            None,
             params.page.unwrap_or(0),
             params.page_size.unwrap_or(10),
         )

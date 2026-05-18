@@ -24,17 +24,19 @@ pub struct Model {
     pub department_id: i32,
     /// 总金额
     pub total_amount: Decimal,
-    /// 开始日期
-    pub start_date: NaiveDate,
-    /// 结束日期
-    pub end_date: NaiveDate,
     /// 状态：draft-草稿、approved-已审批、rejected-已驳回、active-执行中、closed-已关闭
     pub status: String,
     /// 备注
     pub remark: Option<String>,
     /// 创建人
-    pub created_by: Option<i32>,
+    pub prepared_by: Option<i32>,
+    /// 审批人
+    pub approved_by: Option<i32>,
+    /// 审批时间
+    pub approved_at: Option<DateTime<Utc>>,
     #[sea_orm(column_type = "Timestamp")]
+    /// 审批时间
+    pub approved_at: Option<DateTime<Utc>>,
     /// 创建时间
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_type = "Timestamp")]
