@@ -7,7 +7,7 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 
 use crate::models::currency::{
-    ActiveModel as CurrencyActiveModel, Entity as CurrencyEntity, Model as CurrencyModel,
+    Entity as CurrencyEntity, Model as CurrencyModel,
 };
 use crate::models::exchange_rate::{
     ActiveModel as RateActiveModel, Entity as RateEntity, Model as RateModel,

@@ -1,6 +1,6 @@
 use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use sea_orm::*;
 use std::sync::Arc;
 use rust_decimal::Decimal;

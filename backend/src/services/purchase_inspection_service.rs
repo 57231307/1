@@ -43,7 +43,7 @@ impl PurchaseInspectionService {
     pub async fn create_inspection(
         &self,
         req: CreatePurchaseInspectionRequest,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
         let inspection_no = self.generate_inspection_no().await?;
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 //! 预算方案 Entity
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

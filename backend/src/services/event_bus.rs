@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use sea_orm::{ColumnTrait, QueryFilter};
+use sea_orm;
 use tokio::sync::broadcast;
 use std::sync::Arc;
 use once_cell::sync::Lazy;

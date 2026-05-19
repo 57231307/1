@@ -106,6 +106,7 @@ impl BatchService {
                 cost_price: Set(cost_price),
                 description: Set(req.description.clone()),
                 status: Set("active".to_string()),
+                is_deleted: Set(false),
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
                 // 面料行业特色字段

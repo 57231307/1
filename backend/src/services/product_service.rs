@@ -145,6 +145,7 @@ impl ProductService {
             ),
             description: Set(description),
             status: Set(status),
+            is_deleted: Set(false),
             // 面料行业字段
             product_type: Set(product_type),
             fabric_composition: Set(fabric_composition),
