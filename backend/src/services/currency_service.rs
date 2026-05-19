@@ -43,6 +43,7 @@ impl CurrencyService {
         Ok(model)
     }
 
+    #[allow(dead_code)]
     pub async fn list_exchange_rates(
         &self,
         from_currency: Option<String>,

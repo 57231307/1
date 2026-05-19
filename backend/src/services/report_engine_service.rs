@@ -4,7 +4,7 @@
 
 #![allow(dead_code)]
 
-use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{EntityTrait, PaginatorTrait, QueryOrder};
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 
