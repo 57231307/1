@@ -286,8 +286,9 @@ jobs:
           mkdir -p release/bingxi-erp/deploy
           mkdir -p release/bingxi-erp/docs
           
-          chmod +x release/backend/server
+          chmod +x release/backend/server release/backend/bingxi
           cp release/backend/server release/bingxi-erp/backend/
+          cp release/backend/bingxi release/bingxi-erp/backend/
           cp backend/.env.example release/bingxi-erp/backend/
           cp backend/config.yaml release/bingxi-erp/backend/ 2>/dev/null || true
           
