@@ -45,14 +45,13 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
-      - name: 缓存 Cargo 二进制文件和依赖
+      - name: 缓存 Cargo 依赖
         uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
-            backend/target
           key: ${{ runner.os }}-cargo-test-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-test-${{ env.RUST_VERSION }}-
@@ -94,18 +93,17 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: 缓存 Cargo 二进制文件和依赖
+      - name: 缓存 Cargo 依赖
         uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
-            backend/target
-          key: ${{ runner.os }}-cargo-backend-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-deps-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-backend-${{ env.RUST_VERSION }}-
-            ${{ runner.os }}-cargo-backend-
+            ${{ runner.os }}-cargo-deps-${{ env.RUST_VERSION }}-
+            ${{ runner.os }}-cargo-deps-
 
       - name: 安装系统依赖
         run: |
