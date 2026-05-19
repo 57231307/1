@@ -6,6 +6,69 @@ use crate::models::dto::bpm_dto::{StartProcessRequest, StartProcessResponse, App
 use crate::models::dto::PageResponse;
 use crate::utils::error::AppError;
 
+/// 评估 BPM 边条件表达式
+/// 支持的条件格式:
+/// - `${amount} > 10000` - 变量数值比较
+/// - `${status} == 'APPROVED'` - 变量字符串比较
+/// - `${level} >= 3` - 变量数值比较
+fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_json::Value>) -> bool {
+    let vars = match variables {
+        Some(v) => v,
+        None => return false,
+    };
+
+    let condition = condition.trim();
+    if condition.is_empty() {
+        return true; // 无条件默认通过
+    }
+
+    // 提取变量名和比较操作: ${var_name} operator value
+    let re = regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)").unwrap();
+
+    if let Some(caps) = re.captures(condition) {
+        let var_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+        let operator = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+        let expected_value = caps.get(3).map(|m| m.as_str()).unwrap_or("").trim();
+
+        // 获取实际变量值
+        let actual_value = vars.get(var_name).and_then(|v| {
+            v.as_str().map(|s| s.to_string())
+                .or_else(|| v.as_i64().map(|i| i.to_string()))
+                .or_else(|| v.as_f64().map(|f| f.to_string()))
+        });
+
+        match actual_value {
+            Some(actual) => {
+                // 尝试数值比较
+                if let (Ok(actual_num), Ok(expected_num)) = (actual.parse::<f64>(), expected_value.parse::<f64>()) {
+                    match operator {
+                        ">" => actual_num > expected_num,
+                        "<" => actual_num < expected_num,
+                        ">=" => actual_num >= expected_num,
+                        "<=" => actual_num <= expected_num,
+                        "==" => (actual_num - expected_num).abs() < f64::EPSILON,
+                        "!=" => (actual_num - expected_num).abs() >= f64::EPSILON,
+                        _ => false,
+                    }
+                } else {
+                    // 字符串比较
+                    let expected = expected_value.trim_matches('\'').trim_matches('"');
+                    match operator {
+                        "==" => actual == expected,
+                        "!=" => actual != expected,
+                        _ => false,
+                    }
+                }
+            }
+            None => false,
+        }
+    } else {
+        // 无法解析的条件，默认通过并记录警告
+        tracing::warn!("无法解析 BPM 条件表达式: {}", condition);
+        true
+    }
+}
+
 pub struct BpmService {
     db: Arc<DatabaseConnection>,
 }
@@ -159,12 +222,25 @@ impl BpmService {
             
             if let Some(flow_def) = definition.config {
                 if let (Some(nodes), Some(edges)) = (flow_def.get("nodes").and_then(|n| n.as_array()), flow_def.get("edges").and_then(|e| e.as_array())) {
-                    // Find outgoing edge from current task.node_id
-                    // TODO: evaluate conditions on edges if multiple
-                    if let Some(edge) = edges.iter().find(|e| e.get("source").and_then(|s| s.as_str()) == Some(&task.node_id)) {
+                    // 查找从当前任务节点出发的边，支持条件评估
+                    let matching_edge = edges.iter().find(|e| {
+                        let source_match = e.get("source").and_then(|s| s.as_str()) == Some(&task.node_id);
+                        if !source_match {
+                            return false;
+                        }
+
+                        // 检查边条件
+                        if let Some(condition) = e.get("condition").and_then(|c| c.as_str()) {
+                            evaluate_bpm_condition(condition, &instance.variables)
+                        } else {
+                            true // 无条件默认匹配
+                        }
+                    });
+
+                    if let Some(edge) = matching_edge {
                         let target_id = edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
                         let target_node = nodes.iter().find(|n| n.get("id").and_then(|i| i.as_str()) == Some(target_id));
-                        
+
                         if let Some(next_node) = target_node {
                             let node_type = next_node.get("type").and_then(|t| t.as_str()).unwrap_or("");
                             if node_type == "user_task" {
@@ -185,7 +261,7 @@ impl BpmService {
                                 new_task.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
                                 next_task_created = true;
                             } else if node_type == "end_event" {
-                                // Handled below
+                                // 结束事件，在下面处理
                             }
                         }
                     }

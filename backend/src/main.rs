@@ -401,23 +401,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let grpc_addr: SocketAddr =
             format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;
         let grpc_jwt_secret = settings.auth.jwt_secret.clone();
-        Some(tokio::spawn(async move {
-            let user_service = crate::grpc::service::GrpcUserService::new(grpc_db.clone(), grpc_jwt_secret.clone());
-            let management_services = crate::grpc::management_services::GrpcManagementServices::new(grpc_db.clone());
 
-            let grpc_server = tonic::transport::Server::builder()
-                .add_service(crate::grpc::service::proto::user_service_server::UserServiceServer::new(user_service.clone()))
-                .add_service(crate::grpc::service::proto::auth_service_server::AuthServiceServer::new(user_service))
-                .add_service(crate::grpc::service::proto::purchase_contract_service_server::PurchaseContractServiceServer::new(management_services.clone()))
-                .add_service(crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer::new(management_services.clone()))
-                .add_service(crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer::new(management_services.clone()))
-                .add_service(crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer::new(management_services));
+        // 预先检查端口是否可用，提供更清晰的错误信息
+        match tokio::net::TcpListener::bind(grpc_addr).await {
+            Ok(listener) => {
+                let bound_addr = listener.local_addr()?;
+                drop(listener); // 释放端口，让 gRPC 服务器使用
 
-            info!("gRPC 服务器监听地址：{}", grpc_addr);
-            if let Err(e) = grpc_server.serve(grpc_addr).await {
-                warn!("gRPC 服务器启动失败: {}", e);
+                Some(tokio::spawn(async move {
+                    let user_service = crate::grpc::service::GrpcUserService::new(grpc_db.clone(), grpc_jwt_secret.clone());
+                    let management_services = crate::grpc::management_services::GrpcManagementServices::new(grpc_db.clone());
+
+                    let grpc_server = tonic::transport::Server::builder()
+                        .add_service(crate::grpc::service::proto::user_service_server::UserServiceServer::new(user_service.clone()))
+                        .add_service(crate::grpc::service::proto::auth_service_server::AuthServiceServer::new(user_service))
+                        .add_service(crate::grpc::service::proto::purchase_contract_service_server::PurchaseContractServiceServer::new(management_services.clone()))
+                        .add_service(crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer::new(management_services.clone()))
+                        .add_service(crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer::new(management_services.clone()))
+                        .add_service(crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer::new(management_services));
+
+                    info!("gRPC 服务器监听地址：{}", bound_addr);
+                    if let Err(e) = grpc_server.serve(bound_addr).await {
+                        warn!("gRPC 服务器运行错误: {} (地址: {})", e, bound_addr);
+                    }
+                }))
             }
-        }))
+            Err(e) => {
+                warn!("gRPC 端口 {} 不可用: {}，跳过 gRPC 服务启动", grpc_addr, e);
+                None
+            }
+        }
     } else {
         info!("数据库未连接，跳过gRPC服务启动");
         None

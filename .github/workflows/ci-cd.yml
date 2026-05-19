@@ -110,16 +110,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
 
+      - name: 清理旧编译产物
+        working-directory: backend
+        run: |
+          cargo clean
+          rm -rf target/release/.fingerprint/*
+          rm -rf target/release/build/*
+          rm -rf target/release/deps/*
+          echo "已清理旧编译产物"
+
       - name: 构建后端 (Release模式)
         working-directory: backend
         run: |
-          cargo build --release
+          cargo build --release --bin server --bin bingxi
 
       - name: 验证后端可执行文件
         run: |
           if [ -f "backend/target/release/server" ]; then
             echo "后端构建成功！"
-            ls -lh backend/target/release/
+            ls -lh backend/target/release/server
+            ls -lh backend/target/release/bingxi
+            file backend/target/release/server
+            file backend/target/release/bingxi
           else
             echo "错误：找不到后端可执行文件"
             exit 1

@@ -1103,7 +1103,7 @@ pub fn create_router(state: AppState) -> Router {
                 Ok(res)
             }
         }))
-        .layer(middleware::from_fn(rate_limit::rate_limit_by_ip))
+        .layer(middleware::from_fn_with_state(state.clone(), rate_limit::rate_limit_by_ip))
         .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::csrf::csrf_middleware))
         .with_state(state)
 }

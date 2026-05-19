@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 // 采购订单 Entity
 // =====================================================
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "purchase_order")]
+#[sea_orm(table_name = "purchase_orders")]
 pub struct Model {
     /// 主键 ID
     #[sea_orm(primary_key)]

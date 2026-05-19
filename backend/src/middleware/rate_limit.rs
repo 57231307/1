@@ -1,4 +1,4 @@
-use axum::{body::Body, http::Request, middleware::Next, response::Response};
+use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::net::SocketAddr;
@@ -6,11 +6,63 @@ use dashmap::DashMap;
 use crate::utils::error::AppError;
 use once_cell::sync::Lazy;
 use crate::middleware::auth_context::AuthContext;
+use crate::utils::app_state::AppState;
 
-/// 企业级 Redis 速率限制预留抽象（当前回退为内存实现以适配本地环境）
-/// TODO(v1.1): 将 storage 切换为 deadpool-redis 连接池以支持分布式双维度限流
+// =====================================================
+// Redis 分布式限流器
+// =====================================================
+
+/// Redis 分布式速率限制器
+pub struct RedisRateLimiter {
+    pool: deadpool_redis::Pool,
+    max_requests: usize,
+    window_secs: u64,
+}
+
+impl RedisRateLimiter {
+    pub fn new(redis_url: &str, max_requests: usize, window_secs: u64) -> Result<Self, String> {
+        let cfg = deadpool_redis::Config::from_url(redis_url);
+        let pool = cfg
+            .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+            .map_err(|e| format!("Redis 连接池创建失败: {}", e))?;
+
+        Ok(Self {
+            pool,
+            max_requests,
+            window_secs,
+        })
+    }
+
+    /// 检查是否允许请求
+    pub async fn check(&self, key: &str) -> Result<bool, AppError> {
+        let mut conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|e| AppError::InternalError(format!("Redis 连接获取失败: {}", e)))?;
+
+        let redis_key = format!("rate_limit:{}", key);
+        let count: i64 = redis::AsyncCommands::incr(&mut conn, &redis_key, 1)
+            .await
+            .map_err(|e| AppError::InternalError(format!("Redis 操作失败: {}", e)))?;
+
+        if count == 1 {
+            let _: () = redis::AsyncCommands::expire(&mut conn, &redis_key, self.window_secs as i64)
+                .await
+                .map_err(|e| AppError::InternalError(format!("Redis 过期设置失败: {}", e)))?;
+        }
+
+        Ok(count <= self.max_requests as i64)
+    }
+}
+
+// =====================================================
+// 内存限流器（回退方案）
+// =====================================================
+
+/// 内存速率限制器（用于无 Redis 环境回退）
 #[derive(Clone, Debug)]
-pub struct RateLimiter {
+pub struct MemoryRateLimiter {
     storage: Arc<DashMap<String, RateLimitInfo>>,
     max_requests: usize,
     window: Duration,
@@ -23,7 +75,7 @@ struct RateLimitInfo {
     reset_at: Instant,
 }
 
-impl RateLimiter {
+impl MemoryRateLimiter {
     pub fn new(max_requests: usize, window: Duration) -> Self {
         Self {
             storage: Arc::new(DashMap::new()),
@@ -57,12 +109,20 @@ impl RateLimiter {
     }
 }
 
-// 全局 100 次/分钟限制
-static GLOBAL_LIMITER: Lazy<RateLimiter> = Lazy::new(|| RateLimiter::new(100, Duration::from_secs(60)));
-static BRUTE_FORCE_LIMITER: Lazy<RateLimiter> = Lazy::new(|| RateLimiter::new(5, Duration::from_secs(300)));
+// 全局内存限流器实例（回退使用）
+static GLOBAL_LIMITER: Lazy<MemoryRateLimiter> =
+    Lazy::new(|| MemoryRateLimiter::new(100, Duration::from_secs(60)));
+static BRUTE_FORCE_LIMITER: Lazy<MemoryRateLimiter> =
+    Lazy::new(|| MemoryRateLimiter::new(5, Duration::from_secs(300)));
+
+// =====================================================
+// 中间件
+// =====================================================
 
 /// 基于 IP + UserID 的双维度速率限制中间件
+/// 优先使用 Redis 分布式限流，如 Redis 不可用则回退到内存限流
 pub async fn rate_limit_by_ip(
+    State(state): State<AppState>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
@@ -80,7 +140,21 @@ pub async fn rate_limit_by_ip(
 
     let rate_key = format!("rate:{}:{}", ip, user_id);
 
-    if !GLOBAL_LIMITER.check(&rate_key) {
+    // 优先尝试 Redis 限流
+    let allowed = if let Some(redis_limiter) = state.redis_limiter.as_ref() {
+        match redis_limiter.check(&rate_key).await {
+            Ok(allowed) => allowed,
+            Err(e) => {
+                tracing::warn!("Redis 限流检查失败，回退到内存限流: {}", e);
+                GLOBAL_LIMITER.check(&rate_key)
+            }
+        }
+    } else {
+        // 无 Redis 配置，使用内存限流
+        GLOBAL_LIMITER.check(&rate_key)
+    };
+
+    if !allowed {
         tracing::warn!("Rate limit exceeded for {}", rate_key);
         return Err(AppError::TooManyRequests {
             retry_after: Some(60),

@@ -10,6 +10,7 @@ pub struct AppSettings {
     pub grpc: GrpcConfig,
     pub log: LogConfig,
     pub cors: CorsConfig,
+    pub redis: RedisConfig,
     pub env: String,
 }
 
@@ -55,6 +56,12 @@ pub struct LogConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
     pub allowed_origins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RedisConfig {
+    pub url: String,
+    pub max_connections: usize,
 }
 
 impl AppSettings {
