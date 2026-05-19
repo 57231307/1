@@ -261,12 +261,21 @@ jobs:
           else
             git commit -m "chore(release): 自动更新版本号至 ${{ steps.version.outputs.version }}"
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            # 使用 pull --rebase 避免冲突，如果冲突则强制使用本地版本
             for i in 1 2 3; do
               echo "尝试推送 (第 $i 次)..."
               git fetch origin ${{ github.ref_name }}
-              if git rebase origin/${{ github.ref_name }}; then
+              if git pull --rebase origin ${{ github.ref_name }}; then
                 if git push origin HEAD:${{ github.ref_name }}; then
                   echo "推送成功"
+                  break
+                fi
+              else
+                echo "rebase 冲突，使用本地版本覆盖..."
+                git rebase --abort 2>/dev/null || true
+                git pull origin ${{ github.ref_name }} --no-rebase -X ours || true
+                if git push origin HEAD:${{ github.ref_name }}; then
+                  echo "推送成功（使用冲突解决策略）"
                   break
                 fi
               fi
