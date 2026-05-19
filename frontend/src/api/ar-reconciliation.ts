@@ -41,37 +41,37 @@ export interface QueryParams {
 }
 
 export function listArReconciliations(params?: QueryParams) {
-  return request.get('/ar-reconciliation', { params })
+  return request.get('/ar-reconciliations', { params })
 }
 
 export function getArReconciliation(id: number) {
-  return request.get(`/ar-reconciliation/${id}`)
+  return request.get(`/ar-reconciliations/${id}`)
 }
 
 export function createArReconciliation(data: Partial<ArReconciliationEntity>) {
-  return request.post('/ar-reconciliation', data)
+  return request.post('/ar-reconciliations', data)
 }
 
 export function updateArReconciliation(id: number, data: Partial<ArReconciliationEntity>) {
-  return request.put(`/ar-reconciliation/${id}`, data)
+  return request.put(`/ar-reconciliations/${id}`, data)
 }
 
 export function deleteArReconciliation(id: number) {
-  return request.delete(`/ar-reconciliation/${id}`)
+  return request.delete(`/ar-reconciliations/${id}`)
 }
 
 export function confirmReconciliation(id: number) {
-  return request.patch(`/ar-reconciliation/${id}/confirm`)
+  return request.put(`/ar-reconciliations/${id}/status`, { status: 'confirmed' })
 }
 
 export function getReconciliationDetails(id: number) {
-  return request.get(`/ar-reconciliation/${id}/details`)
+  return request.get(`/ar-reconciliations/${id}`)
 }
 
 export function addReconciliationDetail(id: number, data: Partial<ReconciliationDetail>) {
-  return request.post(`/ar-reconciliation/${id}/details`, data)
+  return request.post(`/ar-reconciliations/${id}`, data)
 }
 
 export function deleteReconciliationDetail(detailId: number) {
-  return request.delete(`/ar-reconciliation/details/${detailId}`)
+  return request.delete(`/ar-reconciliations/${detailId}`)
 }

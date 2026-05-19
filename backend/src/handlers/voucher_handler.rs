@@ -4,7 +4,6 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use serde::Deserialize;
@@ -68,7 +67,7 @@ pub async fn list_vouchers(
     Query(params): Query<VoucherQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<voucher::Model>>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<Vec<voucher::Model>>>, AppError> {
     info!("用户 {} 查询凭证列表", auth.username);
 
     let service = VoucherService::new(state.db.clone());
@@ -86,7 +85,7 @@ pub async fn list_vouchers(
     let (vouchers, total) = service
         .get_list(query_params)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
     info!("用户 {} 查询凭证成功，共 {} 条", auth.username, total);
 
     Ok(Json(ApiResponse::success(vouchers)))
@@ -97,14 +96,14 @@ pub async fn get_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
     info!("用户 {} 查询凭证详情 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
     let detail = service
         .get_by_id(id)
         .await
-        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
     info!(
         "用户 {} 查询凭证成功：{}",
         auth.username, detail.voucher.voucher_no
@@ -185,14 +184,14 @@ pub async fn submit_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
     info!("用户 {} 提交凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
     let voucher = service
         .submit(id, auth.user_id)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
     info!(
         "用户 {} 提交凭证成功：{}",
         auth.username, voucher.voucher_no
@@ -209,14 +208,14 @@ pub async fn review_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
     info!("用户 {} 审核凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
     let voucher = service
         .review(id, auth.user_id)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
     info!(
         "用户 {} 审核凭证成功：{}",
         auth.username, voucher.voucher_no
@@ -233,14 +232,14 @@ pub async fn post_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<voucher::Model>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
     info!("用户 {} 凭证过账 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
     let voucher = service
         .post(id, auth.user_id)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
     info!(
         "用户 {} 凭证过账成功：{}",
         auth.username, voucher.voucher_no

@@ -5,14 +5,15 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::finance_payment_service::FinancePaymentService;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -46,30 +47,30 @@ pub struct PaymentListResponse {
 pub async fn get_payment(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<Json<PaymentResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<PaymentResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
 
-    match service.find_by_id(id).await {
-        Ok(payment) => Ok(Json(PaymentResponse {
-            id: payment.id,
-            payment_no: payment.payment_no,
-            amount: payment.amount,
-            status: payment.status,
-            payment_date: payment.payment_date,
-            created_at: payment.created_at,
-        })),
-        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
-    }
+    let payment = service.find_by_id(id).await
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(PaymentResponse {
+        id: payment.id,
+        payment_no: payment.payment_no,
+        amount: payment.amount,
+        status: payment.status,
+        payment_date: payment.payment_date,
+        created_at: payment.created_at,
+    })))
 }
 
 pub async fn create_payment(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(payload): Json<CreatePaymentRequest>,
-) -> Result<Json<PaymentResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<PaymentResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
 
-    match service
+    let payment = service
         .create_payment(
             payload.payment_no,
             payload.invoice_id,
@@ -80,55 +81,51 @@ pub async fn create_payment(
             Some(auth.user_id),
         )
         .await
-    {
-        Ok(payment) => Ok(Json(PaymentResponse {
-            id: payment.id,
-            payment_no: payment.payment_no,
-            amount: payment.amount,
-            status: payment.status,
-            payment_date: payment.payment_date,
-            created_at: payment.created_at,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(PaymentResponse {
+        id: payment.id,
+        payment_no: payment.payment_no,
+        amount: payment.amount,
+        status: payment.status,
+        payment_date: payment.payment_date,
+        created_at: payment.created_at,
+    })))
 }
 
 pub async fn list_payments(
     State(state): State<AppState>,
     Query(params): Query<ListPaymentsParams>,
-) -> Result<Json<PaymentListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<PaymentListResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
 
-    match service
+    let (payments, total) = service
         .list_payments(
             params.page.unwrap_or(0),
             params.page_size.unwrap_or(20),
             params.status,
         )
         .await
-    {
-        Ok((payments, total)) => {
-            let payment_responses: Vec<PaymentResponse> = payments
-                .into_iter()
-                .map(|payment| PaymentResponse {
-                    id: payment.id,
-                    payment_no: payment.payment_no,
-                    amount: payment.amount,
-                    status: payment.status,
-                    payment_date: payment.payment_date,
-                    created_at: payment.created_at,
-                })
-                .collect();
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            Ok(Json(PaymentListResponse {
-                payments: payment_responses,
-                total,
-                page: params.page.unwrap_or(0),
-                page_size: params.page_size.unwrap_or(20),
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let payment_responses: Vec<PaymentResponse> = payments
+        .into_iter()
+        .map(|payment| PaymentResponse {
+            id: payment.id,
+            payment_no: payment.payment_no,
+            amount: payment.amount,
+            status: payment.status,
+            payment_date: payment.payment_date,
+            created_at: payment.created_at,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(PaymentListResponse {
+        payments: payment_responses,
+        total,
+        page: params.page.unwrap_or(0),
+        page_size: params.page_size.unwrap_or(20),
+    })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -138,4 +135,4 @@ pub struct ListPaymentsParams {
     pub status: Option<String>,
 }
 
-use axum::extract::Query;
+

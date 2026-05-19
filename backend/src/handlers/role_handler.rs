@@ -3,12 +3,13 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 /// 角色响应
@@ -84,33 +85,31 @@ pub struct AssignPermissionPayload {
 pub async fn list_roles(
     State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<RoleListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<RoleListResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    match service.list_roles().await {
-        Ok(roles) => {
-            let role_responses: Vec<RoleResponse> = roles
-                .into_iter()
-                .map(|role| RoleResponse {
-                    id: role.id,
-                    name: role.name,
-                    code: role.code,
-                    description: role.description,
-                    is_system: role.is_system,
-                    created_at: role.created_at,
-                    updated_at: role.updated_at,
-                })
-                .collect();
+    let roles = service.list_roles().await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            let total = role_responses.len() as u64;
+    let role_responses: Vec<RoleResponse> = roles
+        .into_iter()
+        .map(|role| RoleResponse {
+            id: role.id,
+            name: role.name,
+            code: role.code,
+            description: role.description,
+            is_system: role.is_system,
+            created_at: role.created_at,
+            updated_at: role.updated_at,
+        })
+        .collect();
 
-            Ok(Json(RoleListResponse {
-                roles: role_responses,
-                total,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let total = role_responses.len() as u64;
+
+    Ok(Json(ApiResponse::success(RoleListResponse {
+        roles: role_responses,
+        total,
+    })))
 }
 
 /// 获取角色详情
@@ -118,37 +117,35 @@ pub async fn get_role(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    match service.get_role_detail(id).await {
-        Ok(role) => {
-            let permissions = role.permission_list.map(|perms| {
-                perms
-                    .into_iter()
-                    .map(|perm| PermissionResponse {
-                        id: perm.id,
-                        resource_type: perm.resource_type,
-                        resource_id: perm.resource_id,
-                        action: perm.action,
-                        allowed: perm.allowed,
-                    })
-                    .collect()
-            });
+    let role = service.get_role_detail(id).await
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
 
-            Ok(Json(RoleDetailResponse {
-                id: role.id,
-                name: role.name,
-                code: role.code,
-                description: role.description,
-                is_system: role.is_system,
-                created_at: role.created_at,
-                updated_at: role.updated_at,
-                permissions,
-            }))
-        }
-        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
-    }
+    let permissions = role.permission_list.map(|perms| {
+        perms
+            .into_iter()
+            .map(|perm| PermissionResponse {
+                id: perm.id,
+                resource_type: perm.resource_type,
+                resource_id: perm.resource_id,
+                action: perm.action,
+                allowed: perm.allowed,
+            })
+            .collect()
+    });
+
+    Ok(Json(ApiResponse::success(RoleDetailResponse {
+        id: role.id,
+        name: role.name,
+        code: role.code,
+        description: role.description,
+        is_system: role.is_system,
+        created_at: role.created_at,
+        updated_at: role.updated_at,
+        permissions,
+    })))
 }
 
 /// 创建角色
@@ -156,7 +153,7 @@ pub async fn create_role(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(payload): Json<CreateRolePayload>,
-) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
     let request = CreateRoleRequest {
@@ -166,34 +163,32 @@ pub async fn create_role(
         is_system: payload.is_system,
     };
 
-    match service.create_role(request).await {
-        Ok(role) => {
-            let permissions = role.permission_list.map(|perms| {
-                perms
-                    .into_iter()
-                    .map(|perm| PermissionResponse {
-                        id: perm.id,
-                        resource_type: perm.resource_type,
-                        resource_id: perm.resource_id,
-                        action: perm.action,
-                        allowed: perm.allowed,
-                    })
-                    .collect()
-            });
+    let role = service.create_role(request).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            Ok(Json(RoleDetailResponse {
-                id: role.id,
-                name: role.name,
-                code: role.code,
-                description: role.description,
-                is_system: role.is_system,
-                created_at: role.created_at,
-                updated_at: role.updated_at,
-                permissions,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let permissions = role.permission_list.map(|perms| {
+        perms
+            .into_iter()
+            .map(|perm| PermissionResponse {
+                id: perm.id,
+                resource_type: perm.resource_type,
+                resource_id: perm.resource_id,
+                action: perm.action,
+                allowed: perm.allowed,
+            })
+            .collect()
+    });
+
+    Ok(Json(ApiResponse::success(RoleDetailResponse {
+        id: role.id,
+        name: role.name,
+        code: role.code,
+        description: role.description,
+        is_system: role.is_system,
+        created_at: role.created_at,
+        updated_at: role.updated_at,
+        permissions,
+    })))
 }
 
 /// 更新角色
@@ -202,7 +197,7 @@ pub async fn update_role(
     _auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateRolePayload>,
-) -> Result<Json<RoleDetailResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
     let request = UpdateRoleRequest {
@@ -212,34 +207,32 @@ pub async fn update_role(
         is_system: payload.is_system,
     };
 
-    match service.update_role(id, request).await {
-        Ok(role) => {
-            let permissions = role.permission_list.map(|perms| {
-                perms
-                    .into_iter()
-                    .map(|perm| PermissionResponse {
-                        id: perm.id,
-                        resource_type: perm.resource_type,
-                        resource_id: perm.resource_id,
-                        action: perm.action,
-                        allowed: perm.allowed,
-                    })
-                    .collect()
-            });
+    let role = service.update_role(id, request).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            Ok(Json(RoleDetailResponse {
-                id: role.id,
-                name: role.name,
-                code: role.code,
-                description: role.description,
-                is_system: role.is_system,
-                created_at: role.created_at,
-                updated_at: role.updated_at,
-                permissions,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let permissions = role.permission_list.map(|perms| {
+        perms
+            .into_iter()
+            .map(|perm| PermissionResponse {
+                id: perm.id,
+                resource_type: perm.resource_type,
+                resource_id: perm.resource_id,
+                action: perm.action,
+                allowed: perm.allowed,
+            })
+            .collect()
+    });
+
+    Ok(Json(ApiResponse::success(RoleDetailResponse {
+        id: role.id,
+        name: role.name,
+        code: role.code,
+        description: role.description,
+        is_system: role.is_system,
+        created_at: role.created_at,
+        updated_at: role.updated_at,
+        permissions,
+    })))
 }
 
 /// 删除角色
@@ -247,13 +240,13 @@ pub async fn delete_role(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    match service.delete_role(id).await {
-        Ok(()) => Ok(StatusCode::NO_CONTENT),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    service.delete_role(id).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(())))
 }
 
 /// 分配权限
@@ -262,7 +255,7 @@ pub async fn assign_permission(
     _auth: AuthContext,
     Path(role_id): Path<i32>,
     Json(payload): Json<AssignPermissionPayload>,
-) -> Result<Json<PermissionResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<PermissionResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
     let request = AssignPermissionRequest {
@@ -273,16 +266,16 @@ pub async fn assign_permission(
         allowed: payload.allowed,
     };
 
-    match service.assign_permission(request).await {
-        Ok(perm) => Ok(Json(PermissionResponse {
-            id: perm.id,
-            resource_type: perm.resource_type,
-            resource_id: perm.resource_id,
-            action: perm.action,
-            allowed: perm.allowed,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let perm = service.assign_permission(request).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(PermissionResponse {
+        id: perm.id,
+        resource_type: perm.resource_type,
+        resource_id: perm.resource_id,
+        action: perm.action,
+        allowed: perm.allowed,
+    })))
 }
 
 /// 移除权限
@@ -290,13 +283,13 @@ pub async fn remove_permission(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    match service.remove_permission(id).await {
-        Ok(()) => Ok(StatusCode::NO_CONTENT),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    service.remove_permission(id).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(())))
 }
 
 /// 获取角色权限列表
@@ -304,24 +297,22 @@ pub async fn get_role_permissions(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(role_id): Path<i32>,
-) -> Result<Json<Vec<PermissionResponse>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    match service.get_role_permissions(role_id).await {
-        Ok(permissions) => {
-            let perm_responses: Vec<PermissionResponse> = permissions
-                .into_iter()
-                .map(|perm| PermissionResponse {
-                    id: perm.id,
-                    resource_type: perm.resource_type,
-                    resource_id: perm.resource_id,
-                    action: perm.action,
-                    allowed: perm.allowed,
-                })
-                .collect();
+    let permissions = service.get_role_permissions(role_id).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            Ok(Json(perm_responses))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let perm_responses: Vec<PermissionResponse> = permissions
+        .into_iter()
+        .map(|perm| PermissionResponse {
+            id: perm.id,
+            resource_type: perm.resource_type,
+            resource_id: perm.resource_id,
+            action: perm.action,
+            allowed: perm.allowed,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(perm_responses)))
 }

@@ -49,15 +49,15 @@ export interface ScanHistoryListResponse {
 }
 
 export function scanToShip(data: ScanToShipRequest) {
-  return request.post('/barcode-scanner/scan-to-ship', data)
+  return request.post('/scanner/scan-to-ship', data)
 }
 
 export function scanInventory(barcode: string) {
-  return request.get('/barcode-scanner/scan-inventory', { params: { barcode } })
+  return request.get('/scanner/scan-to-ship', { params: { barcode } })
 }
 
 export function getScanHistory(page?: number, pageSize?: number) {
-  return request.get('/barcode-scanner/history', { 
+  return request.get('/scanner/scan-to-ship', { 
     params: { 
       page: page || 0, 
       page_size: pageSize || 20 
@@ -66,5 +66,5 @@ export function getScanHistory(page?: number, pageSize?: number) {
 }
 
 export function getScanStatistics() {
-  return request.get('/barcode-scanner/statistics')
+  return request.get('/scanner/scan-to-ship')
 }
