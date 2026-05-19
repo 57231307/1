@@ -31,7 +31,16 @@ pub async fn get_income_statement(
     Query(query): Query<DateRangeQuery>,
 ) -> Result<Json<ApiResponse<IncomeStatement>>, AppError> {
     let service = FinanceReportService::new(state.db.clone());
-    let start_date = query.start_date.unwrap_or_else(|| chrono::Utc::now().date_naive().with_day(1).unwrap());
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now().date_naive().with_day(1).unwrap_or_else(|| {
+            // Fallback to first day of month
+            chrono::NaiveDate::from_ymd_opt(
+                chrono::Utc::now().date_naive().year(),
+                chrono::Utc::now().date_naive().month(),
+                1
+            ).unwrap_or(chrono::Utc::now().date_naive())
+        })
+    });
     let end_date = query.end_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
     let stmt = service.get_income_statement(start_date, end_date).await?;
     Ok(Json(ApiResponse::success(stmt)))

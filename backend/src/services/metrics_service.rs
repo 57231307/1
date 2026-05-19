@@ -141,6 +141,39 @@ impl Metrics {
     pub fn set_db_connections(&self, count: i64) {
         self.db_connections.set(count);
     }
+    
+    /// 记录慢查询（超过阈值时记录日志）
+    pub fn record_slow_query(&self, duration_secs: f64, query_name: &str) {
+        const SLOW_QUERY_THRESHOLD: f64 = 1.0; // 1 秒
+        
+        self.db_query_duration_seconds.observe(duration_secs);
+        
+        if duration_secs > SLOW_QUERY_THRESHOLD {
+            tracing::warn!(
+                "慢查询检测: {} 耗时 {:.3}s (阈值: {:.1}s)",
+                query_name,
+                duration_secs,
+                SLOW_QUERY_THRESHOLD
+            );
+        }
+    }
+    
+    /// 记录慢请求（超过阈值时记录日志）
+    pub fn record_slow_request(&self, duration_secs: f64, path: &str, method: &str) {
+        const SLOW_REQUEST_THRESHOLD: f64 = 2.0; // 2 秒
+        
+        self.http_request_duration_seconds.observe(duration_secs);
+        
+        if duration_secs > SLOW_REQUEST_THRESHOLD {
+            tracing::warn!(
+                "慢请求检测: {} {} 耗时 {:.3}s (阈值: {:.1}s)",
+                method,
+                path,
+                duration_secs,
+                SLOW_REQUEST_THRESHOLD
+            );
+        }
+    }
 }
 
 /// 监控服务

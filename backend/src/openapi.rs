@@ -115,7 +115,7 @@ use utoipa::OpenApi;
     ),
     servers(
         (url = "/api/v1/erp", description = "生产环境"),
-        (url = "http://localhost:8080/api/v1/erp", description = "本地开发")
+        (url = "http://localhost:8082/api/v1/erp", description = "本地开发")
     )
 )]
 pub struct ApiDoc;

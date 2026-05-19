@@ -144,8 +144,12 @@ pub async fn list_products(
     let masked_products: Vec<serde_json::Value> = products
         .into_iter()
         .map(|p| {
-            let val = serde_json::to_value(p).unwrap();
-            mask_sensitive_fields(val, &auth)
+            serde_json::to_value(p)
+                .map(|val| mask_sensitive_fields(val, &auth))
+                .unwrap_or_else(|e| {
+                    tracing::error!("Product serialization failed: {:?}", e);
+                    serde_json::Value::Null
+                })
         })
         .collect();
 

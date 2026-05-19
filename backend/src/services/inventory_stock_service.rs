@@ -266,9 +266,9 @@ impl InventoryStockService {
                 // 使用双计量单位转换器进行精确计算
                 match DualUnitConverter::meters_to_kg(quantity_meters, gram_weight, width) {
                     Ok(kg) => return kg,
-                    Err(_) => {
+                    Err(e) => {
                         // 如果计算失败，回退到直接传入的公斤数
-                        eprintln!("双计量单位换算失败，使用原始公斤数");
+                        tracing::warn!("双计量单位换算失败: {:?}，使用原始公斤数", e);
                     }
                 }
             }

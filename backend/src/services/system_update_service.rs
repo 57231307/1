@@ -548,7 +548,7 @@ impl SystemUpdateService {
             for old_version in versions.drain(3..) {
                 let old_path = self.backup_dir.join(&old_version);
                 if let Err(e) = fs::remove_dir_all(&old_path) {
-                    eprintln!("清理旧备份失败: {}", e);
+                    tracing::warn!("清理旧备份失败: {}", e);
                 }
             }
         }

@@ -1029,7 +1029,10 @@ pub fn create_router(state: AppState) -> Router {
                 Ok(axum::response::Response::builder()
                     .status(axum::http::StatusCode::NOT_FOUND)
                     .body(body)
-                    .unwrap())
+                    .unwrap_or_else(|e| {
+                        tracing::error!("Failed to build 404 response: {:?}", e);
+                        axum::response::Response::new(axum::body::Body::from("Internal Error"))
+                    }))
             }
         }))
         // 前端WASM文件服务

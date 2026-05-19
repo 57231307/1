@@ -316,9 +316,13 @@ async fn cmd_health() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("🏥 健康检查...\n");
     
+    // 支持环境变量配置健康检查地址
+    let health_url = std::env::var("BINGXI_HEALTH_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:8082/health".to_string());
+    
     // 检查 HTTP 服务
     match Command::new("curl")
-        .args(["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://127.0.0.1:8082/health"])
+        .args(["-s", "-o", "/dev/null", "-w", "%{http_code}", &health_url])
         .output()
     {
         Ok(output) => {
@@ -677,7 +681,6 @@ async fn cmd_hash_password(password: &str) -> Result<(), Box<dyn std::error::Err
     let hash = argon2.hash_password(password.as_bytes(), &salt)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("密码哈希失败：{}", e)))?;
     
-    println!("密码：{}", password);
     println!("哈希：{}\n", hash);
     println!("⚠️  请妥善保管哈希值，不要泄露原始密码");
     
