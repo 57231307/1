@@ -35,11 +35,11 @@ export function listRoleDataPermissions(roleId: number) {
 }
 
 export function getDataPermission(roleId: number, resourceType: string) {
-  return request.get(`/data-permissions/roles/${roleId}/resources/${resourceType}`)
+  return request.get(`/data-permissions/roles/${roleId}/${resourceType}`)
 }
 
 export function deleteDataPermission(roleId: number, resourceType: string) {
-  return request.delete(`/data-permissions/roles/${roleId}/resources/${resourceType}`)
+  return request.delete(`/data-permissions/roles/${roleId}/${resourceType}`)
 }
 
 export function listScopeTypes() {

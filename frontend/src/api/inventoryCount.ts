@@ -41,28 +41,28 @@ export interface QueryParams {
 }
 
 export const listInventoryCounts = (params?: QueryParams) =>
-  request.get('/inventory-count', { params })
+  request.get('/inventory/counts', { params })
 
 export const getInventoryCount = (id: number) =>
-  request.get(`/inventory-count/${id}`)
+  request.get(`/inventory/counts/${id}`)
 
 export const createInventoryCount = (data: Partial<InventoryCountEntity>) =>
-  request.post('/inventory-count', data)
+  request.post('/inventory/counts', data)
 
 export const updateInventoryCount = (id: number, data: Partial<InventoryCountEntity>) =>
-  request.put(`/inventory-count/${id}`, data)
+  request.put(`/inventory/counts/${id}`, data)
 
 export const deleteInventoryCount = (id: number) =>
-  request.delete(`/inventory-count/${id}`)
+  request.delete(`/inventory/counts/${id}`)
 
 export const approveInventoryCount = (id: number) =>
-  request.patch(`/inventory-count/${id}/approve`)
+  request.post(`/inventory/counts/${id}/approve`)
 
 export const completeInventoryCount = (id: number) =>
-  request.patch(`/inventory-count/${id}/complete`)
+  request.post(`/inventory/counts/${id}/complete`)
 
 export const getCountItems = (id: number) =>
-  request.get(`/inventory-count/${id}/items`)
+  request.get(`/inventory/counts/${id}`)
 
 export const updateCountItem = (itemId: number, data: Partial<CountItem>) =>
-  request.put(`/inventory-count/items/${itemId}`, data)
+  request.put(`/inventory/counts/items/${itemId}`, data)

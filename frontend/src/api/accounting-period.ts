@@ -22,37 +22,37 @@ export interface QueryParams {
 }
 
 export function listAccountingPeriods(params?: QueryParams) {
-  return request.get('/accounting-periods', { params })
+  return request.get('/finance/accounting-periods', { params })
 }
 
 export function getAccountingPeriod(id: number) {
-  return request.get(`/accounting-periods/${id}`)
+  return request.get(`/finance/accounting-periods/${id}`)
 }
 
 export function createAccountingPeriod(data: Partial<AccountingPeriodEntity>) {
-  return request.post('/accounting-periods', data)
+  return request.post('/finance/accounting-periods', data)
 }
 
 export function updateAccountingPeriod(id: number, data: Partial<AccountingPeriodEntity>) {
-  return request.put(`/accounting-periods/${id}`, data)
+  return request.put(`/finance/accounting-periods/${id}`, data)
 }
 
 export function deleteAccountingPeriod(id: number) {
-  return request.delete(`/accounting-periods/${id}`)
+  return request.delete(`/finance/accounting-periods/${id}`)
 }
 
 export function closePeriod(id: number) {
-  return request.patch(`/accounting-periods/${id}/close`)
+  return request.post(`/finance/accounting-periods/${id}/close`)
 }
 
 export function reopenPeriod(id: number) {
-  return request.patch(`/accounting-periods/${id}/reopen`)
+  return request.post(`/finance/accounting-periods/${id}/reopen`)
 }
 
 export function getCurrentPeriod() {
-  return request.get('/accounting-periods/current')
+  return request.get('/finance/accounting-periods/current')
 }
 
 export function getPeriodByDate(date: string) {
-  return request.get('/accounting-periods/by-date', { params: { date } })
+  return request.get('/finance/accounting-periods/by-date', { params: { date } })
 }

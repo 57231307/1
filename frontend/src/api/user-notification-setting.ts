@@ -23,7 +23,7 @@ export interface NotificationSettingUpdateRequest {
 
 export const userNotificationSettingApi = {
   getMySettings: () =>
-    request.get<ApiResponse<{ settings: UserNotificationSetting[] }>>('/user/notification-setting/my-settings'),
+    request.get<ApiResponse<{ settings: UserNotificationSetting[] }>>('/user/notification-setting'),
 
   updateSetting: (data: NotificationSettingUpdateRequest) =>
     request.put<ApiResponse<UserNotificationSetting>>('/user/notification-setting', data),

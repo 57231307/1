@@ -2,14 +2,15 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 
 /// 创建调整单请求
@@ -86,21 +87,21 @@ pub struct AdjustmentSummary {
 pub async fn create_adjustment(auth: AuthContext, 
     State(state): State<AppState>,
     Json(payload): Json<CreateAdjustmentRequestPayload>,
-) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
     // 解析日期
     let adjustment_date: DateTime<Utc> = payload
         .adjustment_date
         .parse::<DateTime<Utc>>()
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
 
     let mut items = Vec::with_capacity(payload.items.len());
     for item in payload.items {
         let quantity = item
             .quantity
             .parse::<Decimal>()
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("数量格式错误：{}", e)))?;
+            .map_err(|e| AppError::ValidationError(format!("数量格式错误：{}", e)))?;
         
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
@@ -122,83 +123,79 @@ pub async fn create_adjustment(auth: AuthContext,
         items,
     };
 
-    match service.create_adjustment(request).await {
-        Ok(detail) => Ok(Json(AdjustmentResponse {
-            id: detail.adjustment.id,
-            adjustment_no: detail.adjustment.adjustment_no,
-            warehouse_id: detail.adjustment.warehouse_id,
-            adjustment_date: detail.adjustment.adjustment_date,
-            adjustment_type: detail.adjustment.adjustment_type,
-            reason_type: detail.adjustment.reason_type,
-            reason_description: detail.adjustment.reason_description,
-            total_quantity: detail.adjustment.total_quantity,
-            notes: detail.adjustment.notes,
-            status: detail.adjustment.status,
-            created_at: detail.adjustment.created_at,
-            items: detail
-                .items
-                .into_iter()
-                .map(|item| AdjustmentItemResponse {
-                    id: item.id,
-                    stock_id: item.stock_id,
-                    quantity: item.quantity,
-                    quantity_before: item.quantity_before,
-                    quantity_after: item.quantity_after,
-                    unit_cost: item.unit_cost,
-                    amount: item.amount,
-                    notes: item.notes,
-                })
-                .collect(),
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let detail = service.create_adjustment(request).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(AdjustmentResponse {
+        id: detail.adjustment.id,
+        adjustment_no: detail.adjustment.adjustment_no,
+        warehouse_id: detail.adjustment.warehouse_id,
+        adjustment_date: detail.adjustment.adjustment_date,
+        adjustment_type: detail.adjustment.adjustment_type,
+        reason_type: detail.adjustment.reason_type,
+        reason_description: detail.adjustment.reason_description,
+        total_quantity: detail.adjustment.total_quantity,
+        notes: detail.adjustment.notes,
+        status: detail.adjustment.status,
+        created_at: detail.adjustment.created_at,
+        items: detail
+            .items
+            .into_iter()
+            .map(|item| AdjustmentItemResponse {
+                id: item.id,
+                stock_id: item.stock_id,
+                quantity: item.quantity,
+                quantity_before: item.quantity_before,
+                quantity_after: item.quantity_after,
+                unit_cost: item.unit_cost,
+                amount: item.amount,
+                notes: item.notes,
+            })
+            .collect(),
+    })))
 }
 
 /// 审核调整单
 pub async fn approve_adjustment(auth: AuthContext, 
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    match service.approve_adjustment(id, user_id).await {
-        Ok(_adjustment) => {
-            let detail = service
-                .get_adjustment(id)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    service.approve_adjustment(id, user_id).await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
-            Ok(Json(AdjustmentResponse {
-                id: detail.adjustment.id,
-                adjustment_no: detail.adjustment.adjustment_no,
-                warehouse_id: detail.adjustment.warehouse_id,
-                adjustment_date: detail.adjustment.adjustment_date,
-                adjustment_type: detail.adjustment.adjustment_type,
-                reason_type: detail.adjustment.reason_type,
-                reason_description: detail.adjustment.reason_description,
-                total_quantity: detail.adjustment.total_quantity,
-                notes: detail.adjustment.notes,
-                status: detail.adjustment.status,
-                created_at: detail.adjustment.created_at,
-                items: detail
-                    .items
-                    .into_iter()
-                    .map(|item| AdjustmentItemResponse {
-                        id: item.id,
-                        stock_id: item.stock_id,
-                        quantity: item.quantity,
-                        quantity_before: item.quantity_before,
-                        quantity_after: item.quantity_after,
-                        unit_cost: item.unit_cost,
-                        amount: item.amount,
-                        notes: item.notes,
-                    })
-                    .collect(),
-            }))
-        }
-        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
-    }
+    let detail = service.get_adjustment(id).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(AdjustmentResponse {
+        id: detail.adjustment.id,
+        adjustment_no: detail.adjustment.adjustment_no,
+        warehouse_id: detail.adjustment.warehouse_id,
+        adjustment_date: detail.adjustment.adjustment_date,
+        adjustment_type: detail.adjustment.adjustment_type,
+        reason_type: detail.adjustment.reason_type,
+        reason_description: detail.adjustment.reason_description,
+        total_quantity: detail.adjustment.total_quantity,
+        notes: detail.adjustment.notes,
+        status: detail.adjustment.status,
+        created_at: detail.adjustment.created_at,
+        items: detail
+            .items
+            .into_iter()
+            .map(|item| AdjustmentItemResponse {
+                id: item.id,
+                stock_id: item.stock_id,
+                quantity: item.quantity,
+                quantity_before: item.quantity_before,
+                quantity_after: item.quantity_after,
+                unit_cost: item.unit_cost,
+                amount: item.amount,
+                notes: item.notes,
+            })
+            .collect(),
+    })))
 }
 
 /// 驳回调整单
@@ -206,94 +203,89 @@ pub async fn reject_adjustment(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    match service.reject_adjustment(id).await {
-        Ok(_adjustment) => {
-            let detail = service
-                .get_adjustment(id)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    service.reject_adjustment(id).await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
-            // 发送审批拒绝通知
-            if let Some(ref event_service) = state.event_notification_service {
-                if let Some(created_by) = detail.adjustment.created_by {
-                    let _ = event_service
-                        .notify_approval_result(
-                            created_by,
-                            &detail.adjustment.adjustment_no,
-                            false,
-                            &auth.username,
-                            None,
-                        )
-                        .await;
-                }
-            }
+    let detail = service.get_adjustment(id).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            Ok(Json(AdjustmentResponse {
-                id: detail.adjustment.id,
-                adjustment_no: detail.adjustment.adjustment_no,
-                warehouse_id: detail.adjustment.warehouse_id,
-                adjustment_date: detail.adjustment.adjustment_date,
-                adjustment_type: detail.adjustment.adjustment_type,
-                reason_type: detail.adjustment.reason_type,
-                reason_description: detail.adjustment.reason_description,
-                total_quantity: detail.adjustment.total_quantity,
-                notes: detail.adjustment.notes,
-                status: detail.adjustment.status,
-                created_at: detail.adjustment.created_at,
-                items: detail
-                    .items
-                    .into_iter()
-                    .map(|item| AdjustmentItemResponse {
-                        id: item.id,
-                        stock_id: item.stock_id,
-                        quantity: item.quantity,
-                        quantity_before: item.quantity_before,
-                        quantity_after: item.quantity_after,
-                        unit_cost: item.unit_cost,
-                        amount: item.amount,
-                        notes: item.notes,
-                    })
-                    .collect(),
-            }))
+    // 发送审批拒绝通知
+    if let Some(ref event_service) = state.event_notification_service {
+        if let Some(created_by) = detail.adjustment.created_by {
+            let _ = event_service
+                .notify_approval_result(
+                    created_by,
+                    &detail.adjustment.adjustment_no,
+                    false,
+                    &auth.username,
+                    None,
+                )
+                .await;
         }
-        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }
+
+    Ok(Json(ApiResponse::success(AdjustmentResponse {
+        id: detail.adjustment.id,
+        adjustment_no: detail.adjustment.adjustment_no,
+        warehouse_id: detail.adjustment.warehouse_id,
+        adjustment_date: detail.adjustment.adjustment_date,
+        adjustment_type: detail.adjustment.adjustment_type,
+        reason_type: detail.adjustment.reason_type,
+        reason_description: detail.adjustment.reason_description,
+        total_quantity: detail.adjustment.total_quantity,
+        notes: detail.adjustment.notes,
+        status: detail.adjustment.status,
+        created_at: detail.adjustment.created_at,
+        items: detail
+            .items
+            .into_iter()
+            .map(|item| AdjustmentItemResponse {
+                id: item.id,
+                stock_id: item.stock_id,
+                quantity: item.quantity,
+                quantity_before: item.quantity_before,
+                quantity_after: item.quantity_after,
+                unit_cost: item.unit_cost,
+                amount: item.amount,
+                notes: item.notes,
+            })
+            .collect(),
+    })))
 }
 
 /// 查询调整单列表
 pub async fn list_adjustments(
     State(state): State<AppState>,
     Query(params): Query<ListAdjustmentsParams>,
-) -> Result<Json<AdjustmentListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<AdjustmentListResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    match service
+    let (adjustments, total) = service
         .list_adjustments(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
         .await
-    {
-        Ok((adjustments, total)) => Ok(Json(AdjustmentListResponse {
-            adjustments: adjustments
-                .into_iter()
-                .map(|a| AdjustmentSummary {
-                    id: a.id,
-                    adjustment_no: a.adjustment_no,
-                    warehouse_id: a.warehouse_id,
-                    adjustment_type: a.adjustment_type,
-                    reason_type: a.reason_type,
-                    status: a.status,
-                    total_quantity: a.total_quantity,
-                    created_at: a.created_at,
-                })
-                .collect(),
-            total,
-            page: params.page.unwrap_or(0),
-            page_size: params.page_size.unwrap_or(20),
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(AdjustmentListResponse {
+        adjustments: adjustments
+            .into_iter()
+            .map(|a| AdjustmentSummary {
+                id: a.id,
+                adjustment_no: a.adjustment_no,
+                warehouse_id: a.warehouse_id,
+                adjustment_type: a.adjustment_type,
+                reason_type: a.reason_type,
+                status: a.status,
+                total_quantity: a.total_quantity,
+                created_at: a.created_at,
+            })
+            .collect(),
+        total,
+        page: params.page.unwrap_or(0),
+        page_size: params.page_size.unwrap_or(20),
+    })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,39 +298,39 @@ pub struct ListAdjustmentsParams {
 pub async fn get_adjustment(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<Json<AdjustmentResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    match service.get_adjustment(id).await {
-        Ok(detail) => Ok(Json(AdjustmentResponse {
-            id: detail.adjustment.id,
-            adjustment_no: detail.adjustment.adjustment_no,
-            warehouse_id: detail.adjustment.warehouse_id,
-            adjustment_date: detail.adjustment.adjustment_date,
-            adjustment_type: detail.adjustment.adjustment_type,
-            reason_type: detail.adjustment.reason_type,
-            reason_description: detail.adjustment.reason_description,
-            total_quantity: detail.adjustment.total_quantity,
-            notes: detail.adjustment.notes,
-            status: detail.adjustment.status,
-            created_at: detail.adjustment.created_at,
-            items: detail
-                .items
-                .into_iter()
-                .map(|item| AdjustmentItemResponse {
-                    id: item.id,
-                    stock_id: item.stock_id,
-                    quantity: item.quantity,
-                    quantity_before: item.quantity_before,
-                    quantity_after: item.quantity_after,
-                    unit_cost: item.unit_cost,
-                    amount: item.amount,
-                    notes: item.notes,
-                })
-                .collect(),
-        })),
-        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
-    }
+    let detail = service.get_adjustment(id).await
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(AdjustmentResponse {
+        id: detail.adjustment.id,
+        adjustment_no: detail.adjustment.adjustment_no,
+        warehouse_id: detail.adjustment.warehouse_id,
+        adjustment_date: detail.adjustment.adjustment_date,
+        adjustment_type: detail.adjustment.adjustment_type,
+        reason_type: detail.adjustment.reason_type,
+        reason_description: detail.adjustment.reason_description,
+        total_quantity: detail.adjustment.total_quantity,
+        notes: detail.adjustment.notes,
+        status: detail.adjustment.status,
+        created_at: detail.adjustment.created_at,
+        items: detail
+            .items
+            .into_iter()
+            .map(|item| AdjustmentItemResponse {
+                id: item.id,
+                stock_id: item.stock_id,
+                quantity: item.quantity,
+                quantity_before: item.quantity_before,
+                quantity_after: item.quantity_after,
+                unit_cost: item.unit_cost,
+                amount: item.amount,
+                notes: item.notes,
+            })
+            .collect(),
+    })))
 }
 
-use axum::extract::Query;
+

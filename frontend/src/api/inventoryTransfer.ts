@@ -46,41 +46,41 @@ export interface QueryParams {
 }
 
 export function listInventoryTransfers(params?: QueryParams) {
-  return request.get('/inventory-transfer', { params })
+  return request.get('/inventory/transfers', { params })
 }
 
 export function getInventoryTransfer(id: number) {
-  return request.get(`/inventory-transfer/${id}`)
+  return request.get(`/inventory/transfers/${id}`)
 }
 
 export function createInventoryTransfer(data: Partial<InventoryTransferEntity>) {
-  return request.post('/inventory-transfer', data)
+  return request.post('/inventory/transfers', data)
 }
 
 export function updateInventoryTransfer(id: number, data: Partial<InventoryTransferEntity>) {
-  return request.put(`/inventory-transfer/${id}`, data)
+  return request.put(`/inventory/transfers/${id}`, data)
 }
 
 export function deleteInventoryTransfer(id: number) {
-  return request.delete(`/inventory-transfer/${id}`)
+  return request.delete(`/inventory/transfers/${id}`)
 }
 
 export function approveInventoryTransfer(id: number) {
-  return request.patch(`/inventory-transfer/${id}/approve`)
+  return request.post(`/inventory/transfers/${id}/approve`)
 }
 
 export function getTransferItems(id: number) {
-  return request.get(`/inventory-transfer/${id}/items`)
+  return request.get(`/inventory/transfers/${id}`)
 }
 
 export function addTransferItem(id: number, data: Partial<TransferItem>) {
-  return request.post(`/inventory-transfer/${id}/items`, data)
+  return request.post(`/inventory/transfers/${id}`, data)
 }
 
 export function updateTransferItem(itemId: number, data: Partial<TransferItem>) {
-  return request.put(`/inventory-transfer/items/${itemId}`, data)
+  return request.put(`/inventory/transfers/items/${itemId}`, data)
 }
 
 export function deleteTransferItem(itemId: number) {
-  return request.delete(`/inventory-transfer/items/${itemId}`)
+  return request.delete(`/inventory/transfers/items/${itemId}`)
 }

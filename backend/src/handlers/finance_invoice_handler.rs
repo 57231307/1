@@ -1,11 +1,12 @@
 use crate::services::finance_invoice_service::FinanceInvoiceService;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Json,
 };
-use crate::utils::app_state::AppState;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct InvoiceResponse {
@@ -32,49 +33,15 @@ pub struct InvoiceListResponse {
 
 pub async fn list_finance_invoices(
     State(state): State<AppState>,
-) -> Result<Json<InvoiceListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<InvoiceListResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    match service.list_invoices().await {
-        Ok(invoices) => {
-            let invoice_responses: Vec<InvoiceResponse> = invoices
-                .into_iter()
-                .map(|invoice| InvoiceResponse {
-                    id: invoice.id,
-                    invoice_no: invoice.invoice_no,
-                    order_id: invoice.order_id,
-                    amount: invoice.amount,
-                    tax_amount: invoice.tax_amount,
-                    total_amount: invoice.total_amount,
-                    status: invoice.status,
-                    invoice_date: invoice.invoice_date,
-                    paid_date: invoice.paid_date,
-                    payment_method: invoice.payment_method,
-                    notes: invoice.notes,
-                    created_at: invoice.created_at,
-                    updated_at: invoice.updated_at,
-                })
-                .collect();
+    let invoices = service.list_invoices().await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            let total = invoice_responses.len() as u64;
-
-            Ok(Json(InvoiceListResponse {
-                invoices: invoice_responses,
-                total,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
-}
-
-pub async fn get_finance_invoice(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
-    let service = FinanceInvoiceService::new(state.db.clone());
-
-    match service.get_invoice(id).await {
-        Ok(Some(invoice)) => Ok(Json(InvoiceResponse {
+    let invoice_responses: Vec<InvoiceResponse> = invoices
+        .into_iter()
+        .map(|invoice| InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,
             order_id: invoice.order_id,
@@ -88,16 +55,48 @@ pub async fn get_finance_invoice(
             notes: invoice.notes,
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
-        })),
-        Ok(None) => Err((StatusCode::NOT_FOUND, "发票不存在".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        })
+        .collect();
+
+    let total = invoice_responses.len() as u64;
+
+    Ok(Json(ApiResponse::success(InvoiceListResponse {
+        invoices: invoice_responses,
+        total,
+    })))
+}
+
+pub async fn get_finance_invoice(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
+    let service = FinanceInvoiceService::new(state.db.clone());
+
+    match service.get_invoice(id).await {
+        Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
+            id: invoice.id,
+            invoice_no: invoice.invoice_no,
+            order_id: invoice.order_id,
+            amount: invoice.amount,
+            tax_amount: invoice.tax_amount,
+            total_amount: invoice.total_amount,
+            status: invoice.status,
+            invoice_date: invoice.invoice_date,
+            paid_date: invoice.paid_date,
+            payment_method: invoice.payment_method,
+            notes: invoice.notes,
+            created_at: invoice.created_at,
+            updated_at: invoice.updated_at,
+        }))),
+        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
+        Err(e) => Err(AppError::InternalError(e.to_string())),
     }
 }
 
 pub async fn create_finance_invoice(
     State(state): State<AppState>,
     Json(payload): Json<serde_json::Value>,
-) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
     let invoice_no = payload.get("invoice_no")
@@ -120,35 +119,35 @@ pub async fn create_finance_invoice(
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();
 
-    match service.create_invoice(invoice_no, amount, tax_amount, total_amount).await {
-        Ok(invoice) => Ok(Json(InvoiceResponse {
-            id: invoice.id,
-            invoice_no: invoice.invoice_no,
-            order_id: invoice.order_id,
-            amount: invoice.amount,
-            tax_amount: invoice.tax_amount,
-            total_amount: invoice.total_amount,
-            status: invoice.status,
-            invoice_date: invoice.invoice_date,
-            paid_date: invoice.paid_date,
-            payment_method: invoice.payment_method,
-            notes: invoice.notes,
-            created_at: invoice.created_at,
-            updated_at: invoice.updated_at,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let invoice = service.create_invoice(invoice_no, amount, tax_amount, total_amount).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(InvoiceResponse {
+        id: invoice.id,
+        invoice_no: invoice.invoice_no,
+        order_id: invoice.order_id,
+        amount: invoice.amount,
+        tax_amount: invoice.tax_amount,
+        total_amount: invoice.total_amount,
+        status: invoice.status,
+        invoice_date: invoice.invoice_date,
+        paid_date: invoice.paid_date,
+        payment_method: invoice.payment_method,
+        notes: invoice.notes,
+        created_at: invoice.created_at,
+        updated_at: invoice.updated_at,
+    })))
 }
 
 pub async fn update_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<serde_json::Value>,
-) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.update_invoice(id, payload).await {
-        Ok(Some(invoice)) => Ok(Json(InvoiceResponse {
+        Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,
             order_id: invoice.order_id,
@@ -162,32 +161,32 @@ pub async fn update_finance_invoice(
             notes: invoice.notes,
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
-        })),
-        Ok(None) => Err((StatusCode::NOT_FOUND, "发票不存在".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }))),
+        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
+        Err(e) => Err(AppError::InternalError(e.to_string())),
     }
 }
 
 pub async fn delete_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    match service.delete_invoice(id).await {
-        Ok(_) => Ok(StatusCode::OK),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    service.delete_invoice(id).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(())))
 }
 
 pub async fn approve_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.approve_invoice(id).await {
-        Ok(Some(invoice)) => Ok(Json(InvoiceResponse {
+        Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,
             order_id: invoice.order_id,
@@ -201,20 +200,20 @@ pub async fn approve_finance_invoice(
             notes: invoice.notes,
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
-        })),
-        Ok(None) => Err((StatusCode::NOT_FOUND, "发票不存在".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }))),
+        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
+        Err(e) => Err(AppError::InternalError(e.to_string())),
     }
 }
 
 pub async fn verify_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<Json<InvoiceResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
     match service.verify_invoice(id).await {
-        Ok(Some(invoice)) => Ok(Json(InvoiceResponse {
+        Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,
             order_id: invoice.order_id,
@@ -228,8 +227,8 @@ pub async fn verify_invoice(
             notes: invoice.notes,
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
-        })),
-        Ok(None) => Err((StatusCode::NOT_FOUND, "发票不存在".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }))),
+        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
+        Err(e) => Err(AppError::InternalError(e.to_string())),
     }
 }

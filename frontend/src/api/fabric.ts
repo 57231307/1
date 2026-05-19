@@ -43,33 +43,33 @@ export interface FabricQueryParams {
 
 export const fabricApi = {
   list: (params?: FabricQueryParams) =>
-    request.get<ApiResponse<{ list: Fabric[]; total: number }>>('/fabrics', { params }),
+    request.get<ApiResponse<{ list: Fabric[]; total: number }>>('/products', { params }),
 
-  getById: (id: number) => request.get<ApiResponse<Fabric>>(`/fabrics/${id}`),
+  getById: (id: number) => request.get<ApiResponse<Fabric>>(`/products/${id}`),
 
   create: (data: Partial<Fabric>) =>
-    request.post<ApiResponse<Fabric>>('/fabrics', data),
+    request.post<ApiResponse<Fabric>>('/products', data),
 
   update: (id: number, data: Partial<Fabric>) =>
-    request.put<ApiResponse<Fabric>>(`/fabrics/${id}`, data),
+    request.put<ApiResponse<Fabric>>(`/products/${id}`, data),
 
-  delete: (id: number) => request.delete<ApiResponse<null>>(`/fabrics/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<null>>(`/products/${id}`),
 
   getCategories: () =>
-    request.get<ApiResponse<FabricCategory[]>>('/fabrics/categories'),
+    request.get<ApiResponse<FabricCategory[]>>('/product-categories'),
 
   createCategory: (data: Partial<FabricCategory>) =>
-    request.post<ApiResponse<FabricCategory>>('/fabrics/categories', data),
+    request.post<ApiResponse<FabricCategory>>('/product-categories', data),
 
   updateCategory: (id: number, data: Partial<FabricCategory>) =>
-    request.put<ApiResponse<FabricCategory>>(`/fabrics/categories/${id}`, data),
+    request.put<ApiResponse<FabricCategory>>(`/product-categories/${id}`, data),
 
   deleteCategory: (id: number) =>
-    request.delete<ApiResponse<null>>(`/fabrics/categories/${id}`),
+    request.delete<ApiResponse<null>>(`/product-categories/${id}`),
 
   batchImport: (data: Fabric[]) =>
-    request.post<ApiResponse<{ success: number; failed: number }>>('/fabrics/batch-import', data),
+    request.post<ApiResponse<{ success: number; failed: number }>>('/products/import', data),
 
   export: (params?: FabricQueryParams) =>
-    request.get<Blob>('/fabrics/export', { params, responseType: 'blob' }),
+    request.get<Blob>('/products/export', { params, responseType: 'blob' }),
 }

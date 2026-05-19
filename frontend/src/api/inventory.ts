@@ -87,15 +87,15 @@ export interface StockAlert {
 
 export const inventoryApi = {
   getStockList: (params?: InventoryQueryParams) =>
-    request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>('/inventory/stocks', {
+    request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>('/inventory/stock', {
       params,
     }),
 
   getStockById: (id: number) =>
-    request.get<ApiResponse<InventoryStock>>(`/inventory/stocks/${id}`),
+    request.get<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`),
 
   getStockByProduct: (productId: number) =>
-    request.get<ApiResponse<InventoryStock[]>>(`/inventory/stocks/product/${productId}`),
+    request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`),
 
   createStockAdjustment: (data: any) =>
     request.post<ApiResponse<any>>('/inventory/adjustments', data),
@@ -125,11 +125,11 @@ export const inventoryApi = {
     request.post<ApiResponse<null>>(`/inventory/transfers/${id}/approve`),
 
   executeTransfer: (id: number) =>
-    request.post<ApiResponse<null>>(`/inventory/transfers/${id}/execute`),
+    request.post<ApiResponse<null>>(`/inventory/transfers/${id}/ship`),
 
   getStockAlerts: () =>
-    request.get<ApiResponse<StockAlert[]>>('/inventory/stocks/alerts'),
+    request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts'),
 
   getInventoryReport: (params: any) =>
-    request.get<ApiResponse<any>>('/inventory/report', { params }),
+    request.get<ApiResponse<any>>('/inventory/stock/summary', { params }),
 }

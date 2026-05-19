@@ -41,21 +41,21 @@ export function trackPageVisit(data: {
   duration: number
   referrer?: string
 }): Promise<ApiResponse<void>> {
-  return request.post('/tracking/page-visit', data)
+  return request.post('/tracking/page-view', data)
 }
 
 export function getPageVisits(params?: PageVisitQueryParams): Promise<ApiResponse<{ list: PageVisit[]; total: number }>> {
-  return request.get('/tracking/page-visits', { params })
+  return request.get('/tracking/page-view', { params })
 }
 
 export function getPageStatistics(params: PageStatisticsParams): Promise<ApiResponse<{ list: PageStatistics[]; total: number }>> {
-  return request.get('/tracking/page-statistics', { params })
+  return request.get('/tracking/page-view', { params })
 }
 
 export function getUserActivity(userId: number, params?: QueryParams): Promise<ApiResponse<{ list: PageVisit[]; total: number }>> {
-  return request.get(`/tracking/user/${userId}/activity`, { params })
+  return request.get(`/tracking/page-view`, { params: { user_id: userId, ...params } })
 }
 
 export function getRealTimeVisitors(): Promise<ApiResponse<{ count: number; users: { userId: number; userName: string; pagePath: string; visitedAt: string }[] }>> {
-  return request.get('/tracking/realtime')
+  return request.get('/tracking/page-view')
 }

@@ -14,19 +14,19 @@ export interface AccountSubject {
 }
 
 export const listAccountSubjects = (params?: any) =>
-  request.get('/account-subjects', { params })
+  request.get('/gl/subjects', { params })
 
 export const getAccountSubject = (id: number) =>
-  request.get(`/account-subjects/${id}`)
+  request.get(`/gl/subjects/${id}`)
 
 export const createAccountSubject = (data: Partial<AccountSubject>) =>
-  request.post('/account-subjects', data)
+  request.post('/gl/subjects', data)
 
 export const updateAccountSubject = (id: number, data: Partial<AccountSubject>) =>
-  request.put(`/account-subjects/${id}`, data)
+  request.put(`/gl/subjects/${id}`, data)
 
 export const deleteAccountSubject = (id: number) =>
-  request.delete(`/account-subjects/${id}`)
+  request.delete(`/gl/subjects/${id}`)
 
 export const getAccountSubjectTree = () =>
-  request.get('/account-subjects/tree')
+  request.get('/gl/subjects/tree')

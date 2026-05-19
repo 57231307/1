@@ -42,27 +42,27 @@ export interface QueryParams {
 }
 
 export function getBalanceSheet(params?: QueryParams) {
-  return request.get('/finance-report/balance-sheet', { params })
+  return request.get('/finance/reports/balance-sheet', { params })
 }
 
 export function getProfitStatement(params?: QueryParams) {
-  return request.get('/finance-report/profit-statement', { params })
+  return request.get('/finance/reports/income-statement', { params })
 }
 
 export function getCashFlowStatement(params?: QueryParams) {
-  return request.get('/finance-report/cash-flow', { params })
+  return request.get('/finance/reports/cash-flow', { params })
 }
 
 export function getTrialBalance(params?: QueryParams) {
-  return request.get('/finance-report/trial-balance', { params })
+  return request.get('/finance/reports/trial-balance', { params })
 }
 
 export function getGeneralLedger(accountSubjectCode: string, params?: QueryParams) {
-  return request.get(`/finance-report/general-ledger/${accountSubjectCode}`, { params })
+  return request.get(`/finance/reports/general-ledger/${accountSubjectCode}`, { params })
 }
 
 export function getSubsidiaryLedger(customerId?: number, supplierId?: number, params?: QueryParams) {
-  return request.get('/finance-report/subsidiary-ledger', { 
+  return request.get('/finance/reports/subsidiary-ledger', { 
     params: { customer_id: customerId, supplier_id: supplierId, ...params } 
   })
 }

@@ -3,10 +3,10 @@
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use chrono::Utc;
@@ -87,65 +87,62 @@ pub async fn get_stock(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    match service.find_by_id(id).await {
-        Ok(stock) => {
-            let response = StockResponse {
-                id: stock.id,
-                warehouse_id: stock.warehouse_id,
-                product_id: stock.product_id,
-                quantity_on_hand: stock.quantity_on_hand,
-                quantity_available: stock.quantity_available,
-                quantity_reserved: stock.quantity_reserved,
-                reorder_point: stock.reorder_point,
-                bin_location: stock.bin_location,
-                created_at: stock.created_at,
-                updated_at: stock.updated_at,
-            };
+    let stock = service.find_by_id(id).await
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
 
-            let mut response_json = serde_json::to_value(response)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let response = StockResponse {
+        id: stock.id,
+        warehouse_id: stock.warehouse_id,
+        product_id: stock.product_id,
+        quantity_on_hand: stock.quantity_on_hand,
+        quantity_available: stock.quantity_available,
+        quantity_reserved: stock.quantity_reserved,
+        reorder_point: stock.reorder_point,
+        bin_location: stock.bin_location,
+        created_at: stock.created_at,
+        updated_at: stock.updated_at,
+    };
 
-            // 数据权限控制：获取角色数据权限并应用字段过滤
-            if let Some(role_id) = auth.role_id {
-                if let Ok(Some(permission)) = state
-                    .data_permission_service
-                    .get_role_data_permission(role_id, "inventory_stock")
-                    .await
-                {
-                    state.data_permission_service.filter_fields(
-                        &mut response_json,
-                        &permission.allowed_fields,
-                        &permission.hidden_fields,
-                    );
-                } else if role_id != 1 {
-                    // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-                    if let Some(obj) = response_json.as_object_mut() {
-                        obj.remove("quantity_on_hand");
-                        obj.remove("quantity_available");
-                        obj.remove("quantity_reserved");
-                        obj.remove("reorder_point");
-                        obj.remove("reorder_quantity");
-                    }
-                }
+    let mut response_json = serde_json::to_value(response)?;
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "inventory_stock")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut response_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            if let Some(obj) = response_json.as_object_mut() {
+                obj.remove("quantity_on_hand");
+                obj.remove("quantity_available");
+                obj.remove("quantity_reserved");
+                obj.remove("reorder_point");
+                obj.remove("reorder_quantity");
             }
-
-            Ok(Json(response_json))
         }
-        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
     }
+
+    Ok(Json(ApiResponse::success(response_json)))
 }
 
 pub async fn create_stock(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
-) -> Result<Json<StockResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    match service
+    let stock = service
         .create_stock(
             payload.warehouse_id,
             payload.product_id,
@@ -161,21 +158,20 @@ pub async fn create_stock(
             "qualified".to_string(),
         )
         .await
-    {
-        Ok(stock) => Ok(Json(StockResponse {
-            id: stock.id,
-            warehouse_id: stock.warehouse_id,
-            product_id: stock.product_id,
-            quantity_on_hand: stock.quantity_on_hand,
-            quantity_available: stock.quantity_available,
-            quantity_reserved: stock.quantity_reserved,
-            reorder_point: stock.reorder_point,
-            bin_location: stock.bin_location,
-            created_at: stock.created_at,
-            updated_at: stock.updated_at,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(StockResponse {
+        id: stock.id,
+        warehouse_id: stock.warehouse_id,
+        product_id: stock.product_id,
+        quantity_on_hand: stock.quantity_on_hand,
+        quantity_available: stock.quantity_available,
+        quantity_reserved: stock.quantity_reserved,
+        reorder_point: stock.reorder_point,
+        bin_location: stock.bin_location,
+        created_at: stock.created_at,
+        updated_at: stock.updated_at,
+    })))
 }
 
 pub async fn update_stock(
@@ -183,13 +179,11 @@ pub async fn update_stock(
     _auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateStockRequest>,
-) -> Result<Json<StockResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let stock = match service.find_by_id(id).await {
-        Ok(s) => s,
-        Err(e) => return Err((StatusCode::NOT_FOUND, e.to_string())),
-    };
+    let stock = service.find_by_id(id).await
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     use sea_orm::{ActiveModelTrait, Set};
     let mut active_model: crate::models::inventory_stock::ActiveModel = stock.into();
@@ -214,43 +208,40 @@ pub async fn update_stock(
     }
     active_model.updated_at = Set(Utc::now());
 
-    match active_model.update(&*state.db).await {
-        Ok(updated) => Ok(Json(StockResponse {
-            id: updated.id,
-            warehouse_id: updated.warehouse_id,
-            product_id: updated.product_id,
-            quantity_on_hand: updated.quantity_on_hand,
-            quantity_available: updated.quantity_available,
-            quantity_reserved: updated.quantity_reserved,
-            reorder_point: updated.reorder_point,
-            bin_location: updated.bin_location,
-            created_at: updated.created_at,
-            updated_at: updated.updated_at,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let updated = active_model.update(&*state.db).await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(StockResponse {
+        id: updated.id,
+        warehouse_id: updated.warehouse_id,
+        product_id: updated.product_id,
+        quantity_on_hand: updated.quantity_on_hand,
+        quantity_available: updated.quantity_available,
+        quantity_reserved: updated.quantity_reserved,
+        reorder_point: updated.reorder_point,
+        bin_location: updated.bin_location,
+        created_at: updated.created_at,
+        updated_at: updated.updated_at,
+    })))
 }
 
 pub async fn delete_stock(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<()>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    match service.find_by_id(id).await {
-        Ok(_) => {}
-        Err(e) => return Err((StatusCode::NOT_FOUND, e.to_string())),
-    }
+    service.find_by_id(id).await
+        .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     use sea_orm::EntityTrait;
-    match crate::models::inventory_stock::Entity::delete_by_id(id)
+    crate::models::inventory_stock::Entity::delete_by_id(id)
         .exec(&*state.db)
         .await
-    {
-        Ok(_) => Ok(Json(())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(())))
 }
 
 pub async fn list_stock(
@@ -664,27 +655,20 @@ pub struct InventorySummaryResponse {
 pub async fn create_stock_fabric(
     State(state): State<AppState>,
     Json(payload): Json<CreateStockFabricRequest>,
-) -> Result<Json<StockFabricResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<StockFabricResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
     // 如果提供了克重和幅宽，自动计算公斤数
     let quantity_kg = if let (Some(gram_weight), Some(width)) = (payload.gram_weight, payload.width)
     {
-        match DualUnitConverter::meters_to_kg(payload.quantity_meters, gram_weight, width) {
-            Ok(kg) => kg,
-            Err(e) => {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    format!("双计量单位换算失败：{}", e),
-                ))
-            }
-        }
+        DualUnitConverter::meters_to_kg(payload.quantity_meters, gram_weight, width)
+            .map_err(|e| AppError::ValidationError(format!("双计量单位换算失败：{}", e)))?
     } else {
         // 如果没有提供克重和幅宽，使用传入的公斤数或默认为 0
         payload.quantity_kg.unwrap_or(Decimal::ZERO)
     };
 
-    match service
+    let stock = service
         .create_stock_fabric(
             payload.warehouse_id,
             payload.product_id,
@@ -701,28 +685,27 @@ pub async fn create_stock_fabric(
             payload.layer_no,
         )
         .await
-    {
-        Ok(stock) => Ok(Json(StockFabricResponse {
-            id: stock.id,
-            warehouse_id: stock.warehouse_id,
-            product_id: stock.product_id,
-            batch_no: stock.batch_no,
-            color_no: stock.color_no,
-            dye_lot_no: stock.dye_lot_no,
-            grade: stock.grade,
-            quantity_on_hand: stock.quantity_on_hand,
-            quantity_available: stock.quantity_available,
-            quantity_reserved: stock.quantity_reserved,
-            quantity_meters: stock.quantity_meters,
-            quantity_kg: stock.quantity_kg,
-            gram_weight: stock.gram_weight,
-            width: stock.width,
-            bin_location: stock.bin_location,
-            created_at: stock.created_at,
-            updated_at: stock.updated_at,
-        })),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(StockFabricResponse {
+        id: stock.id,
+        warehouse_id: stock.warehouse_id,
+        product_id: stock.product_id,
+        batch_no: stock.batch_no,
+        color_no: stock.color_no,
+        dye_lot_no: stock.dye_lot_no,
+        grade: stock.grade,
+        quantity_on_hand: stock.quantity_on_hand,
+        quantity_available: stock.quantity_available,
+        quantity_reserved: stock.quantity_reserved,
+        quantity_meters: stock.quantity_meters,
+        quantity_kg: stock.quantity_kg,
+        gram_weight: stock.gram_weight,
+        width: stock.width,
+        bin_location: stock.bin_location,
+        created_at: stock.created_at,
+        updated_at: stock.updated_at,
+    })))
 }
 
 #[cfg(test)]
