@@ -31,6 +31,8 @@ pub struct Model {
     pub description: Option<String>,
     /// 状态：active-启用，inactive-停用
     pub status: String,
+    /// 是否删除
+    pub is_deleted: bool,
     /// 创建时间
     pub created_at: DateTime<Utc>,
     /// 更新时间
