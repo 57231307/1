@@ -318,7 +318,7 @@ async fn cmd_health() -> Result<(), Box<dyn std::error::Error>> {
     
     // 支持环境变量配置健康检查地址
     let health_url = std::env::var("BINGXI_HEALTH_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:8082/health".to_string());
+        .unwrap_or_else(|_| "http://127.0.0.1:8082/api/v1/erp/health".to_string());
     
     // 检查 HTTP 服务
     match Command::new("curl")
