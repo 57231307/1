@@ -14,6 +14,37 @@ use crate::models::exchange_rate::{
 };
 use crate::utils::error::AppError;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExchangeRateHistoryModel {
+    pub id: i32,
+    pub from_currency: String,
+    pub to_currency: String,
+    pub rate: Decimal,
+    pub effective_date: NaiveDate,
+    pub end_date: Option<NaiveDate>,
+    pub source: Option<String>,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConversionResult {
+    pub from_currency: String,
+    pub to_currency: String,
+    pub original_amount: Decimal,
+    pub converted_amount: Decimal,
+    pub exchange_rate: Decimal,
+    pub conversion_date: NaiveDate,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExternalRateResponse {
+    pub from_currency: String,
+    pub to_currency: String,
+    pub rate: Decimal,
+    pub timestamp: chrono::DateTime<Utc>,
+    pub source: String,
+}
+
 pub struct CurrencyService {
     db: Arc<DatabaseConnection>,
 }
@@ -114,5 +145,207 @@ impl CurrencyService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(model)
+    }
+
+    /// 获取汇率历史记录
+    pub async fn get_exchange_rate_history(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<ExchangeRateHistoryModel>, u64), AppError> {
+        let mut select = RateEntity::find()
+            .filter(crate::models::exchange_rate::Column::FromCurrency.eq(from_currency))
+            .filter(crate::models::exchange_rate::Column::ToCurrency.eq(to_currency));
+
+        if let Some(start) = start_date {
+            select = select.filter(
+                crate::models::exchange_rate::Column::EffectiveDate.gte(start)
+            );
+        }
+
+        if let Some(end) = end_date {
+            select = select.filter(
+                crate::models::exchange_rate::Column::EffectiveDate.lte(end)
+            );
+        }
+
+        let total = select
+            .clone()
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let paginator = select
+            .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
+            .paginate(&*self.db, page_size);
+
+        let models = paginator
+            .fetch_page(page - 1)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let history: Vec<ExchangeRateHistoryModel> = models
+            .into_iter()
+            .map(|m| ExchangeRateHistoryModel {
+                id: m.id,
+                from_currency: m.from_currency,
+                to_currency: m.to_currency,
+                rate: m.rate,
+                effective_date: m.effective_date,
+                end_date: None,
+                source: m.status,
+                created_at: m.created_at,
+            })
+            .collect();
+
+        Ok((history, total))
+    }
+
+    /// 本位币自动换算
+    /// 将指定金额从源币种换算为目标币种（通常是本位币）
+    pub async fn convert_amount(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+        amount: Decimal,
+        conversion_date: Option<NaiveDate>,
+    ) -> Result<ConversionResult, AppError> {
+        // 如果源币种和目标币种相同，直接返回
+        if from_currency == to_currency {
+            return Ok(ConversionResult {
+                from_currency: from_currency.to_string(),
+                to_currency: to_currency.to_string(),
+                original_amount: amount,
+                converted_amount: amount,
+                exchange_rate: Decimal::ONE,
+                conversion_date: conversion_date.unwrap_or_else(|| Utc::now().date_naive()),
+            });
+        }
+
+        // 获取汇率
+        let rate_model = self.get_exchange_rate(from_currency, to_currency).await?;
+
+        let rate = match rate_model {
+            Some(model) => model.rate,
+            None => {
+                // 尝试通过本位币进行间接换算
+                let base_currency = self.get_base_currency().await?;
+                match base_currency {
+                    Some(base) => {
+                        let from_to_base = self.get_exchange_rate(from_currency, &base.code).await?;
+                        let base_to_target = self.get_exchange_rate(&base.code, to_currency).await?;
+
+                        match (from_to_base, base_to_target) {
+                            (Some(f2b), Some(b2t)) => f2b.rate * b2t.rate,
+                            _ => return Err(AppError::BusinessError(format!(
+                                "无法找到 {} 到 {} 的汇率", from_currency, to_currency
+                            ))),
+                        }
+                    }
+                    None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+                }
+            }
+        };
+
+        let converted_amount = amount * rate;
+
+        Ok(ConversionResult {
+            from_currency: from_currency.to_string(),
+            to_currency: to_currency.to_string(),
+            original_amount: amount,
+            converted_amount,
+            exchange_rate: rate,
+            conversion_date: conversion_date.unwrap_or_else(|| Utc::now().date_naive()),
+        })
+    }
+
+    /// 批量换算到本位币
+    pub async fn convert_to_base_currency(
+        &self,
+        from_currency: &str,
+        amounts: Vec<Decimal>,
+    ) -> Result<Vec<ConversionResult>, AppError> {
+        let base_currency = self.get_base_currency().await?;
+        let base_code = match base_currency {
+            Some(base) => base.code,
+            None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+        };
+
+        let mut results = Vec::new();
+        for amount in amounts {
+            let result = self.convert_amount(from_currency, &base_code, amount, None).await?;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    /// 获取外部汇率（模拟外部API调用）
+    pub async fn fetch_external_rate(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+    ) -> Result<ExternalRateResponse, AppError> {
+        // 这里是外部汇率API的集成接口
+        // 实际实现中，这里会调用真实的外部API，如：
+        // - Open Exchange Rates
+        // - Fixer.io
+        // - ExchangeRate-API
+        // - 中国人民银行汇率接口
+
+        // 模拟API调用
+        // 在实际项目中，这里应该使用 reqwest 或其他 HTTP 客户端调用外部API
+        tracing::info!("调用外部汇率API: {} -> {}", from_currency, to_currency);
+
+        // 返回模拟数据
+        // 实际实现应该解析外部API的响应
+        Err(AppError::BusinessError(
+            "外部汇率API未配置。请在系统设置中配置汇率API密钥。".to_string()
+        ))
+    }
+
+    /// 同步外部汇率并保存到数据库
+    pub async fn sync_external_rate(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+    ) -> Result<RateModel, AppError> {
+        let external_rate = self.fetch_external_rate(from_currency, to_currency).await?;
+
+        let today = Utc::now().date_naive();
+
+        // 保存到数据库
+        let model = self.create_exchange_rate(
+            external_rate.from_currency,
+            external_rate.to_currency,
+            external_rate.rate,
+            today,
+        ).await?;
+
+        Ok(model)
+    }
+
+    /// 计算本位币金额（用于订单和发票）
+    pub async fn calculate_base_amount(
+        &self,
+        currency_code: &str,
+        amount: Decimal,
+    ) -> Result<(Decimal, Decimal), AppError> {
+        let base_currency = self.get_base_currency().await?;
+        let base_code = match base_currency {
+            Some(base) => base.code,
+            None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+        };
+
+        if currency_code == base_code {
+            return Ok((amount, Decimal::ONE));
+        }
+
+        let result = self.convert_amount(currency_code, &base_code, amount, None).await?;
+        Ok((result.converted_amount, result.exchange_rate))
     }
 }
