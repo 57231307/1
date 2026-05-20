@@ -205,6 +205,24 @@ const routes = [
         meta: { title: '客户关系管理', requiresAuth: true }
       },
       {
+        path: 'crm/pool',
+        name: 'CRMPool',
+        component: () => import('@/views/crm/pool.vue'),
+        meta: { title: '公海客户池', requiresAuth: true }
+      },
+      {
+        path: 'crm/assignment',
+        name: 'CRMAssignment',
+        component: () => import('@/views/crm/assignment.vue'),
+        meta: { title: '客户分配', requiresAuth: true }
+      },
+      {
+        path: 'crm/detail/:id',
+        name: 'CRMDetail',
+        component: () => import('@/views/crm/detail.vue'),
+        meta: { title: '客户360视图', requiresAuth: true }
+      },
+      {
         path: 'advanced',
         name: 'Advanced',
         component: () => import('@/views/advanced/index.vue'),
@@ -323,6 +341,24 @@ const routes = [
         name: 'OmniAudit',
         component: () => import('@/views/omniAudit/index.vue'),
         meta: { title: '全量审计', requiresAuth: true }
+      },
+      {
+        path: 'scheduling',
+        name: 'Scheduling',
+        component: () => import('@/views/scheduling/index.vue'),
+        meta: { title: '生产排程', requiresAuth: true }
+      },
+      {
+        path: 'scheduling/gantt',
+        name: 'SchedulingGantt',
+        component: () => import('@/views/scheduling/gantt.vue'),
+        meta: { title: '排程甘特图', requiresAuth: true }
+      },
+      {
+        path: 'components-demo',
+        name: 'ComponentsDemo',
+        component: () => import('@/views/components-demo/index.vue'),
+        meta: { title: '组件示例', requiresAuth: true }
       }
     ]
   },

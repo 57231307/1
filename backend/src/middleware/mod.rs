@@ -12,3 +12,4 @@ pub mod public_routes;
 pub mod tenant;
 pub mod api_gateway;
 pub mod timeout;
+pub mod field_permission;

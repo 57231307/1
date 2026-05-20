@@ -1,0 +1,41 @@
+#![allow(dead_code)]
+
+use chrono::{DateTime, Utc};
+use sea_orm::entity::prelude::*;
+use serde::{Serialize, Deserialize};
+use rust_decimal::Decimal;
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "tenant_subscriptions")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub tenant_id: i32,
+    pub plan_id: i32,
+    pub status: String,
+    pub billing_cycle: String,
+    pub start_date: DateTime<Utc>,
+    pub end_date: Option<DateTime<Utc>>,
+    pub auto_renew: bool,
+    pub current_price: Decimal,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::tenant::Entity",
+        from = "Column::TenantId",
+        to = "super::tenant::Column::Id"
+    )]
+    Tenant,
+    #[sea_orm(
+        belongs_to = "super::tenant_plan::Entity",
+        from = "Column::PlanId",
+        to = "super::tenant_plan::Column::Id"
+    )]
+    Plan,
+}
+
+impl ActiveModelBehavior for ActiveModel {}

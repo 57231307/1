@@ -7,6 +7,11 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    AdvancedFilter: typeof import('./src/components/AdvancedFilter.vue')['default']
+    BarChart: typeof import('./src/components/Charts/BarChart.vue')['default']
+    BaseChart: typeof import('./src/components/Charts/BaseChart.vue')['default']
+    BatchActions: typeof import('./src/components/BatchActions.vue')['default']
+    DraggableTable: typeof import('./src/components/DraggableTable.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElBadge: typeof import('element-plus/es')['ElBadge']
@@ -64,7 +69,9 @@ declare module 'vue' {
     ElTreeSelect: typeof import('element-plus/es')['ElTreeSelect']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     FormDialog: typeof import('./src/components/FormDialog.vue')['default']
+    LineChart: typeof import('./src/components/Charts/LineChart.vue')['default']
     MainLayout: typeof import('./src/components/Layout/MainLayout.vue')['default']
+    PieChart: typeof import('./src/components/Charts/PieChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

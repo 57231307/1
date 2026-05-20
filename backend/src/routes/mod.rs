@@ -71,6 +71,7 @@ use crate::handlers::{
     email_handler,
     webhook_integration_handler,
     tenant_config_handler,
+    tenant_billing_handler,
     purchase_contract_handler,
     purchase_inspection_handler,
     purchase_order_handler,
@@ -101,6 +102,8 @@ use crate::handlers::{
     data_permission_handler,
     tracking_handler,
     advanced_handler,
+    scheduling_handler,
+    field_permission_handler,
 };
 
 use crate::services::metrics_service::create_metrics_router;
@@ -911,6 +914,14 @@ pub fn create_router(state: AppState) -> Router {
             .route("/requirements", get(mrp_handler::get_mrp_requirements))
             .route("/convert-orders", post(mrp_handler::convert_to_orders))
         )
+        // 生产排程路由
+        .nest("/api/v1/erp/scheduling", Router::new()
+            .route("/auto-schedule", post(scheduling_handler::auto_schedule))
+            .route("/gantt", get(scheduling_handler::get_gantt_data))
+            .route("/conflicts", get(scheduling_handler::detect_conflicts))
+            .route("/:id", put(scheduling_handler::adjust_schedule))
+            .route("/work-orders", get(scheduling_handler::list_scheduled_orders))
+        )
         // 产能分析路由
         .nest("/api/v1/erp/capacity", Router::new()
             .route("/overview", get(capacity_handler::get_capacity_overview))
@@ -1010,6 +1021,14 @@ pub fn create_router(state: AppState) -> Router {
             .route("/plans/:id", get(tenant_config_handler::get_plan))
             .route("/usage", get(tenant_config_handler::get_usage_statistics))
         )
+        // 租户计费路由
+        .nest("/api/v1/erp/tenant/billing", Router::new()
+            .route("/plan", get(tenant_billing_handler::get_current_plan))
+            .route("/upgrade", post(tenant_billing_handler::upgrade_plan))
+            .route("/usage", get(tenant_billing_handler::get_usage))
+            .route("/invoices", get(tenant_billing_handler::list_invoices))
+            .route("/renew", post(tenant_billing_handler::renew_subscription))
+        )
         .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
@@ -1076,6 +1095,11 @@ pub fn create_router(state: AppState) -> Router {
             .route("/scope-types", get(data_permission_handler::list_scope_types))
             .route("/roles/:role_id", get(data_permission_handler::list_role_data_permissions))
             .route("/roles/:role_id/:resource_type", get(data_permission_handler::get_data_permission).delete(data_permission_handler::delete_data_permission))
+        )
+        // 字段权限路由
+        .nest("/api/v1/erp/permissions/fields", Router::new()
+            .route("/", get(field_permission_handler::list_field_permissions).post(field_permission_handler::create_field_permission))
+            .route("/:id", get(field_permission_handler::get_field_permission).put(field_permission_handler::update_field_permission).delete(field_permission_handler::delete_field_permission))
         )
         // 消息通知路由
         .nest("/api/v1/erp/notifications", Router::new()

@@ -84,6 +84,7 @@ pub mod ai_analysis_service;
 pub mod report_engine_service;
 // 多租户SaaS模块
 pub mod tenant_service;
+pub mod tenant_isolation_service;
 pub mod webhook_service;
 pub mod api_key_service;
 // 消息通知模块
@@ -96,3 +97,9 @@ pub mod user_notification_setting_service;
 pub mod capacity_service;
 // 缺料预警模块
 pub mod material_shortage_service;
+// 生产排程模块
+pub mod scheduling_service;
+// 字段权限模块
+pub mod field_permission_service;
+// 租户计费模块
+pub mod tenant_billing_service;
