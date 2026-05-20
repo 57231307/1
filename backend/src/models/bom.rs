@@ -23,6 +23,16 @@ pub enum BomStatus {
     Pending,
 }
 
+impl std::fmt::Display for BomStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BomStatus::Active => write!(f, "ACTIVE"),
+            BomStatus::Inactive => write!(f, "INACTIVE"),
+            BomStatus::Pending => write!(f, "PENDING"),
+        }
+    }
+}
+
 /// BOM Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "boms")]

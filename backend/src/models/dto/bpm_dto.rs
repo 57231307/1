@@ -1,6 +1,55 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct CreateProcessDefinitionRequest {
+    pub name: String,
+    pub code: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub version: Option<String>,
+    pub config: Option<serde_json::Value>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdateProcessDefinitionRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub config: Option<serde_json::Value>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProcessDefinitionQuery {
+    pub category: Option<String>,
+    pub status: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreateVersionRequest {
+    pub version: String,
+    pub config: Option<serde_json::Value>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreateTemplateRequest {
+    pub template_name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TemplateQuery {
+    pub category: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct StartProcessRequest {
     pub process_key: String,
     pub business_type: String,

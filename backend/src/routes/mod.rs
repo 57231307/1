@@ -20,6 +20,7 @@ use crate::handlers::{
     ap_report_handler,
     ap_verification_handler,
     ar_reconciliation_handler,
+    ar_reconciliation_enhanced_handler,
     barcode_scanner_handler,
     ar_invoice_handler,
     assist_accounting_handler,
@@ -31,6 +32,7 @@ use crate::handlers::{
     business_trace_handler,
     cost_collection_handler,
     currency_handler,
+    currency_enhanced_handler,
     customer_credit_handler,
     customer_handler,
     dashboard_handler,
@@ -54,6 +56,21 @@ use crate::handlers::{
     product_category_handler,
     product_handler,
     production_order_handler,
+    bom_handler,
+    mrp_handler,
+    capacity_handler,
+    material_shortage_handler,
+    report_enhanced_handler,
+    import_export_handler,
+    bpm_definition_handler,
+    crm_customer_handler,
+    crm_pool_handler,
+    crm_assignment_handler,
+    audit_enhanced_handler,
+    login_security_handler,
+    email_handler,
+    webhook_integration_handler,
+    tenant_config_handler,
     purchase_contract_handler,
     purchase_inspection_handler,
     purchase_order_handler,
@@ -879,6 +896,21 @@ pub fn create_router(state: AppState) -> Router {
             .route("/orders/:id", get(production_order_handler::get_production_order).put(production_order_handler::update_production_order).delete(production_order_handler::delete_production_order))
             .route("/orders/:id/status", put(production_order_handler::update_production_order_status))
         )
+        // BOM物料清单路由
+        .nest("/api/v1/erp/boms", Router::new()
+            .route("/", get(bom_handler::list_boms).post(bom_handler::create_bom))
+            .route("/:id", get(bom_handler::get_bom).put(bom_handler::update_bom).delete(bom_handler::delete_bom))
+            .route("/:id/copy", post(bom_handler::copy_bom))
+            .route("/:id/default", put(bom_handler::set_default_bom))
+            .route("/versions/:product_id", get(bom_handler::get_bom_versions))
+        )
+        // MRP物料需求计划路由
+        .nest("/api/v1/erp/mrp", Router::new()
+            .route("/calculate", post(mrp_handler::calculate_mrp))
+            .route("/results", get(mrp_handler::get_mrp_results))
+            .route("/requirements", get(mrp_handler::get_mrp_requirements))
+            .route("/convert-orders", post(mrp_handler::convert_to_orders))
+        )
         .nest("/api/v1/erp/bpm", bpm_routes)
         .nest("/api/v1/erp/system-update", system_update_routes)
         .nest("/api/v1/erp/health", health_routes)
@@ -903,6 +935,8 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/currencies", Router::new()
             .route("/", get(currency_handler::list_currencies))
             .route("/base", get(currency_handler::get_base_currency))
+            .route("/rates/history", get(currency_enhanced_handler::get_exchange_rate_history))
+            .route("/convert", post(currency_enhanced_handler::convert_amount))
         )
         .nest("/api/v1/erp/exchange-rates", Router::new()
             .route("/", post(currency_handler::create_exchange_rate))

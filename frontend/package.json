@@ -16,6 +16,7 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",
     "axios": "^1.6.0",
+    "echarts": "^6.1.0",
     "element-plus": "^2.6.0",
     "pinia": "^2.1.0",
     "print-js": "^1.6.0",

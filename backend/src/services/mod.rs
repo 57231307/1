@@ -75,6 +75,7 @@ pub mod purchase_delivery_calculator;
 // MRP生产计划模块
 pub mod production_order_service;
 pub mod mrp_engine_service;
+pub mod bom_service;
 // 应收对账与多币种模块
 pub mod ar_reconciliation_service;
 pub mod currency_service;
@@ -91,3 +92,7 @@ pub mod email_service;
 pub mod event_notification_service;
 pub mod data_permission_service;
 pub mod user_notification_setting_service;
+// 产能分析模块
+pub mod capacity_service;
+// 缺料预警模块
+pub mod material_shortage_service;

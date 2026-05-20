@@ -217,6 +217,36 @@ const routes = [
         meta: { title: '生产计划', requiresAuth: true }
       },
       {
+        path: 'bom',
+        name: 'Bom',
+        component: () => import('@/views/bom/index.vue'),
+        meta: { title: 'BOM管理', requiresAuth: true }
+      },
+      {
+        path: 'mrp',
+        name: 'Mrp',
+        component: () => import('@/views/mrp/index.vue'),
+        meta: { title: 'MRP计算', requiresAuth: true }
+      },
+      {
+        path: 'mrp/history',
+        name: 'MrpHistory',
+        component: () => import('@/views/mrp/history.vue'),
+        meta: { title: 'MRP历史记录', requiresAuth: true }
+      },
+      {
+        path: 'capacity',
+        name: 'Capacity',
+        component: () => import('@/views/capacity/index.vue'),
+        meta: { title: '产能分析', requiresAuth: true }
+      },
+      {
+        path: 'material-shortage',
+        name: 'MaterialShortage',
+        component: () => import('@/views/material-shortage/index.vue'),
+        meta: { title: '缺料预警', requiresAuth: true }
+      },
+      {
         path: 'cost',
         name: 'Cost',
         component: () => import('@/views/cost/index.vue'),

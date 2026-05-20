@@ -73,6 +73,8 @@ pub mod sales_return_handler;
 pub mod bpm_handler;
 // MRP生产计划模块
 pub mod production_order_handler;
+pub mod bom_handler;
+pub mod mrp_handler;
 pub mod logistics_handler;
 pub mod barcode_scanner_handler;
 pub mod piece_split_handler;
@@ -82,6 +84,7 @@ pub mod webhook_handler;
 pub mod api_key_handler;
 // Phase 2-3 补充Handler
 pub mod ar_reconciliation_handler;
+pub mod ar_reconciliation_enhanced_handler;
 pub mod currency_handler;
 pub mod ai_analysis_handler;
 pub mod report_engine_handler;
@@ -95,3 +98,23 @@ pub mod data_permission_handler;
 pub mod trading_handler;
 // AI 高级分析模块
 pub mod advanced_handler;
+// 多币种增强模块
+pub mod currency_enhanced_handler;
+// MRP产能和缺料模块
+pub mod capacity_handler;
+pub mod material_shortage_handler;
+// 报表和导入导出模块
+pub mod report_enhanced_handler;
+pub mod import_export_handler;
+// BPM定义模块
+pub mod bpm_definition_handler;
+// CRM增强模块
+pub mod crm_customer_handler;
+pub mod crm_pool_handler;
+pub mod crm_assignment_handler;
+// 系统级功能模块
+pub mod audit_enhanced_handler;
+pub mod login_security_handler;
+pub mod email_handler;
+pub mod webhook_integration_handler;
+pub mod tenant_config_handler;
