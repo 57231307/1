@@ -171,6 +171,9 @@ pub mod tenant;
 pub mod tenant_user;
 pub mod tenant_config;
 pub mod tenant_plan;
+pub mod tenant_subscription;
+pub mod tenant_usage;
+pub mod tenant_invoice;
 pub mod webhook;
 pub mod api_key;
 // 消息通知模块
@@ -179,3 +182,5 @@ pub mod notification_setting;
 pub mod user_notification_setting;
 // 数据权限模块
 pub mod data_permission;
+// 字段权限模块
+pub mod field_permission;

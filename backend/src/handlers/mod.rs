@@ -117,4 +117,10 @@ pub mod audit_enhanced_handler;
 pub mod login_security_handler;
 pub mod email_handler;
 pub mod webhook_integration_handler;
+// 生产排程模块
+pub mod scheduling_handler;
 pub mod tenant_config_handler;
+// 租户计费模块
+pub mod tenant_billing_handler;
+// 字段权限模块
+pub mod field_permission_handler;

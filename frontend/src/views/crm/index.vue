@@ -1,495 +1,529 @@
 <template>
   <div class="crm-page">
-    <el-tabs v-model="activeTab">
-      <el-tab-pane label="线索管理" name="lead">
-        <div class="page-header">
-          <h2 class="page-title">线索管理</h2>
-          <el-button type="primary" @click="openLeadDialog()">
-            <el-icon><Plus /></el-icon>
-            新建线索
-          </el-button>
-        </div>
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">客户管理</h1>
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+          <el-breadcrumb-item>CRM</el-breadcrumb-item>
+          <el-breadcrumb-item>客户列表</el-breadcrumb-item>
+        </el-breadcrumb>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新建客户
+        </el-button>
+        <el-button @click="$router.push('/crm/pool')">
+          <el-icon><Coin /></el-icon>
+          公海池
+        </el-button>
+        <el-button @click="$router.push('/crm/assignment')">
+          <el-icon><Share /></el-icon>
+          客户分配
+        </el-button>
+      </div>
+    </div>
 
-        <el-card shadow="hover">
-          <el-table :data="leads" v-loading="leadLoading" stripe>
-            <el-table-column prop="lead_no" label="线索编号" width="120" />
-            <el-table-column prop="name" label="联系人" width="120" />
-            <el-table-column prop="company" label="公司名称" min-width="150" />
-            <el-table-column prop="phone" label="电话" width="130" />
-            <el-table-column prop="email" label="邮箱" min-width="180" />
-            <el-table-column prop="source" label="来源" width="100" />
-            <el-table-column prop="rating" label="评分" width="80" align="center">
+    <el-card shadow="hover" class="filter-card">
+      <el-form :inline="true" :model="queryParams" class="filter-form">
+        <el-form-item label="关键词">
+          <el-input v-model="queryParams.keyword" placeholder="客户编码/名称/联系人" clearable />
+        </el-form-item>
+        <el-form-item label="客户类型">
+          <el-select v-model="queryParams.customer_type" placeholder="选择类型" clearable>
+            <el-option label="普通客户" value="normal" />
+            <el-option label="VIP客户" value="vip" />
+            <el-option label="批发客户" value="wholesale" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="queryParams.tag_id" placeholder="选择标签" clearable>
+            <el-option
+              v-for="tag in tags"
+              :key="tag.id"
+              :label="tag.name"
+              :value="tag.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
+            <el-option label="启用" value="active" />
+            <el-option label="禁用" value="inactive" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="hover" class="table-card">
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+        <el-tab-pane label="客户列表" name="list">
+          <el-table v-loading="loading" :data="customers" stripe>
+            <el-table-column prop="customer_code" label="客户编码" width="120" fixed />
+            <el-table-column prop="customer_name" label="客户名称" min-width="180" fixed>
               <template #default="{ row }">
-                <el-tag :type="row.rating >= 4 ? 'success' : row.rating >= 2 ? 'warning' : 'info'" size="small">
-                  {{ '★'.repeat(row.rating) }}
+                <el-button type="primary" link @click="viewDetail(row.id)">{{ row.customer_name }}</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column prop="contact_person" label="联系人" width="100" />
+            <el-table-column prop="phone" label="电话" width="130" />
+            <el-table-column prop="customer_type" label="类型" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
+                  {{ getCustomerTypeLabel(row.customer_type) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="100" align="center">
+            <el-table-column prop="tags" label="标签" min-width="150">
               <template #default="{ row }">
-                <el-tag :type="getLeadStatusType(row.status)" size="small">{{ getLeadStatusLabel(row.status) }}</el-tag>
+                <el-tag
+                  v-for="tag in row.tags"
+                  :key="tag.id"
+                  :color="tag.color"
+                  size="small"
+                  class="table-tag"
+                >
+                  {{ tag.name }}
+                </el-tag>
+                <span v-if="!row.tags.length" class="no-tags">-</span>
               </template>
             </el-table-column>
-            <el-table-column prop="assigned_to_name" label="负责人" width="100" />
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column prop="owner_name" label="负责人" width="100" />
+            <el-table-column prop="total_amount" label="累计金额" width="120" align="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewLead(row)">查看</el-button>
-                <el-button type="success" link size="small" @click="convertLead(row)">转化</el-button>
-                <el-button type="warning" link size="small" @click="updateLeadStatus(row)">更新状态</el-button>
-                <el-button type="danger" link size="small" @click="deleteLead(row)">删除</el-button>
+                {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
               </template>
             </el-table-column>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
-
-      <el-tab-pane label="商机管理" name="opportunity">
-        <div class="page-header">
-          <h2 class="page-title">商机管理</h2>
-          <el-button type="primary" @click="openOpportunityDialog()">
-            <el-icon><Plus /></el-icon>
-            新建商机
-          </el-button>
-        </div>
-
-        <el-card shadow="hover">
-          <el-table :data="opportunities" v-loading="opportunityLoading" stripe>
-            <el-table-column prop="opportunity_no" label="商机编号" width="120" />
-            <el-table-column prop="name" label="商机名称" width="180" />
-            <el-table-column prop="customer_name" label="客户" width="150" />
-            <el-table-column prop="estimated_amount" label="预估金额" width="120" align="right">
-              <template #default="{ row }">{{ formatMoney(row.estimated_amount) }}</template>
-            </el-table-column>
-            <el-table-column prop="probability" label="成功率" width="100" align="center">
-              <template #default="{ row }">{{ row.probability }}%</template>
-            </el-table-column>
-            <el-table-column prop="stage" label="阶段" width="140">
-              <template #default="{ row }">{{ getStageLabel(row.stage) }}</template>
-            </el-table-column>
-            <el-table-column prop="expected_close_date" label="预计成交" width="120" />
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column prop="last_follow_up" label="最近跟进" width="120" />
+            <el-table-column prop="status" label="状态" width="80">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewOpportunity(row)">查看</el-button>
-                <el-button type="danger" link size="small" @click="deleteOpportunity(row)">删除</el-button>
+                <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+                  {{ row.status === 'active' ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="viewDetail(row.id)">详情</el-button>
+                <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
-        </el-card>
-      </el-tab-pane>
+        </el-tab-pane>
 
-      <el-tab-pane label="客户画像" name="customer">
-        <div class="page-header">
-          <h2 class="page-title">客户画像</h2>
-        </div>
+        <el-tab-pane label="客户分级 (RFM)" name="rfm">
+          <div class="rfm-section">
+            <el-row :gutter="20" class="mb-20">
+              <el-col v-for="(count, level) in rfmDistribution" :key="level" :span="4">
+                <el-card shadow="hover" class="rfm-card">
+                  <div class="rfm-card-content">
+                    <span class="rfm-card-level">{{ level }}</span>
+                    <span class="rfm-card-count">{{ count }} 人</span>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
 
+            <el-table v-loading="rfmLoading" :data="rfmCustomers" stripe>
+              <el-table-column prop="customer_code" label="客户编码" width="120" />
+              <el-table-column prop="customer_name" label="客户名称" min-width="180">
+                <template #default="{ row }">
+                  <el-button type="primary" link @click="viewDetail(row.id)">{{ row.customer_name }}</el-button>
+                </template>
+              </el-table-column>
+              <el-table-column prop="owner_name" label="负责人" width="100" />
+              <el-table-column prop="rfm_score.level" label="等级" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getRfmLevelTag(row.rfm_score?.level)" size="small">
+                    {{ row.rfm_score?.level || '-' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="rfm_score.label" label="分级" width="100" />
+              <el-table-column prop="rfm_score.recency" label="R" width="80" align="center" />
+              <el-table-column prop="rfm_score.frequency" label="F" width="80" align="center" />
+              <el-table-column prop="rfm_score.monetary" label="M" width="80" align="center" />
+              <el-table-column prop="total_amount" label="累计金额" width="120" align="right">
+                <template #default="{ row }">
+                  {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="total_orders" label="订单数" width="80" align="center" />
+              <el-table-column label="操作" width="100" fixed="right">
+                <template #default="{ row }">
+                  <el-button type="primary" link size="small" @click="viewDetail(row.id)">详情</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="queryParams.page"
+          v-model:page-size="queryParams.page_size"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleQuery"
+          @current-change="handleQuery"
+        />
+      </div>
+    </el-card>
+
+    <!-- 新增/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="700px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+      >
         <el-row :gutter="20">
-          <el-col :span="8">
-            <el-card shadow="hover">
-              <template #header><div class="card-header">客户概览</div></template>
-              <el-statistic title="客户总数" :value="128" />
-              <el-divider />
-              <el-statistic title="活跃客户" :value="86" />
-            </el-card>
+          <el-col :span="12">
+            <el-form-item label="客户编码" prop="customer_code">
+              <el-input v-model="formData.customer_code" placeholder="请输入客户编码" />
+            </el-form-item>
           </el-col>
-          <el-col :span="8">
-            <el-card shadow="hover">
-              <template #header><div class="card-header">销售数据</div></template>
-              <el-statistic title="本月成交额" :value="128500" prefix="¥" />
-              <el-divider />
-              <el-statistic title="待跟进商机" :value="24" />
-            </el-card>
-          </el-col>
-          <el-col :span="8">
-            <el-card shadow="hover">
-              <template #header><div class="card-header">线索数据</div></template>
-              <el-statistic title="本月新增线索" :value="36" />
-              <el-divider />
-              <el-statistic title="线索转化率" :value="28" suffix="%" />
-            </el-card>
+          <el-col :span="12">
+            <el-form-item label="客户名称" prop="customer_name">
+              <el-input v-model="formData.customer_name" placeholder="请输入客户名称" />
+            </el-form-item>
           </el-col>
         </el-row>
-
-        <el-card shadow="hover" class="mt-20">
-          <template #header><div class="card-header">客户分析</div></template>
-          <el-empty description="客户分析图表区域" />
-        </el-card>
-      </el-tab-pane>
-    </el-tabs>
-
-    <!-- 线索对话框 -->
-    <el-dialog v-model="leadDialogVisible" :title="leadDialogTitle" width="600px">
-      <el-form :model="leadForm" label-width="100px">
-        <el-form-item label="线索编号">
-          <el-input v-model="leadForm.lead_no" placeholder="请输入线索编号" />
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="联系人" prop="contact_person">
+              <el-input v-model="formData.contact_person" placeholder="请输入联系人" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="电话" prop="phone">
+              <el-input v-model="formData.phone" placeholder="请输入电话" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="邮箱" prop="email">
+              <el-input v-model="formData.email" placeholder="请输入邮箱" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户类型" prop="customer_type">
+              <el-select v-model="formData.customer_type" placeholder="请选择类型" style="width: 100%">
+                <el-option label="普通客户" value="normal" />
+                <el-option label="VIP客户" value="vip" />
+                <el-option label="批发客户" value="wholesale" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="地址" prop="address">
+          <el-input v-model="formData.address" placeholder="请输入地址" />
         </el-form-item>
-        <el-form-item label="联系人">
-          <el-input v-model="leadForm.name" placeholder="请输入联系人姓名" />
-        </el-form-item>
-        <el-form-item label="公司名称">
-          <el-input v-model="leadForm.company" placeholder="请输入公司名称" />
-        </el-form-item>
-        <el-form-item label="电话">
-          <el-input v-model="leadForm.phone" placeholder="请输入电话" />
-        </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="leadForm.email" placeholder="请输入邮箱" />
-        </el-form-item>
-        <el-form-item label="来源">
-          <el-select v-model="leadForm.source" placeholder="请选择来源" style="width: 100%">
-            <el-option label="网站" value="website" />
-            <el-option label="电话" value="phone" />
-            <el-option label="展会" value="exhibition" />
-            <el-option label="推荐" value="referral" />
-            <el-option label="其他" value="other" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="评分">
-          <el-rate v-model="leadForm.rating" :max="5" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="leadForm.status" placeholder="请选择状态" style="width: 100%">
-            <el-option label="新线索" value="new" />
-            <el-option label="已联系" value="contacted" />
-            <el-option label="已转化" value="qualified" />
-            <el-option label="提案中" value="proposal" />
-            <el-option label="已成交" value="converted" />
-            <el-option label="已流失" value="lost" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="地址">
-          <el-input v-model="leadForm.address" placeholder="请输入地址" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="leadForm.description" type="textarea" placeholder="请输入描述" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="leadDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitLead">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 商机对话框 -->
-    <el-dialog v-model="opportunityDialogVisible" :title="opportunityDialogTitle" width="600px">
-      <el-form :model="opportunityForm" label-width="100px">
-        <el-form-item label="商机编号">
-          <el-input v-model="opportunityForm.opportunity_no" placeholder="请输入商机编号" />
-        </el-form-item>
-        <el-form-item label="商机名称">
-          <el-input v-model="opportunityForm.name" placeholder="请输入商机名称" />
-        </el-form-item>
-        <el-form-item label="客户">
-          <el-input v-model="opportunityForm.customer_name" placeholder="请输入客户名称" />
-        </el-form-item>
-        <el-form-item label="预估金额">
-          <el-input-number v-model="opportunityForm.estimated_amount" :min="0" :precision="2" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="成功率">
-          <el-slider v-model="opportunityForm.probability" :min="0" :max="100" />
-        </el-form-item>
-        <el-form-item label="阶段">
-          <el-select v-model="opportunityForm.stage" placeholder="请选择阶段" style="width: 100%">
-            <el-option label="需求评估" value="qualification" />
-            <el-option label="需求分析" value="needs_analysis" />
-            <el-option label="价值呈现" value="value_proposition" />
-            <el-option label="方案阶段" value="proposal" />
-            <el-option label="商务谈判" value="negotiation" />
-            <el-option label="成交" value="closed_won" />
-            <el-option label="流标" value="closed_lost" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="预计成交">
-          <el-date-picker v-model="opportunityForm.expected_close_date" type="date" placeholder="选择日期" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="opportunityForm.description" type="textarea" placeholder="请输入描述" />
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="税号" prop="tax_number">
+              <el-input v-model="formData.tax_number" placeholder="请输入税号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="信用额度" prop="credit_limit">
+              <el-input-number v-model="formData.credit_limit" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="开户银行" prop="bank_name">
+              <el-input v-model="formData.bank_name" placeholder="请输入开户银行" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="银行账号" prop="bank_account">
+              <el-input v-model="formData.bank_account" placeholder="请输入银行账号" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="状态" prop="status">
+          <el-radio-group v-model="formData.status">
+            <el-radio value="active">启用</el-radio>
+            <el-radio value="inactive">禁用</el-radio>
+          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="opportunityDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitOpportunity">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 线索状态更新对话框 -->
-    <el-dialog v-model="leadStatusDialogVisible" title="更新线索状态" width="400px">
-      <el-form :model="leadStatusForm" label-width="80px">
-        <el-form-item label="状态">
-          <el-select v-model="leadStatusForm.status" placeholder="请选择状态" style="width: 100%">
-            <el-option label="新线索" value="new" />
-            <el-option label="已联系" value="contacted" />
-            <el-option label="已转化" value="qualified" />
-            <el-option label="提案中" value="proposal" />
-            <el-option label="已成交" value="converted" />
-            <el-option label="已流失" value="lost" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="leadStatusDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitLeadStatus">确定</el-button>
-        </span>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { 
-  listLeads, 
-  createLead, 
-  updateLead, 
-  deleteLead as apiDeleteLead,
-  updateLeadStatus as apiUpdateLeadStatus,
-  convertLead as apiConvertLead,
-  listOpportunities, 
-  createOpportunity, 
-  updateOpportunity, 
-  deleteOpportunity as apiDeleteOpportunity,
-  type Lead, 
-  type Opportunity 
-} from '@/api/crm'
+import type { FormInstance, FormRules } from 'element-plus'
+import { Plus, Coin, Share } from '@element-plus/icons-vue'
+import { customerApi } from '@/api/customer'
+import crmEnhancedApi, { type CustomerTag } from '@/api/crm-enhanced'
 
-const activeTab = ref('lead')
-const leads = ref<Lead[]>([])
-const opportunities = ref<Opportunity[]>([])
-const leadLoading = ref(false)
-const opportunityLoading = ref(false)
+const router = useRouter()
+const loading = ref(false)
+const rfmLoading = ref(false)
+const submitLoading = ref(false)
+const customers = ref<any[]>([])
+const rfmCustomers = ref<any[]>([])
+const total = ref(0)
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+const formRef = ref<FormInstance>()
+const activeTab = ref('list')
+const tags = ref<CustomerTag[]>([])
+const rfmDistribution = ref<Record<string, number>>({})
 
-// 对话框状态
-const leadDialogVisible = ref(false)
-const opportunityDialogVisible = ref(false)
-const leadStatusDialogVisible = ref(false)
+const queryParams = reactive({
+  page: 1,
+  page_size: 20,
+  keyword: '',
+  customer_type: '',
+  status: '',
+  tag_id: undefined as number | undefined
+})
 
-// 对话框标题
-const leadDialogTitle = ref('新建线索')
-const opportunityDialogTitle = ref('新建商机')
-
-// 表单数据
-const leadForm = ref({
-  id: null as number | null,
-  lead_no: '',
-  name: '',
-  company: '',
+const formData = reactive({
+  id: undefined as number | undefined,
+  customer_code: '',
+  customer_name: '',
+  contact_person: '',
   phone: '',
   email: '',
-  source: '',
-  rating: 3,
-  status: 'new',
   address: '',
-  description: ''
+  customer_type: 'normal',
+  tax_number: '',
+  credit_limit: 0,
+  bank_name: '',
+  bank_account: '',
+  status: 'active'
 })
 
-const opportunityForm = ref({
-  id: null as number | null,
-  opportunity_no: '',
-  name: '',
-  customer_name: '',
-  estimated_amount: 0,
-  probability: 50,
-  stage: 'qualification',
-  expected_close_date: '',
-  description: ''
-})
+const formRules: FormRules = {
+  customer_code: [
+    { required: true, message: '请输入客户编码', trigger: 'blur' }
+  ],
+  customer_name: [
+    { required: true, message: '请输入客户名称', trigger: 'blur' }
+  ],
+  contact_person: [
+    { required: true, message: '请输入联系人', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+  ]
+}
 
-const leadStatusForm = ref({
-  id: null as number | null,
-  status: ''
-})
+const dialogTitle = computed(() => isEdit.value ? '编辑客户' : '新建客户')
 
-const fetchLeads = async () => {
-  leadLoading.value = true
+const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
+
+const getCustomerTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    normal: '普通客户',
+    vip: 'VIP客户',
+    wholesale: '批发客户'
+  }
+  return labels[type] || type
+}
+
+const getCustomerTypeTag = (type: string) => {
+  const tags: Record<string, string> = {
+    normal: '',
+    vip: 'warning',
+    wholesale: 'success'
+  }
+  return tags[type] || ''
+}
+
+const getRfmLevelTag = (level: string) => {
+  const tags: Record<string, string> = { A: 'success', B: 'primary', C: 'warning', D: 'info', E: 'danger' }
+  return tags[level] || ''
+}
+
+const fetchCustomerList = async () => {
+  loading.value = true
   try {
-    const res = await listLeads()
-    leads.value = res.data! || []
+    const res = await crmEnhancedApi.getCustomerList(queryParams)
+    customers.value = res.data?.list || []
+    total.value = res.data?.total || 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取客户列表失败')
+    customers.value = []
+    total.value = 0
   } finally {
-    leadLoading.value = false
+    loading.value = false
   }
 }
 
-const fetchOpportunities = async () => {
-  opportunityLoading.value = true
+const fetchRfmDistribution = async () => {
   try {
-    const res = await listOpportunities()
-    opportunities.value = res.data! || []
+    const res = await crmEnhancedApi.getRfmDistribution()
+    rfmDistribution.value = res.data || {}
+  } catch (error: any) {
+    rfmDistribution.value = {}
+  }
+}
+
+const fetchTags = async () => {
+  try {
+    const res = await crmEnhancedApi.getTags()
+    tags.value = res.data || []
+  } catch (error: any) {
+    tags.value = []
+  }
+}
+
+const handleQuery = () => {
+  queryParams.page = 1
+  if (activeTab.value === 'list') {
+    fetchCustomerList()
+  }
+}
+
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.customer_type = ''
+  queryParams.status = ''
+  queryParams.tag_id = undefined
+  handleQuery()
+}
+
+const handleTabChange = (tab: string) => {
+  if (tab === 'rfm' && !rfmCustomers.value.length) {
+    fetchRfmCustomers()
+  }
+}
+
+const fetchRfmCustomers = async () => {
+  rfmLoading.value = true
+  try {
+    const res = await crmEnhancedApi.getCustomerList({ page: 1, page_size: 100 })
+    rfmCustomers.value = res.data?.list || []
+    fetchRfmDistribution()
+  } catch (error: any) {
+    rfmCustomers.value = []
   } finally {
-    opportunityLoading.value = false
+    rfmLoading.value = false
   }
 }
 
-const formatMoney = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
+const resetForm = () => {
+  formData.id = undefined
+  formData.customer_code = ''
+  formData.customer_name = ''
+  formData.contact_person = ''
+  formData.phone = ''
+  formData.email = ''
+  formData.address = ''
+  formData.customer_type = 'normal'
+  formData.tax_number = ''
+  formData.credit_limit = 0
+  formData.bank_name = ''
+  formData.bank_account = ''
+  formData.status = 'active'
+  formRef.value?.clearValidate()
 }
 
-const getLeadStatusType = (status: string) => {
-  const map: Record<string, any> = { new: 'info', contacted: 'primary', qualified: 'success', proposal: 'warning', converted: 'success', lost: 'danger' }
-  return map[status] || 'info'
+const handleCreate = () => {
+  resetForm()
+  isEdit.value = false
+  dialogVisible.value = true
 }
 
-const getLeadStatusLabel = (status: string) => {
-  const map: Record<string, string> = { new: '新线索', contacted: '已联系', qualified: '已转化', proposal: '提案中', converted: '已成交', lost: '已流失' }
-  return map[status] || status
+const handleEdit = (row: any) => {
+  resetForm()
+  Object.assign(formData, row)
+  isEdit.value = true
+  dialogVisible.value = true
 }
 
-const getStageLabel = (stage: string) => {
-  const map: Record<string, string> = { qualification: '需求评估', needs_analysis: '需求分析', value_proposition: '价值呈现', proposal: '方案阶段', negotiation: '商务谈判', closed_won: '成交', closed_lost: '流标' }
-  return map[stage] || stage
-}
-
-// 线索操作
-const openLeadDialog = (row?: Lead) => {
-  if (row) {
-    leadDialogTitle.value = '编辑线索'
-    leadForm.value = { ...row }
-  } else {
-    leadDialogTitle.value = '新建线索'
-    leadForm.value = {
-      id: null,
-      lead_no: '',
-      name: '',
-      company: '',
-      phone: '',
-      email: '',
-      source: '',
-      rating: 3,
-      status: 'new',
-      address: '',
-      description: ''
-    }
-  }
-  leadDialogVisible.value = true
-}
-
-const viewLead = (row: Lead) => {
-  openLeadDialog(row)
-}
-
-const submitLead = async () => {
+const handleDelete = async (row: any) => {
   try {
-    const { id, status, ...rest } = leadForm.value
-    if (id) {
-      await updateLead(id, { ...rest, status: status as Lead['status'] })
-      ElMessage.success('更新成功')
-    } else {
-      await createLead({ ...rest, status: status as Lead['status'] })
-      ElMessage.success('创建成功')
-    }
-    leadDialogVisible.value = false
-    fetchLeads()
-  } catch (error) {
-    ElMessage.error('操作失败')
-  }
-}
-
-const convertLead = async (row: Lead) => {
-  try {
-    await ElMessageBox.confirm('确定转化此线索为客户和商机吗？', '确认转化', { type: 'info' })
-    await apiConvertLead(row.id)
-    ElMessage.success('转化成功')
-    fetchLeads()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
-}
-
-const updateLeadStatus = (row: Lead) => {
-  leadStatusForm.value = {
-    id: row.id,
-    status: row.status
-  }
-  leadStatusDialogVisible.value = true
-}
-
-const submitLeadStatus = async () => {
-  try {
-    if (leadStatusForm.value.id) {
-      await apiUpdateLeadStatus(leadStatusForm.value.id, { status: leadStatusForm.value.status })
-      ElMessage.success('状态更新成功')
-      leadStatusDialogVisible.value = false
-      fetchLeads()
-    }
-  } catch (error) {
-    ElMessage.error('操作失败')
-  }
-}
-
-const deleteLead = async (row: Lead) => {
-  try {
-    await ElMessageBox.confirm('确定删除此线索吗？', '确认', { type: 'warning' })
-    await apiDeleteLead(row.id)
+    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', { type: 'warning' })
+    await customerApi.delete(row.id)
     ElMessage.success('删除成功')
-    fetchLeads()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
-}
-
-// 商机操作
-const openOpportunityDialog = (row?: Opportunity) => {
-  if (row) {
-    opportunityDialogTitle.value = '编辑商机'
-    opportunityForm.value = { ...row }
-  } else {
-    opportunityDialogTitle.value = '新建商机'
-    opportunityForm.value = {
-      id: null,
-      opportunity_no: '',
-      name: '',
-      customer_name: '',
-      estimated_amount: 0,
-      probability: 50,
-      stage: 'qualification',
-      expected_close_date: '',
-      description: ''
+    fetchCustomerList()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
     }
   }
-  opportunityDialogVisible.value = true
 }
 
-const viewOpportunity = (row: Opportunity) => {
-  openOpportunityDialog(row)
-}
+const handleSubmit = async () => {
+  if (!formRef.value) return
 
-const submitOpportunity = async () => {
-  try {
-    const { id, stage, ...rest } = opportunityForm.value
-    if (id) {
-      await updateOpportunity(id, { ...rest, stage: stage as Opportunity['stage'] })
-      ElMessage.success('更新成功')
-    } else {
-      await createOpportunity({ ...rest, stage: stage as Opportunity['stage'] })
-      ElMessage.success('创建成功')
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    submitLoading.value = true
+    try {
+      if (isEdit.value) {
+        await customerApi.update(formData.id!, formData)
+        ElMessage.success('更新成功')
+      } else {
+        await customerApi.create(formData)
+        ElMessage.success('创建成功')
+      }
+      dialogVisible.value = false
+      fetchCustomerList()
+    } catch (error: any) {
+      ElMessage.error(error.message || '操作失败')
+    } finally {
+      submitLoading.value = false
     }
-    opportunityDialogVisible.value = false
-    fetchOpportunities()
-  } catch (error) {
-    ElMessage.error('操作失败')
-  }
+  })
 }
 
-const deleteOpportunity = async (row: Opportunity) => {
-  try {
-    await ElMessageBox.confirm('确定删除此商机吗？', '确认', { type: 'warning' })
-    await apiDeleteOpportunity(row.id)
-    ElMessage.success('删除成功')
-    fetchOpportunities()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+const viewDetail = (id: number) => {
+  router.push(`/crm/detail/${id}`)
 }
 
 onMounted(() => {
-  fetchLeads()
-  fetchOpportunities()
+  fetchCustomerList()
+  fetchTags()
 })
 </script>
 
 <style scoped>
 .crm-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
-.card-header { font-weight: 600; }
-.mt-20 { margin-top: 20px; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
+.header-actions { display: flex; gap: 12px; }
+.filter-card { margin-bottom: 20px; }
+.table-card { margin-bottom: 20px; }
+.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.table-tag { border: none; margin-right: 4px; }
+.no-tags { color: #909399; font-size: 12px; }
+.mb-20 { margin-bottom: 20px; }
+
+.rfm-card { text-align: center; }
+.rfm-card-content { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.rfm-card-level { font-size: 32px; font-weight: 700; color: #303133; }
+.rfm-card-count { font-size: 14px; color: #909399; }
 </style>
