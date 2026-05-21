@@ -77,9 +77,38 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 生成版本号
+        id: version
+        run: |
+          # 设置中国时区
+          export TZ="Asia/Shanghai"
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            YEAR=$(date +'%Y')
+            MONTH=$(date +'%-m')
+            DAY=$(date +'%-d')
+            HOUR=$(date +'%-H')
+            MIN=$(date +'%-M')
+            TIME=$((HOUR * 100 + MIN))
+            VERSION="${YEAR}.${MONTH}${DAY}.${TIME}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "构建版本: $VERSION"
+
+      - name: 更新 Cargo.toml 版本号
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
+          echo "更新后的版本:"
+          grep "^version" backend/Cargo.toml | head -1
 
       - name: 缓存 Rustup 工具链
         uses: actions/cache@v5
@@ -201,8 +230,8 @@ jobs:
     permissions:
       contents: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag_name: ${{ steps.version.outputs.tag_name }}
+      version: ${{ needs.build-backend.outputs.version }}
+      tag_name: v${{ needs.build-backend.outputs.version }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -210,37 +239,20 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 生成版本号
+      - name: 使用编译时的版本号
         id: version
         run: |
-          # 设置中国时区
-          export TZ="Asia/Shanghai"
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-          else
-            YEAR=$(date +'%Y')
-            MONTH=$(date +'%-m')
-            DAY=$(date +'%-d')
-            HOUR=$(date +'%-H')
-            MIN=$(date +'%-M')
-            TIME=$((HOUR * 100 + MIN))
-            VERSION="${YEAR}.${MONTH}${DAY}.${TIME}"
-            TAG_NAME="v${VERSION}"
-          fi
+          VERSION="${{ needs.build-backend.outputs.version }}"
+          TAG_NAME="v${VERSION}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "构建版本: $VERSION"
-          echo "标签名称: $TAG_NAME"
+          echo "使用编译时的版本: $VERSION"
 
       - name: 更新版本号文件
         run: |
-          echo "${{ steps.version.outputs.version }}" > VERSION
-          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
+          echo "${{ needs.build-backend.outputs.version }}" > VERSION
           echo "VERSION 文件内容:"
           cat VERSION
-          echo "后端版本:"
-          grep "^version" backend/Cargo.toml | head -1
 
       - name: 提交版本号更新
         run: |
