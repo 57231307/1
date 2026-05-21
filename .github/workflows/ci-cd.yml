@@ -110,15 +110,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
 
-      - name: 清理旧编译产物
-        working-directory: backend
-        run: |
-          cargo clean
-          rm -rf target/release/.fingerprint/*
-          rm -rf target/release/build/*
-          rm -rf target/release/deps/*
-          echo "已清理旧编译产物"
-
       - name: 构建后端 (Release模式)
         working-directory: backend
         run: |
