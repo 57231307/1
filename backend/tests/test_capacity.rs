@@ -8,7 +8,7 @@ mod tests {
     #[test]
     fn test_work_center_capacity_creation() {
         // 测试工作中心产能信息创建
-        let wc = super::super::capacity_service::WorkCenterCapacity {
+        let wc = bingxi_backend::services::capacity_service::WorkCenterCapacity {
             id: 1,
             code: "WC-001".to_string(),
             name: "染色车间".to_string(),
@@ -27,7 +27,7 @@ mod tests {
     #[test]
     fn test_shift_info_creation() {
         // 测试班次信息创建
-        let shift = super::super::capacity_service::ShiftInfo {
+        let shift = bingxi_backend::services::capacity_service::ShiftInfo {
             shift_name: "白班".to_string(),
             start_time: "08:00".to_string(),
             end_time: "17:00".to_string(),
@@ -41,7 +41,7 @@ mod tests {
     #[test]
     fn test_capacity_load_item_creation() {
         // 测试产能负荷项创建
-        let item = super::super::capacity_service::CapacityLoadItem {
+        let item = bingxi_backend::services::capacity_service::CapacityLoadItem {
             work_center_id: 1,
             work_center_code: "WC-001".to_string(),
             work_center_name: "染色车间".to_string(),
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_capacity_overview_creation() {
         // 测试产能概览创建
-        let overview = super::super::capacity_service::CapacityOverview {
+        let overview = bingxi_backend::services::capacity_service::CapacityOverview {
             total_work_centers: 5,
             active_work_centers: 4,
             total_daily_capacity: Decimal::from(500),
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_load_analysis_query_creation() {
         // 测试负荷分析查询参数创建
-        let query = super::super::capacity_service::LoadAnalysisQuery {
+        let query = bingxi_backend::services::capacity_service::LoadAnalysisQuery {
             date_from: Some(NaiveDate::from_ymd_opt(2026, 5, 20).unwrap()),
             date_to: Some(NaiveDate::from_ymd_opt(2026, 5, 25).unwrap()),
             work_center_id: Some(1),
