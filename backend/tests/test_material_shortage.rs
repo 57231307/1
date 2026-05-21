@@ -8,7 +8,7 @@ mod tests {
     #[test]
     fn test_shortage_level_from_deficit_rate() {
         // 测试预警级别判断
-        use super::super::material_shortage_service::ShortageLevel;
+        use bingxi_backend::services::material_shortage_service::ShortageLevel;
 
         // 缺口100%应该是Critical
         assert_eq!(ShortageLevel::from_deficit_rate(Decimal::from(100)), ShortageLevel::Critical);
@@ -26,7 +26,7 @@ mod tests {
     #[test]
     fn test_material_shortage_item_creation() {
         // 测试缺料项创建
-        let item = super::super::material_shortage_service::MaterialShortageItem {
+        let item = bingxi_backend::services::material_shortage_service::MaterialShortageItem {
             material_id: 1,
             material_name: "棉布A".to_string(),
             material_code: "M001".to_string(),
@@ -34,7 +34,7 @@ mod tests {
             available_quantity: Decimal::from(500),
             shortage_quantity: Decimal::from(500),
             deficit_rate: Decimal::from(50),
-            level: super::super::material_shortage_service::ShortageLevel::Severe,
+            level: bingxi_backend::services::material_shortage_service::ShortageLevel::Severe,
             affected_orders: vec![],
             unit: Some("米".to_string()),
         };
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn test_affected_order_creation() {
         // 测试受影响订单创建
-        let order = super::super::material_shortage_service::AffectedOrder {
+        let order = bingxi_backend::services::material_shortage_service::AffectedOrder {
             order_id: 1,
             order_no: "PO-001".to_string(),
             demand_quantity: Decimal::from(500),
@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn test_shortage_threshold_config_default() {
         // 测试默认阈值配置
-        let config = super::super::material_shortage_service::ShortageThresholdConfig::default();
+        let config = bingxi_backend::services::material_shortage_service::ShortageThresholdConfig::default();
 
         assert_eq!(config.safety_factor, Decimal::from(1));
         assert_eq!(config.critical_threshold, Decimal::from(100));
@@ -71,7 +71,7 @@ mod tests {
     fn test_replenishment_suggestion_priority_order() {
         // 测试补货建议优先级排序
         let mut suggestions = vec![
-            super::super::material_shortage_service::ReplenishmentSuggestion {
+            bingxi_backend::services::material_shortage_service::ReplenishmentSuggestion {
                 material_id: 1,
                 material_name: "材料A".to_string(),
                 material_code: "M001".to_string(),
@@ -81,7 +81,7 @@ mod tests {
                 priority: "LOW".to_string(),
                 affected_orders_count: 1,
             },
-            super::super::material_shortage_service::ReplenishmentSuggestion {
+            bingxi_backend::services::material_shortage_service::ReplenishmentSuggestion {
                 material_id: 2,
                 material_name: "材料B".to_string(),
                 material_code: "M002".to_string(),
@@ -104,7 +104,4 @@ mod tests {
             priority_order(&a.priority).cmp(&priority_order(&b.priority))
         });
 
-        assert_eq!(suggestions[0].priority, "URGENT");
-        assert_eq!(suggestions[1].priority, "LOW");
-    }
-}
+        assert_eq!(suggestions[0].priority, "U
