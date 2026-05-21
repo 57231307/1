@@ -356,4 +356,42 @@ impl EmailTemplate {
         );
         Self::notification_template("库存预警通知", &content, None)
     }
+
+    /// 保存邮件发送记录
+    pub async fn save_email_log(
+        &self,
+        db: &sea_orm::DatabaseConnection,
+        tenant_id: i32,
+        user_id: Option<i32>,
+        to: &[String],
+        subject: &str,
+        status: &str,
+        error_message: Option<String>,
+        message_id: Option<String>,
+    ) -> Result<(), AppError> {
+        use sea_orm::{ActiveModelTrait, Set};
+        use chrono::Utc;
+        use crate::models::email_log;
+
+        let active_model = email_log::ActiveModel {
+            tenant_id: Set(tenant_id),
+            user_id: Set(user_id),
+            recipients: Set(to.join(",")),
+            subject: Set(subject.to_string()),
+            status: Set(status.to_string()),
+            error_message: Set(error_message),
+            external_message_id: Set(message_id),
+            sent_at: Set(Some(Utc::now())),
+            ..Default::default()
+        };
+
+        active_model.insert(db).await?;
+
+        tracing::info!(
+            "邮件发送记录已保存: tenant_id={}, user_id={:?}, to={:?}, subject={}, status={}",
+            tenant_id, user_id, to, subject, status
+        );
+
+        Ok(())
+    }
 }

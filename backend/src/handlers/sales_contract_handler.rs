@@ -181,22 +181,73 @@ pub async fn cancel_contract(
     Ok(Json(ApiResponse::success(message)))
 }
 
-/// 更新销售合同
+/// PUT /api/v1/erp/sales-contracts/:id - 更新销售合同
 pub async fn update_contract(
-    Path(_id): Path<i32>,
-    State(_state): State<AppState>,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在更新销售合同", auth.user_id);
-    Err(AppError::ValidationError("销售合同更新功能尚未实现".to_string()))
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 更新销售合同: ID={}", auth.username, id);
+
+    let service = SalesContractService::new(state.db.clone());
+
+    // 获取现有合同
+    let mut contract = service.get_by_id(id).await?;
+
+    // 检查状态
+    if contract.status != "draft" {
+        return Err(AppError::ValidationError("只有草稿状态的合同才能修改".to_string()));
+    }
+
+    // 更新字段
+    if let Some(name) = req.get("contract_name").and_then(|v| v.as_str()) {
+        contract.contract_name = name.to_string();
+    }
+    if let Some(terms) = req.get("payment_terms").and_then(|v| v.as_str()) {
+        contract.payment_terms = Some(terms.to_string());
+    }
+
+    // 保存更新
+    use sea_orm::ActiveModelTrait;
+    let mut active_model: crate::models::sales_contract::ActiveModel = contract.into();
+    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
+
+    let updated = active_model.update(&*state.db).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(updated)?,
+        "销售合同更新成功",
+    )))
 }
 
-/// 删除销售合同
+/// DELETE /api/v1/erp/sales-contracts/:id - 删除销售合同
 pub async fn delete_contract(
-    Path(_id): Path<i32>,
-    State(_state): State<AppState>,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在删除销售合同", auth.user_id);
-    Err(AppError::ValidationError("销售合同删除功能尚未实现".to_string()))
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除销售合同: ID={}", auth.username, id);
+
+    let service = SalesContractService::new(state.db.clone());
+
+    // 获取现有合同
+    let contract = service.get_by_id(id).await?;
+
+    // 检查状态
+    if contract.status != "draft" {
+        return Err(AppError::ValidationError("只有草稿状态的合同才能删除".to_string()));
+    }
+
+    // 软删除
+    use sea_orm::ActiveModelTrait;
+    let mut active_model: crate::models::sales_contract::ActiveModel = contract.into();
+    active_model.status = sea_orm::Set("cancelled".to_string());
+    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
+
+    active_model.update(&*state.db).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message((), "销售合同已删除")))
 }

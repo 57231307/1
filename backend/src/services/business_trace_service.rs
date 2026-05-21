@@ -187,9 +187,28 @@ impl BusinessTraceService {
             .all(&*self.db)
             .await?;
 
-        // 如果需要完整的反向追溯，可以继续查询 previous_trace_id
-        // 这里简化实现，只返回直接相关的记录
-        Ok(traces)
+        // 完整的反向追溯：递归查询 previous_trace_id
+        let mut all_traces = traces;
+        let mut trace_ids: Vec<i32> = all_traces.iter().map(|t| t.id).collect();
+
+        while !trace_ids.is_empty() {
+            let parent_traces = business_trace_chain::Entity::find()
+                .filter(business_trace_chain::Column::PreviousTraceId.is_in(trace_ids.clone()))
+                .all(&*self.db)
+                .await?;
+
+            if parent_traces.is_empty() {
+                break;
+            }
+
+            trace_ids = parent_traces.iter().map(|t| t.id).collect();
+            all_traces.extend(parent_traces);
+        }
+
+        // 按创建时间排序
+        all_traces.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+
+        Ok(all_traces)
     }
 
     /// 创建追溯快照

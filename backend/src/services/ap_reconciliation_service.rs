@@ -234,12 +234,79 @@ impl ApReconciliationService {
     /// 获取供应商应付汇总（从物化视图）
     pub async fn get_supplier_summary(
         &self,
-        _supplier_id: Option<i32>,
+        supplier_id: Option<i32>,
     ) -> Result<Vec<SupplierApSummary>, AppError> {
+        use crate::models::ap_invoice;
+        use crate::models::supplier;
         
+        // 查询应付发票
+        let mut invoice_query = ap_invoice::Entity::find();
         
-        // 简化实现：返回空列表
-        Ok(Vec::new())
+        if let Some(sid) = supplier_id {
+            invoice_query = invoice_query.filter(ap_invoice::Column::SupplierId.eq(sid));
+        }
+        
+        let invoices = invoice_query
+            .all(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        // 按供应商分组统计
+        let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> = std::collections::HashMap::new();
+        
+        for invoice in &invoices {
+            let entry = summary_map.entry(invoice.supplier_id).or_insert_with(|| SupplierApSummary {
+                supplier_id: invoice.supplier_id,
+                supplier_code: String::new(),
+                supplier_name: String::new(),
+                total_invoice_count: 0,
+                total_invoice_amount: Decimal::ZERO,
+                total_paid_amount: Decimal::ZERO,
+                total_unpaid_amount: Decimal::ZERO,
+                paid_invoice_count: 0,
+                partial_paid_invoice_count: 0,
+                overdue_invoice_count: 0,
+                overdue_amount: Decimal::ZERO,
+            });
+            
+            entry.total_invoice_count += 1;
+            entry.total_invoice_amount += invoice.amount;
+            entry.total_paid_amount += invoice.paid_amount;
+            entry.total_unpaid_amount += invoice.unpaid_amount;
+            
+            // 判断付款状态
+            if invoice.paid_amount >= invoice.amount {
+                entry.paid_invoice_count += 1;
+            } else if invoice.paid_amount > Decimal::ZERO {
+                entry.partial_paid_invoice_count += 1;
+            }
+            
+            // 判断是否逾期
+            if invoice.due_date < chrono::Utc::now().date_naive() && invoice.unpaid_amount > Decimal::ZERO {
+                entry.overdue_invoice_count += 1;
+                entry.overdue_amount += invoice.unpaid_amount;
+            }
+        }
+        
+        // 查询供应商信息
+        let supplier_ids: Vec<i32> = summary_map.keys().cloned().collect();
+        if !supplier_ids.is_empty() {
+            let suppliers = supplier::Entity::find()
+                .filter(supplier::Column::Id.is_in(supplier_ids))
+                .all(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            
+            for s in suppliers {
+                if let Some(entry) = summary_map.get_mut(&s.id) {
+                    entry.supplier_code = s.supplier_code;
+                    entry.supplier_name = s.supplier_name;
+                }
+            }
+        }
+        
+        let result: Vec<SupplierApSummary> = summary_map.into_values().collect();
+        Ok(result)
     }
 
     /// 自动对账 - 为所有供应商自动生成对账单

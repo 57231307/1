@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::tenant_service::TenantService;
+use crate::services::tenant_billing_service::TenantBillingService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -147,15 +148,29 @@ pub async fn set_config(
 }
 
 pub async fn delete_config(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Path(key): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let _tenant_id = auth.tenant_id.ok_or_else(|| {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use crate::models::tenant_config;
+
+    let tenant_id = auth.tenant_id.ok_or_else(|| {
         AppError::BadRequest("缺少租户信息".to_string())
     })?;
 
-    tracing::info!("删除租户配置: key={}", key);
+    // 删除租户配置
+    let result = tenant_config::Entity::delete_many()
+        .filter(tenant_config::Column::TenantId.eq(tenant_id))
+        .filter(tenant_config::Column::ConfigKey.eq(&key))
+        .exec(state.db.as_ref())
+        .await?;
+
+    if result.rows_affected == 0 {
+        return Err(AppError::NotFound("配置不存在".to_string()));
+    }
+
+    tracing::info!("用户 {} 删除租户配置: key={}", auth.username, key);
 
     Ok(Json(ApiResponse::success_with_message((), "配置已删除")))
 }
@@ -287,7 +302,8 @@ pub async fn get_usage_statistics(
         AppError::BadRequest("缺少租户信息".to_string())
     })?;
 
-    let service = TenantService::new(state.db);
+    let service = TenantService::new(state.db.clone());
+    let billing_service = TenantBillingService::new(state.db);
 
     let tenant = service
         .get_tenant(tenant_id)
@@ -297,12 +313,27 @@ pub async fn get_usage_statistics(
     let users = service.get_tenant_users(tenant_id).await.unwrap_or_default();
     let current_users = users.len() as i64;
 
-    let max_users = 100;
-    let max_storage_mb = 10240;
-    let max_api_calls = 100000;
+    // 获取套餐限额
+    let (max_users, max_storage_mb, max_api_calls, plan_name) = 
+        if let Ok(Some(current_plan)) = billing_service.get_current_plan(tenant_id).await {
+            (
+                current_plan.plan.max_users as i64,
+                current_plan.plan.max_storage_mb as i64,
+                current_plan.plan.max_api_calls_per_day as i64,
+                Some(current_plan.plan.name),
+            )
+        } else {
+            // 默认免费套餐限额
+            (10, 1024, 10000, Some("免费版".to_string()))
+        };
 
-    let storage_used_mb = 0i64;
-    let api_calls_today = 0i64;
+    // 获取实际使用量
+    let (storage_used_mb, api_calls_today) = 
+        if let Ok(Some(usage)) = billing_service.get_usage_stats(tenant_id).await {
+            (usage.storage_used_mb, usage.api_calls_today)
+        } else {
+            (0, 0)
+        };
 
     let user_pct = if max_users > 0 {
         (current_users as f64 / max_users as f64) * 100.0
@@ -323,13 +354,13 @@ pub async fn get_usage_statistics(
     Ok(Json(ApiResponse::success(UsageStatistics {
         tenant_id,
         tenant_name: tenant.name,
-        plan_name: None,
+        plan_name,
         current_users,
-        max_users,
+        max_users: max_users as i32,
         storage_used_mb,
-        max_storage_mb,
+        max_storage_mb: max_storage_mb as i32,
         api_calls_today,
-        max_api_calls_per_day: max_api_calls,
+        max_api_calls_per_day: max_api_calls as i32,
         usage_percentages: UsagePercentages {
             users: (user_pct * 100.0).round() / 100.0,
             storage: (storage_pct * 100.0).round() / 100.0,

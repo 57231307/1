@@ -20,7 +20,9 @@ use crate::models::ar_invoice;
 use crate::models::ar_reconciliation::{
     ActiveModel, Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
-use crate::models::ar_reconciliation_item;
+use crate::models::ar_reconciliation_item::{
+    Entity as ReconciliationItemEntity, Model as ReconciliationItemModel,
+};
 use crate::models::customer;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -495,7 +497,7 @@ impl ArReconciliationService {
                     let coll = unmatched_collections.remove(idx);
 
                     // 创建发票明细
-                    let inv_item = ar_reconciliation_item::ActiveModel {
+                    let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
                         id: Set(0),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
@@ -514,7 +516,7 @@ impl ArReconciliationService {
                     inv_item.insert(&txn).await?;
 
                     // 创建收款明细
-                    let col_item = ar_reconciliation_item::ActiveModel {
+                    let col_item = crate::models::ar_reconciliation_item::ActiveModel {
                         id: Set(0),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("RECEIPT".to_string()),
@@ -550,7 +552,7 @@ impl ArReconciliationService {
                     let coll = remaining_collections.remove(idx);
                     let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
 
-                    let inv_item = ar_reconciliation_item::ActiveModel {
+                    let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
                         id: Set(0),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
@@ -572,7 +574,7 @@ impl ArReconciliationService {
                     };
                     inv_item.insert(&txn).await?;
 
-                    let col_item = ar_reconciliation_item::ActiveModel {
+                    let col_item = crate::models::ar_reconciliation_item::ActiveModel {
                         id: Set(0),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("RECEIPT".to_string()),
@@ -597,7 +599,7 @@ impl ArReconciliationService {
                     matched_count += 1;
                 } else {
                     // 未匹配发票
-                    let inv_item = ar_reconciliation_item::ActiveModel {
+                    let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
                         id: Set(0),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
@@ -619,7 +621,7 @@ impl ArReconciliationService {
 
             // 剩余未匹配收款
             for coll in remaining_collections {
-                let col_item = ar_reconciliation_item::ActiveModel {
+                let col_item = crate::models::ar_reconciliation_item::ActiveModel {
                     id: Set(0),
                     reconciliation_id: Set(rec_model.id),
                     item_type: Set("RECEIPT".to_string()),
@@ -841,7 +843,7 @@ impl ArReconciliationService {
 
         // 创建发票明细行
         for inv in &invoices {
-            let item = ar_reconciliation_item::ActiveModel {
+            let item = crate::models::ar_reconciliation_item::ActiveModel {
                 id: Set(0),
                 reconciliation_id: Set(rec_model.id),
                 item_type: Set("INVOICE".to_string()),
@@ -862,7 +864,7 @@ impl ArReconciliationService {
 
         // 创建收款明细行
         for coll in &collections {
-            let item = ar_reconciliation_item::ActiveModel {
+            let item = crate::models::ar_reconciliation_item::ActiveModel {
                 id: Set(0),
                 reconciliation_id: Set(rec_model.id),
                 item_type: Set("RECEIPT".to_string()),
@@ -907,9 +909,9 @@ impl ArReconciliationService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
-        let items = ar_reconciliation_item::Entity::find()
-            .filter(ar_reconciliation_item::Column::ReconciliationId.eq(id))
-            .order_by(ar_reconciliation_item::Column::CreatedAt, Order::Asc)
+        let items = crate::models::ar_reconciliation_item::Entity::find()
+            .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
+            .order_by(crate::models::ar_reconciliation_item::Column::CreatedAt, Order::Asc)
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -1011,5 +1013,65 @@ impl ArReconciliationService {
 
         info!("客户对账单提出争议：id={}, reason={}", id, reason);
         Ok(updated)
+    }
+
+    /// 导出对账单PDF
+    pub async fn export_pdf(
+        &self,
+        id: i32,
+    ) -> Result<Vec<u8>, AppError> {
+        let model = ReconciliationEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+
+        // 获取对账明细
+        let items = ReconciliationItemEntity::find()
+            .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
+            .all(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 生成PDF内容
+        let pdf_content = self.generate_reconciliation_pdf(&model, &items)?;
+        
+        Ok(pdf_content)
+    }
+
+    /// 生成对账单PDF
+    fn generate_reconciliation_pdf(
+        &self,
+        reconciliation: &ReconciliationModel,
+        items: &[ReconciliationItemModel],
+    ) -> Result<Vec<u8>, AppError> {
+        use crate::services::export_service::{ExportService, ReconciliationPdfItem};
+
+        // 构建明细项
+        let pdf_items: Vec<ReconciliationPdfItem> = items
+            .iter()
+            .map(|item| ReconciliationPdfItem {
+                item_type: item.item_type.clone(),
+                document_no: item.document_no.as_deref().unwrap_or("").to_string(),
+                amount: item.amount.to_string(),
+                date: item.document_date
+                    .map(|d| d.format("%Y-%m-%d").to_string())
+                    .unwrap_or_default(),
+            })
+            .collect();
+
+        // 获取客户名称
+        let customer_name = format!("客户#{}", reconciliation.customer_id);
+
+        // 生成PDF
+        ExportService::generate_reconciliation_pdf(
+            &reconciliation.reconciliation_no,
+            &customer_name,
+            &reconciliation.period_start.format("%Y-%m-%d").to_string(),
+            &reconciliation.period_end.format("%Y-%m-%d").to_string(),
+            reconciliation.reconciliation_status.as_deref().unwrap_or("draft"),
+            pdf_items,
+            &reconciliation.closing_balance.to_string(),
+        )
     }
 }

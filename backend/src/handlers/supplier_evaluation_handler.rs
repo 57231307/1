@@ -232,22 +232,59 @@ pub async fn get_evaluation(
     Ok(Json(ApiResponse::success(record)))
 }
 
-/// 更新评估
+/// PUT /api/v1/erp/supplier-evaluations/:id - 更新评估
 pub async fn update_evaluation(
-    Path(_id): Path<i32>,
-    State(_state): State<AppState>,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在更新评估", auth.user_id);
-    Err(AppError::ValidationError("评估更新功能尚未实现".to_string()))
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 更新评估: ID={}", auth.username, id);
+
+    let service = SupplierEvaluationService::new(state.db.clone());
+
+    // 获取现有评估记录
+    let record = service.get_evaluation_record_by_id(id).await?;
+
+    // 更新字段
+    use sea_orm::ActiveModelTrait;
+    let mut active_model: crate::models::supplier_evaluation_record::ActiveModel = record.into();
+
+    if let Some(score) = req.get("score").and_then(|v| v.as_f64()) {
+        active_model.score = sea_orm::Set(rust_decimal::Decimal::from_f64_retain(score).unwrap_or_default());
+    }
+    if let Some(remark) = req.get("remark").and_then(|v| v.as_str()) {
+        active_model.remark = sea_orm::Set(Some(remark.to_string()));
+    }
+
+    let updated = active_model.update(&*state.db).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(updated)?,
+        "评估更新成功",
+    )))
 }
 
-/// 删除评估
+/// DELETE /api/v1/erp/supplier-evaluations/:id - 删除评估
 pub async fn delete_evaluation(
-    Path(_id): Path<i32>,
-    State(_state): State<AppState>,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在删除评估", auth.user_id);
-    Err(AppError::ValidationError("评估删除功能尚未实现".to_string()))
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除评估: ID={}", auth.username, id);
+
+    let service = SupplierEvaluationService::new(state.db.clone());
+
+    // 获取现有评估记录
+    let record = service.get_evaluation_record_by_id(id).await?;
+
+    // 直接删除
+    use sea_orm::ActiveModelTrait;
+    let active_model: crate::models::supplier_evaluation_record::ActiveModel = record.into();
+
+    active_model.delete(&*state.db).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message((), "评估已删除")))
 }

@@ -10,6 +10,7 @@ pub mod permission;
 pub mod csrf;
 pub mod public_routes;
 pub mod tenant;
+pub mod tenant_isolation;
 pub mod api_gateway;
 pub mod timeout;
 pub mod field_permission;

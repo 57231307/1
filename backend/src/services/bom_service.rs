@@ -378,4 +378,133 @@ impl BomService {
 
         Ok(_updated_bom)
     }
+
+    /// 获取BOM树形结构（递归展开）
+    pub fn get_bom_tree(
+        &self,
+        bom_id: i32,
+        max_depth: Option<i32>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<BomTreeNode, AppError>> + Send + '_>> {
+        Box::pin(async move {
+            let bom = BomEntity::find_by_id(bom_id)
+                .one(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
+
+            let items = BomItemEntity::find()
+                .filter(BomItemColumn::BomId.eq(bom_id))
+                .order_by_asc(BomItemColumn::SortOrder)
+                .all(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+            let mut children = Vec::new();
+            let depth = max_depth.unwrap_or(10);
+
+            if depth > 0 {
+                for item in &items {
+                    // 递归查找子物料的BOM
+                    let child_bom = BomEntity::find()
+                        .filter(BomColumn::ProductId.eq(item.material_id))
+                        .filter(BomColumn::IsDefault.eq(true))
+                        .filter(BomColumn::Status.eq("ACTIVE"))
+                        .one(&*self.db)
+                        .await
+                        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+                    let child_node = if let Some(child_bom) = child_bom {
+                        // 递归展开子BOM
+                        self.get_bom_tree(child_bom.id, Some(depth - 1)).await?
+                    } else {
+                        // 叶子节点
+                        BomTreeNode {
+                            id: format!("item-{}", item.id),
+                            product_id: item.material_id,
+                            product_name: format!("物料 #{}", item.material_id),
+                            quantity: item.quantity,
+                            unit: item.unit.clone(),
+                            scrap_rate: item.scrap_rate,
+                            children: vec![],
+                        }
+                    };
+
+                    children.push(child_node);
+                }
+            }
+
+            Ok(BomTreeNode {
+                id: format!("bom-{}", bom.id),
+                product_id: bom.product_id,
+                product_name: format!("产品 #{}", bom.product_id),
+                quantity: Decimal::ONE,
+                unit: None,
+                scrap_rate: None,
+                children,
+            })
+        })
+    }
+
+    /// 获取BOM用量计算（多层级）
+    pub async fn calculate_bom_requirements(
+        &self,
+        bom_id: i32,
+        quantity: Decimal,
+    ) -> Result<Vec<BomRequirement>, AppError> {
+        let tree = self.get_bom_tree(bom_id, Some(10)).await?;
+        let mut requirements = Vec::new();
+        self.collect_requirements(&tree, quantity, &mut requirements);
+        Ok(requirements)
+    }
+
+    /// 递归收集BOM需求
+    fn collect_requirements(
+        &self,
+        node: &BomTreeNode,
+        parent_quantity: Decimal,
+        requirements: &mut Vec<BomRequirement>,
+    ) {
+        let required_quantity = parent_quantity * node.quantity;
+        let scrap_multiplier = match node.scrap_rate {
+            Some(rate) if rate > Decimal::ZERO => Decimal::ONE + (rate / Decimal::from(100)),
+            _ => Decimal::ONE,
+        };
+        let actual_quantity = required_quantity * scrap_multiplier;
+
+        if node.children.is_empty() {
+            // 叶子节点，添加到需求列表
+            requirements.push(BomRequirement {
+                product_id: node.product_id,
+                product_name: node.product_name.clone(),
+                required_quantity: actual_quantity,
+                unit: node.unit.clone(),
+            });
+        } else {
+            // 递归处理子节点
+            for child in &node.children {
+                self.collect_requirements(child, actual_quantity, requirements);
+            }
+        }
+    }
+}
+
+/// BOM树节点
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BomTreeNode {
+    pub id: String,
+    pub product_id: i32,
+    pub product_name: String,
+    pub quantity: Decimal,
+    pub unit: Option<String>,
+    pub scrap_rate: Option<Decimal>,
+    pub children: Vec<BomTreeNode>,
+}
+
+/// BOM需求项
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BomRequirement {
+    pub product_id: i32,
+    pub product_name: String,
+    pub required_quantity: Decimal,
+    pub unit: Option<String>,
 }

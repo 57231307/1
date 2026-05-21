@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, View, Download, Setting, Bell, Refresh } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, View, Download, Bell } from '@element-plus/icons-vue'
 import {
   listReportTemplates,
   getReportTemplate,
@@ -72,7 +72,6 @@ const availableFields = ref<ReportField[]>([])
 const selectedFieldKeys = ref<string[]>([])
 const fieldConfigs = ref<Record<string, Partial<ReportTemplateField>>>({})
 
-const filterFormVisible = ref(false)
 const filterConditions = ref<ReportFilterCondition[]>([])
 
 const previewDialogVisible = ref(false)

@@ -186,9 +186,9 @@ impl TenantBillingService {
             .one(self.db.as_ref())
             .await?;
 
-        let api_calls_today = today_usage.map(|u| u.api_calls).unwrap_or(0);
-        let storage_used_mb = today_usage.map(|u| u.storage_used_mb).unwrap_or(0);
-        let current_users = today_usage.map(|u| u.user_count as i64).unwrap_or(0);
+        let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or(0);
+        let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or(0);
+        let current_users = today_usage.as_ref().map(|u| u.user_count as i64).unwrap_or(0);
 
         let user_pct = if max_users > 0 { (current_users as f64 / max_users as f64) * 100.0 } else { 0.0 };
         let storage_pct = if max_storage_mb > 0 { (storage_used_mb as f64 / max_storage_mb as f64) * 100.0 } else { 0.0 };
@@ -268,6 +268,8 @@ impl TenantBillingService {
             now + Duration::days(30)
         };
 
+        let billing_cycle = req.billing_cycle.clone();
+
         let existing_subscription = TenantSubscription::find()
             .filter(tenant_subscription::Column::TenantId.eq(tenant_id))
             .filter(tenant_subscription::Column::Status.eq("ACTIVE"))
@@ -277,7 +279,7 @@ impl TenantBillingService {
         let subscription = if let Some(existing) = existing_subscription {
             let mut active: tenant_subscription::ActiveModel = existing.into();
             active.plan_id = Set(plan.id);
-            active.billing_cycle = Set(req.billing_cycle);
+            active.billing_cycle = Set(billing_cycle.clone());
             active.start_date = Set(now);
             active.end_date = Set(Some(end_date));
             active.current_price = Set(price);
@@ -289,7 +291,7 @@ impl TenantBillingService {
                 tenant_id: Set(tenant_id),
                 plan_id: Set(plan.id),
                 status: Set("ACTIVE".to_string()),
-                billing_cycle: Set(req.billing_cycle),
+                billing_cycle: Set(billing_cycle.clone()),
                 start_date: Set(now),
                 end_date: Set(Some(end_date)),
                 auto_renew: Set(true),
@@ -310,7 +312,7 @@ impl TenantBillingService {
         tenant_active.updated_at = Set(now);
         tenant_active.update(self.db.as_ref()).await?;
 
-        self.generate_invoice(tenant_id, subscription.id, plan.id, price, req.billing_cycle, now, end_date).await?;
+        self.generate_invoice(tenant_id, subscription.id, plan.id, price, billing_cycle, now, end_date).await?;
 
         Ok(CurrentPlanInfo {
             plan: PlanInfo {
@@ -363,7 +365,7 @@ impl TenantBillingService {
             .ok_or_else(|| AppError::ResourceNotFound("当前无有效订阅".to_string()))?;
 
         let mut active: tenant_subscription::ActiveModel = subscription.into();
-        active.billing_cycle = Set(billing_cycle);
+        active.billing_cycle = Set(billing_cycle.clone());
         active.start_date = Set(now);
         active.end_date = Set(Some(end_date));
         active.current_price = Set(price);
@@ -438,8 +440,9 @@ impl TenantBillingService {
             .await?;
 
         if let Some(usage) = existing {
+            let api_calls = usage.api_calls;
             let mut active: tenant_usage::ActiveModel = usage.into();
-            active.api_calls = Set(usage.api_calls + 1);
+            active.api_calls = Set(api_calls + 1);
             active.updated_at = Set(now);
             active.update(self.db.as_ref()).await?;
         } else {
@@ -583,9 +586,9 @@ impl TenantBillingService {
         &self,
         tenant_id: i32,
         subscription_id: i32,
-        plan_id: i32,
+        _plan_id: i32,
         amount: Decimal,
-        billing_cycle: String,
+        _billing_cycle: String,
         period_start: DateTime<Utc>,
         period_end: DateTime<Utc>,
     ) -> Result<tenant_invoice::Model, DbErr> {

@@ -184,3 +184,42 @@ pub async fn get_base_currency(
         }
     }
 }
+
+/// POST /api/v1/erp/currencies/sync-all
+/// 批量同步所有币种汇率
+pub async fn sync_all_rates(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    let service = CurrencyService::new(state.db);
+
+    match service.sync_all_rates().await {
+        Ok(results) => {
+            let count = results.len();
+            tracing::info!("批量同步汇率成功，共同步 {} 个币种", count);
+            Ok(Json(ApiResponse::success(serde_json::json!({
+                "synced_count": count,
+                "message": format!("成功同步 {} 个币种的汇率", count),
+            }))))
+        }
+        Err(e) => {
+            tracing::error!("批量同步汇率失败: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// GET /api/v1/erp/currencies/supported
+/// 获取支持的币种列表
+pub async fn get_supported_currencies(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<String>>>, StatusCode> {
+    let service = CurrencyService::new(state.db);
+
+    match service.get_supported_currencies().await {
+        Ok(currencies) => Ok(Json(ApiResponse::success(currencies))),
+        Err(e) => {
+            tracing::error!("获取支持币种列表失败: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}

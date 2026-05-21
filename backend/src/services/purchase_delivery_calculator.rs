@@ -5,7 +5,7 @@
 
 use chrono::{NaiveDate, Datelike};
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, Statement, FromQueryResult, ConnectionTrait};
+use sea_orm::{DatabaseConnection, Statement, FromQueryResult, ConnectionTrait, EntityTrait, QueryFilter, PaginatorTrait, ColumnTrait};
 use std::sync::Arc;
 
 use crate::utils::error::AppError;
@@ -139,24 +139,50 @@ impl PurchaseDeliveryCalculator {
         }
     }
 
-    /// 估算生产周期（简化实现）
+    /// 估算生产周期
     async fn estimate_production_days(
         &self,
         items: &[OrderItemInfo],
     ) -> Result<i32, AppError> {
-        // 简化逻辑：根据物料数量估算
-        // 实际项目中可以根据物料的BOM复杂度、工艺路线等计算
-        let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
+        use crate::models::bom::{Entity as BomEntity, Column as BomColumn};
         
-        if total_quantity > Decimal::from(1000) {
-            Ok(5)
-        } else if total_quantity > Decimal::from(500) {
-            Ok(3)
-        } else if total_quantity > Decimal::from(100) {
-            Ok(2)
-        } else {
-            Ok(1)
+        let mut total_days = 0;
+        
+        for item in items {
+            // 查询产品的BOM复杂度
+            let bom_count = BomEntity::find()
+                .filter(BomColumn::ProductId.eq(item.product_id))
+                .count(&*self.db)
+                .await
+                .unwrap_or(0);
+            
+            // 基础生产天数
+            let base_days = if bom_count > 0 {
+                // 有BOM的产品，根据BOM数量增加复杂度
+                let bom_complexity = std::cmp::min(bom_count as i32, 5);
+                2 + bom_complexity
+            } else {
+                // 无BOM的产品，根据数量估算
+                if item.quantity > Decimal::from(1000) {
+                    5
+                } else if item.quantity > Decimal::from(500) {
+                    3
+                } else if item.quantity > Decimal::from(100) {
+                    2
+                } else {
+                    1
+                }
+            };
+            
+            total_days = std::cmp::max(total_days, base_days);
         }
+        
+        // 批量生产效率提升（多产品并行生产）
+        if items.len() > 1 {
+            total_days = (total_days as f64 * 1.2) as i32; // 增加20%的时间
+        }
+        
+        Ok(total_days.max(1))
     }
 
     /// 添加工作日（跳过周末）

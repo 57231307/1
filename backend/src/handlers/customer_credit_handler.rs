@@ -221,30 +221,111 @@ pub async fn deactivate_credit(
 }
 
 
-/// 客户信用创建功能尚未实现
+/// POST /api/v1/erp/customer-credits - 创建客户信用
 pub async fn create_credit(
-    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在客户信用创建功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("客户信用创建功能尚未实现".to_string()))
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 创建客户信用", auth.username);
+
+    let service = CustomerCreditService::new(state.db.clone());
+
+    let customer_id = req.get("customer_id")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+
+    let credit_limit = req.get("credit_limit")
+        .and_then(|v| v.as_f64())
+        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
+        .unwrap_or_default();
+
+    let credit_level = req.get("credit_level")
+        .and_then(|v| v.as_str())
+        .unwrap_or("B")
+        .to_string();
+
+    let credit_score = req.get("credit_score")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(70) as i32;
+
+    let credit_days = req.get("credit_days")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(30) as i32;
+
+    let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
+        customer_id,
+        credit_level,
+        credit_score,
+        credit_limit,
+        credit_days,
+        remark: None,
+    };
+
+    let credit = service.set_credit_rating(rating_req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(credit)?,
+        "客户信用创建成功",
+    )))
 }
 
-
-/// 客户信用更新功能尚未实现
+/// PUT /api/v1/erp/customer-credits/:id - 更新客户信用
 pub async fn update_credit(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在客户信用更新功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("客户信用更新功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 更新客户信用: ID={}", auth.username, id);
+
+    let service = CustomerCreditService::new(state.db.clone());
+
+    let credit_limit = req.get("credit_limit")
+        .and_then(|v| v.as_f64())
+        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
+
+    let credit_level = req.get("credit_level")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let credit_score = req.get("credit_score")
+        .and_then(|v| v.as_i64())
+        .map(|i| i as i32);
+
+    let credit_days = req.get("credit_days")
+        .and_then(|v| v.as_i64())
+        .map(|i| i as i32);
+
+    let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
+        customer_id: id,
+        credit_level: credit_level.unwrap_or_else(|| "B".to_string()),
+        credit_score: credit_score.unwrap_or(70),
+        credit_limit: credit_limit.unwrap_or_default(),
+        credit_days: credit_days.unwrap_or(30),
+        remark: None,
+    };
+
+    let credit = service.set_credit_rating(rating_req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(credit)?,
+        "客户信用更新成功",
+    )))
 }
 
-
-/// 客户信用删除功能尚未实现
+/// DELETE /api/v1/erp/customer-credits/:id - 删除客户信用
 pub async fn delete_credit(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在客户信用删除功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("客户信用删除功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除客户信用: ID={}", auth.username, id);
+
+    let service = CustomerCreditService::new(state.db.clone());
+    service.deactivate(id, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message((), "客户信用已删除")))
 }
 
 /// 信用评估模型请求
