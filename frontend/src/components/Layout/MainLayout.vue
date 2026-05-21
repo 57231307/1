@@ -78,7 +78,14 @@
             <span>生产管理</span>
           </template>
           <el-menu-item index="/production">生产计划</el-menu-item>
+          <el-menu-item index="/bom">BOM 管理</el-menu-item>
+          <el-menu-item index="/mrp">MRP 计算</el-menu-item>
+          <el-menu-item index="/mrp/history">MRP 历史记录</el-menu-item>
+          <el-menu-item index="/capacity">产能分析</el-menu-item>
+          <el-menu-item index="/material-shortage">缺料预警</el-menu-item>
+          <el-menu-item index="/scheduling">排产管理</el-menu-item>
           <el-menu-item index="/quality">质量管理</el-menu-item>
+          <el-menu-item index="/gantt">甘特图</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="finance">
@@ -98,6 +105,10 @@
           <el-menu-item index="/currency">多币种</el-menu-item>
           <el-menu-item index="/financial-analysis">财务分析</el-menu-item>
           <el-menu-item index="/assist-accounting">辅助核算</el-menu-item>
+          <el-menu-item index="/account-subject">会计科目</el-menu-item>
+          <el-menu-item index="/accounting-period">会计期间</el-menu-item>
+          <el-menu-item index="/voucher">凭证管理</el-menu-item>
+          <el-menu-item index="/trading">交易管理</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="workflow">
@@ -108,6 +119,8 @@
           <el-menu-item index="/bpm">审批管理</el-menu-item>
           <el-menu-item index="/business-trace">业务追溯</el-menu-item>
           <el-menu-item index="/barcode-scanner">扫码功能</el-menu-item>
+          <el-menu-item index="/dye-recipe">染色配方</el-menu-item>
+          <el-menu-item index="/quality-standards">质量标准</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="system">
@@ -119,6 +132,11 @@
           <el-menu-item index="/departments">部门管理</el-menu-item>
           <el-menu-item index="/five-dimension">五维管理</el-menu-item>
           <el-menu-item index="/data-permission">数据权限</el-menu-item>
+          <el-menu-item index="/report">报表中心</el-menu-item>
+          <el-menu-item index="/data-import">数据导入</el-menu-item>
+          <el-menu-item index="/print-templates">打印模板</el-menu-item>
+          <el-menu-item index="/api-gateway">API 网关</el-menu-item>
+          <el-menu-item index="/system-update">系统更新</el-menu-item>
           <el-menu-item index="/advanced">高级功能</el-menu-item>
           <el-menu-item index="/notification">通知中心</el-menu-item>
           <el-menu-item index="/omni-audit">全量审计</el-menu-item>
