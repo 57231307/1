@@ -48,7 +48,7 @@ pub struct CreateOpportunityRequest {
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct LeadQuery {
     pub lead_status: Option<String>,
     pub page: Option<u64>,
@@ -68,7 +68,7 @@ pub struct ConvertLeadRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct UpdateLeadRequest {
     pub lead_source: Option<String>,
     pub lead_status: Option<String>,

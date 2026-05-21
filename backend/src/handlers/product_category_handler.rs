@@ -49,8 +49,8 @@ crate::define_crud_handlers!(
 /// 获取产品类别树形结构
 pub async fn get_product_category_tree(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<product_category::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let category_service = ProductCategoryService::new(state.db.clone());
     let tree = category_service.get_category_tree().await?;
-    Ok(Json(ApiResponse::success(tree)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(tree)?)))
 }

@@ -403,56 +403,197 @@ pub async fn get_plan_executions(
 }
 
 
-/// 预算列表查询功能尚未实现
+/// GET /api/v1/erp/budgets - 预算列表查询
 pub async fn list_budgets(
-    Query(_params): Query<serde_json::Value>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算列表查询", auth.username);
-    Ok(Json(ApiResponse::ok("[]".to_string())))
+    Query(params): Query<serde_json::Value>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 查询预算列表", auth.username);
+
+    let service = BudgetManagementService::new(state.db.clone());
+
+    let page = params.get("page")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1);
+
+    let page_size = params.get("page_size")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(20);
+
+    let query = crate::services::budget_management_service::BudgetItemQueryParams {
+        item_type: params.get("item_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        status: params.get("status").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        page,
+        page_size,
+    };
+
+    let (items, total) = service.get_items_list(query).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
 }
 
-
-/// 预算创建功能尚未实现
+/// POST /api/v1/erp/budgets - 创建预算
 pub async fn create_budget(
-    State(_state): State<AppState>, auth: AuthContext, Json(_req): Json<serde_json::Value>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算创建功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算创建功能尚未实现".to_string()))
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 创建预算", auth.username);
+
+    let service = BudgetManagementService::new(state.db.clone());
+
+    let item_code = req.get("item_code")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let item_name = req.get("item_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let item_type = req.get("item_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("expense")
+        .to_string();
+
+    let budget_year = req.get("budget_year")
+        .and_then(|v| v.as_i64())
+        .unwrap_or_else(|| {
+            let now = chrono::Utc::now();
+            let date = now.date_naive();
+            date.format("%Y").to_string().parse::<i64>().unwrap_or(2026)
+        }) as i32;
+
+    let planned_amount = req.get("planned_amount")
+        .and_then(|v| v.as_f64())
+        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
+        .unwrap_or_default();
+
+    let remark = req.get("remark")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let create_req = crate::services::budget_management_service::CreateBudgetItemRequest {
+        item_code,
+        item_name,
+        item_type,
+        parent_id: None,
+        budget_year,
+        planned_amount,
+        remark,
+    };
+
+    let item = service.create_item(create_req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(item)?,
+        "预算创建成功",
+    )))
 }
 
-
-/// 预算更新功能尚未实现
+/// PUT /api/v1/erp/budgets/:id - 更新预算
 pub async fn update_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算更新功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算更新功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 更新预算: ID={}", auth.username, id);
+
+    let service = BudgetManagementService::new(state.db.clone());
+
+    let item_name = req.get("item_name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let item_type = req.get("item_type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let planned_amount = req.get("planned_amount")
+        .and_then(|v| v.as_f64())
+        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
+
+    let status = req.get("status")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let remark = req.get("remark")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let update_req = crate::services::budget_management_service::UpdateBudgetItemRequest {
+        item_name,
+        item_type,
+        planned_amount,
+        status,
+        remark,
+    };
+
+    let item = service.update_item(id, update_req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(item)?,
+        "预算更新成功",
+    )))
 }
 
-
-/// 预算删除功能尚未实现
+/// DELETE /api/v1/erp/budgets/:id - 删除预算
 pub async fn delete_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算删除功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算删除功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除预算: ID={}", auth.username, id);
+
+    let service = BudgetManagementService::new(state.db.clone());
+    service.delete_item(id, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message((), "预算已删除")))
 }
 
-
-/// 预算获取功能尚未实现
+/// GET /api/v1/erp/budgets/:id - 获取预算详情
 pub async fn get_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算获取功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算获取功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 获取预算详情: ID={}", auth.username, id);
+
+    let service = BudgetManagementService::new(state.db.clone());
+    let item = service.get_item_by_id(id).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(item)?)))
 }
 
-/// 预算审批功能尚未实现
+/// POST /api/v1/erp/budgets/:id/approve - 审批预算
 pub async fn approve_budget(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在预算审批功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("预算审批功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 审批预算: ID={}", auth.username, id);
+
+    let service = BudgetManagementService::new(state.db.clone());
+
+    let opinion = req.get("opinion")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    service.approve_plan(id, auth.user_id, opinion).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"id": id}),
+        "预算审批成功",
+    )))
 }
 
 pub async fn adjust_budget(

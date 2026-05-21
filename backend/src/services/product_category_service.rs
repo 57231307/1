@@ -5,6 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::product_category::{self, Entity as ProductCategoryEntity};
@@ -176,12 +177,59 @@ impl ProductCategoryService {
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品类别名称 {} 不存在", name)))
     }
 
-    /// 获取产品类别树形结构（简化版）
-    pub async fn get_category_tree(&self) -> Result<Vec<product_category::Model>, sea_orm::DbErr> {
-        // 简化实现：返回所有类别，前端自行组织树形结构
-        ProductCategoryEntity::find()
+    /// 获取产品类别树形结构
+    pub async fn get_category_tree(&self) -> Result<Vec<CategoryTreeNode>, sea_orm::DbErr> {
+        // 查询所有类别
+        let all_categories = ProductCategoryEntity::find()
             .order_by(product_category::Column::Name, Order::Asc)
             .all(&*self.db)
-            .await
+            .await?;
+        
+        // 构建树形结构
+        let mut root_nodes = Vec::new();
+        let mut children_map: std::collections::HashMap<i32, Vec<CategoryTreeNode>> = std::collections::HashMap::new();
+        
+        // 首先创建所有节点并按parent_id分组
+        for cat in &all_categories {
+            let node = CategoryTreeNode {
+                id: cat.id,
+                name: cat.name.clone(),
+                parent_id: cat.parent_id,
+                description: cat.description.clone(),
+                children: Vec::new(),
+            };
+            
+            if let Some(parent_id) = cat.parent_id {
+                children_map.entry(parent_id).or_insert_with(Vec::new).push(node);
+            } else {
+                root_nodes.push(node);
+            }
+        }
+        
+        // 递归构建子树
+        fn build_children(node: &mut CategoryTreeNode, children_map: &mut std::collections::HashMap<i32, Vec<CategoryTreeNode>>) {
+            if let Some(mut children) = children_map.remove(&node.id) {
+                for child in &mut children {
+                    build_children(child, children_map);
+                }
+                node.children = children;
+            }
+        }
+        
+        for node in &mut root_nodes {
+            build_children(node, &mut children_map);
+        }
+        
+        Ok(root_nodes)
     }
+}
+
+/// 产品类别树节点
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CategoryTreeNode {
+    pub id: i32,
+    pub name: String,
+    pub parent_id: Option<i32>,
+    pub description: Option<String>,
+    pub children: Vec<CategoryTreeNode>,
 }

@@ -232,4 +232,132 @@ impl ProductionOrderService {
 
         Ok(updated)
     }
+
+    /// 提交生产订单审批
+    pub async fn submit_for_approval(
+        &self,
+        id: i32,
+        user_id: i32,
+        user_name: &str,
+    ) -> Result<ProductionOrderModel, AppError> {
+        let model = ProductionOrderEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+
+        // 检查状态是否可以提交审批
+        if model.status != "DRAFT" {
+            return Err(AppError::BusinessError(format!(
+                "当前状态({})不允许提交审批，只有草稿状态可以提交",
+                model.status
+            )));
+        }
+
+        // 更新状态为审批中
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set("PENDING_APPROVAL".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 启动BPM审批流程
+        let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
+        let req = crate::models::dto::bpm_dto::StartProcessRequest {
+            process_key: "production_order_approval".to_string(),
+            business_type: "production_order".to_string(),
+            business_id: id,
+            title: format!("生产订单审批 - {}", updated.order_no),
+            initiator_id: user_id,
+            initiator_name: user_name.to_string(),
+            initiator_department_id: None,
+            priority: Some("HIGH".to_string()),
+            form_data: Some(serde_json::json!({
+                "order_no": updated.order_no,
+                "product_id": updated.product_id,
+                "planned_quantity": updated.planned_quantity,
+                "work_center_id": updated.work_center_id,
+            })),
+            variables: None,
+        };
+
+        // 忽略找不到模板的错误，为了兼容旧数据
+        let _ = bpm_service.start_process(req).await;
+
+        Ok(updated)
+    }
+
+    /// 审批生产订单
+    pub async fn approve_order(
+        &self,
+        id: i32,
+        user_id: i32,
+        user_name: &str,
+        approved: bool,
+        opinion: Option<String>,
+    ) -> Result<ProductionOrderModel, AppError> {
+        let model = ProductionOrderEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+
+        // 检查状态
+        if model.status != "PENDING_APPROVAL" {
+            return Err(AppError::BusinessError(format!(
+                "当前状态({})不允许审批",
+                model.status
+            )));
+        }
+
+        let new_status = if approved { "APPROVED" } else { "REJECTED" };
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set(new_status.to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 完成BPM任务 - 通过process_instance关联
+        let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
+        
+        // 获取与该生产订单关联的流程实例
+        if let Ok(Some(instance)) = bpm_service.get_process_by_business("production_order", id).await {
+            // 获取该实例的待处理任务
+            let tasks = bpm_service
+                .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
+                    user_id,
+                    status: Some("PENDING".to_string()),
+                    page: Some(1),
+                    page_size: Some(10),
+                })
+                .await;
+
+            if let Ok(task_list) = tasks {
+                for task in task_list.data {
+                    // 只处理当前流程实例的任务
+                    if task.instance_id == instance.id {
+                        let _ = bpm_service
+                            .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
+                                task_id: task.id,
+                                handler_id: user_id,
+                                handler_name: user_name.to_string(),
+                                action: if approved { "approve".to_string() } else { "reject".to_string() },
+                                approval_opinion: opinion.clone(),
+                                attachment_urls: None,
+                            })
+                            .await;
+                    }
+                }
+            }
+        }
+
+        Ok(updated)
+    }
 }

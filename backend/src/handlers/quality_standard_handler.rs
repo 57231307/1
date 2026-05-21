@@ -216,43 +216,65 @@ pub async fn publish_standard(
     Ok(Json(ApiResponse::success("发布成功".to_string())))
 }
 
-/// 获取质量标准版本历史
+/// GET /api/v1/erp/quality-standards/:id/versions - 获取质量标准版本历史
 pub async fn list_versions(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<quality_standard::Model>>>, AppError> {
-    info!("用户 {} 正在查询质量标准 {} 的版本历史", auth.username, id);
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    info!("用户 {} 查询质量标准 {} 的版本历史", auth.username, id);
 
-    // 暂时返回空列表，直到服务层实现
-    Ok(Json(ApiResponse::success(vec![])))
+    let service = QualityStandardService::new(state.db.clone());
+    let versions = service.get_version_history(id).await?;
+
+    let version_list: Vec<serde_json::Value> = versions
+        .into_iter()
+        .map(|v| serde_json::to_value(v).unwrap_or_default())
+        .collect();
+
+    Ok(Json(ApiResponse::success(version_list)))
 }
 
-/// 创建版本历史
+/// POST /api/v1/erp/quality-standards/versions - 创建版本历史
 #[axum::debug_handler]
 pub async fn create_version_history(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateVersionHistoryRequest>,
-) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
-        "用户 {} 正在为质量标准 {} 创建新版本",
+        "用户 {} 为质量标准 {} 创建新版本",
         auth.username, req.standard_id
     );
 
-    // 暂时返回错误，直到服务层实现
-    Err(AppError::InternalError("版本历史功能暂未实现".to_string()))
+    let service = QualityStandardService::new(state.db.clone());
+
+    let create_req = crate::services::quality_standard_service::CreateVersionHistoryRequest {
+        standard_id: req.standard_id,
+        version: req.version,
+        change_reason: req.change_reason,
+        change_content: req.change_content,
+    };
+
+    let version = service.create_version_history(create_req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(version)?,
+        "版本历史创建成功",
+    )))
 }
 
-/// 删除质量标准
+/// DELETE /api/v1/erp/quality-standards/:id - 删除质量标准
 #[axum::debug_handler]
 pub async fn delete_standard(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    info!("用户 {} 正在删除质量标准 {}", auth.username, id);
+    info!("用户 {} 删除质量标准 {}", auth.username, id);
 
-    // 暂时返回成功
-    Ok(Json(ApiResponse::success(())))
+    let service = QualityStandardService::new(state.db.clone());
+    service.delete_standard(id, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message((), "质量标准已删除")))
 }

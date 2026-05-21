@@ -219,3 +219,29 @@ pub struct GenerateReconciliationApiRequest {
     pub end_date: NaiveDate,
     pub notes: Option<String>,
 }
+
+/// GET /api/v1/erp/ar-reconciliations/:id/pdf - 导出对账单PDF
+pub async fn export_reconciliation_pdf(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    info!("用户 {} 导出对账单PDF，ID: {}", auth.username, id);
+
+    let service = ArReconciliationService::new(state.db.clone());
+    let pdf_content = service.export_pdf(id).await?;
+
+    // 返回base64编码的PDF内容
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&pdf_content);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "id": id,
+            "content_type": "application/pdf",
+            "size": pdf_content.len(),
+            "base64_content": encoded,
+        }),
+        "PDF导出成功",
+    )))
+}

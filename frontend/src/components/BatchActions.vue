@@ -78,10 +78,7 @@ import { ElMessage } from 'element-plus'
 import {
   Delete,
   Check,
-  Edit,
-  Download,
-  Upload,
-  Refresh
+  Edit
 } from '@element-plus/icons-vue'
 
 export interface BatchActionItem {
@@ -189,7 +186,7 @@ const executeAction = async () => {
       const items = [...props.selectedRows]
       for (const item of items) {
         try {
-          await currentAction.value.handler([item])
+          await currentAction.value.handler?.([item])
         } catch (e) {
           console.error(`处理项失败:`, e)
         }
@@ -198,7 +195,7 @@ const executeAction = async () => {
         progressText.value = `已完成 ${completed}/${total}`
       }
     } else {
-      await currentAction.value.handler(props.selectedRows)
+      await currentAction.value.handler?.(props.selectedRows)
       progressPercent.value = 100
     }
 

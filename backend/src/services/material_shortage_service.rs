@@ -5,7 +5,7 @@
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,7 @@ use crate::models::production_order::{
     Entity as ProductionOrderEntity, Column as ProductionOrderColumn,
 };
 use crate::models::product::{Entity as ProductEntity, Column as ProductColumn};
+use crate::models::tenant_config::{Entity as TenantConfigEntity, ActiveModel as TenantConfigActiveModel};
 use crate::utils::error::AppError;
 
 /// 缺料预警级别
@@ -422,4 +423,127 @@ impl MaterialShortageService {
 
         Ok(map)
     }
+
+    /// 保存预警阈值配置
+    pub async fn save_threshold_config(
+        &self,
+        tenant_id: i32,
+        config: &ShortageThresholdConfig,
+    ) -> Result<(), AppError> {
+        use sea_orm::Set;
+
+        let config_json = serde_json::to_string(config)
+            .map_err(|e| AppError::ValidationError(format!("配置序列化失败: {}", e)))?;
+
+        // 查找现有配置
+        let existing = TenantConfigEntity::find()
+            .filter(crate::models::tenant_config::Column::TenantId.eq(tenant_id))
+            .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if let Some(model) = existing {
+            let mut active: TenantConfigActiveModel = model.into();
+            active.config_value = Set(config_json);
+            active.updated_at = Set(Utc::now());
+            active.update(&*self.db).await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        } else {
+            let active = TenantConfigActiveModel {
+                id: Default::default(),
+                tenant_id: Set(tenant_id),
+                config_key: Set("shortage_threshold".to_string()),
+                config_value: Set(config_json),
+                config_type: Set("json".to_string()),
+                description: Set(Some("缺料预警阈值配置".to_string())),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+            };
+            active.insert(&*self.db).await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    /// 加载预警阈值配置
+    pub async fn load_threshold_config(
+        &self,
+        tenant_id: i32,
+    ) -> Result<ShortageThresholdConfig, AppError> {
+        use crate::models::tenant_config::Entity as TenantConfigEntity;
+
+        let config = TenantConfigEntity::find()
+            .filter(crate::models::tenant_config::Column::TenantId.eq(tenant_id))
+            .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        match config {
+            Some(model) => {
+                serde_json::from_str(&model.config_value)
+                    .map_err(|e| AppError::ValidationError(format!("配置解析失败: {}", e)))
+            }
+            None => Ok(ShortageThresholdConfig::default()),
+        }
+    }
+
+    /// 生成补货建议
+    pub async fn generate_replenishment_suggestions(
+        &self,
+        shortages: &[MaterialShortageItem],
+    ) -> Result<Vec<ReplenishmentSuggestion>, AppError> {
+        let mut suggestions = Vec::new();
+
+        for shortage in shortages {
+            if shortage.shortage_quantity > Decimal::ZERO {
+                // 建议采购量 = 缺口数量 * 1.2 (20%余量)
+                let suggested_quantity = shortage.shortage_quantity * Decimal::new(12, 1);
+                
+                suggestions.push(ReplenishmentSuggestion {
+                    material_id: shortage.material_id,
+                    material_name: shortage.material_name.clone(),
+                    material_code: shortage.material_code.clone(),
+                    shortage_quantity: shortage.shortage_quantity,
+                    suggested_quantity,
+                    unit: shortage.unit.clone(),
+                    priority: match shortage.level {
+                        ShortageLevel::Critical => "URGENT".to_string(),
+                        ShortageLevel::Severe => "HIGH".to_string(),
+                        ShortageLevel::Warning => "MEDIUM".to_string(),
+                        ShortageLevel::Normal => "LOW".to_string(),
+                    },
+                    affected_orders_count: shortage.affected_orders.len() as i32,
+                });
+            }
+        }
+
+        // 按优先级排序
+        suggestions.sort_by(|a, b| {
+            let priority_order = |p: &str| match p {
+                "URGENT" => 0,
+                "HIGH" => 1,
+                "MEDIUM" => 2,
+                _ => 3,
+            };
+            priority_order(&a.priority).cmp(&priority_order(&b.priority))
+        });
+
+        Ok(suggestions)
+    }
+}
+
+/// 补货建议
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplenishmentSuggestion {
+    pub material_id: i32,
+    pub material_name: String,
+    pub material_code: String,
+    pub shortage_quantity: Decimal,
+    pub suggested_quantity: Decimal,
+    pub unit: Option<String>,
+    pub priority: String,
+    pub affected_orders_count: i32,
 }

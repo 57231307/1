@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, View, Send, CircleCheck, CircleClose, TrendCharts, Download } from '@element-plus/icons-vue'
+import { Refresh, View, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
   autoReconcile,
@@ -13,7 +13,6 @@ import {
   createDispute,
   getDisputes,
   resolveDispute,
-  getDisputeDetail,
   type AutoReconciliationResult,
   type AgingAnalysisResult,
   type ReconciliationDetailItem,

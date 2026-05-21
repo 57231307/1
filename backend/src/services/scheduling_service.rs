@@ -4,15 +4,18 @@
 
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
+use sea_orm::Set;
 
 use crate::models::production_order::{
     Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
+use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
 
@@ -54,7 +57,7 @@ pub struct TimeSlot {
 }
 
 /// 排程冲突
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScheduleConflict {
     pub conflict_type: String,
     pub order_id: i32,
@@ -67,7 +70,7 @@ pub struct ScheduleConflict {
 }
 
 /// 甘特图数据项
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GanttItem {
     pub id: String,
     pub order_id: i32,
@@ -85,7 +88,7 @@ pub struct GanttItem {
 }
 
 /// 甘特图响应
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GanttData {
     pub items: Vec<GanttItem>,
     pub work_centers: Vec<WorkCenterInfo>,
@@ -93,7 +96,7 @@ pub struct GanttData {
 }
 
 /// 工作中心信息
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkCenterInfo {
     pub id: i32,
     pub code: String,
@@ -102,7 +105,7 @@ pub struct WorkCenterInfo {
 }
 
 /// 日期范围
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DateRange {
     pub start: NaiveDate,
     pub end: NaiveDate,
@@ -117,7 +120,7 @@ pub struct AutoScheduleRequest {
 }
 
 /// 自动排程结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoScheduleResult {
     pub total_orders: i32,
     pub scheduled_orders: i32,
@@ -128,7 +131,7 @@ pub struct AutoScheduleResult {
 }
 
 /// 排程明细
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScheduleDetail {
     pub order_id: i32,
     pub order_no: String,
@@ -759,5 +762,117 @@ impl SchedulingService {
             .ok()
             .flatten()?;
         Some(wc.name)
+    }
+
+    /// 持久化排程结果
+    pub async fn save_schedule_result(
+        &self,
+        result: &AutoScheduleResult,
+        strategy: &str,
+        user_id: i32,
+        user_name: &str,
+        remarks: Option<String>,
+    ) -> Result<crate::models::scheduling_result::Model, AppError> {
+        let now = Utc::now();
+        let batch_no = format!("SCH-{}-{}", now.format("%Y%m%d%H%M%S"), fastrand::u32(100000..999999));
+
+        // 计算日期范围
+        let (start_date, end_date) = if result.schedule_details.is_empty() {
+            (now.date_naive(), now.date_naive())
+        } else {
+            let min_start = result.schedule_details.iter().map(|d| d.start_date).min().unwrap();
+            let max_end = result.schedule_details.iter().map(|d| d.end_date).max().unwrap();
+            (min_start, max_end)
+        };
+
+        let active_model = SchedulingActiveModel {
+            id: Default::default(),
+            batch_no: Set(batch_no),
+            strategy: Set(strategy.to_string()),
+            status: Set("DRAFT".to_string()),
+            total_orders: Set(result.total_orders),
+            scheduled_orders: Set(result.scheduled_orders),
+            unscheduled_orders: Set(result.unscheduled_orders),
+            conflict_count: Set(result.conflicts.len() as i32),
+            schedule_start_date: Set(start_date),
+            schedule_end_date: Set(end_date),
+            schedule_details: Set(Some(serde_json::to_value(&result.schedule_details).unwrap_or_default())),
+            gantt_data: Set(Some(serde_json::to_value(&result.gantt_data).unwrap_or_default())),
+            conflicts: Set(Some(serde_json::to_value(&result.conflicts).unwrap_or_default())),
+            created_by: Set(user_id),
+            created_by_name: Set(Some(user_name.to_string())),
+            remarks: Set(remarks),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+
+        let model = active_model
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(model)
+    }
+
+    /// 获取排程历史记录
+    pub async fn get_schedule_history(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<crate::models::scheduling_result::Model>, u64), AppError> {
+        use sea_orm::PaginatorTrait;
+
+        let paginator = SchedulingResultEntity::find()
+            .order_by_desc(crate::models::scheduling_result::Column::CreatedAt)
+            .paginate(&*self.db, page_size);
+
+        let total = paginator.num_items().await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let items = paginator.fetch_page(page - 1).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok((items, total))
+    }
+
+    /// 获取排程结果详情
+    pub async fn get_schedule_result(
+        &self,
+        id: i32,
+    ) -> Result<Option<crate::models::scheduling_result::Model>, AppError> {
+        let model = SchedulingResultEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(model)
+    }
+
+    /// 确认排程结果
+    pub async fn confirm_schedule_result(
+        &self,
+        id: i32,
+        user_id: i32,
+    ) -> Result<crate::models::scheduling_result::Model, AppError> {
+        let model = SchedulingResultEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("排程结果不存在".to_string()))?;
+
+        if model.status != "DRAFT" {
+            return Err(AppError::BusinessError("只有草稿状态的排程结果可以确认".to_string()));
+        }
+
+        let mut active_model: SchedulingActiveModel = model.into();
+        active_model.status = Set("CONFIRMED".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(updated)
     }
 }

@@ -10,6 +10,7 @@ pub mod department_service;
 pub mod finance_invoice_service;
 pub mod finance_payment_service;
 pub mod five_dimension_query_service;
+pub mod five_dimension_service;
 pub mod init_service;
 pub mod inventory_adjustment_service;
 pub mod inventory_count_service;
@@ -103,3 +104,19 @@ pub mod scheduling_service;
 pub mod field_permission_service;
 // 租户计费模块
 pub mod tenant_billing_service;
+// 导入导出模块
+pub mod import_export_service;
+// 报表模板模块
+pub mod report_template_service;
+// 邮件模板模块
+pub mod email_template_service;
+// 邮件发送记录模块
+pub mod email_log_service;
+// 分配历史模块
+pub mod assignment_history_service;
+// 报表订阅模块
+pub mod report_subscription_service;
+// 定时任务调度器模块
+pub mod scheduler_service;
+// 导出服务模块
+pub mod export_service;

@@ -1,202 +1,336 @@
+//! 交易管理 Handler
+//!
+//! 提供采购合同、销售合同、采购价格、销售价格的管理功能
+
 use axum::{
-    extract::{Path, Query},
-    response::IntoResponse,
+    extract::{Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
 
+use crate::middleware::auth_context::AuthContext;
+use crate::services::purchase_contract_service::PurchaseContractService;
+use crate::services::sales_contract_service::SalesContractService;
+use crate::services::purchase_price_service::PurchasePriceService;
+use crate::services::sales_price_service::SalesPriceService;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
-// Trading Handler - 交易管理（预留模块，待实现）
-
-#[allow(dead_code)]
-/// 获取采购合同列表
-pub async fn list_purchase_contracts(
-    _params: Query<std::collections::HashMap<String, String>>,
-) -> impl IntoResponse {
-    let contracts = vec![
-        PurchaseContract {
-            id: 1,
-            contract_no: "PC20260515001".to_string(),
-            supplier_name: "纺织原料供应商 A".to_string(),
-            contract_date: "2026-05-01".to_string(),
-            total_amount: 150000.00,
-            status: "active".to_string(),
-        },
-        PurchaseContract {
-            id: 2,
-            contract_no: "PC20260515002".to_string(),
-            supplier_name: "染料供应商 B".to_string(),
-            contract_date: "2026-05-10".to_string(),
-            total_amount: 80000.00,
-            status: "pending".to_string(),
-        },
-    ];
-    Json(ApiResponse::success(contracts))
+/// 合同查询参数
+#[derive(Debug, Deserialize)]
+pub struct ContractQueryParams {
+    pub status: Option<String>,
+    pub keyword: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
 }
 
-/// 创建采购合同
-#[allow(dead_code)]
-pub async fn create_purchase_contract(
-    Json(_payload): Json<PurchaseContractCreate>,
-) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message((), "合同创建成功"))
+/// 价格查询参数
+#[derive(Debug, Deserialize)]
+pub struct PriceQueryParams {
+    pub product_id: Option<i32>,
+    pub status: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
 }
 
-/// 审批采购合同
-#[allow(dead_code)]
-pub async fn approve_purchase_contract(
-    Path(id): Path<u32>,
-) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message((), &format!("合同 {} 审批成功", id)))
+/// 创建采购合同请求
+#[derive(Debug, Deserialize)]
+pub struct CreatePurchaseContractRequest {
+    pub contract_no: String,
+    pub contract_name: String,
+    pub supplier_id: i32,
+    pub total_amount: rust_decimal::Decimal,
+    pub payment_terms: Option<String>,
+    pub delivery_date: chrono::NaiveDate,
+    pub remark: Option<String>,
 }
 
-/// 执行采购合同
-#[allow(dead_code)]
-pub async fn execute_purchase_contract(
-    Path(id): Path<u32>,
-) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message((), &format!("合同 {} 执行成功", id)))
+/// 创建销售合同请求
+#[derive(Debug, Deserialize)]
+pub struct CreateSalesContractRequest {
+    pub contract_no: String,
+    pub contract_name: String,
+    pub customer_id: i32,
+    pub total_amount: rust_decimal::Decimal,
+    pub payment_terms: Option<String>,
+    pub delivery_date: chrono::NaiveDate,
+    pub remark: Option<String>,
 }
 
-// 销售合同相关
-#[allow(dead_code)]
+/// GET /api/v1/erp/trading/sales-contracts - 获取销售合同列表
 pub async fn list_sales_contracts(
-    _params: Query<std::collections::HashMap<String, String>>,
-) -> impl IntoResponse {
-    let contracts = vec![
-        SalesContract {
-            id: 1,
-            contract_no: "SC20260515001".to_string(),
-            customer_name: "客户 A".to_string(),
-            contract_date: "2026-05-05".to_string(),
-            total_amount: 200000.00,
-            status: "active".to_string(),
-        },
-    ];
-    Json(ApiResponse::success(contracts))
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<ContractQueryParams>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SalesContractService::new(state.db.clone());
+
+    let page = params.page.unwrap_or(1) as i64;
+    let page_size = params.page_size.unwrap_or(20) as i64;
+
+    let query = crate::services::sales_contract_service::SalesContractQueryParams {
+        status: params.status,
+        keyword: params.keyword,
+        customer_id: None,
+        page,
+        page_size,
+    };
+
+    let (items, total) = service.get_list(query).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
 }
 
-#[allow(dead_code)]
+/// POST /api/v1/erp/trading/sales-contracts - 创建销售合同
 pub async fn create_sales_contract(
-    Json(_payload): Json<SalesContractCreate>,
-) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message((), "销售合同创建成功"))
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateSalesContractRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SalesContractService::new(state.db.clone());
+
+    let contract = service.create(
+        crate::services::sales_contract_service::CreateSalesContractRequest {
+            contract_no: req.contract_no,
+            contract_name: req.contract_name,
+            customer_id: req.customer_id,
+            total_amount: req.total_amount,
+            payment_terms: req.payment_terms,
+            delivery_date: req.delivery_date,
+            remark: req.remark,
+        },
+        auth.user_id,
+    )
+    .await?;
+
+    tracing::info!("用户 {} 创建销售合同: {}", auth.username, contract.contract_no);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(contract)?,
+        "销售合同创建成功",
+    )))
 }
 
-#[allow(dead_code)]
+/// GET /api/v1/erp/trading/purchase-contracts - 获取采购合同列表
+pub async fn list_purchase_contracts(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<ContractQueryParams>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseContractService::new(state.db.clone());
+
+    let page = params.page.unwrap_or(1) as i64;
+    let page_size = params.page_size.unwrap_or(20) as i64;
+
+    let query = crate::services::purchase_contract_service::ContractQueryParams {
+        status: params.status,
+        keyword: params.keyword,
+        supplier_id: None,
+        page,
+        page_size,
+    };
+
+    let (items, total) = service.get_list(query).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
+}
+
+/// POST /api/v1/erp/trading/purchase-contracts - 创建采购合同
+pub async fn create_purchase_contract(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreatePurchaseContractRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseContractService::new(state.db.clone());
+
+    let contract = service.create(
+        crate::services::purchase_contract_service::CreateContractRequest {
+            contract_no: req.contract_no,
+            contract_name: req.contract_name,
+            supplier_id: req.supplier_id,
+            total_amount: req.total_amount,
+            payment_terms: req.payment_terms,
+            delivery_date: req.delivery_date,
+            remark: req.remark,
+        },
+        auth.user_id,
+    )
+    .await?;
+
+    tracing::info!("用户 {} 创建采购合同: {}", auth.username, contract.contract_no);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(contract)?,
+        "采购合同创建成功",
+    )))
+}
+
+/// GET /api/v1/erp/trading/purchase-contracts/:id - 获取采购合同详情
+pub async fn get_purchase_contract(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseContractService::new(state.db.clone());
+
+    let contract = service.get_by_id(id).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(contract)?)))
+}
+
+/// POST /api/v1/erp/trading/purchase-contracts/:id/approve - 审批采购合同
+pub async fn approve_purchase_contract(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseContractService::new(state.db.clone());
+
+    service.approve(id, auth.user_id).await?;
+
+    tracing::info!("用户 {} 审批采购合同: ID={}", auth.username, id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"id": id}),
+        "采购合同审批成功",
+    )))
+}
+
+/// POST /api/v1/erp/trading/purchase-contracts/:id/execute - 执行采购合同
+pub async fn execute_purchase_contract(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseContractService::new(state.db.clone());
+
+    let execution_type = req.get("execution_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("delivery")
+        .to_string();
+
+    let execution_amount = req.get("execution_amount")
+        .and_then(|v| v.as_f64())
+        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
+        .unwrap_or_default();
+
+    let execute_req = crate::services::purchase_contract_service::ExecuteContractRequest {
+        execution_type,
+        execution_amount,
+        execution_date: chrono::Utc::now().date_naive(),
+        related_bill_type: None,
+        related_bill_id: None,
+        remark: None,
+    };
+
+    service.execute(id, execute_req, auth.user_id).await?;
+
+    tracing::info!("用户 {} 执行采购合同: ID={}", auth.username, id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"id": id}),
+        "采购合同执行成功",
+    )))
+}
+
+/// GET /api/v1/erp/trading/sales-contracts/:id - 获取销售合同详情
+pub async fn get_sales_contract(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SalesContractService::new(state.db.clone());
+
+    let contract = service.get_by_id(id).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(contract)?)))
+}
+
+/// POST /api/v1/erp/trading/sales-contracts/:id/approve - 审批销售合同
 pub async fn approve_sales_contract(
-    Path(id): Path<u32>,
-) -> impl IntoResponse {
-    Json(ApiResponse::success_with_message((), &format!("销售合同 {} 审批成功", id)))
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SalesContractService::new(state.db.clone());
+
+    service.approve(id, auth.user_id).await?;
+
+    tracing::info!("用户 {} 审批销售合同: ID={}", auth.username, id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"id": id}),
+        "销售合同审批成功",
+    )))
 }
 
-// 价格管理
-#[allow(dead_code)]
+/// GET /api/v1/erp/trading/purchase-prices - 获取采购价格列表
 pub async fn list_purchase_prices(
-    _params: Query<std::collections::HashMap<String, String>>,
-) -> impl IntoResponse {
-    let prices = vec![
-        PurchasePrice {
-            id: 1,
-            product_name: "棉布 A".to_string(),
-            supplier_name: "供应商 A".to_string(),
-            price: 25.50,
-            currency: "CNY".to_string(),
-            unit: "米".to_string(),
-            effective_date: "2026-01-01".to_string(),
-            expiry_date: "2026-12-31".to_string(),
-            status: "active".to_string(),
-        },
-    ];
-    Json(ApiResponse::success(prices))
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<PriceQueryParams>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchasePriceService::new(state.db.clone());
+
+    let page = params.page.unwrap_or(1) as i64;
+    let page_size = params.page_size.unwrap_or(20) as i64;
+
+    let query = crate::services::purchase_price_service::PurchasePriceQueryParams {
+        product_id: params.product_id,
+        supplier_id: None,
+        status: params.status,
+        page,
+        page_size,
+    };
+
+    let (items, total) = service.get_prices_list(query).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
 }
 
-#[allow(dead_code)]
+/// GET /api/v1/erp/trading/sales-prices - 获取销售价格列表
 pub async fn list_sales_prices(
-    _params: Query<std::collections::HashMap<String, String>>,
-) -> impl IntoResponse {
-    let prices = vec![
-        SalesPrice {
-            id: 1,
-            product_name: "成品布 A".to_string(),
-            customer_name: "客户 A".to_string(),
-            price: 45.00,
-            currency: "CNY".to_string(),
-            unit: "米".to_string(),
-            effective_date: "2026-01-01".to_string(),
-            expiry_date: "2026-12-31".to_string(),
-            status: "active".to_string(),
-        },
-    ];
-    Json(ApiResponse::success(prices))
-}
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<PriceQueryParams>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SalesPriceService::new(state.db.clone());
 
-// 数据结构
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PurchaseContract {
-    pub id: u32,
-    pub contract_no: String,
-    pub supplier_name: String,
-    pub contract_date: String,
-    pub total_amount: f64,
-    pub status: String,
-}
+    let page = params.page.unwrap_or(1) as i64;
+    let page_size = params.page_size.unwrap_or(20) as i64;
 
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PurchaseContractCreate {
-    pub contract_no: String,
-    pub supplier_id: u32,
-    pub total_amount: f64,
-    pub contract_date: String,
-}
+    let query = crate::services::sales_price_service::SalesPriceQueryParams {
+        product_id: params.product_id,
+        customer_type: None,
+        status: params.status,
+        page,
+        page_size,
+    };
 
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SalesContract {
-    pub id: u32,
-    pub contract_no: String,
-    pub customer_name: String,
-    pub contract_date: String,
-    pub total_amount: f64,
-    pub status: String,
-}
+    let (items, total) = service.get_prices_list(query).await?;
 
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SalesContractCreate {
-    pub contract_no: String,
-    pub customer_id: u32,
-    pub total_amount: f64,
-    pub contract_date: String,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PurchasePrice {
-    pub id: u32,
-    pub product_name: String,
-    pub supplier_name: String,
-    pub price: f64,
-    pub currency: String,
-    pub unit: String,
-    pub effective_date: String,
-    pub expiry_date: String,
-    pub status: String,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SalesPrice {
-    pub id: u32,
-    pub product_name: String,
-    pub customer_name: String,
-    pub price: f64,
-    pub currency: String,
-    pub unit: String,
-    pub effective_date: String,
-    pub expiry_date: String,
-    pub status: String,
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
 }

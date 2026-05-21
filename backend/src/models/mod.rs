@@ -30,6 +30,7 @@ pub mod bom;
 pub mod bom_item;
 pub mod mrp_result;
 pub mod work_center;
+pub mod scheduling_result;
 // 应收对账与多币种模块
 pub mod ar_reconciliation;
 pub mod ar_reconciliation_item;
@@ -184,3 +185,11 @@ pub mod user_notification_setting;
 pub mod data_permission;
 // 字段权限模块
 pub mod field_permission;
+// 报表模板模块
+pub mod report_template;
+pub mod report_subscription;
+// 邮件模块
+pub mod email_template;
+pub mod email_log;
+// CRM分配历史模块
+pub mod assignment_history;

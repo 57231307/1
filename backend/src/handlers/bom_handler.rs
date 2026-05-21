@@ -397,3 +397,40 @@ pub async fn set_default_bom(
         updated_at: bom.updated_at,
     })))
 }
+
+/// BOM树形结构查询参数
+#[derive(Debug, Deserialize)]
+pub struct BomTreeQuery {
+    pub max_depth: Option<i32>,
+}
+
+/// GET /api/v1/erp/boms/:id/tree - 获取BOM树形结构
+pub async fn get_bom_tree(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Query(query): Query<BomTreeQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BomService::new(state.db.clone());
+    let tree = service.get_bom_tree(id, query.max_depth).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(tree)?)))
+}
+
+/// BOM需求计算请求
+#[derive(Debug, Deserialize)]
+pub struct BomRequirementRequest {
+    pub quantity: rust_decimal::Decimal,
+}
+
+/// POST /api/v1/erp/boms/:id/requirements - 计算BOM需求
+pub async fn calculate_bom_requirements(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Json(req): Json<BomRequirementRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BomService::new(state.db.clone());
+    let requirements = service.calculate_bom_requirements(id, req.quantity).await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "requirements": requirements,
+        "total_items": requirements.len(),
+    }))))
+}

@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import BatchActions from '@/components/BatchActions.vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage as _ElMessage } from 'element-plus'
 
 const selectedRows = ref<any[]>([])
 

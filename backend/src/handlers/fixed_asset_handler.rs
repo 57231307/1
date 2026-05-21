@@ -194,12 +194,46 @@ pub async fn delete_asset(
 }
 
 
-/// 固定资产更新功能尚未实现
+/// PUT /api/v1/erp/fixed-assets/:id - 更新固定资产
 pub async fn update_asset(
-    Path(_id): Path<i32>, State(_state): State<AppState>, auth: AuthContext,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在固定资产更新功能尚未实现", auth.user_id);
-    Err(AppError::ValidationError("固定资产更新功能尚未实现".to_string()))
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 更新固定资产: ID={}", auth.username, id);
+
+    let service = FixedAssetService::new(state.db.clone());
+
+    // 获取现有资产
+    let mut asset = service.get_by_id(id).await?;
+
+    // 更新字段
+    if let Some(name) = req.get("asset_name").and_then(|v| v.as_str()) {
+        asset.asset_name = name.to_string();
+    }
+    if let Some(category) = req.get("asset_category").and_then(|v| v.as_str()) {
+        asset.asset_category = Some(category.to_string());
+    }
+    if let Some(spec) = req.get("specification").and_then(|v| v.as_str()) {
+        asset.specification = Some(spec.to_string());
+    }
+    if let Some(location) = req.get("use_location").and_then(|v| v.as_str()) {
+        asset.use_location = Some(location.to_string());
+    }
+
+    // 保存更新
+    use sea_orm::ActiveModelTrait;
+    let mut active_model: crate::models::fixed_asset::ActiveModel = asset.into();
+    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
+
+    let updated = active_model.update(&*state.db).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(updated)?,
+        "固定资产更新成功",
+    )))
 }
 
 /// 批量折旧计算

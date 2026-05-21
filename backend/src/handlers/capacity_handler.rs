@@ -1,15 +1,17 @@
 //! 产能分析 Handler
 //!
-//! 提供产能概览、工作中心列表、负荷分析等 API 接口
+//! 提供产能概览、工作中心管理、负荷分析等 API 接口
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::capacity_service::{CapacityService, LoadAnalysisQuery};
+use crate::services::capacity_service::{
+    CapacityService, CreateWorkCenterInput, LoadAnalysisQuery, UpdateWorkCenterInput,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -64,4 +66,57 @@ pub async fn get_load_analysis(
 
     let items = service.load_analysis(query).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
+}
+
+/// POST /api/v1/erp/capacity/work-centers - 创建工作中心
+pub async fn create_work_center(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(input): Json<CreateWorkCenterInput>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CapacityService::new(state.db.clone());
+    let work_center = service.create_work_center(input).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(work_center)?)))
+}
+
+/// PUT /api/v1/erp/capacity/work-centers/:id - 更新工作中心
+pub async fn update_work_center(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(input): Json<UpdateWorkCenterInput>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CapacityService::new(state.db.clone());
+    let work_center = service.update_work_center(id, input).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(work_center)?)))
+}
+
+/// DELETE /api/v1/erp/capacity/work-centers/:id - 删除工作中心
+pub async fn delete_work_center(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CapacityService::new(state.db.clone());
+    service.delete_work_center(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({"deleted": true}))))
+}
+
+/// 产能预测查询参数
+#[derive(Debug, Deserialize)]
+pub struct CapacityForecastQuery {
+    pub days: Option<i32>,
+}
+
+/// GET /api/v1/erp/capacity/work-centers/:id/forecast - 产能预测
+pub async fn forecast_capacity(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Query(query): Query<CapacityForecastQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CapacityService::new(state.db.clone());
+    let days = query.days.unwrap_or(30);
+    let forecast = service.forecast_capacity(id, days).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(forecast)?)))
 }

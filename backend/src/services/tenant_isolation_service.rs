@@ -4,7 +4,7 @@
 //! 配合 tenant_isolation 中间件使用，确保所有数据访问都经过租户隔离。
 #![allow(dead_code)]
 
-use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, QueryTrait};
+use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, QueryTrait};
 use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;

@@ -268,9 +268,22 @@ impl SalesService {
         let credit_limit = customer.credit_limit;
         
         // 计算当前未付应收账款总额
-        // 注意：finance_invoice 表不再包含 customer_id 和 invoice_type 字段
-        // 简化实现：暂时跳过信用额度检查
-        let total_unpaid = rust_decimal::Decimal::new(0, 0);
+        let total_unpaid = {
+            use crate::models::ar_invoice;
+            use sea_orm::QueryFilter;
+            
+            let unpaid_result = ar_invoice::Entity::find()
+                .filter(ar_invoice::Column::CustomerId.eq(request.customer_id))
+                .filter(ar_invoice::Column::Status.ne("CANCELLED"))
+                .filter(ar_invoice::Column::Status.ne("COMPLETED"))
+                .all(&txn)
+                .await;
+            
+            match unpaid_result {
+                Ok(invoices) => invoices.iter().map(|i| i.invoice_amount).sum(),
+                Err(_) => rust_decimal::Decimal::ZERO,
+            }
+        };
         
         // 计算本单金额
         let mut order_amount = rust_decimal::Decimal::new(0, 0);

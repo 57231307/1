@@ -231,15 +231,71 @@ pub async fn update_production_order(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 删除生产订单
-pub async fn delete_production_order(
+/// 审批请求
+#[derive(Debug, Deserialize)]
+pub struct ApprovalRequest {
+    pub approved: bool,
+    pub opinion: Option<String>,
+}
+
+/// 提交生产订单审批
+pub async fn submit_for_approval(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
+) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
-    service.delete(id).await?;
-    Ok(Json(ApiResponse::success(())))
+    let model = service.submit_for_approval(id, auth.user_id, &auth.username).await?;
+
+    let response = ProductionOrderResponse {
+        id: model.id,
+        order_no: model.order_no,
+        sales_order_id: model.sales_order_id,
+        product_id: model.product_id,
+        planned_quantity: model.planned_quantity,
+        actual_quantity: model.actual_quantity,
+        planned_start_date: model.planned_start_date,
+        planned_end_date: model.planned_end_date,
+        status: model.status,
+        priority: model.priority,
+        work_center_id: model.work_center_id,
+        remarks: model.remarks,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    };
+
+    Ok(Json(ApiResponse::success_with_message(response, "已提交审批")))
+}
+
+/// 审批生产订单
+pub async fn approve_production_order(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<ApprovalRequest>,
+) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
+    let service = ProductionOrderService::new(state.db.clone());
+    let model = service.approve_order(id, auth.user_id, &auth.username, req.approved, req.opinion).await?;
+
+    let response = ProductionOrderResponse {
+        id: model.id,
+        order_no: model.order_no,
+        sales_order_id: model.sales_order_id,
+        product_id: model.product_id,
+        planned_quantity: model.planned_quantity,
+        actual_quantity: model.actual_quantity,
+        planned_start_date: model.planned_start_date,
+        planned_end_date: model.planned_end_date,
+        status: model.status,
+        priority: model.priority,
+        work_center_id: model.work_center_id,
+        remarks: model.remarks,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    };
+
+    let message = if req.approved { "审批通过" } else { "审批拒绝" };
+    Ok(Json(ApiResponse::success_with_message(response, message)))
 }
 
 /// 更新生产订单状态

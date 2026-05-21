@@ -156,28 +156,44 @@ pub async fn delete_integration(
 }
 
 pub async fn send_wechat_message(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
         return Err(AppError::BadRequest("消息内容不能为空".to_string()));
     }
+
+    // 构建企业微信消息格式
+    let payload = serde_json::json!({
+        "msgtype": "text",
+        "text": {
+            "content": req.content
+        }
+    });
+
+    // 通过WebhookService发送
+    use crate::services::webhook_service::WebhookService;
+    let service = WebhookService::new(state.db.clone());
+    let delivery = service.trigger_webhook(req.integration_id, "wechat_message", &payload.to_string()).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let result = WebhookSendResult {
         message_id: uuid::Uuid::new_v4().to_string(),
         platform: "WECHAT_WORK".to_string(),
-        status: "SENT".to_string(),
+        status: if delivery.success { "SENT" } else { "FAILED" }.to_string(),
         sent_at: chrono::Utc::now().to_rfc3339(),
     };
 
-    tracing::info!("企业微信消息发送请求: integration_id={}", req.integration_id);
-
-    Ok(Json(ApiResponse::success_with_message(result, "企业微信消息发送成功")))
+    if delivery.success {
+        Ok(Json(ApiResponse::success_with_message(result, "企业微信消息发送成功")))
+    } else {
+        Err(AppError::InternalError(delivery.error.unwrap_or_else(|| "发送失败".to_string())))
+    }
 }
 
 pub async fn send_dingtalk_message(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
@@ -185,16 +201,32 @@ pub async fn send_dingtalk_message(
         return Err(AppError::BadRequest("消息内容不能为空".to_string()));
     }
 
+    // 构建钉钉消息格式
+    let payload = serde_json::json!({
+        "msgtype": "text",
+        "text": {
+            "content": req.content
+        }
+    });
+
+    // 通过WebhookService发送
+    use crate::services::webhook_service::WebhookService;
+    let service = WebhookService::new(state.db.clone());
+    let delivery = service.trigger_webhook(req.integration_id, "dingtalk_message", &payload.to_string()).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
     let result = WebhookSendResult {
         message_id: uuid::Uuid::new_v4().to_string(),
         platform: "DINGTALK".to_string(),
-        status: "SENT".to_string(),
+        status: if delivery.success { "SENT" } else { "FAILED" }.to_string(),
         sent_at: chrono::Utc::now().to_rfc3339(),
     };
 
-    tracing::info!("钉钉消息发送请求: integration_id={}", req.integration_id);
-
-    Ok(Json(ApiResponse::success_with_message(result, "钉钉消息发送成功")))
+    if delivery.success {
+        Ok(Json(ApiResponse::success_with_message(result, "钉钉消息发送成功")))
+    } else {
+        Err(AppError::InternalError(delivery.error.unwrap_or_else(|| "发送失败".to_string())))
+    }
 }
 
 pub async fn handle_generic_callback(
@@ -219,23 +251,15 @@ pub async fn test_integration(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
-    use sea_orm::EntityTrait;
-    use crate::models::webhook;
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use crate::services::webhook_service::WebhookService;
 
-    let webhook = webhook::Entity::find_by_id(id)
-        .one(state.db.as_ref())
-        .await?
-        .ok_or_else(|| AppError::ResourceNotFound("Webhook 集成不存在".to_string()))?;
+    let service = WebhookService::new(state.db.clone());
+    let result = service.test_webhook(id).await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let result = WebhookSendResult {
-        message_id: uuid::Uuid::new_v4().to_string(),
-        platform: "TEST".to_string(),
-        status: "SENT".to_string(),
-        sent_at: chrono::Utc::now().to_rfc3339(),
-    };
-
-    tracing::info!("Webhook 测试消息已发送: name={}, url={}", webhook.name, webhook.url);
-
-    Ok(Json(ApiResponse::success_with_message(result, "测试消息已发送")))
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result).unwrap_or_default(),
+        "测试消息已发送",
+    )))
 }

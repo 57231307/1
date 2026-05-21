@@ -1,15 +1,21 @@
 //! 产能分析 Service
 //!
-//! 提供产能负荷计算、产能瓶颈识别等能力分析功能
+//! 提供产能负荷计算、产能瓶颈识别、工作中心管理等功能
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    Set,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::production_order::{Entity as ProductionOrderEntity, Column as ProductionOrderColumn};
-use crate::models::work_center::{Entity as WorkCenterEntity, Column as WorkCenterColumn};
+use crate::models::work_center::{
+    ActiveModel as WorkCenterActiveModel, Entity as WorkCenterEntity, Column as WorkCenterColumn,
+    Model as WorkCenterModel,
+};
 use crate::utils::error::AppError;
 
 /// 工作中心产能信息
@@ -311,4 +317,177 @@ impl CapacityService {
             ],
         }
     }
+
+    /// 创建工作中心
+    pub async fn create_work_center(
+        &self,
+        input: CreateWorkCenterInput,
+    ) -> Result<WorkCenterCapacity, AppError> {
+        let now = Utc::now();
+        let active_model = WorkCenterActiveModel {
+            code: Set(input.code),
+            name: Set(input.name),
+            work_center_type: Set(input.work_center_type),
+            daily_capacity: Set(Some(input.daily_capacity)),
+            capacity_unit: Set(input.capacity_unit),
+            status: Set(input.status.unwrap_or_else(|| "ACTIVE".to_string())),
+            remarks: Set(input.remarks),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+
+        let model = active_model
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        self.get_work_center(model.id).await
+    }
+
+    /// 更新工作中心
+    pub async fn update_work_center(
+        &self,
+        id: i32,
+        input: UpdateWorkCenterInput,
+    ) -> Result<WorkCenterCapacity, AppError> {
+        let existing = WorkCenterEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
+
+        let mut active_model: WorkCenterActiveModel = existing.into();
+
+        if let Some(code) = input.code {
+            active_model.code = Set(code);
+        }
+        if let Some(name) = input.name {
+            active_model.name = Set(name);
+        }
+        if let Some(wc_type) = input.work_center_type {
+            active_model.work_center_type = Set(Some(wc_type));
+        }
+        if let Some(capacity) = input.daily_capacity {
+            active_model.daily_capacity = Set(Some(capacity));
+        }
+        if let Some(unit) = input.capacity_unit {
+            active_model.capacity_unit = Set(Some(unit));
+        }
+        if let Some(status) = input.status {
+            active_model.status = Set(status);
+        }
+        if let Some(remarks) = input.remarks {
+            active_model.remarks = Set(Some(remarks));
+        }
+        active_model.updated_at = Set(Utc::now());
+
+        let model = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        self.get_work_center(model.id).await
+    }
+
+    /// 删除工作中心（软删除）
+    pub async fn delete_work_center(&self, id: i32) -> Result<(), AppError> {
+        let existing = WorkCenterEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
+
+        let mut active_model: WorkCenterActiveModel = existing.into();
+        active_model.status = Set("INACTIVE".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 产能预测（基于历史数据）
+    pub async fn forecast_capacity(
+        &self,
+        work_center_id: i32,
+        days: i32,
+    ) -> Result<CapacityForecast, AppError> {
+        let wc = WorkCenterEntity::find_by_id(work_center_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
+
+        let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
+        
+        // 简单预测：基于当前产能和历史负荷率
+        let load_items = self.load_analysis(LoadAnalysisQuery {
+            date_from: None,
+            date_to: None,
+            work_center_id: Some(work_center_id),
+        }).await?;
+
+        let current_load = load_items.first()
+            .map(|i| i.load_rate)
+            .unwrap_or(Decimal::ZERO);
+
+        // 预测未来产能
+        let forecasted_capacity = daily_capacity * Decimal::from(days);
+        let predicted_demand = forecasted_capacity * (current_load / Decimal::from(100));
+        let predicted_available = forecasted_capacity - predicted_demand;
+
+        Ok(CapacityForecast {
+            work_center_id,
+            work_center_name: wc.name,
+            daily_capacity,
+            forecast_days: days,
+            total_capacity: forecasted_capacity,
+            predicted_demand,
+            predicted_available,
+            predicted_load_rate: current_load,
+            confidence: 0.8, // 简化的置信度
+        })
+    }
+}
+
+/// 产能预测结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapacityForecast {
+    pub work_center_id: i32,
+    pub work_center_name: String,
+    pub daily_capacity: Decimal,
+    pub forecast_days: i32,
+    pub total_capacity: Decimal,
+    pub predicted_demand: Decimal,
+    pub predicted_available: Decimal,
+    pub predicted_load_rate: Decimal,
+    pub confidence: f64,
+}
+
+/// 创建工作中心输入
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateWorkCenterInput {
+    pub code: String,
+    pub name: String,
+    pub work_center_type: Option<String>,
+    pub daily_capacity: Decimal,
+    pub capacity_unit: Option<String>,
+    pub status: Option<String>,
+    pub remarks: Option<String>,
+}
+
+/// 更新工作中心输入
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateWorkCenterInput {
+    pub code: Option<String>,
+    pub name: Option<String>,
+    pub work_center_type: Option<String>,
+    pub daily_capacity: Option<Decimal>,
+    pub capacity_unit: Option<String>,
+    pub status: Option<String>,
+    pub remarks: Option<String>,
 }

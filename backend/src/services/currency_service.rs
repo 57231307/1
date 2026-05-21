@@ -284,28 +284,63 @@ impl CurrencyService {
         Ok(results)
     }
 
-    /// 获取外部汇率（模拟外部API调用）
+    /// 获取外部汇率（真实外部API调用）
     pub async fn fetch_external_rate(
         &self,
         from_currency: &str,
         to_currency: &str,
     ) -> Result<ExternalRateResponse, AppError> {
-        // 这里是外部汇率API的集成接口
-        // 实际实现中，这里会调用真实的外部API，如：
-        // - Open Exchange Rates
-        // - Fixer.io
-        // - ExchangeRate-API
-        // - 中国人民银行汇率接口
+        // 使用免费的汇率API
+        let url = format!(
+            "https://api.exchangerate-api.com/v4/latest/{}",
+            from_currency
+        );
 
-        // 模拟API调用
-        // 在实际项目中，这里应该使用 reqwest 或其他 HTTP 客户端调用外部API
         tracing::info!("调用外部汇率API: {} -> {}", from_currency, to_currency);
 
-        // 返回模拟数据
-        // 实际实现应该解析外部API的响应
-        Err(AppError::BusinessError(
-            "外部汇率API未配置。请在系统设置中配置汇率API密钥。".to_string()
-        ))
+        let client = reqwest::Client::new();
+        let response = client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|e| AppError::BusinessError(format!("汇率API请求失败: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(AppError::BusinessError(format!(
+                "汇率API返回错误: {}",
+                response.status()
+            )));
+        }
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| AppError::BusinessError(format!("读取汇率API响应失败: {}", e)))?;
+
+        let api_response: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|e| AppError::BusinessError(format!("解析汇率API响应失败: {}", e)))?;
+
+        let rates = api_response
+            .get("rates")
+            .and_then(|r| r.as_object())
+            .ok_or_else(|| AppError::BusinessError("汇率API响应格式错误".to_string()))?;
+
+        let rate = rates
+            .get(to_currency)
+            .and_then(|r| r.as_f64())
+            .ok_or_else(|| AppError::BusinessError(format!("未找到汇率: {} -> {}", from_currency, to_currency)))?;
+
+        let decimal_rate = Decimal::from_f64_retain(rate)
+            .unwrap_or(Decimal::ZERO);
+
+        Ok(ExternalRateResponse {
+            from_currency: from_currency.to_string(),
+            to_currency: to_currency.to_string(),
+            rate: decimal_rate,
+            timestamp: Utc::now(),
+            source: "exchangerate-api.com".to_string(),
+        })
     }
 
     /// 同步外部汇率并保存到数据库
@@ -347,5 +382,41 @@ impl CurrencyService {
 
         let result = self.convert_amount(currency_code, &base_code, amount, None).await?;
         Ok((result.converted_amount, result.exchange_rate))
+    }
+
+    /// 批量同步所有活跃币种的汇率
+    pub async fn sync_all_rates(&self) -> Result<Vec<RateModel>, AppError> {
+        let base_currency = self.get_base_currency().await?;
+        let base_code = match base_currency {
+            Some(base) => base.code,
+            None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+        };
+
+        let currencies = self.list_currencies().await?;
+        let mut results = Vec::new();
+
+        for currency in &currencies {
+            if currency.code == base_code {
+                continue;
+            }
+
+            match self.sync_external_rate(&base_code, &currency.code).await {
+                Ok(model) => {
+                    results.push(model);
+                    tracing::info!("同步汇率成功: {} -> {}", base_code, currency.code);
+                }
+                Err(e) => {
+                    tracing::warn!("同步汇率失败: {} -> {} - {}", base_code, currency.code, e);
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// 获取支持的币种列表
+    pub async fn get_supported_currencies(&self) -> Result<Vec<String>, AppError> {
+        let currencies = self.list_currencies().await?;
+        Ok(currencies.iter().map(|c| c.code.clone()).collect())
     }
 }

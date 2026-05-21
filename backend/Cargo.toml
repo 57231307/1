@@ -58,6 +58,9 @@ anyhow = "1.0"
 # HTTP 客户端
 reqwest = { version = "0.12", features = ["json"] }
 
+# Base64编码
+base64 = "0.22"
+
 # ZIP 压缩
 zip = "2.2"
 
@@ -71,6 +74,9 @@ dashmap = "5.5"
 # 其他
 once_cell = "1.19"
 futures = "0.3"
+
+# 定时任务
+tokio-cron-scheduler = "0.10"
 
 # 额外工具
 arc-swap = "1.6"

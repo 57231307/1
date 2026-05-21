@@ -242,7 +242,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Cpu,
@@ -255,12 +254,9 @@ import {
   Search,
   CircleCheck,
   Switch,
-  Time,
   ChatDotRound
 } from '@element-plus/icons-vue'
 import { schedulingApi, type ScheduleTask, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
-
-const router = useRouter()
 
 const scheduling = ref(false)
 const adjusting = ref(false)

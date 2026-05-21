@@ -213,7 +213,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
-import type { ProcessDefinition, ProcessVersion, ProcessNode } from '@/api/bpm-enhanced'
+import type { ProcessDefinition, ProcessVersion } from '@/api/bpm-enhanced'
 
 const loading = ref(false)
 const submitLoading = ref(false)

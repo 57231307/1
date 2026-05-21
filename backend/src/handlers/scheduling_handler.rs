@@ -151,11 +151,12 @@ pub struct ScheduledOrdersQuery {
 /// 自动排程
 pub async fn auto_schedule(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<AutoSchedulePayload>,
-) -> Result<Json<ApiResponse<AutoScheduleResultResponse>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SchedulingService::new(state.db.clone());
 
+    let strategy = payload.strategy.clone().unwrap_or_else(|| "priority".to_string());
     let req = AutoScheduleRequest {
         work_center_ids: payload.work_center_ids,
         start_date: payload.start_date,
@@ -164,77 +165,25 @@ pub async fn auto_schedule(
 
     let result = service.auto_schedule(req).await?;
 
-    let gantt_data = GanttDataResponse {
-        items: result
-            .gantt_data
-            .items
-            .into_iter()
-            .map(|item| GanttItemResponse {
-                id: item.id,
-                order_id: item.order_id,
-                order_no: item.order_no,
-                product_id: item.product_id,
-                work_center_id: item.work_center_id,
-                work_center_name: item.work_center_name,
-                start_date: item.start_date,
-                end_date: item.end_date,
-                duration_days: item.duration_days,
-                progress: item.progress,
-                status: item.status,
-                priority: item.priority,
-                dependencies: item.dependencies,
-            })
-            .collect(),
-        work_centers: result
-            .gantt_data
-            .work_centers
-            .into_iter()
-            .map(|wc| WorkCenterInfoResponse {
-                id: wc.id,
-                code: wc.code,
-                name: wc.name,
-                status: wc.status,
-            })
-            .collect(),
-        date_range: DateRangeResponse {
-            start: result.gantt_data.date_range.start,
-            end: result.gantt_data.date_range.end,
-        },
-    };
+    // 持久化排程结果
+    let saved_result = service.save_schedule_result(
+        &result,
+        &strategy,
+        auth.user_id,
+        &auth.username,
+        None,
+    ).await?;
 
-    let response = AutoScheduleResultResponse {
-        total_orders: result.total_orders,
-        scheduled_orders: result.scheduled_orders,
-        unscheduled_orders: result.unscheduled_orders,
-        conflicts: result
-            .conflicts
-            .into_iter()
-            .map(|c| ConflictResponse {
-                conflict_type: c.conflict_type,
-                order_id: c.order_id,
-                order_no: c.order_no,
-                conflicting_order_id: c.conflicting_order_id,
-                conflicting_order_no: c.conflicting_order_no,
-                work_center_id: c.work_center_id,
-                description: c.description,
-                severity: c.severity,
-            })
-            .collect(),
-        gantt_data,
-        schedule_details: result
-            .schedule_details
-            .into_iter()
-            .map(|d| ScheduleDetailResponse {
-                order_id: d.order_id,
-                order_no: d.order_no,
-                work_center_id: d.work_center_id,
-                work_center_name: d.work_center_name,
-                start_date: d.start_date,
-                end_date: d.end_date,
-                status: d.status,
-            })
-            .collect(),
-    };
+    let response = serde_json::json!({
+        "id": saved_result.id,
+        "batch_no": saved_result.batch_no,
+        "total_orders": result.total_orders,
+        "scheduled_orders": result.scheduled_orders,
+        "unscheduled_orders": result.unscheduled_orders,
+        "conflicts": result.conflicts,
+        "gantt_data": result.gantt_data,
+        "schedule_details": result.schedule_details,
+    });
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -388,5 +337,99 @@ pub async fn list_scheduled_orders(
         total,
         query.page.unwrap_or(1),
         query.page_size.unwrap_or(20),
+    )))
+}
+
+/// 排程历史查询参数
+#[derive(Debug, Deserialize)]
+pub struct ScheduleHistoryQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// 排程历史响应
+#[derive(Debug, Serialize)]
+pub struct ScheduleHistoryResponse {
+    pub id: i32,
+    pub batch_no: String,
+    pub strategy: String,
+    pub status: String,
+    pub total_orders: i32,
+    pub scheduled_orders: i32,
+    pub unscheduled_orders: i32,
+    pub conflict_count: i32,
+    pub schedule_start_date: NaiveDate,
+    pub schedule_end_date: NaiveDate,
+    pub created_by_name: Option<String>,
+    pub remarks: Option<String>,
+    pub created_at: String,
+}
+
+/// 获取排程历史记录
+pub async fn get_schedule_history(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(query): Query<ScheduleHistoryQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SchedulingService::new(state.db.clone());
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+
+    let (items, total) = service.get_schedule_history(page, page_size).await?;
+
+    let response: Vec<ScheduleHistoryResponse> = items
+        .into_iter()
+        .map(|item| ScheduleHistoryResponse {
+            id: item.id,
+            batch_no: item.batch_no,
+            strategy: item.strategy,
+            status: item.status,
+            total_orders: item.total_orders,
+            scheduled_orders: item.scheduled_orders,
+            unscheduled_orders: item.unscheduled_orders,
+            conflict_count: item.conflict_count,
+            schedule_start_date: item.schedule_start_date,
+            schedule_end_date: item.schedule_end_date,
+            created_by_name: item.created_by_name,
+            remarks: item.remarks,
+            created_at: item.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": response,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
+}
+
+/// 获取排程结果详情
+pub async fn get_schedule_result(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SchedulingService::new(state.db.clone());
+
+    let result = service.get_schedule_result(id).await?;
+    match result {
+        Some(model) => Ok(Json(ApiResponse::success(serde_json::to_value(model)?))),
+        None => Err(AppError::NotFound("排程结果不存在".to_string())),
+    }
+}
+
+/// 确认排程结果
+pub async fn confirm_schedule_result(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SchedulingService::new(state.db.clone());
+
+    let result = service.confirm_schedule_result(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "排程结果已确认",
     )))
 }

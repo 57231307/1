@@ -1,0 +1,255 @@
+//! 邮件发送记录 Service
+//!
+//! 提供邮件发送记录的持久化和查询功能
+
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
+};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+use sea_orm::DatabaseConnection;
+
+use crate::models::email_log::{
+    ActiveModel, Entity as EmailLogEntity, Model as EmailLogModel,
+};
+use crate::utils::error::AppError;
+
+/// 创建邮件发送记录请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateEmailLogRequest {
+    pub user_id: Option<i32>,
+    pub recipients: Vec<String>,
+    pub cc: Option<Vec<String>>,
+    pub bcc: Option<Vec<String>>,
+    pub subject: String,
+    pub body: Option<String>,
+    pub template_id: Option<i32>,
+}
+
+/// 邮件发送记录查询参数
+#[derive(Debug, Clone, Deserialize)]
+pub struct EmailLogQuery {
+    pub status: Option<String>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub keyword: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// 邮件发送记录 Service
+pub struct EmailLogService {
+    db: Arc<DatabaseConnection>,
+}
+
+impl EmailLogService {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
+
+    /// 创建邮件发送记录
+    pub async fn create(
+        &self,
+        tenant_id: i32,
+        req: CreateEmailLogRequest,
+    ) -> Result<EmailLogModel, AppError> {
+        let now = Utc::now();
+        let active_model = ActiveModel {
+            id: Default::default(),
+            tenant_id: Set(tenant_id),
+            user_id: Set(req.user_id),
+            recipients: Set(req.recipients.join(",")),
+            cc: Set(req.cc.map(|v| v.join(","))),
+            bcc: Set(req.bcc.map(|v| v.join(","))),
+            subject: Set(req.subject),
+            body: Set(req.body),
+            template_id: Set(req.template_id),
+            status: Set("PENDING".to_string()),
+            error_message: Set(None),
+            external_message_id: Set(None),
+            sent_at: Set(None),
+            retry_count: Set(0),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+
+        let model = active_model
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(model)
+    }
+
+    /// 更新邮件发送状态
+    pub async fn update_status(
+        &self,
+        id: i32,
+        status: &str,
+        error_message: Option<String>,
+        external_message_id: Option<String>,
+    ) -> Result<EmailLogModel, AppError> {
+        let model = EmailLogEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("邮件记录不存在".to_string()))?;
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set(status.to_string());
+        active_model.error_message = Set(error_message);
+        active_model.external_message_id = Set(external_message_id);
+        active_model.updated_at = Set(Utc::now());
+
+        if status == "SENT" {
+            active_model.sent_at = Set(Some(Utc::now()));
+        }
+
+        let updated = active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(updated)
+    }
+
+    /// 增加重试次数
+    pub async fn increment_retry(&self, id: i32) -> Result<(), AppError> {
+        let model = EmailLogEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("邮件记录不存在".to_string()))?;
+
+        let retry_count = model.retry_count + 1;
+        let mut active_model: ActiveModel = model.into();
+        active_model.retry_count = Set(retry_count);
+        active_model.status = Set("PENDING".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        active_model
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 获取邮件发送记录详情
+    pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
+        let model = EmailLogEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(model)
+    }
+
+    /// 查询邮件发送记录列表
+    pub async fn list(
+        &self,
+        tenant_id: i32,
+        query: EmailLogQuery,
+    ) -> Result<(Vec<EmailLogModel>, u64), AppError> {
+        let page = query.page.unwrap_or(1);
+        let page_size = query.page_size.unwrap_or(20);
+
+        let mut select = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id));
+
+        if let Some(status) = query.status {
+            select = select.filter(crate::models::email_log::Column::Status.eq(status));
+        }
+
+        if let Some(keyword) = query.keyword {
+            select = select.filter(
+                crate::models::email_log::Column::Subject
+                    .contains(&keyword)
+                    .or(crate::models::email_log::Column::Recipients.contains(&keyword)),
+            );
+        }
+
+        let total = select
+            .clone()
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let items = select
+            .order_by_desc(crate::models::email_log::Column::CreatedAt)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page - 1)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok((items, total))
+    }
+
+    /// 获取待重试的邮件列表
+    pub async fn get_pending_retries(
+        &self,
+        max_retries: i32,
+    ) -> Result<Vec<EmailLogModel>, AppError> {
+        let items = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::Status.eq("PENDING"))
+            .filter(crate::models::email_log::Column::RetryCount.lt(max_retries))
+            .order_by_asc(crate::models::email_log::Column::CreatedAt)
+            .all(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(items)
+    }
+
+    /// 获取发送统计
+    pub async fn get_statistics(
+        &self,
+        tenant_id: i32,
+    ) -> Result<EmailStatistics, AppError> {
+        let total = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let sent = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
+            .filter(crate::models::email_log::Column::Status.eq("SENT"))
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let failed = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
+            .filter(crate::models::email_log::Column::Status.eq("FAILED"))
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let pending = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
+            .filter(crate::models::email_log::Column::Status.eq("PENDING"))
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(EmailStatistics {
+            total: total as i64,
+            sent: sent as i64,
+            failed: failed as i64,
+            pending: pending as i64,
+        })
+    }
+}
+
+/// 邮件发送统计
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmailStatistics {
+    pub total: i64,
+    pub sent: i64,
+    pub failed: i64,
+    pub pending: i64,
+}
