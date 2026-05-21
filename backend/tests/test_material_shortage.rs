@@ -104,4 +104,7 @@ mod tests {
             priority_order(&a.priority).cmp(&priority_order(&b.priority))
         });
 
-        assert_eq!(suggestions[0].priority, "U
+        assert_eq!(suggestions[0].priority, "URGENT");
+        assert_eq!(suggestions[1].priority, "LOW");
+    }
+}
