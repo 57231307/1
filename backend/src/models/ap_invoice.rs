@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 // 应付单 Entity
 // =====================================================
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "ap_invoice")]
+#[sea_orm(table_name = "ap_invoices")]
 pub struct Model {
     /// 主键 ID
     #[sea_orm(primary_key)]

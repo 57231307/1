@@ -51,4 +51,8 @@ cors:
     - "http://127.0.0.1:3000"
     - "https://3000-6e8e9218ecb12940.monkeycode-ai.online"
 
+redis:
+  url: "redis://127.0.0.1:6379"
+  max_connections: 10
+
 env: "development"

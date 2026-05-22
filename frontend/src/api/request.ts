@@ -21,6 +21,7 @@ export interface ApiResponse<T = unknown> {
   code: number
   message?: string
   data: T
+  total?: number
 }
 
 export interface PageResult<T = unknown> {

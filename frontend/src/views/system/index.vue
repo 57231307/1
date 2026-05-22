@@ -385,7 +385,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { listUsers, createUser, updateUser, deleteUser as deleteUserApi, type User } from '@/api/user'
-import { listRoles, createRole, updateRole, deleteRole as deleteRoleApi, getRolePermissions, assignPermission, type Role } from '@/api/role'
+import { listRoles, createRole, updateRole, deleteRole as deleteRoleApi, getRolePermissions, assignPermission, listPermissions, type Role, type Permission } from '@/api/role'
 import { createDepartment, updateDepartment, deleteDepartment as deleteDeptApi, getDepartmentTree, type Department } from '@/api/department'
 
 const activeTab = ref('user')
@@ -409,8 +409,8 @@ const fetchUsers = async () => {
   userLoading.value = true
   try {
     const res = await listUsers(userQuery)
-    users.value = res.data! || []
-    userTotal.value = res.total || 0
+    users.value = res.data?.list || []
+    userTotal.value = res.data?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取用户列表失败')
   } finally {
@@ -680,14 +680,38 @@ const permissionLoading = ref(false)
 const fetchRolePermissions = async (roleId: number) => {
   permissionLoading.value = true
   try {
+    // 获取所有权限树
+    const treeRes = await listPermissions()
+    permissionTree.value = buildPermissionTree(treeRes.data || [])
+    
     // 获取角色已有的权限
-    const roleRes: any = await getRolePermissions(roleId)
-    checkedPermissions.value = roleRes.data || []
+    const roleRes = await getRolePermissions(roleId)
+    checkedPermissions.value = (roleRes.data || []).map((p: Permission) => p.id)
   } catch (error) {
     console.error('获取权限失败:', error)
   } finally {
     permissionLoading.value = false
   }
+}
+
+const buildPermissionTree = (permissions: Permission[]): any[] => {
+  const map = new Map<number, any>()
+  const tree: any[] = []
+  
+  permissions.forEach(p => {
+    map.set(p.id, { ...p, children: [] })
+  })
+  
+  permissions.forEach(p => {
+    const node = map.get(p.id)!
+    if (p.parent_id && map.has(p.parent_id)) {
+      map.get(p.parent_id)!.children.push(node)
+    } else {
+      tree.push(node)
+    }
+  })
+  
+  return tree
 }
 
 const submitPermissions = async () => {

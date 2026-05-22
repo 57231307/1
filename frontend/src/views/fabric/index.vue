@@ -149,7 +149,7 @@
         </el-form-item>
         <el-form-item label="供应商" prop="supplier_id">
           <el-select v-model="greigeForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-            <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="幅宽" prop="width">

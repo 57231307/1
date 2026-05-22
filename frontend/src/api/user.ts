@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import type { ApiResponse, QueryParams, PageResult } from '@/types/api'
 
 export interface User {
   id: number
@@ -40,7 +40,7 @@ export interface ChangePasswordRequest {
   new_password: string
 }
 
-export function listUsers(params?: QueryParams): Promise<ApiResponse<User[]>> {
+export function listUsers(params?: QueryParams): Promise<ApiResponse<PageResult<User>>> {
   return request.get('/users', { params })
 }
 

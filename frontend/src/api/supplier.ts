@@ -5,17 +5,37 @@ export interface Supplier {
   id: number
   supplier_code: string
   supplier_name: string
-  name: string
-  contact_person?: string
-  phone?: string
+  supplier_short_name?: string
+  supplier_type?: string
+  credit_code?: string
+  registered_address?: string
+  business_address?: string
+  legal_representative?: string
+  registered_capital?: number
+  establishment_date?: string
+  business_term?: string
+  business_scope?: string
+  taxpayer_type?: string
+  bank_name?: string
+  bank_account?: string
+  contact_phone?: string
+  fax?: string
+  website?: string
   email?: string
-  address?: string
-  category?: string
+  main_business?: string
+  main_market?: string
+  employee_count?: number
+  annual_revenue?: number
   grade?: string
+  grade_score?: number
+  last_evaluation_date?: string
   status: string
-  payment_terms?: string
-  lead_time?: number
+  is_enabled?: boolean
+  assist_batch?: boolean
+  assist_supplier?: boolean
+  remarks?: string
   created_at?: string
+  updated_at?: string
 }
 
 export function listSuppliers(params?: SupplierQueryParams): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {

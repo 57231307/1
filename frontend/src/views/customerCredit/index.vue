@@ -12,26 +12,24 @@
       </div>
       
       <el-table :data="creditList" border stripe>
-        <el-table-column prop="customerName" label="客户名称" />
-        <el-table-column prop="creditLevel" label="信用等级">
+        <el-table-column prop="customer_name" label="客户名称" />
+        <el-table-column prop="credit_rating" label="信用等级">
           <template #default="{ row }">
-            <el-tag v-if="row.creditLevel === 'AAA'" type="success">AAA</el-tag>
-            <el-tag v-else-if="row.creditLevel === 'AA'" type="success">AA</el-tag>
-            <el-tag v-else-if="row.creditLevel === 'A'" type="success">A</el-tag>
-            <el-tag v-else-if="row.creditLevel === 'BBB'" type="warning">BBB</el-tag>
-            <el-tag v-else-if="row.creditLevel === 'BB'" type="warning">BB</el-tag>
-            <el-tag v-else-if="row.creditLevel === 'B'" type="warning">B</el-tag>
-            <el-tag v-else type="danger">{{ row.creditLevel || '-' }}</el-tag>
+            <el-tag v-if="row.credit_rating === 'AAA'" type="success">AAA</el-tag>
+            <el-tag v-else-if="row.credit_rating === 'AA'" type="success">AA</el-tag>
+            <el-tag v-else-if="row.credit_rating === 'A'" type="success">A</el-tag>
+            <el-tag v-else-if="row.credit_rating === 'BBB'" type="warning">BBB</el-tag>
+            <el-tag v-else-if="row.credit_rating === 'BB'" type="warning">BB</el-tag>
+            <el-tag v-else-if="row.credit_rating === 'B'" type="warning">B</el-tag>
+            <el-tag v-else type="danger">{{ row.credit_rating || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="creditScore" label="信用分" />
-        <el-table-column prop="creditLimit" label="信用额度" />
-        <el-table-column prop="creditDays" label="账期(天)" />
-        <el-table-column prop="usedAmount" label="已用额度" />
-        <el-table-column prop="availableAmount" label="可用额度">
+        <el-table-column prop="credit_limit" label="信用额度" />
+        <el-table-column prop="used_credit" label="已用额度" />
+        <el-table-column prop="available_credit" label="可用额度">
           <template #default="{ row }">
-            <span :style="{ color: row.availableAmount && row.availableAmount > 0 ? '#67c23a' : '#f56c6c' }">
-              {{ row.availableAmount }}
+            <span :style="{ color: row.available_credit && row.available_credit > 0 ? '#67c23a' : '#f56c6c' }">
+              {{ row.available_credit }}
             </span>
           </template>
         </el-table-column>
@@ -55,8 +53,10 @@
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.page_size"
         :total="pagination.total"
-        layout="total, prev, pager, next, jumper"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next, jumper"
         @current-change="fetchCredits"
+        @size-change="handleSizeChange"
       />
     </el-card>
     
@@ -212,17 +212,22 @@ const amountRules = {
 
 const fetchCredits = async () => {
   try {
-    const res: any = await listCredits({
+    const res = await listCredits({
       page: pagination.page,
       page_size: pagination.page_size
-    } as any)
+    }) as { data?: { list: CustomerCredit[]; total: number } }
     if (res.data) {
-      creditList.value = res.data!.list || res.data! || []
-      pagination.total = res.data!.total || res.data?.length || 0
+      creditList.value = res.data.list || []
+      pagination.total = res.data.total || 0
     }
   } catch (e) {
     ElMessage.error('获取信用列表失败')
   }
+}
+
+const handleSizeChange = () => {
+  pagination.page = 1
+  fetchCredits()
 }
 
 const handleSetRating = () => {
@@ -238,7 +243,11 @@ const handleSaveRating = async () => {
     
     submitLoading.value = true
     try {
-      await setCreditRating(ratingForm.customer_id as number, ratingForm as any)
+      await setCreditRating(ratingForm.customer_id as number, {
+        rating: ratingForm.creditLevel,
+        credit_limit: ratingForm.creditLimit,
+        reason: ratingForm.remark
+      })
       ElMessage.success('设置成功')
       ratingDialogVisible.value = false
       fetchCredits()
@@ -251,8 +260,8 @@ const handleSaveRating = async () => {
 }
 
 const handleAdjustLimit = (row: CustomerCredit) => {
-  if (!row.customer_id) return
-  currentCustomerId.value = row.customer_id
+  if (!row.id) return
+  currentCustomerId.value = row.id
   Object.assign(adjustForm, { adjustmentType: 'increase', amount: 0, reason: '' })
   adjustDialogVisible.value = true
 }
@@ -265,7 +274,11 @@ const handleSaveAdjust = async () => {
     
     submitLoading.value = true
     try {
-      await adjustCreditLimit(currentCustomerId.value!, adjustForm as any)
+      await adjustCreditLimit(currentCustomerId.value!, {
+        type: adjustForm.adjustmentType as 'increase' | 'decrease',
+        amount: adjustForm.amount,
+        reason: adjustForm.reason
+      })
       ElMessage.success('调整成功')
       adjustDialogVisible.value = false
       fetchCredits()
@@ -278,16 +291,16 @@ const handleSaveAdjust = async () => {
 }
 
 const handleOccupy = (row: CustomerCredit) => {
-  if (!row.customer_id) return
-  currentCustomerId.value = row.customer_id
+  if (!row.id) return
+  currentCustomerId.value = row.id
   amountOperationType.value = 'occupy'
   Object.assign(amountForm, { amount: 0 })
   amountDialogVisible.value = true
 }
 
 const handleRelease = (row: CustomerCredit) => {
-  if (!row.customer_id) return
-  currentCustomerId.value = row.customer_id
+  if (!row.id) return
+  currentCustomerId.value = row.id
   amountOperationType.value = 'release'
   Object.assign(amountForm, { amount: 0 })
   amountDialogVisible.value = true
@@ -301,8 +314,15 @@ const handleSaveAmount = async () => {
     
     submitLoading.value = true
     try {
-      const action = amountOperationType.value === 'occupy' ? occupyCredit : releaseCredit
-      await action(currentCustomerId.value!, amountForm as any)
+      if (amountOperationType.value === 'occupy') {
+        await occupyCredit(currentCustomerId.value!, {
+          amount: amountForm.amount,
+          business_type: 'manual',
+          business_id: 0
+        })
+      } else {
+        await releaseCredit(currentCustomerId.value!, 0)
+      }
       ElMessage.success('操作成功')
       amountDialogVisible.value = false
       fetchCredits()
@@ -315,7 +335,7 @@ const handleSaveAmount = async () => {
 }
 
 const handleDeactivate = async (row: CustomerCredit) => {
-  if (!row.customer_id) return
+  if (!row.id) return
   
   try {
     await ElMessageBox.confirm('确认停用该客户信用？', '提示', {
@@ -324,7 +344,7 @@ const handleDeactivate = async (row: CustomerCredit) => {
       type: 'warning'
     })
     
-    await deactivateCredit(row.customer_id)
+    await deactivateCredit(row.id)
     ElMessage.success('停用成功')
     fetchCredits()
   } catch (e: any) {

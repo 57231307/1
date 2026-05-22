@@ -233,7 +233,7 @@
           <el-col :span="12">
             <el-form-item label="客户" prop="customer_id">
               <el-select v-model="invoiceForm.customer_id" placeholder="选择客户" style="width: 100%">
-                <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -281,7 +281,7 @@
       <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px">
         <el-form-item label="客户">
           <el-select v-model="reconciliationForm.customer_id" placeholder="选择客户" style="width: 100%">
-            <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+            <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="对账日期">
@@ -455,7 +455,8 @@ const fetchFunds = async () => {
 const fetchCustomers = async () => {
   try {
     const res = await listCustomers()
-    customers.value = res.data!.list || []
+    const d = res.data as any
+    customers.value = d?.list || d?.data || []
   } catch (error: any) {
     console.error('获取客户列表失败:', error)
   }

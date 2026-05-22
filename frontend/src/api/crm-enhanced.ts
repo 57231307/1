@@ -165,6 +165,18 @@ const crmEnhancedApi = {
   getCustomerDetail: (id: number) =>
     request.get<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`),
 
+  // 创建客户
+  createCustomer: (data: Partial<CustomerWithTags>) =>
+    request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data),
+
+  // 更新客户
+  updateCustomer: (id: number, data: Partial<CustomerWithTags>) =>
+    request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data),
+
+  // 删除客户
+  deleteCustomer: (id: number) =>
+    request.delete<ApiResponse<void>>(`/crm/customers/enhanced/${id}`),
+
   // 客户 360 视图
   getCustomer360: (id: number) =>
     request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`),
