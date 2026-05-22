@@ -455,7 +455,8 @@ const fetchFunds = async () => {
 const fetchCustomers = async () => {
   try {
     const res = await listCustomers()
-    customers.value = res.data!.list || []
+    const d = res.data as any
+    customers.value = d?.list || d?.data || []
   } catch (error: any) {
     console.error('获取客户列表失败:', error)
   }

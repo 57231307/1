@@ -480,7 +480,8 @@ const fetchReconciliations = async () => {
 const fetchSuppliers = async () => {
   try {
     const res = await listSuppliers()
-    suppliers.value = res.data!.list || []
+    const d = res.data as any
+    suppliers.value = d?.list || d?.data || []
   } catch (error: any) {
     console.error('获取供应商列表失败:', error)
   }
