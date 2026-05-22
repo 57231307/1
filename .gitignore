@@ -61,3 +61,27 @@ logs/
 .vscode/
 *.swp
 *.swo
+
+# 测试报告和修复报告
+test_report_*.md
+fix_report_*.md
+fix_*.md
+final_*.md
+COMPREHENSIVE_*.md
+FINAL_*.md
+HISTORICAL_*.md
+MAINTENANCE_*.md
+test_comprehensive.md
+
+# 测试脚本
+test_*.sh
+final_test_*.sh
+comprehensive_test.sh
+
+# 前端测试脚本
+frontend/comprehensive_test.js
+frontend/check_console_errors.js
+
+# 后端测试脚本
+backend/test_*.sh
+backend/fix_*.sql
