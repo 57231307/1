@@ -1,6 +1,6 @@
 #!/bin/bash
-# 秉羲ERP系统部署脚本
-# 用途：在服务器上部署系统
+# 秉羲 ERP 系统部署脚本
+# 用途：在服务器上部署系统 (全新部署 / 更新部署)
 
 set -e
 
@@ -9,217 +9,512 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-APP_NAME="bingxi-erp"
+# 路径配置
+APP_NAME="bingxi-backend"
 DEPLOY_DIR="/opt/bingxi-erp"
-BACKUP_DIR="/opt/bingxi-erp/backups"
-LOG_DIR="/var/log/bingxi-erp"
+BACKEND_DIR="$DEPLOY_DIR/backend"
+FRONTEND_DIR="/opt/bingxi/frontend/dist"
 CONFIG_DIR="/etc/bingxi"
+BACKUP_DIR="$DEPLOY_DIR/backups"
+LOG_DIR="$DEPLOY_DIR/backend/logs"
+ENV_FILE="$CONFIG_DIR/.env"
+CONFIG_FILE="$BACKEND_DIR/config.yaml"
 
-# 日志文件
-DEPLOY_LOG="/var/log/bingxi-erp/deploy.log"
+log() { echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"; }
+warn() { echo -e "${YELLOW}[$(date '+%H:%M:%S')]${NC} $1"; }
+error() { echo -e "${RED}[$(date '+%H:%M:%S')]${NC} $1"; exit 1; }
 
-# 创建日志目录和文件
-mkdir -p $(dirname $DEPLOY_LOG)
-touch $DEPLOY_LOG
-
-# 日志函数
-log() {
-    local level=$1
-    local message=$2
-    local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    
-    case $level in
-        "INFO")
-            echo -e "${BLUE}[INFO]${NC} $timestamp - $message"
-            echo "[INFO] $timestamp - $message" >> $DEPLOY_LOG
-            ;;
-        "SUCCESS")
-            echo -e "${GREEN}[SUCCESS]${NC} $timestamp - $message"
-            echo "[SUCCESS] $timestamp - $message" >> $DEPLOY_LOG
-            ;;
-        "WARNING")
-            echo -e "${YELLOW}[WARNING]${NC} $timestamp - $message"
-            echo "[WARNING] $timestamp - $message" >> $DEPLOY_LOG
-            ;;
-        "ERROR")
-            echo -e "${RED}[ERROR]${NC} $timestamp - $message"
-            echo "[ERROR] $timestamp - $message" >> $DEPLOY_LOG
-            ;;
-        *)
-            echo -e "[UNKNOWN] $timestamp - $message"
-            echo "[UNKNOWN] $timestamp - $message" >> $DEPLOY_LOG
-            ;;
-    esac
-}
-
-# 检查命令是否存在
-check_command() {
-    local cmd=$1
-    if ! command -v $cmd &> /dev/null; then
-        log "ERROR" "命令 $cmd 不存在，请安装"
-        exit 1
+# 检查是否 root
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        error "请使用 root 权限运行此脚本"
     fi
 }
 
-# 检查服务状态
-check_service() {
-    local service=$1
-    local max_attempts=30
+# 停止所有旧服务
+stop_old_services() {
+    log "停止旧服务..."
+    systemctl stop bingxi 2>/dev/null || true
+    systemctl stop bingxi-backend 2>/dev/null || true
+    systemctl disable bingxi 2>/dev/null || true
+    sleep 2
+
+    # 杀死占用端口的进程
+    local pid=$(ss -tlnp | grep :8082 | grep -oP 'pid=\K[0-9]+' | head -1)
+    if [ -n "$pid" ]; then
+        warn "杀死占用 8082 端口的进程: $pid"
+        kill -9 "$pid" 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+# 备份当前版本
+backup_current() {
+    if [ -f "$BACKEND_DIR/server" ]; then
+        log "备份当前版本..."
+        local backup_name="backup_$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$BACKUP_DIR/$backup_name"
+        cp -r "$BACKEND_DIR" "$BACKUP_DIR/$backup_name/"
+        cp -r "$FRONTEND_DIR" "$BACKUP_DIR/$backup_name/frontend_dist" 2>/dev/null || true
+        [ -f "$ENV_FILE" ] && cp "$ENV_FILE" "$BACKUP_DIR/$backup_name/"
+        log "备份已保存到: $BACKUP_DIR/$backup_name"
+
+        # 只保留最近 5 个备份
+        ls -dt "$BACKUP_DIR"/backup_* 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null || true
+    fi
+}
+
+# 创建目录结构
+create_dirs() {
+    log "创建目录结构..."
+    mkdir -p "$BACKEND_DIR"
+    mkdir -p "$FRONTEND_DIR"
+    mkdir -p "$CONFIG_DIR"
+    mkdir -p "$BACKUP_DIR"
+    mkdir -p "$LOG_DIR"
+}
+
+# 部署后端
+deploy_backend() {
+    log "部署后端..."
+    if [ -f "/tmp/bingxi-deploy/backend/server" ]; then
+        cp /tmp/bingxi-deploy/backend/server "$BACKEND_DIR/"
+        cp /tmp/bingxi-deploy/backend/bingxi "$BACKEND_DIR/" 2>/dev/null || true
+        chmod +x "$BACKEND_DIR/server" "$BACKEND_DIR/bingxi" 2>/dev/null || true
+        log "后端二进制文件部署完成"
+    elif [ -f "backend/server" ]; then
+        cp backend/server "$BACKEND_DIR/"
+        cp backend/bingxi "$BACKEND_DIR/" 2>/dev/null || true
+        chmod +x "$BACKEND_DIR/server" "$BACKEND_DIR/bingxi" 2>/dev/null || true
+        log "后端二进制文件部署完成"
+    else
+        error "找不到后端可执行文件"
+    fi
+}
+
+# 部署前端
+deploy_frontend() {
+    log "部署前端..."
+    if [ -d "/tmp/bingxi-deploy/frontend/dist" ]; then
+        rm -rf "$FRONTEND_DIR"/*
+        cp -r /tmp/bingxi-deploy/frontend/dist/* "$FRONTEND_DIR/"
+    elif [ -d "frontend/dist" ]; then
+        rm -rf "$FRONTEND_DIR"/*
+        cp -r frontend/dist/* "$FRONTEND_DIR/"
+    else
+        error "找不到前端构建文件"
+    fi
+    chown -R www-data:www-data "$FRONTEND_DIR"
+    log "前端文件部署完成"
+}
+
+# 生成 config.yaml
+generate_config() {
+    log "生成 config.yaml..."
+
+    # 如果 .env 不存在，从模板创建
+    if [ ! -f "$ENV_FILE" ]; then
+        if [ -f "/tmp/bingxi-deploy/backend/.env.example" ]; then
+            cp /tmp/bingxi-deploy/backend/.env.example "$ENV_FILE"
+            warn "已创建 .env 配置文件，请根据实际情况修改数据库配置"
+        elif [ -f "backend/.env.example" ]; then
+            cp backend/.env.example "$ENV_FILE"
+            warn "已创建 .env 配置文件，请根据实际情况修改数据库配置"
+        fi
+    fi
+
+    # 从 .env 读取配置
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+
+        local DB_HOST="${DATABASE__HOST:-localhost}"
+        local DB_PORT="${DATABASE__PORT:-5432}"
+        local DB_NAME="${DATABASE__NAME:-bingxi}"
+        local DB_USER="${DATABASE__USERNAME:-bingxi}"
+        local DB_PASS="${DATABASE__PASSWORD:-bingxi123}"
+        local JWT="${JWT_SECRET:-default_jwt_secret_at_least_32_bytes}"
+        local COOKIE="${COOKIE_SECRET:-default_cookie_secret_at_least_32_bytes}"
+        local REDIS_URL="${REDIS__URL:-redis://127.0.0.1:6379}"
+        local REDIS_MAX="${REDIS__MAX_CONNECTIONS:-10}"
+
+        local CONN_STR="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+
+        cat > "$CONFIG_FILE" << EOF
+server:
+  host: "0.0.0.0"
+  port: "8082"
+
+database:
+  connection_string: "${CONN_STR}"
+  host: "${DB_HOST}"
+  port: ${DB_PORT}
+  name: "${DB_NAME}"
+  username: "${DB_USER}"
+  password: "${DB_PASS}"
+  max_connections: 50
+  min_connections: 5
+  ssl_mode: "disable"
+
+auth:
+  jwt_secret: "${JWT}"
+  cookie_secret: "${COOKIE}"
+  token_expiry_hours: 24
+
+grpc:
+  host: "0.0.0.0"
+  port: 50051
+
+log:
+  level: "info"
+  dir: "${LOG_DIR}"
+
+cors:
+  allowed_origins:
+    - "http://localhost"
+    - "http://127.0.0.1"
+
+redis:
+  url: "${REDIS_URL}"
+  max_connections: ${REDIS_MAX}
+
+env: "production"
+EOF
+        log "config.yaml 生成完成"
+    else
+        warn ".env 文件不存在，跳过 config.yaml 生成"
+    fi
+}
+
+# 执行数据库迁移
+run_migrations() {
+    log "执行数据库迁移..."
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+        local DB_HOST="${DATABASE__HOST:-localhost}"
+        local DB_PORT="${DATABASE__PORT:-5432}"
+        local DB_NAME="${DATABASE__NAME:-bingxi}"
+        local DB_USER="${DATABASE__USERNAME:-bingxi}"
+        local DB_PASS="${DATABASE__PASSWORD:-bingxi123}"
+
+        local migration_dir=""
+        if [ -d "/tmp/bingxi-deploy/database/migration" ]; then
+            migration_dir="/tmp/bingxi-deploy/database/migration"
+        elif [ -d "database/migration" ]; then
+            migration_dir="database/migration"
+        fi
+
+        if [ -n "$migration_dir" ]; then
+            for f in "$migration_dir"/*.sql; do
+                if [ -f "$f" ]; then
+                    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$f" 2>/dev/null || true
+                fi
+            done
+            log "数据库迁移完成"
+        fi
+    fi
+}
+
+# 安装 systemd 服务
+install_service() {
+    log "安装 systemd 服务..."
+    if [ -f "/tmp/bingxi-deploy/deploy/bingxi-backend.service" ]; then
+        cp /tmp/bingxi-deploy/deploy/bingxi-backend.service /etc/systemd/system/
+    elif [ -f "deploy/bingxi-backend.service" ]; then
+        cp deploy/bingxi-backend.service /etc/systemd/system/
+    fi
+    systemctl daemon-reload
+    systemctl enable "$APP_NAME"
+    log "服务安装完成"
+}
+
+# 配置 Nginx
+configure_nginx() {
+    log "配置 Nginx..."
+    local nginx_conf=""
+    if [ -f "/tmp/bingxi-deploy/deploy/nginx.conf" ]; then
+        nginx_conf="/tmp/bingxi-deploy/deploy/nginx.conf"
+    elif [ -f "deploy/nginx.conf" ]; then
+        nginx_conf="deploy/nginx.conf"
+    fi
+
+    if [ -n "$nginx_conf" ]; then
+        cp "$nginx_conf" /etc/nginx/sites-available/bingxi-erp
+        ln -sf /etc/nginx/sites-available/bingxi-erp /etc/nginx/sites-enabled/
+        rm -f /etc/nginx/sites-enabled/default
+
+        if nginx -t 2>/dev/null; then
+            systemctl reload nginx
+            log "Nginx 配置完成"
+        else
+            warn "Nginx 配置测试失败，跳过"
+        fi
+    fi
+}
+
+# 启动服务
+start_service() {
+    log "启动后端服务..."
+    systemctl start "$APP_NAME"
+    sleep 3
+}
+
+# 健康检查
+health_check() {
+    log "执行健康检查..."
+    local max_attempts=10
     local attempt=1
-    
-    log "INFO" "检查服务 $service 状态..."
-    
+
     while [ $attempt -le $max_attempts ]; do
-        if systemctl is-active --quiet $service; then
-            log "SUCCESS" "服务 $service 运行正常"
+        local response=$(curl -s http://127.0.0.1:8082/api/v1/erp/health 2>/dev/null)
+        if echo "$response" | grep -q '"status":"healthy"'; then
+            log "健康检查通过"
             return 0
         fi
-        
-        log "INFO" "服务 $service 正在启动中... (尝试 $attempt/$max_attempts)"
         sleep 2
         attempt=$((attempt + 1))
     done
-    
-    log "ERROR" "服务 $service 启动失败"
+
+    warn "健康检查未通过，服务可能需要更多时间启动"
     return 1
 }
 
-# 主部署函数
-main() {
-    log "INFO" "========================================"
-    log "INFO" "  秉羲ERP系统部署脚本"
-    log "INFO" "========================================"
-    
-    # 检查必要命令
-    check_command "systemctl"
-    check_command "nginx"
-    check_command "tar"
-    
-    # 创建目录
-    log "INFO" "[1/8] 创建目录..."
-    mkdir -p $DEPLOY_DIR
-    mkdir -p $BACKUP_DIR
-    mkdir -p $LOG_DIR
-    mkdir -p $CONFIG_DIR
-    log "SUCCESS" "目录创建完成"
-    
-    # 备份当前版本
-    if [ -f "$DEPLOY_DIR/backend/server" ]; then
-        log "INFO" "[2/8] 备份当前版本..."
-        BACKUP_NAME="backup_$(date +%Y%m%d_%H%M%S)"
-        mkdir -p $BACKUP_DIR/$BACKUP_NAME
-        cp -r $DEPLOY_DIR/backend $BACKUP_DIR/$BACKUP_NAME/
-        cp -r $DEPLOY_DIR/frontend $BACKUP_DIR/$BACKUP_NAME/
-        if [ -f "$CONFIG_DIR/.env" ]; then
-            cp $CONFIG_DIR/.env $BACKUP_DIR/$BACKUP_NAME/
+# 回滚
+rollback() {
+    local latest_backup=$(ls -t "$BACKUP_DIR" 2>/dev/null | head -1)
+    if [ -n "$latest_backup" ]; then
+        warn "正在回滚到: $latest_backup"
+        systemctl stop "$APP_NAME" 2>/dev/null || true
+        cp -r "$BACKUP_DIR/$latest_backup/backend/"* "$BACKEND_DIR/"
+        if [ -d "$BACKUP_DIR/$latest_backup/frontend_dist" ]; then
+            rm -rf "$FRONTEND_DIR"/*
+            cp -r "$BACKUP_DIR/$latest_backup/frontend_dist/"* "$FRONTEND_DIR/"
         fi
-        log "SUCCESS" "备份已保存到: $BACKUP_DIR/$BACKUP_NAME"
+        systemctl start "$APP_NAME"
+        log "回滚完成"
     else
-        log "INFO" "[2/8] 无需备份（首次部署）"
+        error "没有可用的备份进行回滚"
     fi
-    
-    # 解压发布包
-    log "INFO" "[3/8] 解压发布包..."
-    if ls bingxi-erp-*.zip 1> /dev/null 2>&1; then
-        check_command "unzip"
-        unzip -o bingxi-erp-*.zip -d $DEPLOY_DIR
-        log "SUCCESS" "发布包解压完成"
-    elif ls bingxi-erp-*.tar.gz 1> /dev/null 2>&1; then
-        tar -xzvf bingxi-erp-*.tar.gz -C $DEPLOY_DIR
-        log "SUCCESS" "发布包解压完成"
-    else
-        log "ERROR" "找不到发布包 (支持 .zip 或 .tar.gz)"
-        exit 1
-    fi
-    
-    # 配置环境变量
-    log "INFO" "[4/8] 配置环境变量..."
-    if [ ! -f "$CONFIG_DIR/.env" ]; then
-        if [ -f "$DEPLOY_DIR/backend/.env.example" ]; then
-            cp $DEPLOY_DIR/backend/.env.example $CONFIG_DIR/.env
-            # 为了防止第一次启动直接崩溃，修改默认数据库配置为本地默认（假设装了 postgres）或提示
-            sed -i 's/DATABASE__HOST=.*/DATABASE__HOST=127.0.0.1/' $CONFIG_DIR/.env
-            sed -i 's/DATABASE__USERNAME=.*/DATABASE__USERNAME=postgres/' $CONFIG_DIR/.env
-            sed -i 's/DATABASE__PASSWORD=.*/DATABASE__PASSWORD=postgres/' $CONFIG_DIR/.env
-            sed -i 's/ENV=development/ENV=production/' $CONFIG_DIR/.env
-            log "SUCCESS" "环境配置文件已创建: $CONFIG_DIR/.env"
-            log "WARNING" "首次部署已使用默认本地数据库(postgres/postgres)，请务必修改配置后重启！"
-        else
-            log "WARNING" "未找到环境配置文件模板"
-        fi
-    else
-        log "INFO" "环境配置文件已存在"
-    fi
-    
-    # 设置权限
-    log "INFO" "[5/8] 设置权限..."
-    chmod +x $DEPLOY_DIR/backend/server
-    chown -R www-data:www-data $DEPLOY_DIR
-    chown -R www-data:www-data $LOG_DIR
-    chown -R www-data:www-data $CONFIG_DIR
-    chmod 750 $LOG_DIR
-    log "SUCCESS" "权限设置完成"
-    
-    # 配置 systemd 服务
-    log "INFO" "[6/8] 配置系统服务..."
-    cp $DEPLOY_DIR/deploy/bingxi-backend.service /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable bingxi-backend
-    systemctl restart bingxi-backend
-    log "SUCCESS" "系统服务配置完成"
-    
-    # 配置 Nginx
-    log "INFO" "[7/8] 配置 Nginx..."
-    cp $DEPLOY_DIR/deploy/nginx.conf /etc/nginx/sites-available/bingxi-erp
-    ln -sf /etc/nginx/sites-available/bingxi-erp /etc/nginx/sites-enabled/
-    # 确保没有默认的冲突配置
-    rm -f /etc/nginx/sites-enabled/default
-    if nginx -t; then
-        systemctl reload nginx
-        log "SUCCESS" "Nginx 配置完成"
-    else
-        log "ERROR" "Nginx 配置错误"
-        exit 1
-    fi
-    
-    # 检查服务状态
-    log "INFO" "[8/8] 检查服务状态..."
-    if check_service "bingxi-backend"; then
-        log "SUCCESS" "后端服务运行正常"
-    else
-        log "ERROR" "后端服务启动失败"
-        exit 1
-    fi
-    
-    if check_service "nginx"; then
-        log "SUCCESS" "Nginx 服务运行正常"
-    else
-        log "ERROR" "Nginx 服务启动失败"
-        exit 1
-    fi
-    
-    # 清理临时文件
-    log "INFO" "清理临时文件..."
-    rm -f bingxi-erp-*.tar.gz bingxi-erp-*.zip
-    log "SUCCESS" "临时文件清理完成"
-    
-    log "INFO" "========================================"
-    log "SUCCESS" "  部署完成！"
-    log "INFO" "========================================"
-    log "INFO" "后端服务状态: $(systemctl is-active bingxi-backend)"
-    log "INFO" "Nginx 服务状态: $(systemctl is-active nginx)"
-    log "INFO" "访问地址: http://$(hostname -I | awk '{print $1}')"
-    log "INFO" "日志目录: $LOG_DIR"
-    log "INFO" "部署日志: $DEPLOY_LOG"
-    log "INFO" ""
-    log "INFO" "常用命令："
-    log "INFO" "  查看后端状态：sudo systemctl status bingxi-backend"
-    log "INFO" "  查看 Nginx 状态：sudo systemctl status nginx"
-    log "INFO" "  查看后端日志：sudo journalctl -u bingxi-backend -f"
-    log "INFO" "  查看 Nginx 日志：sudo tail -f /var/log/nginx/error.log"
 }
 
-# 运行主函数
+# 安装 CLI 工具
+install_cli() {
+    log "安装 CLI 工具..."
+    local cli_path="/usr/local/bin/bingxi"
+
+    # 删除旧的 Rust CLI 二进制
+    rm -f "$cli_path"
+
+    cat > "$cli_path" << 'CLIEOF'
+#!/bin/bash
+# 秉羲 ERP 系统管理 CLI
+
+VERSION_FILE="/opt/bingxi-erp/VERSION"
+BACKUP_DIR="/opt/bingxi-erp/backups"
+SERVICE_NAME="bingxi-backend"
+
+MIRRORS=(
+    "https://ghp.ci/"
+    "https://gh-proxy.com/"
+    "https://ghproxy.net/"
+    "https://github.moeyy.xyz/"
+    "https://mirror.ghproxy.com/"
+    ""
+)
+
+show_menu() {
+    local ver=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+    echo ""
+    echo "=========================================="
+    echo "  秉羲 ERP 系统管理工具 v${ver}"
+    echo "=========================================="
+    echo ""
+    echo "  [1] 启动服务        [6] 更新系统"
+    echo "  [2] 停止服务        [7] 回滚版本"
+    echo "  [3] 重启服务        [8] 数据库迁移"
+    echo "  [4] 查看状态        [9] 健康检查"
+    echo "  [5] 查看日志        [0] 查看版本"
+    echo ""
+    echo "  [q] 退出"
+    echo ""
+    echo "=========================================="
+}
+
+download_with_mirror() {
+    local url=$1
+    local output=$2
+    for MIRROR in "${MIRRORS[@]}"; do
+        local full_url="${MIRROR}${url}"
+        if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o "$output" "$full_url" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+case "$1" in
+    1|start)
+        sudo systemctl start $SERVICE_NAME
+        sudo systemctl start nginx
+        echo "服务已启动"
+        ;;
+    2|stop)
+        sudo systemctl stop $SERVICE_NAME
+        sudo systemctl stop nginx
+        echo "服务已停止"
+        ;;
+    3|restart)
+        sudo systemctl restart $SERVICE_NAME
+        sudo systemctl restart nginx
+        echo "服务已重启"
+        ;;
+    4|status)
+        echo "--- 后端服务 ---"
+        sudo systemctl status $SERVICE_NAME --no-pager | head -8
+        echo ""
+        echo "--- Nginx 服务 ---"
+        sudo systemctl status nginx --no-pager | head -5
+        ;;
+    5|logs)
+        sudo journalctl -u $SERVICE_NAME -f --no-pager
+        ;;
+    6|update)
+        echo "开始更新..."
+        UPDATE_SCRIPT="/tmp/bingxi-update.sh"
+        UPDATE_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+        if download_with_mirror "$UPDATE_URL" "$UPDATE_SCRIPT"; then
+            sudo bash "$UPDATE_SCRIPT" update
+            rm -f "$UPDATE_SCRIPT"
+        else
+            echo "更新脚本下载失败"
+            exit 1
+        fi
+        ;;
+    7|rollback)
+        if [ -d "$BACKUP_DIR" ]; then
+            LATEST_BACKUP=$(ls -t "$BACKUP_DIR" | head -1)
+            if [ -n "$LATEST_BACKUP" ]; then
+                echo "回滚到: $LATEST_BACKUP"
+                sudo systemctl stop $SERVICE_NAME
+                sudo cp -r "$BACKUP_DIR/$LATEST_BACKUP/backend/"* /opt/bingxi-erp/backend/
+                sudo systemctl start $SERVICE_NAME
+                echo "回滚完成"
+            else
+                echo "没有可用的备份"
+            fi
+        else
+            echo "备份目录不存在"
+        fi
+        ;;
+    8|migrate)
+        echo "执行数据库迁移..."
+        source /etc/bingxi/.env
+        for f in /opt/bingxi-erp/database/migration/*.sql; do
+            if [ -f "$f" ]; then
+                echo "执行: $(basename $f)"
+                PGPASSWORD="$DATABASE__PASSWORD" psql -h "$DATABASE__HOST" -U "$DATABASE__USERNAME" -d "$DATABASE__NAME" -f "$f" 2>/dev/null || true
+            fi
+        done
+        echo "迁移完成"
+        ;;
+    9|health)
+        curl -s http://127.0.0.1:8082/api/v1/erp/health 2>/dev/null | python3 -m json.tool 2>/dev/null || curl -s http://127.0.0.1:8082/api/v1/erp/health
+        ;;
+    0|version)
+        echo "当前版本: $(cat $VERSION_FILE 2>/dev/null || echo 'unknown')"
+        echo "后端状态: $(systemctl is-active $SERVICE_NAME)"
+        echo "Nginx状态: $(systemctl is-active nginx)"
+        ;;
+    "")
+        show_menu
+        read -p "请输入数字选择操作: " choice
+        exec "$0" "$choice"
+        ;;
+    *)
+        echo "未知命令: $1"
+        show_menu
+        exit 1
+        ;;
+esac
+CLIEOF
+
+    chmod +x "$cli_path"
+    log "CLI 工具安装完成: $cli_path"
+}
+
+# 保存版本号
+save_version() {
+    if [ -f "/tmp/bingxi-deploy/VERSION" ]; then
+        cp /tmp/bingxi-deploy/VERSION "$DEPLOY_DIR/VERSION"
+    elif [ -f "VERSION" ]; then
+        cp VERSION "$DEPLOY_DIR/VERSION"
+    else
+        # 从后端二进制获取版本
+        local ver=$("$BACKEND_DIR/server" --version 2>/dev/null | head -1 || echo "unknown")
+        echo "$ver" > "$DEPLOY_DIR/VERSION"
+    fi
+}
+
+# 清理临时文件
+cleanup() {
+    rm -rf /tmp/bingxi-deploy
+    rm -f /tmp/bingxi-erp-latest.zip
+}
+
+# 主函数
+main() {
+    check_root
+
+    echo ""
+    echo "=========================================="
+    echo "  秉羲 ERP 系统部署"
+    echo "=========================================="
+    echo ""
+
+    # 判断是全新部署还是更新
+    if [ -f "$BACKEND_DIR/server" ]; then
+        log "检测到已有安装，执行更新部署..."
+        backup_current
+    else
+        log "执行全新部署..."
+    fi
+
+    stop_old_services
+    create_dirs
+    deploy_backend
+    deploy_frontend
+    generate_config
+    run_migrations
+    install_service
+    configure_nginx
+    start_service
+    install_cli
+    save_version
+
+    if health_check; then
+        echo ""
+        echo "=========================================="
+        echo "  部署完成！"
+        echo "=========================================="
+        echo "  后端服务: $(systemctl is-active $APP_NAME)"
+        echo "  Nginx状态: $(systemctl is-active nginx)"
+        echo "  访问地址: http://$(hostname -I | awk '{print $1}')"
+        echo ""
+        echo "  使用 'bingxi' 命令管理系统"
+        echo "=========================================="
+    else
+        warn "服务可能需要更多时间启动，请稍后检查"
+    fi
+
+    cleanup
+}
+
+# 支持回滚参数
+if [ "$1" = "rollback" ]; then
+    check_root
+    rollback
+    exit 0
+fi
+
 main

@@ -1,25 +1,34 @@
 #!/bin/bash
-# ERP系统 - 一键安装与管理脚本
-# 使用方法: curl -fsSL --http1.1 --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s {install|update|start|stop|status}
+# 秉羲 ERP 系统 - 一键安装与管理脚本
+# 使用方法: curl -fsSL --http1.1 --retry 3 <install.sh url> | sudo bash -s {install|update|start|stop|status|restart}
 
 set -e
 
 REPO="57231307/1"
 DEPLOY_DIR="/opt/bingxi-erp"
+BACKEND_DIR="$DEPLOY_DIR/backend"
+FRONTEND_DIR="/opt/bingxi/frontend/dist"
+CONFIG_DIR="/etc/bingxi"
 CLI_PATH="/usr/local/bin/bingxi"
 
-# 颜色
+# 加速地址
+MIRRORS=(
+    "https://ghp.ci/"
+    "https://gh-proxy.com/"
+    "https://ghproxy.net/"
+    "https://github.moeyy.xyz/"
+    "https://mirror.ghproxy.com/"
+    ""
+)
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log() {
-    echo -e "${GREEN}[Bingxi]${NC} $1"
-}
-error() {
-    echo -e "${RED}[Error]${NC} $1"
-    exit 1
-}
+log() { echo -e "${GREEN}[Bingxi]${NC} $1"; }
+warn() { echo -e "${YELLOW}[Bingxi]${NC} $1"; }
+error() { echo -e "${RED}[Error]${NC} $1"; exit 1; }
 
 check_root() {
     if [ "$EUID" -ne 0 ]; then
@@ -28,150 +37,228 @@ check_root() {
 }
 
 install_deps() {
-    log "安装必要依赖 (curl, jq, unzip, nginx)..."
+    log "安装依赖..."
     if command -v apt-get >/dev/null; then
         apt-get update -y >/dev/null
-        apt-get install -y curl jq unzip tar systemd nginx >/dev/null
+        apt-get install -y curl jq unzip tar nginx >/dev/null
     elif command -v yum >/dev/null; then
-        yum install -y curl jq unzip tar systemd nginx >/dev/null
-    else
-        log "警告: 未检测到apt或yum，假定依赖已手动安装"
+        yum install -y curl jq unzip tar nginx >/dev/null
     fi
+}
+
+# 带加速的下载
+download_with_mirror() {
+    local url=$1
+    local output=$2
+
+    for MIRROR in "${MIRRORS[@]}"; do
+        local full_url="${MIRROR}${url}"
+        log "尝试下载: ${full_url:0:80}..."
+        if curl --http1.1 --ipv4 -L -C - --retry 5 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o "$output" "$full_url" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 download_latest() {
-    log "获取最新版本信息..."
-    # 查找最新 release 中的 zip 资产
-    
-    DOWNLOAD_URL=$(curl -s --http1.1 "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
+    log "获取最新版本..."
+    local download_url=$(curl -s --http1.1 "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
 
-    if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
-        log "无法获取最新发布版本，请检查网络或 GitHub 限制。"
-        exit 1
+    if [ -z "$download_url" ] || [ "$download_url" == "null" ]; then
+        error "无法获取最新版本信息"
     fi
-    
-    # 尝试使用多个镜像源来下载，防止被墙或者连接重置
-    MIRRORS=(
-        "https://ghp.ci/"
-        "https://gh-proxy.com/"
-        "https://ghproxy.net/"
-        "https://github.moeyy.xyz/"
-        "https://mirror.ghproxy.com/"
-        "" # 直连作为最后退路
-    )
 
-    SUCCESS=false
-    for MIRROR in "${MIRRORS[@]}"; do
-        if [ -n "$MIRROR" ]; then
-            REAL_URL="${MIRROR}${DOWNLOAD_URL}"
-            log "尝试通过镜像下载: $REAL_URL"
-        else
-            REAL_URL="$DOWNLOAD_URL"
-            log "尝试直连下载: $REAL_URL"
-        fi
-
-        # 强制使用 HTTP/1.1，国内部分网络环境对 HTTP/2 连接长下载极其不友好，容易被墙掐断
-        # 增加 --ipv4 防止部分云服务器 IPv6 路由不可达
-        if curl --http1.1 --ipv4 -L -C - --retry 5 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o /tmp/bingxi-erp-latest.zip "$REAL_URL"; then
-            SUCCESS=true
-            break
-        else
-            log "该节点下载失败，立即切换到下一个备用节点..."
-        fi
-    done
-
-    if [ "$SUCCESS" = false ]; then
-        log "所有下载节点均失败，请检查您的服务器网络是否能访问 Github。"
-        exit 1
+    if ! download_with_mirror "$download_url" "/tmp/bingxi-erp-latest.zip"; then
+        error "所有下载源均失败"
     fi
+    log "下载完成"
 }
 
-setup_cli() {
-    log "配置命令行工具 (bingxi)..."
-    cat << 'CLIEOF' > $CLI_PATH
-#!/bin/bash
-# 系统管理 CLI
-
-case "$1" in
-    start)
-        sudo systemctl start bingxi-backend
-        sudo systemctl start nginx
-        echo "服务已启动"
-        ;;
-    stop)
-        sudo systemctl stop bingxi-backend
-        sudo systemctl stop nginx
-        echo "服务已停止"
-        ;;
-    restart)
-        sudo systemctl restart bingxi-backend
-        sudo systemctl restart nginx
-        echo "服务已重启"
-        ;;
-    status)
-        sudo systemctl status bingxi-backend --no-pager
-        ;;
-    update)
-        curl -fsSL --http1.1 --ipv4 --retry 3 https://cdn.jsdelivr.net/gh/57231307/1@main/%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2/install.sh | sudo bash -s update
-        ;;
-    *)
-        echo "面料管理 CLI 工具"
-        echo "用法: bingxi {start|stop|restart|status|update}"
-        ;;
-esac
-CLIEOF
-    chmod +x $CLI_PATH
-}
-
-run_deploy_script() {
-    log "解压发布包以执行安装..."
+run_deploy() {
+    log "执行部署..."
     mkdir -p /tmp/bingxi-deploy
-    mv /tmp/bingxi-erp-latest.zip /tmp/bingxi-deploy/
     cd /tmp/bingxi-deploy
-    
-    # 我们解压出 deploy 脚本
-    unzip -q -o bingxi-erp-latest.zip
+    unzip -o /tmp/bingxi-erp-latest.zip
 
     if [ -f "deploy/deploy.sh" ]; then
         chmod +x deploy/deploy.sh
-        # 执行内置部署脚本，该脚本会自动处理环境变量、systemd 配置、nginx 配置以及保活设置
         ./deploy/deploy.sh
     else
-        error "发布包中未找到 deploy/deploy.sh，无法继续安装。"
+        error "发布包中未找到 deploy/deploy.sh"
     fi
-    
-    # 清理临时目录
-    rm -rf /tmp/bingxi-deploy
+
+    rm -rf /tmp/bingxi-deploy /tmp/bingxi-erp-latest.zip
+}
+
+setup_cli() {
+    log "安装 CLI 工具..."
+    cat > "$CLI_PATH" << 'CLIEOF'
+#!/bin/bash
+# 秉羲 ERP 系统管理 CLI
+
+VERSION_FILE="/opt/bingxi-erp/VERSION"
+BACKUP_DIR="/opt/bingxi-erp/backups"
+SERVICE_NAME="bingxi-backend"
+
+MIRRORS=(
+    "https://ghp.ci/"
+    "https://gh-proxy.com/"
+    "https://ghproxy.net/"
+    "https://github.moeyy.xyz/"
+    "https://mirror.ghproxy.com/"
+    ""
+)
+
+show_menu() {
+    local ver=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+    echo ""
+    echo "=========================================="
+    echo "  秉羲 ERP 系统管理工具 v${ver}"
+    echo "=========================================="
+    echo ""
+    echo "  [1] 启动服务        [6] 更新系统"
+    echo "  [2] 停止服务        [7] 回滚版本"
+    echo "  [3] 重启服务        [8] 数据库迁移"
+    echo "  [4] 查看状态        [9] 健康检查"
+    echo "  [5] 查看日志        [0] 查看版本"
+    echo ""
+    echo "  [q] 退出"
+    echo ""
+    echo "=========================================="
+}
+
+download_with_mirror() {
+    local url=$1
+    local output=$2
+    for MIRROR in "${MIRRORS[@]}"; do
+        local full_url="${MIRROR}${url}"
+        if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o "$output" "$full_url" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+case "$1" in
+    1|start)
+        sudo systemctl start $SERVICE_NAME
+        sudo systemctl start nginx
+        echo "服务已启动"
+        ;;
+    2|stop)
+        sudo systemctl stop $SERVICE_NAME
+        sudo systemctl stop nginx
+        echo "服务已停止"
+        ;;
+    3|restart)
+        sudo systemctl restart $SERVICE_NAME
+        sudo systemctl restart nginx
+        echo "服务已重启"
+        ;;
+    4|status)
+        echo "--- 后端服务 ---"
+        sudo systemctl status $SERVICE_NAME --no-pager | head -8
+        echo ""
+        echo "--- Nginx 服务 ---"
+        sudo systemctl status nginx --no-pager | head -5
+        ;;
+    5|logs)
+        sudo journalctl -u $SERVICE_NAME -f --no-pager
+        ;;
+    6|update)
+        echo "开始更新..."
+        UPDATE_SCRIPT="/tmp/bingxi-update.sh"
+        UPDATE_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+        if download_with_mirror "$UPDATE_URL" "$UPDATE_SCRIPT"; then
+            sudo bash "$UPDATE_SCRIPT" update
+            rm -f "$UPDATE_SCRIPT"
+        else
+            echo "更新脚本下载失败"
+            exit 1
+        fi
+        ;;
+    7|rollback)
+        if [ -d "$BACKUP_DIR" ]; then
+            LATEST_BACKUP=$(ls -t "$BACKUP_DIR" | head -1)
+            if [ -n "$LATEST_BACKUP" ]; then
+                echo "回滚到: $LATEST_BACKUP"
+                sudo systemctl stop $SERVICE_NAME
+                sudo cp -r "$BACKUP_DIR/$LATEST_BACKUP/backend/"* /opt/bingxi-erp/backend/
+                sudo systemctl start $SERVICE_NAME
+                echo "回滚完成"
+            else
+                echo "没有可用的备份"
+            fi
+        else
+            echo "备份目录不存在"
+        fi
+        ;;
+    8|migrate)
+        echo "执行数据库迁移..."
+        source /etc/bingxi/.env
+        for f in /opt/bingxi-erp/database/migration/*.sql; do
+            if [ -f "$f" ]; then
+                echo "执行: $(basename $f)"
+                PGPASSWORD="$DATABASE__PASSWORD" psql -h "$DATABASE__HOST" -U "$DATABASE__USERNAME" -d "$DATABASE__NAME" -f "$f" 2>/dev/null || true
+            fi
+        done
+        echo "迁移完成"
+        ;;
+    9|health)
+        curl -s http://127.0.0.1:8082/api/v1/erp/health 2>/dev/null | python3 -m json.tool 2>/dev/null || curl -s http://127.0.0.1:8082/api/v1/erp/health
+        ;;
+    0|version)
+        echo "当前版本: $(cat $VERSION_FILE 2>/dev/null || echo 'unknown')"
+        echo "后端状态: $(systemctl is-active $SERVICE_NAME)"
+        echo "Nginx状态: $(systemctl is-active nginx)"
+        ;;
+    "")
+        show_menu
+        read -p "请输入数字选择操作: " choice
+        exec "$0" "$choice"
+        ;;
+    *)
+        echo "未知命令: $1"
+        show_menu
+        exit 1
+        ;;
+esac
+CLIEOF
+
+    chmod +x "$CLI_PATH"
+    log "CLI 工具安装完成"
 }
 
 install() {
     check_root
-    log "开始全新安装 ERP 系统..."
+    log "开始全新安装..."
     install_deps
     download_latest
-    run_deploy_script
+    run_deploy
     setup_cli
-    
-    log "==========================================="
-    log "安装成功！"
-    log "您可以随时使用 'bingxi' 命令来管理系统："
-    log "  - bingxi start   : 启动系统"
-    log "  - bingxi stop    : 停止系统"
-    log "  - bingxi status  : 查看状态"
-    log "  - bingxi update  : 一键更新到最新版"
-    log "==========================================="
+
+    echo ""
+    echo "=========================================="
+    echo "  安装成功！"
+    echo "=========================================="
+    echo "  使用 'bingxi' 命令管理系统"
+    echo "  例如: bingxi 4 (查看状态)"
+    echo "=========================================="
 }
 
 update() {
     check_root
-    log "开始在线更新 ERP 系统..."
+    log "开始更新..."
     install_deps
     download_latest
-    run_deploy_script
+    run_deploy
     setup_cli
-    log "==========================================="
-    log "系统更新成功，并已自动重启服务！"
-    log "==========================================="
+
+    echo ""
+    echo "=========================================="
+    echo "  更新成功！"
+    echo "=========================================="
 }
 
 case "$1" in
@@ -179,10 +266,9 @@ case "$1" in
     update) update ;;
     start) sudo systemctl start bingxi-backend; sudo systemctl start nginx ;;
     stop) sudo systemctl stop bingxi-backend; sudo systemctl stop nginx ;;
-    status) sudo systemctl status bingxi-backend --no-pager ;;
     restart) sudo systemctl restart bingxi-backend; sudo systemctl restart nginx ;;
-    *) 
-        echo "面料管理 - 一键管理脚本"
-        echo "使用方法: $0 {install|update|start|stop|status|restart}"
+    status) sudo systemctl status bingxi-backend --no-pager ;;
+    *)
+        echo "用法: $0 {install|update|start|stop|restart|status}"
         ;;
 esac
