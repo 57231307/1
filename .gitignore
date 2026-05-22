@@ -85,3 +85,26 @@ frontend/check_console_errors.js
 # 后端测试脚本
 backend/test_*.sh
 backend/fix_*.sql
+
+# 后端审计报告和临时文档
+backend/docs/audit_report_*.md
+backend/docs/complete_issues_and_improvements.md
+backend/docs/comprehensive_audit_*.md
+backend/docs/detailed_audit_report.md
+backend/docs/execution_plan.md
+backend/docs/fix_summary.md
+backend/docs/superpowers/
+backend/docs_enterprise_security_plan.md
+backend/backend_warnings.txt
+
+# 前端临时文档
+frontend/docs/frontend-feature-implementation-plan*.md
+frontend/docs/superpowers/
+
+# 根目录临时文件
+CLI
+CLI_MAINTENANCE.md
+mock-server.js
+
+# 项目报告
+docs/project-optimization-report.md
