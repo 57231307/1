@@ -177,7 +177,7 @@ import {
   updateProductionOrderStatus,
   type ProductionOrder,
   PRODUCTION_ORDER_STATUS,
-} from '../../api/production'
+} from '@/api/production'
 
 // 响应式数据
 const loading = ref(false)

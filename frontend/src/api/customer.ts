@@ -5,19 +5,29 @@ export interface Customer {
   id: number
   customer_code: string
   customer_name: string
-  name: string
   contact_person?: string
-  phone?: string
-  email?: string
+  contact_phone?: string
+  contact_email?: string
   address?: string
+  city?: string
+  province?: string
+  country?: string
+  postal_code?: string
   credit_limit?: number
-  current_balance?: number
-  tax_number?: string
+  payment_terms?: number
+  tax_id?: string
   bank_name?: string
   bank_account?: string
   customer_type?: string
   status: string
+  notes?: string
+  customer_industry?: string
+  main_products?: string
+  annual_purchase?: number
+  quality_requirement?: string
+  inspection_standard?: string
   created_at?: string
+  updated_at?: string
 }
 
 export function listCustomers(params?: CustomerQueryParams): Promise<ApiResponse<{ list: Customer[]; total: number }>> {

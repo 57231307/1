@@ -69,3 +69,7 @@ export function assignPermission(id: number, data: AssignPermissionRequest): Pro
 export function removePermission(_roleId: number, permissionId: number): Promise<ApiResponse<void>> {
   return request.delete(`/roles/permissions/${permissionId}`)
 }
+
+export function listPermissions(): Promise<ApiResponse<Permission[]>> {
+  return request.get('/permissions')
+}

@@ -47,8 +47,8 @@
         <el-table-column prop="customer_code" label="客户编码" width="120" fixed />
         <el-table-column prop="customer_name" label="客户名称" min-width="180" fixed />
         <el-table-column prop="contact_person" label="联系人" width="100" />
-        <el-table-column prop="phone" label="电话" width="130" />
-        <el-table-column prop="email" label="邮箱" width="180" show-overflow-tooltip />
+        <el-table-column prop="contact_phone" label="电话" width="130" />
+        <el-table-column prop="contact_email" label="邮箱" width="180" show-overflow-tooltip />
         <el-table-column prop="customer_type" label="类型" width="100">
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
@@ -56,11 +56,13 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="province" label="省份" width="100" />
         <el-table-column prop="credit_limit" label="信用额度" width="120" align="right">
           <template #default="{ row }">
             {{ row.credit_limit ? formatCurrency(row.credit_limit) : '-' }}
           </template>
         </el-table-column>
+        <el-table-column prop="payment_terms" label="账期(天)" width="90" align="center" />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
@@ -101,8 +103,9 @@
         ref="formRef"
         :model="formData"
         :rules="formRules"
-        label-width="100px"
+        label-width="120px"
       >
+        <el-divider content-position="left">基本信息</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户编码" prop="customer_code">
@@ -122,39 +125,92 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="电话" prop="phone">
-              <el-input v-model="formData.phone" placeholder="请输入电话" />
+            <el-form-item label="联系电话" prop="contact_phone">
+              <el-input v-model="formData.contact_phone" placeholder="请输入联系电话" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="formData.email" placeholder="请输入邮箱" />
+            <el-form-item label="邮箱" prop="contact_email">
+              <el-input v-model="formData.contact_email" placeholder="请输入邮箱" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="客户类型" prop="customer_type">
               <el-select v-model="formData.customer_type" placeholder="请选择类型" style="width: 100%">
-                <el-option label="普通客户" value="normal" />
-                <el-option label="VIP客户" value="vip" />
-                <el-option label="批发客户" value="wholesale" />
+                <el-option label="零售" value="retail" />
+                <el-option label="批发" value="wholesale" />
+                <el-option label="VIP" value="vip" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="行业" prop="customer_industry">
+              <el-input v-model="formData.customer_industry" placeholder="请输入行业" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="年采购额" prop="annual_purchase">
+              <el-input-number v-model="formData.annual_purchase" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-divider content-position="left">地址信息</el-divider>
         <el-form-item label="地址" prop="address">
-          <el-input v-model="formData.address" placeholder="请输入地址" />
+          <el-input v-model="formData.address" placeholder="请输入详细地址" />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="税号" prop="tax_number">
-              <el-input v-model="formData.tax_number" placeholder="请输入税号" />
+            <el-form-item label="省份" prop="province">
+              <el-input v-model="formData.province" placeholder="请输入省份" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="城市" prop="city">
+              <el-input v-model="formData.city" placeholder="请输入城市" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="邮编" prop="postal_code">
+              <el-input v-model="formData.postal_code" placeholder="请输入邮编" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="国家" prop="country">
+              <el-input v-model="formData.country" placeholder="请输入国家" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-divider content-position="left">财务信息</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="税号" prop="tax_id">
+              <el-input v-model="formData.tax_id" placeholder="请输入税号" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="信用额度" prop="credit_limit">
               <el-input-number v-model="formData.credit_limit" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="账期(天)" prop="payment_terms">
+              <el-input-number v-model="formData.payment_terms" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态" prop="status">
+              <el-radio-group v-model="formData.status">
+                <el-radio value="active">启用</el-radio>
+                <el-radio value="inactive">停用</el-radio>
+              </el-radio-group>
             </el-form-item>
           </el-col>
         </el-row>
@@ -170,11 +226,24 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="formData.status">
-            <el-radio value="active">启用</el-radio>
-            <el-radio value="inactive">禁用</el-radio>
-          </el-radio-group>
+        <el-divider content-position="left">业务信息</el-divider>
+        <el-form-item label="主营产品" prop="main_products">
+          <el-input v-model="formData.main_products" placeholder="请输入主营产品" />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="质量要求" prop="quality_requirement">
+              <el-input v-model="formData.quality_requirement" placeholder="请输入质量要求" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="验货标准" prop="inspection_standard">
+              <el-input v-model="formData.inspection_standard" placeholder="请输入验货标准" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="备注" prop="notes">
+          <el-input v-model="formData.notes" type="textarea" :rows="3" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -213,15 +282,26 @@ const formData = reactive({
   customer_code: '',
   customer_name: '',
   contact_person: '',
-  phone: '',
-  email: '',
+  contact_phone: '',
+  contact_email: '',
   address: '',
-  customer_type: 'normal',
-  tax_number: '',
+  city: '',
+  province: '',
+  country: '',
+  postal_code: '',
+  customer_type: 'retail',
+  tax_id: '',
   credit_limit: 0,
+  payment_terms: 30,
   bank_name: '',
   bank_account: '',
-  status: 'active'
+  status: 'active',
+  notes: '',
+  customer_industry: '',
+  main_products: '',
+  annual_purchase: 0,
+  quality_requirement: '',
+  inspection_standard: ''
 })
 
 const formRules: FormRules = {
@@ -246,16 +326,16 @@ const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
 const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: '普通客户',
-    vip: 'VIP客户',
-    wholesale: '批发客户'
+    retail: '零售',
+    vip: 'VIP',
+    wholesale: '批发'
   }
   return labels[type] || type
 }
 
 const getCustomerTypeTag = (type: string) => {
   const tags: Record<string, string> = {
-    normal: '',
+    retail: '',
     vip: 'warning',
     wholesale: 'success'
   }
@@ -294,15 +374,26 @@ const resetForm = () => {
   formData.customer_code = ''
   formData.customer_name = ''
   formData.contact_person = ''
-  formData.phone = ''
-  formData.email = ''
+  formData.contact_phone = ''
+  formData.contact_email = ''
   formData.address = ''
-  formData.customer_type = 'normal'
-  formData.tax_number = ''
+  formData.city = ''
+  formData.province = ''
+  formData.country = ''
+  formData.postal_code = ''
+  formData.customer_type = 'retail'
+  formData.tax_id = ''
   formData.credit_limit = 0
+  formData.payment_terms = 30
   formData.bank_name = ''
   formData.bank_account = ''
   formData.status = 'active'
+  formData.notes = ''
+  formData.customer_industry = ''
+  formData.main_products = ''
+  formData.annual_purchase = 0
+  formData.quality_requirement = ''
+  formData.inspection_standard = ''
   formRef.value?.clearValidate()
 }
 

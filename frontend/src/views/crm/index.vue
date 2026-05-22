@@ -280,15 +280,14 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Coin, Share } from '@element-plus/icons-vue'
-import { customerApi } from '@/api/customer'
-import crmEnhancedApi, { type CustomerTag } from '@/api/crm-enhanced'
+import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
 
 const router = useRouter()
 const loading = ref(false)
 const rfmLoading = ref(false)
 const submitLoading = ref(false)
-const customers = ref<any[]>([])
-const rfmCustomers = ref<any[]>([])
+const customers = ref<CustomerWithTags[]>([])
+const rfmCustomers = ref<CustomerWithTags[]>([])
 const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -455,17 +454,17 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-const handleEdit = (row: any) => {
+const handleEdit = (row: CustomerWithTags) => {
   resetForm()
   Object.assign(formData, row)
   isEdit.value = true
   dialogVisible.value = true
 }
 
-const handleDelete = async (row: any) => {
+const handleDelete = async (row: CustomerWithTags) => {
   try {
     await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', { type: 'warning' })
-    await customerApi.delete(row.id)
+    await crmEnhancedApi.deleteCustomer(row.id)
     ElMessage.success('删除成功')
     fetchCustomerList()
   } catch (error: any) {
@@ -484,10 +483,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (isEdit.value) {
-        await customerApi.update(formData.id!, formData)
+        await crmEnhancedApi.updateCustomer(formData.id!, formData)
         ElMessage.success('更新成功')
       } else {
-        await customerApi.create(formData)
+        await crmEnhancedApi.createCustomer(formData)
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false

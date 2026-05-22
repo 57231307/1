@@ -218,7 +218,7 @@
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
               <el-select v-model="invoiceForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+                <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -268,7 +268,7 @@
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
               <el-select v-model="paymentForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+                <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -335,7 +335,7 @@
       <el-form :model="reconciliationForm" label-width="100px">
         <el-form-item label="供应商" required>
           <el-select v-model="reconciliationForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-            <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="开始日期" required>

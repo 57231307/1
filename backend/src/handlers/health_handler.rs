@@ -140,16 +140,25 @@ fn check_memory() -> HealthCheckItem {
         if total > 0 {
             let percentage = (used as f64 / total as f64 * 100.0) as u64;
             
-            if percentage > 95 {
+            // 容器环境中内存使用率通常较高，调整阈值
+            // 检测是否在容器中（检查 cgroup 限制）
+            let is_container = std::path::Path::new("/.dockerenv").exists() 
+                || std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
+                || std::fs::metadata("/sys/fs/cgroup/memory/memory.limit_in_bytes").is_ok();
+            
+            let threshold_unhealthy = if is_container { 99 } else { 95 };
+            let threshold_degraded = if is_container { 90 } else { 80 };
+            
+            if percentage > threshold_unhealthy {
                 return HealthCheckItem {
                     status: "unhealthy".to_string(),
-                    message: Some(format!("内存使用率过高: {}%", percentage)),
+                    message: Some(format!("内存使用率过高: {}%{}", percentage, if is_container { " (容器环境)" } else { "" })),
                     response_time_ms: Some(0),
                 };
-            } else if percentage > 80 {
+            } else if percentage > threshold_degraded {
                 return HealthCheckItem {
                     status: "degraded".to_string(),
-                    message: Some(format!("内存使用率较高: {}%", percentage)),
+                    message: Some(format!("内存使用率较高: {}%{}", percentage, if is_container { " (容器环境)" } else { "" })),
                     response_time_ms: Some(0),
                 };
             }
