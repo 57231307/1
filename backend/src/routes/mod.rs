@@ -149,6 +149,7 @@ pub fn create_router(state: AppState) -> Router {
     let product_routes = Router::new()
         .route("/", get(product_handler::list_products))
         .route("/", post(product_handler::create_product))
+        .route("/select", get(product_handler::list_products))
         .route("/:id", get(product_handler::get_product))
         .route("/:id", put(product_handler::update_product))
         .route("/:id", delete(product_handler::delete_product))
@@ -194,6 +195,7 @@ pub fn create_router(state: AppState) -> Router {
     let warehouse_routes = Router::new()
         .route("/", get(warehouse_handler::list))
         .route("/", post(warehouse_handler::create))
+        .route("/select", get(warehouse_handler::list))
         .route("/:id", get(warehouse_handler::get))
         .route("/:id", put(warehouse_handler::update))
         .route("/:id", delete(warehouse_handler::delete))
@@ -394,6 +396,7 @@ pub fn create_router(state: AppState) -> Router {
     let customer_routes = Router::new()
         .route("/", get(customer_handler::list_customers))
         .route("/", post(customer_handler::create_customer))
+        .route("/select", get(customer_handler::list_customers))
         .route("/:id", get(customer_handler::get_customer))
         .route("/:id", put(customer_handler::update_customer))
         .route("/:id", delete(customer_handler::delete_customer));
@@ -546,6 +549,7 @@ pub fn create_router(state: AppState) -> Router {
     let supplier_routes = Router::new()
         .route("/", get(supplier_handler::list_suppliers))
         .route("/", post(supplier_handler::create_supplier))
+        .route("/select", get(supplier_handler::list_suppliers))
         .route("/:id", get(supplier_handler::get_supplier))
         .route("/:id", put(supplier_handler::update_supplier))
         .route("/:id", delete(supplier_handler::delete_supplier));
