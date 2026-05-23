@@ -86,7 +86,7 @@ impl OmniAuditQueryService {
         let page_size = filter.page_size.unwrap_or(20).clamp(1, 100);
 
         let logs = query
-            .order_by_desc(omni_audit_log::Column::CreatedAt)
+            .order_by_desc(omni_audit_log::Column::Id)
             .limit(page_size)
             .offset((page - 1) * page_size)
             .all(self.db.as_ref())
