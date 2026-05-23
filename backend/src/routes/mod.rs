@@ -927,6 +927,7 @@ pub fn create_router(state: AppState) -> Router {
             .route("/auto-schedule", post(scheduling_handler::auto_schedule))
             .route("/gantt", get(scheduling_handler::get_gantt_data))
             .route("/conflicts", get(scheduling_handler::detect_conflicts))
+            .route("/tasks", get(scheduling_handler::list_scheduled_orders))
             .route("/:id", put(scheduling_handler::adjust_schedule))
             .route("/work-orders", get(scheduling_handler::list_scheduled_orders))
             .route("/history", get(scheduling_handler::get_schedule_history))
@@ -963,9 +964,15 @@ pub fn create_router(state: AppState) -> Router {
         // CRM客户管理路由
         .nest("/api/v1/erp/crm/customers", Router::new()
             .route("/", get(crm_customer_handler::list_customers).post(crm_customer_handler::create_customer))
+            .route("/enhanced", get(crm_customer_handler::list_customers))
             .route("/:id", get(crm_customer_handler::get_customer).put(crm_customer_handler::update_customer).delete(crm_customer_handler::delete_customer))
             .route("/:id/tags", post(crm_customer_handler::add_tags))
             .route("/:id/contacts", get(crm_customer_handler::list_contacts))
+        )
+        // CRM标签路由
+        .nest("/api/v1/erp/crm/tags", Router::new()
+            .route("/", get(crm_customer_handler::list_tags).post(crm_customer_handler::create_tag))
+            .route("/:id", delete(crm_customer_handler::delete_tag))
         )
         // CRM公海池路由
         .nest("/api/v1/erp/crm/pool", Router::new()

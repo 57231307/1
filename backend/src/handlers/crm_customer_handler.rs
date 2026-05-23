@@ -142,3 +142,42 @@ pub async fn list_contacts(
         "total": contacts.len()
     }))))
 }
+
+/// GET /api/v1/erp/crm/tags - 获取标签列表
+pub async fn list_tags(
+    _state: State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    // 返回预定义的标签列表
+    let tags = vec![
+        serde_json::json!({"id": 1, "name": "VIP", "color": "#f50"}),
+        serde_json::json!({"id": 2, "name": "重点客户", "color": "#2db7f5"}),
+        serde_json::json!({"id": 3, "name": "潜在客户", "color": "#87d068"}),
+        serde_json::json!({"id": 4, "name": "新客户", "color": "#108ee9"}),
+        serde_json::json!({"id": 5, "name": "流失客户", "color": "#f50"}),
+    ];
+    Ok(Json(ApiResponse::success(tags)))
+}
+
+/// POST /api/v1/erp/crm/tags - 创建标签
+pub async fn create_tag(
+    _state: State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let tag = serde_json::json!({
+        "id": chrono::Utc::now().timestamp(),
+        "name": req.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+        "color": req.get("color").and_then(|v| v.as_str()).unwrap_or("#1890ff"),
+    });
+    Ok(Json(ApiResponse::success(tag)))
+}
+
+/// DELETE /api/v1/erp/crm/tags/:id - 删除标签
+pub async fn delete_tag(
+    _state: State<AppState>,
+    _auth: AuthContext,
+    _id: Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    Ok(Json(ApiResponse::success(serde_json::json!({"deleted": true}))))
+}

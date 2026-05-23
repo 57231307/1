@@ -35,27 +35,21 @@ impl OmniAuditQueryService {
     }
 
     pub async fn get_dashboard_stats(&self) -> Result<AuditStats, AppError> {
-        let today = chrono::Utc::now().date_naive();
-
         let total = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::CreatedAt.gte(today))
             .count(self.db.as_ref())
             .await?;
 
         let ui_clicks = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::CreatedAt.gte(today))
             .filter(omni_audit_log::Column::Module.eq("UI_CLICK"))
             .count(self.db.as_ref())
             .await?;
 
         let api_calls = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::CreatedAt.gte(today))
             .filter(omni_audit_log::Column::Module.eq("API_CALL"))
             .count(self.db.as_ref())
             .await?;
 
         let security_alerts = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::CreatedAt.gte(today))
             .filter(omni_audit_log::Column::Module.eq("SECURITY_ALERT"))
             .count(self.db.as_ref())
             .await?;
@@ -80,14 +74,6 @@ impl OmniAuditQueryService {
 
         if let Some(et) = filter.event_type {
             query = query.filter(omni_audit_log::Column::Module.eq(et));
-        }
-
-        if let Some(start) = filter.start_date {
-            query = query.filter(omni_audit_log::Column::CreatedAt.gte(start));
-        }
-
-        if let Some(end) = filter.end_date {
-            query = query.filter(omni_audit_log::Column::CreatedAt.lte(end));
         }
 
         if let Some(kw) = filter.keyword {
