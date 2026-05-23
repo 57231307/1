@@ -72,7 +72,7 @@ impl OmniAuditEngine {
                     user_id: ActiveValue::Set(Some(msg.user_id)),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),
-                    response_status: ActiveValue::Set(msg.duration_ms),
+                    response_status: ActiveValue::Set(Some(msg.duration_ms)),
                     duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
                     created_at: ActiveValue::Set(Some(Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()))),
                     ..Default::default()
