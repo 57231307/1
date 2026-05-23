@@ -68,20 +68,13 @@ impl OmniAuditEngine {
                 }
 
                 let log = omni_audit_log::ActiveModel {
-                    trace_id: ActiveValue::Set(msg.trace_id),
-                    user_id: ActiveValue::Set(msg.user_id),
-                    event_type: ActiveValue::Set(msg.event_type),
-                    event_name: ActiveValue::Set(msg.event_name),
-                    resource: ActiveValue::Set(msg.resource),
-                    action: ActiveValue::Set(msg.action),
-                    payload: ActiveValue::Set(msg.payload),
-                    ip_address: ActiveValue::Set(msg.ip_address),
-                    user_agent: ActiveValue::Set(msg.user_agent),
-                    duration_ms: ActiveValue::Set(msg.duration_ms),
-                    status: ActiveValue::Set(msg.status),
-                    error_msg: ActiveValue::Set(msg.error_msg),
-                    signature: ActiveValue::Set(signature),
-                    created_at: ActiveValue::Set(Utc::now()),
+                    trace_id: ActiveValue::Set(Some(msg.trace_id)),
+                    user_id: ActiveValue::Set(Some(msg.user_id)),
+                    module: ActiveValue::Set(Some(msg.event_type)),
+                    action: ActiveValue::Set(Some(msg.event_name)),
+                    response_status: ActiveValue::Set(msg.duration_ms),
+                    duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
+                    created_at: ActiveValue::Set(Some(Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()))),
                     ..Default::default()
                 };
 

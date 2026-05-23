@@ -287,13 +287,14 @@ impl FundManagementService {
         let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
         let record = crate::models::fund_transfer_record::ActiveModel {
             transfer_no: sea_orm::Set(transfer_no),
-            from_account_id: sea_orm::Set(req.from_account_id),
-            to_account_id: sea_orm::Set(req.to_account_id),
+            from_account_id: sea_orm::Set(Some(req.from_account_id)),
+            to_account_id: sea_orm::Set(Some(req.to_account_id)),
             transfer_date: sea_orm::Set(chrono::Local::now().naive_local().date()),
             amount: sea_orm::Set(req.amount),
-            status: sea_orm::Set("COMPLETED".to_string()),
-            remarks: sea_orm::Set(req.reason),
-            created_by: sea_orm::Set(user_id),
+            transfer_type: sea_orm::Set("TRANSFER".to_string()),
+            status: sea_orm::Set(Some("COMPLETED".to_string())),
+            purpose: sea_orm::Set(req.reason),
+            applied_by: sea_orm::Set(Some(user_id)),
             ..Default::default()
         }.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
