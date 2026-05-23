@@ -544,7 +544,8 @@ const fetchSalesContracts = async () => {
   contractLoading.value = true
   try {
     const res = await listSalesContracts()
-    salesContracts.value = res.data! || []
+    const d = res.data as any
+    salesContracts.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取销售合同失败')
   } finally {
@@ -556,7 +557,8 @@ const fetchSalesPrices = async () => {
   priceLoading.value = true
   try {
     const res = await listSalesPrices(priceQuery)
-    salesPrices.value = res.data! || []
+    const d = res.data as any
+    salesPrices.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取销售价格失败')
   } finally {
@@ -568,7 +570,8 @@ const fetchSalesReturns = async () => {
   returnLoading.value = true
   try {
     const res = await salesReturnApi.list(returnQuery)
-    salesReturns.value = res.data!.list || res.data! || []
+    const d = res.data as any
+    salesReturns.value = d?.list || d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取销售退货失败')
   } finally {

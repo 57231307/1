@@ -363,7 +363,8 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await productApi.list(queryParams)
-    products.value = res.data!.list || []
+    const d = res.data as any
+    products.value = d?.list || d?.data || d || []
     total.value = res.data?.total || 0
     
     // 计算统计数据
@@ -384,8 +385,9 @@ const fetchData = async () => {
 const fetchCategories = async () => {
   try {
     const res = await productApi.getCategories()
-    categories.value = res.data! || []
-    categoryTree.value = buildTree(res.data! || [])
+    const d = res.data as any
+    categories.value = d?.items || d?.data || d || []
+    categoryTree.value = buildTree(d?.items || d?.data || d || [])
     stats.value.totalCategories = categories.value.length
   } catch (error: any) {
     console.error('获取分类失败:', error)

@@ -426,7 +426,8 @@ const fetchInvoices = async () => {
   invoiceLoading.value = true
   try {
     const res = await listAPInvoices(invoiceQuery)
-    invoices.value = res.data! || []
+    const d = res.data as any
+    invoices.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取发票列表失败')
   } finally {
@@ -445,7 +446,8 @@ const fetchPayments = async () => {
   paymentLoading.value = true
   try {
     const res = await listAPPayments()
-    payments.value = res.data! || []
+    const d = res.data as any
+    payments.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取付款列表失败')
   } finally {
@@ -457,7 +459,8 @@ const fetchVerifications = async () => {
   verificationLoading.value = true
   try {
     const res = await listAPVerifications()
-    verifications.value = res.data! || []
+    const d = res.data as any
+    verifications.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取核销列表失败')
   } finally {
@@ -469,7 +472,8 @@ const fetchReconciliations = async () => {
   reconciliationLoading.value = true
   try {
     const res = await listAPReconciliations()
-    reconciliations.value = res.data! || []
+    const d = res.data as any
+    reconciliations.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取对账列表失败')
   } finally {

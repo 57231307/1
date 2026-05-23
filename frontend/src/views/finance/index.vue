@@ -311,7 +311,8 @@ const fetchSubjects = async () => {
   subjectLoading.value = true
   try {
     const res = await getSubjectTree()
-    subjects.value = res.data! || []
+    const d = res.data as any
+    subjects.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取科目列表失败')
   } finally {
@@ -323,7 +324,8 @@ const fetchVouchers = async () => {
   voucherLoading.value = true
   try {
     const res = await listVouchers(voucherQuery)
-    vouchers.value = res.data! || []
+    const d = res.data as any
+    vouchers.value = d?.items || d?.data || d || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取凭证列表失败')
   } finally {

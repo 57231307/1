@@ -46,7 +46,8 @@ const getBusinessTypeLabel = (value: string) => {
 const loadDimensions = async () => {
   try {
     const res: any = await listAssistDimensions()
-    dimensions.value = res.data!.data
+    const d = res.data as any
+    dimensions.value = d?.data || d?.items || d || []
   } catch (error) {
     ElMessage.error('加载维度失败')
   }
@@ -64,7 +65,8 @@ const loadRecords = async () => {
       page_size: pagination.value.pageSize
     })
     tableData.value = res.data.records
-    total.value = res.data!.total
+    const d = res.data as any
+    total.value = d?.total || 0
   } catch (error) {
     ElMessage.error('加载记录失败')
   } finally {
@@ -80,7 +82,8 @@ const loadSummary = async () => {
       accounting_period: period,
       dimension_code: searchForm.value.dimension_code || undefined
     })
-    summaryData.value = res.data!.data
+    const d = res.data as any
+    summaryData.value = d?.data || d?.items || d || []
   } catch (error) {
     ElMessage.error('加载汇总失败')
   } finally {
