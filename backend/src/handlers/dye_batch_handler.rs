@@ -23,43 +23,25 @@ pub struct DyeBatchListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub batch_no: Option<String>,
-    pub color_code: Option<String>,
+    pub color_no: Option<String>,
     pub status: Option<String>,
-    pub quality_grade: Option<String>,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDyeBatchRequest {
     pub batch_no: String,
-    pub color_code: String,
-    pub color_name: String,
-    pub fabric_type: Option<String>,
-    pub weight_kg: Option<f64>,
+    pub greige_fabric_id: Option<i32>,
+    pub color_no: Option<String>,
+    pub planned_quantity: Option<f64>,
     pub status: Option<String>,
-    pub production_date: Option<DateTime<Utc>>,
-    pub quality_grade: Option<String>,
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateDyeBatchRequest {
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub weight_kg: Option<f64>,
+    pub greige_fabric_id: Option<i32>,
+    pub color_no: Option<String>,
+    pub planned_quantity: Option<f64>,
     pub status: Option<String>,
-    pub completion_date: Option<DateTime<Utc>>,
-    pub quality_grade: Option<String>,
-    pub remarks: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CompleteDyeBatchRequest {
-    pub quality_grade: String,
-    pub remarks: Option<String>,
 }
 
 pub async fn list_dye_batches(
@@ -74,20 +56,11 @@ pub async fn list_dye_batches(
     if let Some(batch_no) = &query.batch_no {
         q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
     }
-    if let Some(color_code) = &query.color_code {
-        q = q.filter(dye_batch::Column::ColorCode.contains(color_code));
+    if let Some(color_no) = &query.color_no {
+        q = q.filter(dye_batch::Column::ColorNo.contains(color_no));
     }
     if let Some(status) = &query.status {
         q = q.filter(dye_batch::Column::Status.eq(status));
-    }
-    if let Some(grade) = &query.quality_grade {
-        q = q.filter(dye_batch::Column::QualityGrade.eq(grade));
-    }
-    if let Some(start) = &query.start_date {
-        q = q.filter(dye_batch::Column::ProductionDate.gte(*start));
-    }
-    if let Some(end) = &query.end_date {
-        q = q.filter(dye_batch::Column::ProductionDate.lte(*end));
     }
 
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
@@ -132,18 +105,15 @@ pub async fn create_dye_batch(
     let batch = dye_batch::ActiveModel {
         id: Set(0),
         batch_no: Set(req.batch_no),
-        color_code: Set(req.color_code),
-        color_name: Set(req.color_name),
-        fabric_type: Set(req.fabric_type),
-        weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
-        status: Set(req.status.unwrap_or_else(|| "待生产".to_string())),
-        production_date: Set(req.production_date),
-        completion_date: Set(None),
-        quality_grade: Set(req.quality_grade),
-        remarks: Set(req.remarks),
-        created_by: Set(req.created_by),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        greige_fabric_id: Set(req.greige_fabric_id),
+        color_no: Set(req.color_no),
+        planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
+        status: Set(req.status.or(Some("待生产".to_string()))),
+        started_at: Set(None),
+        completed_at: Set(None),
+        is_deleted: Set(Some(false)),
+        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
     };
 
     match batch.insert(&*state.db).await {
@@ -183,32 +153,20 @@ pub async fn update_dye_batch(
         }
     };
 
-    if let Some(color_code) = req.color_code {
-        batch.color_code = Set(color_code);
+    if let Some(greige_fabric_id) = req.greige_fabric_id {
+        batch.greige_fabric_id = Set(Some(greige_fabric_id));
     }
-    if let Some(color_name) = req.color_name {
-        batch.color_name = Set(color_name);
+    if let Some(color_no) = req.color_no {
+        batch.color_no = Set(Some(color_no));
     }
-    if let Some(fabric_type) = req.fabric_type {
-        batch.fabric_type = Set(Some(fabric_type));
-    }
-    if let Some(weight_kg) = req.weight_kg {
-        batch.weight_kg = Set(Decimal::from_f64_retain(weight_kg));
+    if let Some(planned_quantity) = req.planned_quantity {
+        batch.planned_quantity = Set(Decimal::from_f64_retain(planned_quantity));
     }
     if let Some(status) = req.status {
-        batch.status = Set(status);
-    }
-    if let Some(completion_date) = req.completion_date {
-        batch.completion_date = Set(Some(completion_date));
-    }
-    if let Some(quality_grade) = req.quality_grade {
-        batch.quality_grade = Set(Some(quality_grade));
-    }
-    if let Some(remarks) = req.remarks {
-        batch.remarks = Set(Some(remarks));
+        batch.status = Set(Some(status));
     }
 
-    batch.updated_at = Set(Utc::now());
+    batch.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match batch.update(&*state.db).await {
         Ok(updated) => (
@@ -237,70 +195,6 @@ pub async fn delete_dye_batch(
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<()>::error(format!("删除缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
-}
-
-pub async fn complete_dye_batch(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-    Json(req): Json<CompleteDyeBatchRequest>,
-) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("缸号不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
-
-    batch.status = Set("已完成".to_string());
-    batch.completion_date = Set(Some(Utc::now()));
-    batch.quality_grade = Set(Some(req.quality_grade));
-    if let Some(remarks) = req.remarks {
-        batch.remarks = Set(Some(remarks));
-    }
-    batch.updated_at = Set(Utc::now());
-
-    match batch.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "缸号完成成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("完成缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
-}
-
-pub async fn get_dye_batches_by_color(
-    State(state): State<AppState>,
-    Path(color_code): Path<String>,
-) -> impl IntoResponse {
-    match dye_batch::Entity::find()
-        .filter(dye_batch::Column::ColorCode.eq(color_code))
-        .order_by_desc(dye_batch::Column::CreatedAt)
-        .all(&*state.db)
-        .await
-    {
-        Ok(batches) => (StatusCode::OK, Json(ApiResponse::success(batches))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
         )
             .into_response(),
     }
