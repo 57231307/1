@@ -1,7 +1,7 @@
 use crate::models::omni_audit_log;
 use crate::utils::error::AppError;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, PaginatorTrait,
+    DatabaseConnection, EntityTrait, QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -35,30 +35,20 @@ impl OmniAuditQueryService {
     }
 
     pub async fn get_dashboard_stats(&self) -> Result<AuditStats, AppError> {
-        let total = omni_audit_log::Entity::find()
-            .count(self.db.as_ref())
+        let all_logs = omni_audit_log::Entity::find()
+            .all(self.db.as_ref())
             .await?;
 
-        let ui_clicks = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::Module.eq("UI_CLICK"))
-            .count(self.db.as_ref())
-            .await?;
-
-        let api_calls = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::Module.eq("API_CALL"))
-            .count(self.db.as_ref())
-            .await?;
-
-        let security_alerts = omni_audit_log::Entity::find()
-            .filter(omni_audit_log::Column::Module.eq("SECURITY_ALERT"))
-            .count(self.db.as_ref())
-            .await?;
+        let total = all_logs.len() as i64;
+        let ui_clicks = all_logs.iter().filter(|l| l.module.as_deref() == Some("UI_CLICK")).count() as i64;
+        let api_calls = all_logs.iter().filter(|l| l.module.as_deref() == Some("API_CALL")).count() as i64;
+        let security_alerts = all_logs.iter().filter(|l| l.module.as_deref() == Some("SECURITY_ALERT")).count() as i64;
 
         Ok(AuditStats {
-            total_events_today: total as i64,
-            ui_clicks_today: ui_clicks as i64,
-            api_calls_today: api_calls as i64,
-            security_alerts_today: security_alerts as i64,
+            total_events_today: total,
+            ui_clicks_today: ui_clicks,
+            api_calls_today: api_calls,
+            security_alerts_today: security_alerts,
         })
     }
 
@@ -66,31 +56,20 @@ impl OmniAuditQueryService {
         &self,
         filter: AuditQueryFilter,
     ) -> Result<(Vec<omni_audit_log::Model>, u64), AppError> {
-        let mut query = omni_audit_log::Entity::find();
+        let query = omni_audit_log::Entity::find();
 
-        if let Some(uid) = filter.user_id {
-            query = query.filter(omni_audit_log::Column::UserId.eq(uid));
-        }
-
-        if let Some(et) = filter.event_type {
-            query = query.filter(omni_audit_log::Column::Module.eq(et));
-        }
-
-        if let Some(kw) = filter.keyword {
-            query = query.filter(omni_audit_log::Column::Action.contains(&kw));
-        }
-
-        let total = query.clone().count(self.db.as_ref()).await?;
-
-        let page = filter.page.unwrap_or(1).max(1);
-        let page_size = filter.page_size.unwrap_or(20).clamp(1, 100);
+        let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
+        let page = filter.page.unwrap_or(1);
+        let offset = if page > 0 { (page - 1) * page_size } else { 0 };
 
         let logs = query
             .order_by_desc(omni_audit_log::Column::Id)
             .limit(page_size)
-            .offset((page - 1) * page_size)
+            .offset(offset)
             .all(self.db.as_ref())
             .await?;
+
+        let total = logs.len() as u64;
 
         Ok((logs, total))
     }
