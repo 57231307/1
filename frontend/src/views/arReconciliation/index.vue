@@ -68,7 +68,7 @@ const loadData = async () => {
 
 const loadCustomers = async () => {
   try {
-    const res: any = await request.get('/api/v1/customers/select')
+    const res: any = await request.get('/customers/select')
     customerOptions.value = res.data!
   } catch (error) {
     console.warn('加载客户失败')

@@ -71,7 +71,7 @@ const loadData = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res: any = await request.get('/api/v1/warehouses/select')
+    const res: any = await request.get('/warehouses/select')
     warehouseOptions.value = res.data!
   } catch (error) {
     console.warn('加载仓库失败')
@@ -80,7 +80,7 @@ const loadWarehouses = async () => {
 
 const loadProducts = async () => {
   try {
-    const res: any = await request.get('/api/v1/products/select')
+    const res: any = await request.get('/products/select')
     productOptions.value = res.data!
   } catch (error) {
     console.warn('加载产品失败')
@@ -113,7 +113,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增库存调整'
-  const res: any = await request.get('/api/v1/inventory-adjustment/generate-no')
+  const res: any = await request.get('/inventory-adjustment/generate-no')
   form.value = {
     adjust_no: res.data,
     adjust_date: new Date().toISOString().split('T')[0],

@@ -74,7 +74,7 @@ const loadData = async () => {
 
 const loadSuppliers = async () => {
   try {
-    const res: any = await request.get('/api/v1/suppliers/select')
+    const res: any = await request.get('/suppliers/select')
     supplierOptions.value = res.data!
   } catch (error) {
     console.warn('加载供应商失败')
@@ -83,7 +83,7 @@ const loadSuppliers = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res: any = await request.get('/api/v1/warehouses/select')
+    const res: any = await request.get('/warehouses/select')
     warehouseOptions.value = res.data!
   } catch (error) {
     console.warn('加载仓库失败')
@@ -92,7 +92,7 @@ const loadWarehouses = async () => {
 
 const loadProducts = async () => {
   try {
-    const res: any = await request.get('/api/v1/products/select')
+    const res: any = await request.get('/products/select')
     productOptions.value = res.data!
   } catch (error) {
     console.warn('加载产品失败')
@@ -126,7 +126,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增入库'
-  const res: any = await request.get('/api/v1/purchase-receipt/generate-no')
+  const res: any = await request.get('/purchase-receipt/generate-no')
   form.value = {
     receipt_no: res.data,
     receipt_date: new Date().toISOString().split('T')[0],

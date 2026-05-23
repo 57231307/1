@@ -16,7 +16,7 @@ pub struct AuditQueryFilter {
     pub event_type: Option<String>,
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
-    pub keyword: Option<String>, // 模糊查询 payload
+    pub keyword: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
@@ -34,7 +34,6 @@ impl OmniAuditQueryService {
         Self { db }
     }
 
-    /// 大屏统计数据
     pub async fn get_dashboard_stats(&self) -> Result<AuditStats, AppError> {
         let today = chrono::Utc::now().date_naive();
 
@@ -45,19 +44,19 @@ impl OmniAuditQueryService {
 
         let ui_clicks = omni_audit_log::Entity::find()
             .filter(omni_audit_log::Column::CreatedAt.gte(today))
-            .filter(omni_audit_log::Column::EventType.eq("UI_CLICK"))
+            .filter(omni_audit_log::Column::Module.eq("UI_CLICK"))
             .count(self.db.as_ref())
             .await?;
 
         let api_calls = omni_audit_log::Entity::find()
             .filter(omni_audit_log::Column::CreatedAt.gte(today))
-            .filter(omni_audit_log::Column::EventType.eq("API_CALL"))
+            .filter(omni_audit_log::Column::Module.eq("API_CALL"))
             .count(self.db.as_ref())
             .await?;
 
         let security_alerts = omni_audit_log::Entity::find()
             .filter(omni_audit_log::Column::CreatedAt.gte(today))
-            .filter(omni_audit_log::Column::EventType.eq("SECURITY_ALERT"))
+            .filter(omni_audit_log::Column::Module.eq("SECURITY_ALERT"))
             .count(self.db.as_ref())
             .await?;
 
@@ -69,7 +68,6 @@ impl OmniAuditQueryService {
         })
     }
 
-    /// 复杂检索查询
     pub async fn search_logs(
         &self,
         filter: AuditQueryFilter,
@@ -81,7 +79,7 @@ impl OmniAuditQueryService {
         }
 
         if let Some(et) = filter.event_type {
-            query = query.filter(omni_audit_log::Column::EventType.eq(et));
+            query = query.filter(omni_audit_log::Column::Module.eq(et));
         }
 
         if let Some(start) = filter.start_date {
@@ -93,9 +91,7 @@ impl OmniAuditQueryService {
         }
 
         if let Some(kw) = filter.keyword {
-            // Postgres JSONB operator could be used, here fallback to LIKE string cast if needed,
-            // or just match on event_name for simplicity across DBs.
-            query = query.filter(omni_audit_log::Column::EventName.contains(&kw));
+            query = query.filter(omni_audit_log::Column::Action.contains(&kw));
         }
 
         let total = query.clone().count(self.db.as_ref()).await?;

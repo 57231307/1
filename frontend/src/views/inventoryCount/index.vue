@@ -69,7 +69,7 @@ const loadData = async () => {
 
 const loadWarehouses = async () => {
   try {
-    const res: any = await request.get('/api/v1/warehouses/select')
+    const res: any = await request.get('/warehouses/select')
     warehouseOptions.value = res.data!
   } catch (error) {
     console.warn('加载仓库失败')
@@ -102,7 +102,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增盘点'
-  const res: any = await request.get('/api/v1/inventory-count/generate-no')
+  const res: any = await request.get('/inventory-count/generate-no')
   form.value = {
     count_no: res.data,
     count_date: new Date().toISOString().split('T')[0],
