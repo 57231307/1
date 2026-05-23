@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -14,40 +16,40 @@ pub struct Model {
     /// 供应商名称
     pub supplier_name: String,
     /// 供应商简称
-    pub supplier_short_name: Option<String>,
+    pub supplier_short_name: String,
     /// 供应商类型
-    pub supplier_type: Option<String>,
+    pub supplier_type: String,
     /// 统一社会信用代码
-    pub credit_code: Option<String>,
+    pub credit_code: String,
     /// 注册地址
-    pub registered_address: Option<String>,
+    pub registered_address: String,
     /// 经营地址
     pub business_address: Option<String>,
     /// 法人代表
-    pub legal_representative: Option<String>,
+    pub legal_representative: String,
     /// 注册资本（万元）
-    #[sea_orm(column_type = "Decimal(Some((14, 2)))")]
-    pub registered_capital: Option<Decimal>,
+    #[sea_orm(column_type = "Decimal(Some((15, 2)))")]
+    pub registered_capital: Decimal,
     /// 成立日期
-    pub establishment_date: Option<Date>,
+    pub establishment_date: chrono::NaiveDate,
     /// 营业期限
     pub business_term: Option<String>,
     /// 经营范围
     pub business_scope: Option<String>,
     /// 纳税人类型
-    pub taxpayer_type: Option<String>,
+    pub taxpayer_type: String,
     /// 开户银行
-    pub bank_name: Option<String>,
+    pub bank_name: String,
     /// 银行账号
-    pub bank_account: Option<String>,
+    pub bank_account: String,
     /// 联系电话
-    pub contact_phone: Option<String>,
+    pub contact_phone: String,
     /// 传真
     pub fax: Option<String>,
     /// 公司网址
     pub website: Option<String>,
     /// 联系邮箱
-    pub contact_email: Option<String>,
+    pub email: Option<String>,
     /// 主营业务
     pub main_business: Option<String>,
     /// 主要市场
@@ -55,7 +57,7 @@ pub struct Model {
     /// 员工人数
     pub employee_count: Option<i32>,
     /// 年营业额（万元）
-    #[sea_orm(column_type = "Decimal(Some((14, 2)))")]
+    #[sea_orm(column_type = "Decimal(Some((15, 2)))")]
     pub annual_revenue: Option<Decimal>,
     /// 供应商等级（A/B/C/D）
     pub grade: Option<String>,
@@ -63,7 +65,7 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((5, 2)))")]
     pub grade_score: Option<Decimal>,
     /// 最后评估日期
-    pub last_evaluation_date: Option<Date>,
+    pub last_evaluation_date: Option<chrono::NaiveDate>,
     /// 状态：active/inactive/disabled/blacklisted
     pub status: Option<String>,
     /// 是否启用
@@ -80,43 +82,12 @@ pub struct Model {
     pub created_by: Option<i32>,
     /// 更新人 ID
     pub updated_by: Option<i32>,
-    /// 联系人
-    pub contact_person: Option<String>,
-    /// 地址
-    pub address: Option<String>,
-    /// 城市
-    pub city: Option<String>,
-    /// 省份
-    pub province: Option<String>,
-    /// 国家
-    pub country: Option<String>,
-    /// 邮编
-    pub postal_code: Option<String>,
-    /// 账期
-    pub payment_terms: Option<i32>,
-    /// 税号
-    pub tax_id: Option<String>,
     /// 备注
-    pub notes: Option<String>,
-    /// 备注（别名）
     pub remarks: Option<String>,
-    /// 是否启用
-    pub is_active: Option<bool>,
-    /// 是否删除
-    pub is_deleted: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    /// 供应商 - 联系人（一对多）
-    #[sea_orm(has_many = "super::supplier_contact::Entity")]
-    SupplierContacts,
-    /// 供应商 - 资质（一对多）
-    #[sea_orm(has_many = "super::supplier_qualification::Entity")]
-    SupplierQualifications,
-    /// 供应商 - 黑名单（一对一）
-    #[sea_orm(has_one = "super::supplier_blacklist::Entity")]
-    SupplierBlacklist,
     /// 供应商 - 用户（多对一，创建人）
     #[sea_orm(
         belongs_to = "super::user::Entity",
@@ -129,24 +100,6 @@ pub enum Relation {
 impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::User.def()
-    }
-}
-
-impl Related<super::supplier_contact::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::SupplierContacts.def()
-    }
-}
-
-impl Related<super::supplier_qualification::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::SupplierQualifications.def()
-    }
-}
-
-impl Related<super::supplier_blacklist::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::SupplierBlacklist.def()
     }
 }
 

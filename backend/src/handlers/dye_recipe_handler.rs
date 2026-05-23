@@ -32,6 +32,7 @@ pub struct DyeRecipeListQuery {
 #[derive(Debug, Deserialize)]
 pub struct CreateDyeRecipeRequest {
     pub recipe_no: String,
+    pub recipe_name: Option<String>,
     pub color_code: String,
     pub color_name: String,
     pub fabric_type: Option<String>,
@@ -143,8 +144,11 @@ pub async fn create_dye_recipe(
     let recipe = dye_recipe::ActiveModel {
         id: Set(0),
         recipe_no: Set(req.recipe_no),
-        color_code: Set(req.color_code),
-        color_name: Set(req.color_name),
+        recipe_name: Set(Some(req.recipe_name.unwrap_or_else(|| "未命名配方".to_string()))),
+        color_no: Set(Some(req.color_code.clone())),
+        formula: Set(req.chemical_formula.clone()),
+        color_code: Set(Some(req.color_code)),
+        color_name: Set(Some(req.color_name)),
         fabric_type: Set(req.fabric_type),
         dye_type: Set(req.dye_type),
         chemical_formula: Set(req.chemical_formula),
@@ -153,15 +157,16 @@ pub async fn create_dye_recipe(
         ph_value: Set(req.ph_value.and_then(Decimal::from_f64_retain)),
         liquor_ratio: Set(req.liquor_ratio.and_then(Decimal::from_f64_retain)),
         auxiliaries: Set(req.auxiliaries),
-        status: Set(req.status.unwrap_or_else(|| "草稿".to_string())),
+        status: Set(Some(req.status.unwrap_or_else(|| "草稿".to_string()))),
+        is_deleted: Set(Some(false)),
         version: Set(req.version.or(Some(1))),
         parent_recipe_id: Set(req.parent_recipe_id),
         approved_by: Set(None),
         approved_at: Set(None),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
     };
 
     match recipe.insert(&*state.db).await {
@@ -202,10 +207,10 @@ pub async fn update_dye_recipe(
     };
 
     if let Some(color_code) = req.color_code {
-        recipe.color_code = Set(color_code);
+        recipe.color_code = Set(Some(color_code));
     }
     if let Some(color_name) = req.color_name {
-        recipe.color_name = Set(color_name);
+        recipe.color_name = Set(Some(color_name));
     }
     if let Some(fabric_type) = req.fabric_type {
         recipe.fabric_type = Set(Some(fabric_type));
@@ -232,13 +237,13 @@ pub async fn update_dye_recipe(
         recipe.auxiliaries = Set(Some(auxiliaries));
     }
     if let Some(status) = req.status {
-        recipe.status = Set(status);
+        recipe.status = Set(Some(status));
     }
     if let Some(remarks) = req.remarks {
         recipe.remarks = Set(Some(remarks));
     }
 
-    recipe.updated_at = Set(Utc::now());
+    recipe.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match recipe.update(&*state.db).await {
         Ok(updated) => (
@@ -295,10 +300,10 @@ pub async fn approve_recipe(
         }
     };
 
-    recipe.status = Set("已审核".to_string());
+    recipe.status = Set(Some("已审核".to_string()));
     recipe.approved_by = Set(Some(req.approved_by));
-    recipe.approved_at = Set(Some(Utc::now()));
-    recipe.updated_at = Set(Utc::now());
+    recipe.approved_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
+    recipe.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match recipe.update(&*state.db).await {
         Ok(updated) => (
@@ -343,6 +348,9 @@ pub async fn create_new_version(
     let new_recipe = dye_recipe::ActiveModel {
         id: Set(0),
         recipe_no: Set(new_recipe_no),
+        recipe_name: Set(original.recipe_name),
+        color_no: Set(original.color_no),
+        formula: Set(original.formula),
         color_code: Set(original.color_code),
         color_name: Set(original.color_name),
         fabric_type: Set(original.fabric_type),
@@ -353,15 +361,16 @@ pub async fn create_new_version(
         ph_value: Set(original.ph_value),
         liquor_ratio: Set(original.liquor_ratio),
         auxiliaries: Set(original.auxiliaries),
-        status: Set("草稿".to_string()),
+        status: Set(Some("草稿".to_string())),
+        is_deleted: Set(Some(false)),
         version: Set(Some(new_version)),
         parent_recipe_id: Set(Some(id)),
         approved_by: Set(None),
         approved_at: Set(None),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
     };
 
     match new_recipe.insert(&*state.db).await {

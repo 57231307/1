@@ -36,7 +36,7 @@ pub struct GreigeFabricListQuery {
 pub struct CreateGreigeFabricRequest {
     pub fabric_no: String,
     pub fabric_name: String,
-    pub fabric_type: String,
+    pub fabric_type: Option<String>,
     pub color_code: Option<String>,
     pub width_cm: Option<f64>,
     pub weight_kg: Option<f64>,
@@ -47,9 +47,19 @@ pub struct CreateGreigeFabricRequest {
     pub location: Option<String>,
     pub status: Option<String>,
     pub quality_grade: Option<String>,
-    pub purchase_date: Option<DateTime<Utc>>,
+    pub purchase_date: Option<chrono::NaiveDate>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
+    pub product_id: Option<i32>,
+    pub composition: Option<String>,
+    pub yarn_count: Option<String>,
+    pub density: Option<String>,
+    pub width: Option<f64>,
+    pub gram_weight: Option<f64>,
+    pub structure: Option<String>,
+    pub production_date: Option<chrono::NaiveDate>,
+    pub quantity_meters: Option<f64>,
+    pub quantity_kg: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,22 +170,33 @@ pub async fn create_greige_fabric(
         id: Set(0),
         fabric_no: Set(req.fabric_no),
         fabric_name: Set(req.fabric_name),
+        product_id: Set(req.product_id),
+        supplier_id: Set(req.supplier_id),
+        composition: Set(req.composition),
+        yarn_count: Set(req.yarn_count),
+        density: Set(req.density),
+        width: Set(req.width.and_then(Decimal::from_f64_retain)),
+        gram_weight: Set(req.gram_weight.and_then(Decimal::from_f64_retain)),
+        structure: Set(req.structure),
+        production_date: Set(req.production_date),
+        batch_no: Set(req.batch_no),
+        quantity_meters: Set(req.quantity_meters.and_then(Decimal::from_f64_retain)),
+        quantity_kg: Set(req.quantity_kg.and_then(Decimal::from_f64_retain)),
+        warehouse_id: Set(req.warehouse_id),
+        status: Set(Some(req.status.unwrap_or_else(|| "在库".to_string()))),
+        is_deleted: Set(Some(false)),
         fabric_type: Set(req.fabric_type),
         color_code: Set(req.color_code),
         width_cm: Set(req.width_cm.and_then(Decimal::from_f64_retain)),
         weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
         length_m: Set(req.length_m.and_then(Decimal::from_f64_retain)),
-        supplier_id: Set(req.supplier_id),
-        batch_no: Set(req.batch_no),
-        warehouse_id: Set(req.warehouse_id),
         location: Set(req.location),
-        status: Set(req.status.unwrap_or_else(|| "在库".to_string())),
         quality_grade: Set(req.quality_grade),
         purchase_date: Set(req.purchase_date),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
     };
 
     match fabric.insert(&*state.db).await {
@@ -220,7 +241,7 @@ pub async fn update_greige_fabric(
         fabric.fabric_name = Set(fabric_name);
     }
     if let Some(fabric_type) = req.fabric_type {
-        fabric.fabric_type = Set(fabric_type);
+        fabric.fabric_type = Set(Some(fabric_type));
     }
     if let Some(color_code) = req.color_code {
         fabric.color_code = Set(Some(color_code));
@@ -247,7 +268,7 @@ pub async fn update_greige_fabric(
         fabric.location = Set(Some(location));
     }
     if let Some(status) = req.status {
-        fabric.status = Set(status);
+        fabric.status = Set(Some(status));
     }
     if let Some(quality_grade) = req.quality_grade {
         fabric.quality_grade = Set(Some(quality_grade));
@@ -256,7 +277,7 @@ pub async fn update_greige_fabric(
         fabric.remarks = Set(Some(remarks));
     }
 
-    fabric.updated_at = Set(Utc::now());
+    fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match fabric.update(&*state.db).await {
         Ok(updated) => (
@@ -318,14 +339,14 @@ pub async fn stock_in(
     fabric.location = Set(req.location);
     fabric.weight_kg = Set(Decimal::from_f64_retain(req.weight_kg));
     fabric.length_m = Set(Decimal::from_f64_retain(req.length_m));
-    fabric.status = Set("在库".to_string());
+    fabric.status = Set(Some("在库".to_string()));
     if let Some(grade) = req.quality_grade {
         fabric.quality_grade = Set(Some(grade));
     }
     if let Some(remarks) = req.remarks {
         fabric.remarks = Set(Some(remarks));
     }
-    fabric.updated_at = Set(Utc::now());
+    fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match fabric.update(&*state.db).await {
         Ok(updated) => (
@@ -392,8 +413,8 @@ pub async fn stock_out(
         update_fabric.length_m = Set(Some(new_length));
     }
 
-    update_fabric.status = Set("已出库".to_string());
-    update_fabric.updated_at = Set(Utc::now());
+    update_fabric.status = Set(Some("已出库".to_string()));
+    update_fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match update_fabric.update(&*state.db).await {
         Ok(updated) => (

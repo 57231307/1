@@ -47,23 +47,23 @@ impl SupplierService {
         let supplier = supplier::ActiveModel {
             supplier_code: Set(supplier_code),
             supplier_name: Set(req.supplier_name),
-            supplier_short_name: Set(Some(req.supplier_short_name)),
-            supplier_type: Set(Some(req.supplier_type)),
-            credit_code: Set(Some(req.credit_code)),
-            registered_address: Set(Some(req.registered_address)),
+            supplier_short_name: Set(req.supplier_short_name),
+            supplier_type: Set(req.supplier_type),
+            credit_code: Set(req.credit_code),
+            registered_address: Set(req.registered_address),
             business_address: Set(req.business_address),
-            legal_representative: Set(Some(req.legal_representative)),
-            registered_capital: Set(Some(req.registered_capital)),
-            establishment_date: Set(Some(req.establishment_date)),
+            legal_representative: Set(req.legal_representative),
+            registered_capital: Set(req.registered_capital),
+            establishment_date: Set(req.establishment_date),
             business_term: Set(req.business_term),
             business_scope: Set(req.business_scope),
-            taxpayer_type: Set(Some(req.taxpayer_type)),
-            bank_name: Set(Some(req.bank_name)),
-            bank_account: Set(Some(req.bank_account)),
-            contact_phone: Set(Some(req.contact_phone)),
+            taxpayer_type: Set(req.taxpayer_type),
+            bank_name: Set(req.bank_name),
+            bank_account: Set(req.bank_account),
+            contact_phone: Set(req.contact_phone),
             fax: Set(req.fax),
             website: Set(req.website),
-            contact_email: Set(req.email),
+            email: Set(req.email),
             main_business: Set(req.main_business),
             main_market: Set(req.main_market),
             employee_count: Set(req.employee_count),
@@ -221,28 +221,28 @@ impl SupplierService {
             supplier_active.supplier_name = Set(name);
         }
         if let Some(short_name) = req.supplier_short_name {
-            supplier_active.supplier_short_name = Set(Some(short_name));
+            supplier_active.supplier_short_name = Set(short_name);
         }
         if let Some(supplier_type) = req.supplier_type {
-            supplier_active.supplier_type = Set(Some(supplier_type));
+            supplier_active.supplier_type = Set(supplier_type);
         }
         if let Some(credit_code) = req.credit_code {
-            supplier_active.credit_code = Set(Some(credit_code));
+            supplier_active.credit_code = Set(credit_code);
         }
         if let Some(registered_address) = req.registered_address {
-            supplier_active.registered_address = Set(Some(registered_address));
+            supplier_active.registered_address = Set(registered_address);
         }
         if let Some(business_address) = req.business_address {
             supplier_active.business_address = Set(Some(business_address));
         }
         if let Some(legal_representative) = req.legal_representative {
-            supplier_active.legal_representative = Set(Some(legal_representative));
+            supplier_active.legal_representative = Set(legal_representative);
         }
         if let Some(registered_capital) = req.registered_capital {
-            supplier_active.registered_capital = Set(Some(registered_capital));
+            supplier_active.registered_capital = Set(registered_capital);
         }
         if let Some(establishment_date) = req.establishment_date {
-            supplier_active.establishment_date = Set(Some(establishment_date));
+            supplier_active.establishment_date = Set(establishment_date);
         }
         if let Some(business_term) = req.business_term {
             supplier_active.business_term = Set(Some(business_term));
@@ -251,16 +251,16 @@ impl SupplierService {
             supplier_active.business_scope = Set(Some(business_scope));
         }
         if let Some(taxpayer_type) = req.taxpayer_type {
-            supplier_active.taxpayer_type = Set(Some(taxpayer_type));
+            supplier_active.taxpayer_type = Set(taxpayer_type);
         }
         if let Some(bank_name) = req.bank_name {
-            supplier_active.bank_name = Set(Some(bank_name));
+            supplier_active.bank_name = Set(bank_name);
         }
         if let Some(bank_account) = req.bank_account {
-            supplier_active.bank_account = Set(Some(bank_account));
+            supplier_active.bank_account = Set(bank_account);
         }
         if let Some(contact_phone) = req.contact_phone {
-            supplier_active.contact_phone = Set(Some(contact_phone));
+            supplier_active.contact_phone = Set(contact_phone);
         }
         if let Some(fax) = req.fax {
             supplier_active.fax = Set(Some(fax));
@@ -269,7 +269,7 @@ impl SupplierService {
             supplier_active.website = Set(Some(website));
         }
         if let Some(email) = req.email {
-            supplier_active.contact_email = Set(Some(email));
+            supplier_active.email = Set(Some(email));
         }
         if let Some(main_business) = req.main_business {
             supplier_active.main_business = Set(Some(main_business));

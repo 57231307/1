@@ -2,6 +2,8 @@
 
 //! 坯布管理模型（原料布匹管理）
 
+use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -12,26 +14,52 @@ pub struct Model {
     pub id: i32,
     pub fabric_no: String,
     pub fabric_name: String,
-    pub fabric_type: String,
-    pub color_code: Option<String>,
-    pub width_cm: Option<Decimal>,
-    pub weight_kg: Option<Decimal>,
-    pub length_m: Option<Decimal>,
+    pub product_id: Option<i32>,
     pub supplier_id: Option<i32>,
+    pub composition: Option<String>,
+    pub yarn_count: Option<String>,
+    pub density: Option<String>,
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub width: Option<Decimal>,
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub gram_weight: Option<Decimal>,
+    pub structure: Option<String>,
+    pub production_date: Option<NaiveDate>,
     pub batch_no: Option<String>,
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub quantity_meters: Option<Decimal>,
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub quantity_kg: Option<Decimal>,
     pub warehouse_id: Option<i32>,
+    pub status: Option<String>,
+    pub is_deleted: Option<bool>,
+    pub created_at: DateTimeWithTimeZone,
+    pub updated_at: DateTimeWithTimeZone,
+    pub fabric_type: Option<String>,
+    pub color_code: Option<String>,
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub width_cm: Option<Decimal>,
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub weight_kg: Option<Decimal>,
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub length_m: Option<Decimal>,
     pub location: Option<String>,
-    pub status: String,
     pub quality_grade: Option<String>,
-    pub purchase_date: Option<DateTimeUtc>,
+    pub purchase_date: Option<NaiveDate>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
-    pub created_at: DateTimeUtc,
-    pub updated_at: DateTimeUtc,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id",
+        on_update = "Cascade",
+        on_delete = "SetNull"
+    )]
+    Product,
     #[sea_orm(
         belongs_to = "super::supplier::Entity",
         from = "Column::SupplierId",
