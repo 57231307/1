@@ -199,3 +199,62 @@ pub async fn delete_dye_batch(
             .into_response(),
     }
 }
+
+pub async fn complete_dye_batch(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> impl IntoResponse {
+    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
+        Ok(Some(b)) => b.into(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::error("缸号不存在")),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    batch.status = Set(Some("已完成".to_string()));
+    batch.completed_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
+    batch.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+
+    match batch.update(&*state.db).await {
+        Ok(updated) => (
+            StatusCode::OK,
+            Json(ApiResponse::success_with_msg(updated, "缸号完成成功")),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(format!("完成缸号失败：{}", e))),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_dye_batches_by_color(
+    State(state): State<AppState>,
+    Path(color_no): Path<String>,
+) -> impl IntoResponse {
+    match dye_batch::Entity::find()
+        .filter(dye_batch::Column::ColorNo.eq(color_no))
+        .order_by_desc(dye_batch::Column::CreatedAt)
+        .all(&*state.db)
+        .await
+    {
+        Ok(batches) => (StatusCode::OK, Json(ApiResponse::success(batches))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
+        )
+            .into_response(),
+    }
+}
