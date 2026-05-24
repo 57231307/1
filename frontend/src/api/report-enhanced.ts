@@ -91,57 +91,57 @@ export interface UpdateSubscriptionRequest {
 }
 
 export function listReportTemplates(params?: Record<string, any>): Promise<ApiResponse<PageResult<ReportTemplate>>> {
-  return request.get('/report/templates', { params })
+  return request.get('/reports/enhanced/templates', { params })
 }
 
 export function getReportTemplate(id: number): Promise<ApiResponse<ReportTemplate>> {
-  return request.get(`/report/templates/${id}`)
+  return request.get(`/reports/enhanced/templates/${id}`)
 }
 
 export function createReportTemplate(data: CreateTemplateRequest): Promise<ApiResponse<ReportTemplate>> {
-  return request.post('/report/templates', data)
+  return request.post('/reports/enhanced/templates', data)
 }
 
 export function updateReportTemplate(id: number, data: UpdateTemplateRequest): Promise<ApiResponse<ReportTemplate>> {
-  return request.put(`/report/templates/${id}`, data)
+  return request.put(`/reports/enhanced/templates/${id}`, data)
 }
 
 export function deleteReportTemplate(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/report/templates/${id}`)
+  return request.delete(`/reports/enhanced/templates/${id}`)
 }
 
 export function getAvailableFields(templateType: string): Promise<ApiResponse<ReportField[]>> {
-  return request.get(`/report/fields/${templateType}`)
+  return request.get(`/reports/enhanced/fields/${templateType}`)
 }
 
 export function exportReport(templateId: number, params: { format: 'pdf' | 'excel'; date_range?: { start: string; end: string }; filters?: ReportFilterCondition[] }): Promise<Blob> {
-  return request.post(`/report/templates/${templateId}/export`, params, { responseType: 'blob' })
+  return request.post(`/reports/enhanced/templates/${templateId}/export`, params, { responseType: 'blob' })
 }
 
 export function previewReport(templateId: number, params?: Record<string, any>): Promise<ApiResponse<any>> {
-  return request.get(`/report/templates/${templateId}/preview`, { params })
+  return request.get(`/reports/enhanced/templates/${templateId}/preview`, { params })
 }
 
 export function listSubscriptions(params?: Record<string, any>): Promise<ApiResponse<PageResult<ReportSubscription>>> {
-  return request.get('/report/subscriptions', { params })
+  return request.get('/reports/enhanced/subscriptions', { params })
 }
 
 export function createSubscription(data: CreateSubscriptionRequest): Promise<ApiResponse<ReportSubscription>> {
-  return request.post('/report/subscriptions', data)
+  return request.post('/reports/enhanced/subscriptions', data)
 }
 
 export function updateSubscription(id: number, data: UpdateSubscriptionRequest): Promise<ApiResponse<ReportSubscription>> {
-  return request.put(`/report/subscriptions/${id}`, data)
+  return request.put(`/reports/enhanced/subscriptions/${id}`, data)
 }
 
 export function deleteSubscription(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/report/subscriptions/${id}`)
+  return request.delete(`/reports/enhanced/subscriptions/${id}`)
 }
 
 export function toggleSubscription(id: number): Promise<ApiResponse<ReportSubscription>> {
-  return request.put(`/report/subscriptions/${id}/toggle`)
+  return request.put(`/reports/enhanced/subscriptions/${id}/toggle`)
 }
 
 export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: string }>> {
-  return request.post(`/report/subscriptions/${id}/send`)
+  return request.post(`/reports/enhanced/subscriptions/${id}/send`)
 }
