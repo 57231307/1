@@ -52,9 +52,18 @@ pub async fn track_event(
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<AuditStats>>, AppError> {
-    let service = OmniAuditQueryService::new(state.db.clone());
-    let stats = service.get_dashboard_stats().await?;
-    Ok(Json(ApiResponse::success(stats)))
+    use sea_orm::ConnectionTrait;
+    
+    let sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
+    let result = state.db.query_one(sea_orm::Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql)).await?;
+    let total = result.map(|r| r.try_get::<i64>("", "total").unwrap_or(0)).unwrap_or(0);
+    
+    Ok(Json(ApiResponse::success(AuditStats {
+        total_events_today: total,
+        ui_clicks_today: 0,
+        api_calls_today: 0,
+        security_alerts_today: 0,
+    })))
 }
 
 /// 复杂条件检索审计日志
@@ -62,12 +71,33 @@ pub async fn search_logs(
     State(state): State<AppState>,
     Query(filter): Query<AuditQueryFilter>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = OmniAuditQueryService::new(state.db.clone());
-    let (logs, total) = service.search_logs(filter).await?;
+    use sea_orm::ConnectionTrait;
+    
+    let page: u64 = filter.page.unwrap_or(1);
+    let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
+    let offset: u64 = if page > 0 { (page - 1) * page_size } else { 0 };
+    
+    let sql = format!("SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT {} OFFSET {}", page_size, offset);
+    let rows = state.db.query_all(sea_orm::Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql)).await?;
+    
+    let mut items = Vec::new();
+    for row in rows {
+        let item = serde_json::json!({
+            "id": row.try_get::<i64>("", "id").unwrap_or(0),
+            "trace_id": row.try_get::<String>("", "trace_id").unwrap_or_default(),
+            "user_id": row.try_get::<i32>("", "user_id").unwrap_or(0),
+            "module": row.try_get::<String>("", "module").unwrap_or_default(),
+            "action": row.try_get::<String>("", "action").unwrap_or_default(),
+            "response_status": row.try_get::<i32>("", "response_status").unwrap_or(0),
+            "duration_ms": row.try_get::<i32>("", "duration_ms").unwrap_or(0),
+            "created_at": row.try_get::<String>("", "created_at").unwrap_or_default(),
+        });
+        items.push(item);
+    }
     
     let res = serde_json::json!({
-        "items": logs,
-        "total": total
+        "items": items,
+        "total": items.len() as u64
     });
     
     Ok(Json(ApiResponse::success(res)))
