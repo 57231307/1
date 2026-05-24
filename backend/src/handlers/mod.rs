@@ -124,3 +124,5 @@ pub mod tenant_config_handler;
 pub mod tenant_billing_handler;
 // 字段权限模块
 pub mod field_permission_handler;
+// 通用打印模块
+pub mod print_handler;

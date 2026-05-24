@@ -120,3 +120,5 @@ pub mod report_subscription_service;
 pub mod scheduler_service;
 // 导出服务模块
 pub mod export_service;
+// 通用打印服务
+pub mod print_service;

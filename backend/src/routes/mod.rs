@@ -104,6 +104,7 @@ use crate::handlers::{
     advanced_handler,
     scheduling_handler,
     field_permission_handler,
+    print_handler,
 };
 
 use crate::services::metrics_service::create_metrics_router;
@@ -279,6 +280,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
         .route("/orders/:id/complete", post(sales_order_handler::complete_order))
         .route("/orders/:id/history", get(sales_order_handler::get_order_history))
+        .route("/orders/:id/print", get(print_handler::print_html))
         .route("/orders/export", get(sales_order_handler::export_orders))
         // 面料行业销售订单路由
         .route(
@@ -578,7 +580,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/reject", post(purchase_order_handler::reject_order))
         .route("/orders/:id/close", post(purchase_order_handler::close_order))
         .route("/orders/export", get(purchase_order_handler::export_orders))
+        .route("/orders/:id/print", get(print_handler::print_html))
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
+        .route("/receipts/:id/print", get(print_handler::print_html))
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
         .route("/receipts/:id", put(purchase_receipt_handler::update_receipt))
