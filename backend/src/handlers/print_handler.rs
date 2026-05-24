@@ -16,8 +16,9 @@ pub async fn get_print_data(
 ) -> Result<axum::Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PrintService::new();
     let print_data = service.get_print_data(&params.0, params.1).await?;
+    let json_data = serde_json::to_value(&print_data)?;
     
-    Ok(axum::Json(ApiResponse::success(print_data)))
+    Ok(axum::Json(ApiResponse::success(json_data)))
 }
 
 /// 打印为 HTML
