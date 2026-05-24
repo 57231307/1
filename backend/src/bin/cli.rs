@@ -517,7 +517,7 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
         ])
         .status();
     
-    if download_result.is_ok() {
+    if download_result.is_ok() && download_result.unwrap().success() {
         download_success = true;
         println!("✅ 直连下载成功\n");
     } else {
@@ -534,7 +534,7 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
                 ])
                 .status();
             
-            if download_result.is_ok() {
+            if download_result.is_ok() && download_result.unwrap().success() {
                 download_success = true;
                 println!("✅ 从 {} 下载成功\n", mirror);
                 break;
