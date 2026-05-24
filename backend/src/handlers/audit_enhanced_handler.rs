@@ -35,13 +35,11 @@ pub struct OperationLogQuery {
 #[derive(Debug, Serialize)]
 pub struct AuditLogItem {
     pub id: i32,
-    pub table_name: String,
-    pub record_id: i32,
-    pub action: String,
-    pub old_data: Option<serde_json::Value>,
-    pub new_data: Option<serde_json::Value>,
-    pub changed_fields: Option<serde_json::Value>,
     pub user_id: Option<i32>,
+    pub action: String,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<i32>,
+    pub ip_address: Option<String>,
     pub created_at: String,
 }
 
@@ -181,8 +179,8 @@ pub async fn list_audit_logs(
 
     let mut query_builder = audit_log::Entity::find();
 
-    if let Some(table_name) = &query.table_name {
-        query_builder = query_builder.filter(audit_log::Column::TableName.eq(table_name.clone()));
+    if let Some(resource_type) = &query.table_name {
+        query_builder = query_builder.filter(audit_log::Column::ResourceType.eq(resource_type.clone()));
     }
     if let Some(action) = &query.action {
         query_builder = query_builder.filter(audit_log::Column::Action.eq(action.clone()));
@@ -202,14 +200,12 @@ pub async fn list_audit_logs(
                     .into_iter()
                     .map(|m| AuditLogItem {
                         id: m.id,
-                        table_name: m.table_name,
-                        record_id: m.record_id,
-                        action: m.action,
-                        old_data: m.old_data,
-                        new_data: m.new_data,
-                        changed_fields: m.changed_fields,
                         user_id: m.user_id,
-                        created_at: m.created_at.to_rfc3339(),
+                        action: m.action,
+                        resource_type: m.resource_type,
+                        resource_id: m.resource_id,
+                        ip_address: m.ip_address,
+                        created_at: m.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
                     })
                     .collect();
 

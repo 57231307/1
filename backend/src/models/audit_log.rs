@@ -7,17 +7,12 @@ use chrono::{DateTime, Utc};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub table_name: String,
-    pub record_id: i32,
-    pub action: String, // CREATE, UPDATE, DELETE
-    #[sea_orm(column_type = "JsonBinary", nullable)]
-    pub old_data: Option<serde_json::Value>,
-    #[sea_orm(column_type = "JsonBinary", nullable)]
-    pub new_data: Option<serde_json::Value>,
-    #[sea_orm(column_type = "JsonBinary", nullable)]
-    pub changed_fields: Option<serde_json::Value>,
     pub user_id: Option<i32>,
-    pub created_at: DateTime<Utc>,
+    pub action: String,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<i32>,
+    pub ip_address: Option<String>,
+    pub created_at: Option<DateTimeUtc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

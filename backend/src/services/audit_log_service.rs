@@ -18,46 +18,21 @@ impl AuditLogService {
     /// 计算两个 JSON 对象的 Diff 并记录审计日志
     pub async fn log_change(
         &self,
-        table_name: &str,
-        record_id: i32,
+        resource_type: &str,
+        resource_id: i32,
         action: &str,
-        old_data: Option<Value>,
-        new_data: Option<Value>,
+        _old_data: Option<Value>,
+        _new_data: Option<Value>,
         user_id: Option<i32>,
     ) -> Result<(), DbErr> {
-        let mut changed_fields = serde_json::Map::new();
-
-        if let (Some(old), Some(new)) = (&old_data, &new_data) {
-            if let (Some(old_obj), Some(new_obj)) = (old.as_object(), new.as_object()) {
-                for (k, v_new) in new_obj {
-                    if let Some(v_old) = old_obj.get(k) {
-                        if v_old != v_new && k != "updated_at" && k != "created_at" {
-                            changed_fields.insert(k.clone(), serde_json::json!({
-                                "from": v_old,
-                                "to": v_new
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-
-        let changed_fields_val = if changed_fields.is_empty() && action == "UPDATE" {
-            return Ok(()); // 没有实际变更，不记录
-        } else {
-            Some(Value::Object(changed_fields))
-        };
-
         let log = audit_log::ActiveModel {
-            table_name: ActiveValue::Set(table_name.to_string()),
-            record_id: ActiveValue::Set(record_id),
-            action: ActiveValue::Set(action.to_string()),
-            old_data: ActiveValue::Set(old_data),
-            new_data: ActiveValue::Set(new_data),
-            changed_fields: ActiveValue::Set(changed_fields_val),
+            id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
-            created_at: ActiveValue::Set(Utc::now()),
-            ..Default::default()
+            action: ActiveValue::Set(action.to_string()),
+            resource_type: ActiveValue::Set(Some(resource_type.to_string())),
+            resource_id: ActiveValue::Set(Some(resource_id)),
+            ip_address: ActiveValue::Set(None),
+            created_at: ActiveValue::Set(Some(Utc::now())),
         };
 
         log.insert(self.db.as_ref()).await?;
@@ -67,7 +42,7 @@ impl AuditLogService {
     /// 作为 SeaORM 中间件，自动拦截并生成 Update 审计日志
     pub async fn update_with_audit<E, A, C>(
         db: &C,
-        table_name: &str,
+        resource_type: &str,
         active_model: A,
         user_id: Option<i32>,
     ) -> Result<<E as EntityTrait>::Model, DbErr>
@@ -93,52 +68,19 @@ impl AuditLogService {
             0
         };
 
-        let old_data = E::find()
-            .filter(sea_orm::sea_query::Expr::col(pk_col).eq(pk_val_unwrapped))
-            .one(db)
-            .await?;
-            
-        let old_json: Option<serde_json::Value> = old_data.as_ref()
-            .and_then(|d| serde_json::to_value(d).ok());
-
         let new_model = active_model.update(db).await?;
         
-        let new_json: Option<serde_json::Value> = Some(serde_json::to_value(&new_model)
-            .map_err(|e| DbErr::Custom(format!("Failed to serialize new data: {}", e)))?);
-
         // 记录审计日志
-        let mut changed_fields = serde_json::Map::new();
-
-        if let (Some(old), Some(new)) = (&old_json, &new_json) {
-            if let (Some(old_obj), Some(new_obj)) = (old.as_object(), new.as_object()) {
-                for (k, v_new) in new_obj {
-                    if let Some(v_old) = old_obj.get(k) {
-                        if v_old != v_new && k != "updated_at" && k != "created_at" {
-                            changed_fields.insert(k.clone(), serde_json::json!({
-                                "from": v_old,
-                                "to": v_new
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-
-        if !changed_fields.is_empty() {
-            let log = audit_log::ActiveModel {
-                id: ActiveValue::NotSet,
-                table_name: ActiveValue::Set(table_name.to_string()),
-                record_id: ActiveValue::Set(record_id),
-                action: ActiveValue::Set("UPDATE".to_string()),
-                old_data: ActiveValue::Set(old_json),
-                new_data: ActiveValue::Set(new_json),
-                changed_fields: ActiveValue::Set(Some(Value::Object(changed_fields))),
-                user_id: ActiveValue::Set(user_id),
-                created_at: ActiveValue::Set(Utc::now()),
-                ..Default::default()
-            };
-            log.insert(db).await?;
-        }
+        let log = audit_log::ActiveModel {
+            id: ActiveValue::NotSet,
+            user_id: ActiveValue::Set(user_id),
+            action: ActiveValue::Set("UPDATE".to_string()),
+            resource_type: ActiveValue::Set(Some(resource_type.to_string())),
+            resource_id: ActiveValue::Set(Some(record_id)),
+            ip_address: ActiveValue::Set(None),
+            created_at: ActiveValue::Set(Some(Utc::now())),
+        };
+        log.insert(db).await?;
 
         Ok(new_model)
     }
