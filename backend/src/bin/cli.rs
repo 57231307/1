@@ -206,7 +206,7 @@ async fn cmd_logs(
             Command::new("journalctl").args(&args).stdin(Stdio::inherit()).status()?;
         }
         "frontend" => {
-            let log_path = "/opt/bingxi/frontend/logs/error.log";
+            let log_path = "/opt/bingxi-erp/frontend/logs/error.log";
             if follow {
                 Command::new("tail").args(["-f", log_path]).stdin(Stdio::inherit()).status()?;
             } else {
@@ -242,7 +242,7 @@ async fn cmd_backup(backup_type: Option<String>) -> Result<(), Box<dyn std::erro
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs();
-    let backup_dir = format!("/opt/bingxi/backups/{}", timestamp);
+    let backup_dir = format!("/opt/bingxi-erp/backups/{}", timestamp);
     
     println!("💾 开始备份...");
     println!("📁 备份目录：{}", backup_dir);
@@ -269,10 +269,10 @@ async fn cmd_backup(backup_type: Option<String>) -> Result<(), Box<dyn std::erro
     if backup_type == "files" || backup_type == "all" {
         println!("📁 备份文件...");
         Command::new("cp")
-            .args(["-r", "/opt/bingxi/backend", &backup_dir])
+            .args(["-r", "/opt/bingxi-erp/backend", &backup_dir])
             .status()?;
         Command::new("cp")
-            .args(["-r", "/opt/bingxi/frontend", &backup_dir])
+            .args(["-r", "/opt/bingxi-erp/frontend", &backup_dir])
             .status()?;
     }
     
@@ -372,7 +372,7 @@ async fn cmd_health() -> Result<(), Box<dyn std::error::Error>> {
 async fn cmd_migrate(direction: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔄 执行数据库迁移 (方向：{})...", direction);
     
-    let migration_dir = "/opt/bingxi/database/migration";
+    let migration_dir = "/opt/bingxi-erp/backend/database/migration";
     
     if !std::path::Path::new(migration_dir).exists() {
         println!("❌ 迁移目录不存在：{}", migration_dir);
@@ -488,11 +488,11 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs();
-        let backup_dir = format!("/opt/bingxi/backups/pre_upgrade_{}", timestamp);
+        let backup_dir = format!("/opt/bingxi-erp/backups/pre_upgrade_{}", timestamp);
         
         Command::new("mkdir").args(["-p", &backup_dir]).status()?;
-        Command::new("cp").args(["-r", "/opt/bingxi/backend", &backup_dir]).status()?;
-        Command::new("cp").args(["-r", "/opt/bingxi/frontend", &backup_dir]).status()?;
+        Command::new("cp").args(["-r", "/opt/bingxi-erp/backend", &backup_dir]).status()?;
+        Command::new("cp").args(["-r", "/opt/bingxi-erp/frontend", &backup_dir]).status()?;
         
         println!("✅ 备份完成：{}\n", backup_dir);
     }
@@ -567,33 +567,42 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
     
     // 备份旧文件
     Command::new("mv")
-        .args(["/opt/bingxi/backend/server", "/opt/bingxi/backend/server.old"])
+        .args(["/opt/bingxi-erp/backend/server", "/opt/bingxi-erp/backend/server.old"])
         .status()?;
     Command::new("mv")
-        .args(["/opt/bingxi/frontend/dist", "/opt/bingxi/frontend/dist.old"])
+        .args(["/opt/bingxi-erp/backend/bingxi", "/opt/bingxi-erp/backend/bingxi.old"])
+        .status()?;
+    Command::new("mv")
+        .args(["/opt/bingxi-erp/frontend/dist", "/opt/bingxi-erp/frontend/dist.old"])
         .status()?;
     
-    // 替换新文件
+    // 替换新文件 (从正确的路径复制)
     Command::new("cp")
-        .args(["/tmp/server", "/opt/bingxi/backend/server"])
+        .args(["/tmp/bingxi-erp/backend/server", "/opt/bingxi-erp/backend/server"])
+        .status()?;
+    Command::new("cp")
+        .args(["/tmp/bingxi-erp/backend/bingxi", "/opt/bingxi-erp/backend/bingxi"])
         .status()?;
     Command::new("rm")
-        .args(["-rf", "/opt/bingxi/frontend/dist"])
+        .args(["-rf", "/opt/bingxi-erp/frontend/dist"])
         .status()?;
     Command::new("mv")
-        .args(["/tmp/frontend/dist", "/opt/bingxi/frontend/dist"])
+        .args(["/tmp/bingxi-erp/frontend/dist", "/opt/bingxi-erp/frontend/dist"])
         .status()?;
     
     // 设置权限
     Command::new("chmod")
-        .args(["+x", "/opt/bingxi/backend/server"])
+        .args(["+x", "/opt/bingxi-erp/backend/server"])
+        .status()?;
+    Command::new("chmod")
+        .args(["+x", "/opt/bingxi-erp/backend/bingxi"])
         .status()?;
     
     println!("✅ 文件替换完成\n");
     
     // 7. 清理临时文件
     Command::new("rm").args(["-f", &download_path]).status()?;
-    Command::new("rm").args(["-rf", "/tmp/server", "/tmp/frontend"]).status()?;
+    Command::new("rm").args(["-rf", "/tmp/bingxi-erp"]).status()?;
     
     // 8. 启动服务
     println!("🚀 启动服务...");
@@ -606,7 +615,7 @@ async fn cmd_upgrade(version: Option<String>, no_backup: bool) -> Result<(), Box
     
     println!("\n✅ 升级完成！");
     println!("📦 新版本：{}", target_version);
-    println!("💾 备份位置：/opt/bingxi/backups/pre_upgrade_*");
+    println!("💾 备份位置：/opt/bingxi-erp/backups/pre_upgrade_*");
     println!("\n如需回滚，执行:");
     println!("  bingxi rollback --version {}", current_version);
     
@@ -625,7 +634,7 @@ async fn cmd_clean() -> Result<(), Box<dyn std::error::Error>> {
     
     // 清理日志
     Command::new("find").args([
-        "/opt/bingxi/logs",
+        "/opt/bingxi-erp/backend/logs",
         "-name",
         "*.log",
         "-mtime",
@@ -636,7 +645,7 @@ async fn cmd_clean() -> Result<(), Box<dyn std::error::Error>> {
     
     // 清理备份
     Command::new("find").args([
-        "/opt/bingxi/backups",
+        "/opt/bingxi-erp/backups",
         "-name",
         "*",
         "-mtime",
@@ -654,7 +663,7 @@ async fn cmd_config() -> Result<(), Box<dyn std::error::Error>> {
     println!("⚙️  系统配置:\n");
     
     let config_files = vec![
-        "/opt/bingxi/backend/config.yaml",
+        "/opt/bingxi-erp/backend/config.yaml",
         "/etc/nginx/sites-available/bingxi",
     ];
     

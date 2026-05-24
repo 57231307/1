@@ -329,20 +329,20 @@ jobs:
           echo "发布包目录结构："
           ls -la release/bingxi-erp/
 
-      - name: 创建ZIP发布包
-        working-directory: release/bingxi-erp
+      - name: 创建 TAR.GZ 发布包
+        working-directory: release
         run: |
-          ZIP_NAME="bingxi-erp-${{ steps.version.outputs.version }}.zip"
-          zip -r "../../$ZIP_NAME" ./*
-          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+          TAR_NAME="release-${{ steps.version.outputs.version }}.tar.gz"
+          tar -czf "../$TAR_NAME" bingxi-erp/
+          echo "TAR_NAME=$TAR_NAME" >> $GITHUB_ENV
           echo "发布包大小："
-          ls -lh "../../$ZIP_NAME"
+          ls -lh "../$TAR_NAME"
 
       - name: 上传发布包
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-release-zip
-          path: bingxi-erp-${{ steps.version.outputs.version }}.zip
+          name: bingxi-erp-release-tar
+          path: release-${{ steps.version.outputs.version }}.tar.gz
           retention-days: 90
 
   github-release:
@@ -361,7 +361,7 @@ jobs:
       - name: 下载发布包
         uses: actions/download-artifact@v4
         with:
-          name: bingxi-erp-release-zip
+          name: bingxi-erp-release-tar
           path: ./
 
       - name: 生成发布说明
