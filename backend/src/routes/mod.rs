@@ -280,7 +280,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
         .route("/orders/:id/complete", post(sales_order_handler::complete_order))
         .route("/orders/:id/history", get(sales_order_handler::get_order_history))
-        .route("/orders/:id/print", get(print_handler::print_html))
+        .route("/orders/:id/print", get(print_handler::sales_order_print_html))
         .route("/orders/export", get(sales_order_handler::export_orders))
         // 面料行业销售订单路由
         .route(
@@ -361,6 +361,7 @@ pub fn create_router(state: AppState) -> Router {
             "/transfers/:id/receive",
             post(inventory_transfer_handler::receive_transfer),
         )
+        .route("/transfers/:id/print", get(print_handler::inventory_transfer_print_html))
         .route("/counts", get(inventory_count_handler::list_counts))
         .route("/counts", post(inventory_count_handler::create_count))
         .route("/counts/:id", get(inventory_count_handler::get_count))
@@ -373,6 +374,7 @@ pub fn create_router(state: AppState) -> Router {
             "/counts/:id/complete",
             post(inventory_count_handler::complete_count),
         )
+        .route("/counts/:id/print", get(print_handler::inventory_count_print_html))
         .route(
             "/adjustments",
             get(inventory_adjustment_handler::list_adjustments),
@@ -475,7 +477,8 @@ pub fn create_router(state: AppState) -> Router {
             "/vouchers/:id/review",
             post(voucher_handler::review_voucher),
         )
-        .route("/vouchers/:id/post", post(voucher_handler::post_voucher));
+        .route("/vouchers/:id/post", post(voucher_handler::post_voucher))
+        .route("/vouchers/:id/print", get(print_handler::voucher_print_html));
 
     // 双计量单位换算路由
     let dual_unit_routes = Router::new()
@@ -580,9 +583,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/reject", post(purchase_order_handler::reject_order))
         .route("/orders/:id/close", post(purchase_order_handler::close_order))
         .route("/orders/export", get(purchase_order_handler::export_orders))
-        .route("/orders/:id/print", get(print_handler::print_html))
+        .route("/orders/:id/print", get(print_handler::purchase_order_print_html))
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
-        .route("/receipts/:id/print", get(print_handler::print_html))
+        .route("/receipts/:id/print", get(print_handler::purchase_receipt_print_html))
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
         .route("/receipts/:id", put(purchase_receipt_handler::update_receipt))
@@ -622,7 +625,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", delete(sales_contract_handler::delete_contract))
         .route("/:id/approve", post(sales_contract_handler::approve_contract))
         .route("/:id/execute", put(sales_contract_handler::execute_contract))
-        .route("/:id/cancel", put(sales_contract_handler::cancel_contract));
+        .route("/:id/cancel", put(sales_contract_handler::cancel_contract))
+        .route("/:id/print", get(print_handler::sales_contract_print_html));
 
     // 固定资产路由
     let fixed_asset_routes = Router::new()
