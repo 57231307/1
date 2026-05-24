@@ -11,23 +11,25 @@ use crate::utils::response::ApiResponse;
 
 /// 获取打印数据
 pub async fn get_print_data(
-    Path(params): Path<(String, i32)>,
+    Path(doc_id): Path<i32>,
     State(_state): State<AppState>,
 ) -> Result<axum::Json<ApiResponse<serde_json::Value>>, AppError> {
+    // TODO: 需要根据路由确定 doc_type，暂时返回示例
     let service = PrintService::new();
-    let print_data = service.get_print_data(&params.0, params.1).await?;
+    let print_data = service.get_print_data("sales_order", doc_id).await?;
     let json_data = serde_json::to_value(&print_data)?;
     
     Ok(axum::Json(ApiResponse::success(json_data)))
 }
 
-/// 打印为 HTML
+/// 打印为 HTML - 通用实现，需要从上下文获取 doc_type
 pub async fn print_html(
-    Path(params): Path<(String, i32)>,
+    Path(doc_id): Path<i32>,
     State(_state): State<AppState>,
 ) -> Result<Html<String>, AppError> {
+    // TODO: 需要根据路由确定 doc_type，这里使用默认模板
     let service = PrintService::new();
-    let print_data = service.get_print_data(&params.0, params.1).await?;
+    let print_data = service.get_print_data("order", doc_id).await?;
     let html = service.generate_pdf(&print_data)?;
     
     Ok(Html(html))
