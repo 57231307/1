@@ -471,7 +471,7 @@ jobs:
           tag_name: ${{ needs.package-release.outputs.tag_name }}
           name: Bingxi ERP ${{ needs.package-release.outputs.version }}
           body_path: release_notes.md
-          files: bingxi-erp-${{ needs.package-release.outputs.version }}.zip
+          files: release-${{ needs.package-release.outputs.version }}.tar.gz
           draft: false
           prerelease: false
           make_latest: true
