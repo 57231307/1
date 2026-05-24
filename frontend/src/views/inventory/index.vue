@@ -93,7 +93,7 @@
             </el-form-item>
             <el-form-item label="仓库">
               <el-select v-model="queryParams.warehouse_id" placeholder="选择仓库" clearable @change="handleQuery">
-                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.name" :value="wh.id" />
+                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouse_name || wh.name" :value="wh.id" />
               </el-select>
             </el-form-item>
             <el-form-item label="状态">
@@ -273,14 +273,14 @@
           <el-col :span="12">
             <el-form-item label="调出仓库">
               <el-select v-model="transferForm.from_warehouse_id" placeholder="请选择调出仓库" style="width: 100%">
-                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.name" :value="wh.id" />
+                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouse_name || wh.name" :value="wh.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="调入仓库">
               <el-select v-model="transferForm.to_warehouse_id" placeholder="请选择调入仓库" style="width: 100%">
-                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.name" :value="wh.id" />
+                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouse_name || wh.name" :value="wh.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -385,11 +385,11 @@ const fetchData = async () => {
   loading.value = true
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.listStock(queryParams)
+    const res = await inventoryApi.getStockList(queryParams)
     stocks.value = res.data?.list || []
     total.value = res.data?.total || 0
     
-    const summaryRes = await inventoryApi.getStockSummary()
+    const summaryRes = await inventoryApi.getInventoryReport({})
     stats.value = {
       totalQuantity: summaryRes.data?.total_quantity || 0,
       alertCount: summaryRes.data?.alert_count || 0,
@@ -408,8 +408,8 @@ const fetchData = async () => {
 const fetchAlerts = async () => {
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.listStock({ ...queryParams, status: 'warning' })
-    alerts.value = res.data?.list || []
+    const res = await inventoryApi.getStockAlerts()
+    alerts.value = res.data || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取库存预警失败')
     alerts.value = []
@@ -419,7 +419,7 @@ const fetchAlerts = async () => {
 const fetchTransfers = async () => {
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.listTransfers(queryParams)
+    const res = await inventoryApi.getTransfers(queryParams)
     transfers.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取调拨记录失败')
@@ -429,9 +429,9 @@ const fetchTransfers = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.listWarehouses()
-    warehouses.value = res.data || []
+    const { warehouseApi } = await import('@/api/warehouse')
+    const res = await warehouseApi.list({ page: 1, page_size: 1000 })
+    warehouses.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取仓库列表失败')
     warehouses.value = []

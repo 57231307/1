@@ -330,7 +330,7 @@
           <el-col :span="12">
             <el-form-item label="仓库" required>
               <el-select v-model="deliveryForm.warehouse_id" placeholder="选择仓库" style="width: 100%">
-                <el-option v-for="w in warehouses" :key="w.id" :label="w.name" :value="w.id" />
+                <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouse_name || w.name" :value="w.id" />
               </el-select>
             </el-form-item>
           </el-col>

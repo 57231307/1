@@ -8,12 +8,12 @@
     <el-table :data="departmentList" v-loading="loading" border>
       <el-table-column prop="name" label="部门名称" />
       <el-table-column prop="code" label="部门编码" />
-      <el-table-column prop="parentId" label="上级部门" />
-      <el-table-column prop="manager" label="负责人" />
+      <el-table-column prop="parent_id" label="上级部门" />
+      <el-table-column prop="manager_name" label="负责人" />
       <el-table-column prop="status" label="状态">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'active' ? 'success' : 'danger'">
-            {{ row.status === 'active' ? '启用' : '禁用' }}
+          <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+            {{ row.status === 1 ? '启用' : '禁用' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -44,8 +44,8 @@
         <el-form-item label="部门编码" prop="code">
           <el-input v-model="formData.code" placeholder="请输入部门编码" />
         </el-form-item>
-        <el-form-item label="上级部门" prop="parentId">
-          <el-select v-model="formData.parentId" placeholder="请选择上级部门" clearable>
+        <el-form-item label="上级部门" prop="parent_id">
+          <el-select v-model="formData.parent_id" placeholder="请选择上级部门" clearable>
             <el-option
               v-for="dept in departmentList"
               :key="dept.id"
@@ -55,13 +55,13 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="负责人" prop="manager">
-          <el-input v-model="formData.manager" placeholder="请输入负责人" />
+        <el-form-item label="负责人" prop="manager_name">
+          <el-input v-model="formData.manager_name" placeholder="请输入负责人" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="formData.status" placeholder="请选择状态">
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+            <el-option label="启用" :value="1" />
+            <el-option label="禁用" :value="0" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -92,9 +92,9 @@ const departmentList = ref<any[]>([])
 const formData = reactive<any>({
   name: '',
   code: '',
-  parentId: null,
-  manager: '',
-  status: 'active'
+  parent_id: null,
+  manager_name: '',
+  status: 1
 })
 
 const formRules: FormRules = {
@@ -121,9 +121,9 @@ const handleCreate = () => {
     id: null,
     name: '',
     code: '',
-    parentId: null,
-    manager: '',
-    status: 'active'
+    parent_id: null,
+    manager_name: '',
+    status: 1
   })
   dialogVisible.value = true
 }
@@ -134,8 +134,8 @@ const handleEdit = (row: any) => {
     id: row.id,
     name: row.name,
     code: row.code,
-    parentId: row.parentId,
-    manager: row.manager,
+    parent_id: row.parent_id,
+    manager_name: row.manager_name,
     status: row.status
   })
   dialogVisible.value = true

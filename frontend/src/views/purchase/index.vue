@@ -360,7 +360,7 @@ const createForm = ref({
   supplier_id: undefined as number | undefined,
   order_date: new Date().toISOString().split('T')[0],
   required_date: '',
-  remarks: '',
+  remark: '',
   items: [{ product_id: undefined as number | undefined, quantity: 1, unit_price: 0, subtotal: 0 }]
 })
 
