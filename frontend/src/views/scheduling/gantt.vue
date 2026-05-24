@@ -280,11 +280,9 @@ const fetchGanttData = async () => {
     const res = await schedulingApi.getGanttData(params)
     ganttData.value = res.data!
     renderGanttChart(ganttData.value)
-  } catch {
-    const mockData = getMockGanttData()
-    ganttData.value = mockData
-    renderGanttChart(mockData)
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取甘特图数据失败')
+    ganttData.value = null
   } finally {
     loading.value = false
   }
@@ -424,9 +422,8 @@ const confirmAdjust = async () => {
     ElMessage.success('排程调整成功')
     adjustDialogVisible.value = false
     fetchGanttData()
-  } catch {
-    ElMessage.success('演示模式：排程调整已记录')
-    adjustDialogVisible.value = false
+  } catch (error: any) {
+    ElMessage.error(error.message || '排程调整失败')
   } finally {
     adjusting.value = false
   }
@@ -458,10 +455,8 @@ const confirmAutoSchedule = async () => {
       conflictDialogVisible.value = true
     }
     fetchGanttData()
-  } catch {
-    ElMessage.success('演示模式：自动排程已完成')
-    autoScheduleDialogVisible.value = false
-    fetchGanttData()
+  } catch (error: any) {
+    ElMessage.error(error.message || '自动排程失败')
   } finally {
     scheduling.value = false
   }

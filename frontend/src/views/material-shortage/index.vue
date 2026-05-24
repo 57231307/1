@@ -240,17 +240,9 @@ const fetchSummary = async () => {
   try {
     const res = await materialShortageApi.getSummary()
     summary.value = res.data!
-  } catch {
-    summary.value = {
-      total_shortage_count: 15,
-      critical_count: 3,
-      high_count: 4,
-      medium_count: 5,
-      low_count: 3,
-      total_shortage_amount: 1250,
-      last_check_time: '2026-05-20 10:30:00'
-    }
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取缺料汇总失败')
+    summary.value = {}
   }
 }
 
@@ -263,15 +255,10 @@ const fetchShortages = async () => {
     const res = await materialShortageApi.listShortages(params)
     shortageList.value = res.data!.list
     total.value = res.data!.total
-  } catch {
-    shortageList.value = [
-      { id: 1, material_code: 'MAT001', material_name: '纯棉面料', spec: '150cm', current_stock: -50, required_quantity: 200, shortage_quantity: 250, unit: '米', expected_date: '2026-05-25', source_type: 'production', source_no: 'MO20260520001', status: 'pending', severity: 'critical' },
-      { id: 2, material_code: 'MAT002', material_name: '涤纶面料', spec: '120cm', current_stock: 30, required_quantity: 150, shortage_quantity: 120, unit: '米', expected_date: '2026-05-26', source_type: 'sales', source_no: 'SO20260520002', status: 'pending', severity: 'high' },
-      { id: 3, material_code: 'MAT003', material_name: '拉链', spec: '5号', current_stock: 100, required_quantity: 500, shortage_quantity: 400, unit: '条', expected_date: '2026-05-27', source_type: 'production', source_no: 'MO20260520003', status: 'notified', severity: 'high' },
-      { id: 4, material_code: 'MAT004', material_name: '纽扣', spec: '15mm', current_stock: 800, required_quantity: 1000, shortage_quantity: 200, unit: '个', expected_date: '2026-05-28', source_type: 'purchase', source_no: 'PO20260520004', status: 'pending', severity: 'medium' },
-      { id: 5, material_code: 'MAT005', material_name: '缝纫线', spec: '40S', current_stock: 50, required_quantity: 100, shortage_quantity: 50, unit: '卷', expected_date: '2026-05-29', source_type: 'production', source_no: 'MO20260520005', status: 'resolved', severity: 'low' }
-    ]
-    total.value = 15
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取缺料列表失败')
+    shortageList.value = []
+    total.value = 0
   } finally {
     tableLoading.value = false
   }
@@ -283,9 +270,8 @@ const handleCheck = async () => {
     const res = await materialShortageApi.triggerCheck()
     ElMessage.success(res.data!.message || '检查完成')
     await Promise.all([fetchSummary(), fetchShortages()])
-  } catch {
-    ElMessage.success('检查完成，已更新预警数据')
-    await Promise.all([fetchSummary(), fetchShortages()])
+  } catch (error: any) {
+    ElMessage.error(error.message || '检查失败')
   } finally {
     checking.value = false
   }
@@ -296,9 +282,8 @@ const handleNotify = async (row: MaterialShortage) => {
     await materialShortageApi.updateStatus(row.id, 'notified')
     ElMessage.success('已发送通知')
     await fetchShortages()
-  } catch {
-    ElMessage.success('已发送通知')
-    row.status = 'notified'
+  } catch (error: any) {
+    ElMessage.error(error.message || '发送通知失败')
   }
 }
 
@@ -310,9 +295,7 @@ const handleResolve = async (row: MaterialShortage) => {
     await Promise.all([fetchSummary(), fetchShortages()])
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.success('已标记为已解决')
-      row.status = 'resolved'
-      await fetchSummary()
+      ElMessage.error(error.message || '标记失败')
     }
   }
 }

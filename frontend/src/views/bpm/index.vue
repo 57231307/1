@@ -236,34 +236,44 @@ const handleTabChange = (tabName: string) => {
   }
 }
 
-const fetchPendingTasks = () => {
-  pendingTasks.value = [
-    { id: 1, task_id: 'T001', task_name: '销售订单审批', process_name: '销售订单流程', assignee_name: '张三', created_at: '2026-05-13 09:30:00', due_date: '2026-05-14', priority: 'high', business_key: 'SO202603130001' },
-    { id: 2, task_id: 'T002', task_name: '采购订单审批', process_name: '采购订单流程', assignee_name: '李四', created_at: '2026-05-13 10:00:00', due_date: '2026-05-15', priority: 'medium', business_key: 'PO202603130001' },
-    { id: 3, task_id: 'T003', task_name: '付款申请审批', process_name: '付款申请流程', assignee_name: '王五', created_at: '2026-05-12 14:20:00', due_date: '2026-05-13', priority: 'high', business_key: 'PR202603120001' }
-  ]
-  ElMessage.info('使用演示数据')
+const fetchPendingTasks = async () => {
+  try {
+    const res = await bpmApi.getPendingTasks()
+    pendingTasks.value = res.data || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取待处理任务失败')
+    pendingTasks.value = []
+  }
 }
 
-const fetchInitiatedProcesses = () => {
-  initiatedProcesses.value = [
-    { id: 1, instance_id: 'PI001', process_name: '销售订单流程', business_key: 'SO202603130001', start_time: '2026-05-13 09:30:00', status: 'running', current_activities: ['审批节点1'] },
-    { id: 2, instance_id: 'PI002', process_name: '采购订单流程', business_key: 'PO202603120001', start_time: '2026-05-12 14:20:00', status: 'completed', current_activities: [] }
-  ]
+const fetchInitiatedProcesses = async () => {
+  try {
+    const res = await bpmApi.getMonitorInstances()
+    initiatedProcesses.value = res.data || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取发起流程失败')
+    initiatedProcesses.value = []
+  }
 }
 
-const fetchProcessedTasks = () => {
-  processedTasks.value = [
-    { id: 1, task_name: '销售订单审批', process_name: '销售订单流程', start_user_name: '张三', approved_at: '2026-05-12 16:30:00', result: 'approved', comment: '同意，订单金额在信用额度范围内' },
-    { id: 2, task_name: '采购订单审批', process_name: '采购订单流程', start_user_name: '李四', approved_at: '2026-05-11 11:20:00', result: 'rejected', comment: '价格偏高，需要重新询价' }
-  ]
+const fetchProcessedTasks = async () => {
+  try {
+    const res = await bpmApi.getCompletedTasks()
+    processedTasks.value = res.data || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取已处理任务失败')
+    processedTasks.value = []
+  }
 }
 
-const fetchProcessInstances = () => {
-  processInstances.value = [
-    { id: 1, instance_id: 'PI001', process_name: '销售订单流程', start_user_name: '张三', start_time: '2026-05-13 09:30:00', end_time: null, status: 'running' },
-    { id: 2, instance_id: 'PI002', process_name: '采购订单流程', start_user_name: '李四', start_time: '2026-05-12 14:20:00', end_time: '2026-05-13 10:00:00', status: 'completed' }
-  ]
+const fetchProcessInstances = async () => {
+  try {
+    const res = await bpmApi.getMonitorInstances()
+    processInstances.value = res.data || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取流程实例失败')
+    processInstances.value = []
+  }
 }
 
 const handleApprove = async (row: any) => {

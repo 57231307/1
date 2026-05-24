@@ -344,11 +344,10 @@ const fetchTasks = async () => {
     taskList.value = res.data!.list
     total.value = res.data!.total
     updateStats()
-  } catch {
-    taskList.value = getMockTasks()
-    total.value = taskList.value.length
-    updateStats()
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取排程任务失败')
+    taskList.value = []
+    total.value = 0
   } finally {
     taskLoading.value = false
   }
@@ -367,10 +366,9 @@ const fetchConflicts = async () => {
     const res = await schedulingApi.detectConflicts()
     conflictList.value = res.data!
     stats.value.conflicts = conflictList.value.length
-  } catch {
-    conflictList.value = getMockConflicts()
-    stats.value.conflicts = conflictList.value.length
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取冲突列表失败')
+    conflictList.value = []
   } finally {
     conflictLoading.value = false
   }
@@ -397,11 +395,8 @@ const handleAutoSchedule = async () => {
       stats.value.conflicts = result.conflict_count
     }
     fetchTasks()
-  } catch {
-    ElMessage.success('演示模式：自动排程已完成')
-    fetchTasks()
-    conflictList.value = getMockConflicts()
-    stats.value.conflicts = conflictList.value.length
+  } catch (error: any) {
+    ElMessage.error(error.message || '自动排程失败')
   } finally {
     scheduling.value = false
   }
@@ -427,10 +422,8 @@ const confirmAdjust = async () => {
     ElMessage.success('排程调整成功')
     adjustDialogVisible.value = false
     fetchTasks()
-  } catch {
-    ElMessage.success('演示模式：排程调整已记录')
-    adjustDialogVisible.value = false
-    fetchTasks()
+  } catch (error: any) {
+    ElMessage.error(error.message || '排程调整失败')
   } finally {
     adjusting.value = false
   }

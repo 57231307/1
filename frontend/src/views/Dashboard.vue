@@ -250,25 +250,9 @@ const fetchDashboardData = async () => {
   try {
     const res = await dashboardApi.getOverview()
     stats.value = res.data! || {}
-  } catch (error) {
-    stats.value = {
-      fabricCount: 156,
-      inventoryTotal: 12500,
-      monthOrders: 89,
-      customerCount: 45,
-      todayOrders: 12,
-      pendingOrders: 23,
-      lowStockProducts: 5,
-      monthSales: 1250000,
-      recentActivities: [
-        { id: 1, type: '订单', content: '销售订单 SO202603130001 已创建', time: '2026-05-13 10:30', user: '张三' },
-        { id: 2, type: '采购', content: '采购订单 PO202603130001 已审批通过', time: '2026-05-13 09:45', user: '李四' },
-        { id: 3, type: '库存', content: '面料 FB001 库存预警', time: '2026-05-13 09:20', user: '系统' },
-        { id: 4, type: '审批', content: '销售订单 SO202603120005 已审批', time: '2026-05-13 08:30', user: '王五' },
-        { id: 5, type: '订单', content: '客户"纺织公司A"新建订单', time: '2026-05-13 08:00', user: '赵六' }
-      ]
-    }
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取仪表盘数据失败')
+    stats.value = {}
   }
 }
 

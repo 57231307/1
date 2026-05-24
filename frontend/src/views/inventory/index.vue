@@ -384,83 +384,58 @@ const getTransferStatusText = (status: string) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    stocks.value = [
-      {
-        id: 1,
-        product_code: 'FB001',
-        product_name: '纯棉斜纹布',
-        warehouse_name: 'A仓库',
-        batch_no: 'B20260301',
-        color_code: 'C001',
-        location: 'A-01-01',
-        quantity: 500,
-        unit: '米',
-        min_quantity: 100,
-        status: 'normal'
-      },
-      {
-        id: 2,
-        product_code: 'FB002',
-        product_name: '涤纶平纹布',
-        warehouse_name: 'B仓库',
-        batch_no: 'B20260302',
-        color_code: 'C002',
-        location: 'B-02-03',
-        quantity: 80,
-        unit: '米',
-        min_quantity: 100,
-        status: 'warning'
-      }
-    ]
-    total.value = 2
+    const { inventoryApi } = await import('@/api/inventory')
+    const res = await inventoryApi.listStock(queryParams)
+    stocks.value = res.data?.list || []
+    total.value = res.data?.total || 0
+    
+    const summaryRes = await inventoryApi.getStockSummary()
     stats.value = {
-      totalQuantity: 580,
-      alertCount: 1,
-      warehouseCount: 5,
-      lowStockCount: 1
+      totalQuantity: summaryRes.data?.total_quantity || 0,
+      alertCount: summaryRes.data?.alert_count || 0,
+      warehouseCount: summaryRes.data?.warehouse_count || 0,
+      lowStockCount: summaryRes.data?.low_stock_count || 0
     }
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取库存列表失败')
+    stocks.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
 const fetchAlerts = async () => {
-  alerts.value = [
-    {
-      id: 1,
-      product_code: 'FB002',
-      product_name: '涤纶平纹布',
-      warehouse_name: 'B仓库',
-      current_quantity: 80,
-      min_quantity: 100,
-      unit: '米',
-      alert_level: 'warning'
-    }
-  ]
+  try {
+    const { inventoryApi } = await import('@/api/inventory')
+    const res = await inventoryApi.listStock({ ...queryParams, status: 'warning' })
+    alerts.value = res.data?.list || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取库存预警失败')
+    alerts.value = []
+  }
 }
 
 const fetchTransfers = async () => {
-  transfers.value = [
-    {
-      id: 1,
-      transfer_no: 'TR202603130001',
-      from_warehouse_name: 'A仓库',
-      to_warehouse_name: 'B仓库',
-      total_quantity: 200,
-      status: 'pending',
-      creator_name: '张三',
-      created_at: '2026-05-13 10:30:00'
-    }
-  ]
+  try {
+    const { inventoryApi } = await import('@/api/inventory')
+    const res = await inventoryApi.listTransfers(queryParams)
+    transfers.value = res.data?.list || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取调拨记录失败')
+    transfers.value = []
+  }
 }
 
 const fetchWarehouses = async () => {
-  warehouses.value = [
-    { id: 1, name: 'A仓库' },
-    { id: 2, name: 'B仓库' },
-    { id: 3, name: 'C仓库' }
-  ]
+  try {
+    const { inventoryApi } = await import('@/api/inventory')
+    const res = await inventoryApi.listWarehouses()
+    warehouses.value = res.data || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取仓库列表失败')
+    warehouses.value = []
+  }
 }
 
 const handleQuery = () => {

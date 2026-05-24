@@ -216,16 +216,9 @@ const fetchSummary = async () => {
   try {
     const res = await capacityApi.getSummary()
     summary.value = res.data!
-  } catch {
-    summary.value = {
-      total_work_centers: 12,
-      normal_count: 7,
-      busy_count: 3,
-      overload_count: 2,
-      bottleneck_count: 2,
-      avg_load_rate: 0.78
-    }
-    ElMessage.info('使用演示数据')
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取产能概览失败')
+    summary.value = {}
   }
 }
 
@@ -234,20 +227,8 @@ const fetchTrendData = async () => {
     const res = await capacityApi.getTrend({ days: trendDays.value, work_center_id: selectedWorkCenter.value })
     const data = res.data!
     renderCapacityChart(data)
-  } catch {
-    const mockData: CapacityTrend[] = []
-    const days = trendDays.value
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      mockData.push({
-        date: `${d.getMonth() + 1}-${d.getDate()}`,
-        planned_hours: Math.floor(Math.random() * 40 + 60),
-        actual_hours: Math.floor(Math.random() * 30 + 50),
-        capacity_hours: 100
-      })
-    }
-    renderCapacityChart(mockData)
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取产能趋势失败')
   }
 }
 
@@ -277,15 +258,10 @@ const fetchWorkCenters = async () => {
     const res = await capacityApi.listWorkCenters({ page: currentPage.value, page_size: pageSize.value })
     workCenters.value = res.data!.list
     total.value = res.data!.total
-  } catch {
-    workCenters.value = [
-      { id: 1, name: '裁剪中心', code: 'WC001', capacity_hours: 100, used_hours: 85, load_rate: 0.85, status: 'busy', bottleneck: false },
-      { id: 2, name: '缝纫中心', code: 'WC002', capacity_hours: 120, used_hours: 115, load_rate: 0.96, status: 'overload', bottleneck: true },
-      { id: 3, name: '印染中心', code: 'WC003', capacity_hours: 80, used_hours: 72, load_rate: 0.90, status: 'busy', bottleneck: false },
-      { id: 4, name: '包装中心', code: 'WC004', capacity_hours: 90, used_hours: 45, load_rate: 0.50, status: 'normal', bottleneck: false },
-      { id: 5, name: '质检中心', code: 'WC005', capacity_hours: 60, used_hours: 58, load_rate: 0.97, status: 'overload', bottleneck: true }
-    ]
-    total.value = 12
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取工作中心列表失败')
+    workCenters.value = []
+    total.value = 0
   } finally {
     tableLoading.value = false
   }
@@ -296,11 +272,9 @@ const fetchBottlenecks = async () => {
   try {
     const res = await capacityApi.getBottlenecks()
     bottlenecks.value = res.data!
-  } catch {
-    bottlenecks.value = [
-      { id: 2, name: '缝纫中心', code: 'WC002', capacity_hours: 120, used_hours: 115, load_rate: 0.96, status: 'overload', bottleneck: true },
-      { id: 5, name: '质检中心', code: 'WC005', capacity_hours: 60, used_hours: 58, load_rate: 0.97, status: 'overload', bottleneck: true }
-    ]
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取瓶颈分析失败')
+    bottlenecks.value = []
   } finally {
     bottleneckLoading.value = false
   }
