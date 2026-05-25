@@ -34,9 +34,9 @@ pub struct CreateVoucherRequest {
 /// 凭证分录请求
 #[derive(Debug, Clone)]
 pub struct VoucherItemRequest {
-    pub line_no: i32,
-    pub subject_code: String,
-    pub subject_name: String,
+    pub line_no: Option<i32>,
+    pub subject_code: Option<String>,
+    pub subject_name: Option<String>,
     pub debit: Decimal,
     pub credit: Decimal,
     pub summary: Option<String>,
@@ -136,12 +136,12 @@ impl VoucherService {
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
         // 创建凭证分录
-        for item_req in &req.items {
+        for (index, item_req) in req.items.iter().enumerate() {
             let item_active_model = voucher_item::ActiveModel {
                 voucher_id: sea_orm::Set(voucher.id),
-                line_no: sea_orm::Set(item_req.line_no),
-                subject_code: sea_orm::Set(item_req.subject_code.clone()),
-                subject_name: sea_orm::Set(item_req.subject_name.clone()),
+                line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
+                subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
+                subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
                 debit: sea_orm::Set(item_req.debit),
                 credit: sea_orm::Set(item_req.credit),
                 summary: sea_orm::Set(item_req.summary.clone()),
@@ -266,9 +266,9 @@ impl VoucherService {
                 let item_active = vi::ActiveModel {
                     id: sea_orm::Set(0),
                     voucher_id: sea_orm::Set(id),
-                    line_no: sea_orm::Set(item_req.line_no),
-                    subject_code: sea_orm::Set(item_req.subject_code),
-                    subject_name: sea_orm::Set(item_req.subject_name),
+                    line_no: sea_orm::Set(item_req.line_no.unwrap_or(0)),
+                    subject_code: sea_orm::Set(item_req.subject_code.unwrap_or_default()),
+                    subject_name: sea_orm::Set(item_req.subject_name.unwrap_or_default()),
                     debit: sea_orm::Set(item_req.debit),
                     credit: sea_orm::Set(item_req.credit),
                     summary: sea_orm::Set(item_req.summary),
@@ -480,12 +480,13 @@ impl VoucherService {
         for item in &items {
             // 查找科目 ID 和余额方向
             use crate::models::account_subject;
+            let subject_code = &item.subject_code;
             let subject = account_subject::Entity::find()
-                .filter(account_subject::Column::Code.eq(&item.subject_code))
+                .filter(account_subject::Column::Code.eq(subject_code))
                 .one(txn)
                 .await?
                 .ok_or_else(|| {
-                    AppError::BadRequest(format!("科目不存在：{}", item.subject_code))
+                    AppError::BadRequest(format!("科目不存在：{}", subject_code))
                 })?;
 
             let entry = balance_map

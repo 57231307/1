@@ -45,10 +45,10 @@ pub struct CreditQueryParams {
 #[derive(Debug, Clone)]
 pub struct CreditRatingRequest {
     pub customer_id: i32,
-    pub credit_level: String,
-    pub credit_score: i32,
+    pub credit_level: Option<String>,
+    pub credit_score: Option<i32>,
     pub credit_limit: Decimal,
-    pub credit_days: i32,
+    pub credit_days: Option<i32>,
     pub remark: Option<String>,
 }
 
@@ -137,10 +137,10 @@ impl CustomerCreditService {
                 // 更新现有评级
                 let used_credit = credit.used_credit;
                 let mut credit_active: customer_credit::ActiveModel = credit.into();
-                credit_active.credit_level = Set(Some(req.credit_level));
-                credit_active.credit_score = Set(Some(req.credit_score));
+                credit_active.credit_level = Set(req.credit_level.or(Some("B".to_string())));
+                credit_active.credit_score = Set(req.credit_score.or(Some(60)));
                 credit_active.credit_limit = Set(req.credit_limit);
-                credit_active.credit_days = Set(Some(req.credit_days));
+                credit_active.credit_days = Set(req.credit_days.or(Some(30)));
                 credit_active.available_credit = Set(req.credit_limit - used_credit);
                 crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", credit_active, Some(0)).await?
             }
@@ -148,12 +148,12 @@ impl CustomerCreditService {
                 // 创建新评级
                 let active_credit = customer_credit::ActiveModel {
                     customer_id: Set(req.customer_id),
-                    credit_level: Set(Some(req.credit_level)),
-                    credit_score: Set(Some(req.credit_score)),
+                    credit_level: Set(req.credit_level.or(Some("B".to_string()))),
+                    credit_score: Set(req.credit_score.or(Some(60))),
                     credit_limit: Set(req.credit_limit),
                     used_credit: Set(Decimal::ZERO),
                     available_credit: Set(req.credit_limit),
-                    credit_days: Set(Some(req.credit_days)),
+                    credit_days: Set(req.credit_days.or(Some(30))),
                     status: Set("active".to_string()),
                     ..Default::default()
                 };

@@ -75,42 +75,46 @@ impl SupplierService {
         .await?;
 
         // 3. 创建联系人
-        for contact_req in req.contacts {
-            supplier_contact::ActiveModel {
-                supplier_id: Set(supplier.id),
-                contact_name: Set(contact_req.contact_name),
-                department: Set(contact_req.department),
-                position: Set(contact_req.position),
-                mobile_phone: Set(contact_req.mobile_phone),
-                tel_phone: Set(contact_req.tel_phone),
-                email: Set(contact_req.email),
-                wechat: Set(contact_req.wechat),
-                qq: Set(contact_req.qq),
-                is_primary: Set(contact_req.is_primary),
-                remarks: Set(contact_req.remarks),
-                ..Default::default()
+        if let Some(contacts) = req.contacts {
+            for contact_req in contacts {
+                supplier_contact::ActiveModel {
+                    supplier_id: Set(supplier.id),
+                    contact_name: Set(contact_req.contact_name),
+                    department: Set(contact_req.department),
+                    position: Set(contact_req.position),
+                    mobile_phone: Set(contact_req.mobile_phone),
+                    tel_phone: Set(contact_req.tel_phone),
+                    email: Set(contact_req.email),
+                    wechat: Set(contact_req.wechat),
+                    qq: Set(contact_req.qq),
+                    is_primary: Set(contact_req.is_primary),
+                    remarks: Set(contact_req.remarks),
+                    ..Default::default()
+                }
+                .insert(&txn)
+                .await?;
             }
-            .insert(&txn)
-            .await?;
         }
 
         // 4. 创建资质
-        for qual_req in req.qualifications {
-            supplier_qualification::ActiveModel {
-                supplier_id: Set(supplier.id),
-                qualification_name: Set(qual_req.qualification_name),
-                qualification_type: Set(qual_req.qualification_type),
-                qualification_no: Set(qual_req.qualification_no),
-                issuing_authority: Set(qual_req.issuing_authority),
-                issue_date: Set(qual_req.issue_date),
-                valid_until: Set(qual_req.valid_until),
-                attachment_path: Set(qual_req.attachment_path),
-                need_annual_check: Set(qual_req.need_annual_check),
-                annual_check_record: Set(qual_req.annual_check_record),
-                ..Default::default()
+        if let Some(qualifications) = req.qualifications {
+            for qual_req in qualifications {
+                supplier_qualification::ActiveModel {
+                    supplier_id: Set(supplier.id),
+                    qualification_name: Set(qual_req.qualification_name),
+                    qualification_type: Set(qual_req.qualification_type),
+                    qualification_no: Set(qual_req.qualification_no),
+                    issuing_authority: Set(qual_req.issuing_authority),
+                    issue_date: Set(qual_req.issue_date),
+                    valid_until: Set(qual_req.valid_until),
+                    attachment_path: Set(qual_req.attachment_path),
+                    need_annual_check: Set(qual_req.need_annual_check),
+                    annual_check_record: Set(qual_req.annual_check_record),
+                    ..Default::default()
+                }
+                .insert(&txn)
+                .await?;
             }
-            .insert(&txn)
-            .await?;
         }
 
         txn.commit().await?;
@@ -523,9 +527,9 @@ pub struct CreateSupplierRequest {
     pub employee_count: Option<i32>,
     pub annual_revenue: Option<Decimal>,
     #[validate]
-    pub contacts: Vec<CreateContactRequest>,
+    pub contacts: Option<Vec<CreateContactRequest>>,
     #[validate]
-    pub qualifications: Vec<CreateQualificationRequest>,
+    pub qualifications: Option<Vec<CreateQualificationRequest>>,
 }
 
 /// 更新供应商请求

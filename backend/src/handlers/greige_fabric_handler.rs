@@ -34,8 +34,8 @@ pub struct GreigeFabricListQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateGreigeFabricRequest {
-    pub fabric_no: String,
-    pub fabric_name: String,
+    pub fabric_no: Option<String>,
+    pub fabric_name: Option<String>,
     pub fabric_type: Option<String>,
     pub color_code: Option<String>,
     pub width_cm: Option<f64>,
@@ -166,10 +166,17 @@ pub async fn create_greige_fabric(
     State(state): State<AppState>,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> impl IntoResponse {
+    // 自动生成编号
+    let fabric_no = req.fabric_no.unwrap_or_else(|| {
+        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+        let random = rand::random::<u16>() % 10000;
+        format!("GF-{}-{:04}", timestamp, random)
+    });
+
     let fabric = greige_fabric::ActiveModel {
         id: Set(0),
-        fabric_no: Set(req.fabric_no),
-        fabric_name: Set(req.fabric_name),
+        fabric_no: Set(fabric_no),
+        fabric_name: Set(req.fabric_name.unwrap_or_else(|| "未命名坯布".to_string())),
         product_id: Set(req.product_id),
         supplier_id: Set(req.supplier_id),
         composition: Set(req.composition),

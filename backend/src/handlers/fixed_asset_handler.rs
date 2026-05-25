@@ -28,16 +28,16 @@ pub struct AssetQuery {
 /// 创建资产请求 DTO
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateAssetRequestDto {
-    pub asset_no: String,
+    pub asset_no: Option<String>,
     pub asset_name: String,
     pub asset_category: Option<String>,
     pub specification: Option<String>,
     pub location: Option<String>,
     pub original_value: rust_decimal::Decimal,
-    pub useful_life: i32,
+    pub useful_life: Option<i32>,
     pub depreciation_method: Option<String>,
-    pub purchase_date: chrono::NaiveDate,
-    pub put_in_date: chrono::NaiveDate,
+    pub purchase_date: Option<chrono::NaiveDate>,
+    pub put_in_date: Option<chrono::NaiveDate>,
     pub supplier_id: Option<i32>,
     pub remark: Option<String>,
 }
@@ -103,7 +103,7 @@ pub async fn create_asset(
     auth: AuthContext,
     Json(req): Json<CreateAssetRequestDto>,
 ) -> Result<Json<ApiResponse<fixed_asset::Model>>, AppError> {
-    info!("用户 {} 正在创建资产：{}", auth.user_id, req.asset_no);
+    info!("用户 {} 正在创建资产：{}", auth.user_id, req.asset_no.as_deref().unwrap_or("自动生成"));
 
     let service = FixedAssetService::new(state.db.clone());
     let create_req = CreateAssetRequest {

@@ -324,11 +324,18 @@ impl CapacityService {
         input: CreateWorkCenterInput,
     ) -> Result<WorkCenterCapacity, AppError> {
         let now = Utc::now();
+        // 自动生成代码
+        let code = input.code.unwrap_or_else(|| {
+            let timestamp = now.format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            format!("WC-{}-{:04}", timestamp, random)
+        });
+
         let active_model = WorkCenterActiveModel {
-            code: Set(input.code),
+            code: Set(code),
             name: Set(input.name),
             work_center_type: Set(input.work_center_type),
-            daily_capacity: Set(Some(input.daily_capacity)),
+            daily_capacity: Set(Some(input.daily_capacity.unwrap_or(rust_decimal::Decimal::new(100, 0)))),
             capacity_unit: Set(input.capacity_unit),
             status: Set(input.status.unwrap_or_else(|| "ACTIVE".to_string())),
             remarks: Set(input.remarks),
@@ -471,10 +478,10 @@ pub struct CapacityForecast {
 /// 创建工作中心输入
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkCenterInput {
-    pub code: String,
+    pub code: Option<String>,
     pub name: String,
     pub work_center_type: Option<String>,
-    pub daily_capacity: Decimal,
+    pub daily_capacity: Option<Decimal>,
     pub capacity_unit: Option<String>,
     pub status: Option<String>,
     pub remarks: Option<String>,

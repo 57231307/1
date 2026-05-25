@@ -85,16 +85,16 @@ pub async fn create_production_order(
     let service = ProductionOrderService::new(state.db.clone());
 
     let req = CreateProductionOrderRequest {
-        order_no: payload.order_no,
+        order_no: Some(payload.order_no),
         sales_order_id: payload.sales_order_id,
         product_id: payload.product_id,
         planned_quantity: payload.planned_quantity,
         planned_start_date: payload.planned_start_date,
         planned_end_date: payload.planned_end_date,
-        priority: payload.priority.unwrap_or(5),
+        priority: payload.priority,
         work_center_id: payload.work_center_id,
         remarks: payload.remarks,
-        created_by: auth.user_id,
+        created_by: Some(auth.user_id),
     };
 
     let model = service.create(req).await?;

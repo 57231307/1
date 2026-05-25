@@ -27,10 +27,10 @@ pub struct CreditQuery {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreditRatingRequestDto {
     pub customer_id: i32,
-    pub credit_level: String,
-    pub credit_score: i32,
+    pub credit_level: Option<String>,
+    pub credit_score: Option<i32>,
     pub credit_limit: rust_decimal::Decimal,
-    pub credit_days: i32,
+    pub credit_days: Option<i32>,
     pub remark: Option<String>,
 }
 
@@ -242,16 +242,15 @@ pub async fn create_credit(
 
     let credit_level = req.get("credit_level")
         .and_then(|v| v.as_str())
-        .unwrap_or("B")
-        .to_string();
+        .map(|s| s.to_string());
 
     let credit_score = req.get("credit_score")
         .and_then(|v| v.as_i64())
-        .unwrap_or(70) as i32;
+        .map(|s| s as i32);
 
     let credit_days = req.get("credit_days")
         .and_then(|v| v.as_i64())
-        .unwrap_or(30) as i32;
+        .map(|d| d as i32);
 
     let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
         customer_id,
@@ -299,10 +298,10 @@ pub async fn update_credit(
 
     let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
         customer_id: id,
-        credit_level: credit_level.unwrap_or_else(|| "B".to_string()),
-        credit_score: credit_score.unwrap_or(70),
+        credit_level,
+        credit_score,
         credit_limit: credit_limit.unwrap_or_default(),
-        credit_days: credit_days.unwrap_or(30),
+        credit_days,
         remark: None,
     };
 

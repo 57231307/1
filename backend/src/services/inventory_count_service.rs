@@ -58,7 +58,7 @@ pub struct InventoryCountItemDetail {
 pub struct CreateInventoryCountRequest {
     pub warehouse_id: i32,
     pub count_date: Option<chrono::DateTime<chrono::Utc>>,
-    pub status: String,
+    pub status: Option<String>,
     pub notes: Option<String>,
     pub items: Option<Vec<InventoryCountItemRequest>>,
 }
@@ -66,10 +66,10 @@ pub struct CreateInventoryCountRequest {
 #[derive(Debug, Deserialize)]
 pub struct InventoryCountItemRequest {
     pub product_id: i32,
-    pub stock_id: i32,
-    pub warehouse_id: i32,
+    pub stock_id: Option<i32>,
+    pub warehouse_id: Option<i32>,
     pub quantity_actual: rust_decimal::Decimal,
-    pub unit_cost: rust_decimal::Decimal,
+    pub unit_cost: Option<rust_decimal::Decimal>,
     pub notes: Option<String>,
 }
 
@@ -241,7 +241,7 @@ impl InventoryCountService {
             count_date: sea_orm::ActiveValue::Set(
                 request.count_date.unwrap_or_else(chrono::Utc::now),
             ),
-            status: sea_orm::ActiveValue::Set(request.status),
+            status: sea_orm::ActiveValue::Set(request.status.unwrap_or_else(|| "pending".to_string())),
             total_items: sea_orm::ActiveValue::Set(0),
             counted_items: sea_orm::ActiveValue::Set(0),
             variance_items: sea_orm::ActiveValue::Set(0),
@@ -268,12 +268,12 @@ impl InventoryCountService {
                     id: Default::default(),
                     count_id: sea_orm::ActiveValue::Set(count_entity.id),
                     product_id: sea_orm::ActiveValue::Set(item_req.product_id),
-                    stock_id: sea_orm::ActiveValue::Set(item_req.stock_id),
-                    warehouse_id: sea_orm::ActiveValue::Set(item_req.warehouse_id),
+                    stock_id: sea_orm::ActiveValue::Set(item_req.stock_id.unwrap_or(0)),
+                    warehouse_id: sea_orm::ActiveValue::Set(item_req.warehouse_id.unwrap_or(request.warehouse_id)),
                     quantity_before: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     quantity_actual: sea_orm::ActiveValue::Set(item_req.quantity_actual),
                     quantity_difference: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    unit_cost: sea_orm::ActiveValue::Set(item_req.unit_cost),
+                    unit_cost: sea_orm::ActiveValue::Set(item_req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO)),
                     total_cost: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     notes: sea_orm::ActiveValue::Set(item_req.notes),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),

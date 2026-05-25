@@ -28,11 +28,11 @@ pub struct BudgetItemQuery {
 #[derive(Debug, Deserialize)]
 
 pub struct CreateBudgetItemRequest {
-    pub item_code: String,
+    pub item_code: Option<String>,
     pub item_name: String,
-    pub item_type: String,
+    pub item_type: Option<String>,
     pub parent_id: Option<i32>,
-    pub budget_year: i32,
+    pub budget_year: Option<i32>,
     pub planned_amount: Decimal,
     pub remark: Option<String>,
 }
@@ -121,7 +121,7 @@ pub async fn create_budget_item(
     auth: AuthContext,
     Json(req): Json<CreateBudgetItemRequest>,
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
-    info!("用户 {} 正在创建预算科目：{}", auth.username, req.item_code);
+    info!("用户 {} 正在创建预算科目：{}", auth.username, req.item_code.as_deref().unwrap_or("自动生成"));
 
     let service = BudgetManagementService::new(state.db.clone());
     let item = service
@@ -450,8 +450,7 @@ pub async fn create_budget(
 
     let item_code = req.get("item_code")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+        .map(|s| s.to_string());
 
     let item_name = req.get("item_name")
         .and_then(|v| v.as_str())
@@ -460,16 +459,11 @@ pub async fn create_budget(
 
     let item_type = req.get("item_type")
         .and_then(|v| v.as_str())
-        .unwrap_or("expense")
-        .to_string();
+        .map(|s| s.to_string());
 
     let budget_year = req.get("budget_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| {
-            let now = chrono::Utc::now();
-            let date = now.date_naive();
-            date.format("%Y").to_string().parse::<i64>().unwrap_or(2026)
-        }) as i32;
+        .map(|y| y as i32);
 
     let planned_amount = req.get("planned_amount")
         .and_then(|v| v.as_f64())

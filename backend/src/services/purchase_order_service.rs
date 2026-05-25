@@ -141,8 +141,8 @@ impl PurchaseOrderService {
             supplier_id: Set(req.supplier_id),
             order_date: Set(req.order_date),
             expected_delivery_date: Set(req.expected_delivery_date),
-            warehouse_id: Set(req.warehouse_id),
-            department_id: Set(req.department_id),
+            warehouse_id: Set(req.warehouse_id.unwrap_or(1)),
+            department_id: Set(req.department_id.unwrap_or(1)),
             purchaser_id: Set(user_id),
             currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
@@ -182,7 +182,7 @@ impl PurchaseOrderService {
             purchase_order_item::ActiveModel {
                 id: Set(0),
                 order_id: Set(order.id),
-                product_id: Set(item_req.material_id), // 使用 material_id 作为 product_id
+                product_id: Set(item_req.material_id.unwrap_or(0)), // 使用 material_id 作为 product_id
                 quantity: Set(quantity_ordered),
                 quantity_alt: Set(quantity_alt_ordered),
                 unit_price: Set(unit_price),
@@ -524,7 +524,7 @@ impl PurchaseOrderService {
         let item = purchase_order_item::ActiveModel {
             id: Set(0),
             order_id: Set(order_id),
-            product_id: Set(req.material_id), // 使用 material_id 作为 product_id
+            product_id: Set(req.material_id.unwrap_or(0)), // 使用 material_id 作为 product_id
             quantity: Set(quantity_ordered),
             quantity_alt: Set(quantity_alt_ordered),
             unit_price: Set(unit_price),
@@ -871,10 +871,10 @@ pub struct CreatePurchaseOrderRequest {
     pub expected_delivery_date: Option<NaiveDate>,
 
     /// 仓库 ID
-    pub warehouse_id: i32,
+    pub warehouse_id: Option<i32>,
 
     /// 部门 ID
-    pub department_id: i32,
+    pub department_id: Option<i32>,
 
     /// 币种
     pub currency: Option<String>,
@@ -919,16 +919,16 @@ pub struct UpdatePurchaseOrderRequest {
 #[derive(Debug, Validate, Deserialize, Serialize)]
 pub struct CreateOrderItemRequest {
     /// 行号
-    pub line_no: i32,
+    pub line_no: Option<i32>,
 
     /// 物料 ID
-    pub material_id: i32,
+    pub material_id: Option<i32>,
 
     /// 物料编码
-    pub material_code: String,
+    pub material_code: Option<String>,
 
     /// 物料名称
-    pub material_name: String,
+    pub material_name: Option<String>,
 
     /// 规格型号
     pub specification: Option<String>,

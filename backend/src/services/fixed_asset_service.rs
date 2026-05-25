@@ -25,16 +25,16 @@ pub struct AssetQueryParams {
 /// 创建资产请求
 #[derive(Debug, Clone)]
 pub struct CreateAssetRequest {
-    pub asset_no: String,
+    pub asset_no: Option<String>,
     pub asset_name: String,
     pub asset_category: Option<String>,
     pub specification: Option<String>,
     pub location: Option<String>,
     pub original_value: Decimal,
-    pub useful_life: i32,
+    pub useful_life: Option<i32>,
     pub depreciation_method: Option<String>,
-    pub purchase_date: NaiveDate,
-    pub put_in_date: NaiveDate,
+    pub purchase_date: Option<NaiveDate>,
+    pub put_in_date: Option<NaiveDate>,
     pub supplier_id: Option<i32>,
     pub remark: Option<String>,
 }
@@ -64,20 +64,27 @@ impl FixedAssetService {
         req: CreateAssetRequest,
         user_id: i32,
     ) -> Result<fixed_asset::Model, AppError> {
-        info!("用户 {} 正在创建固定资产：{}", user_id, req.asset_no);
+        // 自动生成资产编号
+        let asset_no = req.asset_no.unwrap_or_else(|| {
+            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            format!("FA-{}-{:04}", timestamp, random)
+        });
+
+        info!("用户 {} 正在创建固定资产：{}", user_id, asset_no);
 
         let active_asset = fixed_asset::ActiveModel {
-            asset_no: Set(req.asset_no),
+            asset_no: Set(asset_no),
             asset_name: Set(req.asset_name),
             asset_category: Set(req.asset_category),
             specification: Set(req.specification),
             use_location: Set(req.location),
             original_value: Set(req.original_value),
             net_value: Set(Some(req.original_value)),
-            useful_life: Set(Some(req.useful_life)),
+            useful_life: Set(Some(req.useful_life.unwrap_or(5))),
             depreciation_method: Set(req.depreciation_method),
-            purchase_date: Set(Some(req.purchase_date)),
-            in_service_date: Set(Some(req.put_in_date)),
+            purchase_date: Set(Some(req.purchase_date.unwrap_or_else(|| chrono::Utc::now().date_naive()))),
+            in_service_date: Set(Some(req.put_in_date.unwrap_or_else(|| chrono::Utc::now().date_naive()))),
             supplier_id: Set(req.supplier_id),
             status: Set("active".to_string()),
             created_by: Set(user_id),

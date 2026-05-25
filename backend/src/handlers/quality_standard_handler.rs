@@ -27,17 +27,17 @@ pub struct QualityStandardQuery {
 #[derive(Debug, Deserialize)]
 pub struct CreateQualityStandardRequest {
     /// 标准编码
-    pub standard_code: String,
+    pub standard_code: Option<String>,
     /// 标准名称
     pub standard_name: String,
     /// 标准类型：product（产品标准）或 process（工艺标准）
-    pub standard_type: String,
+    pub standard_type: Option<String>,
     /// 版本号
-    pub version: String,
+    pub version: Option<String>,
     /// 标准内容
-    pub content: String,
+    pub content: Option<String>,
     /// 生效日期，格式：YYYY-MM-DD
-    pub effective_date: String,
+    pub effective_date: Option<String>,
     /// 失效日期，格式：YYYY-MM-DD（可选）
     pub expiry_date: Option<String>,
     /// 备注
@@ -125,7 +125,7 @@ pub async fn create_standard(
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!(
         "用户 {} 正在创建质量标准：{}",
-        auth.username, req.standard_code
+        auth.username, req.standard_code.as_deref().unwrap_or("自动生成")
     );
 
     let service = QualityStandardService::new(state.db.clone());
@@ -137,8 +137,9 @@ pub async fn create_standard(
                 standard_type: req.standard_type,
                 version: req.version,
                 content: req.content,
-                effective_date: NaiveDate::parse_from_str(&req.effective_date, "%Y-%m-%d")
-                    .map_err(|_| AppError::ValidationError("生效日期格式不正确".to_string()))?,
+                effective_date: req.effective_date.and_then(|d| {
+                    NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()
+                }),
                 expiry_date: req.expiry_date.and_then(|d| {
                     NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()
                 }),

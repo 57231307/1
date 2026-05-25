@@ -54,7 +54,7 @@ pub struct CreateInventoryTransferRequest {
     pub from_warehouse_id: i32,
     pub to_warehouse_id: i32,
     pub transfer_date: Option<chrono::DateTime<chrono::Utc>>,
-    pub status: String,
+    pub status: Option<String>,
     pub notes: Option<String>,
     pub items: Vec<InventoryTransferItemRequest>,
 }
@@ -236,7 +236,7 @@ impl InventoryTransferService {
             transfer_date: sea_orm::ActiveValue::Set(
                 request.transfer_date.unwrap_or_else(chrono::Utc::now),
             ),
-            status: sea_orm::ActiveValue::Set(request.status),
+            status: sea_orm::ActiveValue::Set(request.status.unwrap_or_else(|| "pending".to_string())),
             total_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             notes: sea_orm::ActiveValue::Set(request.notes),
             created_by: sea_orm::ActiveValue::NotSet,

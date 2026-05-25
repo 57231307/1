@@ -38,11 +38,11 @@ pub struct BudgetItemQueryParams {
 /// 创建预算科目请求
 #[derive(Debug, Clone)]
 pub struct CreateBudgetItemRequest {
-    pub item_code: String,
+    pub item_code: Option<String>,
     pub item_name: String,
-    pub item_type: String,
+    pub item_type: Option<String>,
     pub parent_id: Option<i32>,
-    pub budget_year: i32,
+    pub budget_year: Option<i32>,
     pub planned_amount: Decimal,
     pub remark: Option<String>,
 }
@@ -137,12 +137,19 @@ impl BudgetManagementService {
         req: CreateBudgetItemRequest,
         user_id: i32,
     ) -> Result<budget_management::Model, AppError> {
-        info!("用户 {} 正在创建预算科目：{}", user_id, req.item_code);
+        // 自动生成科目代码
+        let item_code = req.item_code.unwrap_or_else(|| {
+            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            format!("BUD-{}-{:04}", timestamp, random)
+        });
+
+        info!("用户 {} 正在创建预算科目：{}", user_id, item_code);
 
         let active_item = budget_management::ActiveModel {
-            item_code: Set(req.item_code),
+            item_code: Set(item_code),
             item_name: Set(req.item_name),
-            item_type: Set(req.item_type),
+            item_type: Set(req.item_type.unwrap_or_else(|| "expense".to_string())),
             parent_id: Set(req.parent_id),
             status: Set("active".to_string()),
             ..Default::default()

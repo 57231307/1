@@ -50,9 +50,9 @@ pub struct CreateVoucherRequestDto {
 #[derive(Debug, Deserialize)]
 
 pub struct VoucherItemDto {
-    pub line_no: i32,
-    pub subject_code: String,
-    pub subject_name: String,
+    pub line_no: Option<i32>,
+    pub subject_code: Option<String>,
+    pub subject_name: Option<String>,
     pub debit: Decimal,
     pub credit: Decimal,
     pub summary: Option<String>,

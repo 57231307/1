@@ -527,16 +527,16 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
             .map_err(|e| Status::invalid_argument(format!("日期格式错误：{}", e)))?;
         
         let create_req = crate::services::fixed_asset_service::CreateAssetRequest {
-            asset_no: req.asset_no,
+            asset_no: if req.asset_no.is_empty() { None } else { Some(req.asset_no) },
             asset_name: req.asset_name,
             asset_category: Some(req.asset_category),
             specification: if req.specification.is_empty() { None } else { Some(req.specification) },
             location: if req.location.is_empty() { None } else { Some(req.location) },
             original_value,
-            useful_life: req.useful_life,
+            useful_life: Some(req.useful_life),
             depreciation_method: Some(req.depreciation_method),
-            purchase_date,
-            put_in_date,
+            purchase_date: Some(purchase_date),
+            put_in_date: Some(put_in_date),
             supplier_id: if req.supplier_id == 0 { None } else { Some(req.supplier_id) },
             remark: if req.remark.is_empty() { None } else { Some(req.remark) },
         };
@@ -680,11 +680,11 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let create_req = crate::services::budget_management_service::CreateBudgetItemRequest {
-            item_code: req.item_code,
+            item_code: if req.item_code.is_empty() { None } else { Some(req.item_code) },
             item_name: req.item_name,
             parent_id: if req.parent_id == 0 { None } else { Some(req.parent_id) },
-            item_type: req.item_type,
-            budget_year: chrono::Utc::now().year(),
+            item_type: if req.item_type.is_empty() { None } else { Some(req.item_type) },
+            budget_year: Some(chrono::Utc::now().year()),
             planned_amount: rust_decimal::Decimal::ZERO,
             remark: None,
         };
@@ -712,11 +712,11 @@ impl BudgetManagementServiceTrait for GrpcManagementServices {
         let req = request.into_inner();
         
         let _update_req = crate::services::budget_management_service::CreateBudgetItemRequest {
-            item_code: String::new(),
+            item_code: None,
             item_name: req.item_name,
             parent_id: None,
-            item_type: req.item_type,
-            budget_year: chrono::Utc::now().year(),
+            item_type: if req.item_type.is_empty() { None } else { Some(req.item_type) },
+            budget_year: Some(chrono::Utc::now().year()),
             planned_amount: rust_decimal::Decimal::ZERO,
             remark: None,
         };

@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePaymentRequest {
-    pub payment_no: String,
+    pub payment_no: Option<String>,
     pub invoice_id: Option<i32>,
     pub amount: Decimal,
-    pub payment_date: DateTime<Utc>,
+    pub payment_date: Option<DateTime<Utc>>,
     pub payment_method: Option<String>,
     pub notes: Option<String>,
 }
@@ -70,12 +70,19 @@ pub async fn create_payment(
 ) -> Result<Json<ApiResponse<PaymentResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
 
+    // 自动生成付款单号
+    let payment_no = payload.payment_no.unwrap_or_else(|| {
+        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+        let random = rand::random::<u16>() % 10000;
+        format!("PAY-{}-{:04}", timestamp, random)
+    });
+
     let payment = service
         .create_payment(
-            payload.payment_no,
+            payment_no,
             payload.invoice_id,
             payload.amount,
-            payload.payment_date,
+            payload.payment_date.unwrap_or_else(|| chrono::Utc::now()),
             payload.payment_method,
             payload.notes,
             Some(auth.user_id),

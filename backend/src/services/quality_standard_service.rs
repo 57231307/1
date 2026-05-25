@@ -21,12 +21,12 @@ pub struct QualityStandardQueryParams {
 /// 创建质量标准请求
 #[derive(Debug, Clone)]
 pub struct CreateQualityStandardRequest {
-    pub standard_code: String,
+    pub standard_code: Option<String>,
     pub standard_name: String,
-    pub standard_type: String,
-    pub version: String,
-    pub content: String,
-    pub effective_date: NaiveDate,
+    pub standard_type: Option<String>,
+    pub version: Option<String>,
+    pub content: Option<String>,
+    pub effective_date: Option<NaiveDate>,
     pub expiry_date: Option<NaiveDate>,
     pub remark: Option<String>,
 }
@@ -101,16 +101,23 @@ impl QualityStandardService {
         req: CreateQualityStandardRequest,
         user_id: i32,
     ) -> Result<quality_standard::Model, AppError> {
-        info!("用户 {} 正在创建质量标准：{}", user_id, req.standard_code);
+        // 自动生成标准代码
+        let standard_code = req.standard_code.unwrap_or_else(|| {
+            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            format!("QS-{}-{:04}", timestamp, random)
+        });
+
+        info!("用户 {} 正在创建质量标准：{}", user_id, standard_code);
 
         let active_standard = quality_standard::ActiveModel {
-            standard_code: Set(req.standard_code),
+            standard_code: Set(standard_code),
             standard_name: Set(req.standard_name),
-            standard_type: Set(req.standard_type),
-            version: Set(req.version),
-            content: Set(req.content),
+            standard_type: Set(req.standard_type.unwrap_or_else(|| "general".to_string())),
+            version: Set(req.version.unwrap_or_else(|| "1.0".to_string())),
+            content: Set(req.content.unwrap_or_default()),
             status: Set("draft".to_string()),
-            effective_date: Set(req.effective_date),
+            effective_date: Set(req.effective_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
             expiry_date: Set(req.expiry_date),
             ..Default::default()
         };

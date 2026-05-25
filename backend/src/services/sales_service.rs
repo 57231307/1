@@ -89,8 +89,8 @@ pub struct SalesOrderItemDetail {
 #[derive(Debug, Deserialize)]
 pub struct CreateSalesOrderRequest {
     pub customer_id: i32,
-    pub required_date: chrono::DateTime<chrono::Utc>,
-    pub status: String,
+    pub required_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub status: Option<String>,
     pub shipping_address: Option<String>,
     pub billing_address: Option<String>,
     pub notes: Option<String>,
@@ -259,7 +259,8 @@ impl SalesService {
             .ok_or(sea_orm::DbErr::Custom(format!("客户 {} 不存在", request.customer_id)))?;
             
         // 业务逻辑验证：日期合理性检查
-        if request.required_date < chrono::Utc::now() {
+        let required_date = request.required_date.unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
+        if required_date < chrono::Utc::now() {
             tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
             txn.rollback().await.ok();
             return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
@@ -336,9 +337,9 @@ impl SalesService {
             order_no: sea_orm::ActiveValue::Set(order_no),
             customer_id: sea_orm::ActiveValue::Set(request.customer_id),
             order_date: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            required_date: sea_orm::ActiveValue::Set(request.required_date),
+            required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
-            status: sea_orm::ActiveValue::Set(request.status),
+            status: sea_orm::ActiveValue::Set(request.status.unwrap_or_else(|| "draft".to_string())),
             subtotal: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             tax_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             discount_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),

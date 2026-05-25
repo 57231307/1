@@ -19,16 +19,16 @@ use crate::utils::error::AppError;
 /// 创建生产订单请求
 #[derive(Debug, Clone)]
 pub struct CreateProductionOrderRequest {
-    pub order_no: String,
+    pub order_no: Option<String>,
     pub sales_order_id: Option<i32>,
     pub product_id: i32,
     pub planned_quantity: Decimal,
     pub planned_start_date: Option<chrono::NaiveDate>,
     pub planned_end_date: Option<chrono::NaiveDate>,
-    pub priority: i32,
+    pub priority: Option<i32>,
     pub work_center_id: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: i32,
+    pub created_by: Option<i32>,
 }
 
 /// 更新生产订单请求
@@ -66,18 +66,25 @@ impl ProductionOrderService {
         &self,
         req: CreateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
+        // 自动生成订单号
+        let order_no = req.order_no.unwrap_or_else(|| {
+            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            format!("PO-{}-{:04}", timestamp, random)
+        });
+
         let active_model = ActiveModel {
-            order_no: Set(req.order_no),
+            order_no: Set(order_no),
             sales_order_id: Set(req.sales_order_id),
             product_id: Set(req.product_id),
             planned_quantity: Set(req.planned_quantity),
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
             status: Set("DRAFT".to_string()),
-            priority: Set(req.priority),
+            priority: Set(req.priority.unwrap_or(0)),
             work_center_id: Set(req.work_center_id),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            created_by: Set(req.created_by.unwrap_or(0)),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()

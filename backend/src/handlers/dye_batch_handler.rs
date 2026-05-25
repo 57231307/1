@@ -29,7 +29,7 @@ pub struct DyeBatchListQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDyeBatchRequest {
-    pub batch_no: String,
+    pub batch_no: Option<String>,
     pub greige_fabric_id: Option<i32>,
     pub color_no: Option<String>,
     pub planned_quantity: Option<f64>,
@@ -102,9 +102,16 @@ pub async fn create_dye_batch(
     State(state): State<AppState>,
     Json(req): Json<CreateDyeBatchRequest>,
 ) -> impl IntoResponse {
+    // 自动生成缸号
+    let batch_no = req.batch_no.unwrap_or_else(|| {
+        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+        let random = rand::random::<u16>() % 10000;
+        format!("DB-{}-{:04}", timestamp, random)
+    });
+
     let batch = dye_batch::ActiveModel {
         id: Set(0),
-        batch_no: Set(req.batch_no),
+        batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
         color_no: Set(req.color_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),

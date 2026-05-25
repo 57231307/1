@@ -25,9 +25,9 @@ pub struct CreatePurchasePriceInput {
     pub product_id: i32,
     pub supplier_id: i32,
     pub price: rust_decimal::Decimal,
-    pub currency: String,
+    pub currency: Option<String>,
     pub min_order_qty: Option<rust_decimal::Decimal>,
-    pub effective_date: String,
+    pub effective_date: Option<String>,
     pub expiry_date: Option<String>,
 }
 
@@ -86,10 +86,11 @@ impl PurchasePriceService {
             product_id: Set(req.product_id),
             supplier_id: Set(req.supplier_id),
             price: Set(req.price),
-            currency: Set(req.currency),
+            currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
             effective_date: Set(req
                 .effective_date
+                .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
                 .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
