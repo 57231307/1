@@ -31,10 +31,10 @@ pub struct DyeRecipeListQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDyeRecipeRequest {
-    pub recipe_no: String,
+    pub recipe_no: Option<String>,
     pub recipe_name: Option<String>,
-    pub color_code: String,
-    pub color_name: String,
+    pub color_code: Option<String>,
+    pub color_name: Option<String>,
     pub fabric_type: Option<String>,
     pub dye_type: Option<String>,
     pub chemical_formula: Option<String>,
@@ -141,14 +141,24 @@ pub async fn create_dye_recipe(
     State(state): State<AppState>,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> impl IntoResponse {
+    // 自动生成配方编号
+    let recipe_no = match req.recipe_no {
+        Some(no) if !no.is_empty() => no,
+        _ => {
+            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            format!("DR-{}-{:04}", timestamp, random)
+        }
+    };
+
     let recipe = dye_recipe::ActiveModel {
         id: Set(0),
-        recipe_no: Set(req.recipe_no),
+        recipe_no: Set(recipe_no),
         recipe_name: Set(Some(req.recipe_name.unwrap_or_else(|| "未命名配方".to_string()))),
-        color_no: Set(Some(req.color_code.clone())),
+        color_no: Set(req.color_code.clone()),
         formula: Set(req.chemical_formula.clone()),
-        color_code: Set(Some(req.color_code)),
-        color_name: Set(Some(req.color_name)),
+        color_code: Set(req.color_code),
+        color_name: Set(req.color_name),
         fabric_type: Set(req.fabric_type),
         dye_type: Set(req.dye_type),
         chemical_formula: Set(req.chemical_formula),

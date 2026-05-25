@@ -18,9 +18,9 @@ use crate::middleware::auth_context::AuthContext;
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateCustomerRequest {
     #[validate(length(min = 1, max = 50, message = "客户编码长度必须在1到50个字符之间"))]
-    pub customer_code: String,
+    pub customer_code: Option<String>,
     #[validate(length(min = 1, max = 200, message = "客户名称长度必须在1到200个字符之间"))]
-    pub customer_name: String,
+    pub customer_name: Option<String>,
     #[validate(length(max = 100, message = "联系人名称长度不能超过100个字符"))]
     pub contact_person: Option<String>,
     #[validate(length(max = 20, message = "联系电话长度不能超过20个字符"))]
@@ -228,10 +228,16 @@ pub async fn create_customer(
         .customer_type
         .unwrap_or_else(|| "retail".to_string());
 
+    // 自动生成客户编码
+    let customer_code = match payload.customer_code {
+        Some(code) if !code.is_empty() => code,
+        _ => customer_service.generate_customer_code().await?,
+    };
+
     let customer = customer_service
         .create_customer(
-            payload.customer_code,
-            payload.customer_name,
+            customer_code,
+            payload.customer_name.unwrap_or_else(|| format!("客户_{}", chrono::Utc::now().timestamp())),
             payload.contact_person,
             payload.contact_phone,
             payload.contact_email,

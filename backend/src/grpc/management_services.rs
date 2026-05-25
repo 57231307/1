@@ -528,11 +528,11 @@ impl FixedAssetServiceTrait for GrpcManagementServices {
         
         let create_req = crate::services::fixed_asset_service::CreateAssetRequest {
             asset_no: if req.asset_no.is_empty() { None } else { Some(req.asset_no) },
-            asset_name: req.asset_name,
+            asset_name: Some(req.asset_name),
             asset_category: Some(req.asset_category),
             specification: if req.specification.is_empty() { None } else { Some(req.specification) },
             location: if req.location.is_empty() { None } else { Some(req.location) },
-            original_value,
+            original_value: Some(original_value),
             useful_life: Some(req.useful_life),
             depreciation_method: Some(req.depreciation_method),
             purchase_date: Some(purchase_date),

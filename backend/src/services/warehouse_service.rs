@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use chrono::Utc;
+use rand;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
@@ -71,10 +72,20 @@ impl WarehouseService {
         &self,
         req: crate::handlers::warehouse_handler::CreateWarehouseRequest,
     ) -> Result<warehouse::Model, sea_orm::DbErr> {
+        // 自动生成仓库编码
+        let code = match req.code {
+            Some(c) if !c.is_empty() => c,
+            _ => {
+                let timestamp = Utc::now().timestamp_millis();
+                let random_suffix = rand::random::<u16>() % 10000;
+                format!("WH{:013}{:04}", timestamp, random_suffix)
+            }
+        };
+
         let active_model = warehouse::ActiveModel {
             id: NotSet,
-            warehouse_code: Set(req.code),
-            name: Set(req.name),
+            warehouse_code: Set(code),
+            name: Set(req.name.unwrap_or_else(|| format!("仓库_{}", Utc::now().timestamp()))),
             address: Set(req.address),
             city: Set(None),
             province: Set(None),

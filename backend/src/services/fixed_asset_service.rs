@@ -26,11 +26,11 @@ pub struct AssetQueryParams {
 #[derive(Debug, Clone)]
 pub struct CreateAssetRequest {
     pub asset_no: Option<String>,
-    pub asset_name: String,
+    pub asset_name: Option<String>,
     pub asset_category: Option<String>,
     pub specification: Option<String>,
     pub location: Option<String>,
-    pub original_value: Decimal,
+    pub original_value: Option<Decimal>,
     pub useful_life: Option<i32>,
     pub depreciation_method: Option<String>,
     pub purchase_date: Option<NaiveDate>,
@@ -73,14 +73,16 @@ impl FixedAssetService {
 
         info!("用户 {} 正在创建固定资产：{}", user_id, asset_no);
 
+        let original_value = req.original_value.unwrap_or_default();
+
         let active_asset = fixed_asset::ActiveModel {
             asset_no: Set(asset_no),
-            asset_name: Set(req.asset_name),
+            asset_name: Set(req.asset_name.unwrap_or_else(|| format!("资产_{}", chrono::Utc::now().timestamp()))),
             asset_category: Set(req.asset_category),
             specification: Set(req.specification),
             use_location: Set(req.location),
-            original_value: Set(req.original_value),
-            net_value: Set(Some(req.original_value)),
+            original_value: Set(original_value),
+            net_value: Set(Some(original_value)),
             useful_life: Set(Some(req.useful_life.unwrap_or(5))),
             depreciation_method: Set(req.depreciation_method),
             purchase_date: Set(Some(req.purchase_date.unwrap_or_else(|| chrono::Utc::now().date_naive()))),

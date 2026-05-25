@@ -52,8 +52,8 @@ impl PurchaseInspectionService {
             inspection_no: Set(inspection_no),
             receipt_id: Set(req.receipt_id),
             order_id: Set(req.order_id),
-            supplier_id: Set(req.supplier_id),
-            inspection_date: Set(req.inspection_date),
+            supplier_id: Set(req.supplier_id.unwrap_or(0)),
+            inspection_date: Set(req.inspection_date.unwrap_or_else(|| Utc::now().date_naive())),
             inspector_id: Set(req.inspector_id),
             inspection_type: Set(req.inspection_type),
             sample_size: Set(req.sample_size),
@@ -238,10 +238,10 @@ pub struct CreatePurchaseInspectionRequest {
     pub order_id: Option<i32>,
 
     /// 供应商 ID
-    pub supplier_id: i32,
+    pub supplier_id: Option<i32>,
 
     /// 质检日期
-    pub inspection_date: chrono::NaiveDate,
+    pub inspection_date: Option<chrono::NaiveDate>,
 
     /// 质检员 ID
     pub inspector_id: Option<i32>,

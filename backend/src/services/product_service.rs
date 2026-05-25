@@ -35,6 +35,17 @@ impl ProductService {
         Self { db }
     }
 
+    /// 生成产品编码
+    pub async fn generate_product_code(&self) -> Result<String, crate::utils::error::AppError> {
+        use crate::utils::number_generator::DocumentNumberGenerator;
+        DocumentNumberGenerator::generate_no(
+            &self.db,
+            "PRD",
+            product::Entity,
+            product::Column::Code,
+        ).await
+    }
+
     /// 获取产品列表（支持分页和过滤）
     #[allow(unused_variables)]
     pub async fn list_products(

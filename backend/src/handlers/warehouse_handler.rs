@@ -31,9 +31,9 @@ pub struct WarehouseListQuery {
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateWarehouseRequest {
     #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
-    pub name: String,
+    pub name: Option<String>,
     #[validate(length(min = 1, max = 50, message = "仓库编码不能为空"))]
-    pub code: String,
+    pub code: Option<String>,
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,

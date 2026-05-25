@@ -21,8 +21,8 @@ use crate::utils::error::AppError;
 pub struct CreateProductionOrderRequest {
     pub order_no: Option<String>,
     pub sales_order_id: Option<i32>,
-    pub product_id: i32,
-    pub planned_quantity: Decimal,
+    pub product_id: Option<i32>,
+    pub planned_quantity: Option<Decimal>,
     pub planned_start_date: Option<chrono::NaiveDate>,
     pub planned_end_date: Option<chrono::NaiveDate>,
     pub priority: Option<i32>,
@@ -76,8 +76,8 @@ impl ProductionOrderService {
         let active_model = ActiveModel {
             order_no: Set(order_no),
             sales_order_id: Set(req.sales_order_id),
-            product_id: Set(req.product_id),
-            planned_quantity: Set(req.planned_quantity),
+            product_id: Set(req.product_id.unwrap_or(0)),
+            planned_quantity: Set(req.planned_quantity.unwrap_or_default()),
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
             status: Set("DRAFT".to_string()),

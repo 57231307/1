@@ -29,11 +29,11 @@ pub struct AssetQuery {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateAssetRequestDto {
     pub asset_no: Option<String>,
-    pub asset_name: String,
+    pub asset_name: Option<String>,
     pub asset_category: Option<String>,
     pub specification: Option<String>,
     pub location: Option<String>,
-    pub original_value: rust_decimal::Decimal,
+    pub original_value: Option<rust_decimal::Decimal>,
     pub useful_life: Option<i32>,
     pub depreciation_method: Option<String>,
     pub purchase_date: Option<chrono::NaiveDate>,

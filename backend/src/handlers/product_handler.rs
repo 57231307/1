@@ -26,17 +26,17 @@ pub struct ProductListQuery {
 /// 创建产品请求（面料行业版）
 #[derive(Debug, Deserialize)]
 pub struct CreateProductRequest {
-    pub name: String,
-    pub code: String,
+    pub name: Option<String>,
+    pub code: Option<String>,
     pub category_id: Option<i32>,
     pub specification: Option<String>,
-    pub unit: String,
+    pub unit: Option<String>,
     pub standard_price: Option<f64>,
     pub cost_price: Option<f64>,
     pub description: Option<String>,
     pub status: Option<String>,
     // 面料行业字段
-    pub product_type: String,
+    pub product_type: Option<String>,
     pub fabric_composition: Option<String>,
     pub yarn_count: Option<String>,
     pub density: Option<String>,
@@ -173,18 +173,24 @@ pub async fn create_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
 
+    // 自动生成产品编码
+    let code = match req.code {
+        Some(c) if !c.is_empty() => c,
+        _ => product_service.generate_product_code().await?,
+    };
+
     let product = product_service
         .create_product(
-            req.name,
-            req.code,
+            req.name.unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
+            code,
             req.category_id,
             req.specification,
-            req.unit,
+            req.unit.unwrap_or_else(|| "个".to_string()),
             req.standard_price,
             req.cost_price,
             req.description,
             req.status.unwrap_or_else(|| "active".to_string()),
-            req.product_type,
+            req.product_type.unwrap_or_else(|| "成品".to_string()),
             req.fabric_composition,
             req.yarn_count,
             req.density,
