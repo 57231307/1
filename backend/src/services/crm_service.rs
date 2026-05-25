@@ -20,10 +20,10 @@ impl CrmService {
         
         let model = crm_lead::ActiveModel {
             lead_no: Set(lead_no),
-            lead_source: Set(req.lead_source),
+            lead_source: Set(req.lead_source.unwrap_or_else(|| "未知来源".to_string())),
             lead_status: Set(req.lead_status.or_else(|| Some("new".to_string()))),
             company_name: Set(req.company_name),
-            contact_name: Set(req.contact_name),
+            contact_name: Set(req.contact_name.unwrap_or_default()),
             contact_title: Set(req.contact_title),
             mobile_phone: Set(req.mobile_phone),
             tel_phone: Set(req.tel_phone),

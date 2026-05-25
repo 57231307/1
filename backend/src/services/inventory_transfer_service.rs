@@ -51,18 +51,18 @@ pub struct InventoryTransferItemDetail {
 /// 创建库存调拨请求
 #[derive(Debug, Deserialize)]
 pub struct CreateInventoryTransferRequest {
-    pub from_warehouse_id: i32,
-    pub to_warehouse_id: i32,
+    pub from_warehouse_id: Option<i32>,
+    pub to_warehouse_id: Option<i32>,
     pub transfer_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: Option<String>,
     pub notes: Option<String>,
-    pub items: Vec<InventoryTransferItemRequest>,
+    pub items: Option<Vec<InventoryTransferItemRequest>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct InventoryTransferItemRequest {
-    pub product_id: i32,
-    pub quantity: rust_decimal::Decimal,
+    pub product_id: Option<i32>,
+    pub quantity: Option<rust_decimal::Decimal>,
     pub notes: Option<String>,
 }
 
@@ -231,8 +231,8 @@ impl InventoryTransferService {
         let transfer = inventory_transfer::ActiveModel {
             id: Default::default(),
             transfer_no: sea_orm::ActiveValue::Set(transfer_no),
-            from_warehouse_id: sea_orm::ActiveValue::Set(request.from_warehouse_id),
-            to_warehouse_id: sea_orm::ActiveValue::Set(request.to_warehouse_id),
+            from_warehouse_id: sea_orm::ActiveValue::Set(request.from_warehouse_id.unwrap_or(0)),
+            to_warehouse_id: sea_orm::ActiveValue::Set(request.to_warehouse_id.unwrap_or(0)),
             transfer_date: sea_orm::ActiveValue::Set(
                 request.transfer_date.unwrap_or_else(chrono::Utc::now),
             ),
@@ -251,21 +251,24 @@ impl InventoryTransferService {
         let transfer_entity = transfer.insert(&txn).await?;
 
         // 检查调出仓库库存是否充足
-        self.check_from_warehouse_inventory(&request.from_warehouse_id, &request.items, &txn)
+        let from_warehouse_id = request.from_warehouse_id.unwrap_or(0);
+        let items = request.items.unwrap_or_default();
+        self.check_from_warehouse_inventory(&from_warehouse_id, &items, &txn)
             .await?;
 
         // 创建调拨明细项并计算总数量
         let mut total_quantity = rust_decimal::Decimal::ZERO;
 
-        for item_req in request.items {
-            total_quantity += &item_req.quantity;
+        for item_req in items {
+            let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+            total_quantity += quantity;
 
             // 创建明细项
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_entity.id),
-                product_id: sea_orm::ActiveValue::Set(item_req.product_id),
-                quantity: sea_orm::ActiveValue::Set(item_req.quantity),
+                product_id: sea_orm::ActiveValue::Set(item_req.product_id.unwrap_or(0)),
+                quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 unit_cost: sea_orm::ActiveValue::NotSet,
@@ -338,13 +341,14 @@ impl InventoryTransferService {
             let mut total_quantity = rust_decimal::Decimal::ZERO;
 
             for item_req in items {
-                total_quantity += &item_req.quantity;
+                let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+                total_quantity += quantity;
 
                 let item = inventory_transfer_item::ActiveModel {
                     id: Default::default(),
                     transfer_id: sea_orm::ActiveValue::Set(transfer_id),
-                    product_id: sea_orm::ActiveValue::Set(item_req.product_id),
-                    quantity: sea_orm::ActiveValue::Set(item_req.quantity),
+                    product_id: sea_orm::ActiveValue::Set(item_req.product_id.unwrap_or(0)),
+                    quantity: sea_orm::ActiveValue::Set(quantity),
                     shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     unit_cost: sea_orm::ActiveValue::NotSet,
@@ -670,28 +674,31 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), sea_orm::DbErr> {
         for item in items {
+            let product_id = item.product_id.unwrap_or(0);
+            let quantity = item.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+            
             // 查询调出仓库的库存
             let stock = InventoryStockEntity::find()
                 .filter(inventory_stock::Column::WarehouseId.eq(*from_warehouse_id))
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+                .filter(inventory_stock::Column::ProductId.eq(product_id))
                 .one(txn)
                 .await?;
 
             match stock {
-                Some(s) if s.quantity_available >= item.quantity => {
+                Some(s) if s.quantity_available >= quantity => {
                     // 库存充足，继续检查下一个产品
                     continue;
                 }
                 Some(s) => {
                     return Err(sea_orm::DbErr::Custom(format!(
                         "调出仓库库存不足，产品 {}，当前库存：{}，需要调拨：{}",
-                        item.product_id, s.quantity_available, item.quantity
+                        product_id, s.quantity_available, quantity
                     )));
                 }
                 None => {
                     return Err(sea_orm::DbErr::Custom(format!(
                         "产品 {} 在调出仓库没有库存记录",
-                        item.product_id
+                        product_id
                     )));
                 }
             }

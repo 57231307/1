@@ -36,14 +36,14 @@ pub struct ArInvoiceQuery {
 #[derive(Debug, Deserialize)]
 
 pub struct CreateArInvoiceRequestDto {
-    pub invoice_date: String,
-    pub due_date: String,
-    pub customer_id: i32,
+    pub invoice_date: Option<String>,
+    pub due_date: Option<String>,
+    pub customer_id: Option<i32>,
     pub customer_name: Option<String>,
     pub source_type: Option<String>,
     pub source_bill_id: Option<i32>,
     pub source_bill_no: Option<String>,
-    pub invoice_amount: Decimal,
+    pub invoice_amount: Option<Decimal>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
     pub sales_order_no: Option<String>,
@@ -80,19 +80,23 @@ pub async fn create_ar_invoice(
     Json(req): Json<CreateArInvoiceRequestDto>,
 ) -> Result<Json<ApiResponse<ar_invoice::Model>>, AppError> {
     info!(
-        "用户 {} 创建应收单，客户 ID: {}",
+        "用户 {} 创建应收单，客户 ID: {:?}",
         auth.username, req.customer_id
     );
 
-    let invoice_date = req.invoice_date.parse().map_err(|e| {
-        warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
-        AppError::ValidationError("应收单日期格式错误".to_string())
-    })?;
+    let invoice_date = req.invoice_date
+        .map(|d| d.parse().map_err(|e| {
+            warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
+            AppError::ValidationError("应收单日期格式错误".to_string())
+        }))
+        .transpose()?;
 
-    let due_date = req.due_date.parse().map_err(|e| {
-        warn!("用户 {} 到期日格式错误：{}", auth.username, e);
-        AppError::ValidationError("到期日格式错误".to_string())
-    })?;
+    let due_date = req.due_date
+        .map(|d| d.parse().map_err(|e| {
+            warn!("用户 {} 到期日格式错误：{}", auth.username, e);
+            AppError::ValidationError("到期日格式错误".to_string())
+        }))
+        .transpose()?;
 
     let create_req = CreateArInvoiceRequest {
         invoice_date,

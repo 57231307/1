@@ -5,10 +5,10 @@ use chrono::NaiveDate;
 #[derive(Debug, Deserialize)]
 pub struct CreateLeadRequest {
     pub lead_no: Option<String>,
-    pub lead_source: String,
+    pub lead_source: Option<String>,
     pub lead_status: Option<String>,
     pub company_name: Option<String>,
-    pub contact_name: String,
+    pub contact_name: Option<String>,
     pub contact_title: Option<String>,
     pub mobile_phone: Option<String>,
     pub tel_phone: Option<String>,

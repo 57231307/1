@@ -192,16 +192,16 @@ impl ApInvoiceService {
         // 2. 创建应付单
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
-            supplier_id: Set(req.supplier_id),
-            invoice_type: Set(req.invoice_type),
+            supplier_id: Set(req.supplier_id.unwrap_or(0)),
+            invoice_type: Set(req.invoice_type.unwrap_or_else(|| "PURCHASE".to_string())),
             source_type: Set(Some("MANUAL".to_string())),
             source_id: Set(None),
-            invoice_date: Set(req.invoice_date),
-            due_date: Set(req.due_date),
-            payment_terms: Set(req.payment_terms),
-            amount: Set(req.amount),
+            invoice_date: Set(req.invoice_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            due_date: Set(req.due_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            payment_terms: Set(req.payment_terms.unwrap_or(30)),
+            amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             paid_amount: Set(Decimal::new(0, 2)),
-            unpaid_amount: Set(req.amount),
+            unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             invoice_status: Set("DRAFT".to_string()),
             currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
@@ -539,24 +539,24 @@ impl ApInvoiceService {
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateApInvoiceRequest {
     /// 供应商 ID
-    pub supplier_id: i32,
+    pub supplier_id: Option<i32>,
 
     /// 应付类型
     #[validate(length(min = 1, max = 20, message = "发票号码长度必须在1到20个字符之间"))]
-    pub invoice_type: String,
+    pub invoice_type: Option<String>,
 
     /// 应付日期
-    pub invoice_date: NaiveDate,
+    pub invoice_date: Option<NaiveDate>,
 
     /// 到期日期
-    pub due_date: NaiveDate,
+    pub due_date: Option<NaiveDate>,
 
     /// 账期（天）
     #[validate(range(min = 0, max = 365, message = "账期必须在0到365天之间"))]
-    pub payment_terms: i32,
+    pub payment_terms: Option<i32>,
 
     /// 应付金额
-    pub amount: Decimal,
+    pub amount: Option<Decimal>,
 
     /// 币种
     pub currency: Option<String>,

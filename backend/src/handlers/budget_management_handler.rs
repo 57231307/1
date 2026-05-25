@@ -52,12 +52,12 @@ pub struct UpdateBudgetItemRequest {
 #[derive(Debug, Deserialize)]
 
 pub struct CreateBudgetPlanRequest {
-    pub plan_no: String,
-    pub plan_name: String,
-    pub budget_year: i32,
-    pub budget_type: String,
-    pub department_id: i32,
-    pub total_amount: Decimal,
+    pub plan_no: Option<String>,
+    pub plan_name: Option<String>,
+    pub budget_year: Option<i32>,
+    pub budget_type: Option<String>,
+    pub department_id: Option<i32>,
+    pub total_amount: Option<Decimal>,
     pub remark: Option<String>,
 }
 
@@ -231,19 +231,22 @@ pub async fn create_plan(
     auth: AuthContext,
     Json(req): Json<CreateBudgetPlanRequest>,
 ) -> Result<Json<ApiResponse<budget_plan::Model>>, AppError> {
-    info!("用户 {} 正在创建预算方案：{}", auth.username, req.plan_no);
+    info!("用户 {} 正在创建预算方案：{:?}", auth.username, req.plan_no);
 
     let service = BudgetManagementService::new(state.db.clone());
 
     let plan = service
         .create_plan(
             crate::services::budget_management_service::CreateBudgetPlanRequest {
-                plan_no: req.plan_no,
-                plan_name: req.plan_name,
-                budget_year: req.budget_year,
-                budget_type: req.budget_type,
-                department_id: req.department_id,
-                total_amount: req.total_amount,
+                plan_no: req.plan_no.unwrap_or_default(),
+                plan_name: req.plan_name.unwrap_or_default(),
+                budget_year: req.budget_year.unwrap_or_else(|| {
+                    use chrono::Datelike;
+                    chrono::Utc::now().naive_utc().year()
+                }),
+                budget_type: req.budget_type.unwrap_or_else(|| "年度预算".to_string()),
+                department_id: req.department_id.unwrap_or(0),
+                total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
                 items: vec![],
                 remark: req.remark,
             },

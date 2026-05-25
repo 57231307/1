@@ -343,14 +343,14 @@ impl SalesReturnService {
         // 生成应收单 (红字，因为是退货)
         let ar_invoice_service = ArInvoiceService::new(self.db.clone());
         let ar_request = CreateArInvoiceRequest {
-            invoice_date: Utc::now().date_naive(),
-            due_date: Utc::now().date_naive(),
-            customer_id: return_order.customer_id,
+            invoice_date: Some(Utc::now().date_naive()),
+            due_date: Some(Utc::now().date_naive()),
+            customer_id: Some(return_order.customer_id),
             customer_name: None,
             source_type: Some("SALES_RETURN".to_string()),
             source_bill_id: Some(return_order.id),
             source_bill_no: Some(return_order.return_no.clone()),
-            invoice_amount: -return_order.total_amount, // 红字应收单
+            invoice_amount: Some(-return_order.total_amount), // 红字应收单
             batch_no: None,
             color_no: None,
             sales_order_no: None,

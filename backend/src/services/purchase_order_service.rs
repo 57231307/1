@@ -162,9 +162,10 @@ impl PurchaseOrderService {
         let mut total_quantity = Decimal::new(0, 0);
         let mut total_quantity_alt = Decimal::new(0, 0);
 
-        for item_req in req.items {
-            let quantity_ordered = item_req.quantity_ordered;
-            let unit_price = item_req.unit_price;
+        let items = req.items.unwrap_or_default();
+        for item_req in items {
+            let quantity_ordered = item_req.quantity_ordered.unwrap_or(Decimal::ZERO);
+            let unit_price = item_req.unit_price.unwrap_or(Decimal::ZERO);
             let amount = quantity_ordered * unit_price;
             total_amount += amount;
             total_quantity += quantity_ordered;
@@ -512,8 +513,8 @@ impl PurchaseOrderService {
         }
 
         // 4. 创建明细
-        let quantity_ordered = req.quantity_ordered;
-        let unit_price = req.unit_price;
+        let quantity_ordered = req.quantity_ordered.unwrap_or(Decimal::ZERO);
+        let unit_price = req.unit_price.unwrap_or(Decimal::ZERO);
         let amount = quantity_ordered * unit_price;
         let tax_percent = req.tax_rate.unwrap_or(Decimal::new(13, 2));
         let tax_amount = amount * tax_percent / Decimal::new(100, 0);
@@ -896,7 +897,7 @@ pub struct CreatePurchaseOrderRequest {
 
     /// 订单明细
     #[validate(length(min = 1, message = "订单至少需要一行明细"))]
-    pub items: Vec<CreateOrderItemRequest>,
+    pub items: Option<Vec<CreateOrderItemRequest>>,
 }
 
 /// 更新采购订单请求
@@ -952,16 +953,16 @@ pub struct CreateOrderItemRequest {
     pub width: Option<Decimal>,
 
     /// 单价
-    pub unit_price: Decimal,
+    pub unit_price: Option<Decimal>,
 
     /// 币种
     pub currency: Option<String>,
 
     /// 订购数量（主单位）
-    pub quantity_ordered: Decimal,
+    pub quantity_ordered: Option<Decimal>,
 
     /// 主单位
-    pub unit_master: String,
+    pub unit_master: Option<String>,
 
     /// 辅助单位
     pub unit_alt: Option<String>,

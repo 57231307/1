@@ -29,14 +29,14 @@ pub struct UpdateArInvoiceRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateArInvoiceRequest {
-    pub invoice_date: chrono::NaiveDate,
-    pub due_date: chrono::NaiveDate,
-    pub customer_id: i32,
+    pub invoice_date: Option<chrono::NaiveDate>,
+    pub due_date: Option<chrono::NaiveDate>,
+    pub customer_id: Option<i32>,
     pub customer_name: Option<String>,
     pub source_type: Option<String>,
     pub source_bill_id: Option<i32>,
     pub source_bill_no: Option<String>,
-    pub invoice_amount: Decimal,
+    pub invoice_amount: Option<Decimal>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
     pub sales_order_no: Option<String>,
@@ -60,7 +60,7 @@ impl ArInvoiceService {
     ) -> Result<ar_invoice::Model, AppError> {
         info!(
             "创建应收单：customer_id={}, amount={}",
-            req.customer_id, req.invoice_amount
+            req.customer_id.unwrap_or(0), req.invoice_amount.unwrap_or(Decimal::ZERO)
         );
 
         // 生成应收单编号
@@ -68,16 +68,16 @@ impl ArInvoiceService {
 
         let active_model = ar_invoice::ActiveModel {
             invoice_no: sea_orm::Set(invoice_no),
-            invoice_date: sea_orm::Set(req.invoice_date),
-            due_date: sea_orm::Set(req.due_date),
-            customer_id: sea_orm::Set(req.customer_id),
+            invoice_date: sea_orm::Set(req.invoice_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            due_date: sea_orm::Set(req.due_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            customer_id: sea_orm::Set(req.customer_id.unwrap_or(0)),
             customer_name: sea_orm::Set(req.customer_name),
             source_type: sea_orm::Set(req.source_type),
             source_bill_id: sea_orm::Set(req.source_bill_id),
             source_bill_no: sea_orm::Set(req.source_bill_no),
-            invoice_amount: sea_orm::Set(req.invoice_amount),
+            invoice_amount: sea_orm::Set(req.invoice_amount.unwrap_or(Decimal::ZERO)),
             received_amount: sea_orm::Set(Decimal::ZERO),
-            unpaid_amount: sea_orm::Set(req.invoice_amount),
+            unpaid_amount: sea_orm::Set(req.invoice_amount.unwrap_or(Decimal::ZERO)),
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),

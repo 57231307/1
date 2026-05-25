@@ -86,7 +86,7 @@ pub async fn create_ap_invoice(
     Json(req): Json<CreateApInvoiceRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!(
-        "用户 {} 创建应付单，供应商 ID: {}",
+        "用户 {} 创建应付单，供应商 ID: {:?}",
         auth.username, req.supplier_id
     );
 
