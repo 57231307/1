@@ -557,7 +557,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/select", get(supplier_handler::list_suppliers))
         .route("/:id", get(supplier_handler::get_supplier))
         .route("/:id", put(supplier_handler::update_supplier))
-        .route("/:id", delete(supplier_handler::delete_supplier));
+        .route("/:id", delete(supplier_handler::delete_supplier))
+        .route("/:id/status", post(supplier_handler::toggle_supplier_status))
+        .route("/:id/contacts", get(supplier_handler::list_supplier_contacts).post(supplier_handler::create_supplier_contact))
+        .route("/:id/contacts/:contact_id", put(supplier_handler::update_supplier_contact).delete(supplier_handler::delete_supplier_contact))
+        .route("/:id/qualifications", get(supplier_handler::list_supplier_qualifications).post(supplier_handler::create_supplier_qualification));
 
     // 供应商评估路由
     let supplier_evaluation_routes = Router::new()
@@ -819,7 +823,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/check", get(system_update_handler::check_for_updates))
         .route("/update", post(system_update_handler::download_and_update))
         .route("/version", get(system_update_handler::get_version))
-        .route("/status", get(system_update_handler::get_update_status));
+        .route("/status", get(system_update_handler::get_update_status))
+        .route("/versions", get(system_update_handler::get_backup_versions))
+        .route("/rollback", post(system_update_handler::rollback_version))
+        .route("/local-releases", get(system_update_handler::list_local_releases))
+        .route("/local-update", post(system_update_handler::apply_local_update))
+        .route("/local-check", get(system_update_handler::check_for_local_updates))
+        .route("/upload", post(system_update_handler::upload_and_update));
 
 
     // BPM路由
@@ -1042,6 +1052,9 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/emails", Router::new()
             .route("/send", post(email_handler::send_email))
             .route("/templates", get(email_handler::list_templates).post(email_handler::create_template))
+            .route("/templates/:id", get(email_handler::get_template).put(email_handler::update_template).delete(email_handler::delete_template))
+            .route("/records", get(email_handler::get_email_records))
+            .route("/statistics", get(email_handler::get_email_statistics))
         )
         // Webhook集成路由
         .nest("/api/v1/erp/webhooks/integrations", Router::new()
