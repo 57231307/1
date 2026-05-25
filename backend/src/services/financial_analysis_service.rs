@@ -12,7 +12,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct IndicatorQueryParams {
     pub indicator_type: Option<String>,
     pub status: Option<String>,

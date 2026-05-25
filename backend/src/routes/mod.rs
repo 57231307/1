@@ -334,6 +334,10 @@ pub fn create_router(state: AppState) -> Router {
             get(inventory_stock_handler::get_inventory_summary),
         )
         .route(
+            "/stock/low-stock",
+            get(inventory_stock_handler::check_low_stock),
+        )
+        .route(
             "/transfers",
             get(inventory_transfer_handler::list_transfers),
         )
@@ -512,6 +516,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/parse",
             post(five_dimension_handler::parse_five_dimension_id),
+        )
+        .route(
+            "/summary",
+            get(five_dimension_handler::get_five_dimension_summary),
         );
 
     // 辅助核算路由
@@ -600,9 +608,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
         .route("/receipts/:id", put(purchase_receipt_handler::update_receipt))
+        .route("/receipts/:id/confirm", post(purchase_receipt_handler::confirm_receipt))
+        .route("/receipts/:id/items", get(purchase_receipt_handler::list_receipt_items).post(purchase_receipt_handler::create_receipt_item))
+        .route("/receipts/:id/items/:item_id", put(purchase_receipt_handler::update_receipt_item).delete(purchase_receipt_handler::delete_receipt_item))
         .route("/inspections", get(purchase_inspection_handler::list_inspections))
         .route("/inspections", post(purchase_inspection_handler::create_inspection))
         .route("/inspections/:id", get(purchase_inspection_handler::get_inspection))
+        .route("/inspections/:id", put(purchase_inspection_handler::update_inspection))
+        .route("/inspections/:id/complete", post(purchase_inspection_handler::complete_inspection))
         .route("/returns", get(purchase_return_handler::list_purchase_returns))
         .route("/returns", post(purchase_return_handler::create_purchase_return))
         .route("/returns/:id", get(purchase_return_handler::get_purchase_return))
@@ -647,6 +660,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", put(fixed_asset_handler::update_asset))
         .route("/:id", delete(fixed_asset_handler::delete_asset))
         .route("/:id/depreciate", post(fixed_asset_handler::depreciate_asset))
+        .route("/:id/dispose", post(fixed_asset_handler::dispose_asset))
         .route("/batch-depreciate", post(fixed_asset_handler::batch_depreciate));
 
     // 预算管理路由
@@ -693,8 +707,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/reports", post(financial_analysis_handler::create_report))
         .route("/reports/:id", get(financial_analysis_handler::get_report))
         .route("/reports/:id/execute", post(financial_analysis_handler::execute_report))
-        .route("/indicators", post(financial_analysis_handler::create_indicator))
-        .route("/trends", get(financial_analysis_handler::get_trends));
+        .route("/indicators", get(financial_analysis_handler::get_indicators).post(financial_analysis_handler::create_indicator))
+        .route("/trends", get(financial_analysis_handler::get_trends).post(financial_analysis_handler::create_trend));
 
     // 资金管理路由
     let fund_management_routes = Router::new()
@@ -767,7 +781,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(purchase_price_handler::create_price))
         .route("/:id", get(purchase_price_handler::get_price))
         .route("/:id", put(purchase_price_handler::update_price))
-        .route("/:id", delete(purchase_price_handler::delete_price));
+        .route("/:id", delete(purchase_price_handler::delete_price))
+        .route("/:id/approve", post(purchase_price_handler::approve_price))
+        .route("/:id/history", get(purchase_price_handler::get_price_history));
 
     let sales_return_routes = sales_return_handler::router();
 
@@ -879,6 +895,7 @@ pub fn create_router(state: AppState) -> Router {
     let init_routes = Router::new()
         .route("/status", get(init_handler::get_init_status))
         .route("/test-database", post(init_handler::test_database_connection))
+        .route("/initialize", post(init_handler::initialize_system))
         .route("/initialize-with-db", post(init_handler::initialize_system_with_db));
 
     Router::new()
@@ -1056,6 +1073,7 @@ pub fn create_router(state: AppState) -> Router {
             .route("/lock-status", get(login_security_handler::check_lock_status))
             .route("/unlock", post(login_security_handler::unlock_account))
             .route("/statistics", get(login_security_handler::get_login_statistics))
+            .route("/security-alerts", get(login_security_handler::get_security_alerts))
         )
         // 邮件路由
         .nest("/api/v1/erp/emails", Router::new()
@@ -1071,6 +1089,8 @@ pub fn create_router(state: AppState) -> Router {
             .route("/:id", put(webhook_integration_handler::test_integration).delete(webhook_integration_handler::delete_integration))
             .route("/callback", post(webhook_integration_handler::handle_generic_callback))
             .route("/test/:id", post(webhook_integration_handler::test_integration))
+            .route("/wechat/send", post(webhook_integration_handler::send_wechat_message))
+            .route("/dingtalk/send", post(webhook_integration_handler::send_dingtalk_message))
         )
         // 租户配置路由
         .nest("/api/v1/erp/tenant/config", Router::new()
