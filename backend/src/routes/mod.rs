@@ -571,8 +571,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", put(supplier_evaluation_handler::update_evaluation))
         .route("/:id", delete(supplier_evaluation_handler::delete_evaluation))
         .route("/indicators", get(supplier_evaluation_handler::list_indicators))
+        .route("/indicators", post(supplier_evaluation_handler::create_indicator))
         .route("/rankings", get(supplier_evaluation_handler::get_rankings))
-        .route("/records", get(supplier_evaluation_handler::list_evaluation_records));
+        .route("/records", get(supplier_evaluation_handler::list_evaluation_records))
+        .route("/records", post(supplier_evaluation_handler::create_evaluation_record))
+        .route("/records/:id", get(supplier_evaluation_handler::get_evaluation_record))
+        .route("/scores/:supplier_id", get(supplier_evaluation_handler::get_supplier_score))
+        .route("/ratings", get(supplier_evaluation_handler::list_ratings));
 
     // 采购管理路由
     let purchase_routes = Router::new()
@@ -587,6 +592,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders/:id/reject", post(purchase_order_handler::reject_order))
         .route("/orders/:id/close", post(purchase_order_handler::close_order))
         .route("/orders/export", get(purchase_order_handler::export_orders))
+        .route("/orders/:id/items", get(purchase_order_handler::list_order_items).post(purchase_order_handler::create_order_item))
+        .route("/orders/:id/items/:item_id", put(purchase_order_handler::update_order_item).delete(purchase_order_handler::delete_order_item))
         .route("/orders/:id/print", get(print_handler::purchase_order_print_html))
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route("/receipts/:id/print", get(print_handler::purchase_receipt_print_html))
@@ -775,6 +782,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/invoices/:id/cancel", post(ap_invoice_handler::cancel_ap_invoice))
         .route("/invoices/auto-generate", post(ap_invoice_handler::auto_generate))
         .route("/invoices/aging", get(ap_invoice_handler::get_aging_analysis))
+        .route("/invoices/balance", get(ap_invoice_handler::get_balance_summary))
+        .route("/invoices/statistics", get(ap_invoice_handler::get_statistics))
         .route("/payments", get(ap_payment_handler::list_payments))
         .route("/payments", post(ap_payment_handler::create_payment))
         .route("/payments/:id", get(ap_payment_handler::get_payment))
