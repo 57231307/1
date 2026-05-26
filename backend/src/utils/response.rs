@@ -31,8 +31,9 @@ impl<T> Default for ApiResponse<T> {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PaginatedResponse<T> {
-    #[serde(skip_serializing)]
-    pub _data: Vec<T>, // 保留字段用于向后兼容，但不序列化
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub data: Vec<T>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<T>,
     pub total: u64,
     pub page: u64,
@@ -52,20 +53,20 @@ impl<T> Default for PaginatedResponse<T> {
 }
 
 impl<T: Clone> PaginatedResponse<T> {
-    pub fn new(items: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
+    pub fn new(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
         Self {
-            _data: items.clone(),
-            items,
+            data: data.clone(),
+            items: data,
             total,
             page,
             page_size,
         }
     }
 
-    pub fn from_data(items: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
+    pub fn from_data(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
         Self {
-            _data: items.clone(),
-            items,
+            data: data.clone(),
+            items: data,
             total,
             page,
             page_size,

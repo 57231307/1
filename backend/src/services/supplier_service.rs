@@ -195,7 +195,7 @@ impl SupplierService {
         let total = num_pages * page_size;
 
         Ok(PaginatedResponse {
-            _data: data.clone(),
+            data: data.clone(),
             items: data,
             page,
             page_size,
@@ -494,6 +494,7 @@ impl SupplierService {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
     pub data: Vec<T>,
+    pub items: Vec<T>,
     pub page: u64,
     pub page_size: u64,
     pub total: u64,
