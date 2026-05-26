@@ -905,6 +905,8 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/logistics", logistics_routes)
         .nest("/api/v1/erp/scanner", scanner_routes)
         .nest("/api/v1/erp/roles", role_routes)
+        .nest("/api/v1/erp/permissions", Router::new()
+            .route("/", get(role_handler::list_permissions)))
         .nest("/api/v1/erp/products", product_routes)
         .nest("/api/v1/erp/product-categories", product_category_routes)
         .nest("/api/v1/erp/warehouses", warehouse_routes)
