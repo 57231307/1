@@ -195,7 +195,8 @@ impl SupplierService {
         let total = num_pages * page_size;
 
         Ok(PaginatedResponse {
-            data,
+            _data: data.clone(),
+            items: data,
             page,
             page_size,
             total,
