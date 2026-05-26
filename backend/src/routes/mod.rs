@@ -144,7 +144,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", delete(role_handler::delete_role))
         .route("/:id/permissions", get(role_handler::get_role_permissions))
         .route("/:id/permissions", post(role_handler::assign_permission))
-        .route("/permissions/:id", delete(role_handler::remove_permission));
+        .route("/permissions/:id", delete(role_handler::remove_permission))
+        .route("/permissions", get(role_handler::list_permissions));
 
     // 产品管理路由
     let product_routes = Router::new()

@@ -316,3 +316,36 @@ pub async fn get_role_permissions(
 
     Ok(Json(ApiResponse::success(perm_responses)))
 }
+
+/// 获取所有权限列表（用于前端权限选择器）
+pub async fn list_permissions() -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
+    // 返回预定义的权限列表
+    let permissions = vec![
+        PermissionResponse { id: 1, resource_type: "sales_order".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 2, resource_type: "sales_order".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
+        PermissionResponse { id: 3, resource_type: "sales_order".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
+        PermissionResponse { id: 4, resource_type: "sales_order".to_string(), resource_id: None, action: "delete".to_string(), allowed: true },
+        PermissionResponse { id: 5, resource_type: "sales_order".to_string(), resource_id: None, action: "approve".to_string(), allowed: true },
+        PermissionResponse { id: 6, resource_type: "purchase_order".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 7, resource_type: "purchase_order".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
+        PermissionResponse { id: 8, resource_type: "purchase_order".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
+        PermissionResponse { id: 9, resource_type: "purchase_order".to_string(), resource_id: None, action: "delete".to_string(), allowed: true },
+        PermissionResponse { id: 10, resource_type: "purchase_order".to_string(), resource_id: None, action: "approve".to_string(), allowed: true },
+        PermissionResponse { id: 11, resource_type: "inventory".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 12, resource_type: "inventory".to_string(), resource_id: None, action: "adjust".to_string(), allowed: true },
+        PermissionResponse { id: 13, resource_type: "inventory".to_string(), resource_id: None, action: "transfer".to_string(), allowed: true },
+        PermissionResponse { id: 14, resource_type: "customer".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 15, resource_type: "customer".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
+        PermissionResponse { id: 16, resource_type: "customer".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
+        PermissionResponse { id: 17, resource_type: "supplier".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 18, resource_type: "supplier".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
+        PermissionResponse { id: 19, resource_type: "supplier".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
+        PermissionResponse { id: 20, resource_type: "finance".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 21, resource_type: "finance".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
+        PermissionResponse { id: 22, resource_type: "report".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
+        PermissionResponse { id: 23, resource_type: "system".to_string(), resource_id: None, action: "settings".to_string(), allowed: true },
+        PermissionResponse { id: 24, resource_type: "user".to_string(), resource_id: None, action: "manage".to_string(), allowed: true },
+    ];
+
+    Ok(Json(ApiResponse::success(permissions)))
+}
