@@ -133,3 +133,30 @@ pub async fn get_exchange_rate(
         }
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ListExchangeRatesQuery {
+    pub from_currency: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+pub async fn list_exchange_rates(
+    State(state): State<AppState>,
+    Query(query): Query<ListExchangeRatesQuery>,
+) -> Result<Json<ApiResponse<Vec<ExchangeRateResponse>>>, StatusCode> {
+    let service = CurrencyService::new(state.db);
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+
+    match service.list_exchange_rates(query.from_currency, page, page_size).await {
+        Ok((models, _total)) => {
+            let responses: Vec<ExchangeRateResponse> = models.into_iter().map(ExchangeRateResponse::from).collect();
+            Ok(Json(ApiResponse::success(responses)))
+        }
+        Err(e) => {
+            tracing::error!("获取汇率列表失败: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}

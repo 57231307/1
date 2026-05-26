@@ -185,6 +185,18 @@ impl DataPermissionService {
         Ok(permissions)
     }
 
+    /// 获取所有数据权限列表
+    pub async fn list_all_data_permissions(
+        &self,
+    ) -> Result<Vec<data_permission::Model>, AppError> {
+        let permissions = DataPermissionEntity::find()
+            .filter(data_permission::Column::IsEnabled.eq(true))
+            .all(&*self.db)
+            .await?;
+
+        Ok(permissions)
+    }
+
     /// 过滤字段（根据字段权限）
     pub fn filter_fields(
         &self,

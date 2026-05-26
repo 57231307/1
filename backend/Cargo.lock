@@ -388,6 +388,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "base64 0.22.1",
+ "bigdecimal",
  "calamine",
  "chrono",
  "clap",

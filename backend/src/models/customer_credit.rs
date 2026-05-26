@@ -4,6 +4,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "customer_credit_ratings")]
@@ -14,14 +15,14 @@ pub struct Model {
     pub customer_name: Option<String>,
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    pub credit_limit: Decimal,
-    pub used_credit: Decimal,
-    pub available_credit: Decimal,
+    pub credit_limit: BigDecimal,
+    pub used_credit: BigDecimal,
+    pub available_credit: BigDecimal,
     pub credit_days: Option<i32>,
     pub last_assessment_date: Option<NaiveDate>,
     pub next_assessment_date: Option<NaiveDate>,
     pub status: String,
-    pub created_by: i32,
+    pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

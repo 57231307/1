@@ -2,7 +2,7 @@
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
+use bigdecimal::BigDecimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
@@ -17,7 +17,7 @@ pub struct CreditEvaluationResult {
     pub customer_name: String,
     pub credit_score: i32,
     pub credit_rating: String,
-    pub recommended_limit: Decimal,
+    pub recommended_limit: BigDecimal,
     pub evaluation_factors: Vec<EvaluationFactor>,
     pub evaluation_date: String,
 }
@@ -47,7 +47,7 @@ pub struct CreditRatingRequest {
     pub customer_id: i32,
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    pub credit_limit: Decimal,
+    pub credit_limit: BigDecimal,
     pub credit_days: Option<i32>,
     pub remark: Option<String>,
 }
@@ -57,7 +57,7 @@ pub struct CreditRatingRequest {
 pub struct CreditLimitAdjustmentRequest {
     pub customer_id: i32,
     pub adjustment_type: String,
-    pub amount: Decimal,
+    pub amount: BigDecimal,
     pub reason: String,
 }
 
@@ -135,13 +135,13 @@ impl CustomerCreditService {
         let credit = match existing {
             Some(credit) => {
                 // 更新现有评级
-                let used_credit = credit.used_credit;
+                let used_credit = credit.used_credit.clone();
                 let mut credit_active: customer_credit::ActiveModel = credit.into();
                 credit_active.credit_level = Set(req.credit_level.or(Some("B".to_string())));
                 credit_active.credit_score = Set(req.credit_score.or(Some(60)));
+                credit_active.available_credit = Set(req.credit_limit.clone() - used_credit);
                 credit_active.credit_limit = Set(req.credit_limit);
                 credit_active.credit_days = Set(req.credit_days.or(Some(30)));
-                credit_active.available_credit = Set(req.credit_limit - used_credit);
                 crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", credit_active, Some(0)).await?
             }
             None => {
@@ -150,9 +150,9 @@ impl CustomerCreditService {
                     customer_id: Set(req.customer_id),
                     credit_level: Set(req.credit_level.or(Some("B".to_string()))),
                     credit_score: Set(req.credit_score.or(Some(60))),
+                    used_credit: Set(BigDecimal::from(0)),
+                    available_credit: Set(req.credit_limit.clone()),
                     credit_limit: Set(req.credit_limit),
-                    used_credit: Set(Decimal::ZERO),
-                    available_credit: Set(req.credit_limit),
                     credit_days: Set(req.credit_days.or(Some(30))),
                     status: Set("active".to_string()),
                     ..Default::default()
@@ -172,11 +172,11 @@ impl CustomerCreditService {
     pub async fn occupy_credit(
         &self,
         customer_id: i32,
-        amount: Decimal,
+        amount: BigDecimal,
         user_id: i32,
     ) -> Result<(), AppError> {
         info!(
-            "用户 {} 正在占用客户 {} 的信用额度 {:.2}",
+            "用户 {} 正在占用客户 {} 的信用额度 {}",
             user_id, customer_id, amount
         );
 
@@ -191,20 +191,18 @@ impl CustomerCreditService {
 
         if amount > credit.available_credit {
             return Err(AppError::ValidationError(format!(
-                "可用额度不足：请求 {:.2}，可用 {:.2}",
+                "可用额度不足：请求 {}，可用 {}",
                 amount, credit.available_credit
             )));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
-        credit_active.used_credit = Set(credit.used_credit + amount);
-        credit_active.available_credit = Set(credit.available_credit - amount);
-        // 注意：customer_credit 模型没有 updated_by 字段
-        // credit_active.updated_by = Set(Some(user_id));
+        credit_active.used_credit = Set(credit.used_credit.clone() + amount.clone());
+        credit_active.available_credit = Set(credit.available_credit - amount.clone());
         credit_active.save(&*self.db).await?;
 
         info!(
-            "客户 {} 信用额度占用成功，已占用：{:.2}",
+            "客户 {} 信用额度占用成功，已占用：{}",
             customer_id,
             credit.used_credit + amount
         );
@@ -215,11 +213,11 @@ impl CustomerCreditService {
     pub async fn release_credit(
         &self,
         customer_id: i32,
-        amount: Decimal,
+        amount: BigDecimal,
         user_id: i32,
     ) -> Result<(), AppError> {
         info!(
-            "用户 {} 正在释放客户 {} 的信用额度 {:.2}",
+            "用户 {} 正在释放客户 {} 的信用额度 {}",
             user_id, customer_id, amount
         );
 
@@ -235,14 +233,12 @@ impl CustomerCreditService {
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
-        credit_active.used_credit = Set(credit.used_credit - amount);
-        credit_active.available_credit = Set(credit.available_credit + amount);
-        // 注意：customer_credit 模型没有 updated_by 字段
-        // credit_active.updated_by = Set(Some(user_id));
+        credit_active.used_credit = Set(credit.used_credit.clone() - amount.clone());
+        credit_active.available_credit = Set(credit.available_credit + amount.clone());
         credit_active.save(&*self.db).await?;
 
         info!(
-            "客户 {} 信用额度释放成功，已占用：{:.2}",
+            "客户 {} 信用额度释放成功，已占用：{}",
             customer_id,
             credit.used_credit - amount
         );
@@ -268,43 +264,28 @@ impl CustomerCreditService {
             })?;
 
         let new_limit = match req.adjustment_type.as_str() {
-            "increase" => credit.credit_limit + req.amount,
+            "increase" => credit.credit_limit.clone() + req.amount,
             "decrease" => {
                 if req.amount > credit.credit_limit {
                     return Err(AppError::ValidationError(
                         "降低后的额度不能为负".to_string(),
                     ));
                 }
-                credit.credit_limit - req.amount
+                credit.credit_limit.clone() - req.amount
             }
             _ => return Err(AppError::ValidationError("无效的额度调整类型".to_string())),
         };
 
-        let new_available = new_limit - credit.used_credit;
+        let new_available = new_limit.clone() - credit.used_credit.clone();
 
         // 开启事务
         let txn = (*self.db).begin().await?;
 
         // 更新信用额度
         let mut credit_active: customer_credit::ActiveModel = credit.into();
-        credit_active.credit_limit = Set(new_limit);
+        credit_active.credit_limit = Set(new_limit.clone());
         credit_active.available_credit = Set(new_available);
-        // 注意：customer_credit 模型没有 updated_by 字段
-        // credit_active.updated_by = Set(Some(user_id));
         credit_active.save(&txn).await?;
-
-        // 记录变更历史
-        // 待实现(v1.1): 引入 customer_credit_change 记录信用额度变更历史
-        // let change_record = customer_credit::credit_change::ActiveModel {
-        //     customer_id: Set(req.customer_id),
-        //     change_type: Set(format!("credit_limit_{}", req.adjustment_type)),
-        //     old_value: Set(credit.credit_limit.to_string()),
-        //     new_value: Set(new_limit.to_string()),
-        //     reason: Set(req.reason),
-        //     created_by: Set(Some(user_id)),
-        //     ..Default::default()
-        // };
-        // change_record.insert(&txn).await?;
 
         txn.commit().await?;
 
@@ -324,7 +305,7 @@ impl CustomerCreditService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
-        if credit.used_credit > Decimal::ZERO {
+        if credit.used_credit > BigDecimal::from(0) {
             return Err(AppError::ValidationError(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
@@ -532,9 +513,12 @@ impl CustomerCreditService {
         }
         
         // 计算年度订单总额
-        let total_amount: rust_decimal::Decimal = orders.iter()
-            .map(|o| o.total_amount)
-            .fold(rust_decimal::Decimal::ZERO, |acc, x| acc + x);
+        let total_amount: BigDecimal = orders.iter()
+            .map(|o| {
+                let s = o.total_amount.to_string();
+                BigDecimal::parse_bytes(s.as_bytes(), 10).unwrap_or_else(|| BigDecimal::from(0))
+            })
+            .fold(BigDecimal::from(0), |acc, x| acc + x);
         
         // 根据订单总额计算分数
         let amount_f64 = total_amount.to_string().parse::<f64>().unwrap_or(0.0);
@@ -570,13 +554,13 @@ impl CustomerCreditService {
         
         for credit in credit_history {
             // 检查使用率
-            let used = credit.used_credit;
-            let limit = credit.credit_limit;
+            let used = credit.used_credit.clone();
+            let limit = credit.credit_limit.clone();
             
             // 使用率超过90%视为高风险
-            if limit > rust_decimal::Decimal::ZERO {
+            if limit > BigDecimal::from(0) {
                 let usage_rate = used / limit;
-                if usage_rate > rust_decimal::Decimal::from(90) / rust_decimal::Decimal::from(100) {
+                if usage_rate > BigDecimal::from(90) / BigDecimal::from(100) {
                     has_overdue = true;
                 }
             }
@@ -603,7 +587,7 @@ impl CustomerCreditService {
     }
     
     /// 计算信用等级和推荐额度
-    fn calculate_rating_and_limit(&self, score: i32) -> (String, Decimal) {
+    fn calculate_rating_and_limit(&self, score: i32) -> (String, BigDecimal) {
         let (rating, limit) = if score >= 90 {
             ("AAA", 1000000)
         } else if score >= 80 {
@@ -617,7 +601,7 @@ impl CustomerCreditService {
         } else {
             ("B", 10000)
         };
-        (rating.to_string(), Decimal::from(limit))
+        (rating.to_string(), BigDecimal::from(limit))
     }
 }
 
@@ -638,14 +622,14 @@ mod tests {
             customer_name: Some("测试客户".to_string()),
             credit_level: Some(credit_level.to_string()),
             credit_score: Some(80),
-            credit_limit: Decimal::from(100000),
-            used_credit: Decimal::ZERO,
-            available_credit: Decimal::from(100000),
+            credit_limit: BigDecimal::from(100000),
+            used_credit: BigDecimal::from(0),
+            available_credit: BigDecimal::from(100000),
             credit_days: Some(30),
             last_assessment_date: Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()),
             next_assessment_date: Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()),
             status: status.to_string(),
-            created_by: 1,
+            created_by: Some(1),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
@@ -831,9 +815,9 @@ mod tests {
         assert_eq!(model.customer_id, 1);
         assert_eq!(model.credit_level, Some("AA".to_string()));
         assert_eq!(model.status, "active");
-        assert_eq!(model.credit_limit, Decimal::from(100000));
-        assert_eq!(model.used_credit, Decimal::ZERO);
-        assert_eq!(model.available_credit, Decimal::from(100000));
+        assert_eq!(model.credit_limit, BigDecimal::from(100000));
+        assert_eq!(model.used_credit, BigDecimal::from(0));
+        assert_eq!(model.available_credit, BigDecimal::from(100000));
     }
 
     #[test]
@@ -842,11 +826,11 @@ mod tests {
         
         // 使用率 = 已用额度 / 总额度
         let utilization = model.used_credit / model.credit_limit;
-        assert_eq!(utilization, Decimal::ZERO);
+        assert_eq!(utilization, BigDecimal::from(0));
         
         // 模拟使用 50000
-        let used = Decimal::from(50000);
+        let used = BigDecimal::from(50000);
         let utilization = used / model.credit_limit;
-        assert_eq!(utilization, Decimal::try_from(0.5).unwrap());
+        assert_eq!(utilization, BigDecimal::try_from(0.5).unwrap());
     }
 }

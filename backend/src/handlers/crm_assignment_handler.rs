@@ -181,6 +181,23 @@ pub async fn batch_assign(
     }))))
 }
 
+/// GET /api/v1/erp/crm/assignments - 获取分配列表
+pub async fn list_assignments(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<AssignmentHistoryQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = AssignmentHistoryService::new(state.db.clone());
+    let tenant_id = auth.tenant_id.unwrap_or(0);
+
+    let (items, total) = service.list(tenant_id, query).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+    }))))
+}
+
 /// GET /api/v1/erp/crm/assignment/history - 获取分配历史
 pub async fn list_assignment_history(
     State(state): State<AppState>,

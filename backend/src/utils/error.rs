@@ -165,8 +165,8 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::DatabaseError(error_kind.to_string())
             }
             sea_orm::DbErr::Type(msg) => {
-                tracing::error!("数据库类型错误：{}", msg);
-                AppError::DatabaseError("数据库类型错误".to_string())
+                tracing::error!("数据库类型错误：{:?}", msg);
+                AppError::DatabaseError(format!("数据库类型错误: {}", msg))
             }
             sea_orm::DbErr::Json(msg) => {
                 tracing::error!("数据库 JSON 错误：{}", msg);

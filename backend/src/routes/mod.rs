@@ -1026,7 +1026,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         // CRM分配路由
         .nest("/api/v1/erp/crm/assignments", Router::new()
-            .route("/", post(crm_assignment_handler::assign_customer))
+            .route("/", get(crm_assignment_handler::list_assignments).post(crm_assignment_handler::assign_customer))
             .route("/batch", post(crm_assignment_handler::batch_assign))
             .route("/history", get(crm_assignment_handler::list_assignment_history))
         )
@@ -1138,7 +1138,7 @@ pub fn create_router(state: AppState) -> Router {
             .route("/supported", get(currency_enhanced_handler::get_supported_currencies))
         )
         .nest("/api/v1/erp/exchange-rates", Router::new()
-            .route("/", post(currency_handler::create_exchange_rate))
+            .route("/", get(currency_handler::list_exchange_rates).post(currency_handler::create_exchange_rate))
             .route("/query", get(currency_handler::get_exchange_rate))
         )
         // AI智能分析路由
@@ -1172,7 +1172,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         // 数据权限路由
         .nest("/api/v1/erp/data-permissions", Router::new()
-            .route("/", post(data_permission_handler::set_data_permission))
+            .route("/", get(data_permission_handler::list_data_permissions).post(data_permission_handler::set_data_permission))
             .route("/scope-types", get(data_permission_handler::list_scope_types))
             .route("/roles/:role_id", get(data_permission_handler::list_role_data_permissions))
             .route("/roles/:role_id/:resource_type", get(data_permission_handler::get_data_permission).delete(data_permission_handler::delete_data_permission))

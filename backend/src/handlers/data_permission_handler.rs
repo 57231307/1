@@ -7,7 +7,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -169,4 +169,19 @@ pub async fn list_scope_types(
     ];
 
     Ok(Json(ApiResponse::success(types)))
+}
+
+/// 获取所有数据权限列表
+pub async fn list_data_permissions(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<DataPermissionResponse>>>, AppError> {
+    let service = DataPermissionService::new(state.db.clone());
+    let permissions = service.list_all_data_permissions().await?;
+
+    let responses: Vec<DataPermissionResponse> = permissions
+        .into_iter()
+        .map(DataPermissionResponse::from)
+        .collect();
+
+    Ok(Json(ApiResponse::success(responses)))
 }

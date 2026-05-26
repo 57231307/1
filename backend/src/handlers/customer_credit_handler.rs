@@ -10,6 +10,7 @@ use axum::{
     Json,
 };
 use crate::utils::app_state::AppState;
+use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -29,7 +30,7 @@ pub struct CreditRatingRequestDto {
     pub customer_id: i32,
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    pub credit_limit: rust_decimal::Decimal,
+    pub credit_limit: BigDecimal,
     pub credit_days: Option<i32>,
     pub remark: Option<String>,
 }
@@ -38,14 +39,14 @@ pub struct CreditRatingRequestDto {
 #[derive(Debug, Deserialize)]
 pub struct CreditLimitAdjustmentRequestDto {
     pub adjustment_type: String,
-    pub amount: rust_decimal::Decimal,
+    pub amount: BigDecimal,
     pub reason: String,
 }
 
 /// 占用/释放信用额度请求 DTO
 #[derive(Debug, Deserialize)]
 pub struct CreditAmountRequest {
-    pub amount: rust_decimal::Decimal,
+    pub amount: BigDecimal,
 }
 
 /// 获取客户信用列表
@@ -237,7 +238,7 @@ pub async fn create_credit(
 
     let credit_limit = req.get("credit_limit")
         .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
+        .map(|f| BigDecimal::try_from(f).unwrap_or_default())
         .unwrap_or_default();
 
     let credit_level = req.get("credit_level")
@@ -282,7 +283,7 @@ pub async fn update_credit(
 
     let credit_limit = req.get("credit_limit")
         .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
+        .map(|f| BigDecimal::try_from(f).unwrap_or_default());
 
     let credit_level = req.get("credit_level")
         .and_then(|v| v.as_str())
