@@ -825,12 +825,12 @@ mod tests {
         let model = create_test_credit_model(1, "AA", "active");
         
         // 使用率 = 已用额度 / 总额度
-        let utilization = model.used_credit / model.credit_limit;
+        let utilization = model.used_credit.clone() / model.credit_limit.clone();
         assert_eq!(utilization, BigDecimal::from(0));
         
         // 模拟使用 50000
         let used = BigDecimal::from(50000);
-        let utilization = used / model.credit_limit;
+        let utilization = used / model.credit_limit.clone();
         assert_eq!(utilization, BigDecimal::try_from(0.5).unwrap());
     }
 }
