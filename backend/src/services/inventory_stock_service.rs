@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -182,7 +183,29 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
 
-        query.all(&*self.db).await
+        let low_stock_items = query.all(&*self.db).await?;
+        
+        // 触发低库存预警事件
+        for item in &low_stock_items {
+            let event = BusinessEvent::LowStockAlert {
+                product_id: item.product_id,
+                warehouse_id: item.warehouse_id,
+                current_quantity: item.quantity_available,
+                reorder_point: item.reorder_point,
+                reorder_quantity: item.reorder_quantity,
+            };
+            EVENT_BUS.publish(event);
+            tracing::info!(
+                "触发低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 补货量={}",
+                item.product_id,
+                item.warehouse_id,
+                item.quantity_available,
+                item.reorder_point,
+                item.reorder_quantity
+            );
+        }
+        
+        Ok(low_stock_items)
     }
 
     pub async fn delete_stock(&self, id: i32) -> Result<(), sea_orm::DbErr> {

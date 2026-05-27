@@ -5,7 +5,7 @@ use crate::models::ar_collection;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
-use chrono::Utc;
+use chrono::{Datelike, Utc};
 
 pub struct ArCollectionService {
     db: Arc<DatabaseConnection>,
@@ -50,6 +50,14 @@ impl ArCollectionService {
             collection_id: collection_model.id,
             invoice_id,
             amount,
+        });
+
+        // 触发财务指标更新事件
+        let now_date = Utc::now().date_naive();
+        let period = format!("{:04}-{:02}", now_date.year(), now_date.month());
+        EVENT_BUS.publish(BusinessEvent::FinancialIndicatorUpdate {
+            period,
+            trigger_source: format!("collection_completed:{}", collection_model.collection_no),
         });
 
         Ok(collection_model)

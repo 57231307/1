@@ -22,6 +22,7 @@ pub struct SalesOrderDetail {
     pub order_no: String,
     pub customer_id: i32,
     pub customer_name: Option<String>,
+    pub opportunity_id: Option<i32>,
     pub order_date: chrono::DateTime<chrono::Utc>,
     pub required_date: chrono::DateTime<chrono::Utc>,
     pub ship_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -89,6 +90,7 @@ pub struct SalesOrderItemDetail {
 #[derive(Debug, Deserialize)]
 pub struct CreateSalesOrderRequest {
     pub customer_id: i32,
+    pub opportunity_id: Option<i32>,
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: Option<String>,
     pub shipping_address: Option<String>,
@@ -306,13 +308,25 @@ impl SalesService {
             order_amount += subtotal;
         }
         
-        // 判断是否超额
-        if credit_limit > rust_decimal::Decimal::new(0, 0) && (total_unpaid + order_amount) > credit_limit {
-            tracing::error!("Transaction rolled back: 信用风控拦截，客户未付金额与本单金额超额");
+        // 使用信用服务检查额度
+        let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
+        let order_amount_bigdecimal = {
+            use bigdecimal::BigDecimal;
+            BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
+                .unwrap_or_else(|| BigDecimal::from(0))
+        };
+        
+        let credit_available = credit_service
+            .check_credit_available(request.customer_id, order_amount_bigdecimal.clone())
+            .await
+            .map_err(|e| sea_orm::DbErr::Custom(format!("信用检查失败: {}", e)))?;
+        
+        if !credit_available {
+            tracing::error!("Transaction rolled back: 信用额度不足");
             txn.rollback().await?;
             return Err(sea_orm::DbErr::Custom(format!(
-                "信用风控拦截：客户当前未付账款 {} + 本单金额 {} = {}，超出了信用额度 {}",
-                total_unpaid, order_amount, total_unpaid + order_amount, credit_limit
+                "信用额度不足：订单金额 {} 超出可用信用额度",
+                order_amount
             )));
         }
 
@@ -336,6 +350,7 @@ impl SalesService {
             id: Default::default(),
             order_no: sea_orm::ActiveValue::Set(order_no),
             customer_id: sea_orm::ActiveValue::Set(request.customer_id),
+            opportunity_id: sea_orm::ActiveValue::Set(request.opportunity_id),
             order_date: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
@@ -452,6 +467,45 @@ impl SalesService {
         order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
+
+        // 占用信用额度
+        let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
+        let order_amount_bigdecimal = {
+            use bigdecimal::BigDecimal;
+            BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
+                .unwrap_or_else(|| BigDecimal::from(0))
+        };
+        if let Err(e) = credit_service.occupy_credit(request.customer_id, order_amount_bigdecimal, 0).await {
+            tracing::error!("信用额度占用失败: {}", e);
+            // 不回滚事务，因为订单已经创建成功，信用问题可以后续处理
+        } else {
+            tracing::info!("客户 {} 信用额度占用成功，金额: {}", request.customer_id, order_amount);
+            // 检查信用预警
+            if let Ok(Some(warning)) = credit_service.check_credit_warning(request.customer_id).await {
+                tracing::warn!("信用预警: {}", warning);
+            }
+        }
+
+        // 订单回写商机：更新商机的 actual_amount 和 actual_close_date
+        if let Some(opportunity_id) = request.opportunity_id {
+            use crate::models::crm_opportunity;
+            
+            let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| sea_orm::DbErr::Custom(format!("商机 {} 不存在", opportunity_id)))?;
+
+            let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
+            opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
+            opp_active.actual_close_date = sea_orm::ActiveValue::Set(Some(chrono::Utc::now().date_naive()));
+            opp_active.opportunity_stage = sea_orm::ActiveValue::Set(Some("closed_won".to_string()));
+            opp_active.opportunity_status = sea_orm::ActiveValue::Set(Some("won".to_string()));
+            opp_active.updated_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
+            
+            opp_active.update(&txn).await?;
+            
+            tracing::info!("商机 {} 已关联订单并更新实际金额: {}", opportunity_id, total_amount);
+        }
 
         // 提交事务
         txn.commit().await?;
@@ -1024,6 +1078,16 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
+        // 订单完成后更新商机状态
+        if let Some(opportunity_id) = order.opportunity_id {
+            let crm_service = crate::services::crm_service::CrmService::new(self.db.clone());
+            if let Err(e) = crm_service.update_opportunity_on_order_complete(opportunity_id, order.total_amount).await {
+                tracing::error!("更新商机状态失败 (商机 {}): {}", opportunity_id, e);
+            } else {
+                tracing::info!("成功更新商机状态为已成交 (商机 {})", opportunity_id);
+            }
+        }
+
         // 自动生成应收账款（AR）发票
         let finance_service = crate::services::finance_invoice_service::FinanceInvoiceService::new(self.db.clone());
         
@@ -1040,6 +1104,37 @@ impl SalesService {
 
         // 返回订单详情
         self.get_order_detail(completed_order.id).await
+    }
+
+    /// 拒绝销售订单
+    pub async fn reject_order(&self, order_id: i32, reason: String) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+        // 1. 查询订单
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+
+        // 2. 检查状态
+        if order.status != "draft" && order.status != "pending_approval" {
+            return Err(sea_orm::DbErr::Custom(format!(
+                "订单状态为{}，只有草稿或待审批状态的订单可以拒绝",
+                order.status
+            )));
+        }
+
+        // 3. 更新状态
+        let updated_order = sales_order::ActiveModel {
+            id: sea_orm::ActiveValue::Unchanged(order.id),
+            status: sea_orm::ActiveValue::Set("rejected".to_string()),
+            notes: sea_orm::ActiveValue::Set(Some(reason)),
+            updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            ..Default::default()
+        };
+
+        let rejected_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", updated_order, Some(0)).await?;
+
+        // 返回订单详情
+        self.get_order_detail(rejected_order.id).await
     }
 
     // ========== 数据导出方法 ==========
@@ -1063,6 +1158,7 @@ impl SalesService {
             "订单编号".to_string(),
             "客户ID".to_string(),
             "客户名称".to_string(),
+            "商机ID".to_string(),
             "订单日期".to_string(),
             "要求交货日期".to_string(),
             "发货日期".to_string(),
@@ -1092,6 +1188,10 @@ impl SalesService {
                 row.insert(
                     "客户名称".to_string(),
                     o.customer_name.unwrap_or_default(),
+                );
+                row.insert(
+                    "商机ID".to_string(),
+                    o.opportunity_id.map(|id| id.to_string()).unwrap_or_default(),
                 );
                 row.insert(
                     "订单日期".to_string(),

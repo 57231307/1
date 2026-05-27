@@ -12,6 +12,7 @@ pub struct Model {
     pub id: i32,
     pub order_no: String,
     pub customer_id: i32,
+    pub opportunity_id: Option<i32>,
     pub order_date: DateTime<Utc>,
     pub required_date: DateTime<Utc>,
     pub ship_date: Option<DateTime<Utc>>,
@@ -55,6 +56,12 @@ pub enum Relation {
         to = "super::user::Column::Id"
     )]
     Approver,
+    #[sea_orm(
+        belongs_to = "super::crm_opportunity::Entity",
+        from = "Column::OpportunityId",
+        to = "super::crm_opportunity::Column::Id"
+    )]
+    Opportunity,
 }
 
 impl Related<super::customer::Entity> for Entity {
@@ -66,6 +73,12 @@ impl Related<super::customer::Entity> for Entity {
 impl Related<super::sales_order_item::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Items.def()
+    }
+}
+
+impl Related<super::crm_opportunity::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Opportunity.def()
     }
 }
 

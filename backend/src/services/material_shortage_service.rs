@@ -20,6 +20,7 @@ use crate::models::production_order::{
 };
 use crate::models::product::{Entity as ProductEntity, Column as ProductColumn};
 use crate::models::tenant_config::{Entity as TenantConfigEntity, ActiveModel as TenantConfigActiveModel};
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 
 /// 缺料预警级别
@@ -301,6 +302,19 @@ impl MaterialShortageService {
                     .get(material_id)
                     .cloned()
                     .unwrap_or_else(|| (format!("物料#{}", material_id), String::new()));
+
+                // 触发缺料预警事件
+                let affected_orders_count = affected.len() as i32;
+                EVENT_BUS.publish(BusinessEvent::MaterialShortageAlert {
+                    material_id: *material_id,
+                    material_name: material_name.clone(),
+                    material_code: material_code.clone(),
+                    required_quantity: *required,
+                    available_quantity: available,
+                    shortage_quantity: shortage,
+                    shortage_level: format!("{:?}", level),
+                    affected_orders_count,
+                });
 
                 items.push(MaterialShortageItem {
                     material_id: *material_id,

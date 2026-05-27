@@ -50,6 +50,17 @@ pub enum BusinessEvent {
         business_id: i32,
         approved: bool,
     },
+    LowStockAlert {
+        product_id: i32,
+        warehouse_id: i32,
+        current_quantity: rust_decimal::Decimal,
+        reorder_point: rust_decimal::Decimal,
+        reorder_quantity: rust_decimal::Decimal,
+    },
+    FinancialIndicatorUpdate {
+        period: String,
+        trigger_source: String,
+    },
 }
 
 pub static EVENT_BUS: Lazy<EventBus> = Lazy::new(|| EventBus::new());
@@ -79,7 +90,7 @@ impl Default for EventBus {
     }
 }
 
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::DatabaseConnection;
 
 pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
     let mut receiver = EVENT_BUS.subscribe();
@@ -90,14 +101,10 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
             match event {
                 BusinessEvent::PurchaseReceiptCompleted { order_id, .. } => {
                     tracing::info!("Event received: PurchaseReceiptCompleted for order {}", order_id);
-                    if let Ok(Some(order)) = crate::models::purchase_order::Entity::find_by_id(order_id).one(db.as_ref()).await {
-                        let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
-                        active_order.order_status = Set("RECEIVED".to_string());
-                        if let Err(e) = active_order.update(db.as_ref()).await {
-                            tracing::error!("Failed to update purchase order {}: {}", order_id, e);
-                        } else {
-                            tracing::info!("Successfully updated purchase order {} status to RECEIVED", order_id);
-                        }
+                    let po_service = crate::services::purchase_order_service::PurchaseOrderService::new(db.clone());
+                    match po_service.receive_order(order_id).await {
+                        Ok(_) => tracing::info!("Successfully updated purchase order {} status to RECEIVED", order_id),
+                        Err(e) => tracing::error!("Failed to update purchase order {}: {}", order_id, e),
                     }
                 }
                 BusinessEvent::SalesOrderShipped { order_id, .. } => {
@@ -105,14 +112,10 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 }
                 BusinessEvent::PaymentCompleted { invoice_id, .. } => {
                     tracing::info!("Event received: PaymentCompleted for invoice {}", invoice_id);
-                    if let Ok(Some(invoice)) = crate::models::ap_invoice::Entity::find_by_id(invoice_id).one(db.as_ref()).await {
-                        let mut active_invoice: crate::models::ap_invoice::ActiveModel = invoice.into();
-                        active_invoice.invoice_status = Set("PAID".to_string());
-                        if let Err(e) = active_invoice.update(db.as_ref()).await {
-                            tracing::error!("Failed to update ap_invoice {}: {}", invoice_id, e);
-                        } else {
-                            tracing::info!("Successfully updated ap_invoice {} status to PAID", invoice_id);
-                        }
+                    let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(db.clone());
+                    match ap_service.mark_as_paid(invoice_id).await {
+                        Ok(_) => tracing::info!("Successfully updated ap_invoice {} status to PAID", invoice_id),
+                        Err(e) => tracing::error!("Failed to update ap_invoice {}: {}", invoice_id, e),
                     }
                 }
                 BusinessEvent::InventoryAdjusted { product_id, warehouse_id, quantity_change } => {
@@ -124,14 +127,10 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 BusinessEvent::CollectionCompleted { invoice_id, .. } => {
                     if let Some(inv_id) = invoice_id {
                         tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
-                        if let Ok(Some(invoice)) = crate::models::ar_invoice::Entity::find_by_id(inv_id).one(db.as_ref()).await {
-                            let mut active_invoice: crate::models::ar_invoice::ActiveModel = invoice.into();
-                            active_invoice.status = Set("PAID".to_string());
-                            if let Err(e) = active_invoice.update(db.as_ref()).await {
-                                tracing::error!("Failed to update ar_invoice {}: {}", inv_id, e);
-                            } else {
-                                tracing::info!("Successfully updated ar_invoice {} status to PAID", inv_id);
-                            }
+                        let ar_service = crate::services::ar_invoice_service::ArInvoiceService::new(db.clone());
+                        match ar_service.mark_as_paid(inv_id).await {
+                            Ok(_) => tracing::info!("Successfully updated ar_invoice {} status to PAID", inv_id),
+                            Err(e) => tracing::error!("Failed to update ar_invoice {}: {}", inv_id, e),
                         }
                     }
                 }
@@ -164,13 +163,104 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                                 tracing::info!("Successfully approved sales_order {} via BPM", business_id);
                             }
                         } else {
-                            if let Ok(Some(order)) = crate::models::sales_order::Entity::find_by_id(business_id).one(db.as_ref()).await {
-                                let mut active_order: crate::models::sales_order::ActiveModel = order.into();
-                                active_order.status = Set("rejected".to_string());
-                                if let Err(e) = active_order.update(db.as_ref()).await {
-                                    tracing::error!("Failed to update sales_order {} status to rejected: {}", business_id, e);
-                                }
+                            let sales_service = crate::services::sales_service::SalesService::new(db.clone());
+                            match sales_service.reject_order(business_id, "BPM审批拒绝".to_string()).await {
+                                Ok(_) => tracing::info!("Successfully rejected sales_order {} via BPM", business_id),
+                                Err(e) => tracing::error!("Failed to reject sales_order {} via BPM: {}", business_id, e),
                             }
+                        }
+                    }
+                }
+                BusinessEvent::LowStockAlert {
+                    product_id,
+                    warehouse_id,
+                    current_quantity,
+                    reorder_point,
+                    reorder_quantity,
+                } => {
+                    tracing::info!(
+                        "处理低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 建议补货量={}",
+                        product_id,
+                        warehouse_id,
+                        current_quantity,
+                        reorder_point,
+                        reorder_quantity
+                    );
+                    let po_service = crate::services::purchase_order_service::PurchaseOrderService::new(db.clone());
+                    match po_service.create_purchase_suggestion(
+                        product_id,
+                        warehouse_id,
+                        current_quantity,
+                        reorder_point,
+                        reorder_quantity,
+                    ).await {
+                        Ok(order) => {
+                            tracing::info!(
+                                "成功创建采购建议: 订单ID={}, 订单号={}",
+                                order.id,
+                                order.order_no
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("创建采购建议失败: {}", e);
+                        }
+                    }
+                }
+                BusinessEvent::FinancialIndicatorUpdate { period, trigger_source } => {
+                    tracing::info!("处理财务指标更新事件: 期间={}, 触发源={}", period, trigger_source);
+                    let fa_service = crate::services::financial_analysis_service::FinancialAnalysisService::new(db.clone());
+                    match fa_service.calculate_indicators(&period, 0).await {
+                        Ok(results) => {
+                            tracing::info!(
+                                "财务指标自动计算完成: 期间={}, 计算 {} 个指标",
+                                period,
+                                results.len()
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("财务指标自动计算失败: 期间={}, 错误={}", period, e);
+                        }
+                    }
+                }
+                BusinessEvent::MaterialShortageAlert {
+                    material_id,
+                    material_name,
+                    material_code,
+                    required_quantity,
+                    available_quantity,
+                    shortage_quantity,
+                    shortage_level,
+                    affected_orders_count,
+                } => {
+                    tracing::info!(
+                        "处理缺料预警事件: 物料ID={}, 物料名称={}, 缺料数量={}, 预警级别={}, 受影响订单数={}",
+                        material_id,
+                        material_name,
+                        shortage_quantity,
+                        shortage_level,
+                        affected_orders_count
+                    );
+                    let po_service = crate::services::purchase_order_service::PurchaseOrderService::new(db.clone());
+                    match po_service.create_purchase_suggestion_from_shortage(
+                        material_id,
+                        material_name.clone(),
+                        material_code.clone(),
+                        required_quantity,
+                        available_quantity,
+                        shortage_quantity,
+                        shortage_level.clone(),
+                        affected_orders_count,
+                    ).await {
+                        Ok(order) => {
+                            tracing::info!(
+                                "成功创建缺料采购建议: 订单ID={}, 订单号={}, 物料={}",
+                                order.id,
+                                order.order_no,
+                                material_name
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("创建缺料采购建议失败: 物料ID={}, 错误={}", material_id, e);
                         }
                     }
                 }

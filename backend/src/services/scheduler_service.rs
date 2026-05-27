@@ -38,6 +38,9 @@ impl SchedulerService {
         // 添加报表订阅定时任务
         self.add_report_subscription_job().await?;
 
+        // 添加每日财务指标计算任务
+        self.add_financial_indicator_job().await?;
+
         // 启动调度器
         self.scheduler
             .start()
@@ -80,6 +83,70 @@ impl SchedulerService {
             .map_err(|e| AppError::BusinessError(format!("添加定时任务失败: {}", e)))?;
 
         tracing::info!("已添加报表订阅定时任务");
+        Ok(())
+    }
+
+    /// 添加每日财务指标计算任务
+    ///
+    /// 每天凌晨 00:05 自动计算上月的财务指标
+    async fn add_financial_indicator_job(&mut self) -> Result<(), AppError> {
+        let db = self.db.clone();
+
+        // 每天凌晨 00:05 执行
+        let job = Job::new("0 5 0 * * *", move |_, _| {
+            let db = db.clone();
+            tokio::spawn(async move {
+                if let Err(e) = Self::execute_financial_indicator_calculation(&db).await {
+                    tracing::error!("执行财务指标计算任务失败: {}", e);
+                }
+            });
+        })
+        .map_err(|e| AppError::BusinessError(format!("创建财务指标计算任务失败: {}", e)))?;
+
+        self.scheduler
+            .add(job)
+            .await
+            .map_err(|e| AppError::BusinessError(format!("添加财务指标计算任务失败: {}", e)))?;
+
+        tracing::info!("已添加每日财务指标计算任务（每天凌晨 00:05 执行）");
+        Ok(())
+    }
+
+    /// 执行财务指标计算
+    async fn execute_financial_indicator_calculation(
+        db: &Arc<DatabaseConnection>,
+    ) -> Result<(), AppError> {
+        use chrono::Datelike;
+
+        // 计算上月的期间
+        let now = chrono::Utc::now();
+        let last_month = if now.month() == 1 {
+            now.with_year(now.year() - 1)
+                .and_then(|d| d.with_month(12))
+                .unwrap_or(now)
+        } else {
+            now.with_month(now.month() - 1).unwrap_or(now)
+        };
+        let period = format!("{:04}-{:02}", last_month.year(), last_month.month());
+
+        tracing::info!("开始执行每日财务指标计算，期间: {}", period);
+
+        let fa_service =
+            crate::services::financial_analysis_service::FinancialAnalysisService::new(db.clone());
+
+        match fa_service.calculate_indicators(&period, 0).await {
+            Ok(results) => {
+                tracing::info!(
+                    "财务指标定时计算完成: 期间={}, 计算 {} 个指标",
+                    period,
+                    results.len()
+                );
+            }
+            Err(e) => {
+                tracing::error!("财务指标定时计算失败: 期间={}, 错误={}", period, e);
+            }
+        }
+
         Ok(())
     }
 

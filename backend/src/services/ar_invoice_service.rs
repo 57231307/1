@@ -222,6 +222,33 @@ impl ArInvoiceService {
         Ok(result)
     }
 
+    /// 标记应收单为已收讫
+    pub async fn mark_as_paid(&self, id: i32) -> Result<ar_invoice::Model, AppError> {
+        let invoice = ar_invoice::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
+
+        if invoice.status == "PAID" || invoice.status == "CANCELLED" {
+            return Err(AppError::BadRequest(format!(
+                "应收单状态为{}，不可标记为已收讫",
+                invoice.status
+            )));
+        }
+
+        let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
+        active_invoice.status = sea_orm::ActiveValue::Set("PAID".to_string());
+        active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
+
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db, "auto_audit", active_invoice, Some(0)
+        ).await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(result)
+    }
+
     pub async fn cancel(&self, id: i32, _reason: String, _user_id: i32) -> Result<ar_invoice::Model, AppError> {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)

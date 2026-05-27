@@ -338,6 +338,33 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
+    /// 标记应付单为已付清
+    pub async fn mark_as_paid(&self, id: i32) -> Result<ap_invoice::Model, AppError> {
+        // 1. 查询应付单
+        let invoice = ap_invoice::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+
+        // 2. 检查状态
+        if invoice.invoice_status == "PAID" || invoice.invoice_status == "CANCELLED" {
+            return Err(AppError::BusinessError(format!(
+                "应付单状态为{}，不可标记为已付清",
+                invoice.invoice_status
+            )));
+        }
+
+        // 3. 更新状态
+        let now = Utc::now();
+        let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
+        invoice_active.invoice_status = Set("PAID".to_string());
+        invoice_active.updated_at = Set(now);
+
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", invoice_active, Some(0)).await?;
+
+        Ok(invoice)
+    }
+
     /// 取消应付单
     pub async fn cancel(
         &self,

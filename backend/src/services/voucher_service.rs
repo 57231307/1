@@ -399,6 +399,20 @@ impl VoucherService {
         txn.commit().await?;
 
         info!("凭证过账成功：no={}", updated.voucher_no);
+
+        // 触发财务指标更新事件
+        let period = format!(
+            "{:04}-{:02}",
+            updated.voucher_date.year(),
+            updated.voucher_date.month()
+        );
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::FinancialIndicatorUpdate {
+                period,
+                trigger_source: format!("voucher_posted:{}", updated.voucher_no),
+            },
+        );
+
         Ok(updated)
     }
 

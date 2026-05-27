@@ -236,6 +236,18 @@ pub async fn delete_opportunity(
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }
 
+/// 将商机转化为销售订单
+pub async fn convert_opportunity_to_order(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let order = service.convert_opportunity_to_order(id, auth.user_id).await?;
+    let value = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
 /// Get lead relation info
 pub async fn get_lead_relation(
     Path(lead_id): Path<i32>,

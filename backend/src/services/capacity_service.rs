@@ -18,6 +18,36 @@ use crate::models::work_center::{
 };
 use crate::utils::error::AppError;
 
+/// 可用产能查询结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AvailableCapacity {
+    pub work_center_id: i32,
+    pub work_center_code: String,
+    pub work_center_name: String,
+    pub daily_capacity: Decimal,
+    pub capacity_unit: Option<String>,
+    pub date_from: NaiveDate,
+    pub date_to: NaiveDate,
+    pub total_capacity: Decimal,
+    pub used_capacity: Decimal,
+    pub available_capacity: Decimal,
+    pub load_rate: Decimal,
+}
+
+/// 产能负荷预警事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapacityOverloadAlert {
+    pub work_center_id: i32,
+    pub work_center_code: String,
+    pub work_center_name: String,
+    pub daily_capacity: Decimal,
+    pub current_demand: Decimal,
+    pub load_rate: Decimal,
+    pub threshold: Decimal,
+    pub alert_level: String,
+    pub message: String,
+}
+
 /// 工作中心产能信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkCenterCapacity {
@@ -458,6 +488,100 @@ impl CapacityService {
             predicted_load_rate: current_load,
             confidence: 0.8, // 简化的置信度
         })
+    }
+
+    /// 获取指定时间段内的可用产能
+    pub async fn get_available_capacity(
+        &self,
+        work_center_id: i32,
+        date_from: NaiveDate,
+        date_to: NaiveDate,
+    ) -> Result<AvailableCapacity, AppError> {
+        let wc = WorkCenterEntity::find_by_id(work_center_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
+
+        let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
+        let days = (date_to - date_from).num_days() + 1;
+        let total_capacity = daily_capacity * Decimal::from(days);
+
+        // 查询该时间段内已占用的产能
+        let orders = ProductionOrderEntity::find()
+            .filter(ProductionOrderColumn::WorkCenterId.eq(work_center_id))
+            .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]))
+            .filter(ProductionOrderColumn::PlannedEndDate.gte(date_from))
+            .filter(ProductionOrderColumn::PlannedStartDate.lte(date_to))
+            .all(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let used_capacity: Decimal = orders.iter().map(|o| o.planned_quantity).sum();
+        let available_capacity = total_capacity - used_capacity;
+        let load_rate = if total_capacity > Decimal::ZERO {
+            (used_capacity / total_capacity * Decimal::from(100))
+                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
+        } else {
+            Decimal::ZERO
+        };
+
+        Ok(AvailableCapacity {
+            work_center_id,
+            work_center_code: wc.code,
+            work_center_name: wc.name,
+            daily_capacity,
+            capacity_unit: wc.capacity_unit,
+            date_from,
+            date_to,
+            total_capacity,
+            used_capacity,
+            available_capacity,
+            load_rate,
+        })
+    }
+
+    /// 检查产能负荷是否超阈值
+    pub async fn check_capacity_overload(
+        &self,
+        threshold: Decimal,
+    ) -> Result<Vec<CapacityOverloadAlert>, AppError> {
+        let load_items = self.load_analysis(LoadAnalysisQuery {
+            date_from: None,
+            date_to: None,
+            work_center_id: None,
+        }).await?;
+
+        let mut alerts = Vec::new();
+
+        for item in load_items {
+            if item.load_rate >= threshold {
+                let alert_level = if item.load_rate >= Decimal::from(100) {
+                    "CRITICAL".to_string()
+                } else if item.load_rate >= Decimal::from(90) {
+                    "HIGH".to_string()
+                } else {
+                    "MEDIUM".to_string()
+                };
+
+                alerts.push(CapacityOverloadAlert {
+                    work_center_id: item.work_center_id,
+                    work_center_code: item.work_center_code,
+                    work_center_name: item.work_center_name,
+                    daily_capacity: item.daily_capacity,
+                    current_demand: item.total_demand,
+                    load_rate: item.load_rate,
+                    threshold,
+                    alert_level,
+                    message: format!(
+                        "工作中心 {} 产能负荷已达 {}%，超过阈值 {}%",
+                        item.work_center_name, item.load_rate, threshold
+                    ),
+                });
+            }
+        }
+
+        Ok(alerts)
     }
 }
 

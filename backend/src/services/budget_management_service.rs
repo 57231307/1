@@ -495,4 +495,194 @@ impl BudgetManagementService {
         txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(adjustment)
     }
+
+    /// 检查预算是否可用
+    /// 根据部门ID和预算方案ID检查是否有足够预算
+    pub async fn check_budget_available(
+        &self,
+        department_id: i32,
+        plan_id: i32,
+        amount: Decimal,
+    ) -> Result<bool, AppError> {
+        info!(
+            "检查预算可用性：部门ID={}, 方案ID={}, 金额={}",
+            department_id, plan_id, amount
+        );
+
+        // 查询预算方案
+        let plan = budget_plan::Entity::find_by_id(plan_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("预算方案不存在：{}", plan_id)))?;
+
+        // 验证部门匹配
+        if let Some(plan_dept_id) = plan.department_id {
+            if plan_dept_id != department_id {
+                return Err(AppError::ValidationError(
+                    "预算方案与部门不匹配".to_string(),
+                ));
+            }
+        }
+
+        // 验证方案状态
+        if plan.status.as_deref() != Some("approved") && plan.status.as_deref() != Some("active") {
+            return Err(AppError::ValidationError(
+                "预算方案未审批或未激活".to_string(),
+            ));
+        }
+
+        // 计算已执行金额
+        let executed_amount: Decimal = budget_execution::Entity::find()
+            .filter(budget_execution::Column::PlanId.eq(plan_id))
+            .filter(budget_execution::Column::ExecutionType.eq("使用".to_string()))
+            .all(&*self.db)
+            .await?
+            .iter()
+            .map(|e| e.amount)
+            .sum();
+
+        // 计算已下达金额
+        let issued_amount: Decimal = budget_execution::Entity::find()
+            .filter(budget_execution::Column::PlanId.eq(plan_id))
+            .filter(budget_execution::Column::ExecutionType.eq("下达".to_string()))
+            .all(&*self.db)
+            .await?
+            .iter()
+            .map(|e| e.amount)
+            .sum();
+
+        // 可用金额 = 已下达金额 - 已执行金额
+        let available_amount = issued_amount - executed_amount;
+
+        info!(
+            "预算可用性检查：总额={}，已下达={}，已执行={}，可用={}，请求={}",
+            plan.total_amount, issued_amount, executed_amount, available_amount, amount
+        );
+
+        Ok(available_amount >= amount)
+    }
+
+    /// 占用预算
+    /// 创建采购订单时调用，记录预算使用
+    pub async fn occupy_budget(
+        &self,
+        department_id: i32,
+        plan_id: i32,
+        amount: Decimal,
+        document_type: String,
+        document_id: i32,
+        user_id: i32,
+    ) -> Result<budget_execution::Model, AppError> {
+        info!(
+            "占用预算：部门ID={}, 方案ID={}, 金额={}, 单据类型={}, 单据ID={}",
+            department_id, plan_id, amount, document_type, document_id
+        );
+
+        // 先检查预算是否可用
+        let available = self.check_budget_available(department_id, plan_id, amount).await?;
+        if !available {
+            return Err(AppError::ValidationError(
+                "预算余额不足，无法占用".to_string(),
+            ));
+        }
+
+        // 创建预算执行记录
+        let execution = self.create_execution(
+            plan_id,
+            "使用".to_string(),
+            amount,
+            chrono::Utc::now().date_naive(),
+            Some("采购订单".to_string()),
+            Some(document_type),
+            Some(document_id),
+            Some(format!("采购订单占用预算，单据ID: {}", document_id)),
+            user_id,
+        ).await?;
+
+        info!("预算占用成功：执行ID={}", execution.id);
+        Ok(execution)
+    }
+
+    /// 释放预算
+    /// 订单取消时调用，释放已占用的预算
+    pub async fn release_budget(
+        &self,
+        department_id: i32,
+        plan_id: i32,
+        amount: Decimal,
+        document_type: String,
+        document_id: i32,
+        user_id: i32,
+    ) -> Result<budget_execution::Model, AppError> {
+        info!(
+            "释放预算：部门ID={}, 方案ID={}, 金额={}, 单据类型={}, 单据ID={}",
+            department_id, plan_id, amount, document_type, document_id
+        );
+
+        // 创建释放记录（负数金额）
+        let execution = self.create_execution(
+            plan_id,
+            "使用".to_string(),
+            -amount, // 负数表示释放
+            chrono::Utc::now().date_naive(),
+            Some("采购订单取消".to_string()),
+            Some(document_type),
+            Some(document_id),
+            Some(format!("采购订单取消释放预算，单据ID: {}", document_id)),
+            user_id,
+        ).await?;
+
+        info!("预算释放成功：执行ID={}", execution.id);
+        Ok(execution)
+    }
+
+    /// 核销预算
+    /// 付款确认时调用，将预算占用转为实际执行
+    pub async fn write_off_budget(
+        &self,
+        department_id: i32,
+        plan_id: i32,
+        amount: Decimal,
+        document_type: String,
+        document_id: i32,
+        user_id: i32,
+    ) -> Result<budget_execution::Model, AppError> {
+        info!(
+            "核销预算：部门ID={}, 方案ID={}, 金额={}, 单据类型={}, 单据ID={}",
+            department_id, plan_id, amount, document_type, document_id
+        );
+
+        // 创建核销记录
+        let execution = self.create_execution(
+            plan_id,
+            "使用".to_string(),
+            amount,
+            chrono::Utc::now().date_naive(),
+            Some("付款核销".to_string()),
+            Some(document_type),
+            Some(document_id),
+            Some(format!("付款确认核销预算，单据ID: {}", document_id)),
+            user_id,
+        ).await?;
+
+        info!("预算核销成功：执行ID={}", execution.id);
+        Ok(execution)
+    }
+
+    /// 根据部门获取可用预算方案
+    pub async fn get_available_plan_by_department(
+        &self,
+        department_id: i32,
+    ) -> Result<Option<budget_plan::Model>, AppError> {
+        info!("查询部门可用预算方案：部门ID={}", department_id);
+
+        let plan = budget_plan::Entity::find()
+            .filter(budget_plan::Column::DepartmentId.eq(Some(department_id)))
+            .filter(budget_plan::Column::Status.eq("approved"))
+            .order_by(budget_plan::Column::CreatedAt, Order::Desc)
+            .one(&*self.db)
+            .await?;
+
+        Ok(plan)
+    }
 }

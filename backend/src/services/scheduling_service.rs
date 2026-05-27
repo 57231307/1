@@ -18,6 +18,7 @@ use crate::models::production_order::{
 use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
+use crate::services::capacity_service::CapacityService;
 
 /// 排程工单
 #[derive(Debug, Clone)]
@@ -165,11 +166,12 @@ pub struct ScheduledOrderQuery {
 /// 排程 Service
 pub struct SchedulingService {
     db: Arc<DatabaseConnection>,
+    capacity_service: Arc<CapacityService>,
 }
 
 impl SchedulingService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+    pub fn new(db: Arc<DatabaseConnection>, capacity_service: Arc<CapacityService>) -> Self {
+        Self { db, capacity_service }
     }
 
     /// 自动排程 - 基于优先级和产能
@@ -243,6 +245,15 @@ impl SchedulingService {
         let mut conflicts: Vec<ScheduleConflict> = Vec::new();
         let mut scheduled_count = 0;
 
+        // 获取每个工作中心的可用产能信息
+        let mut wc_available_capacity: HashMap<i32, Decimal> = HashMap::new();
+        for wc in &work_centers {
+            let daily_cap = wc.daily_capacity.unwrap_or(Decimal::new(100, 0));
+            // 假设排程周期为30天，计算总可用产能
+            let total_capacity = daily_cap * Decimal::from(30);
+            wc_available_capacity.insert(wc.id, total_capacity);
+        }
+
         for order in &sorted_orders {
             let quantity = order.planned_quantity;
             let wc_id = order.work_center_id.unwrap_or_else(|| {
@@ -271,6 +282,29 @@ impl SchedulingService {
             if quantity.is_zero() {
                 continue;
             }
+
+            // 检查工作中心可用产能是否充足
+            let available = wc_available_capacity.get(&wc_id).copied().unwrap_or(Decimal::ZERO);
+            if quantity > available {
+                conflicts.push(ScheduleConflict {
+                    conflict_type: "CAPACITY_INSUFFICIENT".to_string(),
+                    order_id: order.id,
+                    order_no: order.order_no.clone(),
+                    conflicting_order_id: None,
+                    conflicting_order_no: None,
+                    work_center_id: Some(wc_id),
+                    description: format!(
+                        "工单 {} 需要产能 {}，工作中心 {} 可用产能不足（剩余 {}）",
+                        order.order_no, quantity, cap.name, available
+                    ),
+                    severity: "HIGH".to_string(),
+                });
+                continue;
+            }
+
+            // 更新工作中心已用产能
+            wc_available_capacity.insert(wc_id, available - quantity);
+
             let days_needed = if cap.daily_capacity.is_zero() {
                 1
             } else {

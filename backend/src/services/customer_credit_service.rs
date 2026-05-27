@@ -296,6 +296,55 @@ impl CustomerCreditService {
         Ok(())
     }
 
+    /// 检查信用额度是否可用
+    pub async fn check_credit_available(
+        &self,
+        customer_id: i32,
+        order_amount: BigDecimal,
+    ) -> Result<bool, AppError> {
+        let credit = match self.get_by_customer_id(customer_id).await? {
+            Some(c) => c,
+            None => return Ok(true),
+        };
+
+        if credit.status != "active" {
+            return Ok(false);
+        }
+
+        Ok(order_amount <= credit.available_credit)
+    }
+
+    /// 检查信用预警
+    pub async fn check_credit_warning(
+        &self,
+        customer_id: i32,
+    ) -> Result<Option<String>, AppError> {
+        let credit = match self.get_by_customer_id(customer_id).await? {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+
+        if credit.credit_limit <= BigDecimal::from(0) {
+            return Ok(None);
+        }
+
+        let usage_rate = credit.used_credit.clone() / credit.credit_limit.clone();
+        let warning_threshold = BigDecimal::from(80) / BigDecimal::from(100);
+
+        if usage_rate >= warning_threshold {
+            let usage_percent = (usage_rate * BigDecimal::from(100))
+                .to_string()
+                .parse::<f64>()
+                .unwrap_or(0.0);
+            Ok(Some(format!(
+                "客户 {} 信用使用率已达 {:.1}%，超过 80% 预警阈值。总额度：{}，已用：{}，可用：{}",
+                customer_id, usage_percent, credit.credit_limit, credit.used_credit, credit.available_credit
+            )))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// 停用客户信用
     pub async fn deactivate(&self, customer_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在停用客户 {} 的信用", user_id, customer_id);

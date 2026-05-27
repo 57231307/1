@@ -120,3 +120,44 @@ pub async fn forecast_capacity(
     let forecast = service.forecast_capacity(id, days).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(forecast)?)))
 }
+
+/// 可用产能查询参数
+#[derive(Debug, Deserialize)]
+pub struct AvailableCapacityQuery {
+    pub date_from: String,
+    pub date_to: String,
+}
+
+/// GET /api/v1/erp/capacity/work-centers/:id/available - 获取可用产能
+pub async fn get_available_capacity(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Query(query): Query<AvailableCapacityQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CapacityService::new(state.db.clone());
+    let date_from = chrono::NaiveDate::parse_from_str(&query.date_from, "%Y-%m-%d")
+        .map_err(|_| AppError::BadRequest("date_from 格式无效，应为 YYYY-MM-DD".to_string()))?;
+    let date_to = chrono::NaiveDate::parse_from_str(&query.date_to, "%Y-%m-%d")
+        .map_err(|_| AppError::BadRequest("date_to 格式无效，应为 YYYY-MM-DD".to_string()))?;
+    let available = service.get_available_capacity(id, date_from, date_to).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(available)?)))
+}
+
+/// 产能负荷预警查询参数
+#[derive(Debug, Deserialize)]
+pub struct OverloadCheckQuery {
+    pub threshold: Option<rust_decimal::Decimal>,
+}
+
+/// GET /api/v1/erp/capacity/overload-check - 检查产能负荷预警
+pub async fn check_capacity_overload(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(query): Query<OverloadCheckQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CapacityService::new(state.db.clone());
+    let threshold = query.threshold.unwrap_or(rust_decimal::Decimal::from(90));
+    let alerts = service.check_capacity_overload(threshold).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(alerts)?)))
+}

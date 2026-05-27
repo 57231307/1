@@ -987,7 +987,9 @@ pub fn create_router(state: AppState) -> Router {
             .route("/work-centers", get(capacity_handler::list_work_centers).post(capacity_handler::create_work_center))
             .route("/work-centers/:id", put(capacity_handler::update_work_center).delete(capacity_handler::delete_work_center))
             .route("/work-centers/:id/forecast", get(capacity_handler::forecast_capacity))
+            .route("/work-centers/:id/available", get(capacity_handler::get_available_capacity))
             .route("/load-analysis", get(capacity_handler::get_load_analysis))
+            .route("/overload-check", get(capacity_handler::check_capacity_overload))
         )
         // 缺料预警路由
         .nest("/api/v1/erp/material-shortage", Router::new()
@@ -1122,6 +1124,7 @@ pub fn create_router(state: AppState) -> Router {
             .route("/leads/:id/relations", get(crate::handlers::crm_handler::get_lead_relation))
             .route("/opportunities", post(crate::handlers::crm_handler::create_opportunity).get(crate::handlers::crm_handler::list_opportunities))
             .route("/opportunities/:id", get(crate::handlers::crm_handler::get_opportunity).put(crate::handlers::crm_handler::update_opportunity).delete(crate::handlers::crm_handler::delete_opportunity))
+            .route("/opportunities/:id/convert", post(crate::handlers::crm_handler::convert_opportunity_to_order))
             .route("/customers/:id/summary", get(crate::handlers::crm_handler::get_customer_relation_summary))
         )
         .nest("/api/v1/erp/init", init_routes)
@@ -1156,6 +1159,8 @@ pub fn create_router(state: AppState) -> Router {
             .route("/templates", get(report_engine_handler::list_templates))
             .route("/execute", get(report_engine_handler::execute_report))
             .route("/export", get(report_engine_handler::export_report))
+            .route("/aggregate", post(report_engine_handler::aggregate_report))
+            .route("/cache/clear", post(report_engine_handler::clear_report_cache))
         )
         // 多租户SaaS路由
         .nest("/api/v1/erp/tenants", Router::new()

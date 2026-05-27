@@ -6,7 +6,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::report_engine_service::{ReportEngineService, ReportTemplate, ExportFormat};
+use crate::services::report_engine_service::{
+    ReportEngineService, ReportTemplate, ExportFormat,
+    DataSource, AggregationType, AggregateRequest, ReportFilter,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
 
@@ -138,4 +141,135 @@ pub async fn export_report(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AggregateReportRequest {
+    pub data_source: String,
+    pub filters: Option<Vec<FilterRequest>>,
+    pub group_by: Option<Vec<String>>,
+    pub aggregation_type: String,
+    pub aggregation_field: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FilterRequest {
+    pub field: String,
+    pub operator: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AggregateReportResponse {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    pub total_count: u64,
+}
+
+pub async fn aggregate_report(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(request): Json<AggregateReportRequest>,
+) -> Result<Json<ApiResponse<AggregateReportResponse>>, StatusCode> {
+    let service = ReportEngineService::new(state.db);
+
+    let data_source = match request.data_source.as_str() {
+        "sales" => DataSource::Sales,
+        "purchase" => DataSource::Purchase,
+        "inventory" => DataSource::Inventory,
+        "finance" => DataSource::Finance,
+        _ => {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
+    let aggregation_type = match request.aggregation_type.as_str() {
+        "sum" => AggregationType::Sum,
+        "count" => AggregationType::Count,
+        "average" => AggregationType::Average,
+        "min" => AggregationType::Min,
+        "max" => AggregationType::Max,
+        "group_by" => AggregationType::GroupBy,
+        _ => {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
+    let filters = request.filters
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| ReportFilter {
+            field: f.field,
+            operator: f.operator,
+            value: f.value,
+        })
+        .collect();
+
+    let aggregate_request = AggregateRequest {
+        data_source,
+        filters,
+        group_by: request.group_by,
+        aggregation_type,
+        aggregation_field: request.aggregation_field,
+    };
+
+    let page = request.page.unwrap_or(1);
+    let page_size = request.page_size.unwrap_or(50);
+
+    match service.aggregate_data(aggregate_request, page, page_size).await {
+        Ok(result) => {
+            let response = AggregateReportResponse {
+                columns: result.columns,
+                rows: result.rows,
+                total_count: result.total_count,
+            };
+            Ok(Json(ApiResponse::success(response)))
+        }
+        Err(e) => {
+            tracing::error!("数据聚合失败: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ClearCacheRequest {
+    pub data_source: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ClearCacheResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+pub async fn clear_report_cache(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(request): Json<ClearCacheRequest>,
+) -> Result<Json<ApiResponse<ClearCacheResponse>>, StatusCode> {
+    let service = ReportEngineService::new(state.db);
+
+    if let Some(source) = request.data_source {
+        let data_source = match source.as_str() {
+            "sales" => DataSource::Sales,
+            "purchase" => DataSource::Purchase,
+            "inventory" => DataSource::Inventory,
+            "finance" => DataSource::Finance,
+            _ => {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+        };
+        service.clear_cache_by_source(&data_source).await;
+    } else {
+        service.clear_all_cache().await;
+    }
+
+    let response = ClearCacheResponse {
+        success: true,
+        message: "缓存已清除".to_string(),
+    };
+    Ok(Json(ApiResponse::success(response)))
 }

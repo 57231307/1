@@ -4,17 +4,21 @@
 
 #![allow(dead_code)]
 
-use sea_orm::{EntityTrait, PaginatorTrait, QueryOrder};
+use sea_orm::{EntityTrait, PaginatorTrait, QueryOrder, QueryFilter, ColumnTrait};
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::io::Write;
 use sea_orm::DatabaseConnection;
 use chrono::{Utc, NaiveDateTime};
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+use tokio::sync::RwLock;
 
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::purchase_order::Entity as PurchaseOrderEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
+use crate::models::finance_payment::Entity as FinancePaymentEntity;
 use crate::utils::error::AppError;
 
 /// 报表类型
@@ -25,6 +29,52 @@ pub enum ReportType {
     Inventory,
     Financial,
     Custom,
+}
+
+/// 数据源枚举
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+pub enum DataSource {
+    Sales,
+    Purchase,
+    Inventory,
+    Finance,
+}
+
+/// 聚合类型枚举
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AggregationType {
+    Sum,
+    Count,
+    Average,
+    Min,
+    Max,
+    GroupBy,
+}
+
+/// 数据聚合请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AggregateRequest {
+    pub data_source: DataSource,
+    pub filters: Vec<ReportFilter>,
+    pub group_by: Option<Vec<String>>,
+    pub aggregation_type: AggregationType,
+    pub aggregation_field: Option<String>,
+}
+
+/// 数据聚合结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AggregateResult {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    pub total_count: u64,
+}
+
+/// 缓存条目
+#[derive(Debug, Clone)]
+struct CacheEntry {
+    data: ReportData,
+    created_at: NaiveDateTime,
+    expires_at: NaiveDateTime,
 }
 
 /// 报表模板
@@ -145,11 +195,772 @@ pub struct ExcelExportResult {
 /// 报表引擎 Service
 pub struct ReportEngineService {
     db: Arc<DatabaseConnection>,
+    cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
 }
 
 impl ReportEngineService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self { 
+            db,
+            cache: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// 生成缓存键
+    fn generate_cache_key(prefix: &str, params: &[&str]) -> String {
+        let mut hasher = DefaultHasher::new();
+        for param in params {
+            param.hash(&mut hasher);
+        }
+        format!("{}_{:x}", prefix, hasher.finish())
+    }
+
+    /// 获取缓存数据
+    async fn get_cached_data(&self, cache_key: &str) -> Option<ReportData> {
+        let cache = self.cache.read().await;
+        if let Some(entry) = cache.get(cache_key) {
+            if Utc::now().naive_utc() < entry.expires_at {
+                return Some(entry.data.clone());
+            }
+        }
+        None
+    }
+
+    /// 设置缓存数据
+    async fn set_cached_data(&self, cache_key: &str, data: ReportData, ttl_minutes: i64) {
+        let mut cache = self.cache.write().await;
+        let now = Utc::now().naive_utc();
+        let entry = CacheEntry {
+            data,
+            created_at: now,
+            expires_at: now + chrono::Duration::minutes(ttl_minutes),
+        };
+        cache.insert(cache_key.to_string(), entry);
+    }
+
+    /// 清除过期缓存
+    async fn cleanup_expired_cache(&self) {
+        let mut cache = self.cache.write().await;
+        let now = Utc::now().naive_utc();
+        cache.retain(|_, entry| now < entry.expires_at);
+    }
+
+    /// 清除指定数据源的缓存
+    pub async fn clear_cache_by_source(&self, data_source: &DataSource) {
+        let mut cache = self.cache.write().await;
+        let prefix = match data_source {
+            DataSource::Sales => "sales_",
+            DataSource::Purchase => "purchase_",
+            DataSource::Inventory => "inventory_",
+            DataSource::Finance => "finance_",
+        };
+        cache.retain(|key, _| !key.starts_with(prefix));
+    }
+
+    /// 清除所有缓存
+    pub async fn clear_all_cache(&self) {
+        let mut cache = self.cache.write().await;
+        cache.clear();
+    }
+
+    /// 数据聚合方法
+    pub async fn aggregate_data(
+        &self,
+        request: AggregateRequest,
+        page: u64,
+        page_size: u64,
+    ) -> Result<AggregateResult, AppError> {
+        // 生成缓存键
+        let cache_key = Self::generate_cache_key(
+            &format!("{:?}_", request.data_source).to_lowercase(),
+            &[
+                &format!("{:?}", request.filters),
+                &format!("{:?}", request.group_by),
+                &format!("{:?}", request.aggregation_type),
+                &request.aggregation_field.as_deref().unwrap_or(""),
+                &page.to_string(),
+                &page_size.to_string(),
+            ],
+        );
+
+        // 尝试从缓存获取数据
+        if let Some(cached) = self.get_cached_data(&cache_key).await {
+            return Ok(AggregateResult {
+                columns: cached.columns,
+                rows: cached.rows,
+                total_count: cached.total_count,
+            });
+        }
+
+        // 清理过期缓存
+        self.cleanup_expired_cache().await;
+
+        // 根据数据源执行查询
+        let result = match request.data_source {
+            DataSource::Sales => {
+                self.aggregate_sales_data(&request, page, page_size).await?
+            }
+            DataSource::Purchase => {
+                self.aggregate_purchase_data(&request, page, page_size).await?
+            }
+            DataSource::Inventory => {
+                self.aggregate_inventory_data(&request, page, page_size).await?
+            }
+            DataSource::Finance => {
+                self.aggregate_finance_data(&request, page, page_size).await?
+            }
+        };
+
+        // 缓存结果（5分钟）
+        let report_data = ReportData {
+            columns: result.columns.clone(),
+            rows: result.rows.clone(),
+            total_count: result.total_count,
+        };
+        self.set_cached_data(&cache_key, report_data, 5).await;
+
+        Ok(result)
+    }
+
+    /// 销售数据聚合
+    async fn aggregate_sales_data(
+        &self,
+        request: &AggregateRequest,
+        page: u64,
+        page_size: u64,
+    ) -> Result<AggregateResult, AppError> {
+        use sea_orm::QuerySelect;
+        
+        let mut query = SalesOrderEntity::find();
+
+        // 应用筛选条件
+        for filter in &request.filters {
+            match filter.field.as_str() {
+                "status" => {
+                    query = query.filter(
+                        crate::models::sales_order::Column::Status.eq(filter.value.clone())
+                    );
+                }
+                "order_date" => {
+                    // 处理日期筛选
+                    if filter.operator == ">=" {
+                        if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
+                            let datetime = date.and_hms_opt(0, 0, 0).unwrap();
+                            query = query.filter(
+                                crate::models::sales_order::Column::OrderDate.gte(datetime)
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // 执行查询获取数据
+        let orders = query
+            .order_by_desc(crate::models::sales_order::Column::CreatedAt)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page - 1)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total = SalesOrderEntity::find()
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 根据聚合类型处理数据
+        let (columns, rows) = match request.aggregation_type {
+            AggregationType::GroupBy => {
+                // 分组聚合
+                let group_fields = request.group_by.as_deref().unwrap_or(&[]);
+                let mut columns = Vec::new();
+                let mut rows = Vec::new();
+
+                if group_fields.contains(&"status".to_string()) {
+                    // 按状态分组
+                    let mut status_map: HashMap<String, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for order in &orders {
+                        let entry = status_map.entry(order.status.clone()).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += order.total_amount;
+                    }
+
+                    columns = vec!["状态".to_string(), "订单数".to_string(), "总金额".to_string()];
+                    for (status, (count, amount)) in status_map {
+                        rows.push(vec![status, count.to_string(), amount.to_string()]);
+                    }
+                } else if group_fields.contains(&"customer_id".to_string()) {
+                    // 按客户分组
+                    let mut customer_map: HashMap<i32, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for order in &orders {
+                        let entry = customer_map.entry(order.customer_id).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += order.total_amount;
+                    }
+
+                    columns = vec!["客户ID".to_string(), "订单数".to_string(), "总金额".to_string()];
+                    for (customer_id, (count, amount)) in customer_map {
+                        rows.push(vec![customer_id.to_string(), count.to_string(), amount.to_string()]);
+                    }
+                } else {
+                    // 默认返回原始数据
+                    columns = vec![
+                        "订单编号".to_string(),
+                        "客户ID".to_string(),
+                        "订单金额".to_string(),
+                        "状态".to_string(),
+                        "创建时间".to_string(),
+                    ];
+                    for order in &orders {
+                        rows.push(vec![
+                            order.order_no.clone(),
+                            order.customer_id.to_string(),
+                            order.total_amount.to_string(),
+                            order.status.clone(),
+                            order.created_at.format("%Y-%m-%d %H:%M").to_string(),
+                        ]);
+                    }
+                }
+
+                (columns, rows)
+            }
+            AggregationType::Sum => {
+                // 求和聚合
+                let field = request.aggregation_field.as_deref().unwrap_or("total_amount");
+                let sum = orders.iter().fold(rust_decimal::Decimal::ZERO, |acc, order| {
+                    match field {
+                        "total_amount" => acc + order.total_amount,
+                        "paid_amount" => acc + order.paid_amount,
+                        "balance_amount" => acc + order.balance_amount,
+                        _ => acc,
+                    }
+                });
+
+                let columns = vec![format!("{} (求和)", field)];
+                let rows = vec![vec![sum.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Count => {
+                // 计数聚合
+                let columns = vec!["订单数量".to_string()];
+                let rows = vec![vec![orders.len().to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Average => {
+                // 平均值聚合
+                let field = request.aggregation_field.as_deref().unwrap_or("total_amount");
+                let sum = orders.iter().fold(rust_decimal::Decimal::ZERO, |acc, order| {
+                    match field {
+                        "total_amount" => acc + order.total_amount,
+                        "paid_amount" => acc + order.paid_amount,
+                        "balance_amount" => acc + order.balance_amount,
+                        _ => acc,
+                    }
+                });
+                let count = orders.len();
+                let avg = if count > 0 { sum / rust_decimal::Decimal::from(count) } else { rust_decimal::Decimal::ZERO };
+
+                let columns = vec![format!("{} (平均值)", field)];
+                let rows = vec![vec![avg.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Min | AggregationType::Max => {
+                // 最小值/最大值聚合
+                let field = request.aggregation_field.as_deref().unwrap_or("total_amount");
+                let values: Vec<rust_decimal::Decimal> = orders.iter().map(|order| {
+                    match field {
+                        "total_amount" => order.total_amount,
+                        "paid_amount" => order.paid_amount,
+                        "balance_amount" => order.balance_amount,
+                        _ => rust_decimal::Decimal::ZERO,
+                    }
+                }).collect();
+
+                let result = if request.aggregation_type == AggregationType::Min {
+                    values.iter().min().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                } else {
+                    values.iter().max().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                };
+
+                let label = if request.aggregation_type == AggregationType::Min { "最小值" } else { "最大值" };
+                let columns = vec![format!("{} ({})", field, label)];
+                let rows = vec![vec![result.to_string()]];
+                (columns, rows)
+            }
+        };
+
+        Ok(AggregateResult {
+            columns,
+            rows,
+            total_count: total,
+        })
+    }
+
+    /// 采购数据聚合
+    async fn aggregate_purchase_data(
+        &self,
+        request: &AggregateRequest,
+        page: u64,
+        page_size: u64,
+    ) -> Result<AggregateResult, AppError> {
+        let mut query = PurchaseOrderEntity::find();
+
+        // 应用筛选条件
+        for filter in &request.filters {
+            match filter.field.as_str() {
+                "order_status" => {
+                    query = query.filter(
+                        crate::models::purchase_order::Column::OrderStatus.eq(filter.value.clone())
+                    );
+                }
+                "supplier_id" => {
+                    if let Ok(supplier_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::purchase_order::Column::SupplierId.eq(supplier_id)
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let orders = query
+            .order_by_desc(crate::models::purchase_order::Column::CreatedAt)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page - 1)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total = PurchaseOrderEntity::find()
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let (columns, rows) = match request.aggregation_type {
+            AggregationType::GroupBy => {
+                let group_fields = request.group_by.as_deref().unwrap_or(&[]);
+                let mut columns = Vec::new();
+                let mut rows = Vec::new();
+
+                if group_fields.contains(&"order_status".to_string()) {
+                    let mut status_map: HashMap<String, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for order in &orders {
+                        let entry = status_map.entry(order.order_status.clone()).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += order.total_amount;
+                    }
+
+                    columns = vec!["状态".to_string(), "订单数".to_string(), "总金额".to_string()];
+                    for (status, (count, amount)) in status_map {
+                        rows.push(vec![status, count.to_string(), amount.to_string()]);
+                    }
+                } else if group_fields.contains(&"supplier_id".to_string()) {
+                    let mut supplier_map: HashMap<i32, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for order in &orders {
+                        let entry = supplier_map.entry(order.supplier_id).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += order.total_amount;
+                    }
+
+                    columns = vec!["供应商ID".to_string(), "订单数".to_string(), "总金额".to_string()];
+                    for (supplier_id, (count, amount)) in supplier_map {
+                        rows.push(vec![supplier_id.to_string(), count.to_string(), amount.to_string()]);
+                    }
+                } else {
+                    columns = vec![
+                        "采购单号".to_string(),
+                        "供应商ID".to_string(),
+                        "采购金额".to_string(),
+                        "状态".to_string(),
+                        "创建时间".to_string(),
+                    ];
+                    for order in &orders {
+                        rows.push(vec![
+                            order.order_no.clone(),
+                            order.supplier_id.to_string(),
+                            order.total_amount.to_string(),
+                            order.order_status.clone(),
+                            order.created_at.format("%Y-%m-%d %H:%M").to_string(),
+                        ]);
+                    }
+                }
+
+                (columns, rows)
+            }
+            AggregationType::Sum => {
+                let field = request.aggregation_field.as_deref().unwrap_or("total_amount");
+                let sum = orders.iter().fold(rust_decimal::Decimal::ZERO, |acc, order| {
+                    match field {
+                        "total_amount" => acc + order.total_amount,
+                        "total_amount_foreign" => acc + order.total_amount_foreign,
+                        _ => acc,
+                    }
+                });
+
+                let columns = vec![format!("{} (求和)", field)];
+                let rows = vec![vec![sum.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Count => {
+                let columns = vec!["订单数量".to_string()];
+                let rows = vec![vec![orders.len().to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Average => {
+                let field = request.aggregation_field.as_deref().unwrap_or("total_amount");
+                let sum = orders.iter().fold(rust_decimal::Decimal::ZERO, |acc, order| {
+                    match field {
+                        "total_amount" => acc + order.total_amount,
+                        "total_amount_foreign" => acc + order.total_amount_foreign,
+                        _ => acc,
+                    }
+                });
+                let count = orders.len();
+                let avg = if count > 0 { sum / rust_decimal::Decimal::from(count) } else { rust_decimal::Decimal::ZERO };
+
+                let columns = vec![format!("{} (平均值)", field)];
+                let rows = vec![vec![avg.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Min | AggregationType::Max => {
+                let field = request.aggregation_field.as_deref().unwrap_or("total_amount");
+                let values: Vec<rust_decimal::Decimal> = orders.iter().map(|order| {
+                    match field {
+                        "total_amount" => order.total_amount,
+                        "total_amount_foreign" => order.total_amount_foreign,
+                        _ => rust_decimal::Decimal::ZERO,
+                    }
+                }).collect();
+
+                let result = if request.aggregation_type == AggregationType::Min {
+                    values.iter().min().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                } else {
+                    values.iter().max().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                };
+
+                let label = if request.aggregation_type == AggregationType::Min { "最小值" } else { "最大值" };
+                let columns = vec![format!("{} ({})", field, label)];
+                let rows = vec![vec![result.to_string()]];
+                (columns, rows)
+            }
+        };
+
+        Ok(AggregateResult {
+            columns,
+            rows,
+            total_count: total,
+        })
+    }
+
+    /// 库存数据聚合
+    async fn aggregate_inventory_data(
+        &self,
+        request: &AggregateRequest,
+        page: u64,
+        page_size: u64,
+    ) -> Result<AggregateResult, AppError> {
+        use sea_orm::QuerySelect;
+
+        let mut query = InventoryStockEntity::find();
+
+        // 应用筛选条件
+        for filter in &request.filters {
+            match filter.field.as_str() {
+                "warehouse_id" => {
+                    if let Ok(warehouse_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::inventory_stock::Column::WarehouseId.eq(warehouse_id)
+                        );
+                    }
+                }
+                "product_id" => {
+                    if let Ok(product_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::inventory_stock::Column::ProductId.eq(product_id)
+                        );
+                    }
+                }
+                "grade" => {
+                    query = query.filter(
+                        crate::models::inventory_stock::Column::Grade.eq(filter.value.clone())
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let stocks = query
+            .order_by_desc(crate::models::inventory_stock::Column::QuantityAvailable)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page - 1)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total = InventoryStockEntity::find()
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let (columns, rows) = match request.aggregation_type {
+            AggregationType::GroupBy => {
+                let group_fields = request.group_by.as_deref().unwrap_or(&[]);
+                let mut columns = Vec::new();
+                let mut rows = Vec::new();
+
+                if group_fields.contains(&"warehouse_id".to_string()) {
+                    let mut warehouse_map: HashMap<i32, (i32, rust_decimal::Decimal, rust_decimal::Decimal)> = HashMap::new();
+                    for stock in &stocks {
+                        let entry = warehouse_map.entry(stock.warehouse_id).or_insert((0, rust_decimal::Decimal::ZERO, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += stock.quantity_available;
+                        entry.2 += stock.quantity_reserved;
+                    }
+
+                    columns = vec!["仓库ID".to_string(), "产品数".to_string(), "可用库存".to_string(), "预留库存".to_string()];
+                    for (warehouse_id, (count, available, reserved)) in warehouse_map {
+                        rows.push(vec![warehouse_id.to_string(), count.to_string(), available.to_string(), reserved.to_string()]);
+                    }
+                } else if group_fields.contains(&"grade".to_string()) {
+                    let mut grade_map: HashMap<String, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for stock in &stocks {
+                        let entry = grade_map.entry(stock.grade.clone()).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += stock.quantity_available;
+                    }
+
+                    columns = vec!["等级".to_string(), "产品数".to_string(), "可用库存".to_string()];
+                    for (grade, (count, available)) in grade_map {
+                        rows.push(vec![grade, count.to_string(), available.to_string()]);
+                    }
+                } else {
+                    columns = vec![
+                        "产品ID".to_string(),
+                        "可用库存".to_string(),
+                        "预留库存".to_string(),
+                        "在途库存".to_string(),
+                        "仓库ID".to_string(),
+                    ];
+                    for stock in &stocks {
+                        rows.push(vec![
+                            stock.product_id.to_string(),
+                            stock.quantity_available.to_string(),
+                            stock.quantity_reserved.to_string(),
+                            stock.quantity_incoming.to_string(),
+                            stock.warehouse_id.to_string(),
+                        ]);
+                    }
+                }
+
+                (columns, rows)
+            }
+            AggregationType::Sum => {
+                let field = request.aggregation_field.as_deref().unwrap_or("quantity_available");
+                let sum = stocks.iter().fold(rust_decimal::Decimal::ZERO, |acc, stock| {
+                    match field {
+                        "quantity_available" => acc + stock.quantity_available,
+                        "quantity_reserved" => acc + stock.quantity_reserved,
+                        "quantity_incoming" => acc + stock.quantity_incoming,
+                        "quantity_on_hand" => acc + stock.quantity_on_hand,
+                        _ => acc,
+                    }
+                });
+
+                let columns = vec![format!("{} (求和)", field)];
+                let rows = vec![vec![sum.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Count => {
+                let columns = vec!["产品数量".to_string()];
+                let rows = vec![vec![stocks.len().to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Average => {
+                let field = request.aggregation_field.as_deref().unwrap_or("quantity_available");
+                let sum = stocks.iter().fold(rust_decimal::Decimal::ZERO, |acc, stock| {
+                    match field {
+                        "quantity_available" => acc + stock.quantity_available,
+                        "quantity_reserved" => acc + stock.quantity_reserved,
+                        "quantity_incoming" => acc + stock.quantity_incoming,
+                        "quantity_on_hand" => acc + stock.quantity_on_hand,
+                        _ => acc,
+                    }
+                });
+                let count = stocks.len();
+                let avg = if count > 0 { sum / rust_decimal::Decimal::from(count) } else { rust_decimal::Decimal::ZERO };
+
+                let columns = vec![format!("{} (平均值)", field)];
+                let rows = vec![vec![avg.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Min | AggregationType::Max => {
+                let field = request.aggregation_field.as_deref().unwrap_or("quantity_available");
+                let values: Vec<rust_decimal::Decimal> = stocks.iter().map(|stock| {
+                    match field {
+                        "quantity_available" => stock.quantity_available,
+                        "quantity_reserved" => stock.quantity_reserved,
+                        "quantity_incoming" => stock.quantity_incoming,
+                        "quantity_on_hand" => stock.quantity_on_hand,
+                        _ => rust_decimal::Decimal::ZERO,
+                    }
+                }).collect();
+
+                let result = if request.aggregation_type == AggregationType::Min {
+                    values.iter().min().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                } else {
+                    values.iter().max().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                };
+
+                let label = if request.aggregation_type == AggregationType::Min { "最小值" } else { "最大值" };
+                let columns = vec![format!("{} ({})", field, label)];
+                let rows = vec![vec![result.to_string()]];
+                (columns, rows)
+            }
+        };
+
+        Ok(AggregateResult {
+            columns,
+            rows,
+            total_count: total,
+        })
+    }
+
+    /// 财务数据聚合
+    async fn aggregate_finance_data(
+        &self,
+        request: &AggregateRequest,
+        page: u64,
+        page_size: u64,
+    ) -> Result<AggregateResult, AppError> {
+        let mut query = FinancePaymentEntity::find();
+
+        // 应用筛选条件
+        for filter in &request.filters {
+            match filter.field.as_str() {
+                "status" => {
+                    query = query.filter(
+                        crate::models::finance_payment::Column::Status.eq(filter.value.clone())
+                    );
+                }
+                "payment_method" => {
+                    query = query.filter(
+                        crate::models::finance_payment::Column::PaymentMethod.eq(filter.value.clone())
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let payments = query
+            .order_by_desc(crate::models::finance_payment::Column::CreatedAt)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page - 1)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let total = FinancePaymentEntity::find()
+            .count(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let (columns, rows) = match request.aggregation_type {
+            AggregationType::GroupBy => {
+                let group_fields = request.group_by.as_deref().unwrap_or(&[]);
+                let mut columns = Vec::new();
+                let mut rows = Vec::new();
+
+                if group_fields.contains(&"status".to_string()) {
+                    let mut status_map: HashMap<String, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for payment in &payments {
+                        let entry = status_map.entry(payment.status.clone()).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += payment.amount;
+                    }
+
+                    columns = vec!["状态".to_string(), "付款数".to_string(), "总金额".to_string()];
+                    for (status, (count, amount)) in status_map {
+                        rows.push(vec![status, count.to_string(), amount.to_string()]);
+                    }
+                } else if group_fields.contains(&"payment_method".to_string()) {
+                    let mut method_map: HashMap<String, (i32, rust_decimal::Decimal)> = HashMap::new();
+                    for payment in &payments {
+                        let method = payment.payment_method.clone().unwrap_or_else(|| "未知".to_string());
+                        let entry = method_map.entry(method).or_insert((0, rust_decimal::Decimal::ZERO));
+                        entry.0 += 1;
+                        entry.1 += payment.amount;
+                    }
+
+                    columns = vec!["付款方式".to_string(), "付款数".to_string(), "总金额".to_string()];
+                    for (method, (count, amount)) in method_map {
+                        rows.push(vec![method, count.to_string(), amount.to_string()]);
+                    }
+                } else {
+                    columns = vec![
+                        "付款单号".to_string(),
+                        "金额".to_string(),
+                        "付款方式".to_string(),
+                        "状态".to_string(),
+                        "创建时间".to_string(),
+                    ];
+                    for payment in &payments {
+                        rows.push(vec![
+                            payment.payment_no.clone(),
+                            payment.amount.to_string(),
+                            payment.payment_method.clone().unwrap_or_else(|| "".to_string()),
+                            payment.status.clone(),
+                            payment.created_at.format("%Y-%m-%d %H:%M").to_string(),
+                        ]);
+                    }
+                }
+
+                (columns, rows)
+            }
+            AggregationType::Sum => {
+                let sum = payments.iter().fold(rust_decimal::Decimal::ZERO, |acc, payment| {
+                    acc + payment.amount
+                });
+
+                let columns = vec!["金额 (求和)".to_string()];
+                let rows = vec![vec![sum.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Count => {
+                let columns = vec!["付款数量".to_string()];
+                let rows = vec![vec![payments.len().to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Average => {
+                let sum = payments.iter().fold(rust_decimal::Decimal::ZERO, |acc, payment| {
+                    acc + payment.amount
+                });
+                let count = payments.len();
+                let avg = if count > 0 { sum / rust_decimal::Decimal::from(count) } else { rust_decimal::Decimal::ZERO };
+
+                let columns = vec!["金额 (平均值)".to_string()];
+                let rows = vec![vec![avg.to_string()]];
+                (columns, rows)
+            }
+            AggregationType::Min | AggregationType::Max => {
+                let values: Vec<rust_decimal::Decimal> = payments.iter().map(|payment| payment.amount).collect();
+
+                let result = if request.aggregation_type == AggregationType::Min {
+                    values.iter().min().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                } else {
+                    values.iter().max().cloned().unwrap_or(rust_decimal::Decimal::ZERO)
+                };
+
+                let label = if request.aggregation_type == AggregationType::Min { "最小值" } else { "最大值" };
+                let columns = vec![format!("金额 ({})", label)];
+                let rows = vec![vec![result.to_string()]];
+                (columns, rows)
+            }
+        };
+
+        Ok(AggregateResult {
+            columns,
+            rows,
+            total_count: total,
+        })
     }
 
     /// 获取预定义报表模板
@@ -266,25 +1077,88 @@ impl ReportEngineService {
         page: u64,
         page_size: u64,
     ) -> Result<ReportData, AppError> {
-        match template_id {
+        // 生成缓存键
+        let cache_key = Self::generate_cache_key(
+            "report_",
+            &[
+                template_id,
+                &format!("{:?}", custom_filters),
+                &page.to_string(),
+                &page_size.to_string(),
+            ],
+        );
+
+        // 尝试从缓存获取数据
+        if let Some(cached) = self.get_cached_data(&cache_key).await {
+            return Ok(cached);
+        }
+
+        // 清理过期缓存
+        self.cleanup_expired_cache().await;
+
+        // 执行查询
+        let result = match template_id {
             "sales_daily" => self.query_sales_report(custom_filters, page, page_size).await,
             "inventory_status" => self.query_inventory_report(custom_filters, page, page_size).await,
             "purchase_summary" => self.query_purchase_report(custom_filters, page, page_size).await,
             id if id.starts_with("custom_") => {
-                Err(AppError::NotFound("自定义模板需要通过列定义动态生成查询，暂不支持直接执行".to_string()))
+                Err(AppError::NotFound("自定义模板需要通过 aggregate_data 接口执行".to_string()))
             }
             _ => Err(AppError::NotFound(format!("报表模板 {} 不存在", template_id))),
-        }
+        }?;
+
+        // 缓存结果（5分钟）
+        self.set_cached_data(&cache_key, result.clone(), 5).await;
+
+        Ok(result)
     }
 
     /// 销售报表查询
     async fn query_sales_report(
         &self,
-        _filters: Vec<ReportFilter>,
+        filters: Vec<ReportFilter>,
         page: u64,
         page_size: u64,
     ) -> Result<ReportData, AppError> {
-        let paginator = SalesOrderEntity::find()
+        let mut query = SalesOrderEntity::find();
+
+        // 应用筛选条件
+        for filter in &filters {
+            match filter.field.as_str() {
+                "status" => {
+                    query = query.filter(
+                        crate::models::sales_order::Column::Status.eq(filter.value.clone())
+                    );
+                }
+                "order_date" => {
+                    if filter.operator == ">=" {
+                        if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
+                            let datetime = date.and_hms_opt(0, 0, 0).unwrap();
+                            query = query.filter(
+                                crate::models::sales_order::Column::OrderDate.gte(datetime)
+                            );
+                        }
+                    } else if filter.operator == "<=" {
+                        if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
+                            let datetime = date.and_hms_opt(23, 59, 59).unwrap();
+                            query = query.filter(
+                                crate::models::sales_order::Column::OrderDate.lte(datetime)
+                            );
+                        }
+                    }
+                }
+                "customer_id" => {
+                    if let Ok(customer_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::sales_order::Column::CustomerId.eq(customer_id)
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let paginator = query
             .order_by_desc(crate::models::sales_order::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
@@ -329,11 +1203,39 @@ impl ReportEngineService {
     /// 库存报表查询
     async fn query_inventory_report(
         &self,
-        _filters: Vec<ReportFilter>,
+        filters: Vec<ReportFilter>,
         page: u64,
         page_size: u64,
     ) -> Result<ReportData, AppError> {
-        let paginator = InventoryStockEntity::find()
+        let mut query = InventoryStockEntity::find();
+
+        // 应用筛选条件
+        for filter in &filters {
+            match filter.field.as_str() {
+                "warehouse_id" => {
+                    if let Ok(warehouse_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::inventory_stock::Column::WarehouseId.eq(warehouse_id)
+                        );
+                    }
+                }
+                "product_id" => {
+                    if let Ok(product_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::inventory_stock::Column::ProductId.eq(product_id)
+                        );
+                    }
+                }
+                "grade" => {
+                    query = query.filter(
+                        crate::models::inventory_stock::Column::Grade.eq(filter.value.clone())
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let paginator = query
             .order_by_desc(crate::models::inventory_stock::Column::QuantityAvailable)
             .paginate(&*self.db, page_size);
 
@@ -378,11 +1280,47 @@ impl ReportEngineService {
     /// 采购报表查询
     async fn query_purchase_report(
         &self,
-        _filters: Vec<ReportFilter>,
+        filters: Vec<ReportFilter>,
         page: u64,
         page_size: u64,
     ) -> Result<ReportData, AppError> {
-        let paginator = PurchaseOrderEntity::find()
+        let mut query = PurchaseOrderEntity::find();
+
+        // 应用筛选条件
+        for filter in &filters {
+            match filter.field.as_str() {
+                "order_status" => {
+                    query = query.filter(
+                        crate::models::purchase_order::Column::OrderStatus.eq(filter.value.clone())
+                    );
+                }
+                "supplier_id" => {
+                    if let Ok(supplier_id) = filter.value.parse::<i32>() {
+                        query = query.filter(
+                            crate::models::purchase_order::Column::SupplierId.eq(supplier_id)
+                        );
+                    }
+                }
+                "order_date" => {
+                    if filter.operator == ">=" {
+                        if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
+                            query = query.filter(
+                                crate::models::purchase_order::Column::OrderDate.gte(date)
+                            );
+                        }
+                    } else if filter.operator == "<=" {
+                        if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
+                            query = query.filter(
+                                crate::models::purchase_order::Column::OrderDate.lte(date)
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let paginator = query
             .order_by_desc(crate::models::purchase_order::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 

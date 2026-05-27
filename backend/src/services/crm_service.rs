@@ -1,6 +1,6 @@
 use sea_orm::*;
 use std::sync::Arc;
-use crate::models::{crm_lead, crm_opportunity, customer};
+use crate::models::{crm_lead, crm_opportunity, customer, sales_order};
 use crate::models::dto::crm_dto::{ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest};
 use crate::models::dto::PageResponse;
 use crate::utils::error::AppError;
@@ -373,6 +373,109 @@ impl CrmService {
 
         let active: crm_opportunity::ActiveModel = opp.into();
         active.delete(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        Ok(())
+    }
+
+    /// 将商机转化为销售订单
+    pub async fn convert_opportunity_to_order(
+        &self,
+        opportunity_id: i32,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 1. 获取商机信息
+        let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+
+        // 检查商机状态
+        if opportunity.opportunity_stage.as_deref() == Some("closed_won") ||
+           opportunity.opportunity_stage.as_deref() == Some("closed_lost") {
+            return Err(AppError::BusinessError("商机已关闭，无法转化".to_string()));
+        }
+
+        // 2. 创建销售订单
+        let order_no = format!("SO{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        let total_amount = opportunity.estimated_amount.unwrap_or(rust_decimal::Decimal::ZERO);
+
+        let order = sales_order::ActiveModel {
+            id: Default::default(),
+            order_no: Set(order_no),
+            customer_id: Set(opportunity.customer_id),
+            opportunity_id: Set(Some(opportunity_id)),
+            order_date: Set(chrono::Utc::now()),
+            required_date: Set(chrono::Utc::now() + chrono::Duration::days(30)),
+            ship_date: Set(None),
+            status: Set("draft".to_string()),
+            subtotal: Set(total_amount),
+            tax_amount: Set(rust_decimal::Decimal::ZERO),
+            discount_amount: Set(rust_decimal::Decimal::ZERO),
+            shipping_cost: Set(rust_decimal::Decimal::ZERO),
+            total_amount: Set(total_amount),
+            paid_amount: Set(rust_decimal::Decimal::ZERO),
+            balance_amount: Set(total_amount),
+            shipping_address: Set(None),
+            billing_address: Set(None),
+            notes: Set(Some(format!("从商机 {} 转化", opportunity.opportunity_no))),
+            created_by: Set(Some(user_id)),
+            approved_by: Set(None),
+            approved_at: Set(None),
+            created_at: Set(chrono::Utc::now()),
+            updated_at: Set(chrono::Utc::now()),
+        };
+
+        let order_entity = order.insert(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 3. 更新商机状态
+        let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
+        opp_active.opportunity_stage = Set(Some("closed_won".to_string()));
+        opp_active.opportunity_status = Set(Some("won".to_string()));
+        opp_active.actual_amount = Set(Some(total_amount));
+        opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
+        opp_active.updated_at = Set(Some(chrono::Utc::now()));
+        
+        opp_active.update(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        tracing::info!("商机 {} 已成功转化为订单 {}", opportunity_id, order_entity.id);
+
+        Ok(order_entity)
+    }
+
+    /// 订单完成后更新商机状态
+    pub async fn update_opportunity_on_order_complete(
+        &self,
+        opportunity_id: i32,
+        order_total_amount: rust_decimal::Decimal,
+    ) -> Result<(), AppError> {
+        let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+
+        let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
+        opp_active.opportunity_stage = Set(Some("closed_won".to_string()));
+        opp_active.opportunity_status = Set(Some("won".to_string()));
+        opp_active.actual_amount = Set(Some(order_total_amount));
+        opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
+        opp_active.won_reason = Set(Some("订单完成".to_string()));
+        opp_active.updated_at = Set(Some(chrono::Utc::now()));
+
+        opp_active.update(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        tracing::info!("商机 {} 已标记为成交，实际金额: {}", opportunity_id, order_total_amount);
+
         Ok(())
     }
 
