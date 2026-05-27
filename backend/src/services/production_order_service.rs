@@ -16,19 +16,23 @@ use crate::models::production_order::{
 };
 use crate::utils::error::AppError;
 
+use crate::models::product::Entity as ProductEntity;
+use crate::models::sales_order::Entity as SalesOrderEntity;
+use crate::models::work_center::Entity as WorkCenterEntity;
+
 /// 创建生产订单请求
 #[derive(Debug, Clone)]
 pub struct CreateProductionOrderRequest {
     pub order_no: Option<String>,
     pub sales_order_id: Option<i32>,
-    pub product_id: Option<i32>,
+    pub product_id: i32,
     pub planned_quantity: Option<Decimal>,
     pub planned_start_date: Option<chrono::NaiveDate>,
     pub planned_end_date: Option<chrono::NaiveDate>,
     pub priority: Option<i32>,
     pub work_center_id: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
+    pub created_by: i32,
 }
 
 /// 更新生产订单请求
@@ -61,22 +65,134 @@ impl ProductionOrderService {
         Self { db }
     }
 
+    /// 验证产品是否存在
+    async fn validate_product_exists(&self, product_id: i32) -> Result<(), AppError> {
+        let product = ProductEntity::find_by_id(product_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        if product.is_none() {
+            return Err(AppError::ValidationError(format!("产品ID {} 不存在", product_id)));
+        }
+        Ok(())
+    }
+
+    /// 验证销售订单是否存在
+    async fn validate_sales_order_exists(&self, sales_order_id: i32) -> Result<(), AppError> {
+        let sales_order = SalesOrderEntity::find_by_id(sales_order_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        if sales_order.is_none() {
+            return Err(AppError::ValidationError(format!("销售订单ID {} 不存在", sales_order_id)));
+        }
+        Ok(())
+    }
+
+    /// 验证工作中心是否存在
+    async fn validate_work_center_exists(&self, work_center_id: i32) -> Result<(), AppError> {
+        let work_center = WorkCenterEntity::find_by_id(work_center_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        if work_center.is_none() {
+            return Err(AppError::ValidationError(format!("工作中心ID {} 不存在", work_center_id)));
+        }
+        Ok(())
+    }
+
+    /// 生成唯一订单号（带重试机制）
+    async fn generate_unique_order_no(&self) -> Result<String, AppError> {
+        let max_retries = 5;
+        for _ in 0..max_retries {
+            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+            let random = rand::random::<u16>() % 10000;
+            let order_no = format!("PO-{}-{:04}", timestamp, random);
+            
+            // 检查订单号是否已存在
+            let existing = ProductionOrderEntity::find()
+                .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
+                .one(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            
+            if existing.is_none() {
+                return Ok(order_no);
+            }
+        }
+        Err(AppError::InternalError("无法生成唯一订单号，请稍后重试".to_string()))
+    }
+
+    /// 验证状态转换是否合法
+    fn validate_status_transition(current_status: &str, new_status: &str) -> Result<(), AppError> {
+        let valid_transitions = std::collections::HashMap::from([
+            ("DRAFT", vec!["SCHEDULED", "PENDING_APPROVAL", "CANCELLED"]),
+            ("SCHEDULED", vec!["IN_PROGRESS", "CANCELLED"]),
+            ("IN_PROGRESS", vec!["COMPLETED", "CANCELLED"]),
+            ("COMPLETED", vec![]),
+            ("CANCELLED", vec![]),
+            ("PENDING_APPROVAL", vec!["APPROVED", "REJECTED"]),
+            ("APPROVED", vec!["SCHEDULED"]),
+            ("REJECTED", vec!["DRAFT"]),
+        ]);
+        
+        if let Some(allowed) = valid_transitions.get(current_status) {
+            if allowed.contains(&new_status) {
+                Ok(())
+            } else {
+                Err(AppError::BusinessError(format!(
+                    "不允许从 {} 状态转换到 {} 状态",
+                    current_status, new_status
+                )))
+            }
+        } else {
+            Err(AppError::BusinessError(format!("未知的状态: {}", current_status)))
+        }
+    }
+
     /// 创建生产订单
     pub async fn create(
         &self,
         req: CreateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
-        // 自动生成订单号
-        let order_no = req.order_no.unwrap_or_else(|| {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
-            format!("PO-{}-{:04}", timestamp, random)
-        });
+        // 验证产品是否存在
+        self.validate_product_exists(req.product_id).await?;
+        
+        // 验证销售订单是否存在（如果提供）
+        if let Some(sales_order_id) = req.sales_order_id {
+            self.validate_sales_order_exists(sales_order_id).await?;
+        }
+        
+        // 验证工作中心是否存在（如果提供）
+        if let Some(work_center_id) = req.work_center_id {
+            self.validate_work_center_exists(work_center_id).await?;
+        }
+        
+        // 生成或验证订单号
+        let order_no = match req.order_no {
+            Some(no) => {
+                // 检查提供的订单号是否已存在
+                let existing = ProductionOrderEntity::find()
+                    .filter(crate::models::production_order::Column::OrderNo.eq(&no))
+                    .one(&*self.db)
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                
+                if existing.is_some() {
+                    return Err(AppError::ValidationError(format!("订单号 {} 已存在", no)));
+                }
+                no
+            },
+            None => self.generate_unique_order_no().await?,
+        };
 
         let active_model = ActiveModel {
             order_no: Set(order_no),
             sales_order_id: Set(req.sales_order_id),
-            product_id: Set(req.product_id.unwrap_or(0)),
+            product_id: Set(req.product_id),
             planned_quantity: Set(req.planned_quantity.unwrap_or_default()),
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
@@ -84,7 +200,7 @@ impl ProductionOrderService {
             priority: Set(req.priority.unwrap_or(0)),
             work_center_id: Set(req.work_center_id),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by.unwrap_or(0)),
+            created_by: Set(req.created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -93,7 +209,15 @@ impl ProductionOrderService {
         let model = active_model
             .insert(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .map_err(|e| {
+                // 处理唯一约束冲突
+                let err_str = e.to_string();
+                if err_str.contains("unique constraint") || err_str.contains("duplicate") {
+                    AppError::ValidationError("订单号已存在，请稍后重试".to_string())
+                } else {
+                    AppError::DatabaseError(e.to_string())
+                }
+            })?;
 
         Ok(model)
     }
@@ -218,6 +342,9 @@ impl ProductionOrderService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
+        // 验证状态转换是否合法
+        Self::validate_status_transition(&model.status, &status)?;
+
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(status.clone());
         active_model.updated_at = Set(Utc::now());
@@ -253,13 +380,8 @@ impl ProductionOrderService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
-        // 检查状态是否可以提交审批
-        if model.status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
-                "当前状态({})不允许提交审批，只有草稿状态可以提交",
-                model.status
-            )));
-        }
+        // 验证状态转换是否合法
+        Self::validate_status_transition(&model.status, "PENDING_APPROVAL")?;
 
         // 更新状态为审批中
         let mut active_model: ActiveModel = model.into();
@@ -312,15 +434,9 @@ impl ProductionOrderService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
-        // 检查状态
-        if model.status != "PENDING_APPROVAL" {
-            return Err(AppError::BusinessError(format!(
-                "当前状态({})不允许审批",
-                model.status
-            )));
-        }
-
+        // 验证状态转换是否合法
         let new_status = if approved { "APPROVED" } else { "REJECTED" };
+        Self::validate_status_transition(&model.status, new_status)?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(new_status.to_string());

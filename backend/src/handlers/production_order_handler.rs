@@ -87,14 +87,14 @@ pub async fn create_production_order(
     let req = CreateProductionOrderRequest {
         order_no: Some(payload.order_no),
         sales_order_id: payload.sales_order_id,
-        product_id: Some(payload.product_id),
+        product_id: payload.product_id,
         planned_quantity: Some(payload.planned_quantity),
         planned_start_date: payload.planned_start_date,
         planned_end_date: payload.planned_end_date,
         priority: payload.priority,
         work_center_id: payload.work_center_id,
         remarks: payload.remarks,
-        created_by: Some(auth.user_id),
+        created_by: auth.user_id,
     };
 
     let model = service.create(req).await?;

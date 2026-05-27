@@ -375,8 +375,8 @@ impl SalesService {
 
         let order_entity = order.insert(&txn).await?;
 
-        // 检查库存是否充足
-        self.check_inventory(&request.items, &txn).await?;
+        // 检查库存并预留（使用inventory_reservation表）
+        self.lock_inventory(order_entity.id, &request.items, user_id, &txn).await?;
 
         // 创建订单明细项并计算金额
         let mut subtotal = rust_decimal::Decimal::ZERO;
@@ -485,22 +485,22 @@ impl SalesService {
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
 
-        // 占用信用额度
+        // 占用信用额度（必须在事务内，失败则回滚）
         let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let order_amount_bigdecimal = {
             use bigdecimal::BigDecimal;
             BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
                 .unwrap_or_else(|| BigDecimal::from(0))
         };
-        if let Err(e) = credit_service.occupy_credit(request.customer_id, order_amount_bigdecimal, 0).await {
-            tracing::error!("信用额度占用失败: {}", e);
-            // 不回滚事务，因为订单已经创建成功，信用问题可以后续处理
-        } else {
-            tracing::info!("客户 {} 信用额度占用成功，金额: {}", request.customer_id, order_amount);
-            // 检查信用预警
-            if let Ok(Some(warning)) = credit_service.check_credit_warning(request.customer_id).await {
-                tracing::warn!("信用预警: {}", warning);
-            }
+        credit_service.occupy_credit(request.customer_id, order_amount_bigdecimal.clone(), user_id).await
+            .map_err(|e| {
+                tracing::error!("信用额度占用失败，事务回滚: {}", e);
+                sea_orm::DbErr::Custom(format!("信用额度占用失败: {}", e))
+            })?;
+        tracing::info!("客户 {} 信用额度占用成功，金额: {}", request.customer_id, order_amount);
+        // 检查信用预警
+        if let Ok(Some(warning)) = credit_service.check_credit_warning(request.customer_id).await {
+            tracing::warn!("信用预警: {}", warning);
         }
 
         // 订单回写商机：更新商机的 actual_amount 和 actual_close_date
@@ -772,10 +772,25 @@ impl SalesService {
         &self,
         order_id: i32,
         items: &[SalesOrderItemRequest],
+        user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), sea_orm::DbErr> {
         // 为每个订单明细项创建库存预留记录
         for item in items {
+            // 检查是否已经存在该订单产品的预留记录
+            let existing_reservation = InventoryReservationEntity::find()
+                .filter(inventory_reservation::Column::OrderId.eq(order_id))
+                .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
+                .filter(inventory_reservation::Column::Status.eq("pending"))
+                .one(txn)
+                .await?;
+
+            if existing_reservation.is_some() {
+                // 已经存在预留记录，跳过
+                tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
+                continue;
+            }
+
             // 查询产品库存（假设使用默认仓库）
             let stock = InventoryStockEntity::find()
                 .filter(inventory_stock::Column::ProductId.eq(item.product_id))
@@ -801,7 +816,7 @@ impl SalesService {
                     reserved_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     released_at: sea_orm::ActiveValue::NotSet,
                     notes: sea_orm::ActiveValue::NotSet,
-            created_by: sea_orm::ActiveValue::Set(user_id),
+                    created_by: sea_orm::ActiveValue::Set(user_id),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
@@ -998,7 +1013,7 @@ impl SalesService {
             })
             .collect();
 
-        self.lock_inventory(order_id, &items, &txn).await?;
+        self.lock_inventory(order_id, &items, order.created_by.unwrap_or(0), &txn).await?;
 
         // 更新订单状态为已审核
         let updated_order = sales_order::ActiveModel {

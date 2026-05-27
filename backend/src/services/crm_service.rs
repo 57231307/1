@@ -1,6 +1,6 @@
 use sea_orm::*;
 use std::sync::Arc;
-use crate::models::{crm_lead, crm_opportunity, customer, sales_order};
+use crate::models::{crm_lead, crm_opportunity, customer, sales_order, user};
 use crate::models::dto::crm_dto::{ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest};
 use crate::models::dto::PageResponse;
 use crate::utils::error::AppError;
@@ -18,6 +18,14 @@ impl CrmService {
     pub async fn create_lead(&self, req: CreateLeadRequest, user_id: i32) -> Result<crm_lead::Model, AppError> {
         let lead_no = req.lead_no.unwrap_or_else(|| format!("LD{}", chrono::Local::now().format("%Y%m%d%H%M%S")));
         
+        // 查询用户真实姓名
+        let owner_name = user::Entity::find_by_id(user_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?
+            .username;
+
         let model = crm_lead::ActiveModel {
             lead_no: Set(lead_no),
             lead_source: Set(req.lead_source.unwrap_or_else(|| "未知来源".to_string())),
@@ -37,7 +45,7 @@ impl CrmService {
             expected_delivery_date: Set(req.expected_delivery_date),
             requirement_desc: Set(req.requirement_desc),
             owner_id: Set(user_id),
-            owner_name: Set("admin".to_string()),
+            owner_name: Set(owner_name),
             priority: Set(req.priority.or_else(|| Some("medium".to_string()))),
             rating: Set(req.rating.or_else(|| Some(0))),
             tags: Set(req.tags),
@@ -167,7 +175,9 @@ impl CrmService {
     pub async fn convert_lead_to_customer(&self, lead_id: i32, req: ConvertLeadRequest, user_id: i32) -> Result<customer::Model, AppError> {
         let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+        // 使用FOR UPDATE锁定行，防止并发转化
         let lead = crm_lead::Entity::find_by_id(lead_id)
+            .lock_for_update()
             .one(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
@@ -235,10 +245,25 @@ impl CrmService {
         
         let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+        // 验证customer_id是否存在
+        let customer = customer::Entity::find_by_id(req.customer_id)
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("客户不存在".to_string()))?;
+
+        // 查询用户真实姓名
+        let owner_name = user::Entity::find_by_id(user_id)
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?
+            .username;
+
         let model = crm_opportunity::ActiveModel {
             opportunity_no: Set(opp_no),
             opportunity_name: Set(req.opportunity_name),
-            customer_id: Set(req.customer_id),
+            customer_id: Set(customer.id),
             lead_id: Set(req.lead_id),
             opportunity_type: Set(req.opportunity_type),
             opportunity_stage: Set(req.opportunity_stage.or_else(|| Some("prospecting".to_string()))),
@@ -252,7 +277,7 @@ impl CrmService {
             product_names: Set(req.product_names),
             product_desc: Set(req.product_desc),
             owner_id: Set(user_id),
-            owner_name: Set("admin".to_string()),
+            owner_name: Set(owner_name),
             opportunity_status: Set(Some("open".to_string())),
             priority: Set(req.priority.or_else(|| Some("medium".to_string()))),
             rating: Set(req.rating.or_else(|| Some(0))),
@@ -384,8 +409,9 @@ impl CrmService {
     ) -> Result<sales_order::Model, AppError> {
         let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        // 1. 获取商机信息
+        // 1. 获取商机信息，使用FOR UPDATE锁定行
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
+            .lock_for_update()
             .one(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
@@ -456,8 +482,12 @@ impl CrmService {
         opportunity_id: i32,
         order_total_amount: rust_decimal::Decimal,
     ) -> Result<(), AppError> {
+        let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 使用FOR UPDATE锁定行，防止并发更新
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
-            .one(&*self.db)
+            .lock_for_update()
+            .one(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
@@ -470,9 +500,11 @@ impl CrmService {
         opp_active.won_reason = Set(Some("订单完成".to_string()));
         opp_active.updated_at = Set(Some(chrono::Utc::now()));
 
-        opp_active.update(&*self.db)
+        opp_active.update(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         tracing::info!("商机 {} 已标记为成交，实际金额: {}", opportunity_id, order_total_amount);
 

@@ -5,16 +5,17 @@ use chrono::NaiveDate;
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
 
 use crate::models::ar_invoice;
+use crate::models::sales_delivery;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use sea_orm::ActiveValue::Set;
 
 use serde::Deserialize;
@@ -50,6 +51,83 @@ pub struct ArInvoiceService {
 impl ArInvoiceService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+
+    /// 从销售出库单自动生成应收单
+    pub async fn auto_generate_from_delivery(
+        &self,
+        delivery_id: i32,
+        user_id: i32,
+    ) -> Result<ar_invoice::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询销售出库单
+        let delivery = sales_delivery::Entity::find_by_id(delivery_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound(format!(
+                "销售出库单 {} 不存在",
+                delivery_id
+            )))?;
+
+        // 2. 检查是否已生成应收单
+        let exists = ar_invoice::Entity::find()
+            .filter(ar_invoice::Column::SourceType.eq("SALES_DELIVERY"))
+            .filter(ar_invoice::Column::SourceBillId.eq(delivery_id))
+            .one(&txn)
+            .await?;
+
+        if exists.is_some() {
+            return Err(AppError::BadRequest("该出库单已生成应收单".to_string()));
+        }
+
+        // 3. 获取客户信息
+        let customer = crate::models::customer::Entity::find_by_id(delivery.customer_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound(format!(
+                "客户 {} 不存在",
+                delivery.customer_id
+            )))?;
+
+        // 使用默认账期 30 天
+        let payment_terms = 30;
+
+        // 4. 生成应收单
+        let invoice_no = self.generate_invoice_no().await?;
+        let invoice_date = delivery.delivery_date;
+        let due_date = invoice_date + Duration::days(payment_terms as i64);
+
+        let invoice = ar_invoice::ActiveModel {
+            invoice_no: Set(invoice_no),
+            invoice_date: Set(invoice_date),
+            due_date: Set(due_date),
+            customer_id: Set(delivery.customer_id),
+            customer_name: Set(Some(customer.name.clone())),
+            source_type: Set(Some("SALES_DELIVERY".to_string())),
+            source_bill_id: Set(Some(delivery_id)),
+            source_bill_no: Set(Some(delivery.delivery_no.clone())),
+            invoice_amount: Set(delivery.total_amount),
+            received_amount: Set(Decimal::ZERO),
+            unpaid_amount: Set(delivery.total_amount),
+            batch_no: Set(delivery.remarks.clone()),
+            sales_order_no: Set(None),
+            status: Set("APPROVED".to_string()),
+            approval_status: Set("APPROVED".to_string()),
+            created_by: Set(user_id),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+
+        txn.commit().await?;
+
+        info!(
+            "从销售出库单自动生成应收单成功：delivery_no={}, invoice_no={}",
+            delivery.delivery_no, invoice.invoice_no
+        );
+
+        Ok(invoice)
     }
 
     /// 创建应收单

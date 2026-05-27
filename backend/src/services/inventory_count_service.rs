@@ -11,6 +11,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
 use crate::models::inventory_count_item::{self, Entity as InventoryCountItemEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
+use crate::models::inventory_transaction::{self, Entity as InventoryTransactionEntity};
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
@@ -456,6 +457,31 @@ impl InventoryCountService {
                     );
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                     crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
+
+                    // 记录盘点调整流水
+                    let transaction = inventory_transaction::ActiveModel {
+                        id: sea_orm::ActiveValue::NotSet,
+                        transaction_type: sea_orm::ActiveValue::Set("COUNT_ADJUSTMENT".to_string()),
+                        product_id: sea_orm::ActiveValue::Set(item.product_id),
+                        warehouse_id: sea_orm::ActiveValue::Set(count.warehouse_id),
+                        batch_no: sea_orm::ActiveValue::Set(stock_model.batch_no.clone()),
+                        color_no: sea_orm::ActiveValue::Set(stock_model.color_no.clone()),
+                        dye_lot_no: sea_orm::ActiveValue::Set(stock_model.dye_lot_no.clone()),
+                        grade: sea_orm::ActiveValue::Set(stock_model.grade.clone()),
+                        quantity_meters: sea_orm::ActiveValue::Set(quantity_variance),
+                        quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                        source_bill_type: sea_orm::ActiveValue::Set(Some("inventory_count".to_string())),
+                        source_bill_no: sea_orm::ActiveValue::Set(Some(count.count_no.clone())),
+                        source_bill_id: sea_orm::ActiveValue::Set(Some(count.id)),
+                        quantity_before_meters: sea_orm::ActiveValue::Set(Some(stock_model.quantity_meters)),
+                        quantity_before_kg: sea_orm::ActiveValue::Set(Some(stock_model.quantity_kg)),
+                        quantity_after_meters: sea_orm::ActiveValue::Set(Some(stock_model.quantity_meters + quantity_variance)),
+                        quantity_after_kg: sea_orm::ActiveValue::Set(Some(stock_model.quantity_kg)),
+                        notes: sea_orm::ActiveValue::Set(Some("盘点调整".to_string())),
+                        created_by: sea_orm::ActiveValue::Set(count.created_by),
+                        created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                    };
+                    transaction.insert(&txn).await?;
                 }
             } else {
                 // 如果库存记录不存在，创建新记录
@@ -493,6 +519,31 @@ impl InventoryCountService {
                     version: sea_orm::ActiveValue::Set(0),
                 };
                 new_stock.insert(&txn).await?;
+
+                // 记录盘点调整流水（新建库存记录）
+                let transaction = inventory_transaction::ActiveModel {
+                    id: sea_orm::ActiveValue::NotSet,
+                    transaction_type: sea_orm::ActiveValue::Set("COUNT_ADJUSTMENT".to_string()),
+                    product_id: sea_orm::ActiveValue::Set(item.product_id),
+                    warehouse_id: sea_orm::ActiveValue::Set(count.warehouse_id),
+                    batch_no: sea_orm::ActiveValue::Set(String::new()),
+                    color_no: sea_orm::ActiveValue::Set(String::new()),
+                    dye_lot_no: sea_orm::ActiveValue::NotSet,
+                    grade: sea_orm::ActiveValue::Set("一等品".to_string()),
+                    quantity_meters: sea_orm::ActiveValue::Set(item.quantity_actual),
+                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    source_bill_type: sea_orm::ActiveValue::Set(Some("inventory_count".to_string())),
+                    source_bill_no: sea_orm::ActiveValue::Set(Some(count.count_no.clone())),
+                    source_bill_id: sea_orm::ActiveValue::Set(Some(count.id)),
+                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_after_meters: sea_orm::ActiveValue::Set(Some(item.quantity_actual)),
+                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    notes: sea_orm::ActiveValue::Set(Some("盘点调整（新建库存记录）".to_string())),
+                    created_by: sea_orm::ActiveValue::Set(count.created_by),
+                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                };
+                transaction.insert(&txn).await?;
             }
         }
 

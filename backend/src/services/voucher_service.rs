@@ -145,8 +145,25 @@ impl VoucherService {
             .map_err(|e| AppError::InternalError(e.to_string()))?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
-        // 创建凭证分录
+        // 创建凭证分录（含科目存在性校验）
         for (index, item_req) in req.items.iter().enumerate() {
+            // 校验科目是否存在
+            if let Some(ref subject_code) = item_req.subject_code {
+                let subject_exists = account_subject::Entity::find()
+                    .filter(account_subject::Column::Code.eq(subject_code))
+                    .filter(account_subject::Column::Status.eq("active"))
+                    .one(&txn)
+                    .await
+                    .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+                if subject_exists.is_none() {
+                    return Err(AppError::BadRequest(format!(
+                        "科目不存在或已停用：{}",
+                        subject_code
+                    )));
+                }
+            }
+
             let item_active_model = voucher_item::ActiveModel {
                 voucher_id: sea_orm::Set(voucher.id),
                 line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
@@ -556,10 +573,11 @@ impl VoucherService {
 
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
 
-            // 尝试查找现有余额记录
+            // 使用 SELECT FOR UPDATE 锁定余额记录，防止并发更新
             let existing = account_balance::Entity::find()
                 .filter(account_balance::Column::SubjectId.eq(subject_id))
                 .filter(account_balance::Column::Period.eq(&period))
+                .lock_for_update()
                 .one(txn)
                 .await?;
 
