@@ -392,6 +392,11 @@ impl RolePermissionService {
         action: &str,
         resource_id: Option<i32>,
     ) -> Result<bool, sea_orm::DbErr> {
+        // Admin 角色 (role_id=1) 绕过所有权限检查
+        if role_id == 1 {
+            return Ok(true);
+        }
+
         // 查询角色权限
         let mut query = RolePermissionEntity::find()
             .filter(role_permission::Column::RoleId.eq(role_id))
