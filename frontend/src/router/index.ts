@@ -359,6 +359,62 @@ const routes = [
         name: 'ComponentsDemo',
         component: () => import('@/views/components-demo/index.vue'),
         meta: { title: '组件示例', requiresAuth: true }
+      },
+      // 新增路由 - 凭证管理
+      {
+        path: 'voucher',
+        name: 'Voucher',
+        component: () => import('@/views/voucher/index.vue'),
+        meta: { title: '凭证管理', requiresAuth: true }
+      },
+      // 新增路由 - 会计科目管理
+      {
+        path: 'account-subject',
+        name: 'AccountSubject',
+        component: () => import('@/views/accountSubject/index.vue'),
+        meta: { title: '会计科目管理', requiresAuth: true }
+      },
+      // 新增路由 - 会计期间管理
+      {
+        path: 'accounting-period',
+        name: 'AccountingPeriod',
+        component: () => import('@/views/accountingPeriod/index.vue'),
+        meta: { title: '会计期间管理', requiresAuth: true }
+      },
+      // 新增路由 - 交易管理
+      {
+        path: 'trading',
+        name: 'Trading',
+        component: () => import('@/views/trading/index.vue'),
+        meta: { title: '交易管理', requiresAuth: true }
+      },
+      // 新增路由 - 报表模板
+      {
+        path: 'report-templates',
+        name: 'ReportTemplates',
+        component: () => import('@/views/report/templates.vue'),
+        meta: { title: '报表模板', requiresAuth: true }
+      },
+      // 新增路由 - BPM流程定义
+      {
+        path: 'bpm/definitions',
+        name: 'BPMDefinitions',
+        component: () => import('@/views/bpm/definitions.vue'),
+        meta: { title: '流程定义管理', requiresAuth: true }
+      },
+      // 新增路由 - BPM流程模板
+      {
+        path: 'bpm/templates',
+        name: 'BPMTemplates',
+        component: () => import('@/views/bpm/templates.vue'),
+        meta: { title: '流程模板管理', requiresAuth: true }
+      },
+      // 新增路由 - 增强版应收对账
+      {
+        path: 'ar-reconciliation/enhanced',
+        name: 'ArReconciliationEnhanced',
+        component: () => import('@/views/arReconciliation/enhanced.vue'),
+        meta: { title: '增强版应收对账', requiresAuth: true }
       }
     ]
   },
