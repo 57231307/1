@@ -299,8 +299,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .layer(cors.clone())
                 // 中间件执行顺序：auth_middleware（最后注册、最外层、先执行）→ permission_middleware → request_validator → 处理器
-                .layer(axum::middleware::from_fn_with_state(app_state_clone, permission_middleware))
-                .layer(axum::middleware::from_fn_with_state(app_state_clone2, auth_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone2, permission_middleware))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone3, request_validator_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
