@@ -305,6 +305,7 @@ impl SalesReturnService {
                     quantity_on_hand: Set(item.quantity),
                     quantity_available: Set(item.quantity),
                     quantity_reserved: Set(Decimal::ZERO),
+                    version: Set(0),
                     ..Default::default()
                 };
                 new_stock.insert(&txn).await?;

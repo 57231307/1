@@ -178,6 +178,7 @@ pub async fn create_batch(
         shelf_no: Set(None),
         layer_no: Set(None),
         bin_location: Set(None),
+        version: Set(0),
     };
 
     match batch.insert(&*state.db).await {
@@ -422,6 +423,7 @@ pub async fn transfer_batch(
                 location_id: Set(None),
                 shelf_no: Set(None),
                 layer_no: Set(None),
+                version: Set(0),
             };
 
             if let Err(e) = new_batch.insert(&txn).await {

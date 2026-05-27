@@ -116,6 +116,13 @@ impl VoucherService {
         // 生成凭证编号
         let voucher_no = self.generate_voucher_no(&req.voucher_type, req.voucher_date).await?;
 
+        // 开启事务
+        let txn = self
+            .db
+            .begin()
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
+
         // 创建凭证主表
         let active_model = voucher::ActiveModel {
             voucher_no: sea_orm::Set(voucher_no),
@@ -132,7 +139,10 @@ impl VoucherService {
             ..Default::default()
         };
 
-        let voucher = active_model.insert(&*self.db).await?;
+        let voucher = active_model
+            .insert(&txn)
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
         // 创建凭证分录
@@ -145,15 +155,32 @@ impl VoucherService {
                 debit: sea_orm::Set(item_req.debit),
                 credit: sea_orm::Set(item_req.credit),
                 summary: sea_orm::Set(item_req.summary.clone()),
+                assist_customer_id: sea_orm::Set(item_req.assist_customer_id),
+                assist_supplier_id: sea_orm::Set(item_req.assist_supplier_id),
+                assist_department_id: sea_orm::Set(item_req.assist_department_id),
+                assist_employee_id: sea_orm::Set(item_req.assist_employee_id),
+                assist_project_id: sea_orm::Set(item_req.assist_project_id),
                 assist_batch_id: sea_orm::Set(item_req.assist_batch_id),
                 assist_color_no_id: sea_orm::Set(item_req.assist_color_no_id),
+                assist_dye_lot_id: sea_orm::Set(item_req.assist_dye_lot_id),
+                assist_grade: sea_orm::Set(item_req.assist_grade.clone()),
+                assist_workshop_id: sea_orm::Set(item_req.assist_workshop_id),
                 quantity_meters: sea_orm::Set(item_req.quantity_meters),
                 quantity_kg: sea_orm::Set(item_req.quantity_kg),
+                unit_price: sea_orm::Set(item_req.unit_price),
                 ..Default::default()
             };
 
-            item_active_model.insert(&*self.db).await?;
+            item_active_model
+                .insert(&txn)
+                .await
+                .map_err(|e| AppError::InternalError(e.to_string()))?;
         }
+
+        // 提交事务
+        txn.commit()
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
 
         info!("凭证分录创建成功，共 {} 条", req.items.len());
 
@@ -186,10 +213,12 @@ impl VoucherService {
         }
 
         let total = query.clone().count(&*self.db).await?;
+        let page = params.page.unwrap_or(1);
+        let page_size = params.page_size.unwrap_or(20);
         let vouchers = query
             .order_by(voucher::Column::VoucherDate, Order::Desc)
-            .offset(params.page.unwrap_or(1) - 1)
-            .limit(params.page_size.unwrap_or(20))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
             .all(&*self.db)
             .await?;
 

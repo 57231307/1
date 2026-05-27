@@ -1,12 +1,13 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
+use crate::models::inventory_transaction::{self, Entity as InventoryTransactionEntity};
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::utils::PaginatedResponse;
@@ -475,19 +476,83 @@ impl InventoryTransferService {
                 }
 
                 // 保存需要使用的值
+                let stock_id = stock_model.id;
                 let quantity_on_hand = stock_model.quantity_on_hand;
                 let quantity_meters = stock_model.quantity_meters;
+                let quantity_kg = stock_model.quantity_kg;
+                let expected_version = stock_model.version;
+                let batch_no = stock_model.batch_no.clone();
+                let color_no = stock_model.color_no.clone();
+                let dye_lot_no = stock_model.dye_lot_no.clone();
+                let grade = stock_model.grade.clone();
 
-                // 扣减库存
-                let mut stock_active: inventory_stock::ActiveModel = stock_model.into();
-                stock_active.quantity_on_hand =
-                    sea_orm::ActiveValue::Set(quantity_on_hand - item.quantity);
-                stock_active.quantity_available =
-                    sea_orm::ActiveValue::Set(quantity_on_hand - item.quantity);
-                stock_active.quantity_meters =
-                    sea_orm::ActiveValue::Set(quantity_meters - item.quantity);
-                stock_active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_active, Some(0)).await?;
+                // 扣减库存（带乐观锁）
+                let new_quantity_meters = quantity_meters - item.quantity;
+                let new_quantity_kg = quantity_kg;
+
+                // 使用乐观锁条件更新：只有 version 匹配时才更新
+                let update_result = inventory_stock::Entity::update_many()
+                    .col_expr(
+                        inventory_stock::Column::QuantityOnHand,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityOnHand)
+                            .sub(sea_orm::sea_query::Expr::val(item.quantity)),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::QuantityAvailable,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
+                            .sub(sea_orm::sea_query::Expr::val(item.quantity)),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::QuantityMeters,
+                        sea_orm::sea_query::Expr::val(new_quantity_meters),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::Version,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::UpdatedAt,
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                    )
+                    .filter(inventory_stock::Column::Id.eq(stock_id))
+                    .filter(inventory_stock::Column::Version.eq(expected_version))
+                    .exec(&txn)
+                    .await?;
+
+                // 检查乐观锁是否成功
+                if update_result.rows_affected == 0 {
+                    tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
+                    txn.rollback().await?;
+                    return Err(sea_orm::DbErr::Custom(format!(
+                        "产品 {} 库存记录已被其他用户修改，请重试",
+                        item.product_id
+                    )));
+                }
+
+                // 记录 TRANSFER_OUT 库存流水
+                let transaction = inventory_transaction::ActiveModel {
+                    id: sea_orm::ActiveValue::Set(0),
+                    transaction_type: sea_orm::ActiveValue::Set("TRANSFER_OUT".to_string()),
+                    product_id: sea_orm::ActiveValue::Set(item.product_id),
+                    warehouse_id: sea_orm::ActiveValue::Set(transfer.from_warehouse_id),
+                    batch_no: sea_orm::ActiveValue::Set(batch_no),
+                    color_no: sea_orm::ActiveValue::Set(color_no),
+                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                    grade: sea_orm::ActiveValue::Set(grade),
+                    quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
+                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
+                    source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
+                    source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
+                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(quantity_meters)),
+                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(quantity_kg)),
+                    quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
+                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
+                    notes: sea_orm::ActiveValue::Set(Some(format!("调拨出库 - 调拨单号: {}", transfer.transfer_no))),
+                    created_by: sea_orm::ActiveValue::Set(transfer.created_by),
+                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                };
+                transaction.insert(&txn).await?;
 
                 // 更新明细项已发出数量
                 let item_quantity = item.quantity;
@@ -558,18 +623,84 @@ impl InventoryTransferService {
                 .await?;
 
             if let Some(stock_model) = stock {
-                // 增加库存
+                // 保存需要使用的值
+                let stock_id = stock_model.id;
                 let quantity_on_hand = stock_model.quantity_on_hand;
                 let quantity_meters = stock_model.quantity_meters;
-                let mut stock_active: inventory_stock::ActiveModel = stock_model.into();
-                stock_active.quantity_on_hand =
-                    sea_orm::ActiveValue::Set(quantity_on_hand + item.quantity);
-                stock_active.quantity_available =
-                    sea_orm::ActiveValue::Set(quantity_on_hand + item.quantity);
-                stock_active.quantity_meters =
-                    sea_orm::ActiveValue::Set(quantity_meters + item.quantity);
-                stock_active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_active, Some(0)).await?;
+                let quantity_kg = stock_model.quantity_kg;
+                let expected_version = stock_model.version;
+                let batch_no = stock_model.batch_no.clone();
+                let color_no = stock_model.color_no.clone();
+                let dye_lot_no = stock_model.dye_lot_no.clone();
+                let grade = stock_model.grade.clone();
+
+                // 增加库存（带乐观锁）
+                let new_quantity_meters = quantity_meters + item.quantity;
+                let new_quantity_kg = quantity_kg;
+
+                // 使用乐观锁条件更新：只有 version 匹配时才更新
+                let update_result = inventory_stock::Entity::update_many()
+                    .col_expr(
+                        inventory_stock::Column::QuantityOnHand,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityOnHand)
+                            .add(sea_orm::sea_query::Expr::val(item.quantity)),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::QuantityAvailable,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
+                            .add(sea_orm::sea_query::Expr::val(item.quantity)),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::QuantityMeters,
+                        sea_orm::sea_query::Expr::val(new_quantity_meters),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::Version,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::UpdatedAt,
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                    )
+                    .filter(inventory_stock::Column::Id.eq(stock_id))
+                    .filter(inventory_stock::Column::Version.eq(expected_version))
+                    .exec(&txn)
+                    .await?;
+
+                // 检查乐观锁是否成功
+                if update_result.rows_affected == 0 {
+                    tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
+                    txn.rollback().await?;
+                    return Err(sea_orm::DbErr::Custom(format!(
+                        "产品 {} 库存记录已被其他用户修改，请重试",
+                        item.product_id
+                    )));
+                }
+
+                // 记录 TRANSFER_IN 库存流水
+                let transaction = inventory_transaction::ActiveModel {
+                    id: sea_orm::ActiveValue::Set(0),
+                    transaction_type: sea_orm::ActiveValue::Set("TRANSFER_IN".to_string()),
+                    product_id: sea_orm::ActiveValue::Set(item.product_id),
+                    warehouse_id: sea_orm::ActiveValue::Set(transfer.to_warehouse_id),
+                    batch_no: sea_orm::ActiveValue::Set(batch_no),
+                    color_no: sea_orm::ActiveValue::Set(color_no),
+                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                    grade: sea_orm::ActiveValue::Set(grade),
+                    quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
+                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
+                    source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
+                    source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
+                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(quantity_meters)),
+                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(quantity_kg)),
+                    quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
+                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
+                    notes: sea_orm::ActiveValue::Set(Some(format!("调拨入库 - 调拨单号: {}", transfer.transfer_no))),
+                    created_by: sea_orm::ActiveValue::Set(transfer.created_by),
+                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                };
+                transaction.insert(&txn).await?;
 
                 // 更新明细项已接收数量
                 let item_quantity = item.quantity;
@@ -619,10 +750,10 @@ impl InventoryTransferService {
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     // 面料行业特色字段 - 从源仓库库存复制
-                    batch_no: sea_orm::ActiveValue::Set(batch_no),
-                    color_no: sea_orm::ActiveValue::Set(color_no),
-                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
-                    grade: sea_orm::ActiveValue::Set(grade),
+                    batch_no: sea_orm::ActiveValue::Set(batch_no.clone()),
+                    color_no: sea_orm::ActiveValue::Set(color_no.clone()),
+                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no.clone()),
+                    grade: sea_orm::ActiveValue::Set(grade.clone()),
                     production_date: sea_orm::ActiveValue::Set(production_date),
                     expiry_date: sea_orm::ActiveValue::Set(expiry_date),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
@@ -635,8 +766,34 @@ impl InventoryTransferService {
                     bin_location: sea_orm::ActiveValue::NotSet,
                     stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
                     quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
+                    version: sea_orm::ActiveValue::Set(0),
                 };
                 new_stock.insert(&txn).await?;
+
+                // 记录 TRANSFER_IN 库存流水（新建库存记录的情况）
+                let transaction = inventory_transaction::ActiveModel {
+                    id: sea_orm::ActiveValue::Set(0),
+                    transaction_type: sea_orm::ActiveValue::Set("TRANSFER_IN".to_string()),
+                    product_id: sea_orm::ActiveValue::Set(item.product_id),
+                    warehouse_id: sea_orm::ActiveValue::Set(transfer.to_warehouse_id),
+                    batch_no: sea_orm::ActiveValue::Set(batch_no),
+                    color_no: sea_orm::ActiveValue::Set(color_no),
+                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                    grade: sea_orm::ActiveValue::Set(grade),
+                    quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
+                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
+                    source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
+                    source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
+                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_after_meters: sea_orm::ActiveValue::Set(Some(item.quantity)),
+                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    notes: sea_orm::ActiveValue::Set(Some(format!("调拨入库（新建库存） - 调拨单号: {}", transfer.transfer_no))),
+                    created_by: sea_orm::ActiveValue::Set(transfer.created_by),
+                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                };
+                transaction.insert(&txn).await?;
             }
         }
 

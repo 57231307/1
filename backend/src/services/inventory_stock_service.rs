@@ -105,9 +105,64 @@ impl InventoryStockService {
             bin_location: Set(None),
             stock_status: Set(stock_status),
             quality_status: Set(quality_status),
+            version: Set(0),
         };
 
         active_stock.insert(&*self.db).await
+    }
+
+    /// 更新库存数量（带乐观锁）
+    pub async fn update_stock_quantity_with_optimistic_lock(
+        &self,
+        id: i32,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        expected_version: i32,
+    ) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+        // 使用乐观锁条件更新：只有 version 匹配时才更新
+        let update_result = inventory_stock::Entity::update_many()
+            .col_expr(
+                inventory_stock::Column::QuantityOnHand,
+                sea_orm::sea_query::Expr::val(quantity_meters),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityAvailable,
+                sea_orm::sea_query::Expr::val(quantity_meters),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityMeters,
+                sea_orm::sea_query::Expr::val(quantity_meters),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityKg,
+                sea_orm::sea_query::Expr::val(quantity_kg),
+            )
+            .col_expr(
+                inventory_stock::Column::Version,
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+            )
+            .col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+            )
+            .filter(inventory_stock::Column::Id.eq(id))
+            .filter(inventory_stock::Column::Version.eq(expected_version))
+            .exec(&*self.db)
+            .await?;
+
+        // 检查乐观锁是否成功
+        if update_result.rows_affected == 0 {
+            return Err(sea_orm::DbErr::Custom(format!(
+                "并发冲突：库存记录 ID {} 已被其他用户修改，期望版本 {}",
+                id, expected_version
+            )));
+        }
+
+        // 返回更新后的记录
+        inventory_stock::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
     pub async fn update_stock_quantity(
@@ -356,6 +411,7 @@ impl InventoryStockService {
             bin_location: Set(None),
             stock_status: Set("正常".to_string()),
             quality_status: Set("合格".to_string()),
+            version: Set(0),
         };
 
         active_stock.insert(&*self.db).await

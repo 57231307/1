@@ -64,6 +64,9 @@ pub struct Model {
     pub stock_status: String,
     /// 质量状态：合格/不合格/待检
     pub quality_status: String,
+
+    /// 乐观锁版本号
+    pub version: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

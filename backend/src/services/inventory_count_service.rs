@@ -490,6 +490,7 @@ impl InventoryCountService {
                     bin_location: sea_orm::ActiveValue::NotSet,
                     stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
                     quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
+                    version: sea_orm::ActiveValue::Set(0),
                 };
                 new_stock.insert(&txn).await?;
             }

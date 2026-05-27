@@ -251,6 +251,7 @@ impl SalesService {
     pub async fn create_order(
         &self,
         request: CreateSalesOrderRequest,
+        user_id: i32,
     ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
         let txn = (*self.db).begin().await?;
 
@@ -382,6 +383,22 @@ impl SalesService {
         let mut tax_amount = rust_decimal::Decimal::ZERO;
         let mut discount_amount = rust_decimal::Decimal::ZERO;
         let mut total_amount = rust_decimal::Decimal::ZERO;
+
+        // 验证产品是否存在
+        {
+            let mut product_ids = std::collections::HashSet::new();
+            for item in &request.items {
+                product_ids.insert(item.product_id);
+            }
+            for product_id in product_ids {
+                let product_exists = product::Entity::find_by_id(product_id).one(&txn).await?;
+                if product_exists.is_none() {
+                    tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
+                    txn.rollback().await.ok();
+                    return Err(sea_orm::DbErr::Custom(format!("产品 ID {} 不存在", product_id)));
+                }
+            }
+        }
 
         for item_req in request.items {
             let discount_pct = item_req
@@ -784,7 +801,7 @@ impl SalesService {
                     reserved_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     released_at: sea_orm::ActiveValue::NotSet,
                     notes: sea_orm::ActiveValue::NotSet,
-                    created_by: sea_orm::ActiveValue::NotSet,
+            created_by: sea_orm::ActiveValue::Set(user_id),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };

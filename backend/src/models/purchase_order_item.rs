@@ -18,6 +18,9 @@ pub struct Model {
     /// 采购订单 ID
     pub order_id: i32,
 
+    /// 行号
+    pub line_no: i32,
+
     /// 产品 ID
     pub product_id: i32,
 

@@ -123,6 +123,26 @@ impl PurchaseOrderService {
             return Err(AppError::BadRequest(format!("供应商 ID {} 不存在", req.supplier_id)));
         }
 
+        // 业务验证：仓库是否存在
+        if let Some(warehouse_id) = req.warehouse_id {
+            let warehouse_exists = warehouse::Entity::find_by_id(warehouse_id).one(&txn).await?;
+            if warehouse_exists.is_none() {
+                tracing::error!("Transaction rolled back: 仓库 ID {} 不存在", warehouse_id);
+                txn.rollback().await.ok();
+                return Err(AppError::BadRequest(format!("仓库 ID {} 不存在", warehouse_id)));
+            }
+        }
+
+        // 业务验证：部门是否存在
+        if let Some(department_id) = req.department_id {
+            let department_exists = department::Entity::find_by_id(department_id).one(&txn).await?;
+            if department_exists.is_none() {
+                tracing::error!("Transaction rolled back: 部门 ID {} 不存在", department_id);
+                txn.rollback().await.ok();
+                return Err(AppError::BadRequest(format!("部门 ID {} 不存在", department_id)));
+            }
+        }
+
         // 业务验证：日期合理性检查
         if let Some(expected_date) = req.expected_delivery_date {
             if expected_date < req.order_date {
@@ -133,7 +153,7 @@ impl PurchaseOrderService {
         }
 
         // 1. 生成订单号
-        let order_no = self.generate_order_no().await?;
+        let order_no = DocumentNumberGenerator::generate_no(&txn, "PO", purchase_order::Entity, purchase_order::Column::OrderNo).await?;
 
         // 2. 创建采购订单主表
         let order = purchase_order::ActiveModel {
@@ -163,7 +183,28 @@ impl PurchaseOrderService {
         let mut total_quantity_alt = Decimal::new(0, 0);
 
         let items = req.items.unwrap_or_default();
-        for item_req in items {
+
+        // 业务验证：产品是否存在
+        {
+            let mut product_ids = std::collections::HashSet::new();
+            for item in &items {
+                if let Some(material_id) = item.material_id {
+                    if material_id != 0 {
+                        product_ids.insert(material_id);
+                    }
+                }
+            }
+            for product_id in product_ids {
+                let product_exists = product::Entity::find_by_id(product_id).one(&txn).await?;
+                if product_exists.is_none() {
+                    tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
+                    txn.rollback().await.ok();
+                    return Err(AppError::BadRequest(format!("产品 ID {} 不存在", product_id)));
+                }
+            }
+        }
+
+        for (index, item_req) in items.into_iter().enumerate() {
             let quantity_ordered = item_req.quantity_ordered.unwrap_or(Decimal::ZERO);
             let unit_price = item_req.unit_price.unwrap_or(Decimal::ZERO);
             let amount = quantity_ordered * unit_price;
@@ -183,6 +224,7 @@ impl PurchaseOrderService {
             purchase_order_item::ActiveModel {
                 id: Set(0),
                 order_id: Set(order.id),
+                line_no: Set(item_req.line_no.unwrap_or((index + 1) as i32)),
                 product_id: Set(item_req.material_id.unwrap_or(0)), // 使用 material_id 作为 product_id
                 quantity: Set(quantity_ordered),
                 quantity_alt: Set(quantity_alt_ordered),

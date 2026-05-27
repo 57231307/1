@@ -148,11 +148,11 @@ pub async fn get_order(
 /// POST /api/v1/erp/sales/orders
 pub async fn create_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(request): Json<CreateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    let order = sales_service.create_order(request).await?;
+    let order = sales_service.create_order(request, auth.user_id).await?;
 
     // 订单创建成功后发送通知
     if let Some(event_service) = &state.event_notification_service {
