@@ -1,0 +1,390 @@
+<template>
+  <div class="dye-batch-page">
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">缸号管理</h1>
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+          <el-breadcrumb-item>面料行业</el-breadcrumb-item>
+          <el-breadcrumb-item>缸号管理</el-breadcrumb-item>
+        </el-breadcrumb>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新建缸号
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
+      </div>
+    </div>
+
+    <el-card shadow="hover" class="filter-card">
+      <el-form :inline="true" :model="queryParams" class="filter-form">
+        <el-form-item label="关键词">
+          <el-input v-model="queryParams.keyword" placeholder="缸号/批次号" clearable @clear="handleQuery" />
+        </el-form-item>
+        <el-form-item label="色号">
+          <el-input v-model="queryParams.color_no" placeholder="请输入色号" clearable @clear="handleQuery" />
+        </el-form-item>
+        <el-form-item label="产品">
+          <el-select v-model="queryParams.product_id" placeholder="选择产品" clearable filterable @change="handleQuery">
+            <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+            <el-option label="进行中" value="ACTIVE" />
+            <el-option label="已完成" value="COMPLETED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="染色日期">
+          <el-date-picker v-model="queryParams.date_range" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" @change="handleQuery" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">
+            <el-icon><Search /></el-icon>
+            查询
+          </el-button>
+          <el-button @click="handleReset">
+            <el-icon><Refresh /></el-icon>
+            重置
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="hover" class="table-card">
+      <el-table v-loading="loading" :data="dyeBatchList" border stripe>
+        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column prop="batch_no" label="缸号" width="120" show-overflow-tooltip />
+        <el-table-column prop="product_name" label="产品" width="150" show-overflow-tooltip />
+        <el-table-column prop="color_no" label="色号" width="100" show-overflow-tooltip />
+        <el-table-column prop="color_code" label="颜色代码" width="100" show-overflow-tooltip />
+        <el-table-column prop="dye_date" label="染色日期" width="120" align="center" />
+        <el-table-column prop="quantity" label="染色数量" width="100" align="right" />
+        <el-table-column prop="status" label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
+        <el-table-column label="操作" width="200" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" type="success" link size="small" @click="handleComplete(row)">完成</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="queryParams.page"
+          v-model:page-size="queryParams.page_size"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </el-card>
+
+    <!-- 新建/编辑对话框 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" :close-on-click-modal="false">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="缸号" prop="batch_no">
+              <el-input v-model="formData.batch_no" placeholder="请输入缸号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="产品" prop="product_id">
+              <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
+                <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="色号" prop="color_no">
+              <el-input v-model="formData.color_no" placeholder="请输入色号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="颜色代码" prop="color_code">
+              <el-input v-model="formData.color_code" placeholder="请输入颜色代码" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="染色日期" prop="dye_date">
+              <el-date-picker v-model="formData.dye_date" type="date" placeholder="请选择染色日期" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="染色数量" prop="quantity">
+              <el-input-number v-model="formData.quantity" :precision="2" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="备注" prop="remarks">
+          <el-input v-model="formData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmitForm">确定</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
+
+// 查询参数
+const queryParams = reactive({
+  page: 1,
+  page_size: 20,
+  keyword: '',
+  color_no: '',
+  product_id: '',
+  status: '',
+  date_range: []
+})
+
+// 列表数据
+const loading = ref(false)
+const dyeBatchList = ref([])
+const total = ref(0)
+
+// 产品列表
+const products = ref([])
+
+// 对话框
+const dialogVisible = ref(false)
+const dialogTitle = ref('')
+const formRef = ref()
+
+// 表单数据
+const formData = reactive({
+  id: null,
+  batch_no: '',
+  product_id: '',
+  color_no: '',
+  color_code: '',
+  dye_date: '',
+  quantity: 0,
+  remarks: ''
+})
+
+// 表单验证规则
+const formRules = {
+  batch_no: [{ required: true, message: '请输入缸号', trigger: 'blur' }],
+  product_id: [{ required: true, message: '请选择产品', trigger: 'change' }],
+  color_no: [{ required: true, message: '请输入色号', trigger: 'blur' }],
+  dye_date: [{ required: true, message: '请选择染色日期', trigger: 'change' }],
+  quantity: [{ required: true, message: '请输入染色数量', trigger: 'blur' }]
+}
+
+// 获取列表数据
+const getList = async () => {
+  loading.value = true
+  try {
+    // TODO: 调用API获取数据
+    dyeBatchList.value = []
+    total.value = 0
+  } catch (error) {
+    console.error('获取缸号列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取产品列表
+const getProducts = async () => {
+  try {
+    // TODO: 调用API获取产品列表
+    products.value = []
+  } catch (error) {
+    console.error('获取产品列表失败:', error)
+  }
+}
+
+// 查询
+const handleQuery = () => {
+  queryParams.page = 1
+  getList()
+}
+
+// 重置
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.color_no = ''
+  queryParams.product_id = ''
+  queryParams.status = ''
+  queryParams.date_range = []
+  handleQuery()
+}
+
+// 新建
+const handleCreate = () => {
+  dialogTitle.value = '新建缸号'
+  Object.assign(formData, {
+    id: null,
+    batch_no: '',
+    product_id: '',
+    color_no: '',
+    color_code: '',
+    dye_date: '',
+    quantity: 0,
+    remarks: ''
+  })
+  dialogVisible.value = true
+}
+
+// 查看
+const handleView = (row: any) => {
+  console.log('查看:', row)
+}
+
+// 编辑
+const handleEdit = (row: any) => {
+  dialogTitle.value = '编辑缸号'
+  Object.assign(formData, row)
+  dialogVisible.value = true
+}
+
+// 完成
+const handleComplete = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确认完成该缸号？', '提示', { type: 'warning' })
+    ElMessage.success('操作成功')
+    getList()
+  } catch (error) {
+    console.error('操作失败:', error)
+  }
+}
+
+// 删除
+const handleDelete = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确认删除该缸号？', '提示', { type: 'warning' })
+    ElMessage.success('删除成功')
+    getList()
+  } catch (error) {
+    console.error('删除失败:', error)
+  }
+}
+
+// 导出
+const handleExport = () => {
+  ElMessage.success('导出成功')
+}
+
+// 提交表单
+const handleSubmitForm = async () => {
+  try {
+    await formRef.value?.validate()
+    ElMessage.success('保存成功')
+    dialogVisible.value = false
+    getList()
+  } catch (error) {
+    console.error('表单验证失败:', error)
+  }
+}
+
+// 分页
+const handleSizeChange = (val: number) => {
+  queryParams.page_size = val
+  getList()
+}
+
+const handleCurrentChange = (val: number) => {
+  queryParams.page = val
+  getList()
+}
+
+// 获取状态类型
+const getStatusType = (status: string) => {
+  const map: Record<string, string> = {
+    ACTIVE: 'warning',
+    COMPLETED: 'success'
+  }
+  return map[status] || 'info'
+}
+
+// 获取状态标签
+const getStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    ACTIVE: '进行中',
+    COMPLETED: '已完成'
+  }
+  return map[status] || status
+}
+
+onMounted(() => {
+  getList()
+  getProducts()
+})
+</script>
+
+<style scoped>
+.dye-batch-page {
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.filter-card {
+  margin-bottom: 20px;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.table-card {
+  margin-bottom: 20px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+</style>
