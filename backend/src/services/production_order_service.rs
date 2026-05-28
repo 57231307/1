@@ -19,6 +19,10 @@ use crate::utils::error::AppError;
 use crate::models::product::Entity as ProductEntity;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::work_center::Entity as WorkCenterEntity;
+use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
+use crate::models::bom_item::{Column as BomItemColumn, Entity as BomItemEntity};
+use crate::models::inventory_stock::{Entity as InventoryStockEntity};
+use crate::models::warehouse::Entity as WarehouseEntity;
 
 /// 创建生产订单请求
 #[derive(Debug, Clone)]
@@ -364,7 +368,216 @@ impl ProductionOrderService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+        // 生产完成时执行库存联动：扣减原材料 + 入库成品
+        if status == "COMPLETED" {
+            self.handle_production_completion_inventory(&updated).await?;
+        }
+
         Ok(updated)
+    }
+
+    /// 处理生产完成时的库存联动
+    ///
+    /// 1. 查询产品默认BOM，扣减原材料库存（按BOM用量 × 生产数量）
+    /// 2. 增加成品库存（生产数量）
+    /// 3. 记录库存流水（PRODUCTION_CONSUMPTION 和 PRODUCTION_OUTPUT）
+    async fn handle_production_completion_inventory(
+        &self,
+        order: &ProductionOrderModel,
+    ) -> Result<(), AppError> {
+        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+
+        // 查询默认成品仓库（取第一个激活的仓库）
+        let default_warehouse = WarehouseEntity::find()
+            .filter(crate::models::warehouse::Column::IsActive.eq(true))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::BusinessError("未找到可用仓库，无法执行库存联动".to_string()))?;
+
+        let production_qty = order.planned_quantity;
+
+        // ========== 1. 扣减原材料库存 ==========
+        // 查询该产品的默认BOM
+        let bom = BomEntity::find()
+            .filter(BomColumn::ProductId.eq(order.product_id))
+            .filter(BomColumn::IsDefault.eq(true))
+            .filter(BomColumn::Status.eq("ACTIVE"))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if let Some(bom) = bom {
+            // 查询BOM明细
+            let bom_items = BomItemEntity::find()
+                .filter(BomItemColumn::BomId.eq(bom.id))
+                .all(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+            for bom_item in bom_items {
+                let consumption_qty = bom_item.quantity * production_qty;
+
+                // 查找该原材料在默认仓库的库存记录
+                let stock_record = InventoryStockEntity::find()
+                    .filter(crate::models::inventory_stock::Column::ProductId.eq(bom_item.material_id))
+                    .filter(crate::models::inventory_stock::Column::WarehouseId.eq(default_warehouse.id))
+                    .one(&*self.db)
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                    .ok_or_else(|| AppError::BusinessError(format!(
+                        "原材料(ID={})在默认仓库中无库存记录，无法扣减", bom_item.material_id
+                    )))?;
+
+                let qty_before_meters = stock_record.quantity_meters;
+                let qty_before_kg = stock_record.quantity_kg;
+                let qty_after_meters = qty_before_meters - consumption_qty;
+                let qty_after_kg = qty_before_kg; // BOM基本单位为米，公斤按比例估算
+
+                // 更新库存数量（带乐观锁）
+                stock_service.update_stock_quantity_with_optimistic_lock(
+                    stock_record.id,
+                    qty_after_meters,
+                    qty_after_kg,
+                    stock_record.version,
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+                // 记录库存流水：生产消耗
+                stock_service.record_transaction(
+                    "PRODUCTION_CONSUMPTION".to_string(),
+                    bom_item.material_id,
+                    default_warehouse.id,
+                    stock_record.batch_no.clone(),
+                    stock_record.color_no.clone(),
+                    stock_record.dye_lot_no.clone(),
+                    stock_record.grade.clone(),
+                    consumption_qty,
+                    Decimal::ZERO,
+                    Some("production_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(qty_before_meters),
+                    Some(qty_before_kg),
+                    Some(qty_after_meters),
+                    Some(qty_after_kg),
+                    Some(format!("生产消耗 - 订单 {}", order.order_no)),
+                    Some(order.created_by),
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            }
+        }
+
+        // ========== 2. 增加成品库存 ==========
+        // 查询成品产品信息以获取克重和幅宽
+        let product = ProductEntity::find_by_id(order.product_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::BusinessError(format!("产品ID {} 不存在", order.product_id)))?;
+
+        // 查找成品在默认仓库的已有库存记录
+        let existing_stock = InventoryStockEntity::find()
+            .filter(crate::models::inventory_stock::Column::ProductId.eq(order.product_id))
+            .filter(crate::models::inventory_stock::Column::WarehouseId.eq(default_warehouse.id))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        match existing_stock {
+            Some(stock_record) => {
+                // 更新已有库存
+                let qty_before_meters = stock_record.quantity_meters;
+                let qty_before_kg = stock_record.quantity_kg;
+                let qty_after_meters = qty_before_meters + production_qty;
+
+                // 计算公斤数（如果有克重和幅宽）
+                let added_kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
+                    production_qty * gw * w / Decimal::new(100000, 0)
+                } else {
+                    Decimal::ZERO
+                };
+                let qty_after_kg = qty_before_kg + added_kg;
+
+                stock_service.update_stock_quantity_with_optimistic_lock(
+                    stock_record.id,
+                    qty_after_meters,
+                    qty_after_kg,
+                    stock_record.version,
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+                // 记录库存流水：生产入库
+                stock_service.record_transaction(
+                    "PRODUCTION_OUTPUT".to_string(),
+                    order.product_id,
+                    default_warehouse.id,
+                    stock_record.batch_no.clone(),
+                    stock_record.color_no.clone(),
+                    stock_record.dye_lot_no.clone(),
+                    stock_record.grade.clone(),
+                    production_qty,
+                    added_kg,
+                    Some("production_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(qty_before_meters),
+                    Some(qty_before_kg),
+                    Some(qty_after_meters),
+                    Some(qty_after_kg),
+                    Some(format!("生产入库 - 订单 {}", order.order_no)),
+                    Some(order.created_by),
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            }
+            None => {
+                // 创建新的库存记录
+                let kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
+                    production_qty * gw * w / Decimal::new(100000, 0)
+                } else {
+                    Decimal::ZERO
+                };
+
+                let new_stock = stock_service.create_stock_fabric(
+                    default_warehouse.id,
+                    order.product_id,
+                    order.order_no.clone(),
+                    "DEFAULT".to_string(),
+                    None,
+                    "一等品".to_string(),
+                    production_qty,
+                    kg,
+                    product.gram_weight,
+                    product.width,
+                    None, None, None,
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+                // 记录库存流水：生产入库
+                stock_service.record_transaction(
+                    "PRODUCTION_OUTPUT".to_string(),
+                    order.product_id,
+                    default_warehouse.id,
+                    new_stock.batch_no.clone(),
+                    new_stock.color_no.clone(),
+                    new_stock.dye_lot_no.clone(),
+                    new_stock.grade.clone(),
+                    production_qty,
+                    kg,
+                    Some("production_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(Decimal::ZERO),
+                    Some(Decimal::ZERO),
+                    Some(production_qty),
+                    Some(kg),
+                    Some(format!("生产入库 - 订单 {}", order.order_no)),
+                    Some(order.created_by),
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            }
+        }
+
+        tracing::info!(
+            "生产订单 {} 完成库存联动：成品入库 {}，已扣减原材料库存",
+            order.order_no, production_qty
+        );
+
+        Ok(())
     }
 
     /// 提交生产订单审批

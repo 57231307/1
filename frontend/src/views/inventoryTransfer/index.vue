@@ -144,11 +144,10 @@ const handlePageSizeChange = (pageSize: number) => {
   loadData()
 }
 
-const openAddDialog = async () => {
+const openAddDialog = () => {
   dialogTitle.value = '新增调拨'
-  const res: any = await request.get('/inventory-transfer/generate-no')
   form.value = {
-    transfer_no: res.data,
+    transfer_no: '',
     transfer_date: new Date().toISOString().split('T')[0],
     from_warehouse_id: 0,
     to_warehouse_id: 0,

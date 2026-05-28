@@ -122,11 +122,10 @@ const handlePageSizeChange = (pageSize: number) => {
   loadData()
 }
 
-const openAddDialog = async () => {
+const openAddDialog = () => {
   dialogTitle.value = '新增盘点'
-  const res: any = await request.get('/inventory-count/generate-no')
   form.value = {
-    count_no: res.data,
+    count_no: '',
     count_date: new Date().toISOString().split('T')[0],
     warehouse_id: 0,
     status: 'draft',

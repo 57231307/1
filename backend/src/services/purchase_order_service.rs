@@ -620,18 +620,21 @@ impl PurchaseOrderService {
         Ok(order)
     }
 
-    /// 标记采购订单为已收货
+    /// 标记采购订单为已收货（含库存入库联动）
     pub async fn receive_order(
         &self,
         order_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
-        // 1. 查询订单
+        // 1. 开启事务保证数据一致性
+        let txn = (*self.db).begin().await?;
+
+        // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(order_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
-        // 2. 检查状态
+        // 3. 检查状态
         if order.order_status == status::purchase_order::RECEIVED || order.order_status == status::purchase_order::CLOSED || order.order_status == status::purchase_order::CANCELLED {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许收货，当前状态：{}",
@@ -639,13 +642,120 @@ impl PurchaseOrderService {
             )));
         }
 
-        // 3. 更新状态
+        // 4. 查询订单明细
+        let order_items = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::OrderId.eq(order_id))
+            .all(&txn)
+            .await?;
+
+        // 5. 创建库存服务实例
+        let inventory_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+
+        // 6. 遍历订单明细，执行库存入库
+        for item in &order_items {
+            // 查询产品信息获取批次相关字段
+            let product = product::Entity::find_by_id(item.product_id)
+                .one(&txn)
+                .await?
+                .ok_or(AppError::NotFound(format!("产品 ID {} 不存在", item.product_id)))?;
+
+            // 计算入库数量
+            let receive_quantity_meters = item.quantity - item.received_quantity;
+            let receive_quantity_alt = item.quantity_alt - item.received_quantity_alt;
+
+            // 只处理有入库数量的明细
+            if receive_quantity_meters > Decimal::ZERO {
+                // 查找现有库存记录
+                let existing_stock = inventory_service
+                    .find_by_product_and_warehouse(item.product_id, order.warehouse_id)
+                    .await
+                    .map_err(|e| AppError::InternalError(format!("查询库存失败: {}", e)))?;
+
+                let stock_record = match existing_stock {
+                    Some(stock) => {
+                        // 更新现有库存
+                        let new_quantity_meters = stock.quantity_meters + receive_quantity_meters;
+                        let new_quantity_kg = stock.quantity_kg + receive_quantity_alt;
+
+                        inventory_service.update_stock_quantity_with_optimistic_lock(
+                            stock.id,
+                            new_quantity_meters,
+                            new_quantity_kg,
+                            stock.version,
+                        )
+                        .await
+                        .map_err(|e| AppError::InternalError(format!("更新库存失败: {}", e)))?;
+
+                        stock
+                    }
+                    None => {
+                        // 创建新库存记录
+                        inventory_service.create_stock_fabric(
+                            order.warehouse_id,
+                            item.product_id,
+                            "DEFAULT".to_string(),      // batch_no
+                            "DEFAULT".to_string(),      // color_no
+                            None,                       // dye_lot_no
+                            "A".to_string(),            // grade
+                            receive_quantity_meters,
+                            receive_quantity_alt,
+                            product.gram_weight,
+                            product.width,
+                            None,                       // location_id
+                            None,                       // shelf_no
+                            None,                       // layer_no
+                        )
+                        .await
+                        .map_err(|e| AppError::InternalError(format!("创建库存记录失败: {}", e)))?
+                    }
+                };
+
+                // 记录库存流水（PURCHASE_RECEIPT 类型）
+                inventory_service.record_transaction(
+                    "PURCHASE_RECEIPT".to_string(),
+                    item.product_id,
+                    order.warehouse_id,
+                    stock_record.batch_no.clone(),
+                    stock_record.color_no.clone(),
+                    stock_record.dye_lot_no.clone(),
+                    stock_record.grade.clone(),
+                    receive_quantity_meters,
+                    receive_quantity_alt,
+                    Some("purchase_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(stock_record.quantity_meters - receive_quantity_meters),
+                    Some(stock_record.quantity_kg - receive_quantity_alt),
+                    Some(stock_record.quantity_meters),
+                    Some(stock_record.quantity_kg),
+                    Some(format!("采购入库 - 订单 {}", order.order_no)),
+                    None,
+                )
+                .await
+                .map_err(|e| AppError::InternalError(format!("记录库存流水失败: {}", e)))?;
+
+                // 更新订单明细已入库数量
+                let mut item_active: purchase_order_item::ActiveModel = item.clone().into();
+                item_active.received_quantity = Set(item.quantity);
+                item_active.received_quantity_alt = Set(item.quantity_alt);
+                item_active.updated_at = Set(Utc::now());
+                purchase_order_item::Entity::update(item_active)
+                    .exec(&txn)
+                    .await?;
+            }
+        }
+
+        // 7. 更新订单状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(status::purchase_order::RECEIVED.to_string());
+        order_active.actual_delivery_date = Set(Some(now.date_naive()));
         order_active.updated_at = Set(now);
 
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_active, Some(0)).await?;
+
+        // 8. 提交事务
+        txn.commit().await?;
 
         Ok(order)
     }

@@ -12,9 +12,12 @@ use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
+use crate::models::ar_invoice::{self, Entity as ArInvoiceEntity, Column as ArInvoiceColumn};
+use crate::models::customer;
 use serde::{Deserialize, Serialize};
 use sea_orm::{FromQueryResult, JoinType, RelationTrait};
 use crate::services::user_service::UserService;
+use chrono;
 
 /// 销售订单详情响应
 #[derive(Debug, Serialize, Deserialize, Clone, FromQueryResult)]
@@ -1074,6 +1077,43 @@ impl SalesService {
         };
 
         let shipped_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
+
+        // 自动生成应收账款单据
+        let invoice_no = DocumentNumberGenerator::generate_no(
+            &self.db,
+            "AR",
+            ArInvoiceEntity,
+            ArInvoiceColumn::InvoiceNo,
+        ).await.map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
+        
+        // 查询客户信息
+        let customer = customer::Entity::find_by_id(order.customer_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| sea_orm::DbErr::Custom(format!("客户 {} 不存在", order.customer_id)))?;
+        
+        let invoice_date = chrono::Utc::now().date_naive();
+        let due_date = invoice_date + chrono::Duration::days(30);
+        
+        let ar_invoice = ar_invoice::ActiveModel {
+            invoice_no: sea_orm::ActiveValue::Set(invoice_no),
+            invoice_date: sea_orm::ActiveValue::Set(invoice_date),
+            due_date: sea_orm::ActiveValue::Set(due_date),
+            customer_id: sea_orm::ActiveValue::Set(order.customer_id),
+            customer_name: sea_orm::ActiveValue::Set(Some(customer.name.clone())),
+            source_type: sea_orm::ActiveValue::Set(Some("SALES_ORDER".to_string())),
+            source_bill_id: sea_orm::ActiveValue::Set(Some(order_id)),
+            source_bill_no: sea_orm::ActiveValue::Set(Some(order.order_no.clone())),
+            invoice_amount: sea_orm::ActiveValue::Set(order.total_amount),
+            received_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+            unpaid_amount: sea_orm::ActiveValue::Set(order.total_amount),
+            status: sea_orm::ActiveValue::Set("APPROVED".to_string()),
+            approval_status: sea_orm::ActiveValue::Set("APPROVED".to_string()),
+            created_by: sea_orm::ActiveValue::Set(0), // 系统生成
+            ..Default::default()
+        };
+        
+        ar_invoice.insert(&txn).await?;
 
         // 提交事务
         txn.commit().await?;

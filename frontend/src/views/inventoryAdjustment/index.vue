@@ -139,11 +139,10 @@ const handlePageSizeChange = (pageSize: number) => {
   loadData()
 }
 
-const openAddDialog = async () => {
+const openAddDialog = () => {
   dialogTitle.value = '新增库存调整'
-  const res: any = await request.get('/inventory-adjustment/generate-no')
   form.value = {
-    adjust_no: res.data,
+    adjust_no: '',
     adjust_date: new Date().toISOString().split('T')[0],
     warehouse_id: 0,
     reason: '',

@@ -61,6 +61,16 @@ pub enum BusinessEvent {
         period: String,
         trigger_source: String,
     },
+    MaterialShortageAlert {
+        material_id: i32,
+        material_name: String,
+        material_code: String,
+        required_quantity: rust_decimal::Decimal,
+        available_quantity: rust_decimal::Decimal,
+        shortage_quantity: rust_decimal::Decimal,
+        shortage_level: String,
+        affected_orders_count: i32,
+    },
 }
 
 pub static EVENT_BUS: Lazy<EventBus> = Lazy::new(|| EventBus::new());

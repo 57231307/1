@@ -416,6 +416,20 @@ const routes = [
         component: () => import('@/views/arReconciliation/enhanced.vue'),
         meta: { title: '增强版应收对账', requiresAuth: true },
       },
+      // 新增路由 - 销售分析
+      {
+        path: 'sales-analysis',
+        name: 'SalesAnalysis',
+        component: () => import('@/views/sales-analysis/index.vue'),
+        meta: { title: '销售分析', requiresAuth: true },
+      },
+      // 新增路由 - 安全管理
+      {
+        path: 'security',
+        name: 'Security',
+        component: () => import('@/views/security/index.vue'),
+        meta: { title: '安全管理', requiresAuth: true },
+      },
     ],
   },
   {

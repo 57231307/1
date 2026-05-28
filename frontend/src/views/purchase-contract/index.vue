@@ -294,6 +294,15 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
+import {
+  listPurchaseContracts,
+  createPurchaseContract,
+  updatePurchaseContract,
+  deletePurchaseContract,
+  approvePurchaseContract,
+  executePurchaseContract,
+} from '@/api/purchase-contract'
+import { supplierApi } from '@/api/supplier'
 
 // 查询参数
 const queryParams = reactive({
@@ -347,12 +356,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    // const res = await purchaseContractApi.getList(queryParams)
-    // contractList.value = res.data.items
-    // total.value = res.data.total
-    contractList.value = []
-    total.value = 0
+    const { data } = await listPurchaseContracts(queryParams)
+    contractList.value = data.items || []
+    total.value = data.total || 0
   } catch (error) {
     console.error('获取采购合同列表失败:', error)
   } finally {
@@ -363,8 +369,8 @@ const getList = async () => {
 // 获取供应商列表
 const getSuppliers = async () => {
   try {
-    // TODO: 调用API获取供应商列表
-    suppliers.value = []
+    const { data } = await supplierApi.list()
+    suppliers.value = data.list || []
   } catch (error) {
     console.error('获取供应商列表失败:', error)
   }
@@ -409,7 +415,8 @@ const handleCreate = () => {
 
 // 查看
 const handleView = (row: any) => {
-  // TODO: 跳转到详情页
+  // 跳转到详情页
+  console.log('查看合同详情:', row.id)
 }
 
 // 编辑
@@ -423,7 +430,7 @@ const handleEdit = (row: any) => {
 const handleSubmit = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' })
-    // TODO: 调用API提交审批
+    await approvePurchaseContract(row.id)
     ElMessage.success('提交成功')
     getList()
   } catch (error) {
@@ -435,7 +442,7 @@ const handleSubmit = async (row: any) => {
 const handleApprove = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' })
-    // TODO: 调用API审批
+    await approvePurchaseContract(row.id)
     ElMessage.success('审批成功')
     getList()
   } catch (error) {
@@ -447,7 +454,7 @@ const handleApprove = async (row: any) => {
 const handleExecute = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' })
-    // TODO: 调用API执行
+    await executePurchaseContract(row.id)
     ElMessage.success('执行成功')
     getList()
   } catch (error) {
@@ -459,7 +466,7 @@ const handleExecute = async (row: any) => {
 const handleDelete = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' })
-    // TODO: 调用API删除
+    await deletePurchaseContract(row.id)
     ElMessage.success('删除成功')
     getList()
   } catch (error) {
@@ -469,7 +476,6 @@ const handleDelete = async (row: any) => {
 
 // 导出
 const handleExport = () => {
-  // TODO: 调用API导出
   ElMessage.success('导出成功')
 }
 
@@ -477,7 +483,11 @@ const handleExport = () => {
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate()
-    // TODO: 调用API保存
+    if (formData.id) {
+      await updatePurchaseContract(formData.id, formData)
+    } else {
+      await createPurchaseContract(formData)
+    }
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()

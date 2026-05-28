@@ -665,7 +665,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import request from '@/api/request'
+import { request } from '@/api/request'
 import {
   listUsers,
   createUser,

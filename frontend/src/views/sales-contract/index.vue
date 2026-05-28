@@ -298,6 +298,15 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer, Search, Refresh } from '@element-plus/icons-vue'
+import {
+  listSalesContracts,
+  createSalesContract,
+  updateSalesContract,
+  deleteSalesContract,
+  approveSalesContract,
+  executeSalesContract,
+} from '@/api/sales-contract'
+import { customerApi } from '@/api/customer'
 
 // 查询参数
 const queryParams = reactive({
@@ -351,9 +360,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    contractList.value = []
-    total.value = 0
+    const { data } = await listSalesContracts(queryParams)
+    contractList.value = data.items || []
+    total.value = data.total || 0
   } catch (error) {
     console.error('获取销售合同列表失败:', error)
   } finally {
@@ -364,8 +373,8 @@ const getList = async () => {
 // 获取客户列表
 const getCustomers = async () => {
   try {
-    // TODO: 调用API获取客户列表
-    customers.value = []
+    const { data } = await customerApi.list()
+    customers.value = data.list || []
   } catch (error) {
     console.error('获取客户列表失败:', error)
   }
@@ -422,6 +431,7 @@ const handleEdit = (row: any) => {
 const handleSubmit = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' })
+    await approveSalesContract(row.id)
     ElMessage.success('提交成功')
     getList()
   } catch (error) {
@@ -433,6 +443,7 @@ const handleSubmit = async (row: any) => {
 const handleApprove = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' })
+    await approveSalesContract(row.id)
     ElMessage.success('审批成功')
     getList()
   } catch (error) {
@@ -444,6 +455,7 @@ const handleApprove = async (row: any) => {
 const handleExecute = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' })
+    await executeSalesContract(row.id)
     ElMessage.success('执行成功')
     getList()
   } catch (error) {
@@ -455,6 +467,7 @@ const handleExecute = async (row: any) => {
 const handleDelete = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' })
+    await deleteSalesContract(row.id)
     ElMessage.success('删除成功')
     getList()
   } catch (error) {
@@ -476,6 +489,11 @@ const handleExport = () => {
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate()
+    if (formData.id) {
+      await updateSalesContract(formData.id, formData)
+    } else {
+      await createSalesContract(formData)
+    }
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()

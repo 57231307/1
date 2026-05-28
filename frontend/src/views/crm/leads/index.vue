@@ -286,6 +286,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
+import { listLeads } from '@/api/crm'
+import { listUsers } from '@/api/user'
 
 // 查询参数
 const queryParams = reactive({
@@ -338,9 +340,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    leadList.value = []
-    total.value = 0
+    const { data } = await listLeads(queryParams)
+    leadList.value = data.items || []
+    total.value = data.total || 0
   } catch (error) {
     console.error('获取线索列表失败:', error)
   } finally {
@@ -351,8 +353,8 @@ const getList = async () => {
 // 获取用户列表
 const getUsers = async () => {
   try {
-    // TODO: 调用API获取用户列表
-    users.value = []
+    const { data } = await listUsers()
+    users.value = data.items || []
   } catch (error) {
     console.error('获取用户列表失败:', error)
   }
