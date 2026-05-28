@@ -12,6 +12,9 @@ use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
 use crate::models::inventory_count_item::{self, Entity as InventoryCountItemEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction::{self, Entity as InventoryTransactionEntity};
+use crate::services::inventory_adjustment_service::{
+    AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
+};
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
@@ -557,6 +560,53 @@ impl InventoryCountService {
 
         // 提交事务
         txn.commit().await?;
+
+        // 如果存在差异，调用 InventoryAdjustmentService 创建正式的调整单
+        if variance_count > 0 {
+            let adjustment_service = InventoryAdjustmentService::new(self.db.clone());
+            
+            // 重新获取盘点明细项以创建调整单
+            let items = InventoryCountItemEntity::find()
+                .filter(inventory_count_item::Column::CountId.eq(count_id))
+                .all(&*self.db)
+                .await?;
+
+            // 收集调整项
+            let mut adjustment_items = Vec::new();
+            for item in items {
+                if item.quantity_difference != rust_decimal::Decimal::ZERO {
+                    adjustment_items.push(AdjustmentItemRequest {
+                        stock_id: item.stock_id,
+                        quantity: item.quantity_difference.abs(),
+                        unit_cost: Some(item.unit_cost),
+                        notes: Some(format!("盘点差异调整 - 盘点单号: {}", count.count_no)),
+                    });
+                }
+            }
+
+            // 创建调整单
+            if !adjustment_items.is_empty() {
+                let adjustment_request = CreateAdjustmentRequest {
+                    warehouse_id: count.warehouse_id,
+                    adjustment_date: chrono::Utc::now(),
+                    adjustment_type: if adjustment_items.iter().any(|i| i.quantity > rust_decimal::Decimal::ZERO) {
+                        "increase".to_string()
+                    } else {
+                        "decrease".to_string()
+                    },
+                    reason_type: "correction".to_string(),
+                    reason_description: Some(format!("盘点差异自动调整 - 盘点单号: {}", count.count_no)),
+                    notes: Some("由盘点单自动生成".to_string()),
+                    created_by: count.created_by,
+                    items: adjustment_items,
+                };
+
+                adjustment_service.create_adjustment(adjustment_request).await.map_err(|e| {
+                    tracing::warn!("创建盘点差异调整单失败: {}", e);
+                    e
+                })?;
+            }
+        }
 
         // 返回盘点详情
         self.get_count_detail(count_id).await

@@ -43,3 +43,7 @@ export function updatePurchasePrice(
 export function deletePurchasePrice(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/purchase-prices/${id}`)
 }
+
+export function getPurchasePriceHistory(productId: number): Promise<ApiResponse<PurchasePrice[]>> {
+  return request.get(`/purchase-prices/history/${productId}`)
+}

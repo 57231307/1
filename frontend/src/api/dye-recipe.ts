@@ -59,6 +59,10 @@ export function approveDyeRecipe(id: number): Promise<ApiResponse<void>> {
   return request.post(`/dye-recipes/${id}/approve`)
 }
 
+export function submitDyeRecipe(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/dye-recipes/${id}/submit`)
+}
+
 export function createNewVersion(id: number): Promise<ApiResponse<DyeRecipe>> {
   return request.post(`/dye-recipes/${id}/version`)
 }
@@ -69,4 +73,8 @@ export function getRecipesByColor(colorCode: string): Promise<ApiResponse<DyeRec
 
 export function getRecipeVersions(id: number): Promise<ApiResponse<DyeRecipe[]>> {
   return request.get(`/dye-recipes/${id}/versions`)
+}
+
+export function exportDyeRecipes(params?: QueryParams): Promise<Blob> {
+  return request.get('/dye-recipes/export', { params, responseType: 'blob' })
 }

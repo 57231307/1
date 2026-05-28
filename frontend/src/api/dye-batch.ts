@@ -55,3 +55,7 @@ export function completeDyeBatch(id: number): Promise<ApiResponse<void>> {
 export function getDyeBatchesByColor(colorCode: string): Promise<ApiResponse<DyeBatch[]>> {
   return request.get(`/dye-batches/by-color/${colorCode}`)
 }
+
+export function exportDyeBatches(params?: QueryParams): Promise<Blob> {
+  return request.get('/dye-batches/export', { params, responseType: 'blob' })
+}

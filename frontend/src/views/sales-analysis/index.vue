@@ -245,6 +245,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Edit, TrendCharts, PieChart } from '@element-plus/icons-vue'
+import { salesAnalysisApi } from '@/api/sales-analysis'
 
 // 统计数据
 const stats = reactive({
@@ -277,15 +278,10 @@ const salesTargets = ref([])
 // 获取统计数据
 const getStats = async () => {
   try {
-    // TODO: 调用API获取统计数据
-    stats.monthOrders = 156
-    stats.monthAmount = 2580000
-    stats.grossProfitRate = 32.5
-    stats.activeCustomers = 89
-    stats.orderTrend = 12.5
-    stats.amountTrend = 8.3
-    stats.profitTrend = -2.1
-    stats.customerTrend = 5.2
+    const res = await salesAnalysisApi.getStats()
+    if (res.data) {
+      Object.assign(stats, res.data)
+    }
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
@@ -294,12 +290,8 @@ const getStats = async () => {
 // 获取产品排名
 const getProductRanking = async () => {
   try {
-    // TODO: 调用API获取产品排名
-    productRanking.value = [
-      { product_name: '纯棉面料A', amount: 580000, quantity: 12000, percentage: 22.5 },
-      { product_name: '涤纶面料B', amount: 420000, quantity: 8500, percentage: 16.3 },
-      { product_name: '混纺面料C', amount: 350000, quantity: 7200, percentage: 13.6 },
-    ]
+    const res = await salesAnalysisApi.getProductRanking({ type: productRankType.value })
+    productRanking.value = res.data || []
   } catch (error) {
     console.error('获取产品排名失败:', error)
   }
@@ -308,12 +300,8 @@ const getProductRanking = async () => {
 // 获取客户排名
 const getCustomerRanking = async () => {
   try {
-    // TODO: 调用API获取客户排名
-    customerRanking.value = [
-      { customer_name: '客户A', amount: 680000, order_count: 25, percentage: 26.4 },
-      { customer_name: '客户B', amount: 450000, order_count: 18, percentage: 17.4 },
-      { customer_name: '客户C', amount: 320000, order_count: 12, percentage: 12.4 },
-    ]
+    const res = await salesAnalysisApi.getCustomerRanking({ type: customerRankType.value })
+    customerRanking.value = res.data || []
   } catch (error) {
     console.error('获取客户排名失败:', error)
   }
@@ -322,33 +310,8 @@ const getCustomerRanking = async () => {
 // 获取销售目标
 const getSalesTargets = async () => {
   try {
-    // TODO: 调用API获取销售目标
-    salesTargets.value = [
-      {
-        period: '2026年1月',
-        target_amount: 3000000,
-        actual_amount: 2800000,
-        completion_rate: 93.3,
-        variance: -200000,
-        status: 'PARTIAL',
-      },
-      {
-        period: '2026年2月',
-        target_amount: 2800000,
-        actual_amount: 3100000,
-        completion_rate: 110.7,
-        variance: 300000,
-        status: 'COMPLETED',
-      },
-      {
-        period: '2026年3月',
-        target_amount: 3200000,
-        actual_amount: 2580000,
-        completion_rate: 80.6,
-        variance: -620000,
-        status: 'IN_PROGRESS',
-      },
-    ]
+    const res = await salesAnalysisApi.getSalesTargets()
+    salesTargets.value = res.data || []
   } catch (error) {
     console.error('获取销售目标失败:', error)
   }
@@ -394,8 +357,21 @@ const handleEditTarget = () => {
 }
 
 // 导出报表
-const handleExport = () => {
-  ElMessage.success('导出成功')
+const handleExport = async () => {
+  try {
+    const res = await salesAnalysisApi.exportReport()
+    const url = window.URL.createObjectURL(new Blob([res]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '销售分析报表.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+  }
 }
 
 onMounted(() => {

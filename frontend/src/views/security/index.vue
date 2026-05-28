@@ -219,6 +219,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Search, Warning, Lock, Bell } from '@element-plus/icons-vue'
+import { securityApi } from '@/api/security'
 
 // 统计数据
 const stats = reactive({
@@ -253,11 +254,10 @@ const securityAlerts = ref([])
 // 获取统计数据
 const getStats = async () => {
   try {
-    // TODO: 调用API获取统计数据
-    stats.todayLogins = 156
-    stats.todayFailures = 12
-    stats.lockedAccounts = 3
-    stats.securityAlerts = 5
+    const res = await securityApi.getStats()
+    if (res.data) {
+      Object.assign(stats, res.data)
+    }
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
@@ -267,9 +267,9 @@ const getStats = async () => {
 const getLoginLogs = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取登录日志
-    loginLogs.value = []
-    total.value = 0
+    const res = await securityApi.getLoginLogs(queryParams)
+    loginLogs.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取登录日志失败:', error)
   } finally {
@@ -281,8 +281,8 @@ const getLoginLogs = async () => {
 const getLockedAccounts = async () => {
   lockLoading.value = true
   try {
-    // TODO: 调用API获取锁定账户
-    lockedAccounts.value = []
+    const res = await securityApi.getLockedAccounts()
+    lockedAccounts.value = res.data || []
   } catch (error) {
     console.error('获取锁定账户失败:', error)
   } finally {
@@ -294,8 +294,8 @@ const getLockedAccounts = async () => {
 const getSecurityAlerts = async () => {
   alertLoading.value = true
   try {
-    // TODO: 调用API获取安全告警
-    securityAlerts.value = []
+    const res = await securityApi.getSecurityAlerts()
+    securityAlerts.value = res.data || []
   } catch (error) {
     console.error('获取安全告警失败:', error)
   } finally {
@@ -313,6 +313,7 @@ const handleQuery = () => {
 const handleUnlock = async (row: any) => {
   try {
     await ElMessageBox.confirm(`确认解锁账户 ${row.username}？`, '提示', { type: 'warning' })
+    await securityApi.unlockAccount(row.id)
     ElMessage.success('解锁成功')
     getLockedAccounts()
     getStats()
@@ -322,8 +323,21 @@ const handleUnlock = async (row: any) => {
 }
 
 // 导出日志
-const handleExport = () => {
-  ElMessage.success('导出成功')
+const handleExport = async () => {
+  try {
+    const res = await securityApi.exportLoginLogs(queryParams)
+    const url = window.URL.createObjectURL(new Blob([res]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '登录日志.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+  }
 }
 
 // 分页

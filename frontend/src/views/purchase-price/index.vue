@@ -279,6 +279,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
+import { listPurchasePrices, createPurchasePrice, updatePurchasePrice, getPurchasePriceHistory } from '@/api/purchase-price'
+import { supplierApi } from '@/api/supplier'
+import { productApi } from '@/api/product'
 
 // 查询参数
 const queryParams = reactive({
@@ -337,9 +340,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    priceList.value = []
-    total.value = 0
+    const res = await listPurchasePrices(queryParams)
+    priceList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取采购价格列表失败:', error)
   } finally {
@@ -350,8 +353,8 @@ const getList = async () => {
 // 获取供应商列表
 const getSuppliers = async () => {
   try {
-    // TODO: 调用API获取供应商列表
-    suppliers.value = []
+    const res = await supplierApi.list({ page: 1, page_size: 1000 })
+    suppliers.value = res.data?.list || []
   } catch (error) {
     console.error('获取供应商列表失败:', error)
   }
@@ -360,8 +363,8 @@ const getSuppliers = async () => {
 // 获取产品列表
 const getProducts = async () => {
   try {
-    // TODO: 调用API获取产品列表
-    products.value = []
+    const res = await productApi.list({ page: 1, page_size: 1000 })
+    products.value = res.data?.list || []
   } catch (error) {
     console.error('获取产品列表失败:', error)
   }
@@ -425,8 +428,8 @@ const handleApprove = async (row: any) => {
 // 历史记录
 const handleHistory = async (row: any) => {
   try {
-    // TODO: 调用API获取历史记录
-    historyList.value = []
+    const res = await getPurchasePriceHistory(row.product_id)
+    historyList.value = res.data || []
     historyVisible.value = true
   } catch (error) {
     console.error('获取历史记录失败:', error)
@@ -442,6 +445,11 @@ const handleExport = () => {
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate()
+    if (formData.id) {
+      await updatePurchasePrice(formData.id, formData)
+    } else {
+      await createPurchasePrice(formData)
+    }
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()

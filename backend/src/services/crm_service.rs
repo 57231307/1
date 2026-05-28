@@ -1,6 +1,6 @@
 use sea_orm::*;
 use std::sync::Arc;
-use crate::models::{crm_lead, crm_opportunity, customer, sales_order, user};
+use crate::models::{crm_lead, crm_opportunity, customer, product, sales_order, sales_order_item, user};
 use crate::models::dto::crm_dto::{ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest};
 use crate::models::dto::PageResponse;
 use crate::utils::error::AppError;
@@ -425,7 +425,7 @@ impl CrmService {
 
         // 2. 创建销售订单
         let order_no = format!("SO{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
-        let total_amount = opportunity.estimated_amount.unwrap_or(rust_decimal::Decimal::ZERO);
+        let estimated_amount = opportunity.estimated_amount.unwrap_or(rust_decimal::Decimal::ZERO);
 
         let order = sales_order::ActiveModel {
             id: Default::default(),
@@ -436,13 +436,13 @@ impl CrmService {
             required_date: Set(chrono::Utc::now() + chrono::Duration::days(30)),
             ship_date: Set(None),
             status: Set("draft".to_string()),
-            subtotal: Set(total_amount),
+            subtotal: Set(rust_decimal::Decimal::ZERO),
             tax_amount: Set(rust_decimal::Decimal::ZERO),
             discount_amount: Set(rust_decimal::Decimal::ZERO),
             shipping_cost: Set(rust_decimal::Decimal::ZERO),
-            total_amount: Set(total_amount),
+            total_amount: Set(rust_decimal::Decimal::ZERO),
             paid_amount: Set(rust_decimal::Decimal::ZERO),
-            balance_amount: Set(total_amount),
+            balance_amount: Set(rust_decimal::Decimal::ZERO),
             shipping_address: Set(None),
             billing_address: Set(None),
             notes: Set(Some(format!("从商机 {} 转化", opportunity.opportunity_no))),
@@ -457,7 +457,106 @@ impl CrmService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        // 3. 更新商机状态
+        // 3. 创建订单明细
+        let mut subtotal = rust_decimal::Decimal::ZERO;
+        let mut tax_amount = rust_decimal::Decimal::ZERO;
+        let mut discount_amount = rust_decimal::Decimal::ZERO;
+        let mut total_amount = rust_decimal::Decimal::ZERO;
+
+        if let Some(product_ids) = &opportunity.product_ids {
+            let product_names = opportunity.product_names.as_deref().unwrap_or_default();
+            
+            for (index, product_id) in product_ids.iter().enumerate() {
+                // 查询产品信息获取标准价格
+                let product = product::Entity::find_by_id(*product_id)
+                    .one(&txn)
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                    .ok_or_else(|| AppError::NotFound(format!("产品 {} 不存在", product_id)))?;
+
+                let unit_price = product.standard_price.unwrap_or(rust_decimal::Decimal::ZERO);
+                let quantity = rust_decimal::Decimal::ONE; // 默认数量为1
+                let discount_percent = rust_decimal::Decimal::ZERO;
+                let tax_percent = rust_decimal::Decimal::ZERO;
+
+                // 计算明细项金额
+                let item_subtotal = quantity * unit_price;
+                let item_discount = item_subtotal * (discount_percent / rust_decimal::Decimal::new(100, 0));
+                let item_after_discount = item_subtotal - item_discount;
+                let item_tax = item_after_discount * (tax_percent / rust_decimal::Decimal::new(100, 0));
+                let item_total = item_after_discount + item_tax;
+
+                // 累加订单总额
+                subtotal += &item_subtotal;
+                discount_amount += &item_discount;
+                tax_amount += &item_tax;
+                total_amount += &item_total;
+
+                // 获取产品名称
+                let product_name = product_names.get(index).cloned();
+
+                // 创建订单明细
+                let order_item = sales_order_item::ActiveModel {
+                    id: Default::default(),
+                    order_id: Set(order_entity.id),
+                    product_id: Set(*product_id),
+                    quantity: Set(quantity),
+                    unit_price: Set(unit_price),
+                    discount_percent: Set(discount_percent),
+                    tax_percent: Set(tax_percent),
+                    subtotal: Set(item_subtotal),
+                    tax_amount: Set(item_tax),
+                    discount_amount: Set(item_discount),
+                    total_amount: Set(item_total),
+                    shipped_quantity: Set(rust_decimal::Decimal::ZERO),
+                    notes: Set(product_name),
+                    created_at: Set(chrono::Utc::now()),
+                    updated_at: Set(chrono::Utc::now()),
+                    color_no: Set(String::new()),
+                    color_name: Set(None),
+                    pantone_code: Set(None),
+                    grade_required: Set(None),
+                    quantity_meters: Set(rust_decimal::Decimal::ZERO),
+                    quantity_kg: Set(rust_decimal::Decimal::ZERO),
+                    gram_weight: Set(None),
+                    width: Set(None),
+                    batch_requirement: Set(None),
+                    dye_lot_requirement: Set(None),
+                    base_price: Set(None),
+                    color_extra_cost: Set(rust_decimal::Decimal::ZERO),
+                    grade_price_diff: Set(rust_decimal::Decimal::ZERO),
+                    final_price: Set(None),
+                    shipped_quantity_meters: Set(rust_decimal::Decimal::ZERO),
+                    shipped_quantity_kg: Set(rust_decimal::Decimal::ZERO),
+                    paper_tube_weight: Set(None),
+                    is_net_weight: Set(None),
+                };
+
+                order_item.insert(&txn)
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            }
+        }
+
+        // 如果没有产品明细，使用商机的预估金额作为总金额
+        if opportunity.product_ids.as_ref().map_or(true, |ids| ids.is_empty()) {
+            total_amount = estimated_amount;
+            subtotal = estimated_amount;
+        }
+
+        // 4. 更新订单总金额
+        let mut order_update: sales_order::ActiveModel = order_entity.into();
+        order_update.subtotal = Set(subtotal);
+        order_update.tax_amount = Set(tax_amount);
+        order_update.discount_amount = Set(discount_amount);
+        order_update.total_amount = Set(total_amount);
+        order_update.balance_amount = Set(total_amount);
+        order_update.updated_at = Set(chrono::Utc::now());
+        let order_entity = order_update.update(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 5. 更新商机状态
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_stage = Set(Some("closed_won".to_string()));
         opp_active.opportunity_status = Set(Some("won".to_string()));

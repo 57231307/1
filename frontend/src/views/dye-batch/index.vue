@@ -215,6 +215,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
+import { listDyeBatches, createDyeBatch, updateDyeBatch, deleteDyeBatch, completeDyeBatch, exportDyeBatches } from '@/api/dye-batch'
+import { productApi } from '@/api/product'
 
 // 查询参数
 const queryParams = reactive({
@@ -265,9 +267,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    dyeBatchList.value = []
-    total.value = 0
+    const res = await listDyeBatches(queryParams)
+    dyeBatchList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取缸号列表失败:', error)
   } finally {
@@ -278,8 +280,8 @@ const getList = async () => {
 // 获取产品列表
 const getProducts = async () => {
   try {
-    // TODO: 调用API获取产品列表
-    products.value = []
+    const res = await productApi.list({ page: 1, page_size: 1000 })
+    products.value = res.data?.list || []
   } catch (error) {
     console.error('获取产品列表失败:', error)
   }
@@ -331,6 +333,7 @@ const handleEdit = (row: any) => {
 const handleComplete = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认完成该缸号？', '提示', { type: 'warning' })
+    await completeDyeBatch(row.id)
     ElMessage.success('操作成功')
     getList()
   } catch (error) {
@@ -342,6 +345,7 @@ const handleComplete = async (row: any) => {
 const handleDelete = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认删除该缸号？', '提示', { type: 'warning' })
+    await deleteDyeBatch(row.id)
     ElMessage.success('删除成功')
     getList()
   } catch (error) {
@@ -350,14 +354,32 @@ const handleDelete = async (row: any) => {
 }
 
 // 导出
-const handleExport = () => {
-  ElMessage.success('导出成功')
+const handleExport = async () => {
+  try {
+    const res = await exportDyeBatches(queryParams)
+    const url = window.URL.createObjectURL(new Blob([res]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '缸号管理.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+  }
 }
 
 // 提交表单
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate()
+    if (formData.id) {
+      await updateDyeBatch(formData.id, formData)
+    } else {
+      await createDyeBatch(formData)
+    }
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()

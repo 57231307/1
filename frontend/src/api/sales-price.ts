@@ -31,6 +31,13 @@ export function createSalesPrice(data: Partial<SalesPrice>): Promise<ApiResponse
   return request.post('/sales-prices', data)
 }
 
+export function updateSalesPrice(
+  id: number,
+  data: Partial<SalesPrice>
+): Promise<ApiResponse<SalesPrice>> {
+  return request.put(`/sales-prices/${id}`, data)
+}
+
 export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/sales-prices/${id}/approve`)
 }

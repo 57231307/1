@@ -211,6 +211,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
+import { listDyeRecipes, createDyeRecipe, updateDyeRecipe, approveDyeRecipe, submitDyeRecipe, getRecipeVersions, exportDyeRecipes } from '@/api/dye-recipe'
 
 // 查询参数
 const queryParams = reactive({
@@ -259,9 +260,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    recipeList.value = []
-    total.value = 0
+    const res = await listDyeRecipes(queryParams)
+    recipeList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取染色配方列表失败:', error)
   } finally {
@@ -312,6 +313,7 @@ const handleEdit = (row: any) => {
 const handleSubmit = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认提交该配方审批？', '提示', { type: 'warning' })
+    await submitDyeRecipe(row.id)
     ElMessage.success('提交成功')
     getList()
   } catch (error) {
@@ -323,6 +325,7 @@ const handleSubmit = async (row: any) => {
 const handleApprove = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认审批通过该配方？', '提示', { type: 'warning' })
+    await approveDyeRecipe(row.id)
     ElMessage.success('审批成功')
     getList()
   } catch (error) {
@@ -333,8 +336,8 @@ const handleApprove = async (row: any) => {
 // 版本历史
 const handleVersion = async (row: any) => {
   try {
-    // TODO: 调用API获取版本历史
-    versionList.value = []
+    const res = await getRecipeVersions(row.id)
+    versionList.value = res.data || []
     versionVisible.value = true
   } catch (error) {
     console.error('获取版本历史失败:', error)
@@ -345,14 +348,32 @@ const handleVersion = async (row: any) => {
 const handleViewVersion = (row: any) => {}
 
 // 导出
-const handleExport = () => {
-  ElMessage.success('导出成功')
+const handleExport = async () => {
+  try {
+    const res = await exportDyeRecipes(queryParams)
+    const url = window.URL.createObjectURL(new Blob([res]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '染色配方.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+  }
 }
 
 // 提交表单
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate()
+    if (formData.id) {
+      await updateDyeRecipe(formData.id, formData)
+    } else {
+      await createDyeRecipe(formData)
+    }
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()

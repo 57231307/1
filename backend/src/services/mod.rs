@@ -17,6 +17,7 @@ pub mod inventory_count_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_service;
 pub mod inventory_transfer_service;
+pub mod inventory_finance_bridge_service;
 pub mod product_category_service;
 pub mod product_service;
 pub mod role_permission_service;

@@ -71,6 +71,20 @@ pub enum BusinessEvent {
         shortage_level: String,
         affected_orders_count: i32,
     },
+    InventoryTransactionCreated {
+        transaction_id: i32,
+        transaction_type: String,
+        product_id: i32,
+        warehouse_id: i32,
+        quantity_meters: rust_decimal::Decimal,
+        quantity_kg: rust_decimal::Decimal,
+        source_bill_type: Option<String>,
+        source_bill_no: Option<String>,
+        source_bill_id: Option<i32>,
+        batch_no: String,
+        color_no: String,
+        created_by: Option<i32>,
+    },
 }
 
 pub static EVENT_BUS: Lazy<EventBus> = Lazy::new(|| EventBus::new());
@@ -103,6 +117,9 @@ impl Default for EventBus {
 use sea_orm::DatabaseConnection;
 
 pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
+    // 启动库存财务桥接服务监听器
+    crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::start_listener(db.clone());
+    
     let mut receiver = EVENT_BUS.subscribe();
 
     

@@ -300,6 +300,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Setting, Search, Refresh } from '@element-plus/icons-vue'
+import { listSalesPrices, createSalesPrice, updateSalesPrice, approveSalesPrice, getPriceHistory, listPricingStrategies } from '@/api/sales-price'
+import { customerApi } from '@/api/customer'
+import { productApi } from '@/api/product'
 
 // 查询参数
 const queryParams = reactive({
@@ -358,9 +361,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用API获取数据
-    priceList.value = []
-    total.value = 0
+    const res = await listSalesPrices(queryParams)
+    priceList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取销售价格列表失败:', error)
   } finally {
@@ -371,8 +374,8 @@ const getList = async () => {
 // 获取客户列表
 const getCustomers = async () => {
   try {
-    // TODO: 调用API获取客户列表
-    customers.value = []
+    const res = await customerApi.list({ page: 1, page_size: 1000 })
+    customers.value = res.data?.list || []
   } catch (error) {
     console.error('获取客户列表失败:', error)
   }
@@ -381,8 +384,8 @@ const getCustomers = async () => {
 // 获取产品列表
 const getProducts = async () => {
   try {
-    // TODO: 调用API获取产品列表
-    products.value = []
+    const res = await productApi.list({ page: 1, page_size: 1000 })
+    products.value = res.data?.list || []
   } catch (error) {
     console.error('获取产品列表失败:', error)
   }
@@ -437,6 +440,7 @@ const handleEdit = (row: any) => {
 const handleApprove = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' })
+    await approveSalesPrice(row.id)
     ElMessage.success('审批成功')
     getList()
   } catch (error) {
@@ -447,8 +451,8 @@ const handleApprove = async (row: any) => {
 // 历史记录
 const handleHistory = async (row: any) => {
   try {
-    // TODO: 调用API获取历史记录
-    historyList.value = []
+    const res = await getPriceHistory(row.product_id)
+    historyList.value = res.data || []
     historyVisible.value = true
   } catch (error) {
     console.error('获取历史记录失败:', error)
@@ -457,7 +461,6 @@ const handleHistory = async (row: any) => {
 
 // 价格策略
 const handleStrategy = () => {
-  // TODO: 打开价格策略对话框
   ElMessage.info('价格策略功能开发中')
 }
 
@@ -470,6 +473,11 @@ const handleExport = () => {
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate()
+    if (formData.id) {
+      await updateSalesPrice(formData.id, formData)
+    } else {
+      await createSalesPrice(formData)
+    }
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()

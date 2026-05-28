@@ -457,7 +457,26 @@ impl InventoryStockService {
             created_at: Set(Utc::now()),
         };
 
-        active_transaction.insert(&*self.db).await
+        let transaction = active_transaction.insert(&*self.db).await?;
+        
+        // 触发库存交易创建事件
+        let event = BusinessEvent::InventoryTransactionCreated {
+            transaction_id: transaction.id,
+            transaction_type: transaction.transaction_type.clone(),
+            product_id: transaction.product_id,
+            warehouse_id: transaction.warehouse_id,
+            quantity_meters: transaction.quantity_meters,
+            quantity_kg: transaction.quantity_kg,
+            source_bill_type: transaction.source_bill_type.clone(),
+            source_bill_no: transaction.source_bill_no.clone(),
+            source_bill_id: transaction.source_bill_id,
+            batch_no: transaction.batch_no.clone(),
+            color_no: transaction.color_no.clone(),
+            created_by: transaction.created_by,
+        };
+        EVENT_BUS.publish(event);
+        
+        Ok(transaction)
     }
 
     /// 查询库存流水
