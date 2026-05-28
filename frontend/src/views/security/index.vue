@@ -220,6 +220,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Search, Warning, Lock, Bell } from '@element-plus/icons-vue'
 import { securityApi } from '@/api/security'
+import type { LoginLog, LockedAccount, SecurityAlert } from '@/api/security'
 
 // 统计数据
 const stats = reactive({
@@ -240,16 +241,16 @@ const queryParams = reactive({
 
 // 登录日志
 const loading = ref(false)
-const loginLogs = ref([])
+const loginLogs = ref<LoginLog[]>([])
 const total = ref(0)
 
 // 锁定账户
 const lockLoading = ref(false)
-const lockedAccounts = ref([])
+const lockedAccounts = ref<LockedAccount[]>([])
 
 // 安全告警
 const alertLoading = ref(false)
-const securityAlerts = ref([])
+const securityAlerts = ref<SecurityAlert[]>([])
 
 // 获取统计数据
 const getStats = async () => {

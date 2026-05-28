@@ -510,7 +510,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        sea_orm::sea_query::Expr::val(new_quantity_meters),
+                        sea_orm::sea_query::Expr::val(new_quantity_meters).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
@@ -518,7 +518,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
                     .filter(inventory_stock::Column::Id.eq(stock_id))
                     .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -664,7 +664,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        sea_orm::sea_query::Expr::val(new_quantity_meters),
+                        sea_orm::sea_query::Expr::val(new_quantity_meters).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
@@ -672,7 +672,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
                     .filter(inventory_stock::Column::Id.eq(stock_id))
                     .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -826,7 +826,7 @@ impl InventoryTransferService {
     /// 生成调拨单号
     async fn generate_transfer_no(&self) -> Result<String, sea_orm::DbErr> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "TRF",
             inventory_transfer::Entity,
             inventory_transfer::Column::TransferNo,

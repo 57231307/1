@@ -227,7 +227,7 @@ const fetchSummary = async () => {
     summary.value = res.data!
   } catch (error: any) {
     ElMessage.error(error.message || '获取产能概览失败')
-    summary.value = {}
+    summary.value = {} as CapacitySummary
   }
 }
 

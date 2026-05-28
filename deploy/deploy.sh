@@ -97,11 +97,17 @@ deploy_backend() {
 # 部署前端
 deploy_frontend() {
     log "部署前端..."
+    # 安全检查：确保 FRONTEND_DIR 不为空且存在
+    if [ -z "$FRONTEND_DIR" ]; then
+        error "FRONTEND_DIR 变量为空"
+    fi
+    mkdir -p "$FRONTEND_DIR"
+    
     if [ -d "/tmp/bingxi-deploy/frontend/dist" ]; then
-        rm -rf "$FRONTEND_DIR"/*
+        rm -rf "${FRONTEND_DIR:?}"/*
         cp -r /tmp/bingxi-deploy/frontend/dist/* "$FRONTEND_DIR/"
     elif [ -d "frontend/dist" ]; then
-        rm -rf "$FRONTEND_DIR"/*
+        rm -rf "${FRONTEND_DIR:?}"/*
         cp -r frontend/dist/* "$FRONTEND_DIR/"
     else
         error "找不到前端构建文件"
@@ -127,15 +133,29 @@ generate_config() {
 
     # 从 .env 读取配置
     if [ -f "$ENV_FILE" ]; then
-        source "$ENV_FILE"
+        # 安全地读取环境变量，避免执行恶意代码
+        set -a
+        . "$ENV_FILE"
+        set +a
 
         local DB_HOST="${DATABASE__HOST:-localhost}"
         local DB_PORT="${DATABASE__PORT:-5432}"
         local DB_NAME="${DATABASE__NAME:-bingxi}"
         local DB_USER="${DATABASE__USERNAME:-bingxi}"
-        local DB_PASS="${DATABASE__PASSWORD:-bingxi123}"
-        local JWT="${JWT_SECRET:-default_jwt_secret_at_least_32_bytes}"
-        local COOKIE="${COOKIE_SECRET:-default_cookie_secret_at_least_32_bytes}"
+        local DB_PASS="${DATABASE__PASSWORD:-}"
+        local JWT="${JWT_SECRET:-}"
+        local COOKIE="${COOKIE_SECRET:-}"
+        
+        # 验证必需的环境变量
+        if [ -z "$DB_PASS" ]; then
+            error "DATABASE__PASSWORD 环境变量未设置"
+        fi
+        if [ -z "$JWT" ]; then
+            error "JWT_SECRET 环境变量未设置"
+        fi
+        if [ -z "$COOKIE" ]; then
+            error "COOKIE_SECRET 环境变量未设置"
+        fi
         local REDIS_URL="${REDIS__URL:-redis://127.0.0.1:6379}"
         local REDIS_MAX="${REDIS__MAX_CONNECTIONS:-10}"
 
@@ -288,7 +308,11 @@ rollback() {
         systemctl stop "$APP_NAME" 2>/dev/null || true
         cp -r "$BACKUP_DIR/$latest_backup/backend/"* "$BACKEND_DIR/"
         if [ -d "$BACKUP_DIR/$latest_backup/frontend_dist" ]; then
-            rm -rf "$FRONTEND_DIR"/*
+            # 安全检查：确保 FRONTEND_DIR 不为空
+            if [ -z "$FRONTEND_DIR" ]; then
+                error "FRONTEND_DIR 变量为空"
+            fi
+            rm -rf "${FRONTEND_DIR:?}"/*
             cp -r "$BACKUP_DIR/$latest_backup/frontend_dist/"* "$FRONTEND_DIR/"
         fi
         systemctl start "$APP_NAME"

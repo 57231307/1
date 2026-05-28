@@ -128,8 +128,9 @@ impl Default for AppState {
         panic!("AppState::default() 禁止在生产环境(release模式)中使用。请使用 AppState::new() 并提供真实的密钥配置。");
 
         let metrics = MetricsService::new().expect("Failed to create metrics service");
-        let default_cookie_secret = "default-cookie-secret-key-for-test-environments-only-32-bytes".to_string();
-        let cookie_key = Key::derive_from(default_cookie_secret.as_bytes());
+        // 使用随机生成的密钥，而不是硬编码的默认值
+        let random_cookie_secret = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+        let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
         let db = Arc::new(DatabaseConnection::Disconnected);
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())
             .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"));
@@ -141,9 +142,9 @@ impl Default for AppState {
         Self {
             db: db.clone(),
             omni_audit,
-            jwt_secret: "default-secret-key-for-test-environments-only-32-bytes".to_string(),
+            jwt_secret: uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string(),
             previous_jwt_secret: None,
-            cookie_secret: default_cookie_secret,
+            cookie_secret: random_cookie_secret,
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,

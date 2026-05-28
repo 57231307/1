@@ -136,19 +136,19 @@ impl InventoryStockService {
         let update_result = inventory_stock::Entity::update_many()
             .col_expr(
                 inventory_stock::Column::QuantityOnHand,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
-                sea_orm::sea_query::Expr::val(quantity_kg),
+                sea_orm::sea_query::Expr::val(quantity_kg).into(),
             )
             .col_expr(
                 inventory_stock::Column::Version,
@@ -156,7 +156,7 @@ impl InventoryStockService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .filter(inventory_stock::Column::Id.eq(id))
             .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -542,20 +542,20 @@ impl InventoryStockService {
         use sea_orm::{JoinType, QuerySelect};
         
         let mut query = inventory_stock::Entity::find()
-            .inner_join(super::product::Entity)
-            .inner_join(super::warehouse::Entity)
+            .inner_join(crate::models::product::Entity)
+            .inner_join(crate::models::warehouse::Entity)
             .select_only()
             .column_as(inventory_stock::Column::ProductId, "product_id")
-            .column_as(super::product::Column::Name, "product_name")
-            .column_as(super::warehouse::Column::Name, "warehouse_name")
+            .column_as(crate::models::product::Column::Name, "product_name")
+            .column_as(crate::models::warehouse::Column::Name, "warehouse_name")
             .column_as(inventory_stock::Column::BatchNo, "batch_no")
             .column_as(inventory_stock::Column::ColorNo, "color_no")
             .column_as(inventory_stock::Column::Grade, "grade")
             .column_as(inventory_stock::Column::QuantityMeters.sum(), "total_quantity_meters")
             .column_as(inventory_stock::Column::QuantityKg.sum(), "total_quantity_kg")
             .group_by(inventory_stock::Column::ProductId)
-            .group_by(super::product::Column::Name)
-            .group_by(super::warehouse::Column::Name)
+            .group_by(crate::models::product::Column::Name)
+            .group_by(crate::models::warehouse::Column::Name)
             .group_by(inventory_stock::Column::BatchNo)
             .group_by(inventory_stock::Column::ColorNo)
             .group_by(inventory_stock::Column::Grade)

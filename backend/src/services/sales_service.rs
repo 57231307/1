@@ -127,17 +127,13 @@ pub struct CreateSalesOrderRequest {
     pub quality_standard: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct SalesOrderItemRequest {
     #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: i32,
-    #[validate(range(min = 0.0001, message = "数量必须大于0"))]
     pub quantity: rust_decimal::Decimal,
-    #[validate(range(min = 0.0001, message = "单价必须大于0"))]
     pub unit_price: rust_decimal::Decimal,
-    #[validate(range(min = 0, max = 100, message = "折扣百分比必须在0-100之间"))]
     pub discount_percent: Option<rust_decimal::Decimal>,
-    #[validate(range(min = 0, max = 100, message = "税率必须在0-100之间"))]
     pub tax_percent: Option<rust_decimal::Decimal>,
     #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
     pub notes: Option<String>,
@@ -765,7 +761,7 @@ impl SalesService {
     /// 生成订单号
     async fn generate_order_no(&self) -> Result<String, sea_orm::DbErr> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "SO",
             SalesOrderEntity,
             sales_order::Column::OrderNo,
@@ -858,7 +854,7 @@ impl SalesService {
                     reserved_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     released_at: sea_orm::ActiveValue::NotSet,
                     notes: sea_orm::ActiveValue::NotSet,
-                    created_by: sea_orm::ActiveValue::Set(user_id),
+                    created_by: sea_orm::ActiveValue::Set(Some(user_id)),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
@@ -1118,7 +1114,7 @@ impl SalesService {
 
         // 自动生成应收账款单据
         let invoice_no = DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "AR",
             ArInvoiceEntity,
             ArInvoiceColumn::InvoiceNo,
@@ -1138,7 +1134,7 @@ impl SalesService {
             invoice_date: sea_orm::ActiveValue::Set(invoice_date),
             due_date: sea_orm::ActiveValue::Set(due_date),
             customer_id: sea_orm::ActiveValue::Set(order.customer_id),
-            customer_name: sea_orm::ActiveValue::Set(Some(customer.name.clone())),
+            customer_name: sea_orm::ActiveValue::Set(Some(customer.customer_name.clone())),
             source_type: sea_orm::ActiveValue::Set(Some("SALES_ORDER".to_string())),
             source_bill_id: sea_orm::ActiveValue::Set(Some(order_id)),
             source_bill_no: sea_orm::ActiveValue::Set(Some(order.order_no.clone())),

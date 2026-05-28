@@ -71,7 +71,7 @@
             filterable
             @change="handleQuery"
           >
-            <el-option v-for="u in users" :key="u.id" :label="u.name" :value="u.id" />
+            <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="优先级">
@@ -257,7 +257,7 @@
           <el-col :span="12">
             <el-form-item label="负责人" prop="owner_id">
               <el-select v-model="formData.owner_id" placeholder="请选择负责人" filterable>
-                <el-option v-for="u in users" :key="u.id" :label="u.name" :value="u.id" />
+                <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -287,7 +287,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
 import { listLeads } from '@/api/crm'
+import type { Lead } from '@/api/crm'
 import { listUsers } from '@/api/user'
+import type { User } from '@/api/user'
 
 // 查询参数
 const queryParams = reactive({
@@ -302,12 +304,12 @@ const queryParams = reactive({
 
 // 列表数据
 const loading = ref(false)
-const leadList = ref([])
+const leadList = ref<Lead[]>([])
 const total = ref(0)
-const selectedRows = ref([])
+const selectedRows = ref<any[]>([])
 
 // 用户列表
-const users = ref([])
+const users = ref<User[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -340,9 +342,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    const { data } = await listLeads(queryParams)
-    leadList.value = data.items || []
-    total.value = data.total || 0
+    const res = await listLeads(queryParams)
+    leadList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取线索列表失败:', error)
   } finally {
@@ -353,8 +355,8 @@ const getList = async () => {
 // 获取用户列表
 const getUsers = async () => {
   try {
-    const { data } = await listUsers()
-    users.value = data.items || []
+    const res = await listUsers()
+    users.value = res.data?.list || []
   } catch (error) {
     console.error('获取用户列表失败:', error)
   }
@@ -396,7 +398,7 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (row: any) => {}
+const handleView = (_row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -406,7 +408,7 @@ const handleEdit = (row: any) => {
 }
 
 // 联系
-const handleContact = async (row: any) => {
+const handleContact = async (_row: any) => {
   try {
     await ElMessageBox.confirm('确认标记为已联系？', '提示', { type: 'warning' })
     ElMessage.success('操作成功')
@@ -417,7 +419,7 @@ const handleContact = async (row: any) => {
 }
 
 // 转化
-const handleConvert = async (row: any) => {
+const handleConvert = async (_row: any) => {
   try {
     await ElMessageBox.confirm('确认将该线索转化为客户？', '提示', { type: 'warning' })
     ElMessage.success('转化成功')
@@ -428,7 +430,7 @@ const handleConvert = async (row: any) => {
 }
 
 // 流失
-const handleLost = async (row: any) => {
+const handleLost = async (_row: any) => {
   try {
     await ElMessageBox.confirm('确认标记该线索为流失？', '提示', { type: 'warning' })
     ElMessage.success('操作成功')

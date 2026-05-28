@@ -38,7 +38,7 @@
             clearable
             @change="handleQuery"
           >
-            <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="产品">
@@ -49,7 +49,7 @@
             filterable
             @change="handleQuery"
           >
-            <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+            <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="价格状态">
@@ -157,14 +157,14 @@
           <el-col :span="12">
             <el-form-item label="产品" prop="product_id">
               <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
-                <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+            <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
               <el-select v-model="formData.supplier_id" placeholder="请选择供应商" filterable>
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -280,27 +280,30 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import { listPurchasePrices, createPurchasePrice, updatePurchasePrice, getPurchasePriceHistory } from '@/api/purchase-price'
+import type { PurchasePrice } from '@/api/purchase-price'
 import { supplierApi } from '@/api/supplier'
+import type { Supplier } from '@/api/supplier'
 import { productApi } from '@/api/product'
+import type { Product } from '@/api/product'
 
 // 查询参数
 const queryParams = reactive({
   page: 1,
   page_size: 20,
   keyword: '',
-  supplier_id: '',
-  product_id: '',
+  supplier_id: undefined as number | undefined,
+  product_id: undefined as number | undefined,
   status: '',
 })
 
 // 列表数据
 const loading = ref(false)
-const priceList = ref([])
+const priceList = ref<PurchasePrice[]>([])
 const total = ref(0)
 
 // 供应商和产品列表
-const suppliers = ref([])
-const products = ref([])
+const suppliers = ref<Supplier[]>([])
+const products = ref<Product[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -309,13 +312,13 @@ const formRef = ref()
 
 // 历史记录
 const historyVisible = ref(false)
-const historyList = ref([])
+const historyList = ref<PurchasePrice[]>([])
 
 // 表单数据
 const formData = reactive({
-  id: null,
-  product_id: '',
-  supplier_id: '',
+  id: undefined as number | undefined,
+  product_id: undefined as number | undefined,
+  supplier_id: undefined as number | undefined,
   price: 0,
   currency: 'CNY',
   unit: 'meter',
@@ -341,8 +344,8 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listPurchasePrices(queryParams)
-    priceList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    priceList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取采购价格列表失败:', error)
   } finally {
@@ -379,8 +382,8 @@ const handleQuery = () => {
 // 重置
 const handleReset = () => {
   queryParams.keyword = ''
-  queryParams.supplier_id = ''
-  queryParams.product_id = ''
+  queryParams.supplier_id = undefined
+  queryParams.product_id = undefined
   queryParams.status = ''
   handleQuery()
 }
@@ -389,9 +392,9 @@ const handleReset = () => {
 const handleCreate = () => {
   dialogTitle.value = '新建采购价格'
   Object.assign(formData, {
-    id: null,
-    product_id: '',
-    supplier_id: '',
+    id: undefined,
+    product_id: undefined,
+    supplier_id: undefined,
     price: 0,
     currency: 'CNY',
     unit: 'meter',
@@ -405,7 +408,7 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (row: any) => {}
+const handleView = (_row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -415,7 +418,7 @@ const handleEdit = (row: any) => {
 }
 
 // 审批
-const handleApprove = async (row: any) => {
+const handleApprove = async (_row: any) => {
   try {
     await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' })
     ElMessage.success('审批成功')

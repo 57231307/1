@@ -765,8 +765,8 @@ impl SchedulingService {
             })
             .collect();
 
+        let today = Utc::now().date_naive();
         let date_range = if items.is_empty() {
-            let today = Utc::now().date_naive();
             DateRange {
                 start: today,
                 end: today,

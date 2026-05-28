@@ -310,7 +310,7 @@ const fetchGanttData = async () => {
     renderGanttChart(ganttData.value)
   } catch (error: any) {
     ElMessage.error(error.message || '获取甘特图数据失败')
-    ganttData.value = null
+    ganttData.value = null as any
   } finally {
     loading.value = false
   }
@@ -496,74 +496,6 @@ const confirmAutoSchedule = async () => {
     ElMessage.error(error.message || '自动排程失败')
   } finally {
     scheduling.value = false
-  }
-}
-
-const getMockGanttData = (): GanttData => {
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const end = new Date(today)
-  end.setDate(end.getDate() + 30)
-  const endStr = end.toISOString().split('T')[0]
-
-  const workCenters = [
-    { id: 1, name: '裁剪中心', code: 'WC001' },
-    { id: 2, name: '缝纫中心', code: 'WC002' },
-    { id: 3, name: '印染中心', code: 'WC003' },
-    { id: 4, name: '包装中心', code: 'WC004' },
-    { id: 5, name: '质检中心', code: 'WC005' },
-  ]
-
-  const statuses: ScheduleTask['status'][] = [
-    'pending',
-    'scheduled',
-    'running',
-    'completed',
-    'conflict',
-  ]
-  const products = ['面料A-001', '面料B-002', '面料C-003', '面料D-004', '面料E-005']
-
-  const tasks: Record<number, ScheduleTask[]> = {}
-  let taskId = 1
-
-  workCenters.forEach((wc) => {
-    tasks[wc.id] = []
-    for (let i = 0; i < 5; i++) {
-      const start = new Date(today)
-      start.setDate(start.getDate() + i * 4 + wc.id)
-      const end = new Date(start)
-      end.setHours(end.getHours() + 8 + Math.floor(Math.random() * 16))
-      const status = statuses[Math.floor(Math.random() * 4)]
-
-      tasks[wc.id].push({
-        id: taskId++,
-        order_no: `WO${String(2026000 + taskId).slice(-5)}`,
-        product_name: products[i % products.length],
-        work_center_id: wc.id,
-        work_center_name: wc.name,
-        quantity: Math.floor(Math.random() * 500 + 100),
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        duration_hours:
-          Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60)) * 10) / 10,
-        status,
-        priority: Math.floor(Math.random() * 3) + 1,
-        has_conflict: false,
-      })
-    }
-  })
-
-  if (tasks[2].length > 0 && tasks[3].length > 0) {
-    tasks[2][2].has_conflict = true
-    tasks[2][2].status = 'conflict'
-    tasks[2][2].conflict_details = '与 WO00210 时间重叠'
-  }
-
-  return {
-    work_centers: workCenters.map((wc) => ({ ...wc, tasks: tasks[wc.id] || [] })),
-    date_range: { start: todayStr, end: endStr },
-    total_tasks: Object.values(tasks).flat().length,
-    conflict_count: 1,
   }
 }
 

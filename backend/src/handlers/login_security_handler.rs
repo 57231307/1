@@ -79,7 +79,7 @@ pub async fn list_login_logs(
         query_builder = query_builder.filter(log_login::Column::Status.eq(status.clone()));
     }
 
-    let total = query_builder.clone().count(state.db.as_ref()).await?;
+    let total: u64 = query_builder.clone().count(state.db.as_ref()).await?;
 
     let logs = query_builder
         .order_by_desc(log_login::Column::LoginTime)

@@ -43,7 +43,7 @@
             filterable
             @change="handleQuery"
           >
-            <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+            <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="产品">
@@ -54,7 +54,7 @@
             filterable
             @change="handleQuery"
           >
-            <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+            <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="价格状态">
@@ -163,7 +163,7 @@
           <el-col :span="12">
             <el-form-item label="产品" prop="product_id">
               <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
-                <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+                <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -175,7 +175,7 @@
                 filterable
                 clearable
               >
-                <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -300,28 +300,31 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Setting, Search, Refresh } from '@element-plus/icons-vue'
-import { listSalesPrices, createSalesPrice, updateSalesPrice, approveSalesPrice, getPriceHistory, listPricingStrategies } from '@/api/sales-price'
+import { listSalesPrices, createSalesPrice, updateSalesPrice, approveSalesPrice, getPriceHistory } from '@/api/sales-price'
+import type { SalesPrice } from '@/api/sales-price'
 import { customerApi } from '@/api/customer'
+import type { Customer } from '@/api/customer'
 import { productApi } from '@/api/product'
+import type { Product } from '@/api/product'
 
 // 查询参数
 const queryParams = reactive({
   page: 1,
   page_size: 20,
   keyword: '',
-  customer_id: '',
-  product_id: '',
+  customer_id: undefined as number | undefined,
+  product_id: undefined as number | undefined,
   status: '',
 })
 
 // 列表数据
 const loading = ref(false)
-const priceList = ref([])
+const priceList = ref<SalesPrice[]>([])
 const total = ref(0)
 
 // 客户和产品列表
-const customers = ref([])
-const products = ref([])
+const customers = ref<Customer[]>([])
+const products = ref<Product[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -330,13 +333,13 @@ const formRef = ref()
 
 // 历史记录
 const historyVisible = ref(false)
-const historyList = ref([])
+const historyList = ref<SalesPrice[]>([])
 
 // 表单数据
 const formData = reactive({
-  id: null,
-  product_id: '',
-  customer_id: '',
+  id: undefined as number | undefined,
+  product_id: undefined as number | undefined,
+  customer_id: undefined as number | undefined,
   price: 0,
   currency: 'CNY',
   unit: 'meter',
@@ -362,8 +365,8 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listSalesPrices(queryParams)
-    priceList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    priceList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取销售价格列表失败:', error)
   } finally {
@@ -400,8 +403,8 @@ const handleQuery = () => {
 // 重置
 const handleReset = () => {
   queryParams.keyword = ''
-  queryParams.customer_id = ''
-  queryParams.product_id = ''
+  queryParams.customer_id = undefined
+  queryParams.product_id = undefined
   queryParams.status = ''
   handleQuery()
 }
@@ -410,9 +413,9 @@ const handleReset = () => {
 const handleCreate = () => {
   dialogTitle.value = '新建销售价格'
   Object.assign(formData, {
-    id: null,
-    product_id: '',
-    customer_id: '',
+    id: undefined,
+    product_id: undefined,
+    customer_id: undefined,
     price: 0,
     currency: 'CNY',
     unit: 'meter',
@@ -427,7 +430,7 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (row: any) => {}
+const handleView = (_row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {

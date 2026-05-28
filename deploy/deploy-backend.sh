@@ -17,7 +17,7 @@ APP_GROUP="bingxi"
 INSTALL_DIR="/opt/bingxi"
 BIN_DIR="$INSTALL_DIR/bin"
 CONFIG_DIR="/etc/bingxi"
-LOG_DIR="/var/log/面料 ERP"
+LOG_DIR="/var/log/bingxi-erp"
 SERVICE_FILE="bingxi-backend.service"
 
 echo -e "${GREEN}=========================================${NC}"
@@ -49,9 +49,9 @@ echo -e "${GREEN}✓ 目录创建完成${NC}"
 
 # 3. 复制二进制文件
 echo -e "${YELLOW}[3/8] 复制二进制文件...${NC}"
-if [ -f "target/release/面料 ERP 后端" ]; then
-    cp target/release/面料ERP后端 "$BIN_DIR/"
-    chmod +x "$BIN_DIR/面料 ERP 后端"
+if [ -f "target/release/bingxi_backend" ]; then
+    cp target/release/bingxi_backend "$BIN_DIR/"
+    chmod +x "$BIN_DIR/bingxi_backend"
     echo -e "${GREEN}✓ 二进制文件复制完成${NC}"
 else
     echo -e "${RED}错误：未找到二进制文件，请先运行 cargo build --release${NC}"

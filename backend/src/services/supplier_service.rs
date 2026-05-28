@@ -25,7 +25,7 @@ impl SupplierService {
     /// 生成供应商编码
     pub async fn generate_supplier_code(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "SUP",
             supplier::Entity,
             supplier::Column::SupplierCode,

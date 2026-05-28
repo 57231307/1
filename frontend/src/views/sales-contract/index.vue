@@ -42,7 +42,7 @@
             clearable
             @change="handleQuery"
           >
-            <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+            <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="合同状态">
@@ -191,7 +191,7 @@
           <el-col :span="12">
             <el-form-item label="客户" prop="customer_id">
               <el-select v-model="formData.customer_id" placeholder="请选择客户" filterable>
-                <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -306,25 +306,27 @@ import {
   approveSalesContract,
   executeSalesContract,
 } from '@/api/sales-contract'
+import type { SalesContract } from '@/api/sales-contract'
 import { customerApi } from '@/api/customer'
+import type { Customer } from '@/api/customer'
 
 // 查询参数
 const queryParams = reactive({
   page: 1,
   page_size: 20,
   keyword: '',
-  customer_id: '',
+  customer_id: undefined as number | undefined,
   status: '',
-  date_range: [],
+  date_range: [] as string[],
 })
 
 // 列表数据
 const loading = ref(false)
-const contractList = ref([])
+const contractList = ref<SalesContract[]>([])
 const total = ref(0)
 
 // 客户列表
-const customers = ref([])
+const customers = ref<Customer[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -333,10 +335,10 @@ const formRef = ref()
 
 // 表单数据
 const formData = reactive({
-  id: null,
+  id: undefined as number | undefined,
   contract_no: '',
   contract_name: '',
-  customer_id: '',
+  customer_id: undefined as number | undefined,
   contract_type: '',
   total_amount: 0,
   signed_date: '',
@@ -360,9 +362,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    const { data } = await listSalesContracts(queryParams)
-    contractList.value = data.items || []
-    total.value = data.total || 0
+    const res = await listSalesContracts(queryParams)
+    contractList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取销售合同列表失败:', error)
   } finally {
@@ -373,8 +375,8 @@ const getList = async () => {
 // 获取客户列表
 const getCustomers = async () => {
   try {
-    const { data } = await customerApi.list()
-    customers.value = data.list || []
+    const res = await customerApi.list()
+    customers.value = res.data?.list || []
   } catch (error) {
     console.error('获取客户列表失败:', error)
   }
@@ -389,7 +391,7 @@ const handleQuery = () => {
 // 重置
 const handleReset = () => {
   queryParams.keyword = ''
-  queryParams.customer_id = ''
+  queryParams.customer_id = undefined
   queryParams.status = ''
   queryParams.date_range = []
   handleQuery()
@@ -399,10 +401,10 @@ const handleReset = () => {
 const handleCreate = () => {
   dialogTitle.value = '新建销售合同'
   Object.assign(formData, {
-    id: null,
+    id: undefined,
     contract_no: '',
     contract_name: '',
-    customer_id: '',
+    customer_id: undefined,
     contract_type: '',
     total_amount: 0,
     signed_date: '',
@@ -418,7 +420,7 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (row: any) => {}
+const handleView = (_row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {

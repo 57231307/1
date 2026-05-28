@@ -587,7 +587,7 @@ impl VoucherService {
             let existing = account_balance::Entity::find()
                 .filter(account_balance::Column::SubjectId.eq(subject_id))
                 .filter(account_balance::Column::Period.eq(&period))
-                .lock_for_update()
+                .lock(sea_orm::sea_query::LockType::Update)
                 .one(txn)
                 .await?;
 
@@ -694,7 +694,7 @@ impl VoucherService {
         };
 
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             prefix,
             voucher::Entity,
             voucher::Column::VoucherNo,

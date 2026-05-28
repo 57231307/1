@@ -39,7 +39,7 @@ impl ProductService {
     pub async fn generate_product_code(&self) -> Result<String, crate::utils::error::AppError> {
         use crate::utils::number_generator::DocumentNumberGenerator;
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "PRD",
             product::Entity,
             product::Column::Code,

@@ -246,6 +246,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Edit, TrendCharts, PieChart } from '@element-plus/icons-vue'
 import { salesAnalysisApi } from '@/api/sales-analysis'
+import type { ProductRanking, CustomerRanking, SalesTarget } from '@/api/sales-analysis'
 
 // 统计数据
 const stats = reactive({
@@ -267,13 +268,13 @@ const productRankType = ref('amount')
 const customerRankType = ref('amount')
 
 // 产品排名
-const productRanking = ref([])
+const productRanking = ref<ProductRanking[]>([])
 
 // 客户排名
-const customerRanking = ref([])
+const customerRanking = ref<CustomerRanking[]>([])
 
 // 销售目标
-const salesTargets = ref([])
+const salesTargets = ref<SalesTarget[]>([])
 
 // 获取统计数据
 const getStats = async () => {

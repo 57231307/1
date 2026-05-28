@@ -567,7 +567,7 @@ impl CapacityService {
                 alerts.push(CapacityOverloadAlert {
                     work_center_id: item.work_center_id,
                     work_center_code: item.work_center_code,
-                    work_center_name: item.work_center_name,
+                    work_center_name: item.work_center_name.clone(),
                     daily_capacity: item.daily_capacity,
                     current_demand: item.total_demand,
                     load_rate: item.load_rate,

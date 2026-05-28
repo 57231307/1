@@ -24,7 +24,7 @@ impl ArCollectionService {
         user_id: i32,
     ) -> Result<ar_collection::Model, AppError> {
         let collection_no = DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "COL",
             ar_collection::Entity,
             ar_collection::Column::CollectionNo,

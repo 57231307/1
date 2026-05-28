@@ -48,7 +48,6 @@ pub struct CreateStockFabricRequest {
     #[validate(length(min = 1, max = 20, message = "等级长度必须在1-20个字符之间"))]
     pub grade: String,
     /// 数量（米）
-    #[validate(range(min = 0.0001, message = "数量必须大于0"))]
     pub quantity_meters: Decimal,
     /// 数量（公斤）- 可选，会自动计算
     pub quantity_kg: Option<Decimal>,
@@ -389,8 +388,6 @@ pub async fn check_low_stock(
 
     Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
 }
-
-use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ListStockParams {

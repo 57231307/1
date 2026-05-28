@@ -32,7 +32,7 @@ impl ApPaymentService {
     /// 格式：PAY + 年月日 + 三位序号（PAY20260315001）
     pub async fn generate_payment_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "PAY",
             ap_payment::Entity,
             ap_payment::Column::PaymentNo,

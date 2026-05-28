@@ -47,7 +47,7 @@
             filterable
             @change="handleQuery"
           >
-            <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+            <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -160,7 +160,7 @@
           <el-col :span="12">
             <el-form-item label="产品" prop="product_id">
               <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
-                <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
+                <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -216,7 +216,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import { listDyeBatches, createDyeBatch, updateDyeBatch, deleteDyeBatch, completeDyeBatch, exportDyeBatches } from '@/api/dye-batch'
+import type { DyeBatch } from '@/api/dye-batch'
 import { productApi } from '@/api/product'
+import type { Product } from '@/api/product'
 
 // 查询参数
 const queryParams = reactive({
@@ -231,11 +233,11 @@ const queryParams = reactive({
 
 // 列表数据
 const loading = ref(false)
-const dyeBatchList = ref([])
+const dyeBatchList = ref<DyeBatch[]>([])
 const total = ref(0)
 
 // 产品列表
-const products = ref([])
+const products = ref<Product[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -244,7 +246,7 @@ const formRef = ref()
 
 // 表单数据
 const formData = reactive({
-  id: null,
+  id: undefined as number | undefined,
   batch_no: '',
   product_id: '',
   color_no: '',
@@ -268,8 +270,8 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listDyeBatches(queryParams)
-    dyeBatchList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    dyeBatchList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取缸号列表失败:', error)
   } finally {
@@ -307,7 +309,7 @@ const handleReset = () => {
 const handleCreate = () => {
   dialogTitle.value = '新建缸号'
   Object.assign(formData, {
-    id: null,
+    id: undefined,
     batch_no: '',
     product_id: '',
     color_no: '',
@@ -320,7 +322,7 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (row: any) => {}
+const handleView = (_row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {

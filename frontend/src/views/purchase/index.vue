@@ -242,7 +242,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="备注">
-              <el-input v-model="createForm.remarks" placeholder="请输入备注" />
+              <el-input v-model="createForm.remark" placeholder="请输入备注" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -599,7 +599,7 @@ const handleCreate = () => {
     supplier_id: undefined,
     order_date: new Date().toISOString().split('T')[0],
     required_date: '',
-    remarks: '',
+    remark: '',
     items: [{ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 }],
   }
   createDialogVisible.value = true

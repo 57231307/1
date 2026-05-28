@@ -87,7 +87,7 @@ impl PurchaseOrderService {
     /// 格式：PO + 年月日 + 三位序号（PO20260315001）
     pub async fn generate_order_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "PO",
             purchase_order::Entity,
             purchase_order::Column::OrderNo,
@@ -111,7 +111,7 @@ impl PurchaseOrderService {
     /// 格式：PR + 年月日 + 三位序号（PR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "PR",
             purchase_receipt::Entity,
             purchase_receipt::Column::ReceiptNo,
@@ -849,6 +849,7 @@ impl PurchaseOrderService {
         let item = purchase_order_item::ActiveModel {
             id: Set(0),
             order_id: Set(order_id),
+            line_no: Set(1),
             product_id: Set(req.material_id.unwrap_or(0)), // 使用 material_id 作为 product_id
             quantity: Set(quantity_ordered),
             quantity_alt: Set(quantity_alt_ordered),
@@ -1459,7 +1460,7 @@ pub struct UpdatePurchaseOrderRequest {
 }
 
 /// 创建订单明细请求
-#[derive(Debug, Validate, Deserialize, Serialize)]
+#[derive(Debug, Clone, Validate, Deserialize, Serialize)]
 pub struct CreateOrderItemRequest {
     /// 行号
     pub line_no: Option<i32>,

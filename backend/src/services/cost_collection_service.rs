@@ -173,7 +173,7 @@ impl CostCollectionService {
     /// 生成成本归集单编号
     async fn generate_collection_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "COST",
             cost_collection::Entity,
             cost_collection::Column::CollectionNo,

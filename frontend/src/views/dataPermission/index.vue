@@ -151,7 +151,7 @@ const roleList = ref([
 ])
 
 const selectedRoleId = ref('1')
-const permissionList = ref<DataPermission[]>([])
+const permissionList = ref<DataPermissionRole[]>([])
 const scopeTypeList = ref<ScopeType[]>([])
 
 const permissionDialogVisible = ref(false)
@@ -229,7 +229,7 @@ const handleAddPermission = () => {
   permissionDialogVisible.value = true
 }
 
-const handleEditPermission = (row: DataPermission) => {
+const handleEditPermission = (row: DataPermissionRole) => {
   isEdit.value = true
   Object.assign(permissionForm, {
     roleId: row.roleId,
@@ -269,7 +269,7 @@ const handleSavePermission = async () => {
   })
 }
 
-const handleDeletePermission = async (row: DataPermission) => {
+const handleDeletePermission = async (row: DataPermissionRole) => {
   if (!row.roleId || !row.resourceType) return
 
   try {

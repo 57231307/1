@@ -30,7 +30,7 @@ impl PurchaseReturnService {
     /// 格式：RT + 年月日 + 三位序号（RT20260315001）
     pub async fn generate_return_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "RT",
             purchase_return::Entity,
             purchase_return::Column::ReturnNo,

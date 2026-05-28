@@ -212,6 +212,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import { listDyeRecipes, createDyeRecipe, updateDyeRecipe, approveDyeRecipe, submitDyeRecipe, getRecipeVersions, exportDyeRecipes } from '@/api/dye-recipe'
+import type { DyeRecipe } from '@/api/dye-recipe'
 
 // 查询参数
 const queryParams = reactive({
@@ -224,7 +225,7 @@ const queryParams = reactive({
 
 // 列表数据
 const loading = ref(false)
-const recipeList = ref([])
+const recipeList = ref<DyeRecipe[]>([])
 const total = ref(0)
 
 // 对话框
@@ -234,11 +235,11 @@ const formRef = ref()
 
 // 版本历史
 const versionVisible = ref(false)
-const versionList = ref([])
+const versionList = ref<DyeRecipe[]>([])
 
 // 表单数据
 const formData = reactive({
-  id: null,
+  id: undefined as number | undefined,
   recipe_no: '',
   recipe_name: '',
   color_no: '',
@@ -261,8 +262,8 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listDyeRecipes(queryParams)
-    recipeList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    recipeList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取染色配方列表失败:', error)
   } finally {
@@ -288,7 +289,7 @@ const handleReset = () => {
 const handleCreate = () => {
   dialogTitle.value = '新建染色配方'
   Object.assign(formData, {
-    id: null,
+    id: undefined,
     recipe_no: '',
     recipe_name: '',
     color_no: '',
@@ -300,7 +301,7 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (row: any) => {}
+const handleView = (_row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -345,7 +346,7 @@ const handleVersion = async (row: any) => {
 }
 
 // 查看版本
-const handleViewVersion = (row: any) => {}
+const handleViewVersion = (_row: any) => {}
 
 // 导出
 const handleExport = async () => {

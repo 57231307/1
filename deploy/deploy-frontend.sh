@@ -28,6 +28,10 @@ fi
 
 # 1. 安装依赖并构建
 echo -e "${YELLOW}[1/4] 安装前端依赖并构建...${NC}"
+if [ ! -d "frontend" ]; then
+    echo -e "${RED}错误：frontend 目录不存在${NC}"
+    exit 1
+fi
 cd frontend
 npm install --production=false
 npm run build

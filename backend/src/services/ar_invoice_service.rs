@@ -103,7 +103,7 @@ impl ArInvoiceService {
             invoice_date: Set(invoice_date),
             due_date: Set(due_date),
             customer_id: Set(delivery.customer_id),
-            customer_name: Set(Some(customer.name.clone())),
+            customer_name: Set(Some(customer.customer_name.clone())),
             source_type: Set(Some("SALES_DELIVERY".to_string())),
             source_bill_id: Set(Some(delivery_id)),
             source_bill_no: Set(Some(delivery.delivery_no.clone())),
@@ -217,7 +217,7 @@ impl ArInvoiceService {
     /// 生成应收单编号
     async fn generate_invoice_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "AR",
             ar_invoice::Entity,
             ar_invoice::Column::InvoiceNo,

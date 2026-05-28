@@ -450,7 +450,7 @@ impl ArReconciliationService {
             let total_collections: Decimal = collections.iter().map(|c| c.collection_amount).sum();
 
             let reconciliation_no = DocumentNumberGenerator::generate_no(
-                &self.db,
+                &*self.db,
                 "AR",
                 ReconciliationEntity,
                 crate::models::ar_reconciliation::Column::ReconciliationNo,
@@ -780,7 +780,7 @@ impl ArReconciliationService {
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 不存在", req.customer_id)))?;
 
         let reconciliation_no = DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "AR",
             ReconciliationEntity,
             crate::models::ar_reconciliation::Column::ReconciliationNo,

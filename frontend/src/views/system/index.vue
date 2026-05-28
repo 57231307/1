@@ -1056,7 +1056,7 @@ const permissionListLoading = ref(false)
 const fetchPermissionList = async () => {
   permissionListLoading.value = true
   try {
-    const res = await request.get('/permissions')
+    const res: any = await request.get('/permissions')
     permissionList.value = res.data || []
   } catch (e) {
     /* ignore */
@@ -1071,7 +1071,7 @@ const dataPermLoading = ref(false)
 const fetchDataPermissions = async () => {
   dataPermLoading.value = true
   try {
-    const res = await request.get('/data-permissions')
+    const res: any = await request.get('/data-permissions')
     dataPermissionList.value = res.data?.items || res.data || []
   } catch (e) {
     /* ignore */
@@ -1086,7 +1086,7 @@ const fieldPermLoading = ref(false)
 const fetchFieldPermissions = async () => {
   fieldPermLoading.value = true
   try {
-    const res = await request.get('/permissions/fields')
+    const res: any = await request.get('/permissions/fields')
     fieldPermissionList.value = res.data?.items || res.data || []
   } catch (e) {
     /* ignore */
@@ -1109,7 +1109,7 @@ const notificationForm = reactive({
 const notifSaving = ref(false)
 const fetchNotificationSetting = async () => {
   try {
-    const res = await request.get('/user/notification-setting')
+    const res: any = await request.get('/user/notification-setting')
     if (res.data) Object.assign(notificationForm, res.data)
   } catch (e) {
     /* ignore */
@@ -1148,7 +1148,7 @@ const fetchAuditLogs = async () => {
       params.start_date = auditQuery.dateRange[0]
       params.end_date = auditQuery.dateRange[1]
     }
-    const res = await request.get('/audit/logs', { params })
+    const res: any = await request.get('/audit/logs', { params })
     auditLogs.value = res.data?.items || res.data || []
     auditTotal.value = res.data?.total || 0
   } catch (e) {
@@ -1174,7 +1174,7 @@ const webhookForm = reactive({
 const fetchWebhooks = async () => {
   webhookLoading.value = true
   try {
-    const res = await request.get('/webhooks/integrations')
+    const res: any = await request.get('/webhooks/integrations')
     webhookList.value = res.data?.items || res.data || []
   } catch (e) {
     /* ignore */
@@ -1240,7 +1240,7 @@ const applyUpdateLoading = ref(false)
 const checkUpdate = async () => {
   checkUpdateLoading.value = true
   try {
-    const res = await request.get('/system-update/check')
+    const res: any = await request.get('/system-update/check')
     updateInfo.value = res.data?.message || '已是最新版本'
     hasUpdate.value = res.data?.has_update || false
   } catch (e: any) {
@@ -1262,7 +1262,7 @@ const applyUpdate = async () => {
 }
 const fetchSystemVersion = async () => {
   try {
-    const res = await request.get('/system-update/version')
+    const res: any = await request.get('/system-update/version')
     systemVersion.value = res.data?.version || 'unknown'
     lastUpdate.value = res.data?.updated_at || '-'
   } catch (e) {
@@ -1288,7 +1288,7 @@ const fetchTenantConfigs = async () => {
   try {
     const params: any = {}
     if (tenantConfigQuery.key) params.key = tenantConfigQuery.key
-    const res = await request.get('/tenant/config/settings', { params })
+    const res: any = await request.get('/tenant/config/settings', { params })
     tenantConfigs.value = res.data?.items || res.data || []
   } catch (e) {
     /* ignore */

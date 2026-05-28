@@ -25,7 +25,7 @@ impl CustomerService {
     pub async fn generate_customer_code(&self) -> Result<String, crate::utils::error::AppError> {
         use crate::utils::number_generator::DocumentNumberGenerator;
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "CUS",
             customer::Entity,
             customer::Column::CustomerCode,

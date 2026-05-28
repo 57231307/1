@@ -177,7 +177,7 @@ impl CrmService {
 
         // 使用FOR UPDATE锁定行，防止并发转化
         let lead = crm_lead::Entity::find_by_id(lead_id)
-            .lock_for_update()
+            .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
@@ -250,6 +250,7 @@ impl CrmService {
         // 自动创建初始商机
         let opp_no = format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
         let opportunity_model = crm_opportunity::ActiveModel {
+            id: Set(0),
             opportunity_no: Set(opp_no),
             opportunity_name: Set(format!("线索转化商机-{}", lead.contact_name)),
             customer_id: Set(customer.id),
@@ -267,15 +268,21 @@ impl CrmService {
             product_desc: Set(lead.requirement_desc.clone()),
             owner_id: Set(lead.owner_id),
             owner_name: Set(lead.owner_name.clone()),
+            last_follow_up_date: Set(None),
+            next_follow_up_date: Set(None),
+            follow_up_plan: Set(None),
+            competitor_names: Set(None),
+            competitive_advantage: Set(None),
             opportunity_status: Set(Some("open".to_string())),
+            won_reason: Set(None),
+            lost_reason: Set(None),
             priority: Set(lead.priority.clone()),
             rating: Set(lead.rating),
             tags: Set(lead.tags.clone()),
             created_by: Set(Some(user_id)),
+            updated_by: Set(None),
             created_at: Set(Some(chrono::Utc::now())),
             updated_at: Set(Some(chrono::Utc::now())),
-            won_reason: Set(None),
-            lost_reason: Set(None),
         };
 
         let opportunity = opportunity_model.insert(&txn)
@@ -483,7 +490,7 @@ impl CrmService {
 
         // 1. 获取商机信息，使用FOR UPDATE锁定行
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
-            .lock_for_update()
+            .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
@@ -664,7 +671,7 @@ impl CrmService {
 
         // 使用FOR UPDATE锁定行，防止并发更新
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
-            .lock_for_update()
+            .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?

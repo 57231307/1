@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait, FromQueryResult};
+use sea_orm::{ConnectionTrait, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait, FromQueryResult};
 use chrono::Utc;
 use crate::utils::error::AppError;
 
@@ -9,7 +9,7 @@ impl DocumentNumberGenerator {
     /// 生成标准格式单号: {前缀}{YYYYMMDD}{3位流水号}
     /// 例如: PO20230501001
     pub async fn generate_no<'db, E, C>(
-        db: &'db DatabaseConnection,
+        db: &'db impl ConnectionTrait,
         prefix: &str,
         _entity: E,
         column: C,

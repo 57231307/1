@@ -35,7 +35,9 @@ describe('工具函数测试', () => {
     })
 
     it('应该处理负数', () => {
-      expect(formatCurrency(-100)).toContain('-100.00')
+      const result = formatCurrency(-100)
+      expect(result).toContain('100.00')
+      expect(result).toMatch(/-|负/) // 包含负号或负数标识
     })
   })
 

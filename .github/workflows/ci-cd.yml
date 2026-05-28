@@ -90,7 +90,7 @@ jobs:
       - name: 代码检查 (Clippy)
         working-directory: backend
         run: |
-          cargo clippy -- -D warnings || echo "Clippy 有警告但继续构建"
+          cargo clippy -- -D warnings
 
       - name: 构建后端 (Release模式)
         working-directory: backend
@@ -215,7 +215,7 @@ jobs:
       - name: 运行后端单元测试
         working-directory: backend
         run: |
-          cargo test --lib --jobs 2 || echo "部分测试失败但继续构建"
+          cargo test --lib --jobs 2
 
   package-release:
     name: 创建发布包

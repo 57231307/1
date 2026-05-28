@@ -557,6 +557,9 @@ impl InventoryCountService {
         }
 
         // 更新盘点单状态
+        let count_no = count.count_no.clone();
+        let warehouse_id = count.warehouse_id;
+        let created_by = count.created_by;
         let mut count_update: inventory_count::ActiveModel = count.into();
         count_update.status = sea_orm::ActiveValue::Set("completed".to_string());
         count_update.variance_items = sea_orm::ActiveValue::Set(variance_count);
@@ -585,7 +588,7 @@ impl InventoryCountService {
                         stock_id: item.stock_id,
                         quantity: item.quantity_difference.abs(),
                         unit_cost: Some(item.unit_cost),
-                        notes: Some(format!("盘点差异调整 - 盘点单号: {}", count.count_no)),
+                        notes: Some(format!("盘点差异调整 - 盘点单号: {}", count_no)),
                     });
                 }
             }
@@ -593,7 +596,7 @@ impl InventoryCountService {
             // 创建调整单
             if !adjustment_items.is_empty() {
                 let adjustment_request = CreateAdjustmentRequest {
-                    warehouse_id: count.warehouse_id,
+                    warehouse_id: warehouse_id,
                     adjustment_date: chrono::Utc::now(),
                     adjustment_type: if adjustment_items.iter().any(|i| i.quantity > rust_decimal::Decimal::ZERO) {
                         "increase".to_string()
@@ -601,9 +604,9 @@ impl InventoryCountService {
                         "decrease".to_string()
                     },
                     reason_type: "correction".to_string(),
-                    reason_description: Some(format!("盘点差异自动调整 - 盘点单号: {}", count.count_no)),
+                    reason_description: Some(format!("盘点差异自动调整 - 盘点单号: {}", count_no)),
                     notes: Some("由盘点单自动生成".to_string()),
-                    created_by: count.created_by,
+                    created_by: created_by,
                     items: adjustment_items,
                 };
 
@@ -621,7 +624,7 @@ impl InventoryCountService {
     /// 生成盘点单号
     async fn generate_count_no(&self) -> Result<String, sea_orm::DbErr> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "IC",
             inventory_count::Entity,
             inventory_count::Column::CountNo,

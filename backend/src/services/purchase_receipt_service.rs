@@ -31,7 +31,7 @@ impl PurchaseReceiptService {
     /// 格式：GR + 年月日 + 三位序号（GR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "PR",
             purchase_receipt::Entity,
             purchase_receipt::Column::ReceiptNo,

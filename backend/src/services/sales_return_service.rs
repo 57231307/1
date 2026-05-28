@@ -91,7 +91,7 @@ impl SalesReturnService {
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
     pub async fn generate_return_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
-            &self.db,
+            &*self.db,
             "SR",
             sales_return::Entity,
             sales_return::Column::ReturnNo,

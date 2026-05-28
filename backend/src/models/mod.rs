@@ -162,3 +162,39 @@ pub mod email_template;
 pub mod email_log;
 // CRM分配历史模块
 pub mod assignment_history;
+// 登录日志模块
+pub mod log_login;
+// 供应商产品颜色模块
+pub mod supplier_product_color;
+// 产品供应商映射模块
+pub mod product_supplier_mapping;
+// 资金账户模块
+pub mod fund_account;
+// API访问日志模块
+pub mod log_api_access;
+// 系统日志模块
+pub mod log_system;
+// 系统版本模块
+pub mod system_version;
+// 公告模块
+pub mod oa_announcement;
+// 颜色编码映射模块
+pub mod color_code_mapping;
+// 批次追溯日志模块
+pub mod batch_trace_log;
+// 批次染缸映射模块
+pub mod batch_dye_lot;
+// 匹数映射模块
+pub mod piece_mapping;
+// 成本模块
+// P1P2模块
+// 应收账龄分析模块
+pub mod ar_aging_analysis;
+// 供应商基础模块
+pub mod supplier_blacklist;
+pub mod supplier_grade;
+// 业务追溯辅助链接模块
+pub mod business_trace_assist_link;
+pub mod business_trace_view;
+// 字段权限模块
+pub mod report_definition;

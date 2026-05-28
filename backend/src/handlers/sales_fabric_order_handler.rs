@@ -187,6 +187,7 @@ pub async fn create_fabric_order(
         id: Set(0),
         order_no: Set(order_no.clone()),
         customer_id: Set(req.customer_id),
+        opportunity_id: Set(None),
         order_date: Set(req.order_date),
         required_date: Set(req.required_date),
         ship_date: Set(None),

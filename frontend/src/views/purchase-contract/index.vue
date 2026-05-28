@@ -38,7 +38,7 @@
             clearable
             @change="handleQuery"
           >
-            <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="合同状态">
@@ -187,7 +187,7 @@
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
               <el-select v-model="formData.supplier_id" placeholder="请选择供应商" filterable>
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -302,25 +302,27 @@ import {
   approvePurchaseContract,
   executePurchaseContract,
 } from '@/api/purchase-contract'
+import type { PurchaseContract } from '@/api/purchase-contract'
 import { supplierApi } from '@/api/supplier'
+import type { Supplier } from '@/api/supplier'
 
 // 查询参数
 const queryParams = reactive({
   page: 1,
   page_size: 20,
   keyword: '',
-  supplier_id: '',
+  supplier_id: undefined as number | undefined,
   status: '',
-  date_range: [],
+  date_range: [] as string[],
 })
 
 // 列表数据
 const loading = ref(false)
-const contractList = ref([])
+const contractList = ref<PurchaseContract[]>([])
 const total = ref(0)
 
 // 供应商列表
-const suppliers = ref([])
+const suppliers = ref<Supplier[]>([])
 
 // 对话框
 const dialogVisible = ref(false)
@@ -329,10 +331,10 @@ const formRef = ref()
 
 // 表单数据
 const formData = reactive({
-  id: null,
+  id: undefined as number | undefined,
   contract_no: '',
   contract_name: '',
-  supplier_id: '',
+  supplier_id: undefined as number | undefined,
   contract_type: '',
   total_amount: 0,
   signed_date: '',
@@ -356,9 +358,9 @@ const formRules = {
 const getList = async () => {
   loading.value = true
   try {
-    const { data } = await listPurchaseContracts(queryParams)
-    contractList.value = data.items || []
-    total.value = data.total || 0
+    const res = await listPurchaseContracts(queryParams)
+    contractList.value = res.data || []
+    total.value = res.total || 0
   } catch (error) {
     console.error('获取采购合同列表失败:', error)
   } finally {
@@ -369,8 +371,8 @@ const getList = async () => {
 // 获取供应商列表
 const getSuppliers = async () => {
   try {
-    const { data } = await supplierApi.list()
-    suppliers.value = data.list || []
+    const res = await supplierApi.list()
+    suppliers.value = res.data?.list || []
   } catch (error) {
     console.error('获取供应商列表失败:', error)
   }
@@ -385,7 +387,7 @@ const handleQuery = () => {
 // 重置
 const handleReset = () => {
   queryParams.keyword = ''
-  queryParams.supplier_id = ''
+  queryParams.supplier_id = undefined
   queryParams.status = ''
   queryParams.date_range = []
   handleQuery()
@@ -395,10 +397,10 @@ const handleReset = () => {
 const handleCreate = () => {
   dialogTitle.value = '新建采购合同'
   Object.assign(formData, {
-    id: null,
+    id: undefined,
     contract_no: '',
     contract_name: '',
-    supplier_id: '',
+    supplier_id: undefined,
     contract_type: '',
     total_amount: 0,
     signed_date: '',

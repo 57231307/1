@@ -77,8 +77,12 @@ pub async fn search_logs(
     let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
     let offset: u64 = if page > 0 { (page - 1) * page_size } else { 0 };
     
-    let sql = format!("SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT {} OFFSET {}", page_size, offset);
-    let rows = state.db.query_all(sea_orm::Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql)).await?;
+    let sql = "SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2";
+    let rows = state.db.query_all(sea_orm::Statement::from_sql_and_values(
+        sea_orm::DatabaseBackend::Postgres,
+        sql,
+        vec![page_size.into(), offset.into()],
+    )).await?;
     
     let mut items = Vec::new();
     for row in rows {

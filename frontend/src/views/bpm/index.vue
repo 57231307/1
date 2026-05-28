@@ -265,8 +265,8 @@ const handleTabChange = (tabName: string) => {
 
 const fetchPendingTasks = async () => {
   try {
-    const res = await bpmApi.getPendingTasks()
-    pendingTasks.value = res.data || []
+    const res = await bpmApi.queryTasks({ status: 'pending' })
+    pendingTasks.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取待处理任务失败')
     pendingTasks.value = []
@@ -275,8 +275,8 @@ const fetchPendingTasks = async () => {
 
 const fetchInitiatedProcesses = async () => {
   try {
-    const res = await bpmApi.getMonitorInstances()
-    initiatedProcesses.value = res.data || []
+    const res = await bpmApi.listInstancesForMonitor()
+    initiatedProcesses.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取发起流程失败')
     initiatedProcesses.value = []
@@ -285,8 +285,8 @@ const fetchInitiatedProcesses = async () => {
 
 const fetchProcessedTasks = async () => {
   try {
-    const res = await bpmApi.getCompletedTasks()
-    processedTasks.value = res.data || []
+    const res = await bpmApi.queryTasks({ status: 'completed' })
+    processedTasks.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取已处理任务失败')
     processedTasks.value = []
@@ -295,8 +295,8 @@ const fetchProcessedTasks = async () => {
 
 const fetchProcessInstances = async () => {
   try {
-    const res = await bpmApi.getMonitorInstances()
-    processInstances.value = res.data || []
+    const res = await bpmApi.listInstancesForMonitor()
+    processInstances.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取流程实例失败')
     processInstances.value = []
