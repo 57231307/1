@@ -455,14 +455,19 @@ impl InventoryTransferService {
             .all(&txn)
             .await?;
 
+        // 批量获取源仓库库存记录（优化N+1查询）
+        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
+        let stocks = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(&txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
         // 扣减源仓库库存
         for item in items {
             // 查找源仓库库存记录
-            let stock = InventoryStockEntity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                .one(&txn)
-                .await?;
+            let stock = stock_map.get(&item.product_id);
 
             if let Some(stock_model) = stock {
                 // 检查库存是否充足
@@ -485,6 +490,7 @@ impl InventoryTransferService {
                 let color_no = stock_model.color_no.clone();
                 let dye_lot_no = stock_model.dye_lot_no.clone();
                 let grade = stock_model.grade.clone();
+                let stock_model = stock_model.clone();
 
                 // 扣减库存（带乐观锁）
                 let new_quantity_meters = quantity_meters - item.quantity;
@@ -613,14 +619,19 @@ impl InventoryTransferService {
             .all(&txn)
             .await?;
 
+        // 批量获取目标仓库库存记录（优化N+1查询）
+        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
+        let stocks = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(transfer.to_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(&txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
         // 增加目标仓库库存
         for item in items {
             // 查找目标仓库库存记录
-            let stock = InventoryStockEntity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(transfer.to_warehouse_id))
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                .one(&txn)
-                .await?;
+            let stock = stock_map.get(&item.product_id);
 
             if let Some(stock_model) = stock {
                 // 保存需要使用的值
@@ -633,6 +644,7 @@ impl InventoryTransferService {
                 let color_no = stock_model.color_no.clone();
                 let dye_lot_no = stock_model.dye_lot_no.clone();
                 let grade = stock_model.grade.clone();
+                let stock_model = stock_model.clone();
 
                 // 增加库存（带乐观锁）
                 let new_quantity_meters = quantity_meters + item.quantity;
@@ -830,16 +842,21 @@ impl InventoryTransferService {
         items: &[InventoryTransferItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), sea_orm::DbErr> {
+        // 批量获取库存记录（优化N+1查询）
+        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id.unwrap_or(0)).collect();
+        let stocks = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(*from_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
         for item in items {
             let product_id = item.product_id.unwrap_or(0);
             let quantity = item.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             
             // 查询调出仓库的库存
-            let stock = InventoryStockEntity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(*from_warehouse_id))
-                .filter(inventory_stock::Column::ProductId.eq(product_id))
-                .one(txn)
-                .await?;
+            let stock = stock_map.get(&product_id);
 
             match stock {
                 Some(s) if s.quantity_available >= quantity => {

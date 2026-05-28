@@ -187,16 +187,38 @@ impl CrmService {
             return Err(AppError::BusinessError("该线索已转化".to_string()));
         }
 
+        let lead_no = lead.lead_no.clone();
+        let lead_owner_id = lead.owner_id;
+
         let customer_code = format!("CUST{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
         let customer_name = lead.company_name.clone().unwrap_or_else(|| lead.contact_name.clone());
         let customer_type = req.customer_type.unwrap_or_else(|| "retail".to_string());
+
+        // 合并线索备注信息
+        let mut notes_parts = Vec::new();
+        if let Some(req_notes) = &req.notes {
+            notes_parts.push(req_notes.clone());
+        }
+        if let Some(interest) = &lead.product_interest {
+            notes_parts.push(format!("产品兴趣: {}", interest));
+        }
+        if let Some(desc) = &lead.requirement_desc {
+            notes_parts.push(format!("需求描述: {}", desc));
+        }
+        if let Some(amount) = &lead.estimated_amount {
+            notes_parts.push(format!("预估金额: {}", amount));
+        }
+        if let Some(quantity) = &lead.estimated_quantity {
+            notes_parts.push(format!("预估数量: {}", quantity));
+        }
+        let merged_notes = if notes_parts.is_empty() { req.notes } else { Some(notes_parts.join("; ")) };
 
         let customer_model = customer::ActiveModel {
             id: Default::default(),
             customer_code: Set(customer_code),
             customer_name: Set(customer_name),
             contact_person: Set(Some(lead.contact_name.clone())),
-            contact_phone: Set(lead.mobile_phone.clone()),
+            contact_phone: Set(lead.mobile_phone.clone().or_else(|| lead.tel_phone.clone())),
             contact_email: Set(lead.email.clone()),
             address: Set(lead.address.clone()),
             city: Default::default(),
@@ -210,13 +232,13 @@ impl CrmService {
             bank_account: Default::default(),
             status: Set("active".to_string()),
             customer_type: Set(customer_type),
-            notes: Set(req.notes),
+            notes: Set(merged_notes),
             created_by: Set(Some(user_id)),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
             customer_industry: Default::default(),
-            main_products: Default::default(),
-            annual_purchase: Default::default(),
+            main_products: Set(lead.product_interest.clone()),
+            annual_purchase: Set(lead.estimated_amount),
             quality_requirement: Default::default(),
             inspection_standard: Default::default(),
         };
@@ -225,8 +247,45 @@ impl CrmService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+        // 自动创建初始商机
+        let opp_no = format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        let opportunity_model = crm_opportunity::ActiveModel {
+            opportunity_no: Set(opp_no),
+            opportunity_name: Set(format!("线索转化商机-{}", lead.contact_name)),
+            customer_id: Set(customer.id),
+            lead_id: Set(Some(lead_id)),
+            opportunity_type: Set(Some("new_business".to_string())),
+            opportunity_stage: Set(Some("prospecting".to_string())),
+            win_probability: Set(Some(rust_decimal::Decimal::new(20, 0))),
+            estimated_amount: Set(lead.estimated_amount),
+            actual_amount: Set(None),
+            currency: Set(Some("CNY".to_string())),
+            expected_close_date: Set(lead.expected_delivery_date),
+            actual_close_date: Set(None),
+            product_ids: Set(None),
+            product_names: Set(lead.product_interest.clone().map(|p| vec![p])),
+            product_desc: Set(lead.requirement_desc.clone()),
+            owner_id: Set(lead.owner_id),
+            owner_name: Set(lead.owner_name.clone()),
+            opportunity_status: Set(Some("open".to_string())),
+            priority: Set(lead.priority.clone()),
+            rating: Set(lead.rating),
+            tags: Set(lead.tags.clone()),
+            created_by: Set(Some(user_id)),
+            created_at: Set(Some(chrono::Utc::now())),
+            updated_at: Set(Some(chrono::Utc::now())),
+            won_reason: Set(None),
+            lost_reason: Set(None),
+        };
+
+        let opportunity = opportunity_model.insert(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 更新线索状态（一次性设置所有转化相关字段）
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.converted_customer_id = Set(Some(customer.id));
+        lead_active.converted_opportunity_id = Set(Some(opportunity.id));
         lead_active.lead_status = Set(Some("converted".to_string()));
         lead_active.converted_at = Set(Some(chrono::Utc::now()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));
@@ -235,6 +294,19 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 发送转化通知给销售团队
+        let notification_service = crate::services::event_notification_service::EventNotificationService::new(self.db.clone());
+        let _ = notification_service.notify_multiple_users(
+            vec![lead_owner_id],
+            "线索转化成功".to_string(),
+            format!("线索 {} 已成功转化为客户 {}，商机 {} 已自动创建",
+                lead_no, customer.customer_name, opportunity.opportunity_no),
+            crate::models::notification::NotificationPriority::Normal,
+            Some("CRM".to_string()),
+            Some(customer.id),
+            Some(format!("/crm/customers/{}", customer.id)),
+        ).await;
 
         Ok(customer)
     }
@@ -466,13 +538,20 @@ impl CrmService {
         if let Some(product_ids) = &opportunity.product_ids {
             let product_names = opportunity.product_names.as_deref().unwrap_or_default();
             
+            // 批量获取产品信息（优化N+1查询）
+            let products = product::Entity::find()
+                .filter(product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()))
+                .all(&txn)
+                .await
+                .map_err(|e| {
+                    tracing::error!("批量查询产品失败: {}", e);
+                    AppError::DatabaseError(e.to_string())
+                })?;
+            let product_map: std::collections::HashMap<i32, product::Model> = products.into_iter().map(|p| (p.id, p)).collect();
+
             for (index, product_id) in product_ids.iter().enumerate() {
                 // 查询产品信息获取标准价格
-                let product = product::Entity::find_by_id(*product_id)
-                    .one(&txn)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?
-                    .ok_or_else(|| AppError::NotFound(format!("产品 {} 不存在", product_id)))?;
+                let product = product_map.get(product_id).ok_or_else(|| AppError::NotFound(format!("产品 {} 不存在", product_id)))?;
 
                 let unit_price = product.standard_price.unwrap_or(rust_decimal::Decimal::ZERO);
                 let quantity = rust_decimal::Decimal::ONE; // 默认数量为1

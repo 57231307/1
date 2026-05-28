@@ -14,6 +14,10 @@
           <el-icon><Plus /></el-icon>
           新建订单
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
           导出
@@ -491,6 +495,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
   Download,
+  Printer,
   Search,
   Refresh,
   Document,
@@ -809,6 +814,46 @@ const handleExport = () => {
   link.download = `销售订单_${new Date().toISOString().split('T')[0]}.csv`
   link.click()
   ElMessage.success('导出成功')
+}
+
+const handlePrint = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = orders.value.map((item: any) => `
+    <tr>
+      <td>${item.order_no}</td>
+      <td>${item.customer_name}</td>
+      <td>${item.order_date}</td>
+      <td style="text-align:right">¥${item.total_amount?.toLocaleString()}</td>
+      <td>${getStatusText(item.status)}</td>
+      <td>${item.created_at}</td>
+    </tr>
+  `).join('')
+  const now = new Date().toISOString().split('T')[0]
+  printWindow.document.write(`
+    <html><head><meta charset="utf-8"><title>销售订单列表</title>
+    <style>
+      @media print { @page { size: landscape; } }
+      body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
+      h1 { text-align: center; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { border: 1px solid #333; padding: 6px 8px; }
+      th { background: #f5f5f5; }
+      .meta { text-align: center; color: #666; font-size: 11px; }
+    </style></head><body>
+    <h1>销售订单列表</h1>
+    <div class="meta">打印日期: ${now} | 共 ${orders.value.length} 条</div>
+    <table>
+      <thead><tr><th>订单号</th><th>客户</th><th>订单日期</th><th>金额</th><th>状态</th><th>创建时间</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </body></html>
+  `)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 // 发货相关

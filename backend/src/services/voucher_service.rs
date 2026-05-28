@@ -145,24 +145,37 @@ impl VoucherService {
             .map_err(|e| AppError::InternalError(e.to_string()))?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
-        // 创建凭证分录（含科目存在性校验）
-        for (index, item_req) in req.items.iter().enumerate() {
-            // 校验科目是否存在
-            if let Some(ref subject_code) = item_req.subject_code {
-                let subject_exists = account_subject::Entity::find()
-                    .filter(account_subject::Column::Code.eq(subject_code))
-                    .filter(account_subject::Column::Status.eq("active"))
-                    .one(&txn)
-                    .await
-                    .map_err(|e| AppError::InternalError(e.to_string()))?;
-
-                if subject_exists.is_none() {
-                    return Err(AppError::BadRequest(format!(
-                        "科目不存在或已停用：{}",
-                        subject_code
-                    )));
+        // 批量校验科目是否存在（优化N+1查询）
+        {
+            let mut subject_codes = std::collections::HashSet::new();
+            for item_req in &req.items {
+                if let Some(ref subject_code) = item_req.subject_code {
+                    if !subject_code.is_empty() {
+                        subject_codes.insert(subject_code.clone());
+                    }
                 }
             }
+            if !subject_codes.is_empty() {
+                let existing_subjects = account_subject::Entity::find()
+                    .filter(account_subject::Column::Code.is_in(subject_codes.iter().cloned().collect::<Vec<_>>()))
+                    .filter(account_subject::Column::Status.eq("active"))
+                    .all(&txn)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("批量查询科目失败: {}", e);
+                        AppError::InternalError(format!("批量查询科目失败: {}", e))
+                    })?;
+                let existing_codes: std::collections::HashSet<String> = existing_subjects.into_iter().map(|s| s.code).collect();
+                for code in subject_codes {
+                    if !existing_codes.contains(&code) {
+                        return Err(AppError::BadRequest(format!("科目不存在或已停用：{}", code)));
+                    }
+                }
+            }
+        }
+
+        // 创建凭证分录
+        for (index, item_req) in req.items.iter().enumerate() {
 
             let item_active_model = voucher_item::ActiveModel {
                 voucher_id: sea_orm::Set(voucher.id),

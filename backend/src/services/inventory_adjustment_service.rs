@@ -1,4 +1,5 @@
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -86,16 +87,21 @@ impl InventoryAdjustmentService {
 
         let adjustment_model = adjustment.insert(&txn).await?;
 
+        // 批量获取库存记录（优化N+1查询）
+        let stock_ids: Vec<i32> = request.items.iter().map(|item| item.stock_id).collect();
+        let stocks = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::Id.is_in(stock_ids.clone()))
+            .all(&txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.id, s)).collect();
+
         // 创建调整明细项
         let mut item_models = Vec::new();
         for item_req in request.items {
             // 获取当前库存数量
-            let stock = inventory_stock::Entity::find_by_id(item_req.stock_id)
-                .one(&txn)
-                .await?
-                .ok_or_else(|| {
-                    DbErr::RecordNotFound(format!("库存 ID {} 不存在", item_req.stock_id))
-                })?;
+            let stock = stock_map.get(&item_req.stock_id).ok_or_else(|| {
+                DbErr::RecordNotFound(format!("库存 ID {} 不存在", item_req.stock_id))
+            })?;
 
             // 计算调整前后的数量（使用 quantity_on_hand 字段）
             let quantity_before = stock.quantity_on_hand;
@@ -173,26 +179,55 @@ impl InventoryAdjustmentService {
             .await?;
 
         // 更新库存数量
+        let mut transaction_events = Vec::new();
         for item in items {
-            let mut stock: inventory_stock::ActiveModel =
+            let stock_model =
                 inventory_stock::Entity::find_by_id(item.stock_id)
                     .one(&txn)
                     .await?
                     .ok_or_else(|| {
                         DbErr::RecordNotFound(format!("库存 ID {} 不存在", item.stock_id))
-                    })?
-                    .into();
+                    })?;
+
+            let quantity_before = stock_model.quantity_on_hand;
+            let mut stock: inventory_stock::ActiveModel = stock_model.into();
 
             // 更新库存数量字段（使用 quantity_on_hand 和 quantity_meters 作为主数量字段）
             stock.quantity_on_hand = Set(item.quantity_after);
             stock.quantity_available = Set(item.quantity_after);
             stock.quantity_meters = Set(item.quantity_after);
             stock.updated_at = Set(Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock, Some(0)).await?;
+            let updated_stock = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock, Some(0)).await?;
+
+            // 收集库存交易事件数据，供审核通过后发布
+            let quantity_change = item.quantity_after - quantity_before;
+            transaction_events.push(BusinessEvent::InventoryTransactionCreated {
+                transaction_id: adjustment_id,
+                transaction_type: "INVENTORY_ADJUSTMENT".to_string(),
+                product_id: updated_stock.product_id,
+                warehouse_id: adjustment_model.warehouse_id,
+                quantity_meters: quantity_change,
+                quantity_kg: Decimal::ZERO,
+                source_bill_type: Some("inventory_adjustment".to_string()),
+                source_bill_no: Some(adjustment_model.adjustment_no.clone()),
+                source_bill_id: Some(adjustment_id),
+                batch_no: updated_stock.batch_no.clone(),
+                color_no: updated_stock.color_no.clone(),
+                created_by: Some(approved_by),
+            });
         }
 
         // 提交事务
         txn.commit().await?;
+
+        // 事务提交后发布库存交易事件，触发财务凭证生成
+        for event in transaction_events {
+            EVENT_BUS.publish(event);
+            tracing::info!(
+                "库存调整审核通过，已发布库存交易事件触发财务凭证生成: 调整单号={}",
+                adjustment_model.adjustment_no
+            );
+        }
 
         Ok(adjustment_model)
     }

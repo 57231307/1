@@ -247,7 +247,7 @@ impl PurchaseOrderService {
 
         let items = req.items.clone().unwrap_or_default();
 
-        // 业务验证：产品是否存在
+        // 业务验证：产品是否存在（批量查询优化）
         {
             let mut product_ids = std::collections::HashSet::new();
             for item in &items {
@@ -257,11 +257,17 @@ impl PurchaseOrderService {
                     }
                 }
             }
-            for product_id in product_ids {
-                let product_exists = product::Entity::find_by_id(product_id).one(txn).await?;
-                if product_exists.is_none() {
-                    tracing::error!("产品 ID {} 不存在", product_id);
-                    return Err(AppError::BadRequest(format!("产品 ID {} 不存在", product_id)));
+            if !product_ids.is_empty() {
+                let existing_products = product::Entity::find()
+                    .filter(product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()))
+                    .all(txn)
+                    .await?;
+                let existing_product_ids: std::collections::HashSet<i32> = existing_products.into_iter().map(|p| p.id).collect();
+                for product_id in product_ids {
+                    if !existing_product_ids.contains(&product_id) {
+                        tracing::error!("产品 ID {} 不存在", product_id);
+                        return Err(AppError::BadRequest(format!("产品 ID {} 不存在", product_id)));
+                    }
                 }
             }
         }
@@ -669,7 +675,10 @@ impl PurchaseOrderService {
                 let existing_stock = inventory_service
                     .find_by_product_and_warehouse(item.product_id, order.warehouse_id)
                     .await
-                    .map_err(|e| AppError::InternalError(format!("查询库存失败: {}", e)))?;
+                    .map_err(|e| {
+                        tracing::error!("查询库存失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
+                        AppError::InternalError(format!("查询库存失败: {}", e))
+                    })?;
 
                 let stock_record = match existing_stock {
                     Some(stock) => {
@@ -684,7 +693,10 @@ impl PurchaseOrderService {
                             stock.version,
                         )
                         .await
-                        .map_err(|e| AppError::InternalError(format!("更新库存失败: {}", e)))?;
+                        .map_err(|e| {
+                            tracing::error!("更新库存失败: 库存ID={}, 错误: {}", stock.id, e);
+                            AppError::InternalError(format!("更新库存失败: {}", e))
+                        })?;
 
                         stock
                     }
@@ -706,7 +718,10 @@ impl PurchaseOrderService {
                             None,                       // layer_no
                         )
                         .await
-                        .map_err(|e| AppError::InternalError(format!("创建库存记录失败: {}", e)))?
+                        .map_err(|e| {
+                            tracing::error!("创建库存记录失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
+                            AppError::InternalError(format!("创建库存记录失败: {}", e))
+                        })?
                     }
                 };
 
@@ -732,7 +747,10 @@ impl PurchaseOrderService {
                     None,
                 )
                 .await
-                .map_err(|e| AppError::InternalError(format!("记录库存流水失败: {}", e)))?;
+                .map_err(|e| {
+                    tracing::error!("记录库存流水失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
+                    AppError::InternalError(format!("记录库存流水失败: {}", e))
+                })?;
 
                 // 更新订单明细已入库数量
                 let mut item_active: purchase_order_item::ActiveModel = item.clone().into();
@@ -1382,6 +1400,7 @@ impl PurchaseOrderService {
 #[derive(Debug, Validate, Deserialize)]
 pub struct CreatePurchaseOrderRequest {
     /// 供应商 ID
+    #[validate(range(min = 1, message = "供应商ID必须大于0"))]
     pub supplier_id: i32,
 
     /// 订单日期
@@ -1397,18 +1416,22 @@ pub struct CreatePurchaseOrderRequest {
     pub department_id: Option<i32>,
 
     /// 币种
+    #[validate(length(max = 10, message = "币种长度不能超过10个字符"))]
     pub currency: Option<String>,
 
     /// 汇率
     pub exchange_rate: Option<Decimal>,
 
     /// 付款条件
+    #[validate(length(max = 200, message = "付款条件长度不能超过200个字符"))]
     pub payment_terms: Option<String>,
 
     /// 运输条款
+    #[validate(length(max = 200, message = "运输条款长度不能超过200个字符"))]
     pub shipping_terms: Option<String>,
 
     /// 备注
+    #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
 
     /// 附件 URL 列表
@@ -1445,24 +1468,31 @@ pub struct CreateOrderItemRequest {
     pub material_id: Option<i32>,
 
     /// 物料编码
+    #[validate(length(max = 50, message = "物料编码长度不能超过50个字符"))]
     pub material_code: Option<String>,
 
     /// 物料名称
+    #[validate(length(max = 200, message = "物料名称长度不能超过200个字符"))]
     pub material_name: Option<String>,
 
     /// 规格型号
+    #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
 
     /// 批次号
+    #[validate(length(max = 50, message = "批次号长度不能超过50个字符"))]
     pub batch_no: Option<String>,
 
     /// 色号
+    #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
     pub color_code: Option<String>,
 
     /// 缸号
+    #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub lot_no: Option<String>,
 
     /// 等级
+    #[validate(length(max = 20, message = "等级长度不能超过20个字符"))]
     pub grade: Option<String>,
 
     /// 克重
@@ -1475,15 +1505,18 @@ pub struct CreateOrderItemRequest {
     pub unit_price: Option<Decimal>,
 
     /// 币种
+    #[validate(length(max = 10, message = "币种长度不能超过10个字符"))]
     pub currency: Option<String>,
 
     /// 订购数量（主单位）
     pub quantity_ordered: Option<Decimal>,
 
     /// 主单位
+    #[validate(length(max = 20, message = "主单位长度不能超过20个字符"))]
     pub unit_master: Option<String>,
 
     /// 辅助单位
+    #[validate(length(max = 20, message = "辅助单位长度不能超过20个字符"))]
     pub unit_alt: Option<String>,
 
     /// 换算系数

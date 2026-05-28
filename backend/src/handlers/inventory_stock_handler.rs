@@ -15,31 +15,40 @@ use crate::utils::app_state::AppState;
 use crate::models::{product};
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateStockRequest {
     pub quantity_on_hand: Option<Decimal>,
     pub quantity_available: Option<Decimal>,
     pub quantity_reserved: Option<Decimal>,
     pub reorder_point: Option<Decimal>,
     pub reorder_quantity: Option<Decimal>,
+    #[validate(length(max = 100, message = "库位长度不能超过100个字符"))]
     pub bin_location: Option<String>,
 }
 
 /// 创建库存请求（面料行业版）
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateStockFabricRequest {
+    #[validate(range(min = 1, message = "仓库ID必须大于0"))]
     pub warehouse_id: i32,
+    #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: i32,
     /// 批次号
+    #[validate(length(min = 1, max = 50, message = "批次号长度必须在1-50个字符之间"))]
     pub batch_no: String,
     /// 色号
+    #[validate(length(min = 1, max = 50, message = "色号长度必须在1-50个字符之间"))]
     pub color_no: String,
     /// 缸号
+    #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
     /// 等级
+    #[validate(length(min = 1, max = 20, message = "等级长度必须在1-20个字符之间"))]
     pub grade: String,
     /// 数量（米）
+    #[validate(range(min = 0.0001, message = "数量必须大于0"))]
     pub quantity_meters: Decimal,
     /// 数量（公斤）- 可选，会自动计算
     pub quantity_kg: Option<Decimal>,
@@ -50,8 +59,10 @@ pub struct CreateStockFabricRequest {
     /// 库位 ID
     pub location_id: Option<i32>,
     /// 货架号
+    #[validate(length(max = 50, message = "货架号长度不能超过50个字符"))]
     pub shelf_no: Option<String>,
     /// 层号
+    #[validate(length(max = 50, message = "层号长度不能超过50个字符"))]
     pub layer_no: Option<String>,
 }
 
@@ -656,6 +667,11 @@ pub async fn create_stock_fabric(
     State(state): State<AppState>,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockFabricResponse>>, AppError> {
+    // 输入验证
+    if let Err(e) = payload.validate() {
+        return Err(AppError::ValidationError(e.to_string()));
+    }
+
     let service = InventoryStockService::new(state.db.clone());
 
     // 如果提供了克重和幅宽，自动计算公斤数

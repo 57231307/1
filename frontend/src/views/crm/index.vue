@@ -14,6 +14,14 @@
           <el-icon><Plus /></el-icon>
           新建客户
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
         <el-button @click="$router.push('/crm/pool')">
           <el-icon><Coin /></el-icon>
           公海池
@@ -290,8 +298,9 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Coin, Share } from '@element-plus/icons-vue'
+import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue'
 import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
+import { exportData } from '@/utils/export'
 
 const router = useRouter()
 const loading = ref(false)
@@ -514,6 +523,65 @@ const handleSubmit = async () => {
 
 const viewDetail = (id: number) => {
   router.push(`/crm/detail/${id}`)
+}
+
+const handleExport = () => {
+  exportData({
+    filename: 'CRM客户列表',
+    columns: [
+      { key: 'customer_code', title: '客户编码' },
+      { key: 'customer_name', title: '客户名称' },
+      { key: 'contact_person', title: '联系人' },
+      { key: 'phone', title: '电话' },
+      { key: 'customer_type', title: '类型', formatter: (v) => getCustomerTypeLabel(v) },
+      { key: 'owner_name', title: '负责人' },
+      { key: 'total_amount', title: '累计金额' },
+      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: customers.value,
+  })
+}
+
+const handlePrint = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = customers.value.map((item: any) => `
+    <tr>
+      <td>${item.customer_code}</td>
+      <td>${item.customer_name}</td>
+      <td>${item.contact_person}</td>
+      <td>${item.phone}</td>
+      <td>${getCustomerTypeLabel(item.customer_type)}</td>
+      <td>${item.owner_name || '-'}</td>
+      <td style="text-align:right">${item.total_amount ? '¥' + item.total_amount.toLocaleString() : '-'}</td>
+      <td>${item.status === 'active' ? '启用' : '禁用'}</td>
+    </tr>
+  `).join('')
+  const now = new Date().toISOString().split('T')[0]
+  printWindow.document.write(`
+    <html><head><meta charset="utf-8"><title>CRM客户列表</title>
+    <style>
+      @media print { @page { size: landscape; } }
+      body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
+      h1 { text-align: center; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { border: 1px solid #333; padding: 6px 8px; }
+      th { background: #f5f5f5; }
+      .meta { text-align: center; color: #666; font-size: 11px; }
+    </style></head><body>
+    <h1>CRM客户列表</h1>
+    <div class="meta">打印日期: ${now} | 共 ${customers.value.length} 条</div>
+    <table>
+      <thead><tr><th>客户编码</th><th>客户名称</th><th>联系人</th><th>电话</th><th>类型</th><th>负责人</th><th>累计金额</th><th>状态</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </body></html>
+  `)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 onMounted(() => {

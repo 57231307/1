@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use sea_orm::{FromQueryResult, JoinType, RelationTrait};
 use crate::services::user_service::UserService;
 use chrono;
+use validator::Validate;
 
 /// 销售订单详情响应
 #[derive(Debug, Serialize, Deserialize, Clone, FromQueryResult)]
@@ -91,38 +92,62 @@ pub struct SalesOrderItemDetail {
 }
 
 /// 创建销售订单请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateSalesOrderRequest {
+    #[validate(range(min = 1, message = "客户ID必须大于0"))]
     pub customer_id: i32,
     pub opportunity_id: Option<i32>,
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[validate(length(max = 50, message = "状态长度不能超过50个字符"))]
     pub status: Option<String>,
+    #[validate(length(max = 500, message = "收货地址长度不能超过500个字符"))]
     pub shipping_address: Option<String>,
+    #[validate(length(max = 500, message = "账单地址长度不能超过500个字符"))]
     pub billing_address: Option<String>,
+    #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
+    #[validate(length(min = 1, message = "订单项不能为空"))]
     pub items: Vec<SalesOrderItemRequest>,
     // 面料行业特有字段
+    #[validate(length(max = 100, message = "付款条件长度不能超过100个字符"))]
     pub payment_terms: Option<String>,
+    #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
     pub remarks: Option<String>,
+    #[validate(length(max = 50, message = "批次号长度不能超过50个字符"))]
     pub batch_no: Option<String>,
+    #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
     pub color_no: Option<String>,
+    #[validate(length(max = 50, message = "染缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
+    #[validate(length(max = 20, message = "等级长度不能超过20个字符"))]
     pub grade: Option<String>,
+    #[validate(length(max = 200, message = "包装要求长度不能超过200个字符"))]
     pub packaging_requirement: Option<String>,
+    #[validate(length(max = 200, message = "质量标准长度不能超过200个字符"))]
     pub quality_standard: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SalesOrderItemRequest {
+    #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: i32,
+    #[validate(range(min = 0.0001, message = "数量必须大于0"))]
     pub quantity: rust_decimal::Decimal,
+    #[validate(range(min = 0.0001, message = "单价必须大于0"))]
     pub unit_price: rust_decimal::Decimal,
+    #[validate(range(min = 0, max = 100, message = "折扣百分比必须在0-100之间"))]
     pub discount_percent: Option<rust_decimal::Decimal>,
+    #[validate(range(min = 0, max = 100, message = "税率必须在0-100之间"))]
     pub tax_percent: Option<rust_decimal::Decimal>,
+    #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
     pub notes: Option<String>,
+    #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
     pub color_no: Option<String>,
+    #[validate(length(max = 50, message = "颜色名称长度不能超过50个字符"))]
     pub color_name: Option<String>,
+    #[validate(length(max = 50, message = "潘通色号长度不能超过50个字符"))]
     pub pantone_code: Option<String>,
+    #[validate(length(max = 20, message = "要求等级长度不能超过20个字符"))]
     pub grade_required: Option<String>,
     pub quantity_meters: Option<rust_decimal::Decimal>,
     pub quantity_kg: Option<rust_decimal::Decimal>,
@@ -130,7 +155,9 @@ pub struct SalesOrderItemRequest {
     pub width: Option<rust_decimal::Decimal>,
     pub paper_tube_weight: Option<rust_decimal::Decimal>,
     pub is_net_weight: Option<bool>,
+    #[validate(length(max = 100, message = "批次要求长度不能超过100个字符"))]
     pub batch_requirement: Option<String>,
+    #[validate(length(max = 100, message = "染批要求长度不能超过100个字符"))]
     pub dye_lot_requirement: Option<String>,
     pub base_price: Option<rust_decimal::Decimal>,
     pub color_extra_cost: Option<rust_decimal::Decimal>,
@@ -269,7 +296,9 @@ impl SalesService {
         let required_date = request.required_date.unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
         if required_date < chrono::Utc::now() {
             tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
-            txn.rollback().await.ok();
+            if let Err(e) = txn.rollback().await {
+                tracing::error!("事务回滚失败: {}", e);
+            }
             return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
         }
             
@@ -388,18 +417,27 @@ impl SalesService {
         let mut discount_amount = rust_decimal::Decimal::ZERO;
         let mut total_amount = rust_decimal::Decimal::ZERO;
 
-        // 验证产品是否存在
+        // 验证产品是否存在（批量查询优化）
         {
             let mut product_ids = std::collections::HashSet::new();
             for item in &request.items {
                 product_ids.insert(item.product_id);
             }
-            for product_id in product_ids {
-                let product_exists = product::Entity::find_by_id(product_id).one(&txn).await?;
-                if product_exists.is_none() {
-                    tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
-                    txn.rollback().await.ok();
-                    return Err(sea_orm::DbErr::Custom(format!("产品 ID {} 不存在", product_id)));
+            if !product_ids.is_empty() {
+                use crate::models::product;
+                let existing_products = product::Entity::find()
+                    .filter(product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()))
+                    .all(&txn)
+                    .await?;
+                let existing_product_ids: std::collections::HashSet<i32> = existing_products.into_iter().map(|p| p.id).collect();
+                for product_id in product_ids {
+                    if !existing_product_ids.contains(&product_id) {
+                        tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
+                        if let Err(e) = txn.rollback().await {
+                            tracing::error!("事务回滚失败: {}", e);
+                        }
+                        return Err(sea_orm::DbErr::Custom(format!("产品 ID {} 不存在", product_id)));
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ use axum::{
 };
 use crate::utils::app_state::AppState;
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::models::product;
 use crate::models::product_color;
@@ -24,48 +25,71 @@ pub struct ProductListQuery {
 }
 
 /// 创建产品请求（面料行业版）
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductRequest {
+    #[validate(length(max = 200, message = "产品名称长度不能超过200个字符"))]
     pub name: Option<String>,
+    #[validate(length(max = 50, message = "产品编码长度不能超过50个字符"))]
     pub code: Option<String>,
     pub category_id: Option<i32>,
+    #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
+    #[validate(length(max = 20, message = "计量单位长度不能超过20个字符"))]
     pub unit: Option<String>,
     pub standard_price: Option<f64>,
     pub cost_price: Option<f64>,
+    #[validate(length(max = 1000, message = "产品描述长度不能超过1000个字符"))]
     pub description: Option<String>,
+    #[validate(length(max = 20, message = "状态长度不能超过20个字符"))]
     pub status: Option<String>,
     // 面料行业字段
+    #[validate(length(max = 50, message = "产品类型长度不能超过50个字符"))]
     pub product_type: Option<String>,
+    #[validate(length(max = 200, message = "面料成分长度不能超过200个字符"))]
     pub fabric_composition: Option<String>,
+    #[validate(length(max = 50, message = "纱支长度不能超过50个字符"))]
     pub yarn_count: Option<String>,
+    #[validate(length(max = 50, message = "密度长度不能超过50个字符"))]
     pub density: Option<String>,
     pub width: Option<f64>,
     pub gram_weight: Option<f64>,
+    #[validate(length(max = 50, message = "组织结构长度不能超过50个字符"))]
     pub structure: Option<String>,
+    #[validate(length(max = 100, message = "后整理长度不能超过100个字符"))]
     pub finish: Option<String>,
     pub min_order_quantity: Option<f64>,
     pub lead_time: Option<i32>,
 }
 
 /// 更新产品请求（面料行业版）
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductRequest {
+    #[validate(length(max = 200, message = "产品名称长度不能超过200个字符"))]
     pub name: Option<String>,
+    #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
+    #[validate(length(max = 20, message = "计量单位长度不能超过20个字符"))]
     pub unit: Option<String>,
     pub standard_price: Option<f64>,
     pub cost_price: Option<f64>,
+    #[validate(length(max = 1000, message = "产品描述长度不能超过1000个字符"))]
     pub description: Option<String>,
+    #[validate(length(max = 20, message = "状态长度不能超过20个字符"))]
     pub status: Option<String>,
     // 面料行业字段
+    #[validate(length(max = 50, message = "产品类型长度不能超过50个字符"))]
     pub product_type: Option<String>,
+    #[validate(length(max = 200, message = "面料成分长度不能超过200个字符"))]
     pub fabric_composition: Option<String>,
+    #[validate(length(max = 50, message = "纱支长度不能超过50个字符"))]
     pub yarn_count: Option<String>,
+    #[validate(length(max = 50, message = "密度长度不能超过50个字符"))]
     pub density: Option<String>,
     pub width: Option<f64>,
     pub gram_weight: Option<f64>,
+    #[validate(length(max = 50, message = "组织结构长度不能超过50个字符"))]
     pub structure: Option<String>,
+    #[validate(length(max = 100, message = "后整理长度不能超过100个字符"))]
     pub finish: Option<String>,
     pub min_order_quantity: Option<f64>,
     pub lead_time: Option<i32>,
@@ -171,6 +195,11 @@ pub async fn create_product(
     State(state): State<AppState>,
     Json(req): Json<CreateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
+    // 输入验证
+    if let Err(e) = req.validate() {
+        return Err(AppError::ValidationError(e.to_string()));
+    }
+
     let product_service = ProductService::new(state.db.clone());
 
     // 自动生成产品编码
@@ -212,6 +241,11 @@ pub async fn update_product(
     Path(id): Path<i32>,
     Json(req): Json<UpdateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
+    // 输入验证
+    if let Err(e) = req.validate() {
+        return Err(AppError::ValidationError(e.to_string()));
+    }
+
     let product_service = ProductService::new(state.db.clone());
 
     let product = product_service

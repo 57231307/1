@@ -196,10 +196,7 @@ impl BudgetManagementService {
         // 检查是否有子科目
         // 说明: 当前业务模型无需树状结构，跳过 ParentId 检查
         let children_count = 0;
-        // budget_management::Entity::find()
-        //     .filter(budget_management::Column::ParentId.eq(Some(id)))
-        //     .count(&*self.db)
-        //     .await?;
+
 
         if children_count > 0 {
             return Err(AppError::ValidationError(

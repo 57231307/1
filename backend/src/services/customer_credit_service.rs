@@ -363,7 +363,7 @@ impl CustomerCreditService {
         let mut credit_active: customer_credit::ActiveModel = credit.into();
         credit_active.status = Set("inactive".to_string());
         // 注意：customer_credit 模型没有 updated_by 字段
-        // credit_active.updated_by = Set(Some(user_id));
+
         credit_active.save(&*self.db).await?;
 
         info!("客户 {} 信用停用成功", customer_id);

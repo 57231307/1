@@ -5,6 +5,7 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
+use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use std::sync::Arc;
 use std::time::Duration;
@@ -437,6 +438,18 @@ pub enum InitError {
     UserNotFound,
     #[error("配置错误：{0}")]
     ConfigError(String),
+}
+
+impl From<InitError> for AppError {
+    fn from(err: InitError) -> Self {
+        match err {
+            InitError::AlreadyInitialized => AppError::BusinessError("系统已经初始化".to_string()),
+            InitError::HashError(e) => AppError::InternalError(format!("密码哈希错误: {}", e)),
+            InitError::DatabaseError(e) => AppError::DatabaseError(e),
+            InitError::UserNotFound => AppError::NotFound("用户不存在".to_string()),
+            InitError::ConfigError(e) => AppError::BadRequest(format!("配置错误: {}", e)),
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize)]

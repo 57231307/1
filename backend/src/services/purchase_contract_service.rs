@@ -179,13 +179,10 @@ impl PurchaseContractService {
         let contract_active: purchase_contract::ActiveModel = contract.into();
         // 注意：purchase_contract 模型没有 executed_amount 字段，需要添加或使用其他方式跟踪
         // 这里暂时注释掉，等待模型更新
-        // contract_active.executed_amount = Set(new_executed_amount);
-        // contract_active.updated_by = Set(Some(user_id));
+
 
         // 检查合同是否完成
-        // if new_executed_amount >= contract.total_amount {
-        //     contract_active.status = Set("completed".to_string());
-        // }
+
 
         contract_active.save(&txn).await?;
 
@@ -214,9 +211,7 @@ impl PurchaseContractService {
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set("active".to_string());
         // 注意：purchase_contract 模型没有 approved_by、approved_at、updated_by 字段
-        // contract_active.approved_by = Set(Some(user_id));
-        // contract_active.approved_at = Set(Some(chrono::Local::now().naive_local()));
-        // contract_active.updated_by = Set(Some(user_id));
+
         contract_active.save(&*self.db).await?;
 
         info!("合同 {} 审核成功", contract_id);
@@ -251,8 +246,7 @@ impl PurchaseContractService {
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set("cancelled".to_string());
         // 注意：purchase_contract 模型没有 remark 和 updated_by 字段
-        // contract_active.remark = Set(Some(format!("{}\n取消原因：{}", contract.remark.unwrap_or_default(), reason)));
-        // contract_active.updated_by = Set(Some(user_id));
+
         contract_active.save(&*self.db).await?;
 
         info!("合同 {} 取消成功", contract_id);

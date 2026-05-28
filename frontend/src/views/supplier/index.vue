@@ -14,6 +14,14 @@
           <el-icon><Plus /></el-icon>
           新建供应商
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
       </div>
     </div>
 
@@ -248,8 +256,10 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { supplierApi, type Supplier } from '@/api/supplier'
+import { exportData } from '@/utils/export'
+import { printData } from '@/utils/print'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -414,6 +424,38 @@ const handleSubmit = async () => {
     } finally {
       submitLoading.value = false
     }
+  })
+}
+
+const handleExport = () => {
+  exportData({
+    filename: '供应商列表',
+    columns: [
+      { key: 'supplier_code', title: '供应商编码' },
+      { key: 'supplier_name', title: '供应商名称' },
+      { key: 'supplier_short_name', title: '简称' },
+      { key: 'contact_phone', title: '联系电话' },
+      { key: 'email', title: '邮箱' },
+      { key: 'grade', title: '等级' },
+      { key: 'supplier_type', title: '类型' },
+      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: suppliers.value,
+  })
+}
+
+const handlePrint = () => {
+  printData({
+    title: '供应商列表',
+    columns: [
+      { key: 'supplier_code', title: '供应商编码', width: '100px' },
+      { key: 'supplier_name', title: '供应商名称' },
+      { key: 'contact_phone', title: '联系电话', width: '120px' },
+      { key: 'grade', title: '等级', width: '60px' },
+      { key: 'supplier_type', title: '类型', width: '80px' },
+      { key: 'status', title: '状态', width: '60px', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: suppliers.value,
   })
 }
 

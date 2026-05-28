@@ -14,6 +14,14 @@
           <el-icon><Plus /></el-icon>
           新建客户
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
       </div>
     </div>
 
@@ -267,8 +275,10 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { customerApi, type Customer } from '@/api/customer'
+import { exportData } from '@/utils/export'
+import { printData } from '@/utils/print'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -450,6 +460,39 @@ const handleSubmit = async () => {
     } finally {
       submitLoading.value = false
     }
+  })
+}
+
+const handleExport = () => {
+  exportData({
+    filename: '客户列表',
+    columns: [
+      { key: 'customer_code', title: '客户编码' },
+      { key: 'customer_name', title: '客户名称' },
+      { key: 'contact_person', title: '联系人' },
+      { key: 'contact_phone', title: '电话' },
+      { key: 'contact_email', title: '邮箱' },
+      { key: 'customer_type', title: '类型', formatter: (v) => getCustomerTypeLabel(v) },
+      { key: 'province', title: '省份' },
+      { key: 'credit_limit', title: '信用额度', formatter: (v) => v ? formatCurrency(v) : '-' },
+      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: customers.value,
+  })
+}
+
+const handlePrint = () => {
+  printData({
+    title: '客户列表',
+    columns: [
+      { key: 'customer_code', title: '客户编码', width: '100px' },
+      { key: 'customer_name', title: '客户名称' },
+      { key: 'contact_person', title: '联系人', width: '80px' },
+      { key: 'contact_phone', title: '电话', width: '120px' },
+      { key: 'customer_type', title: '类型', width: '80px', formatter: (v) => getCustomerTypeLabel(v) },
+      { key: 'status', title: '状态', width: '60px', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: customers.value,
   })
 }
 

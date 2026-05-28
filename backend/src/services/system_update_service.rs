@@ -8,6 +8,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use crate::utils::error::AppError;
 
 const GITHUB_REPO: &str = "57231307/1";
 const GITHUB_API_URL: &str = "https://api.github.com";
@@ -96,6 +97,20 @@ pub enum UpdateError {
     AlreadyUpdating,
     #[error("网络错误：{0}")]
     NetworkError(String),
+}
+
+impl From<UpdateError> for AppError {
+    fn from(err: UpdateError) -> Self {
+        match err {
+            UpdateError::IoError(e) => AppError::InternalError(format!("IO错误: {}", e)),
+            UpdateError::UnzipError(e) => AppError::InternalError(format!("解压错误: {}", e)),
+            UpdateError::BackupError(e) => AppError::InternalError(format!("备份错误: {}", e)),
+            UpdateError::ValidationError(e) => AppError::ValidationError(e),
+            UpdateError::VersionError(e) => AppError::BadRequest(format!("版本错误: {}", e)),
+            UpdateError::AlreadyUpdating => AppError::BusinessError("更新正在进行中".to_string()),
+            UpdateError::NetworkError(e) => AppError::InternalError(format!("网络错误: {}", e)),
+        }
+    }
 }
 
 pub struct SystemUpdateService {

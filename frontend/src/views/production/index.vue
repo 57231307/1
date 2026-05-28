@@ -35,9 +35,17 @@
       <template #header>
         <div class="card-header">
           <span>生产订单列表</span>
-          <el-button type="primary" @click="openDialog('create')">
-            <el-icon><Plus /></el-icon>新建订单
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openDialog('create')">
+              <el-icon><Plus /></el-icon>新建订单
+            </el-button>
+            <el-button @click="handlePrint">
+              <el-icon><Printer /></el-icon>打印
+            </el-button>
+            <el-button @click="handleExport">
+              <el-icon><Download /></el-icon>导出
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -242,7 +250,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import {
   listProductionOrders,
   createProductionOrder,
@@ -417,6 +425,55 @@ const handleDelete = async (row: ProductionOrder) => {
       ElMessage.error(e.message || '删除失败')
     }
   }
+}
+
+const getStatusLabel = (status: string) => {
+  return PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
+}
+
+const handleExport = () => {
+  const csvContent = [
+    ['订单编号', '产品名称', '计划数量', '实际数量', '计划开始', '计划结束', '状态', '优先级'],
+    ...orderList.value.map((item: any) => [
+      item.order_no,
+      item.product_name,
+      item.planned_quantity,
+      item.actual_quantity || '-',
+      item.scheduled_start_date?.substring(0, 10) || '-',
+      item.scheduled_end_date?.substring(0, 10) || '-',
+      getStatusLabel(item.status),
+      item.priority,
+    ]),
+  ]
+    .map((row) => row.map((cell) => `"${cell ?? ''}"`).join(','))
+    .join('\n')
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `生产订单_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrint = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
+  const rows = orderList.value.map((item: any) => `
+    <tr>
+      <td>${item.order_no}</td><td>${item.product_name || '-'}</td>
+      <td style="text-align:right">${item.planned_quantity}</td>
+      <td style="text-align:right">${item.actual_quantity || '-'}</td>
+      <td>${item.scheduled_start_date?.substring(0, 10) || '-'}</td>
+      <td>${item.scheduled_end_date?.substring(0, 10) || '-'}</td>
+      <td>${getStatusLabel(item.status)}</td><td>${item.priority}</td>
+    </tr>
+  `).join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>生产订单</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>生产订单列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${orderList.value.length} 条</div>
+    <table><thead><tr><th>订单编号</th><th>产品名称</th><th>计划数量</th><th>实际数量</th><th>计划开始</th><th>计划结束</th><th>状态</th><th>优先级</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 // 组件挂载时获取数据

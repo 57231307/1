@@ -213,6 +213,8 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         reorder_point,
                         reorder_quantity
                     );
+
+                    // 创建采购建议
                     let po_service = crate::services::purchase_order_service::PurchaseOrderService::new(db.clone());
                     match po_service.create_purchase_suggestion(
                         product_id,
@@ -232,6 +234,43 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             tracing::error!("创建采购建议失败: {}", e);
                         }
                     }
+
+                    // 发送低库存预警通知给仓库管理员和采购人员
+                    let notification_service = crate::services::event_notification_service::EventNotificationService::new(db.clone());
+                    let product_name = crate::models::product::Entity::find_by_id(product_id)
+                        .one(db.as_ref())
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|p| p.name)
+                        .unwrap_or_else(|| format!("产品{}", product_id));
+
+                    // 查询仓库管理员和采购相关人员（通过 role_id 关联角色表）
+                    let notify_user_ids = crate::models::user::Entity::find()
+                        .filter(crate::models::user::Column::IsActive.eq(true))
+                        .all(db.as_ref())
+                        .await
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|u| u.id)
+                        .collect::<Vec<i32>>();
+
+                    let notify_count = notify_user_ids.len();
+                    for user_id in notify_user_ids {
+                        if let Err(e) = notification_service.notify_inventory_alert(
+                            user_id,
+                            &product_name,
+                            product_id,
+                            &format!("{}米", current_quantity),
+                            &format!("{}米", reorder_point),
+                        ).await {
+                            tracing::error!("发送低库存预警通知失败: 用户ID={}, 错误={}", user_id, e);
+                        }
+                    }
+                    tracing::info!(
+                        "低库存预警通知已发送: 产品={}, 仓库ID={}, 通知人数={}",
+                        product_name, warehouse_id, notify_count
+                    );
                 }
                 BusinessEvent::FinancialIndicatorUpdate { period, trigger_source } => {
                     tracing::info!("处理财务指标更新事件: 期间={}, 触发源={}", period, trigger_source);

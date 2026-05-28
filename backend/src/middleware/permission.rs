@@ -159,6 +159,12 @@ pub fn clear_permission_cache(role_id: Option<i32>) {
     }
 }
 
+/// 清理所有过期的权限缓存条目
+/// 建议定期调用此函数以避免内存泄漏
+pub fn cleanup_expired_permission_cache() {
+    PERMISSION_CACHE.retain(|_, entry| !entry.is_expired());
+}
+
 /// 检查角色是否是管理员角色
 async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
     // 从数据库查询角色，检查code是否为"admin"

@@ -166,10 +166,7 @@ impl QualityStandardService {
         // 检查是否有引用
         // 说明: 当前业务模型暂时无需树状结构，跳过 ParentId 检查
         let referenced_count = 0;
-        // quality_standard::Entity::find()
-        //     .filter(quality_standard::Column::ParentId.eq(Some(id)))
-        //     .count(&*self.db)
-        //     .await?;
+
 
         if referenced_count > 0 {
             return Err(AppError::ValidationError(

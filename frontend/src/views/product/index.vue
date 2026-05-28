@@ -18,6 +18,10 @@
           <el-icon><Upload /></el-icon>
           导入
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
           导出
@@ -316,6 +320,7 @@ import {
   Plus,
   Upload,
   Download,
+  Printer,
   Goods,
   CircleCheck,
   Collection,
@@ -577,6 +582,48 @@ const handleExport = async () => {
   } catch (error: any) {
     ElMessage.error(error.message || '导出失败')
   }
+}
+
+const handlePrint = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = products.value.map((item: any) => `
+    <tr>
+      <td>${item.product_code}</td>
+      <td>${item.product_name}</td>
+      <td>${item.category_name || '-'}</td>
+      <td>${item.specification || '-'}</td>
+      <td>${item.unit || '-'}</td>
+      <td style="text-align:right">${item.price ? '¥' + item.price.toFixed(2) : '-'}</td>
+      <td style="text-align:right">${item.cost_price ? '¥' + item.cost_price.toFixed(2) : '-'}</td>
+      <td>${item.is_active ? '启用' : '禁用'}</td>
+    </tr>
+  `).join('')
+  const now = new Date().toISOString().split('T')[0]
+  printWindow.document.write(`
+    <html><head><meta charset="utf-8"><title>产品列表</title>
+    <style>
+      @media print { @page { size: landscape; } }
+      body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
+      h1 { text-align: center; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { border: 1px solid #333; padding: 6px 8px; }
+      th { background: #f5f5f5; }
+      .meta { text-align: center; color: #666; font-size: 11px; }
+    </style></head><body>
+    <h1>产品列表</h1>
+    <div class="meta">打印日期: ${now} | 共 ${products.value.length} 条</div>
+    <table>
+      <thead><tr><th>产品编码</th><th>产品名称</th><th>分类</th><th>规格</th><th>单位</th><th>售价</th><th>成本</th><th>状态</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </body></html>
+  `)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 onMounted(() => {

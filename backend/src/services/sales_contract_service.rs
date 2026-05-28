@@ -184,9 +184,7 @@ impl SalesContractService {
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set("active".to_string());
         // 注意：sales_contract 模型没有 approved_by、approved_at、updated_by 字段
-        // contract_active.approved_by = Set(Some(user_id));
-        // contract_active.approved_at = Set(Some(chrono::Local::now().naive_local()));
-        // contract_active.updated_by = Set(Some(user_id));
+
         contract_active.save(&*self.db).await?;
 
         info!("销售合同 {} 审核成功", contract_id);
@@ -214,15 +212,12 @@ impl SalesContractService {
         }
 
         // 注意：sales_contract 模型没有 executed_amount 字段
-        // if contract.executed_amount > Decimal::ZERO {
-        //     return Err(AppError::ValidationError("已执行的合同不能取消".to_string()));
-        // }
+
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set("cancelled".to_string());
         // 注意：sales_contract 模型没有 remark 和 updated_by 字段
-        // contract_active.remark = Set(Some(format!("{}\n取消原因：{}", contract.remark.unwrap_or_default(), reason)));
-        // contract_active.updated_by = Set(Some(user_id));
+
         contract_active.save(&*self.db).await?;
 
         info!("销售合同 {} 取消成功", contract_id);

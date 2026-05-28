@@ -74,10 +74,20 @@
       <el-tab-pane label="凭证管理" name="voucher">
         <div class="page-header">
           <h2 class="page-title">凭证管理</h2>
-          <el-button type="primary" @click="openVoucherDialog()">
-            <el-icon><Plus /></el-icon>
-            新建凭证
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openVoucherDialog()">
+              <el-icon><Plus /></el-icon>
+              新建凭证
+            </el-button>
+            <el-button @click="handlePrintVouchers">
+              <el-icon><Printer /></el-icon>
+              打印
+            </el-button>
+            <el-button @click="handleExportVouchers">
+              <el-icon><Download /></el-icon>
+              导出
+            </el-button>
+          </div>
         </div>
 
         <el-card shadow="hover" class="filter-card">
@@ -166,6 +176,17 @@
               </template>
             </el-table-column>
           </el-table>
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="voucherQueryParams.page"
+              v-model:page-size="voucherQueryParams.page_size"
+              :page-sizes="[10, 20, 50, 100]"
+              :total="voucherTotal"
+              layout="total, sizes, prev, pager, next, jumper"
+              @size-change="fetchVouchers"
+              @current-change="fetchVouchers"
+            />
+          </div>
         </el-card>
       </el-tab-pane>
     </el-tabs>
@@ -392,6 +413,12 @@ const voucherQuery = reactive({
   date_range: [] as string[],
   status: '',
 })
+
+const voucherQueryParams = reactive({
+  page: 1,
+  page_size: 20,
+})
+const voucherTotal = ref(0)
 
 const fetchSubjects = async () => {
   subjectLoading.value = true
@@ -722,6 +749,49 @@ const handleExportSubjects = () => {
   link.download = `会计科目表_${new Date().toISOString().split('T')[0]}.csv`
   link.click()
   ElMessage.success('导出成功')
+}
+
+const handleExportVouchers = () => {
+  const csvContent = [
+    ['凭证号', '凭证日期', '凭证类型', '借方金额', '贷方金额', '状态', '制单人', '创建时间'],
+    ...vouchers.value.map((item: any) => [
+      item.voucher_no,
+      item.voucher_date,
+      item.voucher_type,
+      item.total_debit,
+      item.total_credit,
+      getVoucherStatusLabel(item.status),
+      item.created_by_name,
+      item.created_at,
+    ]),
+  ]
+    .map((row) => row.map((cell) => `"${cell ?? ''}"`).join(','))
+    .join('\n')
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `凭证列表_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrintVouchers = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
+  const rows = vouchers.value.map((item: any) => `
+    <tr>
+      <td>${item.voucher_no}</td><td>${item.voucher_date}</td><td>${item.voucher_type}</td>
+      <td style="text-align:right">${formatMoney(item.total_debit)}</td>
+      <td style="text-align:right">${formatMoney(item.total_credit)}</td>
+      <td>${getVoucherStatusLabel(item.status)}</td><td>${item.created_by_name || '-'}</td>
+    </tr>
+  `).join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>凭证列表</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>凭证列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${vouchers.value.length} 条</div>
+    <table><thead><tr><th>凭证号</th><th>凭证日期</th><th>凭证类型</th><th>借方金额</th><th>贷方金额</th><th>状态</th><th>制单人</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 onMounted(() => {

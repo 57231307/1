@@ -18,6 +18,7 @@
 
 use crate::models::user;
 use crate::services::user_service::UserService;
+use crate::utils::error::AppError;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -295,6 +296,23 @@ pub enum AuthError {
     /// 令牌已被撤销
     #[error("Token 已被撤销")]
     TokenRevoked,
+}
+
+impl From<AuthError> for AppError {
+    fn from(err: AuthError) -> Self {
+        match err {
+            AuthError::InvalidCredentials => AppError::Unauthorized("用户名或密码错误".to_string()),
+            AuthError::UserInactive => AppError::Unauthorized("用户未激活".to_string()),
+            AuthError::DatabaseError(e) => AppError::DatabaseError(e.to_string()),
+            AuthError::JwtError(e) => AppError::InternalError(format!("JWT 错误: {}", e)),
+            AuthError::HashingError(e) => AppError::InternalError(format!("密码哈希错误: {}", e)),
+            AuthError::UserNotFound => AppError::NotFound("用户不存在".to_string()),
+            AuthError::InvalidPassword => AppError::Unauthorized("无效的密码".to_string()),
+            AuthError::TokenGenerationError(e) => AppError::InternalError(format!("Token 生成失败: {}", e)),
+            AuthError::InvalidToken(e) => AppError::Unauthorized(format!("无效的 Token: {}", e)),
+            AuthError::TokenRevoked => AppError::Unauthorized("Token 已被撤销".to_string()),
+        }
+    }
 }
 
 #[cfg(test)]

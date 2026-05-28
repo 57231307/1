@@ -423,18 +423,24 @@ impl InventoryCountService {
 
         let mut variance_count = 0;
 
+        // 批量获取库存记录（优化N+1查询）
+        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
+        let stocks = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(count.warehouse_id))
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(&txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
         // 处理每个盘点明细项
         for item in items {
             // 查找对应库存记录
-            let stock = InventoryStockEntity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(count.warehouse_id))
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                .one(&txn)
-                .await?;
+            let stock = stock_map.get(&item.product_id);
 
             if let Some(stock_model) = stock {
                 // 获取账面数量
                 let quantity_book = stock_model.quantity_on_hand;
+                let stock_model = stock_model.clone();
 
                 // 计算差异
                 let quantity_variance = item.quantity_actual - quantity_book;

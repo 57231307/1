@@ -14,6 +14,14 @@
           <el-icon><Plus /></el-icon>
           新建仓库
         </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
       </div>
     </div>
 
@@ -189,8 +197,10 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { exportData } from '@/utils/export'
+import { printData } from '@/utils/print'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -342,6 +352,38 @@ const handleSubmit = async () => {
     } finally {
       submitLoading.value = false
     }
+  })
+}
+
+const handleExport = () => {
+  exportData({
+    filename: '仓库列表',
+    columns: [
+      { key: 'warehouse_code', title: '仓库编码' },
+      { key: 'warehouse_name', title: '仓库名称' },
+      { key: 'warehouse_type', title: '类型', formatter: (v) => getWarehouseTypeLabel(v) },
+      { key: 'address', title: '地址' },
+      { key: 'contact_person', title: '负责人' },
+      { key: 'phone', title: '电话' },
+      { key: 'capacity', title: '容量(m³)' },
+      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: warehouses.value,
+  })
+}
+
+const handlePrint = () => {
+  printData({
+    title: '仓库列表',
+    columns: [
+      { key: 'warehouse_code', title: '仓库编码', width: '100px' },
+      { key: 'warehouse_name', title: '仓库名称' },
+      { key: 'warehouse_type', title: '类型', width: '80px', formatter: (v) => getWarehouseTypeLabel(v) },
+      { key: 'contact_person', title: '负责人', width: '80px' },
+      { key: 'phone', title: '电话', width: '120px' },
+      { key: 'status', title: '状态', width: '60px', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+    ],
+    data: warehouses.value,
   })
 }
 

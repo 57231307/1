@@ -262,22 +262,30 @@ impl SalesReturnService {
 
         let stock_service = InventoryStockService::new(self.db.clone());
 
+        // 批量获取商品信息和库存记录（优化N+1查询）
+        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
+        let products = product::Entity::find()
+            .filter(product::Column::Id.is_in(product_ids.clone()))
+            .all(&txn)
+            .await?;
+        let product_map: std::collections::HashMap<i32, product::Model> = products.into_iter().map(|p| (p.id, p)).collect();
+
+        let stocks = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(return_order.warehouse_id))
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(&txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
         for item in &items {
             // 获取商品信息
-            let _product_info = product::Entity::find_by_id(item.product_id)
-                .one(&txn)
-                .await?
-                .ok_or(AppError::ResourceNotFound(format!(
-                    "商品 {} 不存在",
-                    item.product_id
-                )))?;
+            let _product_info = product_map.get(&item.product_id).ok_or(AppError::ResourceNotFound(format!(
+                "商品 {} 不存在",
+                item.product_id
+            )))?;
 
             // 查找是否已有库存记录
-            let stock = inventory_stock::Entity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(return_order.warehouse_id))
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                .one(&txn)
-                .await?;
+            let stock = stock_map.get(&item.product_id);
 
             let (batch_no, color_no, grade) = if let Some(ref s) = stock {
                 (s.batch_no.clone(), s.color_no.clone(), s.grade.clone())
@@ -289,7 +297,7 @@ impl SalesReturnService {
                 // 更新现有库存
                 let new_qty = s.quantity_on_hand + item.quantity;
                 let new_avail = s.quantity_available + item.quantity;
-                let mut stock_update: inventory_stock::ActiveModel = s.into();
+                let mut stock_update: inventory_stock::ActiveModel = s.clone().into();
                 stock_update.quantity_on_hand = Set(new_qty);
                 stock_update.quantity_available = Set(new_avail);
                 stock_update.updated_at = Set(Utc::now());

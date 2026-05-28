@@ -4,10 +4,20 @@
       <el-tab-pane label="质量标准" name="standard">
         <div class="page-header">
           <h2 class="page-title">质量标准管理</h2>
-          <el-button type="primary" @click="openStandardDialog">
-            <el-icon><Plus /></el-icon>
-            新建标准
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openStandardDialog">
+              <el-icon><Plus /></el-icon>
+              新建标准
+            </el-button>
+            <el-button @click="handlePrintStandards">
+              <el-icon><Printer /></el-icon>
+              打印
+            </el-button>
+            <el-button @click="handleExportStandards">
+              <el-icon><Download /></el-icon>
+              导出
+            </el-button>
+          </div>
         </div>
 
         <el-card shadow="hover">
@@ -84,10 +94,20 @@
       <el-tab-pane label="检验记录" name="record">
         <div class="page-header">
           <h2 class="page-title">质量检验记录</h2>
-          <el-button type="primary" @click="openRecordDialog">
-            <el-icon><Plus /></el-icon>
-            新建检验
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openRecordDialog">
+              <el-icon><Plus /></el-icon>
+              新建检验
+            </el-button>
+            <el-button @click="handlePrintRecords">
+              <el-icon><Printer /></el-icon>
+              打印
+            </el-button>
+            <el-button @click="handleExportRecords">
+              <el-icon><Download /></el-icon>
+              导出
+            </el-button>
+          </div>
         </div>
 
         <el-card shadow="hover">
@@ -351,7 +371,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import {
   listQualityStandards,
   getQualityStandard,
@@ -649,6 +669,74 @@ const processDefect = async (row: Defect) => {
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
   }
+}
+
+const handleExportStandards = () => {
+  const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
+  const rows = standards.value.map((item: any) =>
+    [item.standard_code, item.standard_name, item.type === 'product' ? '产品标准' : '工艺标准', item.version, getStandardStatusLabel(item.status), item.created_by_name || '-', item.approved_by_name || '-'].join(',')
+  )
+  const csv = [...headers, ...rows].join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `质量标准_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrintStandards = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
+  const rows = standards.value.map((item: any) => `
+    <tr>
+      <td>${item.standard_code}</td><td>${item.standard_name}</td>
+      <td>${item.type === 'product' ? '产品标准' : '工艺标准'}</td>
+      <td>${item.version}</td><td>${getStandardStatusLabel(item.status)}</td>
+      <td>${item.created_by_name || '-'}</td>
+    </tr>
+  `).join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>质量标准</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>质量标准列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${standards.value.length} 条</div>
+    <table><thead><tr><th>标准编号</th><th>标准名称</th><th>类型</th><th>版本</th><th>状态</th><th>创建人</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
+}
+
+const handleExportRecords = () => {
+  const headers = ['记录编号,检验类型,产品,批次号,检验日期,检验员,结果']
+  const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+  const rows = records.value.map((item: any) =>
+    [item.record_no, item.inspection_type, item.product_name, item.batch_no, item.inspection_date, item.inspector, resultMap[item.result] || item.result].join(',')
+  )
+  const csv = [...headers, ...rows].join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `检验记录_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrintRecords = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
+  const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+  const rows = records.value.map((item: any) => `
+    <tr>
+      <td>${item.record_no}</td><td>${item.inspection_type}</td>
+      <td>${item.product_name}</td><td>${item.batch_no}</td>
+      <td>${item.inspection_date}</td><td>${item.inspector}</td>
+      <td>${resultMap[item.result] || item.result}</td>
+    </tr>
+  `).join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>检验记录</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>质量检验记录</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${records.value.length} 条</div>
+    <table><thead><tr><th>记录编号</th><th>检验类型</th><th>产品</th><th>批次号</th><th>检验日期</th><th>检验员</th><th>结果</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 onMounted(() => {

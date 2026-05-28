@@ -151,6 +151,12 @@ pub async fn create_order(
     auth: AuthContext,
     Json(request): Json<CreateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 输入验证
+    use validator::Validate;
+    if let Err(e) = request.validate() {
+        return Err(AppError::ValidationError(e.to_string()));
+    }
+
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.create_order(request, auth.user_id).await?;
 

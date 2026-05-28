@@ -19,7 +19,9 @@ where
         }
         Err(e) => {
             tracing::error!("Transaction rolled back due to error: {}", e);
-            txn.rollback().await.ok();
+            if let Err(rollback_err) = txn.rollback().await {
+                tracing::error!("事务回滚失败: {}", rollback_err);
+            }
             Err(e)
         }
     }
