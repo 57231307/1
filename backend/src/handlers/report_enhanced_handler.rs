@@ -22,6 +22,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 报表执行查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ReportExecuteParams {
     pub template_id: String,
@@ -30,6 +31,7 @@ pub struct ReportExecuteParams {
 }
 
 /// 导出请求
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ExportRequest {
     pub template_id: String,

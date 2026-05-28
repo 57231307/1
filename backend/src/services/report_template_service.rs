@@ -48,6 +48,7 @@ pub struct UpdateReportTemplateRequest {
 }
 
 /// 报表模板查询参数
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReportTemplateQuery {
     pub report_type: Option<String>,

@@ -35,6 +35,7 @@ pub struct AgingReportQueryParams {
 }
 
 /// 确认对账单请求
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ConfirmRequest {
     pub notes: Option<String>,

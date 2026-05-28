@@ -38,6 +38,7 @@ pub struct IncomeStatement {
 }
 
 /// 现金流量表
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CashFlowStatement {
     pub operating_activities: Vec<ReportItem>,
@@ -238,6 +239,7 @@ impl FinanceReportService {
     }
 
     /// 现金流量表
+    #[allow(dead_code)]
     pub async fn get_cash_flow_statement(
         &self,
         start_date: chrono::NaiveDate,

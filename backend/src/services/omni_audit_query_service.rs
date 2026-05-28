@@ -6,10 +6,12 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct OmniAuditQueryService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct AuditQueryFilter {
     pub user_id: Option<i32>,
@@ -29,6 +31,7 @@ pub struct AuditStats {
     pub security_alerts_today: i64,
 }
 
+#[allow(dead_code)]
 impl OmniAuditQueryService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

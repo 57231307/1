@@ -30,6 +30,7 @@ pub struct CreateEmailLogRequest {
 }
 
 /// 邮件发送记录查询参数
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct EmailLogQuery {
     pub status: Option<String>,
@@ -117,6 +118,7 @@ impl EmailLogService {
     }
 
     /// 增加重试次数
+    #[allow(dead_code)]
     pub async fn increment_retry(&self, id: i32) -> Result<(), AppError> {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
@@ -139,6 +141,7 @@ impl EmailLogService {
     }
 
     /// 获取邮件发送记录详情
+    #[allow(dead_code)]
     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
@@ -189,6 +192,7 @@ impl EmailLogService {
     }
 
     /// 获取待重试的邮件列表
+    #[allow(dead_code)]
     pub async fn get_pending_retries(
         &self,
         max_retries: i32,

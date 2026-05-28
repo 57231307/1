@@ -316,6 +316,7 @@ impl ProductionOrderService {
     }
 
     /// 删除生产订单（软删除）
+    #[allow(dead_code)]
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)

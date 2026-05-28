@@ -17,6 +17,7 @@ pub struct TenantConfigQuery {
     pub config_type: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct SetConfigRequest {
     pub key: String,

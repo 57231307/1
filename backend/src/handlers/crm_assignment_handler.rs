@@ -216,6 +216,7 @@ pub async fn list_assignment_history(
 }
 
 /// GET /api/v1/erp/crm/assignment/history/:lead_id - 获取客户分配历史
+#[allow(dead_code)]
 pub async fn get_lead_assignment_history(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -233,6 +234,7 @@ pub async fn get_lead_assignment_history(
 }
 
 /// GET /api/v1/erp/crm/assignment/statistics - 获取用户分配统计
+#[allow(dead_code)]
 pub async fn get_assignment_statistics(
     State(state): State<AppState>,
     auth: AuthContext,

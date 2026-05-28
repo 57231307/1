@@ -18,11 +18,13 @@ use crate::services::report_template_service::ReportTemplateService;
 use crate::utils::error::AppError;
 
 /// 定时任务调度器
+#[allow(dead_code)]
 pub struct SchedulerService {
     db: Arc<DatabaseConnection>,
     scheduler: JobScheduler,
 }
 
+#[allow(dead_code)]
 impl SchedulerService {
     /// 创建新的调度器实例
     pub async fn new(db: Arc<DatabaseConnection>) -> Result<Self, AppError> {

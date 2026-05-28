@@ -96,6 +96,7 @@ pub struct ScheduleDetailResponse {
 }
 
 /// 自动排程结果响应
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct AutoScheduleResultResponse {
     pub total_orders: i32,

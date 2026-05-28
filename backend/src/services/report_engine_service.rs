@@ -116,6 +116,7 @@ pub struct ReportData {
 }
 
 /// 导出格式
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
 pub enum ExportFormat {
     CSV,

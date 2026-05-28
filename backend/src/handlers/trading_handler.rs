@@ -18,6 +18,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 合同查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ContractQueryParams {
     pub status: Option<String>,
@@ -27,6 +28,7 @@ pub struct ContractQueryParams {
 }
 
 /// 价格查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct PriceQueryParams {
     pub product_id: Option<i32>,
@@ -36,6 +38,7 @@ pub struct PriceQueryParams {
 }
 
 /// 创建采购合同请求
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreatePurchaseContractRequest {
     pub contract_no: String,
@@ -48,6 +51,7 @@ pub struct CreatePurchaseContractRequest {
 }
 
 /// 创建销售合同请求
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreateSalesContractRequest {
     pub contract_no: String,
@@ -60,6 +64,7 @@ pub struct CreateSalesContractRequest {
 }
 
 /// GET /api/v1/erp/trading/sales-contracts - 获取销售合同列表
+#[allow(dead_code)]
 pub async fn list_sales_contracts(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -89,6 +94,7 @@ pub async fn list_sales_contracts(
 }
 
 /// POST /api/v1/erp/trading/sales-contracts - 创建销售合同
+#[allow(dead_code)]
 pub async fn create_sales_contract(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -119,6 +125,7 @@ pub async fn create_sales_contract(
 }
 
 /// GET /api/v1/erp/trading/purchase-contracts - 获取采购合同列表
+#[allow(dead_code)]
 pub async fn list_purchase_contracts(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -148,6 +155,7 @@ pub async fn list_purchase_contracts(
 }
 
 /// POST /api/v1/erp/trading/purchase-contracts - 创建采购合同
+#[allow(dead_code)]
 pub async fn create_purchase_contract(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -178,6 +186,7 @@ pub async fn create_purchase_contract(
 }
 
 /// GET /api/v1/erp/trading/purchase-contracts/:id - 获取采购合同详情
+#[allow(dead_code)]
 pub async fn get_purchase_contract(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -191,6 +200,7 @@ pub async fn get_purchase_contract(
 }
 
 /// POST /api/v1/erp/trading/purchase-contracts/:id/approve - 审批采购合同
+#[allow(dead_code)]
 pub async fn approve_purchase_contract(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -209,6 +219,7 @@ pub async fn approve_purchase_contract(
 }
 
 /// POST /api/v1/erp/trading/purchase-contracts/:id/execute - 执行采购合同
+#[allow(dead_code)]
 pub async fn execute_purchase_contract(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -247,6 +258,7 @@ pub async fn execute_purchase_contract(
 }
 
 /// GET /api/v1/erp/trading/sales-contracts/:id - 获取销售合同详情
+#[allow(dead_code)]
 pub async fn get_sales_contract(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -260,6 +272,7 @@ pub async fn get_sales_contract(
 }
 
 /// POST /api/v1/erp/trading/sales-contracts/:id/approve - 审批销售合同
+#[allow(dead_code)]
 pub async fn approve_sales_contract(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -278,6 +291,7 @@ pub async fn approve_sales_contract(
 }
 
 /// GET /api/v1/erp/trading/purchase-prices - 获取采购价格列表
+#[allow(dead_code)]
 pub async fn list_purchase_prices(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -307,6 +321,7 @@ pub async fn list_purchase_prices(
 }
 
 /// GET /api/v1/erp/trading/sales-prices - 获取销售价格列表
+#[allow(dead_code)]
 pub async fn list_sales_prices(
     State(state): State<AppState>,
     _auth: AuthContext,

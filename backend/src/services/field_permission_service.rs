@@ -47,6 +47,7 @@ pub struct FieldPermissionService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl FieldPermissionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

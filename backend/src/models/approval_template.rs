@@ -2,6 +2,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "approval_templates")]
 pub struct Model {
@@ -16,6 +17,7 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(has_many = "super::approval_node::Entity")]

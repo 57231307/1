@@ -37,6 +37,7 @@ pub struct ScheduledOrder {
 }
 
 /// 工作中心产能信息
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct WorkCenterCapacity {
     pub id: i32,
@@ -47,6 +48,7 @@ pub struct WorkCenterCapacity {
 }
 
 /// 排程时间槽
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TimeSlot {
     pub work_center_id: i32,

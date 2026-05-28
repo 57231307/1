@@ -264,6 +264,7 @@ impl ReportSubscriptionService {
     }
 
     /// 获取用户的订阅列表
+    #[allow(dead_code)]
     pub async fn list_by_user(
         &self,
         tenant_id: i32,

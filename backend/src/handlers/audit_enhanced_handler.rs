@@ -11,6 +11,7 @@ use crate::services::operation_log_service::OperationLogService;
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
     pub table_name: Option<String>,
@@ -22,6 +23,7 @@ pub struct AuditLogQuery {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OperationLogQuery {
     pub module: Option<String>,
@@ -43,6 +45,7 @@ pub struct AuditLogItem {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct OperationLogItem {
     pub id: i32,
@@ -67,6 +70,7 @@ pub struct ExportResult {
     pub record_count: usize,
 }
 
+#[allow(dead_code)]
 pub async fn list_operation_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -119,6 +123,7 @@ pub async fn list_operation_logs(
     }
 }
 
+#[allow(dead_code)]
 pub async fn export_operation_logs(
     State(state): State<AppState>,
     _auth: AuthContext,

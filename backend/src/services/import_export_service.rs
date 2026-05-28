@@ -25,6 +25,7 @@ pub struct ImportError {
 }
 
 /// 导出格式
+#[allow(dead_code, clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExportFormatType {
     CSV,
@@ -591,6 +592,7 @@ impl ImportExportService {
 }
 
 /// 导出查询参数
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportQuery {
     pub format: Option<String>,

@@ -83,6 +83,7 @@ impl From<ConversionResult> for ConversionResultResponse {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct BaseCurrencyResponse {
     pub id: i32,
@@ -164,6 +165,7 @@ pub async fn convert_amount(
 
 /// GET /api/v1/erp/currencies/base
 /// 获取本位币信息
+#[allow(dead_code)]
 pub async fn get_base_currency(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<BaseCurrencyResponse>>, StatusCode> {

@@ -1,6 +1,7 @@
 /// 通用状态常量定义
 /// 用于避免状态字符串硬编码
 // 采购订单状态
+#[allow(dead_code)]
 pub mod purchase_order {
     /// 草稿
     pub const DRAFT: &str = "DRAFT";
@@ -25,6 +26,7 @@ pub mod purchase_order {
 }
 
 // 销售订单状态
+#[allow(dead_code)]
 pub mod sales_order {
     /// 草稿
     pub const DRAFT: &str = "DRAFT";
@@ -39,6 +41,7 @@ pub mod sales_order {
 }
 
 // 通用审批状态
+#[allow(dead_code)]
 pub mod approval {
     /// 草稿
     pub const DRAFT: &str = "DRAFT";

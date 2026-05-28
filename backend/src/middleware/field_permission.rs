@@ -12,6 +12,7 @@ use sea_orm::EntityTrait;
 use serde_json::Value;
 
 /// 检查角色是否是管理员角色
+#[allow(dead_code)]
 async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
     // 从数据库查询角色，检查code是否为"admin"
     match role::Entity::find_by_id(role_id)
@@ -30,6 +31,7 @@ async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
 /// 字段权限中间件
 ///
 /// 在响应返回前自动过滤或掩码处理无权限的字段
+#[allow(dead_code)]
 pub async fn field_permission_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -142,6 +144,7 @@ pub async fn field_permission_middleware(
 }
 
 /// 从路径中提取资源类型
+#[allow(dead_code)]
 fn extract_resource_type(path: &str) -> Option<String> {
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
 
@@ -174,6 +177,7 @@ fn extract_resource_type(path: &str) -> Option<String> {
 }
 
 /// 判断是否为模块前缀
+#[allow(dead_code)]
 fn is_module_prefix(part: &str) -> bool {
     matches!(
         part,
@@ -187,6 +191,7 @@ fn is_module_prefix(part: &str) -> bool {
 }
 
 /// 处理响应 JSON，应用字段过滤和掩码
+#[allow(dead_code)]
 fn process_response_json(
     value: &mut Value,
     permissions: &[crate::services::field_permission_service::FieldPermissionDetail],
@@ -204,6 +209,7 @@ fn process_response_json(
 }
 
 /// 处理 data 字段的值
+#[allow(dead_code)]
 fn process_data_value(
     data: &mut Value,
     permissions: &[crate::services::field_permission_service::FieldPermissionDetail],

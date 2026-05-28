@@ -98,6 +98,7 @@ pub struct CapacityOverview {
 }
 
 /// 产能负荷查询参数
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoadAnalysisQuery {
     pub date_from: Option<NaiveDate>,
@@ -306,6 +307,7 @@ impl CapacityService {
     }
 
     /// 产能瓶颈识别：返回负荷率超过阈值的工作中心
+    #[allow(dead_code)]
     pub async fn identify_bottlenecks(
         &self,
         threshold: Decimal,

@@ -120,6 +120,7 @@ impl EmailTemplateService {
     }
 
     /// 根据编码获取邮件模板
+    #[allow(dead_code)]
     pub async fn get_by_code(
         &self,
         tenant_id: i32,
@@ -253,6 +254,7 @@ impl EmailTemplateService {
     }
 
     /// 渲染模板（替换变量）
+    #[allow(dead_code)]
     pub fn render_template(template: &str, variables: &serde_json::Value) -> String {
         let mut result = template.to_string();
 

@@ -54,6 +54,7 @@ impl ArInvoiceService {
     }
 
     /// 从销售出库单自动生成应收单
+    #[allow(dead_code)]
     pub async fn auto_generate_from_delivery(
         &self,
         delivery_id: i32,

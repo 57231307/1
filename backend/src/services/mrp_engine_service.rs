@@ -564,6 +564,7 @@ impl MrpEngineService {
     }
 
     /// 获取缺料预警列表
+    #[allow(dead_code)]
     pub async fn get_shortage_alerts(
         &self,
         days_ahead: i64,
@@ -609,6 +610,7 @@ impl MrpEngineService {
     }
 
     /// 删除MRP计算结果
+    #[allow(dead_code)]
     pub async fn delete_results(&self, calculation_no: &str) -> Result<u64, AppError> {
         let result = MrpResultEntity::delete_many()
             .filter(crate::models::mrp_result::Column::CalculationNo.eq(calculation_no))

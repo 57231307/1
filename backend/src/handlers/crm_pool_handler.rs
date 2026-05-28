@@ -15,6 +15,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 公海客户查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct PoolQueryParams {
     pub page: Option<u64>,
@@ -38,6 +39,7 @@ pub struct RecycleRequest {
 }
 
 /// 公海客户响应
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct PoolCustomerResponse {
     pub id: i32,

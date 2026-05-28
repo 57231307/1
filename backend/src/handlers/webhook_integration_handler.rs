@@ -18,6 +18,7 @@ pub struct CreateWebhookIntegrationRequest {
     pub is_active: Option<bool>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct SendWebhookMessageRequest {
     pub integration_id: i32,
@@ -26,6 +27,7 @@ pub struct SendWebhookMessageRequest {
     pub title: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct WebhookCallbackRequest {
     pub event_type: String,

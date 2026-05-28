@@ -1,6 +1,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "audit_alert_rules")]
 pub struct Model {
@@ -14,6 +15,7 @@ pub struct Model {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
 

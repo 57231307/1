@@ -33,6 +33,7 @@ pub struct CreateAssignmentHistoryRequest {
 }
 
 /// 分配历史查询参数
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct AssignmentHistoryQuery {
     pub lead_id: Option<i32>,
@@ -90,6 +91,7 @@ impl AssignmentHistoryService {
     }
 
     /// 获取分配历史详情
+    #[allow(dead_code)]
     pub async fn get_by_id(&self, id: i32) -> Result<Option<AssignmentHistoryModel>, AppError> {
         let model = AssignmentHistoryEntity::find_by_id(id)
             .one(&*self.db)
@@ -148,6 +150,7 @@ impl AssignmentHistoryService {
     }
 
     /// 获取客户的分配历史
+    #[allow(dead_code)]
     pub async fn get_lead_history(
         &self,
         tenant_id: i32,
@@ -165,6 +168,7 @@ impl AssignmentHistoryService {
     }
 
     /// 获取用户的分配统计
+    #[allow(dead_code)]
     pub async fn get_user_statistics(
         &self,
         tenant_id: i32,
@@ -203,6 +207,7 @@ impl AssignmentHistoryService {
 }
 
 /// 分配统计
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignmentStatistics {
     pub assigned: i64,

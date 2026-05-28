@@ -264,6 +264,7 @@ impl CurrencyService {
     }
 
     /// 批量换算到本位币
+    #[allow(dead_code)]
     pub async fn convert_to_base_currency(
         &self,
         from_currency: &str,
@@ -365,6 +366,7 @@ impl CurrencyService {
     }
 
     /// 计算本位币金额（用于订单和发票）
+    #[allow(dead_code)]
     pub async fn calculate_base_amount(
         &self,
         currency_code: &str,

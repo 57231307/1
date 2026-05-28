@@ -358,6 +358,7 @@ impl EmailTemplate {
     }
 
     /// 保存邮件发送记录
+    #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
     pub async fn save_email_log(
         &self,
