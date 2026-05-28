@@ -200,7 +200,7 @@ impl ProductCategoryService {
             };
             
             if let Some(parent_id) = cat.parent_id {
-                children_map.entry(parent_id).or_insert_with(Vec::new).push(node);
+                children_map.entry(parent_id).or_default().push(node);
             } else {
                 root_nodes.push(node);
             }

@@ -9,7 +9,7 @@ use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -257,9 +257,9 @@ impl ArReconciliationService {
             active_model.total_collections = Set(total_collections);
         }
 
-        let opening = active_model.opening_balance.as_ref().clone();
-        let invoices = active_model.total_invoices.as_ref().clone();
-        let collections = active_model.total_collections.as_ref().clone();
+        let opening = *active_model.opening_balance.as_ref();
+        let invoices = *active_model.total_invoices.as_ref();
+        let collections = *active_model.total_collections.as_ref();
         active_model.closing_balance = Set(opening + invoices - collections);
 
         active_model.updated_at = Set(Utc::now());
@@ -752,7 +752,7 @@ impl ArReconciliationService {
             });
         }
 
-        customer_summaries.sort_by(|a, b| b.total_amount.cmp(&a.total_amount));
+        customer_summaries.sort_by_key(|b| std::cmp::Reverse(b.total_amount));
 
         Ok(AgingReport {
             analysis_date: today,

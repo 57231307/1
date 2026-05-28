@@ -6,10 +6,10 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::email_service::EmailService;
+
 use crate::services::email_template_service::{
     CreateEmailTemplateRequest, EmailTemplateQuery, EmailTemplateService,
     UpdateEmailTemplateRequest,

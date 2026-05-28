@@ -15,6 +15,12 @@ pub struct PrintData {
 /// 打印服务
 pub struct PrintService;
 
+impl Default for PrintService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PrintService {
     pub fn new() -> Self {
         Self

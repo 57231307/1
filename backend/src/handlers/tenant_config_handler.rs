@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -213,7 +212,7 @@ pub async fn create_plan(
     _auth: AuthContext,
     Json(req): Json<CreatePlanRequest>,
 ) -> Result<Json<ApiResponse<BillingPlanItem>>, AppError> {
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    use sea_orm::{ActiveModelTrait, Set};
     use crate::models::tenant_plan;
     use chrono::Utc;
     use rust_decimal::Decimal;

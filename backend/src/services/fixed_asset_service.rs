@@ -358,7 +358,7 @@ impl FixedAssetService {
         use chrono::Datelike;
         
         let purchase_date = asset.purchase_date.unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date"));
-        let useful_life = asset.useful_life.unwrap_or(0) as i32;
+        let useful_life = asset.useful_life.unwrap_or(0);
         let original_value = asset.original_value;
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
         

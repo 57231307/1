@@ -104,7 +104,7 @@ where
         let now = Instant::now();
         let mut removed = 0u64;
         self.storage.retain(|_, v| {
-            let keep = v.expires_at.map_or(true, |exp| now <= exp);
+            let keep = v.expires_at.is_none_or(|exp| now <= exp);
             if !keep {
                 removed += 1;
             }
@@ -251,32 +251,32 @@ pub enum CacheKey {
     WarehouseLocations(i32), // 仓库ID
 }
 
-impl CacheKey {
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for CacheKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CacheKey::DashboardOverview(range) => format!("dashboard:overview:{}", range),
-            CacheKey::SalesStatistics(range) => format!("dashboard:sales:{}", range),
-            CacheKey::InventoryStatistics(range) => format!("dashboard:inventory:{}", range),
-            CacheKey::LowStockAlerts => "inventory:low_stock".to_string(),
-            CacheKey::ProductsList(params) => format!("products:list:{}", params),
-            CacheKey::ProductDetails(id) => format!("products:details:{}", id),
-            CacheKey::ProductColors(id) => format!("products:colors:{}", id),
-            CacheKey::ProductCategories => "products:categories".to_string(),
-            CacheKey::ProductCategoryTree => "products:category_tree".to_string(),
-            CacheKey::InventoryStock(params) => format!("inventory:stock:{}", params),
-            CacheKey::InventorySummary(params) => format!("inventory:summary:{}", params),
-            CacheKey::InventoryTransactions(params) => format!("inventory:transactions:{}", params),
-            CacheKey::SalesOrders(params) => format!("sales:orders:{}", params),
-            CacheKey::SalesOrderDetails(id) => format!("sales:order:{}", id),
-            CacheKey::PurchaseOrders(params) => format!("purchase:orders:{}", params),
-            CacheKey::PurchaseOrderDetails(id) => format!("purchase:order:{}", id),
-            CacheKey::CustomersList(params) => format!("customers:list:{}", params),
-            CacheKey::CustomerDetails(id) => format!("customers:details:{}", id),
-            CacheKey::SuppliersList(params) => format!("suppliers:list:{}", params),
-            CacheKey::SupplierDetails(id) => format!("suppliers:details:{}", id),
-            CacheKey::WarehousesList => "warehouses:list".to_string(),
-            CacheKey::WarehouseDetails(id) => format!("warehouses:details:{}", id),
-            CacheKey::WarehouseLocations(id) => format!("warehouses:locations:{}", id),
+            CacheKey::DashboardOverview(range) => write!(f, "dashboard:overview:{}", range),
+            CacheKey::SalesStatistics(range) => write!(f, "dashboard:sales:{}", range),
+            CacheKey::InventoryStatistics(range) => write!(f, "dashboard:inventory:{}", range),
+            CacheKey::LowStockAlerts => write!(f, "inventory:low_stock"),
+            CacheKey::ProductsList(params) => write!(f, "products:list:{}", params),
+            CacheKey::ProductDetails(id) => write!(f, "products:details:{}", id),
+            CacheKey::ProductColors(id) => write!(f, "products:colors:{}", id),
+            CacheKey::ProductCategories => write!(f, "products:categories"),
+            CacheKey::ProductCategoryTree => write!(f, "products:category_tree"),
+            CacheKey::InventoryStock(params) => write!(f, "inventory:stock:{}", params),
+            CacheKey::InventorySummary(params) => write!(f, "inventory:summary:{}", params),
+            CacheKey::InventoryTransactions(params) => write!(f, "inventory:transactions:{}", params),
+            CacheKey::SalesOrders(params) => write!(f, "sales:orders:{}", params),
+            CacheKey::SalesOrderDetails(id) => write!(f, "sales:order:{}", id),
+            CacheKey::PurchaseOrders(params) => write!(f, "purchase:orders:{}", params),
+            CacheKey::PurchaseOrderDetails(id) => write!(f, "purchase:order:{}", id),
+            CacheKey::CustomersList(params) => write!(f, "customers:list:{}", params),
+            CacheKey::CustomerDetails(id) => write!(f, "customers:details:{}", id),
+            CacheKey::SuppliersList(params) => write!(f, "suppliers:list:{}", params),
+            CacheKey::SupplierDetails(id) => write!(f, "suppliers:details:{}", id),
+            CacheKey::WarehousesList => write!(f, "warehouses:list"),
+            CacheKey::WarehouseDetails(id) => write!(f, "warehouses:details:{}", id),
+            CacheKey::WarehouseLocations(id) => write!(f, "warehouses:locations:{}", id),
         }
     }
 }

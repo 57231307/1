@@ -4,7 +4,7 @@ use crate::utils::response::ApiResponse;
 use crate::models::dto::bpm_dto::{CreateProcessDefinitionRequest, UpdateProcessDefinitionRequest, ProcessDefinitionQuery, CreateVersionRequest, CreateTemplateRequest, TemplateQuery};
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
-use serde::Deserialize;
+
 
 /// 创建流程定义
 pub async fn create_process_definition(
@@ -60,7 +60,7 @@ pub async fn delete_process_definition(
 /// 创建新版本
 pub async fn create_version(
     State(state): State<AppState>,
-    Path(id): Path<i32>,
+    Path(_id): Path<i32>,
     Json(req): Json<CreateVersionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
@@ -81,7 +81,7 @@ pub async fn list_versions(
 /// 激活指定版本
 pub async fn activate_version(
     State(state): State<AppState>,
-    Path((id, version)): Path<(i32, String)>,
+    Path((id, _version)): Path<(i32, String)>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.activate_process_version(id).await?;
@@ -113,7 +113,7 @@ pub async fn list_templates(
 pub async fn create_from_template(
     State(state): State<AppState>,
     Path(template_id): Path<i32>,
-    Json(req): Json<CreateProcessDefinitionRequest>,
+    Json(_req): Json<CreateProcessDefinitionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let res = service.create_from_template(template_id).await?;

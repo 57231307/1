@@ -6,7 +6,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
 use crate::services::system_update_service::{SystemUpdateService, UpdateError, LocalRelease};
 

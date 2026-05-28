@@ -74,7 +74,7 @@ pub async fn list_pool(
     // 转换为响应格式
     let items: Vec<serde_json::Value> = result.data.into_iter().map(|lead| {
         let days_in_pool = chrono::Utc::now()
-            .signed_duration_since(lead.created_at.unwrap_or_else(|| chrono::Utc::now()))
+            .signed_duration_since(lead.created_at.unwrap_or_else(chrono::Utc::now))
             .num_days();
 
         serde_json::json!({

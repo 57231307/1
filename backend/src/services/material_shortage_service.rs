@@ -5,8 +5,7 @@
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -131,7 +130,7 @@ impl MaterialShortageService {
         &self,
         request: ShortageCheckRequest,
     ) -> Result<ShortageSummary, AppError> {
-        let threshold = request.threshold.unwrap_or_default();
+        let _threshold = request.threshold.unwrap_or_default();
 
         // 1. 获取活跃的生产订单
         let mut order_query = ProductionOrderEntity::find()

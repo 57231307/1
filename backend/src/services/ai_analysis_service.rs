@@ -7,7 +7,7 @@
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
@@ -16,7 +16,6 @@ use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::inventory_transaction::Entity as InventoryTransactionEntity;
-use crate::models::product::Entity as ProductEntity;
 use crate::utils::error::AppError;
 
 /// 销售预测结果
@@ -236,7 +235,7 @@ impl AiAnalysisService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let total: Decimal = orders.iter().map(|o| o.total_amount).sum();
-        let days_count = orders.len().max(1) as f64;
+        let _days_count = orders.len().max(1) as f64;
         let avg_daily = total.to_f64().unwrap_or(0.0) / 90.0;
 
         let today = Utc::now().date_naive();
@@ -247,7 +246,7 @@ impl AiAnalysisService {
             let month = forecast_date.month();
             let seasonal = match month {
                 1 | 2 => 0.8,
-                6 | 7 | 8 => 1.2,
+                6..=8 => 1.2,
                 11 | 12 => 1.3,
                 _ => 1.0,
             };
@@ -343,7 +342,7 @@ impl AiAnalysisService {
 
             // 计算出库统计
             let outbound_qtys = outbound_by_product.get(&pid);
-            let (avg_daily_demand, demand_std, total_outbound) = if let Some(qtys) = outbound_qtys {
+            let (avg_daily_demand, demand_std, _total_outbound) = if let Some(qtys) = outbound_qtys {
                 let daily_map = self.aggregate_daily_from_transactions(pid, &transactions);
                 let daily_values: Vec<f64> = daily_map.values().copied().collect();
                 let avg = if daily_values.is_empty() { 0.0 } else { mean(&daily_values) };
@@ -604,7 +603,7 @@ impl AiAnalysisService {
         let long_start = Utc::now().date_naive() - Duration::days(days * 4); // 更长的历史窗口
 
         // 获取销售订单明细
-        let recent_items = SalesOrderItemEntity::find()
+        let _recent_items = SalesOrderItemEntity::find()
             .filter(crate::models::sales_order_item::Column::CreatedAt.gte(
                 check_start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
             ))
@@ -634,7 +633,7 @@ impl AiAnalysisService {
         }
 
         for (pid, daily_map) in &product_daily_sales {
-            let mut all_values: Vec<f64> = daily_map.values().copied().collect();
+            let all_values: Vec<f64> = daily_map.values().copied().collect();
             if all_values.len() < 7 {
                 continue;
             }
@@ -883,7 +882,7 @@ impl AiAnalysisService {
         for ((p1, p2), &count) in &co_occurrence {
             let support = count as f64 / total_orders;
             let conf1 = count as f64 / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
-            let conf2 = count as f64 / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
+            let _conf2 = count as f64 / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
 
             if support > 0.05 && conf1 > 0.3 {
                 let lift = support / (

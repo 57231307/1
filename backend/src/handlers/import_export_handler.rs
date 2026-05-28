@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::import_export_service::{ImportExportService, ExportQuery};
@@ -115,7 +115,7 @@ pub async fn download_template(
 /// GET /api/v1/erp/export/csv/:export_type - CSV导出
 pub async fn export_csv(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -137,7 +137,7 @@ pub async fn export_csv(
 /// GET /api/v1/erp/export/excel/:export_type - Excel导出
 pub async fn export_excel_type(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

@@ -290,7 +290,7 @@ impl SupplierEvaluationService {
             });
         }
 
-        rankings.sort_by(|a, b| b.average_score.cmp(&a.average_score));
+        rankings.sort_by_key(|b| std::cmp::Reverse(b.average_score));
         rankings.truncate(limit as usize);
 
         info!("查询到 {} 个供应商排名", rankings.len());

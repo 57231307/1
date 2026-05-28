@@ -6,7 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::audit_log_service::AuditLogService;
+
 use crate::services::operation_log_service::OperationLogService;
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
@@ -122,7 +122,7 @@ pub async fn list_operation_logs(
 pub async fn export_operation_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
-    Query(query): Query<OperationLogQuery>,
+    Query(_query): Query<OperationLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, StatusCode> {
     let service = OperationLogService::new(state.db);
     let page_size = 10000;

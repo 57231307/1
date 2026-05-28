@@ -2,8 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
-use sea_orm::prelude::DateTimeUtc;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "tenants")]

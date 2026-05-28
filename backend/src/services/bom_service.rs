@@ -219,7 +219,7 @@ impl BomService {
         }
         bom_active.updated_at = Set(Utc::now());
 
-        let updated_bom = bom_active
+        let _updated_bom = bom_active
             .update(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;

@@ -237,7 +237,7 @@ impl SchedulingService {
         let mut wc_schedule: HashMap<i32, Vec<(NaiveDate, NaiveDate, i32, String)>> =
             HashMap::new();
         for wc_id in wc_capacity.keys() {
-            wc_schedule.insert(wc_id.clone(), Vec::new());
+            wc_schedule.insert(*wc_id, Vec::new());
         }
 
         let start_date = req.start_date.unwrap_or(Utc::now().date_naive());
@@ -315,7 +315,7 @@ impl SchedulingService {
             };
             let days_needed = days_needed.max(1);
 
-            let schedule = wc_schedule.entry(wc_id).or_insert_with(Vec::new);
+            let schedule = wc_schedule.entry(wc_id).or_default();
             let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
             let assigned_end = assigned_start + Duration::days(days_needed - 1);
 
@@ -886,7 +886,7 @@ impl SchedulingService {
     pub async fn confirm_schedule_result(
         &self,
         id: i32,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<crate::models::scheduling_result::Model, AppError> {
         let model = SchedulingResultEntity::find_by_id(id)
             .one(&*self.db)

@@ -4,7 +4,6 @@
 ///
 /// 提供米数 ↔ 公斤数的精确换算功能
 /// 支持幅宽、克重等多参数计算
-
 use rust_decimal::Decimal;
 use std::str::FromStr;
 

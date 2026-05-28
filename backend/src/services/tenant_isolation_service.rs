@@ -4,7 +4,7 @@
 //! 配合 tenant_isolation 中间件使用，确保所有数据访问都经过租户隔离。
 #![allow(dead_code)]
 
-use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, QueryTrait};
+use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
@@ -67,7 +67,7 @@ impl TenantIsolationService {
     pub fn apply_tenant_filter<S>(
         &self,
         select: S,
-        tenant_id: i32,
+        _tenant_id: i32,
         table_name: &str,
     ) -> S
     where
@@ -101,7 +101,7 @@ impl TenantIsolationService {
     }
 
     /// 构建带租户过滤的查询条件
-    pub fn build_tenant_condition(&self, tenant_id: i32, table_name: &str) -> Option<Condition> {
+    pub fn build_tenant_condition(&self, _tenant_id: i32, table_name: &str) -> Option<Condition> {
         if !self.isolation_state.requires_isolation(table_name) {
             return None;
         }
@@ -155,7 +155,7 @@ impl TenantIsolationService {
         &self,
         select: sea_orm::Select<E>,
         marker: &TenantIsolationMarker,
-        table_name: &str,
+        _table_name: &str,
     ) -> Result<Vec<E::Model>, TenantIsolationError>
     where
         E: EntityTrait,
@@ -177,7 +177,6 @@ impl TenantIsolationService {
     /// 验证租户是否活跃
     pub async fn is_tenant_active(&self, tenant_id: i32) -> Result<bool, TenantIsolationError> {
         use crate::models::tenant::Entity as Tenant;
-        use crate::models::tenant::Column as TenantColumn;
 
         let tenant = Tenant::find_by_id(tenant_id)
             .one(self.db.as_ref())

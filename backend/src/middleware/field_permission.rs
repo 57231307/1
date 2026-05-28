@@ -219,12 +219,10 @@ fn process_data_value(
         Value::Object(_) => {
             // 检查是否为分页响应 { "items": [...], "total": ... }
             if let Some(obj) = data.as_object_mut() {
-                if let Some(items) = obj.get_mut("items") {
-                    if let Value::Array(arr) = items {
-                        for item in arr.iter_mut() {
-                            service.filter_fields_by_read_permission(item, permissions);
-                            service.mask_fields(item, permissions);
-                        }
+                if let Some(Value::Array(arr)) = obj.get_mut("items") {
+                    for item in arr.iter_mut() {
+                        service.filter_fields_by_read_permission(item, permissions);
+                        service.mask_fields(item, permissions);
                     }
                 }
                 // 也处理顶层对象本身

@@ -47,7 +47,6 @@ pub async fn list_customers(
         page: params.page,
         page_size: params.page_size,
         lead_status: params.status,
-        ..Default::default()
     };
 
     let result = service.list_leads(query).await?;

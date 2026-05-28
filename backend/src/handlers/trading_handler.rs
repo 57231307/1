@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_contract_service::PurchaseContractService;

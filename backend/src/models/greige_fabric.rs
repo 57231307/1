@@ -2,7 +2,7 @@
 
 //! 坯布管理模型（原料布匹管理）
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

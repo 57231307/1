@@ -86,8 +86,8 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         
         // 尝试提取资源ID（跳过模块前缀）
         let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) { 5 } else { 4 };
-        for i in start_idx..path_parts.len() {
-            if let Ok(id) = path_parts[i].parse::<i32>() {
+        for part in path_parts.iter().skip(start_idx) {
+            if let Ok(id) = part.parse::<i32>() {
                 return (resource_type, Some(id));
             }
         }
@@ -146,7 +146,7 @@ impl<T: Clone> CacheEntry<T> {
 
 // Cache: role_id -> CacheEntry<Vec<role_permission::Model>>
 static PERMISSION_CACHE: Lazy<DashMap<i32, CacheEntry<Vec<role_permission::Model>>>> =
-    Lazy::new(|| DashMap::new());
+    Lazy::new(DashMap::new);
 
 /// 权限缓存TTL（5分钟）
 const PERMISSION_CACHE_TTL: i64 = 5;

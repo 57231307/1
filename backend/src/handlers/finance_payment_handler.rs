@@ -82,7 +82,7 @@ pub async fn create_payment(
             payment_no,
             payload.invoice_id,
             payload.amount,
-            payload.payment_date.unwrap_or_else(|| chrono::Utc::now()),
+            payload.payment_date.unwrap_or_else(chrono::Utc::now),
             payload.payment_method,
             payload.notes,
             Some(auth.user_id),

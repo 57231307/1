@@ -108,7 +108,7 @@ impl InventoryFinanceBridgeService {
     #[allow(clippy::too_many_arguments)]
     async fn handle_inventory_transaction(
         &self,
-        transaction_id: i32,
+        _transaction_id: i32,
         transaction_type: &str,
         product_id: i32,
         warehouse_id: i32,

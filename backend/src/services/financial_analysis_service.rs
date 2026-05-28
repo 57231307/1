@@ -422,7 +422,7 @@ impl FinancialAnalysisService {
     /// 确保指标定义存在，不存在则自动创建
     async fn ensure_indicator_definitions(
         &self,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<Vec<financial_analysis::Model>, AppError> {
         let definitions = vec![
             (

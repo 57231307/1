@@ -7,7 +7,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
 
@@ -539,7 +539,7 @@ impl InventoryStockService {
         color_no: Option<String>,
         grade: Option<String>,
     ) -> Result<Vec<InventorySummaryItem>, sea_orm::DbErr> {
-        use sea_orm::{JoinType, QuerySelect};
+        use sea_orm::QuerySelect;
         
         let mut query = inventory_stock::Entity::find()
             .inner_join(crate::models::product::Entity)

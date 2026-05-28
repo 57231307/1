@@ -1,13 +1,13 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
-use crate::models::inventory_transaction::{self, Entity as InventoryTransactionEntity};
+use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::utils::PaginatedResponse;
@@ -482,7 +482,7 @@ impl InventoryTransferService {
 
                 // 保存需要使用的值
                 let stock_id = stock_model.id;
-                let quantity_on_hand = stock_model.quantity_on_hand;
+                let _quantity_on_hand = stock_model.quantity_on_hand;
                 let quantity_meters = stock_model.quantity_meters;
                 let quantity_kg = stock_model.quantity_kg;
                 let expected_version = stock_model.version;
@@ -490,7 +490,7 @@ impl InventoryTransferService {
                 let color_no = stock_model.color_no.clone();
                 let dye_lot_no = stock_model.dye_lot_no.clone();
                 let grade = stock_model.grade.clone();
-                let stock_model = stock_model.clone();
+                let _stock_model = stock_model.clone();
 
                 // 扣减库存（带乐观锁）
                 let new_quantity_meters = quantity_meters - item.quantity;
@@ -636,7 +636,7 @@ impl InventoryTransferService {
             if let Some(stock_model) = stock {
                 // 保存需要使用的值
                 let stock_id = stock_model.id;
-                let quantity_on_hand = stock_model.quantity_on_hand;
+                let _quantity_on_hand = stock_model.quantity_on_hand;
                 let quantity_meters = stock_model.quantity_meters;
                 let quantity_kg = stock_model.quantity_kg;
                 let expected_version = stock_model.version;
@@ -644,7 +644,7 @@ impl InventoryTransferService {
                 let color_no = stock_model.color_no.clone();
                 let dye_lot_no = stock_model.dye_lot_no.clone();
                 let grade = stock_model.grade.clone();
-                let stock_model = stock_model.clone();
+                let _stock_model = stock_model.clone();
 
                 // 增加库存（带乐观锁）
                 let new_quantity_meters = quantity_meters + item.quantity;

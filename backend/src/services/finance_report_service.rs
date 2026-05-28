@@ -98,7 +98,7 @@ impl FinanceReportService {
             .unwrap_or(Decimal::ZERO);
 
         // 应付账款
-        let ap_total = finance_payment::Entity::find()
+        let _ap_total = finance_payment::Entity::find()
             .filter(finance_payment::Column::Status.eq("PENDING"))
             .select_only()
             .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")

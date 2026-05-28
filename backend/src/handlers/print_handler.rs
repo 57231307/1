@@ -16,6 +16,7 @@ async fn render_print_html(doc_type: &str, doc_id: i32) -> Result<Html<String>, 
     Ok(Html(html))
 }
 
+#[allow(dead_code)]
 async fn render_print_json(doc_type: &str, doc_id: i32) -> Result<axum::Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PrintService::new();
     let print_data = service.get_print_data(doc_type, doc_id).await?;

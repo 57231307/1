@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::material_shortage_service::{
-    MaterialShortageService, ShortageCheckRequest, ShortageThresholdConfig,
+    MaterialShortageService, ShortageCheckRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -154,7 +154,7 @@ pub async fn get_threshold_config(
 /// GET /api/v1/erp/material-shortage/replenishment - 获取补货建议
 pub async fn get_replenishment_suggestions(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(params): Query<ShortageSummaryParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = MaterialShortageService::new(state.db.clone());

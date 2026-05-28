@@ -11,7 +11,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
 use crate::models::inventory_count_item::{self, Entity as InventoryCountItemEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
-use crate::models::inventory_transaction::{self, Entity as InventoryTransactionEntity};
+use crate::models::inventory_transaction;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
@@ -596,7 +596,7 @@ impl InventoryCountService {
             // 创建调整单
             if !adjustment_items.is_empty() {
                 let adjustment_request = CreateAdjustmentRequest {
-                    warehouse_id: warehouse_id,
+                    warehouse_id,
                     adjustment_date: chrono::Utc::now(),
                     adjustment_type: if adjustment_items.iter().any(|i| i.quantity > rust_decimal::Decimal::ZERO) {
                         "increase".to_string()
@@ -606,7 +606,7 @@ impl InventoryCountService {
                     reason_type: "correction".to_string(),
                     reason_description: Some(format!("盘点差异自动调整 - 盘点单号: {}", count_no)),
                     notes: Some("由盘点单自动生成".to_string()),
-                    created_by: created_by,
+                    created_by,
                     items: adjustment_items,
                 };
 

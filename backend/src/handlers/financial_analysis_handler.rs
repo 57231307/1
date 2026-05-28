@@ -6,8 +6,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{Order, QueryOrder};
-use serde::{Deserialize, Serialize};
+use sea_orm::QueryOrder;
+use serde::Deserialize;
 use tracing::info;
 
 use crate::middleware::auth_context::AuthContext;
@@ -131,7 +131,7 @@ pub async fn get_trends(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     let indicator_id = params.indicator_id.unwrap_or(0);
-    let limit = params.page_size.unwrap_or(50) as i64;
+    let limit = params.page_size.unwrap_or(50);
 
     let trends = service.get_trends(indicator_id, limit).await?;
 
@@ -274,7 +274,7 @@ pub async fn get_report(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+    use sea_orm::EntityTrait;
 
     let indicator = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())

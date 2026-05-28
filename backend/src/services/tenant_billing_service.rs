@@ -7,7 +7,7 @@ use crate::models::tenant_usage::{self, Entity as TenantUsage};
 use crate::models::tenant_invoice::{self, Entity as TenantInvoice};
 use sea_orm::*;
 use std::sync::Arc;
-use chrono::{DateTime, Utc, Duration, Datelike};
+use chrono::{DateTime, Utc, Duration};
 use rust_decimal::Decimal;
 
 pub struct TenantBillingService {

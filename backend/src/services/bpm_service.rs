@@ -2,7 +2,7 @@
 use sea_orm::*;
 use std::sync::Arc;
 use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};
-use crate::models::dto::bpm_dto::{StartProcessRequest, StartProcessResponse, ApproveTaskRequest, TaskQuery, CreateProcessDefinitionRequest, UpdateProcessDefinitionRequest, ProcessDefinitionQuery, CreateVersionRequest, CreateTemplateRequest, TemplateQuery};
+use crate::models::dto::bpm_dto::{StartProcessRequest, StartProcessResponse, ApproveTaskRequest, TaskQuery, CreateProcessDefinitionRequest, UpdateProcessDefinitionRequest, ProcessDefinitionQuery, CreateVersionRequest, TemplateQuery};
 use crate::models::dto::PageResponse;
 use crate::utils::error::AppError;
 

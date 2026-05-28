@@ -150,8 +150,7 @@ pub async fn tenant_isolation_middleware(
         Some(s) => s,
         None => {
             // 未配置隔离状态，使用默认配置继续
-            let default_state = Arc::new(TenantIsolationState::new(TenantIsolationConfig::default()));
-            default_state
+            Arc::new(TenantIsolationState::new(TenantIsolationConfig::default()))
         }
     };
 
@@ -252,7 +251,7 @@ impl<S> TenantScopedQuery for sea_orm::Select<S>
 where
     S: sea_orm::EntityTrait,
 {
-    fn apply_tenant_filter<C>(self, tenant_id: i32, table_name: &str, state: &TenantIsolationState) -> Self
+    fn apply_tenant_filter<C>(self, _tenant_id: i32, table_name: &str, state: &TenantIsolationState) -> Self
     where
         C: sea_orm::ColumnTrait,
         Self: QueryFilter + Sized,

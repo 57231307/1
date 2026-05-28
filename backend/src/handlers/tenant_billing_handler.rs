@@ -2,7 +2,7 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::tenant_billing_service::TenantBillingService;

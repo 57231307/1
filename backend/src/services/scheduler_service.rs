@@ -225,7 +225,7 @@ impl SchedulerService {
             .await?;
 
         // 根据导出格式生成文件
-        let (filename, content) = match subscription.export_format.as_str() {
+        let (filename, _content) = match subscription.export_format.as_str() {
             "csv" => {
                 let csv = crate::services::import_export_service::ImportExportService::generate_csv(
                     &headers, &data,

@@ -14,7 +14,6 @@ use std::sync::Arc;
 use crate::models::production_order::{Entity as ProductionOrderEntity, Column as ProductionOrderColumn};
 use crate::models::work_center::{
     ActiveModel as WorkCenterActiveModel, Entity as WorkCenterEntity, Column as WorkCenterColumn,
-    Model as WorkCenterModel,
 };
 use crate::utils::error::AppError;
 
@@ -249,7 +248,7 @@ impl CapacityService {
         }
 
         // 按负荷率降序排列
-        results.sort_by(|a, b| b.load_rate.cmp(&a.load_rate));
+        results.sort_by_key(|b| std::cmp::Reverse(b.load_rate));
         Ok(results)
     }
 

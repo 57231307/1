@@ -9,7 +9,6 @@ use sea_orm::{
 };
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::models::bom::{Entity as BomEntity, Model as BomModel};

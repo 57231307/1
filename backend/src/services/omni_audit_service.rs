@@ -60,7 +60,7 @@ impl OmniAuditEngine {
                 let mut mac = HmacSha256::new_from_slice(secret_key_clone.as_bytes())
                     .expect("HMAC can take key of any size");
                 mac.update(sign_material.as_bytes());
-                let signature = hex::encode(mac.finalize().into_bytes());
+                let _signature = hex::encode(mac.finalize().into_bytes());
 
                 if msg.status == "FAILED" || msg.status == "DENIED" || msg.event_type == "SECURITY_ALERT" {
                     tracing::warn!("【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}",
@@ -72,7 +72,7 @@ impl OmniAuditEngine {
                     user_id: ActiveValue::Set(Some(msg.user_id)),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),
-                    response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or_else(|_| match msg.status.as_str() {
+                    response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(match msg.status.as_str() {
                         "SUCCESS" => 200,
                         "FAILED" => 500,
                         "DENIED" => 403,

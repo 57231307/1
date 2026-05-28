@@ -1,6 +1,5 @@
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -181,7 +180,7 @@ pub async fn unlock_account(
 pub async fn get_security_alerts(
     State(state): State<AppState>,
     _auth: AuthContext,
-    Query(params): Query<std::collections::HashMap<String, String>>,
+    Query(_params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Vec<SecurityAlert>>>, AppError> {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     use crate::models::log_login;
@@ -235,7 +234,7 @@ pub async fn get_login_statistics(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
     use crate::models::log_login;
-    use chrono::{Duration, Utc};
+    use chrono::Utc;
 
     let today = Utc::now().date_naive();
     let today_start = today.and_hms_opt(0, 0, 0).unwrap().and_utc();

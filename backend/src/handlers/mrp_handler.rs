@@ -13,7 +13,7 @@ use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::mrp_engine_service::{
-    MaterialRequirement, MrpCalculationItem, MrpCalculationRequest, MrpCalculationSummary,
+    MaterialRequirement, MrpCalculationItem, MrpCalculationRequest,
     MrpEngineService,
 };
 use crate::utils::app_state::AppState;
@@ -179,8 +179,8 @@ pub async fn calculate_mrp(
         calculation_no: summary.calculation_no,
         total_items: summary.total_items,
         items_with_shortage: summary.items_with_shortage,
-        results: summary.results.iter().map(|r| to_result_response(r)).collect(),
-        requirements: summary.requirements.iter().map(|r| to_requirement_response(r)).collect(),
+        results: summary.results.iter().map(to_result_response).collect(),
+        requirements: summary.requirements.iter().map(to_requirement_response).collect(),
     };
 
     Ok(Json(ApiResponse::success(response)))
@@ -207,7 +207,7 @@ pub async fn get_mrp_results(
         )
         .await?;
 
-    let responses: Vec<MrpResultResponse> = results.iter().map(|r| to_result_response(r)).collect();
+    let responses: Vec<MrpResultResponse> = results.iter().map(to_result_response).collect();
 
     Ok(Json(ApiResponse::success_paginated(responses, total, page, page_size)))
 }
@@ -231,7 +231,7 @@ pub async fn get_mrp_requirements(
 
     let responses: Vec<MaterialRequirementResponse> = requirements
         .iter()
-        .map(|r| to_requirement_response(r))
+        .map(to_requirement_response)
         .collect();
 
     Ok(Json(ApiResponse::success(responses)))
@@ -257,7 +257,7 @@ pub async fn convert_to_orders(
         .convert_to_orders(payload.result_ids, payload.order_type)
         .await?;
 
-    let responses: Vec<MrpResultResponse> = results.iter().map(|r| to_result_response(r)).collect();
+    let responses: Vec<MrpResultResponse> = results.iter().map(to_result_response).collect();
 
     Ok(Json(ApiResponse::success(responses)))
 }

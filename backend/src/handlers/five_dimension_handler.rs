@@ -7,11 +7,11 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::five_dimension_service::{
-    FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams, FiveDimensionService, FiveDimensionStats,
+    FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams, FiveDimensionService,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;

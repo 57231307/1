@@ -244,7 +244,7 @@ impl ApPaymentService {
         // 尝试通过付款申请找到关联的应付单，进而找到采购订单的部门信息
         if let Some(request_id) = payment.request_id {
             // 查询付款申请
-            if let Ok(Some(request)) = ap_payment_request::Entity::find_by_id(request_id)
+            if let Ok(Some(_request)) = ap_payment_request::Entity::find_by_id(request_id)
                 .one(&*self.db)
                 .await
             {
@@ -256,7 +256,7 @@ impl ApPaymentService {
                 {
                     // 获取第一个应付单的部门信息（简化处理）
                     if let Some(first_item) = items.first() {
-                        if let Ok(Some(invoice)) = ap_invoice::Entity::find_by_id(first_item.invoice_id)
+                        if let Ok(Some(_invoice)) = ap_invoice::Entity::find_by_id(first_item.invoice_id)
                             .one(&*self.db)
                             .await
                         {

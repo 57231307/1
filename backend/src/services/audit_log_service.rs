@@ -58,7 +58,7 @@ impl AuditLogService {
             .ok_or_else(|| DbErr::Custom("Entity has no primary key".to_string()))?
             .into_column();
         
-        let pk_val = active_model.get(pk_col.clone());
+        let pk_val = active_model.get(pk_col);
         
         let pk_val_unwrapped = pk_val.into_value().unwrap_or(sea_orm::Value::Int(None));
 

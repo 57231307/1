@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::utils::app_state::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_service::OmniAuditMessage;
-use crate::services::omni_audit_query_service::{OmniAuditQueryService, AuditQueryFilter, AuditStats};
+use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
 use crate::utils::response::ApiResponse;
 use crate::utils::error::AppError;
 

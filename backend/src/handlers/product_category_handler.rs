@@ -6,7 +6,6 @@ use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::models::product_category;
 use crate::services::product_category_service::ProductCategoryService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

@@ -287,7 +287,7 @@ impl SalesReturnService {
             // 查找是否已有库存记录
             let stock = stock_map.get(&item.product_id);
 
-            let (batch_no, color_no, grade) = if let Some(ref s) = stock {
+            let (batch_no, color_no, grade) = if let Some(s) = stock {
                 (s.batch_no.clone(), s.color_no.clone(), s.grade.clone())
             } else {
                 (String::new(), String::new(), String::from("A"))

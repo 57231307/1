@@ -55,7 +55,7 @@ pub async fn list_counts(
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(&e.to_string())),
+            Json(ApiResponse::<()>::error(e.to_string())),
         )
             .into_response(),
     }
@@ -75,13 +75,13 @@ pub async fn get_count(
             if e.to_string().contains("未找到") {
                 (
                     StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             } else {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             }
@@ -108,7 +108,7 @@ pub async fn create_count(
             .into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(&e.to_string())),
+            Json(ApiResponse::<()>::error(e.to_string())),
         )
             .into_response(),
     }
@@ -133,13 +133,13 @@ pub async fn update_count(
             if e.to_string().contains("未找到") {
                 (
                     StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             } else {
                 (
                     StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             }
@@ -172,13 +172,13 @@ pub async fn approve_count(
             if e.to_string().contains("未找到") {
                 (
                     StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             } else {
                 (
                     StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             }
@@ -202,13 +202,13 @@ pub async fn complete_count(
             if e.to_string().contains("未找到") {
                 (
                     StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             } else {
                 (
                     StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(&e.to_string())),
+                    Json(ApiResponse::<()>::error(e.to_string())),
                 )
                     .into_response()
             }

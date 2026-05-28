@@ -7,7 +7,7 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ar_reconciliation_service::{

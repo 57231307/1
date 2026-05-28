@@ -46,8 +46,7 @@ fn extract_session_id(request: &Request<Body>, secret: &str) -> Option<String> {
     // 尝试从 Authorization header 提取 JWT
     if let Some(auth_header) = request.headers().get(axum::http::header::AUTHORIZATION) {
         if let Ok(auth_str) = auth_header.to_str() {
-            if auth_str.starts_with("Bearer ") {
-                let token = &auth_str[7..];
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if !token.is_empty() {
                     // 尝试解码 JWT 获取 session_id
                     match crate::services::auth_service::AuthService::validate_token_static(token, secret) {

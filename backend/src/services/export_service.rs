@@ -43,7 +43,7 @@ impl ExportService {
 
         // 写入汇总
         if let Some(summary) = &data.summary {
-            wtr.write_record(vec![String::new(); 0])
+            wtr.write_record(Vec::<String>::new())
                 .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
             for (key, value) in summary {
                 wtr.write_record(vec![key.clone(), value.clone()])
@@ -137,7 +137,7 @@ impl ExportService {
         content.push_str(&format!("客户名称: {}\n", customer_name));
         content.push_str(&format!("对账期间: {} 至 {}\n", period_start, period_end));
         content.push_str(&format!("状态: {}\n", status));
-        content.push_str("\n");
+        content.push('\n');
 
         // 明细表头
         content.push_str(&format!("{:<15} {:<20} {:<15} {:<15}\n", "类型", "单号", "金额", "日期"));
@@ -162,7 +162,7 @@ impl ExportService {
         content.push_str(&format!("期末余额: {}\n", closing_balance));
 
         // 页脚
-        content.push_str("\n");
+        content.push('\n');
         content.push_str(&"=".repeat(80));
         content.push('\n');
         content.push_str(&format!("打印时间: {}\n", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")));

@@ -88,7 +88,7 @@ pub enum BusinessEvent {
     },
 }
 
-pub static EVENT_BUS: Lazy<EventBus> = Lazy::new(|| EventBus::new());
+pub static EVENT_BUS: Lazy<EventBus> = Lazy::new(EventBus::new);
 
 pub struct EventBus {
     sender: broadcast::Sender<BusinessEvent>,
@@ -152,14 +152,12 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 BusinessEvent::PurchaseOrderApproved { order_id, .. } => {
                     tracing::info!("Event received: PurchaseOrderApproved for order {}", order_id);
                 }
-                BusinessEvent::CollectionCompleted { invoice_id, .. } => {
-                    if let Some(inv_id) = invoice_id {
-                        tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
-                        let ar_service = crate::services::ar_invoice_service::ArInvoiceService::new(db.clone());
-                        match ar_service.mark_as_paid(inv_id).await {
-                            Ok(_) => tracing::info!("Successfully updated ar_invoice {} status to PAID", inv_id),
-                            Err(e) => tracing::error!("Failed to update ar_invoice {}: {}", inv_id, e),
-                        }
+                BusinessEvent::CollectionCompleted { invoice_id: Some(inv_id), .. } => {
+                    tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
+                    let ar_service = crate::services::ar_invoice_service::ArInvoiceService::new(db.clone());
+                    match ar_service.mark_as_paid(inv_id).await {
+                        Ok(_) => tracing::info!("Successfully updated ar_invoice {} status to PAID", inv_id),
+                        Err(e) => tracing::error!("Failed to update ar_invoice {}: {}", inv_id, e),
                     }
                 }
                 BusinessEvent::InventoryCountCompleted { count_id, variance_count } => {

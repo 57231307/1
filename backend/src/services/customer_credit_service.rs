@@ -324,7 +324,7 @@ impl CustomerCreditService {
             None => return Ok(None),
         };
 
-        if credit.credit_limit <= BigDecimal::from(0) {
+        if credit.credit_limit <= 0 {
             return Ok(None);
         }
 
@@ -354,7 +354,7 @@ impl CustomerCreditService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
-        if credit.used_credit > BigDecimal::from(0) {
+        if credit.used_credit > 0 {
             return Err(AppError::ValidationError(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
@@ -607,7 +607,7 @@ impl CustomerCreditService {
             let limit = credit.credit_limit.clone();
             
             // 使用率超过90%视为高风险
-            if limit > BigDecimal::from(0) {
+            if limit > 0 {
                 let usage_rate = used / limit;
                 if usage_rate > BigDecimal::from(90) / BigDecimal::from(100) {
                     has_overdue = true;

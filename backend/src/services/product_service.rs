@@ -49,8 +49,8 @@ impl ProductService {
     /// 获取产品列表（支持分页和过滤）
     pub async fn list_products(
         &self,
-        page: u64,
-        page_size: u64,
+        _page: u64,
+        _page_size: u64,
         category_id: Option<i32>,
         status: Option<String>,
         search: Option<String>,

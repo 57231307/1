@@ -277,7 +277,7 @@ impl ReportEngineService {
                 &format!("{:?}", request.filters),
                 &format!("{:?}", request.group_by),
                 &format!("{:?}", request.aggregation_type),
-                &request.aggregation_field.as_deref().unwrap_or(""),
+                request.aggregation_field.as_deref().unwrap_or(""),
                 &page.to_string(),
                 &page_size.to_string(),
             ],
@@ -329,8 +329,6 @@ impl ReportEngineService {
         page: u64,
         page_size: u64,
     ) -> Result<AggregateResult, AppError> {
-        use sea_orm::QuerySelect;
-        
         let mut query = SalesOrderEntity::find();
 
         // 应用筛选条件
@@ -660,8 +658,6 @@ impl ReportEngineService {
         page: u64,
         page_size: u64,
     ) -> Result<AggregateResult, AppError> {
-        use sea_orm::QuerySelect;
-
         let mut query = InventoryStockEntity::find();
 
         // 应用筛选条件
@@ -1401,7 +1397,7 @@ impl ReportEngineService {
         let line_height = 14.0_f64;
         let col_count = data.columns.len().max(1);
         let usable_width = page_width - 2.0 * margin;
-        let col_width = usable_width / col_count as f64;
+        let _col_width = usable_width / col_count as f64;
 
         // 构建文本内容
         let mut text_lines: Vec<String> = Vec::new();
@@ -1449,7 +1445,7 @@ impl ReportEngineService {
 
         // Page objects and content streams
         let mut obj_num = 3;
-        for page_idx in 0..pages_needed {
+        for _page_idx in 0..pages_needed {
             page_refs.push(obj_num);
             let content_obj = obj_num + pages_needed;
 
@@ -1466,7 +1462,7 @@ impl ReportEngineService {
             offsets.push(pdf.len());
 
             let start_line = page_idx * ((page_height - 2.0 * margin) / line_height) as usize;
-            let end_line = ((start_line + ((page_height - 2.0 * margin) / line_height) as usize).min(total_lines));
+            let end_line = (start_line + ((page_height - 2.0 * margin) / line_height) as usize).min(total_lines);
 
             let mut stream_content = String::new();
             stream_content.push_str("BT\n");
@@ -1570,7 +1566,7 @@ impl ReportEngineService {
     }
 
     /// 构建 Sheet XML
-    fn build_sheet_xml(&self, data: &ReportData, title: &str) -> String {
+    fn build_sheet_xml(&self, data: &ReportData, _title: &str) -> String {
         let mut xml = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#);
         xml.push_str("\n<sheetData>\n");
 
@@ -1582,7 +1578,7 @@ impl ReportEngineService {
 
         // Header row
         xml.push_str("<row r=\"2\">");
-        for (col_idx, col) in data.columns.iter().enumerate() {
+        for (col_idx, _col) in data.columns.iter().enumerate() {
             let col_letter = column_letter(col_idx);
             xml.push_str(&format!("<c r=\"{}2\" t=\"s\"><v>{}</v></c>", col_letter, string_index));
             string_index += 1;
@@ -1710,7 +1706,7 @@ impl ReportEngineService {
         let next_run = Self::calculate_next_run(&req.frequency, now);
 
         Ok(ReportSubscription {
-            id: format!("sub_{}", now.timestamp_millis()),
+            id: format!("sub_{}", now.and_utc().timestamp_millis()),
             user_id,
             template_id: req.template_id,
             name: req.name,

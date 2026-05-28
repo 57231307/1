@@ -3,11 +3,9 @@
 //! 提供面料五维编码的查询、统计和搜索功能
 //! 五维编码：产品ID + 批次号 + 色号 + 缸号 + 等级
 
-use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -184,14 +182,14 @@ impl FiveDimensionService {
             results.retain(|s| s.color_no.contains(color_no));
         }
         if let Some(dye_lot_no) = &query.dye_lot_no {
-            results.retain(|s| s.dye_lot_no.as_ref().map_or(false, |d| d.contains(dye_lot_no)));
+            results.retain(|s| s.dye_lot_no.as_ref().is_some_and(|d| d.contains(dye_lot_no)));
         }
         if let Some(grade) = &query.grade {
             results.retain(|s| s.grade.contains(grade));
         }
 
         // 排序
-        results.sort_by(|a, b| a.product_id.cmp(&b.product_id));
+        results.sort_by_key(|a| a.product_id);
 
         Ok(results)
     }

@@ -206,7 +206,7 @@ impl BusinessTraceService {
         }
 
         // 按创建时间排序
-        all_traces.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        all_traces.sort_by_key(|a| a.created_at);
 
         Ok(all_traces)
     }

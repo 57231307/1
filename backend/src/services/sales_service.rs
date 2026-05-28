@@ -298,10 +298,10 @@ impl SalesService {
             return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
         }
             
-        let credit_limit = customer.credit_limit;
+        let _credit_limit = customer.credit_limit;
         
         // 计算当前未付应收账款总额
-        let total_unpaid = {
+        let _total_unpaid = {
             use crate::models::ar_invoice;
             use sea_orm::QueryFilter;
             

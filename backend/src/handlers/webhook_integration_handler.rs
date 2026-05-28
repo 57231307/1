@@ -1,6 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{Path, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -96,7 +95,7 @@ pub async fn create_integration(
 ) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
     let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    use sea_orm::{ActiveModelTrait, Set};
     use crate::models::webhook;
     use chrono::Utc;
 

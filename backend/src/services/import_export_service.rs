@@ -332,12 +332,12 @@ impl ImportExportService {
     async fn import_product_row(
         &self,
         row: &[String],
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<(), AppError> {
         use sea_orm::Set;
         use crate::models::product::{ActiveModel as ProductActiveModel, Entity as ProductEntity};
 
-        let code = row.get(0).map(|s| s.trim().to_string()).unwrap_or_default();
+        let code = row.first().map(|s| s.trim().to_string()).unwrap_or_default();
         let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
         let _category = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
         let unit = row.get(3).map(|s| s.trim().to_string()).unwrap_or("个".to_string());
@@ -407,7 +407,7 @@ impl ImportExportService {
         use sea_orm::Set;
         use crate::models::customer::{ActiveModel as CustomerActiveModel, Entity as CustomerEntity};
 
-        let code = row.get(0).map(|s| s.trim().to_string()).unwrap_or_default();
+        let code = row.first().map(|s| s.trim().to_string()).unwrap_or_default();
         let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
         let contact = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
         let phone = row.get(3).map(|s| s.trim().to_string()).unwrap_or_default();

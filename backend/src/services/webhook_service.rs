@@ -174,7 +174,7 @@ impl WebhookService {
             Ok(response) => {
                 let status_code = response.status().as_u16();
                 let response_body = response.text().await.unwrap_or_default();
-                let success = status_code >= 200 && status_code < 300;
+                let success = (200..300).contains(&status_code);
 
                 Ok(WebhookDeliveryResult {
                     success,

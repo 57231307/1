@@ -47,7 +47,7 @@ impl CrmService {
             owner_id: Set(user_id),
             owner_name: Set(owner_name),
             priority: Set(req.priority.or_else(|| Some("medium".to_string()))),
-            rating: Set(req.rating.or_else(|| Some(0))),
+            rating: Set(req.rating.or(Some(0))),
             tags: Set(req.tags),
             created_by: Set(Some(user_id)),
             ..Default::default()
@@ -359,7 +359,7 @@ impl CrmService {
             owner_name: Set(owner_name),
             opportunity_status: Set(Some("open".to_string())),
             priority: Set(req.priority.or_else(|| Some("medium".to_string()))),
-            rating: Set(req.rating.or_else(|| Some(0))),
+            rating: Set(req.rating.or(Some(0))),
             tags: Set(req.tags),
             created_by: Set(Some(user_id)),
             ..Default::default()
@@ -547,7 +547,7 @@ impl CrmService {
             
             // 批量获取产品信息（优化N+1查询）
             let products = product::Entity::find()
-                .filter(product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()))
+                .filter(product::Column::Id.is_in(product_ids.to_vec()))
                 .all(&txn)
                 .await
                 .map_err(|e| {
@@ -625,7 +625,7 @@ impl CrmService {
         }
 
         // 如果没有产品明细，使用商机的预估金额作为总金额
-        if opportunity.product_ids.as_ref().map_or(true, |ids| ids.is_empty()) {
+        if opportunity.product_ids.as_ref().is_none_or(|ids| ids.is_empty()) {
             total_amount = estimated_amount;
             subtotal = estimated_amount;
         }
