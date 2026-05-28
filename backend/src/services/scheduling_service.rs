@@ -772,8 +772,8 @@ impl SchedulingService {
                 end: today,
             }
         } else {
-            let min_start = items.iter().map(|i| i.start_date).min().unwrap();
-            let max_end = items.iter().map(|i| i.end_date).max().unwrap();
+            let min_start = items.iter().map(|i| i.start_date).min().unwrap_or(today);
+            let max_end = items.iter().map(|i| i.end_date).max().unwrap_or(today);
             DateRange {
                 start: min_start,
                 end: max_end,
@@ -814,8 +814,8 @@ impl SchedulingService {
         let (start_date, end_date) = if result.schedule_details.is_empty() {
             (now.date_naive(), now.date_naive())
         } else {
-            let min_start = result.schedule_details.iter().map(|d| d.start_date).min().unwrap();
-            let max_end = result.schedule_details.iter().map(|d| d.end_date).max().unwrap();
+            let min_start = result.schedule_details.iter().map(|d| d.start_date).min().unwrap_or(now.date_naive());
+            let max_end = result.schedule_details.iter().map(|d| d.end_date).max().unwrap_or(now.date_naive());
             (min_start, max_end)
         };
 

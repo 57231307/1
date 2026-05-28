@@ -15,7 +15,7 @@
         </div>
       </template>
 
-      <el-form :model="calcForm" :rules="calcRules" ref="calcFormRef" label-width="120px">
+      <el-form ref="calcFormRef" :model="calcForm" :rules="calcRules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="产品选择" prop="product_ids">
@@ -41,7 +41,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="需求数量" prop="demand_quantity">
-              <el-input-number v-model="calcForm.demand_quantity" :min="1" :precision="0" style="width: 100%" />
+              <el-input-number
+                v-model="calcForm.demand_quantity"
+                :min="1"
+                :precision="0"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -60,7 +65,9 @@
           <el-col :span="12">
             <el-form-item label="计算选项">
               <el-checkbox v-model="calcForm.consider_safety_stock">考虑安全库存</el-checkbox>
-              <el-checkbox v-model="calcForm.consider_in_transit" style="margin-left: 16px">考虑在途量</el-checkbox>
+              <el-checkbox v-model="calcForm.consider_in_transit" style="margin-left: 16px"
+                >考虑在途量</el-checkbox
+              >
             </el-form-item>
           </el-col>
         </el-row>
@@ -74,15 +81,23 @@
     </el-card>
 
     <!-- 计算结果 -->
-    <el-card class="result-card" v-if="resultVisible">
+    <el-card v-if="resultVisible" class="result-card">
       <template #header>
         <div class="card-header">
           <span>物料需求清单</span>
           <div>
-            <el-button type="success" :disabled="selectedMaterials.length === 0" @click="handleConvert('purchase')">
+            <el-button
+              type="success"
+              :disabled="selectedMaterials.length === 0"
+              @click="handleConvert('purchase')"
+            >
               <el-icon><ShoppingCart /></el-icon>转为采购订单
             </el-button>
-            <el-button type="primary" :disabled="selectedMaterials.length === 0" @click="handleConvert('production')">
+            <el-button
+              type="primary"
+              :disabled="selectedMaterials.length === 0"
+              @click="handleConvert('production')"
+            >
               <el-icon><Document /></el-icon>转为生产订单
             </el-button>
           </div>
@@ -90,8 +105,8 @@
       </template>
 
       <el-table
-        :data="materialList"
         v-loading="resultLoading"
+        :data="materialList"
         stripe
         border
         @selection-change="handleSelectionChange"
@@ -107,10 +122,17 @@
         <el-table-column prop="safety_stock" label="安全库存" width="100" align="right" />
         <el-table-column prop="net_requirement" label="净需求" width="120" align="right">
           <template #default="{ row }">
-            <span :class="{ 'highlight-quantity': row.net_requirement > 0 }">{{ row.net_requirement }}</span>
+            <span :class="{ 'highlight-quantity': row.net_requirement > 0 }">{{
+              row.net_requirement
+            }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="suggested_order_quantity" label="建议订单量" width="130" align="right" />
+        <el-table-column
+          prop="suggested_order_quantity"
+          label="建议订单量"
+          width="130"
+          align="right"
+        />
         <el-table-column prop="suggested_date" label="建议日期" width="130" />
       </el-table>
     </el-card>
@@ -148,7 +170,9 @@ const calcForm = reactive({
 })
 
 const calcRules: FormRules = {
-  product_ids: [{ required: true, message: '请选择产品', trigger: 'change', type: 'array' as const }],
+  product_ids: [
+    { required: true, message: '请选择产品', trigger: 'change', type: 'array' as const },
+  ],
   demand_quantity: [{ required: true, message: '请输入需求数量', trigger: 'blur' }],
   demand_date: [{ required: true, message: '请选择需求日期', trigger: 'change' }],
 }
@@ -213,9 +237,13 @@ const handleConvert = async (orderType: 'purchase' | 'production') => {
   const typeLabel = orderType === 'purchase' ? '采购订单' : '生产订单'
 
   try {
-    await ElMessageBox.confirm(`确认将选中的 ${selectedMaterials.value.length} 项物料转为${typeLabel}吗？`, '确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      `确认将选中的 ${selectedMaterials.value.length} 项物料转为${typeLabel}吗？`,
+      '确认',
+      {
+        type: 'warning',
+      }
+    )
 
     const materialIds = selectedMaterials.value.map((item) => item.id)
     const res = await convertToOrder({

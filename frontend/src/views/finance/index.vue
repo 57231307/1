@@ -21,7 +21,13 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="subjects" v-loading="subjectLoading" stripe row-key="id" default-expand-all>
+          <el-table
+            v-loading="subjectLoading"
+            :data="subjects"
+            stripe
+            row-key="id"
+            default-expand-all
+          >
             <el-table-column prop="code" label="科目编码" width="120" />
             <el-table-column prop="name" label="科目名称" min-width="200" />
             <el-table-column prop="category" label="科目类别" width="100">
@@ -53,8 +59,12 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openSubjectDialog(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="deleteSubject(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="openSubjectDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="deleteSubject(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -101,7 +111,7 @@
         </el-card>
 
         <el-card shadow="hover">
-          <el-table :data="vouchers" v-loading="voucherLoading" stripe>
+          <el-table v-loading="voucherLoading" :data="vouchers" stripe>
             <el-table-column prop="voucher_no" label="凭证号" width="120" />
             <el-table-column prop="voucher_date" label="凭证日期" width="120" />
             <el-table-column prop="voucher_type" label="凭证类型" width="100" />
@@ -126,10 +136,33 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewVoucher(row)">查看</el-button>
-                <el-button v-if="row.status === 'draft'" type="primary" link size="small" @click="submitVoucher(row)">提交</el-button>
-                <el-button v-if="row.status === 'submitted'" type="success" link size="small" @click="reviewVoucher(row)">审核</el-button>
-                <el-button v-if="row.status === 'reviewed'" type="warning" link size="small" @click="postVoucher(row)">过账</el-button>
+                <el-button type="primary" link size="small" @click="viewVoucher(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="submitVoucher(row)"
+                  >提交</el-button
+                >
+                <el-button
+                  v-if="row.status === 'submitted'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="reviewVoucher(row)"
+                  >审核</el-button
+                >
+                <el-button
+                  v-if="row.status === 'reviewed'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="postVoucher(row)"
+                  >过账</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -137,7 +170,11 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="subjectDialogVisible" :title="subjectForm.id ? '编辑科目' : '新建科目'" width="500px">
+    <el-dialog
+      v-model="subjectDialogVisible"
+      :title="subjectForm.id ? '编辑科目' : '新建科目'"
+      width="500px"
+    >
       <el-form ref="subjectFormRef" :model="subjectForm" :rules="subjectRules" label-width="80px">
         <el-form-item label="科目编码" prop="code">
           <el-input v-model="subjectForm.code" placeholder="请输入科目编码" />
@@ -176,7 +213,9 @@
       </el-form>
       <template #footer>
         <el-button @click="subjectDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="subjectSubmitLoading" @click="submitSubject">确定</el-button>
+        <el-button type="primary" :loading="subjectSubmitLoading" @click="submitSubject"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -185,12 +224,22 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="凭证日期" prop="voucher_date">
-              <el-date-picker v-model="voucherForm.voucher_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="voucherForm.voucher_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="凭证类型" prop="voucher_type">
-              <el-select v-model="voucherForm.voucher_type" placeholder="选择类型" style="width: 100%">
+              <el-select
+                v-model="voucherForm.voucher_type"
+                placeholder="选择类型"
+                style="width: 100%"
+              >
                 <el-option label="记" value="JZ" />
                 <el-option label="收" value="SK" />
                 <el-option label="付" value="FK" />
@@ -219,17 +268,31 @@
           </el-table-column>
           <el-table-column label="借方金额" width="130">
             <template #default="{ row }">
-              <el-input-number v-model="row.debit" :min="0" :precision="2" :controls="false" style="width: 100%" />
+              <el-input-number
+                v-model="row.debit"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
           <el-table-column label="贷方金额" width="130">
             <template #default="{ row }">
-              <el-input-number v-model="row.credit" :min="0" :precision="2" :controls="false" style="width: 100%" />
+              <el-input-number
+                v-model="row.credit"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
           <el-table-column label="操作" width="80">
             <template #default="{ $index }">
-              <el-button type="danger" link size="small" @click="removeEntry($index)">删除</el-button>
+              <el-button type="danger" link size="small" @click="removeEntry($index)"
+                >删除</el-button
+              >
             </template>
           </el-table-column>
         </el-table>
@@ -244,22 +307,32 @@
       </el-form>
       <template #footer>
         <el-button @click="voucherDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="voucherSubmitLoading" @click="submitVoucherForm">确定</el-button>
+        <el-button type="primary" :loading="voucherSubmitLoading" @click="submitVoucherForm"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="voucherViewVisible" title="凭证详情" width="800px">
       <el-descriptions :column="3" border>
         <el-descriptions-item label="凭证号">{{ currentVoucher?.voucher_no }}</el-descriptions-item>
-        <el-descriptions-item label="凭证日期">{{ currentVoucher?.voucher_date }}</el-descriptions-item>
-        <el-descriptions-item label="凭证类型">{{ currentVoucher?.voucher_type }}</el-descriptions-item>
+        <el-descriptions-item label="凭证日期">{{
+          currentVoucher?.voucher_date
+        }}</el-descriptions-item>
+        <el-descriptions-item label="凭证类型">{{
+          currentVoucher?.voucher_type
+        }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getVoucherStatusType(currentVoucher?.status)">
             {{ getVoucherStatusLabel(currentVoucher?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="制单人">{{ currentVoucher?.created_by_name }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ currentVoucher?.created_at }}</el-descriptions-item>
+        <el-descriptions-item label="制单人">{{
+          currentVoucher?.created_by_name
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{
+          currentVoucher?.created_at
+        }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>分录明细</el-divider>
       <el-table :data="currentVoucher?.entries" stripe>
@@ -291,8 +364,21 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getSubjectTree, createSubject, updateSubject, deleteSubject as deleteSubjectApi, type AccountSubject } from '@/api/finance'
-import { listVouchers, createVoucher, submitVoucher as submitVoucherApi, reviewVoucher as reviewVoucherApi, postVoucher as postVoucherApi, type Voucher } from '@/api/finance'
+import {
+  getSubjectTree,
+  createSubject,
+  updateSubject,
+  deleteSubject as deleteSubjectApi,
+  type AccountSubject,
+} from '@/api/finance'
+import {
+  listVouchers,
+  createVoucher,
+  submitVoucher as submitVoucherApi,
+  reviewVoucher as reviewVoucherApi,
+  postVoucher as postVoucherApi,
+  type Voucher,
+} from '@/api/finance'
 
 const activeTab = ref('subject')
 
@@ -304,7 +390,7 @@ const voucherLoading = ref(false)
 const voucherQuery = reactive({
   voucher_no: '',
   date_range: [] as string[],
-  status: ''
+  status: '',
 })
 
 const fetchSubjects = async () => {
@@ -358,7 +444,7 @@ const getCategoryLabel = (category: string) => {
     liability: '负债',
     equity: '权益',
     cost: '成本',
-    profit_loss: '损益'
+    profit_loss: '损益',
   }
   return map[category] || category
 }
@@ -368,7 +454,7 @@ const getVoucherStatusLabel = (status?: string) => {
     draft: '草稿',
     submitted: '已提交',
     reviewed: '已审核',
-    posted: '已过账'
+    posted: '已过账',
   }
   return map[status || ''] || status || ''
 }
@@ -378,7 +464,7 @@ const getVoucherStatusType = (status?: string) => {
     draft: 'info',
     submitted: 'warning',
     reviewed: 'success',
-    posted: 'primary'
+    posted: 'primary',
   }
   return map[status || ''] || 'info'
 }
@@ -397,14 +483,14 @@ const subjectForm = reactive({
   parent_id: undefined as number | undefined,
   category: '',
   direction: 'debit',
-  status: 1
+  status: 1,
 })
 
 const subjectRules: FormRules = {
   code: [{ required: true, message: '请输入科目编码', trigger: 'blur' }],
   name: [{ required: true, message: '请输入科目名称', trigger: 'blur' }],
   category: [{ required: true, message: '请选择科目类别', trigger: 'change' }],
-  direction: [{ required: true, message: '请选择余额方向', trigger: 'change' }]
+  direction: [{ required: true, message: '请选择余额方向', trigger: 'change' }],
 }
 
 const openSubjectDialog = (row?: AccountSubject) => {
@@ -432,7 +518,7 @@ const openSubjectDialog = (row?: AccountSubject) => {
 const submitSubject = async () => {
   const valid = await subjectFormRef.value?.validate()
   if (!valid) return
-  
+
   subjectSubmitLoading.value = true
   try {
     if (subjectForm.id) {
@@ -444,7 +530,7 @@ const submitSubject = async () => {
         name: subjectForm.name,
         parent_id: subjectForm.parent_id,
         category: subjectForm.category,
-        direction: subjectForm.direction
+        direction: subjectForm.direction,
       })
       ElMessage.success('创建成功')
     }
@@ -478,13 +564,13 @@ const voucherForm = reactive({
   voucher_type: 'JZ',
   entries: [
     { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' },
-    { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' }
-  ]
+    { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' },
+  ],
 })
 
 const voucherRules: FormRules = {
   voucher_date: [{ required: true, message: '请选择凭证日期', trigger: 'change' }],
-  voucher_type: [{ required: true, message: '请选择凭证类型', trigger: 'change' }]
+  voucher_type: [{ required: true, message: '请选择凭证类型', trigger: 'change' }],
 }
 
 const totalDebit = computed(() => voucherForm.entries.reduce((sum, e) => sum + (e.debit || 0), 0))
@@ -509,7 +595,7 @@ const openVoucherDialog = () => {
   voucherForm.voucher_type = 'JZ'
   voucherForm.entries = [
     { subject_id: undefined, debit: 0, credit: 0, summary: '' },
-    { subject_id: undefined, debit: 0, credit: 0, summary: '' }
+    { subject_id: undefined, debit: 0, credit: 0, summary: '' },
   ]
   voucherDialogVisible.value = true
 }
@@ -517,23 +603,25 @@ const openVoucherDialog = () => {
 const submitVoucherForm = async () => {
   const valid = await voucherFormRef.value?.validate()
   if (!valid) return
-  
+
   if (!isBalanced.value) {
     ElMessage.warning('借贷不平衡，请检查分录金额')
     return
   }
-  
+
   voucherSubmitLoading.value = true
   try {
     await createVoucher({
       voucher_date: voucherForm.voucher_date,
       voucher_type: voucherForm.voucher_type,
-      entries: voucherForm.entries.filter(e => e.subject_id).map(e => ({
-        subject_id: e.subject_id!,
-        debit: e.debit || 0,
-        credit: e.credit || 0,
-        summary: e.summary
-      }))
+      entries: voucherForm.entries
+        .filter((e) => e.subject_id)
+        .map((e) => ({
+          subject_id: e.subject_id!,
+          debit: e.debit || 0,
+          credit: e.credit || 0,
+          summary: e.summary,
+        })),
     })
     ElMessage.success('创建成功')
     voucherDialogVisible.value = false
@@ -581,7 +669,9 @@ const reviewVoucher = async (row: Voucher) => {
 
 const postVoucher = async (row: Voucher) => {
   try {
-    await ElMessageBox.confirm('确定过账该凭证吗？过账后不可修改。', '过账确认', { type: 'warning' })
+    await ElMessageBox.confirm('确定过账该凭证吗？过账后不可修改。', '过账确认', {
+      type: 'warning',
+    })
     await postVoucherApi(row.id)
     ElMessage.success('过账成功')
     fetchVouchers()
@@ -594,12 +684,12 @@ const postVoucher = async (row: Voucher) => {
 
 const handlePrintSubjects = () => {
   const printData = subjects.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '科目编码': item.code,
-    '科目名称': item.name,
-    '科目类别': getCategoryLabel(item.category),
-    '余额方向': item.direction === 'debit' ? '借方' : '贷方',
-    '级次': `L${item.level}`
+    序号: index + 1,
+    科目编码: item.code,
+    科目名称: item.name,
+    科目类别: getCategoryLabel(item.category),
+    余额方向: item.direction === 'debit' ? '借方' : '贷方',
+    级次: `L${item.level}`,
   }))
   printJS({
     printable: printData,
@@ -609,15 +699,23 @@ const handlePrintSubjects = () => {
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+    gridStyle: 'border-collapse: collapse; width: 100%;',
   })
 }
 
 const handleExportSubjects = () => {
   const csvContent = [
     ['科目编码', '科目名称', '科目类别', '余额方向', '级次'],
-    ...subjects.value.map((item: any) => [item.code, item.name, getCategoryLabel(item.category), item.direction === 'debit' ? '借方' : '贷方', `L${item.level}`])
-  ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+    ...subjects.value.map((item: any) => [
+      item.code,
+      item.name,
+      getCategoryLabel(item.category),
+      item.direction === 'debit' ? '借方' : '贷方',
+      `L${item.level}`,
+    ]),
+  ]
+    .map((row) => row.map((cell) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -633,11 +731,38 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.finance-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
-.filter-card { margin-bottom: 20px; }
-.entry-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
-.entry-summary { display: flex; gap: 24px; font-weight: 500; }
-.text-red { color: #f56c6c; }
+.finance-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.entry-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+.entry-summary {
+  display: flex;
+  gap: 24px;
+  font-weight: 500;
+}
+.text-red {
+  color: #f56c6c;
+}
 </style>

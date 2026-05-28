@@ -3,7 +3,7 @@
     <div class="filter-header">
       <h3 class="filter-title">高级筛选</h3>
       <el-space>
-        <el-button size="small" @click="showSaveDialog = true" :disabled="conditions.length === 0">
+        <el-button size="small" :disabled="conditions.length === 0" @click="showSaveDialog = true">
           <el-icon><Folder /></el-icon>
           保存方案
         </el-button>
@@ -15,11 +15,7 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="scheme in savedSchemes"
-                :key="scheme.id"
-                :command="scheme"
-              >
+              <el-dropdown-item v-for="scheme in savedSchemes" :key="scheme.id" :command="scheme">
                 {{ scheme.name }}
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -48,8 +44,8 @@
               size="small"
               :icon="Delete"
               circle
-              @click="removeGroup(groupIndex)"
               :disabled="conditions.length <= 1"
+              @click="removeGroup(groupIndex)"
             />
           </div>
         </template>
@@ -69,11 +65,7 @@
             />
           </el-select>
 
-          <el-select
-            v-model="condition.operator"
-            placeholder="操作符"
-            style="width: 120px"
-          >
+          <el-select v-model="condition.operator" placeholder="操作符" style="width: 120px">
             <el-option
               v-for="op in getAvailableOperators(condition.field)"
               :key="op.value"
@@ -94,8 +86,8 @@
             size="small"
             :icon="Delete"
             circle
-            @click="removeCondition(groupIndex, condIndex)"
             :disabled="group.items.length <= 1"
+            @click="removeCondition(groupIndex, condIndex)"
           />
         </div>
 
@@ -103,19 +95,15 @@
           type="primary"
           link
           size="small"
-          @click="addCondition(groupIndex)"
           class="add-btn"
+          @click="addCondition(groupIndex)"
         >
           <el-icon><Plus /></el-icon>
           添加条件
         </el-button>
       </el-card>
 
-      <el-button
-        type="primary"
-        @click="addGroup"
-        class="add-group-btn"
-      >
+      <el-button type="primary" class="add-group-btn" @click="addGroup">
         <el-icon><Plus /></el-icon>
         添加条件组
       </el-button>
@@ -123,9 +111,7 @@
 
     <div class="filter-footer">
       <el-space>
-        <el-button type="primary" @click="handleApply" :disabled="!isValid">
-          应用筛选
-        </el-button>
+        <el-button type="primary" :disabled="!isValid" @click="handleApply"> 应用筛选 </el-button>
         <el-button @click="handleReset">重置</el-button>
       </el-space>
     </div>
@@ -189,15 +175,20 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   fields: () => [
     { key: 'name', label: '名称', type: 'text' },
-    { key: 'status', label: '状态', type: 'select', options: [
-      { label: '启用', value: 'active' },
-      { label: '禁用', value: 'inactive' }
-    ]},
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      options: [
+        { label: '启用', value: 'active' },
+        { label: '禁用', value: 'inactive' },
+      ],
+    },
     { key: 'date', label: '日期', type: 'date' },
-    { key: 'amount', label: '金额', type: 'number' }
+    { key: 'amount', label: '金额', type: 'number' },
   ],
   operators: () => [],
-  savedSchemes: () => []
+  savedSchemes: () => [],
 })
 
 const emit = defineEmits<{
@@ -209,7 +200,11 @@ const emit = defineEmits<{
 
 const defaultOperators: FilterOperator[] = [
   { label: '等于', value: 'eq', applicableTypes: ['text', 'number', 'date', 'select', 'boolean'] },
-  { label: '不等于', value: 'neq', applicableTypes: ['text', 'number', 'date', 'select', 'boolean'] },
+  {
+    label: '不等于',
+    value: 'neq',
+    applicableTypes: ['text', 'number', 'date', 'select', 'boolean'],
+  },
   { label: '包含', value: 'contains', applicableTypes: ['text'] },
   { label: '不包含', value: 'notContains', applicableTypes: ['text'] },
   { label: '大于', value: 'gt', applicableTypes: ['number', 'date'] },
@@ -217,31 +212,29 @@ const defaultOperators: FilterOperator[] = [
   { label: '小于', value: 'lt', applicableTypes: ['number', 'date'] },
   { label: '小于等于', value: 'lte', applicableTypes: ['number', 'date'] },
   { label: '为空', value: 'null', applicableTypes: ['text', 'number', 'date'] },
-  { label: '不为空', value: 'notNull', applicableTypes: ['text', 'number', 'date'] }
+  { label: '不为空', value: 'notNull', applicableTypes: ['text', 'number', 'date'] },
 ]
 
 const conditions = ref<FilterGroup[]>([
   {
     logic: 'AND',
-    items: [{ field: '', operator: '', value: '' }]
-  }
+    items: [{ field: '', operator: '', value: '' }],
+  },
 ])
 
 const showSaveDialog = ref(false)
 const newSchemeName = ref('')
 
 const isValid = computed(() => {
-  return conditions.value.every(group =>
-    group.items.every(item => item.field && item.operator)
-  )
+  return conditions.value.every((group) => group.items.every((item) => item.field && item.operator))
 })
 
 const getAvailableOperators = (fieldKey: string): FilterOperator[] => {
   if (props.operators.length > 0) return props.operators
-  const field = props.fields.find(f => f.key === fieldKey)
+  const field = props.fields.find((f) => f.key === fieldKey)
   if (!field) return defaultOperators
-  return defaultOperators.filter(op =>
-    !op.applicableTypes || op.applicableTypes.includes(field.type || 'text')
+  return defaultOperators.filter(
+    (op) => !op.applicableTypes || op.applicableTypes.includes(field.type || 'text')
   )
 }
 
@@ -256,7 +249,7 @@ const getValueInput = (condition: FilterCondition) => {
   if (['null', 'notNull'].includes(condition.operator)) {
     return 'span'
   }
-  const field = props.fields.find(f => f.key === condition.field)
+  const field = props.fields.find((f) => f.key === condition.field)
   if (!field) return 'el-input'
 
   switch (field.type) {
@@ -284,7 +277,7 @@ const removeCondition = (groupIndex: number, condIndex: number) => {
 const addGroup = () => {
   conditions.value.push({
     logic: 'AND',
-    items: [{ field: '', operator: '', value: '' }]
+    items: [{ field: '', operator: '', value: '' }],
   })
 }
 
@@ -300,10 +293,12 @@ const handleApply = () => {
 }
 
 const handleReset = () => {
-  conditions.value = [{
-    logic: 'AND',
-    items: [{ field: '', operator: '', value: '' }]
-  }]
+  conditions.value = [
+    {
+      logic: 'AND',
+      items: [{ field: '', operator: '', value: '' }],
+    },
+  ]
   emit('reset')
 }
 
@@ -316,7 +311,7 @@ const saveScheme = () => {
     id: Date.now().toString(),
     name: newSchemeName.value,
     groups: JSON.parse(JSON.stringify(conditions.value)),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   }
   emit('schemeSaved', scheme)
   showSaveDialog.value = false

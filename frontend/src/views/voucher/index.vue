@@ -1,10 +1,46 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElInputNumber } from 'element-plus'
-import { Plus, Edit, Delete, View, Refresh, Check, Printer, Download } from '@element-plus/icons-vue'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElInputNumber,
+} from 'element-plus'
+import {
+  Plus,
+  Edit,
+  Delete,
+  View,
+  Refresh,
+  Check,
+  Printer,
+  Download,
+} from '@element-plus/icons-vue'
 import printJS from 'print-js'
-import { listVouchers, getVoucher, createVoucher, updateVoucher, deleteVoucher, approveVoucher, postVoucher, unpostVoucher, getVoucherTypes, generateVoucherNo, type VoucherEntity } from '@/api/voucher'
-import { getAccountSubjectTree } from '@/api/accountSubject'
+import {
+  listVouchers,
+  getVoucher,
+  createVoucher,
+  updateVoucher,
+  deleteVoucher,
+  approveVoucher,
+  postVoucher,
+  unpostVoucher,
+  getVoucherTypes,
+  generateVoucherNo,
+  type VoucherEntity,
+} from '@/api/voucher'
+import { getAccountSubjectTree } from '@/api/account-subject'
 
 const tableData = ref<VoucherEntity[]>([])
 const total = ref(0)
@@ -14,11 +50,11 @@ const searchForm = ref({
   voucher_date_start: '',
   voucher_date_end: '',
   type: '',
-  status: ''
+  status: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -31,7 +67,7 @@ const form = ref<Partial<VoucherEntity>>({
   description: '',
   total_debit: 0,
   total_credit: 0,
-  entries: [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }]
+  entries: [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }],
 })
 
 const viewDialogVisible = ref(false)
@@ -44,32 +80,36 @@ const statusOptions = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
   { label: '已审核', value: 'approved' },
-  { label: '已记账', value: 'posted' }
+  { label: '已记账', value: 'posted' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
   switch (value) {
-    case 'draft': return 'status-draft'
-    case 'approved': return 'status-approved'
-    case 'posted': return 'status-posted'
-    default: return ''
+    case 'draft':
+      return 'status-draft'
+    case 'approved':
+      return 'status-approved'
+    case 'posted':
+      return 'status-posted'
+    default:
+      return ''
   }
 }
 
 const handlePrint = () => {
   const printData = tableData.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '凭证号': item.voucher_no,
-    '日期': item.voucher_date,
-    '类型': item.type === 'general' ? '通用' : '自定义',
-    '摘要': item.description || '-',
-    '借方金额': `¥${item.total_debit}`,
-    '贷方金额': `¥${item.total_credit}`,
-    '状态': getStatusLabel(item.status)
+    序号: index + 1,
+    凭证号: item.voucher_no,
+    日期: item.voucher_date,
+    类型: item.type === 'general' ? '通用' : '自定义',
+    摘要: item.description || '-',
+    借方金额: `¥${item.total_debit}`,
+    贷方金额: `¥${item.total_credit}`,
+    状态: getStatusLabel(item.status),
   }))
   printJS({
     printable: printData,
@@ -79,15 +119,25 @@ const handlePrint = () => {
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+    gridStyle: 'border-collapse: collapse; width: 100%;',
   })
 }
 
 const handleExport = () => {
   const csvContent = [
     ['凭证号', '日期', '类型', '摘要', '借方金额', '贷方金额', '状态'],
-    ...tableData.value.map((item: any) => [item.voucher_no, item.voucher_date, item.type === 'general' ? '通用' : '自定义', item.description || '-', item.total_debit, item.total_credit, getStatusLabel(item.status)])
-  ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+    ...tableData.value.map((item: any) => [
+      item.voucher_no,
+      item.voucher_date,
+      item.type === 'general' ? '通用' : '自定义',
+      item.description || '-',
+      item.total_debit,
+      item.total_credit,
+      getStatusLabel(item.status),
+    ]),
+  ]
+    .map((row) => row.map((cell) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -107,7 +157,7 @@ const openAddDialog = async () => {
     description: '',
     total_debit: 0,
     total_credit: 0,
-    entries: [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }]
+    entries: [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }],
   }
   dialogVisible.value = true
 }
@@ -140,7 +190,9 @@ const handleSubmit = async () => {
     ElMessage.warning('借贷不平')
     return
   }
-  const validEntries = (form.value.entries || []).filter(e => e.account_subject_id > 0 && (e.debit_amount > 0 || e.credit_amount > 0))
+  const validEntries = (form.value.entries || []).filter(
+    (e) => e.account_subject_id > 0 && (e.debit_amount > 0 || e.credit_amount > 0)
+  )
   if (validEntries.length === 0) {
     ElMessage.warning('请至少添加一条有效的分录')
     return
@@ -168,7 +220,7 @@ const handleDelete = async (row: VoucherEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个凭证吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteVoucher(row.id!)
     ElMessage.success('删除成功')
@@ -181,7 +233,7 @@ const handleDelete = async (row: VoucherEntity) => {
 const handleApprove = async (row: VoucherEntity) => {
   try {
     await ElMessageBox.confirm('确定要审核这个凭证吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await approveVoucher(row.id!)
     ElMessage.success('审核成功')
@@ -194,7 +246,7 @@ const handleApprove = async (row: VoucherEntity) => {
 const handlePost = async (row: VoucherEntity) => {
   try {
     await ElMessageBox.confirm('确定要记账这个凭证吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await postVoucher(row.id!)
     ElMessage.success('记账成功')
@@ -207,7 +259,7 @@ const handlePost = async (row: VoucherEntity) => {
 const handleUnpost = async (row: VoucherEntity) => {
   try {
     await ElMessageBox.confirm('确定要反记账这个凭证吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await unpostVoucher(row.id!)
     ElMessage.success('反记账成功')
@@ -221,7 +273,7 @@ const calculateTotals = () => {
   if (!form.value.entries) return
   let totalDebit = 0
   let totalCredit = 0
-  form.value.entries.forEach(entry => {
+  form.value.entries.forEach((entry) => {
     totalDebit += entry.debit_amount || 0
     totalCredit += entry.credit_amount || 0
   })
@@ -235,7 +287,7 @@ const loadData = async () => {
     const params = {
       ...searchForm.value,
       page: pagination.value.page,
-      pageSize: pagination.value.pageSize
+      pageSize: pagination.value.pageSize,
     }
     const res: any = await listVouchers(params)
     tableData.value = res.data!.list || []
@@ -262,7 +314,7 @@ const loadAccountSubjects = async () => {
     const flattenOptions = (items: any[]): { label: string; value: number }[] => {
       const result: { label: string; value: number }[] = []
       const traverse = (nodes: any[]) => {
-        nodes.forEach(node => {
+        nodes.forEach((node) => {
           result.push({ label: node.name, value: node.id })
           if (node.children && node.children.length > 0) {
             traverse(node.children)
@@ -289,7 +341,7 @@ const handleReset = () => {
     voucher_date_start: '',
     voucher_date_end: '',
     type: '',
-    status: ''
+    status: '',
   }
   handleSearch()
 }
@@ -306,14 +358,19 @@ const handlePageSizeChange = (pageSize: number) => {
 }
 
 const getTypeLabel = (type: string) => {
-  return voucherTypes.value.find(t => t.value === type)?.label || type
+  return voucherTypes.value.find((t) => t.value === type)?.label || type
 }
 
 const addEntry = () => {
   if (!form.value.entries) {
     form.value.entries = []
   }
-  form.value.entries.push({ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' })
+  form.value.entries.push({
+    account_subject_id: 0,
+    debit_amount: 0,
+    credit_amount: 0,
+    description: '',
+  })
 }
 
 const removeEntry = (index: number) => {
@@ -358,11 +415,7 @@ loadAccountSubjects()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -370,15 +423,9 @@ loadAccountSubjects()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增凭证
-        </ElButton>
-        <ElButton @click="handlePrint">
-          <Printer /> 打印
-        </ElButton>
-        <ElButton @click="handleExport">
-          <Download /> 导出
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增凭证 </ElButton>
+        <ElButton @click="handlePrint"> <Printer /> 打印 </ElButton>
+        <ElButton @click="handleExport"> <Download /> 导出 </ElButton>
       </div>
     </div>
 
@@ -388,12 +435,12 @@ loadAccountSubjects()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="voucher_no" label="凭证号" width="120" />
       <ElTableColumn prop="voucher_date" label="凭证日期" width="120" />
@@ -467,7 +514,12 @@ loadAccountSubjects()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="800px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="800px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -485,7 +537,12 @@ loadAccountSubjects()
           <ElCol :span="12">
             <ElFormItem label="凭证类型" prop="type">
               <ElSelect v-model="form.type" placeholder="请选择凭证类型">
-                <ElOption v-for="t in voucherTypes" :key="t.value" :label="t.label" :value="t.value" />
+                <ElOption
+                  v-for="t in voucherTypes"
+                  :key="t.value"
+                  :label="t.label"
+                  :value="t.value"
+                />
               </ElSelect>
             </ElFormItem>
           </ElCol>
@@ -510,18 +567,15 @@ loadAccountSubjects()
                 placeholder="选择科目"
                 class="col-subject"
               >
-                <ElOption v-for="subject in accountSubjectOptions" :key="subject.value" :label="subject.label" :value="subject.value" />
+                <ElOption
+                  v-for="subject in accountSubjectOptions"
+                  :key="subject.value"
+                  :label="subject.label"
+                  :value="subject.value"
+                />
               </ElSelect>
-              <ElInputNumber
-                v-model="entry.debit_amount"
-                :precision="2"
-                class="col-debit"
-              />
-              <ElInputNumber
-                v-model="entry.credit_amount"
-                :precision="2"
-                class="col-credit"
-              />
+              <ElInputNumber v-model="entry.debit_amount" :precision="2" class="col-debit" />
+              <ElInputNumber v-model="entry.credit_amount" :precision="2" class="col-credit" />
               <ElInput v-model="entry.description" placeholder="摘要" class="col-desc" />
               <ElButton
                 v-if="(form.entries || []).length > 1"
@@ -543,7 +597,10 @@ loadAccountSubjects()
           <ElCol :span="12" class="total-item">
             <span class="label">贷方合计:</span>
             <span class="value credit">{{ (form.total_credit ?? 0).toFixed(2) }}</span>
-            <span v-if="Math.abs((form.total_debit ?? 0) - (form.total_credit ?? 0)) > 0.01" class="error">
+            <span
+              v-if="Math.abs((form.total_debit ?? 0) - (form.total_credit ?? 0)) > 0.01"
+              class="error"
+            >
               借贷不平
             </span>
             <span v-else class="success">借贷平衡</span>
@@ -556,7 +613,12 @@ loadAccountSubjects()
       </template>
     </ElDialog>
 
-    <ElDialog title="凭证详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="凭证详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData" class="voucher-detail">
         <div class="voucher-header">
           <div class="header-left">
@@ -579,7 +641,9 @@ loadAccountSubjects()
             <span class="col-desc">摘要</span>
           </div>
           <div v-for="(entry, index) in viewData.entries" :key="index" class="entries-row">
-            <span class="col-subject">{{ entry.account_subject_code }} - {{ entry.account_subject_name }}</span>
+            <span class="col-subject"
+              >{{ entry.account_subject_code }} - {{ entry.account_subject_name }}</span
+            >
             <span class="col-debit">{{ entry.debit_amount.toFixed(2) }}</span>
             <span class="col-credit">{{ entry.credit_amount.toFixed(2) }}</span>
             <span class="col-desc">{{ entry.description || '-' }}</span>
@@ -596,10 +660,18 @@ loadAccountSubjects()
           </div>
         </div>
         <ElDescriptions :column="3" border class="voucher-meta">
-          <ElDescriptionsItem label="制单人">{{ viewData.created_by_name || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="审核人">{{ viewData.approved_by_name || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="记账人">{{ viewData.posted_by_name || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="审核时间">{{ viewData.approved_at || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="制单人">{{
+            viewData.created_by_name || '-'
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="审核人">{{
+            viewData.approved_by_name || '-'
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="记账人">{{
+            viewData.posted_by_name || '-'
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="审核时间">{{
+            viewData.approved_at || '-'
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="记账时间">{{ viewData.posted_at || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建时间">{{ viewData.created_at || '-' }}</ElDescriptionsItem>
         </ElDescriptions>

@@ -31,11 +31,8 @@ export interface FullTraceChainResponse {
 export const getTraceByFiveDimension = (fiveDimensionId: number | string) =>
   request.get(`/business-trace/five-dimension/${fiveDimensionId}`)
 
-export const forwardTrace = (params?: any) =>
-  request.get('/business-trace/forward', { params })
+export const forwardTrace = (params?: any) => request.get('/business-trace/forward', { params })
 
-export const backwardTrace = (params?: any) =>
-  request.get('/business-trace/backward', { params })
+export const backwardTrace = (params?: any) => request.get('/business-trace/backward', { params })
 
-export const createTraceSnapshot = (data: any) =>
-  request.post('/business-trace/snapshot', data)
+export const createTraceSnapshot = (data: any) => request.post('/business-trace/snapshot', data)

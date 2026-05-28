@@ -3,7 +3,7 @@
     <div class="page-header">
       <h2>生产排程管理</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="handleAutoSchedule" :loading="scheduling">
+        <el-button type="primary" :loading="scheduling" @click="handleAutoSchedule">
           <el-icon><Cpu /></el-icon>
           自动排程
         </el-button>
@@ -76,7 +76,13 @@
             <div class="card-header">
               <span>排程工单列表</span>
               <div class="header-ops">
-                <el-select v-model="filterStatus" placeholder="筛选状态" clearable style="width: 140px; margin-right: 8px" @change="fetchTasks">
+                <el-select
+                  v-model="filterStatus"
+                  placeholder="筛选状态"
+                  clearable
+                  style="width: 140px; margin-right: 8px"
+                  @change="fetchTasks"
+                >
                   <el-option label="全部" value="" />
                   <el-option label="待排程" value="pending" />
                   <el-option label="已排程" value="scheduled" />
@@ -91,7 +97,7 @@
               </div>
             </div>
           </template>
-          <el-table :data="taskList" stripe v-loading="taskLoading">
+          <el-table v-loading="taskLoading" :data="taskList" stripe>
             <el-table-column prop="order_no" label="工单号" width="140" />
             <el-table-column prop="product_name" label="产品名称" width="160" />
             <el-table-column prop="work_center_name" label="工作中心" width="130" />
@@ -105,18 +111,31 @@
             <el-table-column prop="duration_hours" label="时长(h)" width="80" />
             <el-table-column label="优先级" width="90">
               <template #default="{ row }">
-                <el-tag :type="getPriorityType(row.priority)" size="small">P{{ row.priority }}</el-tag>
+                <el-tag :type="getPriorityType(row.priority)" size="small"
+                  >P{{ row.priority }}</el-tag
+                >
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" effect="light">{{ getStatusLabel(row.status) }}</el-tag>
+                <el-tag :type="getStatusType(row.status)" effect="light">{{
+                  getStatusLabel(row.status)
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" fixed="right" width="160">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleAdjust(row)">调整</el-button>
-                <el-button v-if="row.has_conflict" type="danger" link size="small" @click="showConflictDetail(row)">详情</el-button>
+                <el-button type="primary" link size="small" @click="handleAdjust(row)"
+                  >调整</el-button
+                >
+                <el-button
+                  v-if="row.has_conflict"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="showConflictDetail(row)"
+                  >详情</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -144,12 +163,17 @@
             </div>
           </template>
           <div class="conflict-actions">
-            <el-button type="warning" size="small" @click="fetchConflicts" :loading="conflictLoading">
+            <el-button
+              type="warning"
+              size="small"
+              :loading="conflictLoading"
+              @click="fetchConflicts"
+            >
               <el-icon><Search /></el-icon>
               检测冲突
             </el-button>
           </div>
-          <div class="conflict-list" v-loading="conflictLoading">
+          <div v-loading="conflictLoading" class="conflict-list">
             <div v-if="conflictList.length === 0" class="empty-state">
               <el-icon><CircleCheck /></el-icon>
               <p>暂无排程冲突</p>
@@ -168,7 +192,9 @@
               </div>
               <div class="conflict-time">
                 <el-icon><Time /></el-icon>
-                <span>{{ formatTime(item.overlap_start) }} ~ {{ formatTime(item.overlap_end) }}</span>
+                <span
+                  >{{ formatTime(item.overlap_start) }} ~ {{ formatTime(item.overlap_end) }}</span
+                >
               </div>
               <div class="conflict-suggestion">
                 <el-icon><ChatDotRound /></el-icon>
@@ -210,7 +236,12 @@
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="handleAutoSchedule" :loading="scheduling" style="width: 100%">
+              <el-button
+                type="primary"
+                :loading="scheduling"
+                style="width: 100%"
+                @click="handleAutoSchedule"
+              >
                 <el-icon><Cpu /></el-icon>
                 执行排程
               </el-button>
@@ -226,15 +257,25 @@
           <span>{{ adjustTask?.order_no }}</span>
         </el-form-item>
         <el-form-item label="开始时间">
-          <el-date-picker v-model="adjustForm.start_time" type="datetime" placeholder="选择开始时间" style="width: 100%" />
+          <el-date-picker
+            v-model="adjustForm.start_time"
+            type="datetime"
+            placeholder="选择开始时间"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="结束时间">
-          <el-date-picker v-model="adjustForm.end_time" type="datetime" placeholder="选择结束时间" style="width: 100%" />
+          <el-date-picker
+            v-model="adjustForm.end_time"
+            type="datetime"
+            placeholder="选择结束时间"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="adjustDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmAdjust" :loading="adjusting">确认调整</el-button>
+        <el-button type="primary" :loading="adjusting" @click="confirmAdjust">确认调整</el-button>
       </template>
     </el-dialog>
   </div>
@@ -254,9 +295,14 @@ import {
   Search,
   CircleCheck,
   Switch,
-  ChatDotRound
+  ChatDotRound,
 } from '@element-plus/icons-vue'
-import { schedulingApi, type ScheduleTask, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
+import {
+  schedulingApi,
+  type ScheduleTask,
+  type ConflictItem,
+  type SchedulingParams,
+} from '@/api/scheduling'
 
 const scheduling = ref(false)
 const adjusting = ref(false)
@@ -271,7 +317,7 @@ const stats = ref({
   pending: 0,
   scheduled: 0,
   running: 0,
-  conflicts: 0
+  conflicts: 0,
 })
 
 const taskList = ref<ScheduleTask[]>([])
@@ -282,14 +328,14 @@ const scheduleParams = ref<SchedulingParams>({
   start_date: '',
   end_date: '',
   priority_mode: 'priority',
-  optimization_target: 'balance_load'
+  optimization_target: 'balance_load',
 })
 
 const adjustDialogVisible = ref(false)
 const adjustTask = ref<ScheduleTask | null>(null)
 const adjustForm = ref({
   start_time: '',
-  end_time: ''
+  end_time: '',
 })
 
 const formatDateTime = (t: string) => {
@@ -308,7 +354,7 @@ const getStatusType = (status: string) => {
     scheduled: 'primary',
     running: 'warning',
     completed: 'success',
-    conflict: 'danger'
+    conflict: 'danger',
   }
   return map[status] || 'info'
 }
@@ -319,7 +365,7 @@ const getStatusLabel = (status: string) => {
     scheduled: '已排程',
     running: '生产中',
     completed: '已完成',
-    conflict: '冲突'
+    conflict: '冲突',
   }
   return map[status] || status
 }
@@ -335,7 +381,7 @@ const fetchTasks = async () => {
   try {
     const params: Record<string, unknown> = {
       page: currentPage.value,
-      page_size: pageSize.value
+      page_size: pageSize.value,
     }
     if (filterStatus.value) {
       params.status = filterStatus.value
@@ -354,9 +400,9 @@ const fetchTasks = async () => {
 }
 
 const updateStats = () => {
-  stats.value.pending = taskList.value.filter(t => t.status === 'pending').length
-  stats.value.scheduled = taskList.value.filter(t => t.status === 'scheduled').length
-  stats.value.running = taskList.value.filter(t => t.status === 'running').length
+  stats.value.pending = taskList.value.filter((t) => t.status === 'pending').length
+  stats.value.scheduled = taskList.value.filter((t) => t.status === 'scheduled').length
+  stats.value.running = taskList.value.filter((t) => t.status === 'running').length
   stats.value.conflicts = conflictList.value.length
 }
 
@@ -406,7 +452,7 @@ const handleAdjust = (task: ScheduleTask) => {
   adjustTask.value = task
   adjustForm.value = {
     start_time: task.start_time,
-    end_time: task.end_time
+    end_time: task.end_time,
   }
   adjustDialogVisible.value = true
 }
@@ -417,7 +463,7 @@ const confirmAdjust = async () => {
   try {
     await schedulingApi.adjustTask(adjustTask.value.id, {
       start_time: adjustForm.value.start_time,
-      end_time: adjustForm.value.end_time
+      end_time: adjustForm.value.end_time,
     })
     ElMessage.success('排程调整成功')
     adjustDialogVisible.value = false
@@ -439,7 +485,7 @@ const getMockTasks = (): ScheduleTask[] => {
     { id: 2, name: '缝纫中心' },
     { id: 3, name: '印染中心' },
     { id: 4, name: '包装中心' },
-    { id: 5, name: '质检中心' }
+    { id: 5, name: '质检中心' },
   ]
   const statuses: ScheduleTask['status'][] = ['pending', 'scheduled', 'running', 'completed']
   const products = ['面料A-001', '面料B-002', '面料C-003', '面料D-004', '面料E-005']
@@ -462,11 +508,12 @@ const getMockTasks = (): ScheduleTask[] => {
         quantity: Math.floor(Math.random() * 500 + 100),
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        duration_hours: Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60) * 10) / 10,
+        duration_hours:
+          Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60)) * 10) / 10,
         status,
         priority: Math.floor(Math.random() * 3) + 1,
         has_conflict: status === 'conflict',
-        conflict_details: status === 'conflict' ? '与相邻工单时间重叠' : undefined
+        conflict_details: status === 'conflict' ? '与相邻工单时间重叠' : undefined,
       }
     })
   })
@@ -485,7 +532,7 @@ const getMockConflicts = (): ConflictItem[] => {
       order_no_1: 'WO00212',
       order_no_2: 'WO00215',
       severity: 'error',
-      suggestion: '建议将 WO00215 延迟 2 小时开始'
+      suggestion: '建议将 WO00215 延迟 2 小时开始',
     },
     {
       id: 2,
@@ -498,8 +545,8 @@ const getMockConflicts = (): ConflictItem[] => {
       order_no_1: 'WO00321',
       order_no_2: 'WO00323',
       severity: 'warning',
-      suggestion: '考虑将 WO00323 安排到包装中心'
-    }
+      suggestion: '考虑将 WO00323 安排到包装中心',
+    },
   ]
 }
 

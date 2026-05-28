@@ -28,11 +28,16 @@ export function getGreigeFabric(id: number): Promise<ApiResponse<GreigeFabric>> 
   return request.get(`/greige-fabrics/${id}`)
 }
 
-export function createGreigeFabric(data: Partial<GreigeFabric>): Promise<ApiResponse<GreigeFabric>> {
+export function createGreigeFabric(
+  data: Partial<GreigeFabric>
+): Promise<ApiResponse<GreigeFabric>> {
   return request.post('/greige-fabrics', data)
 }
 
-export function updateGreigeFabric(id: number, data: Partial<GreigeFabric>): Promise<ApiResponse<GreigeFabric>> {
+export function updateGreigeFabric(
+  id: number,
+  data: Partial<GreigeFabric>
+): Promise<ApiResponse<GreigeFabric>> {
   return request.put(`/greige-fabrics/${id}`, data)
 }
 
@@ -40,11 +45,17 @@ export function deleteGreigeFabric(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/greige-fabrics/${id}`)
 }
 
-export function stockInGreigeFabric(id: number, data: { quantity: number; remark?: string }): Promise<ApiResponse<void>> {
+export function stockInGreigeFabric(
+  id: number,
+  data: { quantity: number; remark?: string }
+): Promise<ApiResponse<void>> {
   return request.post(`/greige-fabrics/${id}/stock-in`, data)
 }
 
-export function stockOutGreigeFabric(id: number, data: { quantity: number; remark?: string }): Promise<ApiResponse<void>> {
+export function stockOutGreigeFabric(
+  id: number,
+  data: { quantity: number; remark?: string }
+): Promise<ApiResponse<void>> {
   return request.post(`/greige-fabrics/${id}/stock-out`, data)
 }
 

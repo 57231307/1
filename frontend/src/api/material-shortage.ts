@@ -30,10 +30,16 @@ export interface MaterialShortageSummary {
 export const materialShortageApi = {
   getSummary: () => request.get<ApiResponse<MaterialShortageSummary>>('/material-shortage/summary'),
 
-  listShortages: (params?: { page?: number; page_size?: number; severity?: string; status?: string }) =>
+  listShortages: (params?: {
+    page?: number
+    page_size?: number
+    severity?: string
+    status?: string
+  }) =>
     request.get<ApiResponse<PageResult<MaterialShortage>>>('/material-shortage/list', { params }),
 
-  triggerCheck: () => request.post<ApiResponse<{ check_id: number; message: string }>>('/material-shortage/check'),
+  triggerCheck: () =>
+    request.post<ApiResponse<{ check_id: number; message: string }>>('/material-shortage/check'),
 
   updateStatus: (id: number, status: string) =>
     request.put<ApiResponse<void>>(`/material-shortage/${id}/status`, { status }),

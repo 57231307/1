@@ -386,7 +386,7 @@ impl CustomerCreditService {
         let customer = customer_credit::Entity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("客户".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("客户不存在".to_string()))?;
         
         // 获取客户名称
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)

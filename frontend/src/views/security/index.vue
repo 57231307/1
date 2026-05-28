@@ -80,16 +80,33 @@
           <span>登录日志</span>
           <el-form :inline="true" :model="queryParams" class="filter-form">
             <el-form-item label="用户名">
-              <el-input v-model="queryParams.username" placeholder="请输入用户名" clearable @clear="handleQuery" />
+              <el-input
+                v-model="queryParams.username"
+                placeholder="请输入用户名"
+                clearable
+                @clear="handleQuery"
+              />
             </el-form-item>
             <el-form-item label="登录状态">
-              <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+              <el-select
+                v-model="queryParams.status"
+                placeholder="选择状态"
+                clearable
+                @change="handleQuery"
+              >
                 <el-option label="成功" value="SUCCESS" />
                 <el-option label="失败" value="FAILED" />
               </el-select>
             </el-form-item>
             <el-form-item label="登录时间">
-              <el-date-picker v-model="queryParams.date_range" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" @change="handleQuery" />
+              <el-date-picker
+                v-model="queryParams.date_range"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                @change="handleQuery"
+              />
             </el-form-item>
             <el-form-item>
               <el-button type="primary" @click="handleQuery">
@@ -144,7 +161,12 @@
       <el-table v-loading="lockLoading" :data="lockedAccounts" border stripe>
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="username" label="用户名" width="120" show-overflow-tooltip />
-        <el-table-column prop="lock_reason" label="锁定原因" min-width="200" show-overflow-tooltip />
+        <el-table-column
+          prop="lock_reason"
+          label="锁定原因"
+          min-width="200"
+          show-overflow-tooltip
+        />
         <el-table-column prop="locked_at" label="锁定时间" width="180" align="center" />
         <el-table-column prop="unlock_at" label="解锁时间" width="180" align="center" />
         <el-table-column label="操作" width="120" align="center">
@@ -167,16 +189,25 @@
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="alert_type" label="告警类型" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="getAlertType(row.alert_type)">{{ getAlertLabel(row.alert_type) }}</el-tag>
+            <el-tag :type="getAlertType(row.alert_type)">{{
+              getAlertLabel(row.alert_type)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="username" label="用户名" width="120" show-overflow-tooltip />
         <el-table-column prop="ip_address" label="IP地址" width="150" show-overflow-tooltip />
-        <el-table-column prop="description" label="告警描述" min-width="200" show-overflow-tooltip />
+        <el-table-column
+          prop="description"
+          label="告警描述"
+          min-width="200"
+          show-overflow-tooltip
+        />
         <el-table-column prop="created_at" label="告警时间" width="180" align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="getAlertStatusType(row.status)">{{ getAlertStatusLabel(row.status) }}</el-tag>
+            <el-tag :type="getAlertStatusType(row.status)">{{
+              getAlertStatusLabel(row.status)
+            }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -194,7 +225,7 @@ const stats = reactive({
   todayLogins: 0,
   todayFailures: 0,
   lockedAccounts: 0,
-  securityAlerts: 0
+  securityAlerts: 0,
 })
 
 // 查询参数
@@ -203,7 +234,7 @@ const queryParams = reactive({
   page_size: 20,
   username: '',
   status: '',
-  date_range: []
+  date_range: [],
 })
 
 // 登录日志
@@ -310,7 +341,7 @@ const handleCurrentChange = (val: number) => {
 const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
     LOGIN: '登录',
-    LOGOUT: '登出'
+    LOGOUT: '登出',
   }
   return map[type] || type
 }
@@ -319,7 +350,7 @@ const getTypeLabel = (type: string) => {
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     SUCCESS: 'success',
-    FAILED: 'danger'
+    FAILED: 'danger',
   }
   return map[status] || 'info'
 }
@@ -328,7 +359,7 @@ const getStatusType = (status: string) => {
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     SUCCESS: '成功',
-    FAILED: '失败'
+    FAILED: '失败',
   }
   return map[status] || status
 }
@@ -339,7 +370,7 @@ const getAlertType = (type: string) => {
     BRUTE_FORCE: 'danger',
     SUSPICIOUS_IP: 'warning',
     MULTIPLE_FAILURES: 'warning',
-    UNUSUAL_LOCATION: 'info'
+    UNUSUAL_LOCATION: 'info',
   }
   return map[type] || 'info'
 }
@@ -350,7 +381,7 @@ const getAlertLabel = (type: string) => {
     BRUTE_FORCE: '暴力破解',
     SUSPICIOUS_IP: '可疑IP',
     MULTIPLE_FAILURES: '多次失败',
-    UNUSUAL_LOCATION: '异常地点'
+    UNUSUAL_LOCATION: '异常地点',
   }
   return map[type] || type
 }
@@ -361,7 +392,7 @@ const getAlertStatusType = (status: string) => {
     PENDING: 'warning',
     PROCESSING: 'primary',
     RESOLVED: 'success',
-    IGNORED: 'info'
+    IGNORED: 'info',
   }
   return map[status] || 'info'
 }
@@ -372,7 +403,7 @@ const getAlertStatusLabel = (status: string) => {
     PENDING: '待处理',
     PROCESSING: '处理中',
     RESOLVED: '已解决',
-    IGNORED: '已忽略'
+    IGNORED: '已忽略',
   }
   return map[status] || status
 }

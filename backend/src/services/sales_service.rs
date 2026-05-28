@@ -14,6 +14,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 use sea_orm::{FromQueryResult, JoinType, RelationTrait};
+use crate::services::user_service::UserService;
 
 /// 销售订单详情响应
 #[derive(Debug, Serialize, Deserialize, Clone, FromQueryResult)]
@@ -939,13 +940,18 @@ impl SalesService {
 
         // 5. 挂载 BPM 引擎
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
+        
+        // 获取用户信息
+        let user_service = UserService::new(self.db.clone());
+        let user = user_service.find_by_id(user_id).await?;
+        
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "sales_order_approval".to_string(),
             business_type: "sales_order".to_string(),
             business_id: order_id,
             title: format!("销售订单审批 - {}", order.order_no),
             initiator_id: user_id,
-            initiator_name: "User".to_string(),
+            initiator_name: user.username,
             initiator_department_id: None,
             priority: None,
             form_data: None,

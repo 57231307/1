@@ -2,7 +2,6 @@ pub mod app_state;
 pub mod cache;
 pub mod data_masking;
 pub mod dual_unit_converter;
-pub mod plugin_system;
 pub mod error;
 pub mod fabric_five_dimension;
 pub mod response;

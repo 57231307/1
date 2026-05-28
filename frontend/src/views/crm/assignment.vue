@@ -44,7 +44,11 @@
             </el-form-item>
 
             <el-form-item label="选择业务员" prop="assign_to">
-              <el-select v-model="assignForm.assign_to" placeholder="请选择业务员" style="width: 100%">
+              <el-select
+                v-model="assignForm.assign_to"
+                placeholder="请选择业务员"
+                style="width: 100%"
+              >
                 <el-option
                   v-for="user in salesUsers"
                   :key="user.id"
@@ -86,7 +90,7 @@
               v-for="user in salesUsers"
               :key="user.id"
               class="user-stat-item"
-              :class="{ 'inactive': !user.active }"
+              :class="{ inactive: !user.active }"
             >
               <div class="user-info">
                 <el-avatar :size="40">{{ user.name.charAt(0) }}</el-avatar>
@@ -179,7 +183,7 @@ import { Promotion } from '@element-plus/icons-vue'
 import crmEnhancedApi, {
   type SalesUser,
   type AssignmentRecord,
-  type CustomerWithTags
+  type CustomerWithTags,
 } from '@/api/crm-enhanced'
 
 const assignMode = ref<'single' | 'batch'>('single')
@@ -194,14 +198,14 @@ const assignFormRef = ref<FormInstance>()
 const assignForm = reactive({
   customer_ids: [] as number[],
   assign_to: undefined as number | undefined,
-  reason: ''
+  reason: '',
 })
 
 const historyQuery = reactive({
   page: 1,
   page_size: 20,
   assign_type: '',
-  assigned_to: undefined as number | undefined
+  assigned_to: undefined as number | undefined,
 })
 
 const getTypeLabel = (type: string) => {
@@ -263,7 +267,7 @@ const handleAssign = async () => {
     await crmEnhancedApi.assignCustomer({
       customer_ids: assignForm.customer_ids,
       assign_to: assignForm.assign_to,
-      reason: assignForm.reason
+      reason: assignForm.reason,
     })
     ElMessage.success('分配成功')
     resetAssignForm()
@@ -296,22 +300,80 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.assignment-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.card-header { font-weight: 600; }
-.mt-20 { margin-top: 20px; }
-.history-filter { margin-bottom: 16px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.assignment-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.card-header {
+  font-weight: 600;
+}
+.mt-20 {
+  margin-top: 20px;
+}
+.history-filter {
+  margin-bottom: 16px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
 
-.user-stats { display: flex; flex-direction: column; gap: 12px; }
-.user-stat-item { display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: 8px; background: #fafafa; transition: background 0.2s; }
-.user-stat-item:hover { background: #f0f2f5; }
-.user-stat-item.inactive { opacity: 0.6; }
-.user-info { display: flex; align-items: center; gap: 12px; flex: 1; }
-.user-detail { display: flex; flex-direction: column; }
-.user-name { font-weight: 600; color: #303133; }
-.user-dept { font-size: 12px; color: #909399; }
-.user-metrics { text-align: center; }
-.user-status { min-width: 60px; }
+.user-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.user-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: background 0.2s;
+}
+.user-stat-item:hover {
+  background: #f0f2f5;
+}
+.user-stat-item.inactive {
+  opacity: 0.6;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.user-detail {
+  display: flex;
+  flex-direction: column;
+}
+.user-name {
+  font-weight: 600;
+  color: #303133;
+}
+.user-dept {
+  font-size: 12px;
+  color: #909399;
+}
+.user-metrics {
+  text-align: center;
+}
+.user-status {
+  min-width: 60px;
+}
 </style>

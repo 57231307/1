@@ -57,11 +57,11 @@ export function scanInventory(barcode: string) {
 }
 
 export function getScanHistory(page?: number, pageSize?: number) {
-  return request.get('/scanner/scan-to-ship', { 
-    params: { 
-      page: page || 0, 
-      page_size: pageSize || 20 
-    } 
+  return request.get('/scanner/scan-to-ship', {
+    params: {
+      page: page || 0,
+      page_size: pageSize || 20,
+    },
   })
 }
 

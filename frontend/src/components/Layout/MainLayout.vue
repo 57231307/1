@@ -16,7 +16,7 @@
           <el-icon><HomeFilled /></el-icon>
           <span>仪表盘</span>
         </el-menu-item>
-        
+
         <el-sub-menu index="fabric">
           <template #title>
             <el-icon><Goods /></el-icon>
@@ -26,7 +26,7 @@
           <el-menu-item index="/greige-fabrics">坯布管理</el-menu-item>
           <el-menu-item index="/product">产品管理</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="inventory">
           <template #title>
             <el-icon><Box /></el-icon>
@@ -39,7 +39,7 @@
           <el-menu-item index="/inventory-transfer">库存调拨</el-menu-item>
           <el-menu-item index="/inventory-adjustment">库存调整</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="sales">
           <template #title>
             <el-icon><ShoppingCart /></el-icon>
@@ -51,7 +51,7 @@
           <el-menu-item index="/customer">客户管理</el-menu-item>
           <el-menu-item index="/customer-credit">客户信用</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="purchase">
           <template #title>
             <el-icon><ShoppingCart /></el-icon>
@@ -63,7 +63,7 @@
           <el-menu-item index="/supplier">供应商管理</el-menu-item>
           <el-menu-item index="/supplier-evaluation">供应商评估</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="crm">
           <template #title>
             <el-icon><User /></el-icon>
@@ -71,7 +71,7 @@
           </template>
           <el-menu-item index="/crm">CRM 管理</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="production">
           <template #title>
             <el-icon><Cpu /></el-icon>
@@ -87,7 +87,7 @@
           <el-menu-item index="/quality">质量管理</el-menu-item>
           <el-menu-item index="/gantt">甘特图</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="finance">
           <template #title>
             <el-icon><Money /></el-icon>
@@ -110,7 +110,7 @@
           <el-menu-item index="/voucher">凭证管理</el-menu-item>
           <el-menu-item index="/trading">交易管理</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="workflow">
           <template #title>
             <el-icon><List /></el-icon>
@@ -122,7 +122,7 @@
           <el-menu-item index="/dye-recipe">染色配方</el-menu-item>
           <el-menu-item index="/quality-standards">质量标准</el-menu-item>
         </el-sub-menu>
-        
+
         <el-sub-menu index="system">
           <template #title>
             <el-icon><Setting /></el-icon>
@@ -160,7 +160,9 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="$router.push('/system/profile')">个人信息</el-dropdown-item>
+                <el-dropdown-item @click="$router.push('/system/profile')"
+                  >个人信息</el-dropdown-item
+                >
                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -178,7 +180,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { HomeFilled, Goods, Box, ShoppingCart, ArrowDown, Money, Setting, User, Cpu, List } from '@element-plus/icons-vue'
+import {
+  HomeFilled,
+  Goods,
+  Box,
+  ShoppingCart,
+  ArrowDown,
+  Money,
+  Setting,
+  User,
+  Cpu,
+  List,
+} from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
@@ -221,7 +234,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: space-between;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0,21,41,.08);
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
 }
 .header-right .user-info {
   cursor: pointer;

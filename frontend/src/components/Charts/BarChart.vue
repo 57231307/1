@@ -42,7 +42,7 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   autoResize: true,
   horizontal: false,
-  showLabel: false
+  showLabel: false,
 })
 
 const emit = defineEmits<{
@@ -53,35 +53,35 @@ const emit = defineEmits<{
 const chartRef = ref()
 
 const chartOption = computed<EChartsOption>(() => {
-  const seriesConfig = props.series.map(item => ({
+  const seriesConfig = props.series.map((item) => ({
     name: item.name,
     type: 'bar' as const,
     data: item.data,
     stack: item.stack,
     barWidth: item.barWidth,
-    label: props.showLabel ? { show: true, position: 'top' as const } : undefined
+    label: props.showLabel ? { show: true, position: 'top' as const } : undefined,
   }))
 
   if (props.horizontal) {
     return {
       title: props.title ? { text: props.title, left: 'center' } : undefined,
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { data: props.series.map(s => s.name), top: props.title ? 30 : 0 },
+      legend: { data: props.series.map((s) => s.name), top: props.title ? 30 : 0 },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'value' },
       yAxis: { type: 'category', data: props.xAxisData },
-      series: seriesConfig
+      series: seriesConfig,
     }
   }
 
   return {
     title: props.title ? { text: props.title, left: 'center' } : undefined,
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: props.series.map(s => s.name), top: props.title ? 30 : 0 },
+    legend: { data: props.series.map((s) => s.name), top: props.title ? 30 : 0 },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', data: props.xAxisData, axisTick: { alignWithLabel: true } },
     yAxis: { type: 'value' },
-    series: seriesConfig
+    series: seriesConfig,
   }
 })
 

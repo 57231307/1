@@ -1,8 +1,33 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElSwitch, ElTree, ElMessageBox, ElMessage, ElRow, ElCol } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElSwitch,
+  ElTree,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+} from 'element-plus'
 import { Plus, Edit, Delete, View, Refresh } from '@element-plus/icons-vue'
-import { listAccountSubjects, getAccountSubject, createAccountSubject, updateAccountSubject, deleteAccountSubject, enableAccountSubject, disableAccountSubject, getAccountSubjectTree, type AccountSubjectEntity } from '@/api/account-subject'
+import {
+  listAccountSubjects,
+  getAccountSubject,
+  createAccountSubject,
+  updateAccountSubject,
+  deleteAccountSubject,
+  enableAccountSubject,
+  disableAccountSubject,
+  getAccountSubjectTree,
+  type AccountSubjectEntity,
+} from '@/api/account-subject'
 
 const tableData = ref<AccountSubjectEntity[]>([])
 const treeData = ref<any[]>([])
@@ -13,11 +38,11 @@ const searchForm = ref({
   name: '',
   category: '',
   type: '',
-  is_enabled: ''
+  is_enabled: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -32,7 +57,7 @@ const formRef = reactive({
   type: '',
   balance_type: 'debit',
   description: '',
-  is_enabled: true
+  is_enabled: true,
 })
 
 const viewDialogVisible = ref(false)
@@ -43,7 +68,7 @@ const categories = [
   { label: '负债', value: 'liability' },
   { label: '权益', value: 'equity' },
   { label: '成本', value: 'cost' },
-  { label: '损益', value: 'income' }
+  { label: '损益', value: 'income' },
 ]
 
 const types = [
@@ -54,24 +79,24 @@ const types = [
   { label: '所有者权益', value: 'owner_equity' },
   { label: '成本', value: 'cost' },
   { label: '收入', value: 'income' },
-  { label: '费用', value: 'expense' }
+  { label: '费用', value: 'expense' },
 ]
 
 const balanceTypes = [
   { label: '借方', value: 'debit' },
-  { label: '贷方', value: 'credit' }
+  { label: '贷方', value: 'credit' },
 ]
 
 const getCategoryLabel = (value: string) => {
-  return categories.find(c => c.value === value)?.label || value
+  return categories.find((c) => c.value === value)?.label || value
 }
 
 const getTypeLabel = (value: string) => {
-  return types.find(t => t.value === value)?.label || value
+  return types.find((t) => t.value === value)?.label || value
 }
 
 const getBalanceTypeLabel = (value: string) => {
-  return balanceTypes.find(b => b.value === value)?.label || value
+  return balanceTypes.find((b) => b.value === value)?.label || value
 }
 
 const loadData = async () => {
@@ -83,7 +108,7 @@ const loadData = async () => {
       code: searchForm.value.code,
       name: searchForm.value.name,
       category: searchForm.value.category,
-      type: searchForm.value.type
+      type: searchForm.value.type,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -114,7 +139,7 @@ const handleReset = () => {
     name: '',
     category: '',
     type: '',
-    is_enabled: ''
+    is_enabled: '',
   }
   handleSearch()
 }
@@ -140,7 +165,7 @@ const openAddDialog = () => {
     type: '',
     balance_type: 'debit',
     description: '',
-    is_enabled: true
+    is_enabled: true,
   })
   dialogVisible.value = true
 }
@@ -185,7 +210,7 @@ const handleSubmit = async () => {
 const handleDelete = async (row: AccountSubjectEntity) => {
   try {
     await ElMessageBox.confirm('确定要删除这个会计科目吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteAccountSubject(row.id!)
     ElMessage.success('删除成功')
@@ -219,7 +244,7 @@ const handleDisable = async (row: AccountSubjectEntity) => {
 const treeProps = {
   label: 'name',
   children: 'children',
-  isLeaf: 'is_leaf'
+  isLeaf: 'is_leaf',
 }
 
 loadData()
@@ -247,21 +272,13 @@ loadTree()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.category"
-            placeholder="科目类别"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.category" placeholder="科目类别" class="filter-item">
             <ElOption label="全部" value="" />
             <ElOption v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.type"
-            placeholder="科目类型"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.type" placeholder="科目类型" class="filter-item">
             <ElOption label="全部" value="" />
             <ElOption v-for="t in types" :key="t.value" :label="t.label" :value="t.value" />
           </ElSelect>
@@ -270,9 +287,7 @@ loadTree()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增科目
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增科目 </ElButton>
       </div>
     </div>
 
@@ -289,7 +304,10 @@ loadTree()
           :props="treeProps"
           default-expand-all
           :highlight-current="true"
-          @node-click="(data: any) => searchForm.code = data.code; handleSearch()"
+          @node-click="
+            ;(data: any) => (searchForm.code = data.code)
+            handleSearch()
+          "
         >
           <template #default="{ data }">
             <span class="tree-node">
@@ -306,12 +324,12 @@ loadTree()
           :loading="loading"
           :page-size="pagination.pageSize"
           :current-page="pagination.page"
-          @current-change="handlePageChange"
-          @size-change="handlePageSizeChange"
           border
           fit
           highlight-current-row
           style="width: 100%"
+          @current-change="handlePageChange"
+          @size-change="handlePageSizeChange"
         >
           <ElTableColumn prop="code" label="科目编码" width="120" />
           <ElTableColumn prop="name" label="科目名称" width="150" />
@@ -358,12 +376,7 @@ loadTree()
               >
                 禁用
               </ElButton>
-              <ElButton
-                v-else
-                size="small"
-                type="success"
-                @click="handleEnable(scope.row)"
-              >
+              <ElButton v-else size="small" type="success" @click="handleEnable(scope.row)">
                 启用
               </ElButton>
               <ElButton size="small" type="danger" @click="handleDelete(scope.row)">
@@ -375,7 +388,12 @@ loadTree()
       </div>
     </div>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="600px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="600px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="formRef" label-width="120px">
         <ElFormItem label="科目编码" prop="code">
           <ElInput v-model="formRef.code" placeholder="请输入科目编码" />
@@ -390,7 +408,12 @@ loadTree()
             show-checkbox
             check-strictly
             :default-checked-keys="formRef.parent_id ? [formRef.parent_id] : []"
-            @check-change="(data: any, checked: boolean) => { formRef.parent_id = checked ? data.id : undefined; formRef.level = data.level + 1 }"
+            @check-change="
+              (data: any, checked: boolean) => {
+                formRef.parent_id = checked ? data.id : undefined
+                formRef.level = data.level + 1
+              }
+            "
           />
         </ElFormItem>
         <ElFormItem label="级别" prop="level">
@@ -424,18 +447,33 @@ loadTree()
       </template>
     </ElDialog>
 
-    <ElDialog title="科目详情" :visible="viewDialogVisible" width="600px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="科目详情"
+      :visible="viewDialogVisible"
+      width="600px"
+      @close="viewDialogVisible = false"
+    >
       <ElDescriptions v-if="viewData" :column="2" border>
         <ElDescriptionsItem label="科目编码">{{ viewData.code }}</ElDescriptionsItem>
         <ElDescriptionsItem label="科目名称">{{ viewData.name }}</ElDescriptionsItem>
         <ElDescriptionsItem label="级别">{{ viewData.level }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="类别">{{ getCategoryLabel(viewData.category) }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="类别">{{
+          getCategoryLabel(viewData.category)
+        }}</ElDescriptionsItem>
         <ElDescriptionsItem label="类型">{{ getTypeLabel(viewData.type) }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="余额方向">{{ getBalanceTypeLabel(viewData.balance_type) }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="状态">{{ viewData.is_enabled ? '启用' : '禁用' }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="余额方向">{{
+          getBalanceTypeLabel(viewData.balance_type)
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="状态">{{
+          viewData.is_enabled ? '启用' : '禁用'
+        }}</ElDescriptionsItem>
         <ElDescriptionsItem label="备注">{{ viewData.description || '-' }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="创建时间" :span="2">{{ viewData.created_at }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="更新时间" :span="2">{{ viewData.updated_at }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="创建时间" :span="2">{{
+          viewData.created_at
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="更新时间" :span="2">{{
+          viewData.updated_at
+        }}</ElDescriptionsItem>
       </ElDescriptions>
     </ElDialog>
   </div>

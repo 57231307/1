@@ -59,7 +59,10 @@ export function createARInvoice(data: Partial<ARInvoice>): Promise<ApiResponse<A
   return request.post('/ar/invoices', data)
 }
 
-export function updateARInvoice(id: number, data: Partial<ARInvoice>): Promise<ApiResponse<ARInvoice>> {
+export function updateARInvoice(
+  id: number,
+  data: Partial<ARInvoice>
+): Promise<ApiResponse<ARInvoice>> {
   return request.put(`/ar/invoices/${id}`, data)
 }
 
@@ -75,7 +78,9 @@ export function cancelARInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/invoices/${id}/cancel`)
 }
 
-export function listARReconciliations(params?: QueryParams): Promise<ApiResponse<ARReconciliation[]>> {
+export function listARReconciliations(
+  params?: QueryParams
+): Promise<ApiResponse<ARReconciliation[]>> {
   return request.get('/ar-reconciliations', { params })
 }
 
@@ -83,11 +88,16 @@ export function getARReconciliation(id: number): Promise<ApiResponse<ARReconcili
   return request.get(`/ar-reconciliations/${id}`)
 }
 
-export function createARReconciliation(data: Partial<ARReconciliation>): Promise<ApiResponse<ARReconciliation>> {
+export function createARReconciliation(
+  data: Partial<ARReconciliation>
+): Promise<ApiResponse<ARReconciliation>> {
   return request.post('/ar-reconciliations', data)
 }
 
-export function updateARReconciliationStatus(id: number, status: string): Promise<ApiResponse<void>> {
+export function updateARReconciliationStatus(
+  id: number,
+  status: string
+): Promise<ApiResponse<void>> {
   return request.put(`/ar-reconciliations/${id}/status`, { status })
 }
 
@@ -103,19 +113,31 @@ export function createFundAccount(data: Partial<FundAccount>): Promise<ApiRespon
   return request.post('/fund-management/accounts', data)
 }
 
-export function depositFund(id: number, data: { amount: number; remark?: string }): Promise<ApiResponse<FundAccount>> {
+export function depositFund(
+  id: number,
+  data: { amount: number; remark?: string }
+): Promise<ApiResponse<FundAccount>> {
   return request.post(`/fund-management/accounts/${id}/deposit`, data)
 }
 
-export function withdrawFund(id: number, data: { amount: number; remark?: string }): Promise<ApiResponse<FundAccount>> {
+export function withdrawFund(
+  id: number,
+  data: { amount: number; remark?: string }
+): Promise<ApiResponse<FundAccount>> {
   return request.post(`/fund-management/accounts/${id}/withdraw`, data)
 }
 
-export function freezeFund(id: number, data: { amount: number; reason: string }): Promise<ApiResponse<FundAccount>> {
+export function freezeFund(
+  id: number,
+  data: { amount: number; reason: string }
+): Promise<ApiResponse<FundAccount>> {
   return request.post(`/fund-management/accounts/${id}/freeze`, data)
 }
 
-export function unfreezeFund(id: number, data: { amount: number }): Promise<ApiResponse<FundAccount>> {
+export function unfreezeFund(
+  id: number,
+  data: { amount: number }
+): Promise<ApiResponse<FundAccount>> {
   return request.post(`/fund-management/accounts/${id}/unfreeze`, data)
 }
 
@@ -123,6 +145,11 @@ export function deleteFundAccount(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/fund-management/accounts/${id}`)
 }
 
-export function transferFund(data: { from_account_id: number; to_account_id: number; amount: number; remark?: string }): Promise<ApiResponse<void>> {
+export function transferFund(data: {
+  from_account_id: number
+  to_account_id: number
+  amount: number
+  remark?: string
+}): Promise<ApiResponse<void>> {
   return request.post('/fund-management/transfer', data)
 }

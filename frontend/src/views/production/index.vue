@@ -40,13 +40,8 @@
           </el-button>
         </div>
       </template>
-      
-      <el-table
-        :data="orderList"
-        v-loading="loading"
-        stripe
-        border
-      >
+
+      <el-table v-loading="loading" :data="orderList" stripe border>
         <el-table-column prop="order_no" label="订单编号" width="160" />
         <el-table-column prop="product_name" label="产品名称" min-width="160" />
         <el-table-column prop="planned_quantity" label="计划数量" width="120" />
@@ -63,8 +58,16 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]?.type || 'info'">
-              {{ PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || row.status }}
+            <el-tag
+              :type="
+                PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]?.type ||
+                'info'
+              "
+            >
+              {{
+                PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]
+                  ?.label || row.status
+              }}
             </el-tag>
           </template>
         </el-table-column>
@@ -72,11 +75,46 @@
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
-            <el-button type="success" link size="small" @click="openDialog('edit', row)" v-if="row.status === 'draft'">编辑</el-button>
-            <el-button type="warning" link size="small" @click="handleStatusChange(row, 'planned')" v-if="row.status === 'draft'">计划</el-button>
-            <el-button type="primary" link size="small" @click="handleStatusChange(row, 'in_production')" v-if="row.status === 'planned'">开始生产</el-button>
-            <el-button type="success" link size="small" @click="handleStatusChange(row, 'completed')" v-if="row.status === 'in_production'">完成</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
+            <el-button
+              v-if="row.status === 'draft'"
+              type="success"
+              link
+              size="small"
+              @click="openDialog('edit', row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="warning"
+              link
+              size="small"
+              @click="handleStatusChange(row, 'planned')"
+              >计划</el-button
+            >
+            <el-button
+              v-if="row.status === 'planned'"
+              type="primary"
+              link
+              size="small"
+              @click="handleStatusChange(row, 'in_production')"
+              >开始生产</el-button
+            >
+            <el-button
+              v-if="row.status === 'in_production'"
+              type="success"
+              link
+              size="small"
+              @click="handleStatusChange(row, 'completed')"
+              >完成</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -102,7 +140,7 @@
       width="600px"
       @close="resetForm"
     >
-      <el-form :model="orderForm" :rules="orderRules" ref="orderFormRef" label-width="120px">
+      <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="120px">
         <el-form-item label="订单编号" prop="order_no">
           <el-input v-model="orderForm.order_no" placeholder="请输入订单编号" />
         </el-form-item>
@@ -113,10 +151,22 @@
           <el-input-number v-model="orderForm.planned_quantity" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="计划开始">
-          <el-date-picker v-model="orderForm.scheduled_start_date" type="date" placeholder="请选择日期" style="width: 100%" value-format="YYYY-MM-DD" />
+          <el-date-picker
+            v-model="orderForm.scheduled_start_date"
+            type="date"
+            placeholder="请选择日期"
+            style="width: 100%"
+            value-format="YYYY-MM-DD"
+          />
         </el-form-item>
         <el-form-item label="计划结束">
-          <el-date-picker v-model="orderForm.scheduled_end_date" type="date" placeholder="请选择日期" style="width: 100%" value-format="YYYY-MM-DD" />
+          <el-date-picker
+            v-model="orderForm.scheduled_end_date"
+            type="date"
+            placeholder="请选择日期"
+            style="width: 100%"
+            value-format="YYYY-MM-DD"
+          />
         </el-form-item>
         <el-form-item label="优先级" prop="priority">
           <el-select v-model="orderForm.priority" placeholder="请选择优先级" style="width: 100%">
@@ -145,21 +195,45 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="订单编号">{{ currentOrder?.order_no }}</el-descriptions-item>
         <el-descriptions-item label="产品ID">{{ currentOrder?.product_id }}</el-descriptions-item>
-        <el-descriptions-item label="计划数量">{{ currentOrder?.planned_quantity }}</el-descriptions-item>
-        <el-descriptions-item label="实际数量">{{ currentOrder?.actual_quantity || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="计划开始">{{ currentOrder?.scheduled_start_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="计划结束">{{ currentOrder?.scheduled_end_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="实际开始">{{ currentOrder?.actual_start_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="实际结束">{{ currentOrder?.actual_end_date || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="计划数量">{{
+          currentOrder?.planned_quantity
+        }}</el-descriptions-item>
+        <el-descriptions-item label="实际数量">{{
+          currentOrder?.actual_quantity || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="计划开始">{{
+          currentOrder?.scheduled_start_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="计划结束">{{
+          currentOrder?.scheduled_end_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="实际开始">{{
+          currentOrder?.actual_start_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="实际结束">{{
+          currentOrder?.actual_end_date || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="PRODUCTION_ORDER_STATUS[currentOrder?.status as keyof typeof PRODUCTION_ORDER_STATUS]?.type">
-            {{ PRODUCTION_ORDER_STATUS[currentOrder?.status as keyof typeof PRODUCTION_ORDER_STATUS]?.label }}
+          <el-tag
+            :type="
+              PRODUCTION_ORDER_STATUS[currentOrder?.status as keyof typeof PRODUCTION_ORDER_STATUS]
+                ?.type
+            "
+          >
+            {{
+              PRODUCTION_ORDER_STATUS[currentOrder?.status as keyof typeof PRODUCTION_ORDER_STATUS]
+                ?.label
+            }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="优先级">{{ currentOrder?.priority }}</el-descriptions-item>
-        <el-descriptions-item label="工作中心">{{ currentOrder?.work_center_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="工作中心">{{
+          currentOrder?.work_center_id || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentOrder?.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentOrder?.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentOrder?.remark || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -245,11 +319,11 @@ const resetQuery = () => {
 const openDialog = (type: 'create' | 'edit', row?: ProductionOrder) => {
   dialogType.value = type
   resetForm()
-  
+
   if (type === 'edit' && row) {
     Object.assign(orderForm, row)
   }
-  
+
   dialogVisible.value = true
 }
 
@@ -273,10 +347,10 @@ const resetForm = () => {
 // 提交表单
 const handleSubmit = async () => {
   if (!orderFormRef.value) return
-  
+
   await orderFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogType.value === 'create') {
@@ -288,7 +362,7 @@ const handleSubmit = async () => {
           ElMessage.success('更新成功')
         }
       }
-      
+
       dialogVisible.value = false
       fetchOrders()
     } catch (e: any) {
@@ -308,10 +382,14 @@ const viewDetail = (row: ProductionOrder) => {
 // 状态变更
 const handleStatusChange = async (row: ProductionOrder, status: string) => {
   try {
-    await ElMessageBox.confirm(`确认将订单 ${row.order_no} 状态更改为 ${PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label} 吗？`, '确认', {
-      type: 'warning',
-    })
-    
+    await ElMessageBox.confirm(
+      `确认将订单 ${row.order_no} 状态更改为 ${PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label} 吗？`,
+      '确认',
+      {
+        type: 'warning',
+      }
+    )
+
     await updateProductionOrderStatus(row.id, status)
     ElMessage.success('状态更新成功')
     fetchOrders()
@@ -330,7 +408,7 @@ const handleDelete = async (row: ProductionOrder) => {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
-    
+
     await deleteProductionOrder(row.id)
     ElMessage.success('删除成功')
     fetchOrders()

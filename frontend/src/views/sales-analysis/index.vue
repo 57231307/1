@@ -140,7 +140,12 @@
           </template>
           <el-table :data="productRanking" size="small">
             <el-table-column type="index" label="排名" width="60" align="center" />
-            <el-table-column prop="product_name" label="产品名称" min-width="150" show-overflow-tooltip />
+            <el-table-column
+              prop="product_name"
+              label="产品名称"
+              min-width="150"
+              show-overflow-tooltip
+            />
             <el-table-column prop="amount" label="销售额" width="120" align="right">
               <template #default="{ row }">
                 {{ formatCurrency(row.amount) }}
@@ -148,9 +153,7 @@
             </el-table-column>
             <el-table-column prop="quantity" label="销售数量" width="100" align="right" />
             <el-table-column prop="percentage" label="占比" width="80" align="center">
-              <template #default="{ row }">
-                {{ row.percentage }}%
-              </template>
+              <template #default="{ row }"> {{ row.percentage }}% </template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -168,7 +171,12 @@
           </template>
           <el-table :data="customerRanking" size="small">
             <el-table-column type="index" label="排名" width="60" align="center" />
-            <el-table-column prop="customer_name" label="客户名称" min-width="150" show-overflow-tooltip />
+            <el-table-column
+              prop="customer_name"
+              label="客户名称"
+              min-width="150"
+              show-overflow-tooltip
+            />
             <el-table-column prop="amount" label="销售额" width="120" align="right">
               <template #default="{ row }">
                 {{ formatCurrency(row.amount) }}
@@ -176,9 +184,7 @@
             </el-table-column>
             <el-table-column prop="order_count" label="订单数" width="80" align="right" />
             <el-table-column prop="percentage" label="占比" width="80" align="center">
-              <template #default="{ row }">
-                {{ row.percentage }}%
-              </template>
+              <template #default="{ row }"> {{ row.percentage }}% </template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -210,7 +216,10 @@
         </el-table-column>
         <el-table-column prop="completion_rate" label="完成率" width="120" align="center">
           <template #default="{ row }">
-            <el-progress :percentage="row.completion_rate" :color="getProgressColor(row.completion_rate)" />
+            <el-progress
+              :percentage="row.completion_rate"
+              :color="getProgressColor(row.completion_rate)"
+            />
           </template>
         </el-table-column>
         <el-table-column prop="variance" label="差异" width="150" align="right">
@@ -222,7 +231,9 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="getTargetStatusType(row.status)">{{ getTargetStatusLabel(row.status) }}</el-tag>
+            <el-tag :type="getTargetStatusType(row.status)">{{
+              getTargetStatusLabel(row.status)
+            }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -244,7 +255,7 @@ const stats = reactive({
   orderTrend: 0,
   amountTrend: 0,
   profitTrend: 0,
-  customerTrend: 0
+  customerTrend: 0,
 })
 
 // 趋势周期
@@ -287,7 +298,7 @@ const getProductRanking = async () => {
     productRanking.value = [
       { product_name: '纯棉面料A', amount: 580000, quantity: 12000, percentage: 22.5 },
       { product_name: '涤纶面料B', amount: 420000, quantity: 8500, percentage: 16.3 },
-      { product_name: '混纺面料C', amount: 350000, quantity: 7200, percentage: 13.6 }
+      { product_name: '混纺面料C', amount: 350000, quantity: 7200, percentage: 13.6 },
     ]
   } catch (error) {
     console.error('获取产品排名失败:', error)
@@ -301,7 +312,7 @@ const getCustomerRanking = async () => {
     customerRanking.value = [
       { customer_name: '客户A', amount: 680000, order_count: 25, percentage: 26.4 },
       { customer_name: '客户B', amount: 450000, order_count: 18, percentage: 17.4 },
-      { customer_name: '客户C', amount: 320000, order_count: 12, percentage: 12.4 }
+      { customer_name: '客户C', amount: 320000, order_count: 12, percentage: 12.4 },
     ]
   } catch (error) {
     console.error('获取客户排名失败:', error)
@@ -313,9 +324,30 @@ const getSalesTargets = async () => {
   try {
     // TODO: 调用API获取销售目标
     salesTargets.value = [
-      { period: '2026年1月', target_amount: 3000000, actual_amount: 2800000, completion_rate: 93.3, variance: -200000, status: 'PARTIAL' },
-      { period: '2026年2月', target_amount: 2800000, actual_amount: 3100000, completion_rate: 110.7, variance: 300000, status: 'COMPLETED' },
-      { period: '2026年3月', target_amount: 3200000, actual_amount: 2580000, completion_rate: 80.6, variance: -620000, status: 'IN_PROGRESS' }
+      {
+        period: '2026年1月',
+        target_amount: 3000000,
+        actual_amount: 2800000,
+        completion_rate: 93.3,
+        variance: -200000,
+        status: 'PARTIAL',
+      },
+      {
+        period: '2026年2月',
+        target_amount: 2800000,
+        actual_amount: 3100000,
+        completion_rate: 110.7,
+        variance: 300000,
+        status: 'COMPLETED',
+      },
+      {
+        period: '2026年3月',
+        target_amount: 3200000,
+        actual_amount: 2580000,
+        completion_rate: 80.6,
+        variance: -620000,
+        status: 'IN_PROGRESS',
+      },
     ]
   } catch (error) {
     console.error('获取销售目标失败:', error)
@@ -340,7 +372,7 @@ const getTargetStatusType = (status: string) => {
     COMPLETED: 'success',
     IN_PROGRESS: 'warning',
     PARTIAL: 'info',
-    NOT_STARTED: 'info'
+    NOT_STARTED: 'info',
   }
   return map[status] || 'info'
 }
@@ -351,7 +383,7 @@ const getTargetStatusLabel = (status: string) => {
     COMPLETED: '已完成',
     IN_PROGRESS: '进行中',
     PARTIAL: '部分完成',
-    NOT_STARTED: '未开始'
+    NOT_STARTED: '未开始',
   }
   return map[status] || status
 }

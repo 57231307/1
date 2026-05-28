@@ -1,8 +1,34 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElInputNumber,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+} from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
-import { listPurchaseReceipts, getPurchaseReceipt, createPurchaseReceipt, updatePurchaseReceipt, deletePurchaseReceipt, approvePurchaseReceipt, getReceiptItems, type PurchaseReceiptEntity, type ReceiptItem } from '@/api/purchaseReceipt'
+import {
+  listPurchaseReceipts,
+  getPurchaseReceipt,
+  createPurchaseReceipt,
+  updatePurchaseReceipt,
+  deletePurchaseReceipt,
+  approvePurchaseReceipt,
+  getReceiptItems,
+  type PurchaseReceiptEntity,
+  type ReceiptItem,
+} from '@/api/purchaseReceipt'
 import { request } from '@/api/request'
 
 const tableData = ref<PurchaseReceiptEntity[]>([])
@@ -12,11 +38,11 @@ const searchForm = ref({
   receipt_no: '',
   supplier_id: '',
   warehouse_id: '',
-  status: ''
+  status: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -27,7 +53,7 @@ const form = ref<Partial<PurchaseReceiptEntity>>({
   supplier_id: 0,
   warehouse_id: 0,
   status: 'draft',
-  items: []
+  items: [],
 })
 
 const viewDialogVisible = ref(false)
@@ -41,11 +67,11 @@ const productOptions = ref<{ label: string; value: number }[]>([])
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
-  { label: '已审核', value: 'approved' }
+  { label: '已审核', value: 'approved' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -60,8 +86,10 @@ const loadData = async () => {
       pageSize: pagination.value.pageSize,
       receipt_no: searchForm.value.receipt_no,
       supplier_id: searchForm.value.supplier_id ? Number(searchForm.value.supplier_id) : undefined,
-      warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
-      status: searchForm.value.status
+      warehouse_id: searchForm.value.warehouse_id
+        ? Number(searchForm.value.warehouse_id)
+        : undefined,
+      status: searchForm.value.status,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -109,7 +137,7 @@ const handleReset = () => {
     receipt_no: '',
     supplier_id: '',
     warehouse_id: '',
-    status: ''
+    status: '',
   }
   handleSearch()
 }
@@ -133,7 +161,7 @@ const openAddDialog = async () => {
     supplier_id: 0,
     warehouse_id: 0,
     status: 'draft',
-    items: [{ product_id: 0, quantity: 0, price: 0, amount: 0 }]
+    items: [{ product_id: 0, quantity: 0, price: 0, amount: 0 }],
   }
   dialogVisible.value = true
 }
@@ -174,7 +202,7 @@ const handleSubmit = async () => {
     ElMessage.warning('请填写必填字段')
     return
   }
-  const validItems = (form.value.items || []).filter(e => e.product_id > 0 && e.quantity !== 0)
+  const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的入库明细')
     return
@@ -202,7 +230,7 @@ const handleDelete = async (row: PurchaseReceiptEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个入库单吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deletePurchaseReceipt(row.id!)
     ElMessage.success('删除成功')
@@ -215,7 +243,7 @@ const handleDelete = async (row: PurchaseReceiptEntity) => {
 const handleApprove = async (row: PurchaseReceiptEntity) => {
   try {
     await ElMessageBox.confirm('确定要审核这个入库单吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await approvePurchaseReceipt(row.id!)
     ElMessage.success('审核成功')
@@ -244,31 +272,29 @@ loadProducts()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.supplier_id"
-            placeholder="选择供应商"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.supplier_id" placeholder="选择供应商" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="s in supplierOptions" :key="s.value" :label="s.label" :value="String(s.value)" />
+            <ElOption
+              v-for="s in supplierOptions"
+              :key="s.value"
+              :label="s.label"
+              :value="String(s.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.warehouse_id"
-            placeholder="选择仓库"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.warehouse_id" placeholder="选择仓库" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="String(w.value)" />
+            <ElOption
+              v-for="w in warehouseOptions"
+              :key="w.value"
+              :label="w.label"
+              :value="String(w.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -276,9 +302,7 @@ loadProducts()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增入库单
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增入库单 </ElButton>
       </div>
     </div>
 
@@ -288,12 +312,12 @@ loadProducts()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="receipt_no" label="入库单号" width="150" />
       <ElTableColumn prop="receipt_date" label="入库日期" width="120" />
@@ -345,7 +369,12 @@ loadProducts()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="800px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="800px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -363,14 +392,24 @@ loadProducts()
           <ElCol :span="12">
             <ElFormItem label="供应商" prop="supplier_id">
               <ElSelect v-model="form.supplier_id" placeholder="请选择供应商">
-                <ElOption v-for="s in supplierOptions" :key="s.value" :label="s.label" :value="s.value" />
+                <ElOption
+                  v-for="s in supplierOptions"
+                  :key="s.value"
+                  :label="s.label"
+                  :value="s.value"
+                />
               </ElSelect>
             </ElFormItem>
           </ElCol>
           <ElCol :span="12">
             <ElFormItem label="仓库" prop="warehouse_id">
               <ElSelect v-model="form.warehouse_id" placeholder="请选择仓库">
-                <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="w.value" />
+                <ElOption
+                  v-for="w in warehouseOptions"
+                  :key="w.value"
+                  :label="w.label"
+                  :value="w.value"
+                />
               </ElSelect>
             </ElFormItem>
           </ElCol>
@@ -385,12 +424,13 @@ loadProducts()
               <span class="col-action">操作</span>
             </div>
             <div v-for="(item, index) in form.items" :key="index" class="items-row">
-              <ElSelect
-                v-model="item.product_id"
-                placeholder="选择产品"
-                class="col-product"
-              >
-                <ElOption v-for="p in productOptions" :key="p.value" :label="p.label" :value="p.value" />
+              <ElSelect v-model="item.product_id" placeholder="选择产品" class="col-product">
+                <ElOption
+                  v-for="p in productOptions"
+                  :key="p.value"
+                  :label="p.label"
+                  :value="p.value"
+                />
               </ElSelect>
               <ElInputNumber v-model="item.quantity" class="col-qty" />
               <ElInputNumber v-model="item.price" :precision="2" class="col-price" />
@@ -400,7 +440,8 @@ loadProducts()
                 size="small"
                 type="danger"
                 @click="removeItem(index)"
-              >删除</ElButton>
+                >删除</ElButton
+              >
             </div>
             <ElButton type="text" @click="addItem">+ 添加明细</ElButton>
           </div>
@@ -412,16 +453,27 @@ loadProducts()
       </template>
     </ElDialog>
 
-    <ElDialog title="入库单详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="入库单详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
           <ElDescriptionsItem label="入库单号">{{ viewData.receipt_no }}</ElDescriptionsItem>
           <ElDescriptionsItem label="入库日期">{{ viewData.receipt_date }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="采购订单号">{{ viewData.purchase_order_no || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="采购订单号">{{
+            viewData.purchase_order_no || '-'
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="供应商">{{ viewData.supplier_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="仓库">{{ viewData.warehouse_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="入库金额">{{ viewData.total_amount.toFixed(2) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="入库金额">{{
+            viewData.total_amount.toFixed(2)
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="状态">{{
+            getStatusLabel(viewData.status)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建人">{{ viewData.created_by_name }}</ElDescriptionsItem>
         </ElDescriptions>
         <div style="margin-top: 20px">
@@ -503,7 +555,9 @@ loadProducts()
   margin-right: 10px;
 }
 
-.col-qty, .col-price, .col-amount {
+.col-qty,
+.col-price,
+.col-amount {
   width: 100px;
   margin-right: 10px;
 }

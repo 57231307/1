@@ -79,15 +79,30 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="订单号/客户名" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="订单号/客户名"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="客户">
-          <el-select v-model="queryParams.customer_id" placeholder="选择客户" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.customer_id"
+            placeholder="选择客户"
+            clearable
+            @change="handleQuery"
+          >
             <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="订单状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.status"
+            placeholder="选择状态"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="待审批" value="pending" />
             <el-option label="已审批" value="approved" />
             <el-option label="已发货" value="shipped" />
@@ -146,10 +161,33 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click.stop="handleView(row)">详情</el-button>
-            <el-button v-if="row.status === 'pending'" type="success" link size="small" @click.stop="handleApprove(row)">审批</el-button>
-            <el-button v-if="row.status === 'approved'" type="warning" link size="small" @click.stop="handleDeliver(row)">发货</el-button>
-            <el-button v-if="row.status === 'pending'" type="danger" link size="small" @click.stop="handleCancel(row)">取消</el-button>
+            <el-button type="primary" link size="small" @click.stop="handleView(row)"
+              >详情</el-button
+            >
+            <el-button
+              v-if="row.status === 'pending'"
+              type="success"
+              link
+              size="small"
+              @click.stop="handleApprove(row)"
+              >审批</el-button
+            >
+            <el-button
+              v-if="row.status === 'approved'"
+              type="warning"
+              link
+              size="small"
+              @click.stop="handleDeliver(row)"
+              >发货</el-button
+            >
+            <el-button
+              v-if="row.status === 'pending'"
+              type="danger"
+              link
+              size="small"
+              @click.stop="handleCancel(row)"
+              >取消</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -173,21 +211,41 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户" prop="customer_id">
-              <el-select v-model="formData.customer_id" placeholder="选择客户" style="width: 100%" @change="handleCustomerChange">
-                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
+              <el-select
+                v-model="formData.customer_id"
+                placeholder="选择客户"
+                style="width: 100%"
+                @change="handleCustomerChange"
+              >
+                <el-option
+                  v-for="c in customers"
+                  :key="c.id"
+                  :label="c.customer_name"
+                  :value="c.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="订单日期" prop="order_date">
-              <el-date-picker v-model="formData.order_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.order_date"
+                type="date"
+                placeholder="选择日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="要求交货日期" prop="required_date">
-              <el-date-picker v-model="formData.required_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.required_date"
+                type="date"
+                placeholder="选择日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -200,7 +258,12 @@
           <el-input v-model="formData.contact_phone" placeholder="联系电话" style="width: 50%" />
         </el-form-item>
         <el-form-item label="收货地址" prop="delivery_address">
-          <el-input v-model="formData.delivery_address" type="textarea" :rows="2" placeholder="详细收货地址" />
+          <el-input
+            v-model="formData.delivery_address"
+            type="textarea"
+            :rows="2"
+            placeholder="详细收货地址"
+          />
         </el-form-item>
 
         <el-divider content-position="left">订单明细</el-divider>
@@ -208,20 +271,40 @@
           <el-table :data="formData.items" border style="width: 100%">
             <el-table-column label="产品" width="200">
               <template #default="{ row, $index }">
-                <el-select v-model="row.product_id" placeholder="选择产品" @change="handleProductSelect($index)">
-                  <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+                <el-select
+                  v-model="row.product_id"
+                  placeholder="选择产品"
+                  @change="handleProductSelect($index)"
+                >
+                  <el-option
+                    v-for="p in products"
+                    :key="p.id"
+                    :label="p.product_name"
+                    :value="p.id"
+                  />
                 </el-select>
               </template>
             </el-table-column>
             <el-table-column prop="quantity" label="数量" width="120">
               <template #default="{ row }">
-                <el-input-number v-model="row.quantity" :min="1" size="small" @change="calculateSubtotal(row)" />
+                <el-input-number
+                  v-model="row.quantity"
+                  :min="1"
+                  size="small"
+                  @change="calculateSubtotal(row)"
+                />
               </template>
             </el-table-column>
             <el-table-column prop="unit" label="单位" width="80" />
             <el-table-column prop="unit_price" label="单价" width="120">
               <template #default="{ row }">
-                <el-input-number v-model="row.unit_price" :min="0" :precision="2" size="small" @change="calculateSubtotal(row)" />
+                <el-input-number
+                  v-model="row.unit_price"
+                  :min="0"
+                  :precision="2"
+                  size="small"
+                  @change="calculateSubtotal(row)"
+                />
               </template>
             </el-table-column>
             <el-table-column prop="subtotal" label="小计" width="120">
@@ -231,11 +314,13 @@
             </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ $index }">
-                <el-button type="danger" link size="small" @click="removeItem($index)">删除</el-button>
+                <el-button type="danger" link size="small" @click="removeItem($index)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
-          <el-button type="primary" plain size="small" @click="addItem" style="margin-top: 10px;">
+          <el-button type="primary" plain size="small" style="margin-top: 10px" @click="addItem">
             <el-icon><Plus /></el-icon>
             添加明细
           </el-button>
@@ -243,7 +328,12 @@
 
         <el-divider content-position="left">其他信息</el-divider>
         <el-form-item label="备注">
-          <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="订单备注信息" />
+          <el-input
+            v-model="formData.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="订单备注信息"
+          />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="8">
@@ -258,7 +348,9 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="价税合计">
-              <div class="total-amount highlight">¥{{ (calculateTotal() * 1.13).toLocaleString() }}</div>
+              <div class="total-amount highlight">
+                ¥{{ (calculateTotal() * 1.13).toLocaleString() }}
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -277,13 +369,25 @@
             {{ getStatusText(currentOrder?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ currentOrder?.customer_name }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{
+          currentOrder?.customer_name
+        }}</el-descriptions-item>
         <el-descriptions-item label="订单日期">{{ currentOrder?.order_date }}</el-descriptions-item>
-        <el-descriptions-item label="要求交货日期">{{ currentOrder?.required_date }}</el-descriptions-item>
-        <el-descriptions-item label="联系人">{{ currentOrder?.contact_person }}</el-descriptions-item>
-        <el-descriptions-item label="联系电话">{{ currentOrder?.contact_phone }}</el-descriptions-item>
-        <el-descriptions-item label="收货地址" :span="2">{{ currentOrder?.delivery_address }}</el-descriptions-item>
-        <el-descriptions-item label="订单金额">¥{{ currentOrder?.total_amount?.toLocaleString() }}</el-descriptions-item>
+        <el-descriptions-item label="要求交货日期">{{
+          currentOrder?.required_date
+        }}</el-descriptions-item>
+        <el-descriptions-item label="联系人">{{
+          currentOrder?.contact_person
+        }}</el-descriptions-item>
+        <el-descriptions-item label="联系电话">{{
+          currentOrder?.contact_phone
+        }}</el-descriptions-item>
+        <el-descriptions-item label="收货地址" :span="2">{{
+          currentOrder?.delivery_address
+        }}</el-descriptions-item>
+        <el-descriptions-item label="订单金额"
+          >¥{{ currentOrder?.total_amount?.toLocaleString() }}</el-descriptions-item
+        >
         <el-descriptions-item label="创建人">{{ currentOrder?.creator_name }}</el-descriptions-item>
       </el-descriptions>
 
@@ -294,9 +398,7 @@
         <el-table-column prop="quantity" label="数量" width="80" align="right" />
         <el-table-column prop="unit" label="单位" width="60" />
         <el-table-column prop="unit_price" label="单价" width="100" align="right">
-          <template #default="{ row }">
-            ¥{{ row.unit_price.toLocaleString() }}
-          </template>
+          <template #default="{ row }"> ¥{{ row.unit_price.toLocaleString() }} </template>
         </el-table-column>
         <el-table-column prop="subtotal" label="小计" width="120" align="right">
           <template #default="{ row }">
@@ -324,13 +426,27 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发货日期" required>
-              <el-date-picker v-model="deliveryForm.delivery_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker
+                v-model="deliveryForm.delivery_date"
+                type="date"
+                placeholder="选择日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="仓库" required>
-              <el-select v-model="deliveryForm.warehouse_id" placeholder="选择仓库" style="width: 100%">
-                <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouse_name || w.name" :value="w.id" />
+              <el-select
+                v-model="deliveryForm.warehouse_id"
+                placeholder="选择仓库"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="w in warehouses"
+                  :key="w.id"
+                  :label="w.warehouse_name || w.name"
+                  :value="w.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -342,7 +458,12 @@
             <el-table-column prop="delivered_quantity" label="已发货" width="100" />
             <el-table-column label="本次发货" width="120">
               <template #default="{ row }">
-                <el-input-number v-model="row.deliver_quantity" :min="0" :max="row.quantity - (row.delivered_quantity || 0)" size="small" />
+                <el-input-number
+                  v-model="row.deliver_quantity"
+                  :min="0"
+                  :max="row.quantity - (row.delivered_quantity || 0)"
+                  size="small"
+                />
               </template>
             </el-table-column>
             <el-table-column prop="unit_price" label="单价" width="100" />
@@ -368,7 +489,14 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Download, Search, Refresh, Document, Money, Clock, Van
+  Plus,
+  Download,
+  Search,
+  Refresh,
+  Document,
+  Money,
+  Clock,
+  Van,
 } from '@element-plus/icons-vue'
 import { salesApi, type SalesOrder } from '@/api/sales'
 import { customerApi, type Customer } from '@/api/customer'
@@ -391,7 +519,7 @@ const stats = ref({
   monthOrders: 89,
   monthAmount: 1250000,
   pendingOrders: 23,
-  pendingDeliver: 15
+  pendingDeliver: 15,
 })
 
 const dateRange = ref<[Date, Date] | null>(null)
@@ -403,7 +531,7 @@ const queryParams = reactive({
   customer_id: undefined as number | undefined,
   status: '',
   order_date_from: '',
-  order_date_to: ''
+  order_date_to: '',
 })
 
 const formData = reactive<any>({
@@ -415,19 +543,19 @@ const formData = reactive<any>({
   contact_phone: '',
   delivery_address: '',
   remark: '',
-  items: []
+  items: [],
 })
 
 const formRules = {
   customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }]
+  order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
-    minimumFractionDigits: 0
+    minimumFractionDigits: 0,
   }).format(amount)
 }
 
@@ -437,7 +565,7 @@ const getStatusType = (status: string | undefined) => {
     approved: 'primary',
     shipped: 'success',
     completed: 'info',
-    cancelled: 'danger'
+    cancelled: 'danger',
   }
   return typeMap[status || ''] || 'info'
 }
@@ -448,7 +576,7 @@ const getStatusText = (status: string | undefined) => {
     approved: '已审批',
     shipped: '已发货',
     completed: '已完成',
-    cancelled: '已取消'
+    cancelled: '已取消',
   }
   return textMap[status || ''] || status || ''
 }
@@ -524,7 +652,18 @@ const handleCreate = () => {
     contact_phone: '',
     delivery_address: '',
     remark: '',
-    items: [{ id: Date.now(), product_id: undefined, product_name: '', product_code: '', quantity: 1, unit: '米', unit_price: 0, subtotal: 0 }]
+    items: [
+      {
+        id: Date.now(),
+        product_id: undefined,
+        product_name: '',
+        product_code: '',
+        quantity: 1,
+        unit: '米',
+        unit_price: 0,
+        subtotal: 0,
+      },
+    ],
   })
   dialogVisible.value = true
 }
@@ -536,7 +675,9 @@ const handleView = (row: any) => {
 
 const handleApprove = async (row: SalesOrder) => {
   try {
-    await ElMessageBox.confirm(`确定审批通过订单 ${row.order_no} 吗？`, '审批确认', { type: 'success' })
+    await ElMessageBox.confirm(`确定审批通过订单 ${row.order_no} 吗？`, '审批确认', {
+      type: 'success',
+    })
     await salesApi.approveOrder(row.id)
     ElMessage.success(`订单 ${row.order_no} 审批成功`)
     fetchData()
@@ -557,8 +698,8 @@ const handleDeliver = (row: SalesOrder) => {
     items: (row.items || []).map((item: any) => ({
       ...item,
       deliver_quantity: 0,
-      remarks: ''
-    }))
+      remarks: '',
+    })),
   }
   deliveryDialogVisible.value = true
 }
@@ -581,14 +722,14 @@ const handleRowClick = (row: any) => {
 }
 
 const handleCustomerChange = (customerId: number) => {
-  const customer = customers.value.find(c => c.id === customerId)
+  const customer = customers.value.find((c) => c.id === customerId)
   if (customer) {
     formData.customer_name = customer.customer_name
   }
 }
 
 const handleProductSelect = (index: number) => {
-  const product = products.value.find(p => p.id === formData.items[index].product_id)
+  const product = products.value.find((p) => p.id === formData.items[index].product_id)
   if (product) {
     formData.items[index].product_name = product.product_name
     formData.items[index].product_code = product.product_code
@@ -614,7 +755,7 @@ const addItem = () => {
     quantity: 1,
     unit: '米',
     unit_price: 0,
-    subtotal: 0
+    subtotal: 0,
   })
 }
 
@@ -630,7 +771,7 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate()
     formData.total_amount = calculateTotal()
-    
+
     if (isEdit.value && currentOrder.value) {
       await salesApi.updateOrder(currentOrder.value.id, formData)
       ElMessage.success('订单更新成功')
@@ -638,7 +779,7 @@ const handleSubmit = async () => {
       await salesApi.createOrder(formData)
       ElMessage.success('订单创建成功')
     }
-    
+
     dialogVisible.value = false
     fetchData()
   } catch (error: any) {
@@ -651,8 +792,17 @@ const handleSubmit = async () => {
 const handleExport = () => {
   const csvContent = [
     ['订单号', '客户', '订单日期', '金额', '状态', '创建时间'],
-    ...orders.value.map((item: any) => [item.order_no, item.customer_name, item.order_date, item.total_amount, getStatusText(item.status), item.created_at])
-  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+    ...orders.value.map((item: any) => [
+      item.order_no,
+      item.customer_name,
+      item.order_date,
+      item.total_amount,
+      getStatusText(item.status),
+      item.created_at,
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -669,7 +819,7 @@ const deliveryForm = ref({
   customer_name: '',
   delivery_date: new Date().toISOString().split('T')[0],
   warehouse_id: undefined as number | undefined,
-  items: [] as any[]
+  items: [] as any[],
 })
 
 const warehouses = ref<any[]>([])
@@ -688,7 +838,7 @@ const submitDelivery = async () => {
     ElMessage.warning('请选择发货仓库')
     return
   }
-  const validItems = deliveryForm.value.items.filter(item => item.deliver_quantity > 0)
+  const validItems = deliveryForm.value.items.filter((item) => item.deliver_quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请填写至少一项发货数量')
     return
@@ -697,11 +847,11 @@ const submitDelivery = async () => {
     await salesApi.createDelivery(deliveryForm.value.order_id, {
       delivery_date: deliveryForm.value.delivery_date,
       warehouse_id: deliveryForm.value.warehouse_id,
-      items: validItems.map(item => ({
+      items: validItems.map((item) => ({
         product_id: item.product_id,
         quantity: item.deliver_quantity,
-        remarks: item.remarks
-      }))
+        remarks: item.remarks,
+      })),
     })
     ElMessage.success('发货成功')
     deliveryDialogVisible.value = false

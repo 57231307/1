@@ -83,15 +83,30 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="订单号/供应商名" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="订单号/供应商名"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="供应商">
-          <el-select v-model="queryParams.supplier_id" placeholder="选择供应商" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.supplier_id"
+            placeholder="选择供应商"
+            clearable
+            @change="handleQuery"
+          >
             <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="订单状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.status"
+            placeholder="选择状态"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="待审批" value="pending" />
             <el-option label="已审批" value="approved" />
             <el-option label="部分收货" value="partial" />
@@ -150,8 +165,22 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">详情</el-button>
-            <el-button v-if="row.status === 'approved'" type="warning" link size="small" @click="handleReceive(row)">收货</el-button>
-            <el-button v-if="row.status === 'pending'" type="success" link size="small" @click="handleApprove(row)">审批</el-button>
+            <el-button
+              v-if="row.status === 'approved'"
+              type="warning"
+              link
+              size="small"
+              @click="handleReceive(row)"
+              >收货</el-button
+            >
+            <el-button
+              v-if="row.status === 'pending'"
+              type="success"
+              link
+              size="small"
+              @click="handleApprove(row)"
+              >审批</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -175,21 +204,40 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="供应商" required>
-              <el-select v-model="createForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
+              <el-select
+                v-model="createForm.supplier_id"
+                placeholder="选择供应商"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="s in suppliers"
+                  :key="s.id"
+                  :label="s.supplier_name"
+                  :value="s.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="订单日期" required>
-              <el-date-picker v-model="createForm.order_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker
+                v-model="createForm.order_date"
+                type="date"
+                placeholder="选择日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="要求交货日期">
-              <el-date-picker v-model="createForm.required_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker
+                v-model="createForm.required_date"
+                type="date"
+                placeholder="选择日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -208,13 +256,40 @@
               <span class="col-action">操作</span>
             </div>
             <div v-for="(item, index) in createForm.items" :key="index" class="items-row">
-              <el-select v-model="item.product_id" placeholder="选择产品" class="col-product" @change="handleProductSelect(index)">
-                <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+              <el-select
+                v-model="item.product_id"
+                placeholder="选择产品"
+                class="col-product"
+                @change="handleProductSelect(index)"
+              >
+                <el-option
+                  v-for="p in products"
+                  :key="p.id"
+                  :label="p.product_name"
+                  :value="p.id"
+                />
               </el-select>
-              <el-input-number v-model="item.quantity" :min="1" class="col-qty" @change="calculateSubtotal(item)" />
-              <el-input-number v-model="item.unit_price" :min="0" :precision="2" class="col-price" @change="calculateSubtotal(item)" />
+              <el-input-number
+                v-model="item.quantity"
+                :min="1"
+                class="col-qty"
+                @change="calculateSubtotal(item)"
+              />
+              <el-input-number
+                v-model="item.unit_price"
+                :min="0"
+                :precision="2"
+                class="col-price"
+                @change="calculateSubtotal(item)"
+              />
               <el-input-number v-model="item.subtotal" :precision="2" class="col-amount" readonly />
-              <el-button v-if="createForm.items.length > 1" size="small" type="danger" @click="removeItem(index)">删除</el-button>
+              <el-button
+                v-if="createForm.items.length > 1"
+                size="small"
+                type="danger"
+                @click="removeItem(index)"
+                >删除</el-button
+              >
             </div>
             <el-button type="text" @click="addItem">+ 添加明细</el-button>
           </div>
@@ -249,13 +324,27 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="收货日期" required>
-              <el-date-picker v-model="receiveForm.receive_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker
+                v-model="receiveForm.receive_date"
+                type="date"
+                placeholder="选择日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="仓库" required>
-              <el-select v-model="receiveForm.warehouse_id" placeholder="选择仓库" style="width: 100%">
-                <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouse_name" :value="w.id" />
+              <el-select
+                v-model="receiveForm.warehouse_id"
+                placeholder="选择仓库"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="w in warehouses"
+                  :key="w.id"
+                  :label="w.warehouse_name"
+                  :value="w.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -267,7 +356,12 @@
             <el-table-column prop="received_quantity" label="已收货" width="100" />
             <el-table-column label="本次收货" width="120">
               <template #default="{ row }">
-                <el-input-number v-model="row.receive_quantity" :min="0" :max="row.ordered_quantity - row.received_quantity" size="small" />
+                <el-input-number
+                  v-model="row.receive_quantity"
+                  :min="0"
+                  :max="row.ordered_quantity - row.received_quantity"
+                  size="small"
+                />
               </template>
             </el-table-column>
             <el-table-column prop="unit_price" label="单价" width="100" />
@@ -293,18 +387,30 @@
         <el-descriptions-item label="采购单号">{{ viewData.order_no }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
         <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
-        <el-descriptions-item label="要求交货日期">{{ viewData.required_date }}</el-descriptions-item>
-        <el-descriptions-item label="订单金额">¥{{ viewData.total_amount?.toLocaleString() }}</el-descriptions-item>
-        <el-descriptions-item label="已收货金额">¥{{ (viewData.received_amount || 0).toLocaleString() }}</el-descriptions-item>
+        <el-descriptions-item label="要求交货日期">{{
+          viewData.required_date
+        }}</el-descriptions-item>
+        <el-descriptions-item label="订单金额"
+          >¥{{ viewData.total_amount?.toLocaleString() }}</el-descriptions-item
+        >
+        <el-descriptions-item label="已收货金额"
+          >¥{{ (viewData.received_amount || 0).toLocaleString() }}</el-descriptions-item
+        >
         <el-descriptions-item label="付款状态">
-          <el-tag :type="getPaymentStatusType(viewData.payment_status)">{{ getPaymentStatusText(viewData.payment_status) }}</el-tag>
+          <el-tag :type="getPaymentStatusType(viewData.payment_status)">{{
+            getPaymentStatusText(viewData.payment_status)
+          }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="订单状态">
-          <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
+          <el-tag :type="getStatusType(viewData.status)">{{
+            getStatusText(viewData.status)
+          }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ viewData.creator_name }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ viewData.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ viewData.remarks || '无' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          viewData.remarks || '无'
+        }}</el-descriptions-item>
       </el-descriptions>
       <div style="margin-top: 20px">
         <h4>采购明细</h4>
@@ -325,7 +431,17 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Document, Money, Clock, OfficeBuilding, Printer, Download } from '@element-plus/icons-vue'
+import {
+  Plus,
+  Search,
+  Refresh,
+  Document,
+  Money,
+  Clock,
+  OfficeBuilding,
+  Printer,
+  Download,
+} from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
 import { supplierApi, type Supplier } from '@/api/supplier'
@@ -343,7 +459,7 @@ const stats = ref({
   monthOrders: 0,
   monthAmount: 0,
   pendingReceipt: 0,
-  supplierCount: 0
+  supplierCount: 0,
 })
 
 const queryParams = reactive({
@@ -351,7 +467,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   supplier_id: undefined as number | undefined,
-  status: ''
+  status: '',
 })
 
 // 新建采购单对话框
@@ -361,7 +477,7 @@ const createForm = ref({
   order_date: new Date().toISOString().split('T')[0],
   required_date: '',
   remark: '',
-  items: [{ product_id: undefined as number | undefined, quantity: 1, unit_price: 0, subtotal: 0 }]
+  items: [{ product_id: undefined as number | undefined, quantity: 1, unit_price: 0, subtotal: 0 }],
 })
 
 // 收货对话框
@@ -372,7 +488,7 @@ const receiveForm = ref({
   supplier_name: '',
   receive_date: new Date().toISOString().split('T')[0],
   warehouse_id: undefined as number | undefined,
-  items: [] as any[]
+  items: [] as any[],
 })
 
 // 查看对话框
@@ -380,16 +496,32 @@ const viewDialogVisible = ref(false)
 const viewData = ref<any>({})
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 0 }).format(amount)
+  return new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: 'CNY',
+    minimumFractionDigits: 0,
+  }).format(amount)
 }
 
 const getStatusType = (status: string) => {
-  const typeMap: Record<string, any> = { pending: 'warning', approved: 'primary', partial: 'info', completed: 'success', cancelled: 'danger' }
+  const typeMap: Record<string, any> = {
+    pending: 'warning',
+    approved: 'primary',
+    partial: 'info',
+    completed: 'success',
+    cancelled: 'danger',
+  }
   return typeMap[status] || 'info'
 }
 
 const getStatusText = (status: string) => {
-  const textMap: Record<string, string> = { pending: '待审批', approved: '已审批', partial: '部分收货', completed: '已完成', cancelled: '已取消' }
+  const textMap: Record<string, string> = {
+    pending: '待审批',
+    approved: '已审批',
+    partial: '部分收货',
+    completed: '已完成',
+    cancelled: '已取消',
+  }
   return textMap[status] || status
 }
 
@@ -409,11 +541,11 @@ const fetchData = async () => {
     const res = await purchaseApi.getOrderList(queryParams)
     orders.value = res.data!.list || []
     total.value = res.data?.total || 0
-    
+
     // 计算统计数据
     stats.value.monthOrders = total.value
     stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0)
-    stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length
+    stats.value.pendingReceipt = orders.value.filter((o) => o.status === 'approved').length
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购单列表失败')
     orders.value = []
@@ -451,8 +583,16 @@ const fetchWarehouses = async () => {
   }
 }
 
-const handleQuery = () => { queryParams.page = 1; fetchData() }
-const handleReset = () => { queryParams.keyword = ''; queryParams.supplier_id = undefined; queryParams.status = ''; handleQuery() }
+const handleQuery = () => {
+  queryParams.page = 1
+  fetchData()
+}
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.supplier_id = undefined
+  queryParams.status = ''
+  handleQuery()
+}
 
 const handleCreate = () => {
   createForm.value = {
@@ -460,7 +600,7 @@ const handleCreate = () => {
     order_date: new Date().toISOString().split('T')[0],
     required_date: '',
     remarks: '',
-    items: [{ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 }]
+    items: [{ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 }],
   }
   createDialogVisible.value = true
 }
@@ -472,7 +612,9 @@ const handleView = (row: PurchaseOrder) => {
 
 const handleApprove = async (row: PurchaseOrder) => {
   try {
-    await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', { type: 'success' })
+    await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', {
+      type: 'success',
+    })
     await purchaseApi.approveOrder(row.id)
     ElMessage.success(`采购单 ${row.order_no} 审批成功`)
     fetchData()
@@ -493,20 +635,20 @@ const handleReceive = (row: PurchaseOrder) => {
     items: (row.items || []).map((item: any) => ({
       ...item,
       receive_quantity: 0,
-      remarks: ''
-    }))
+      remarks: '',
+    })),
   }
   receiveDialogVisible.value = true
 }
 
 const handlePrint = () => {
   const printData = orders.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '订单号': item.order_no,
-    '供应商': item.supplier_name,
-    '金额': `¥${item.total_amount}`,
-    '状态': getStatusText(item.status),
-    '创建时间': item.created_at
+    序号: index + 1,
+    订单号: item.order_no,
+    供应商: item.supplier_name,
+    金额: `¥${item.total_amount}`,
+    状态: getStatusText(item.status),
+    创建时间: item.created_at,
   }))
   printJS({
     printable: printData,
@@ -516,15 +658,23 @@ const handlePrint = () => {
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+    gridStyle: 'border-collapse: collapse; width: 100%;',
   })
 }
 
 const handleExport = () => {
   const csvContent = [
     ['订单号', '供应商', '金额', '状态', '创建时间'],
-    ...orders.value.map((item: any) => [item.order_no, item.supplier_name, item.total_amount, getStatusText(item.status), item.created_at])
-  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+    ...orders.value.map((item: any) => [
+      item.order_no,
+      item.supplier_name,
+      item.total_amount,
+      getStatusText(item.status),
+      item.created_at,
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -545,7 +695,7 @@ const removeItem = (index: number) => {
 }
 
 const handleProductSelect = (index: number) => {
-  const product = products.value.find(p => p.id === createForm.value.items[index].product_id)
+  const product = products.value.find((p) => p.id === createForm.value.items[index].product_id)
   if (product) {
     createForm.value.items[index].unit_price = product.price || 0
     calculateSubtotal(createForm.value.items[index])
@@ -569,7 +719,7 @@ const submitCreate = async () => {
     ElMessage.warning('请选择订单日期')
     return
   }
-  const validItems = createForm.value.items.filter(item => item.product_id && item.quantity > 0)
+  const validItems = createForm.value.items.filter((item) => item.product_id && item.quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的采购明细')
     return
@@ -577,16 +727,16 @@ const submitCreate = async () => {
   try {
     await purchaseApi.createOrder({
       ...createForm.value,
-      items: validItems.map(item => ({
+      items: validItems.map((item) => ({
         id: 0,
         product_id: item.product_id!,
         product_name: '',
         product_code: '',
         quantity: item.quantity,
         unit_price: item.unit_price,
-        subtotal: item.subtotal
+        subtotal: item.subtotal,
       })),
-      total_amount: calculateTotal()
+      total_amount: calculateTotal(),
     })
     ElMessage.success('采购单创建成功')
     createDialogVisible.value = false
@@ -601,7 +751,7 @@ const submitReceive = async () => {
     ElMessage.warning('请选择收货仓库')
     return
   }
-  const validItems = receiveForm.value.items.filter(item => item.receive_quantity > 0)
+  const validItems = receiveForm.value.items.filter((item) => item.receive_quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请填写至少一项收货数量')
     return
@@ -611,11 +761,11 @@ const submitReceive = async () => {
       order_id: receiveForm.value.order_id,
       receive_date: receiveForm.value.receive_date,
       warehouse_id: receiveForm.value.warehouse_id,
-      items: validItems.map(item => ({
+      items: validItems.map((item) => ({
         product_id: item.product_id,
         quantity: item.receive_quantity,
-        remarks: item.remarks
-      }))
+        remarks: item.remarks,
+      })),
     })
     ElMessage.success('收货成功')
     receiveDialogVisible.value = false
@@ -625,8 +775,8 @@ const submitReceive = async () => {
   }
 }
 
-onMounted(() => { 
-  fetchData(); 
+onMounted(() => {
+  fetchData()
   fetchSuppliers()
   fetchProducts()
   fetchWarehouses()
@@ -634,39 +784,157 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.purchase-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.stats-row { margin-bottom: 20px; }
-.stat-card { border-radius: 12px; transition: all 0.3s ease; }
-.stat-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
-.stat-card.highlight { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.stat-card.highlight .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.highlight .stat-label, .stat-card.highlight .stat-value { color: white; }
-.stat-card.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-card.warning .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.warning .stat-label, .stat-card.warning .stat-value { color: white; }
-.stat-content { display: flex; align-items: center; gap: 16px; }
-.stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-.stat-icon.order-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.stat-icon.amount-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.pending-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.supplier-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.stat-info { flex: 1; }
-.stat-label { font-size: 14px; color: #909399; margin-bottom: 4px; }
-.stat-value { font-size: 28px; font-weight: 700; color: #303133; line-height: 1.2; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
-.amount { font-weight: 600; color: #f56c6c; }
-:deep(.el-card__header) { padding: 16px 20px; border-bottom: 1px solid #ebeef5; }
-:deep(.el-card__body) { padding: 20px; }
-.items-table { border: 1px solid #ebeef5; border-radius: 4px; }
-.items-header { display: flex; background: #f5f7fa; padding: 10px; font-weight: bold; }
-.items-row { display: flex; padding: 10px; border-top: 1px solid #ebeef5; }
-.col-product { flex: 2; margin-right: 10px; }
-.col-qty, .col-price, .col-amount { width: 100px; margin-right: 10px; }
-.col-action { width: 60px; }
-.total-amount { font-size: 20px; font-weight: 600; color: #f56c6c; }
+.purchase-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.stats-row {
+  margin-bottom: 20px;
+}
+.stat-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.stat-card.highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.stat-card.highlight .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-card.highlight .stat-label,
+.stat-card.highlight .stat-value {
+  color: white;
+}
+.stat-card.warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+.stat-card.warning .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-card.warning .stat-label,
+.stat-card.warning .stat-value {
+  color: white;
+}
+.stat-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+.stat-icon.order-icon {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+.stat-icon.amount-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-icon.pending-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-icon.supplier-icon {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+.stat-info {
+  flex: 1;
+}
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+.amount {
+  font-weight: 600;
+  color: #f56c6c;
+}
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+:deep(.el-card__body) {
+  padding: 20px;
+}
+.items-table {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+.items-header {
+  display: flex;
+  background: #f5f7fa;
+  padding: 10px;
+  font-weight: bold;
+}
+.items-row {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #ebeef5;
+}
+.col-product {
+  flex: 2;
+  margin-right: 10px;
+}
+.col-qty,
+.col-price,
+.col-amount {
+  width: 100px;
+  margin-right: 10px;
+}
+.col-action {
+  width: 60px;
+}
+.total-amount {
+  font-size: 20px;
+  font-weight: 600;
+  color: #f56c6c;
+}
 </style>

@@ -27,18 +27,18 @@ module.exports = {
     'vue/no-v-html': 'off',
     'vue/require-default-prop': 'off',
     'vue/require-explicit-emits': 'off',
-    
+
     // TypeScript 相关规则
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/ban-ts-comment': 'off',
     '@typescript-eslint/no-non-null-assertion': 'off',
-    
+
     // 通用规则
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-debugger': 'warn',
     'no-unused-vars': 'off', // 使用 TypeScript 的规则
-    
+
     // Prettier 规则
     'prettier/prettier': [
       'error',

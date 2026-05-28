@@ -44,7 +44,7 @@
         </el-card>
 
         <el-card shadow="hover">
-          <el-table :data="invoices" v-loading="invoiceLoading" stripe>
+          <el-table v-loading="invoiceLoading" :data="invoices" stripe>
             <el-table-column prop="invoice_no" label="发票号" width="140" />
             <el-table-column prop="supplier_name" label="供应商" width="150" />
             <el-table-column prop="invoice_date" label="发票日期" width="120" />
@@ -80,9 +80,25 @@
             <el-table-column prop="due_date" label="到期日" width="120" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewInvoice(row)">查看</el-button>
-                <el-button v-if="row.status === 'pending'" type="success" link size="small" @click="approveInvoice(row)">审核</el-button>
-                <el-button v-if="row.status === 'pending'" type="danger" link size="small" @click="cancelInvoice(row)">取消</el-button>
+                <el-button type="primary" link size="small" @click="viewInvoice(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="approveInvoice(row)"
+                  >审核</el-button
+                >
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="cancelInvoice(row)"
+                  >取消</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -99,7 +115,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="payments" v-loading="paymentLoading" stripe>
+          <el-table v-loading="paymentLoading" :data="payments" stripe>
             <el-table-column prop="payment_no" label="付款单号" width="140" />
             <el-table-column prop="supplier_name" label="供应商" width="150" />
             <el-table-column prop="payment_date" label="付款日期" width="120" />
@@ -124,7 +140,14 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="120" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status !== 'confirmed'" type="success" link size="small" @click="confirmPayment(row)">确认</el-button>
+                <el-button
+                  v-if="row.status !== 'confirmed'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="confirmPayment(row)"
+                  >确认</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -141,7 +164,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="verifications" v-loading="verificationLoading" stripe>
+          <el-table v-loading="verificationLoading" :data="verifications" stripe>
             <el-table-column prop="verification_no" label="核销单号" width="140" />
             <el-table-column prop="invoice_no" label="发票号" width="140" />
             <el-table-column prop="payment_no" label="付款单号" width="140" />
@@ -173,7 +196,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="reconciliations" v-loading="reconciliationLoading" stripe>
+          <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe>
             <el-table-column prop="reconciliation_no" label="对账单号" width="140" />
             <el-table-column prop="supplier_name" label="供应商" width="150" />
             <el-table-column prop="reconciliation_date" label="对账日期" width="120" />
@@ -203,8 +226,22 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status === 'pending'" type="success" link size="small" @click="confirmReconciliation(row)">确认</el-button>
-                <el-button v-if="row.status === 'pending'" type="warning" link size="small" @click="disputeReconciliation(row)">异议</el-button>
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="confirmReconciliation(row)"
+                  >确认</el-button
+                >
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="disputeReconciliation(row)"
+                  >异议</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -217,8 +254,17 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
-              <el-select v-model="invoiceForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
+              <el-select
+                v-model="invoiceForm.supplier_id"
+                placeholder="选择供应商"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="s in suppliers"
+                  :key="s.id"
+                  :label="s.supplier_name"
+                  :value="s.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -231,24 +277,46 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发票日期" prop="invoice_date">
-              <el-date-picker v-model="invoiceForm.invoice_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="invoiceForm.invoice_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="到期日">
-              <el-date-picker v-model="invoiceForm.due_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="invoiceForm.due_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发票金额" prop="invoice_amount">
-              <el-input-number v-model="invoiceForm.invoice_amount" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="invoiceForm.invoice_amount"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="税额">
-              <el-input-number v-model="invoiceForm.tax_amount" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="invoiceForm.tax_amount"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -258,7 +326,9 @@
       </el-form>
       <template #footer>
         <el-button @click="invoiceDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice">确定</el-button>
+        <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -267,26 +337,50 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
-              <el-select v-model="paymentForm.supplier_id" placeholder="选择供应商" style="width: 100%">
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
+              <el-select
+                v-model="paymentForm.supplier_id"
+                placeholder="选择供应商"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="s in suppliers"
+                  :key="s.id"
+                  :label="s.supplier_name"
+                  :value="s.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="付款日期" prop="payment_date">
-              <el-date-picker v-model="paymentForm.payment_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="paymentForm.payment_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="付款金额" prop="payment_amount">
-              <el-input-number v-model="paymentForm.payment_amount" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="paymentForm.payment_amount"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="付款方式" prop="payment_method">
-              <el-select v-model="paymentForm.payment_method" placeholder="选择方式" style="width: 100%">
+              <el-select
+                v-model="paymentForm.payment_method"
+                placeholder="选择方式"
+                style="width: 100%"
+              >
                 <el-option label="银行转账" value="bank_transfer" />
                 <el-option label="现金" value="cash" />
                 <el-option label="支票" value="check" />
@@ -304,29 +398,56 @@
       </el-form>
       <template #footer>
         <el-button @click="paymentDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="paymentSubmitLoading" @click="submitPayment">确定</el-button>
+        <el-button type="primary" :loading="paymentSubmitLoading" @click="submitPayment"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="verificationDialogVisible" title="核销" width="700px">
       <el-form label-width="80px">
         <el-form-item label="选择发票">
-          <el-select v-model="verificationForm.invoice_id" placeholder="选择待核销发票" style="width: 100%">
-            <el-option v-for="inv in unverifiedInvoices" :key="inv.id" :label="`${inv.invoice_no} - ${formatMoney(inv.unverified_amount)}`" :value="inv.id" />
+          <el-select
+            v-model="verificationForm.invoice_id"
+            placeholder="选择待核销发票"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="inv in unverifiedInvoices"
+              :key="inv.id"
+              :label="`${inv.invoice_no} - ${formatMoney(inv.unverified_amount)}`"
+              :value="inv.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="选择付款">
-          <el-select v-model="verificationForm.payment_id" placeholder="选择付款记录" style="width: 100%">
-            <el-option v-for="p in unverifiedPayments" :key="p.id" :label="`${p.payment_no} - ${formatMoney(p.payment_amount)}`" :value="p.id" />
+          <el-select
+            v-model="verificationForm.payment_id"
+            placeholder="选择付款记录"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="p in unverifiedPayments"
+              :key="p.id"
+              :label="`${p.payment_no} - ${formatMoney(p.payment_amount)}`"
+              :value="p.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="核销金额">
-          <el-input-number v-model="verificationForm.amount" :min="0" :precision="2" style="width: 200px" />
+          <el-input-number
+            v-model="verificationForm.amount"
+            :min="0"
+            :precision="2"
+            style="width: 200px"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="verificationDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="verificationSubmitLoading" @click="submitVerification">确定</el-button>
+        <el-button type="primary" :loading="verificationSubmitLoading" @click="submitVerification"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -334,15 +455,29 @@
     <el-dialog v-model="reconciliationDialogVisible" title="生成对账单" width="500px">
       <el-form :model="reconciliationForm" label-width="100px">
         <el-form-item label="供应商" required>
-          <el-select v-model="reconciliationForm.supplier_id" placeholder="选择供应商" style="width: 100%">
+          <el-select
+            v-model="reconciliationForm.supplier_id"
+            placeholder="选择供应商"
+            style="width: 100%"
+          >
             <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="开始日期" required>
-          <el-date-picker v-model="reconciliationForm.start_date" type="date" placeholder="选择开始日期" style="width: 100%" />
+          <el-date-picker
+            v-model="reconciliationForm.start_date"
+            type="date"
+            placeholder="选择开始日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="结束日期" required>
-          <el-date-picker v-model="reconciliationForm.end_date" type="date" placeholder="选择结束日期" style="width: 100%" />
+          <el-date-picker
+            v-model="reconciliationForm.end_date"
+            type="date"
+            placeholder="选择结束日期"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -361,10 +496,22 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listAPInvoices, createAPInvoice, approveAPInvoice, cancelAPInvoice, type APInvoice } from '@/api/ap'
+import {
+  listAPInvoices,
+  createAPInvoice,
+  approveAPInvoice,
+  cancelAPInvoice,
+  type APInvoice,
+} from '@/api/ap'
 import { listAPPayments, createAPPayment, confirmAPPayment, type APPayment } from '@/api/ap'
 import { listAPVerifications, manualVerifyAP, type APVerification } from '@/api/ap'
-import { listAPReconciliations, confirmAPReconciliation, disputeAPReconciliation, generateAPReconciliation, type APReconciliation } from '@/api/ap'
+import {
+  listAPReconciliations,
+  confirmAPReconciliation,
+  disputeAPReconciliation,
+  generateAPReconciliation,
+  type APReconciliation,
+} from '@/api/ap'
 import { listSuppliers, type Supplier } from '@/api/supplier'
 
 const activeTab = ref('invoice')
@@ -385,7 +532,7 @@ const reconciliationLoading = ref(false)
 const invoiceQuery = reactive({
   supplier_name: '',
   invoice_no: '',
-  status: ''
+  status: '',
 })
 
 const formatMoney = (amount: number) => {
@@ -393,22 +540,42 @@ const formatMoney = (amount: number) => {
 }
 
 const getInvoiceStatusLabel = (status: string) => {
-  const map: Record<string, string> = { pending: '待审核', approved: '已审核', verified: '已核销', cancelled: '已取消' }
+  const map: Record<string, string> = {
+    pending: '待审核',
+    approved: '已审核',
+    verified: '已核销',
+    cancelled: '已取消',
+  }
   return map[status] || status
 }
 
 const getAPInvoiceStatusText = (status: string) => {
-  const map: Record<string, string> = { pending: '待审核', approved: '已审核', verified: '已核销', cancelled: '已取消' }
+  const map: Record<string, string> = {
+    pending: '待审核',
+    approved: '已审核',
+    verified: '已核销',
+    cancelled: '已取消',
+  }
   return map[status] || status
 }
 
 const getInvoiceStatusType = (status: string) => {
-  const map: Record<string, string> = { pending: 'warning', approved: 'success', verified: 'primary', cancelled: 'info' }
+  const map: Record<string, string> = {
+    pending: 'warning',
+    approved: 'success',
+    verified: 'primary',
+    cancelled: 'info',
+  }
   return map[status] || 'info'
 }
 
 const getPaymentMethodLabel = (method: string) => {
-  const map: Record<string, string> = { bank_transfer: '银行转账', cash: '现金', check: '支票', acceptance_bill: '承兑汇票' }
+  const map: Record<string, string> = {
+    bank_transfer: '银行转账',
+    cash: '现金',
+    check: '支票',
+    acceptance_bill: '承兑汇票',
+  }
   return map[method] || method
 }
 
@@ -418,7 +585,11 @@ const getReconciliationStatusLabel = (status: string) => {
 }
 
 const getReconciliationStatusType = (status: string) => {
-  const map: Record<string, string> = { pending: 'warning', confirmed: 'success', disputed: 'danger' }
+  const map: Record<string, string> = {
+    pending: 'warning',
+    confirmed: 'success',
+    disputed: 'danger',
+  }
   return map[status] || 'info'
 }
 
@@ -501,14 +672,14 @@ const invoiceForm = reactive({
   invoice_amount: 0,
   tax_amount: 0,
   due_date: '',
-  remark: ''
+  remark: '',
 })
 
 const invoiceRules: FormRules = {
   supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
   invoice_no: [{ required: true, message: '请输入发票号', trigger: 'blur' }],
   invoice_date: [{ required: true, message: '请选择发票日期', trigger: 'change' }],
-  invoice_amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }]
+  invoice_amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }],
 }
 
 const openInvoiceDialog = () => {
@@ -526,7 +697,7 @@ const openInvoiceDialog = () => {
 const submitInvoice = async () => {
   const valid = await invoiceFormRef.value?.validate()
   if (!valid) return
-  
+
   invoiceSubmitLoading.value = true
   try {
     await createAPInvoice(invoiceForm)
@@ -579,14 +750,14 @@ const paymentForm = reactive({
   payment_amount: 0,
   payment_method: 'bank_transfer',
   bank_account: '',
-  remark: ''
+  remark: '',
 })
 
 const paymentRules: FormRules = {
   supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
   payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
   payment_amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }],
-  payment_method: [{ required: true, message: '请选择付款方式', trigger: 'change' }]
+  payment_method: [{ required: true, message: '请选择付款方式', trigger: 'change' }],
 }
 
 const openPaymentDialog = () => {
@@ -603,7 +774,7 @@ const openPaymentDialog = () => {
 const submitPayment = async () => {
   const valid = await paymentFormRef.value?.validate()
   if (!valid) return
-  
+
   paymentSubmitLoading.value = true
   try {
     await createAPPayment(paymentForm)
@@ -635,14 +806,14 @@ const verificationSubmitLoading = ref(false)
 const verificationForm = reactive({
   invoice_id: undefined as number | undefined,
   payment_id: undefined as number | undefined,
-  amount: 0
+  amount: 0,
 })
 
 const openVerificationDialog = async () => {
   try {
     const [invRes, payRes] = await Promise.all([
       listAPInvoices({ status: 'approved' }),
-      listAPPayments({ status: 'confirmed' })
+      listAPPayments({ status: 'confirmed' }),
     ])
     unverifiedInvoices.value = (invRes.data || []).filter((i: APInvoice) => i.unverified_amount > 0)
     unverifiedPayments.value = payRes.data || []
@@ -656,17 +827,21 @@ const openVerificationDialog = async () => {
 }
 
 const submitVerification = async () => {
-  if (!verificationForm.invoice_id || !verificationForm.payment_id || verificationForm.amount <= 0) {
+  if (
+    !verificationForm.invoice_id ||
+    !verificationForm.payment_id ||
+    verificationForm.amount <= 0
+  ) {
     ElMessage.warning('请完整填写核销信息')
     return
   }
-  
+
   verificationSubmitLoading.value = true
   try {
     await manualVerifyAP({
       invoice_id: verificationForm.invoice_id,
       payment_id: verificationForm.payment_id,
-      amount: verificationForm.amount
+      amount: verificationForm.amount,
     })
     ElMessage.success('核销成功')
     verificationDialogVisible.value = false
@@ -683,7 +858,7 @@ const generateReconciliation = async () => {
   reconciliationForm.value = {
     supplier_id: undefined,
     start_date: '',
-    end_date: ''
+    end_date: '',
   }
   reconciliationDialogVisible.value = true
 }
@@ -692,11 +867,15 @@ const reconciliationDialogVisible = ref(false)
 const reconciliationForm = ref({
   supplier_id: undefined as number | undefined,
   start_date: '',
-  end_date: ''
+  end_date: '',
 })
 
 const submitReconciliation = async () => {
-  if (!reconciliationForm.value.supplier_id || !reconciliationForm.value.start_date || !reconciliationForm.value.end_date) {
+  if (
+    !reconciliationForm.value.supplier_id ||
+    !reconciliationForm.value.start_date ||
+    !reconciliationForm.value.end_date
+  ) {
     ElMessage.warning('请填写完整信息')
     return
   }
@@ -704,7 +883,7 @@ const submitReconciliation = async () => {
     await generateAPReconciliation({
       supplier_id: reconciliationForm.value.supplier_id,
       start_date: reconciliationForm.value.start_date,
-      end_date: reconciliationForm.value.end_date
+      end_date: reconciliationForm.value.end_date,
     })
     ElMessage.success('对账单生成成功')
     reconciliationDialogVisible.value = false
@@ -729,7 +908,10 @@ const confirmReconciliation = async (row: APReconciliation) => {
 
 const disputeReconciliation = async (row: APReconciliation) => {
   try {
-    const { value } = await ElMessageBox.prompt('请输入异议原因', '异议说明', { inputPattern: /.+/, inputErrorMessage: '请输入异议原因' })
+    const { value } = await ElMessageBox.prompt('请输入异议原因', '异议说明', {
+      inputPattern: /.+/,
+      inputErrorMessage: '请输入异议原因',
+    })
     await disputeAPReconciliation(row.id, value)
     ElMessage.success('已提交异议')
     fetchReconciliations()
@@ -742,13 +924,13 @@ const disputeReconciliation = async (row: APReconciliation) => {
 
 const handlePrintInvoices = () => {
   const printData = invoices.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '发票号': item.invoice_no,
-    '供应商': item.supplier_name,
-    '发票金额': `¥${item.invoice_amount}`,
-    '税额': `¥${item.tax_amount}`,
-    '状态': getAPInvoiceStatusText(item.status),
-    '发票日期': item.invoice_date
+    序号: index + 1,
+    发票号: item.invoice_no,
+    供应商: item.supplier_name,
+    发票金额: `¥${item.invoice_amount}`,
+    税额: `¥${item.tax_amount}`,
+    状态: getAPInvoiceStatusText(item.status),
+    发票日期: item.invoice_date,
   }))
   printJS({
     printable: printData,
@@ -758,15 +940,24 @@ const handlePrintInvoices = () => {
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+    gridStyle: 'border-collapse: collapse; width: 100%;',
   })
 }
 
 const handleExportInvoices = () => {
   const csvContent = [
     ['发票号', '供应商', '发票金额', '税额', '状态', '发票日期'],
-    ...invoices.value.map((item: any) => [item.invoice_no, item.supplier_name, item.invoice_amount, item.tax_amount, getAPInvoiceStatusText(item.status), item.invoice_date])
-  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+    ...invoices.value.map((item: any) => [
+      item.invoice_no,
+      item.supplier_name,
+      item.invoice_amount,
+      item.tax_amount,
+      getAPInvoiceStatusText(item.status),
+      item.invoice_date,
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -785,9 +976,27 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.ap-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
-.filter-card { margin-bottom: 20px; }
-.text-red { color: #f56c6c; }
+.ap-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.text-red {
+  color: #f56c6c;
+}
 </style>

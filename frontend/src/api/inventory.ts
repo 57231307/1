@@ -91,8 +91,7 @@ export const inventoryApi = {
       params,
     }),
 
-  getStockById: (id: number) =>
-    request.get<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`),
+  getStockById: (id: number) => request.get<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`),
 
   getStockByProduct: (productId: number) =>
     request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`),
@@ -113,10 +112,9 @@ export const inventoryApi = {
     request.delete<ApiResponse<null>>(`/inventory/reservations/${id}`),
 
   getTransfers: (params?: InventoryQueryParams) =>
-    request.get<ApiResponse<{ list: InventoryTransfer[]; total: number }>>(
-      '/inventory/transfers',
-      { params }
-    ),
+    request.get<ApiResponse<{ list: InventoryTransfer[]; total: number }>>('/inventory/transfers', {
+      params,
+    }),
 
   createTransfer: (data: any) =>
     request.post<ApiResponse<InventoryTransfer>>('/inventory/transfers', data),
@@ -127,8 +125,7 @@ export const inventoryApi = {
   executeTransfer: (id: number) =>
     request.post<ApiResponse<null>>(`/inventory/transfers/${id}/ship`),
 
-  getStockAlerts: () =>
-    request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts'),
+  getStockAlerts: () => request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts'),
 
   getInventoryReport: (params: any) =>
     request.get<ApiResponse<any>>('/inventory/stock/summary', { params }),

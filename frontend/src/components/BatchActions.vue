@@ -26,7 +26,12 @@
       :close-on-click-modal="false"
     >
       <div class="confirm-content">
-        <p>{{ currentAction?.confirmMessage || `确定要对选中的 ${selectedRows.length} 项执行此操作吗？` }}</p>
+        <p>
+          {{
+            currentAction?.confirmMessage ||
+            `确定要对选中的 ${selectedRows.length} 项执行此操作吗？`
+          }}
+        </p>
         <el-alert
           v-if="currentAction?.warningMessage"
           :title="currentAction.warningMessage"
@@ -38,9 +43,7 @@
       </div>
       <template #footer>
         <el-button @click="confirmDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="executing" @click="executeAction">
-          确认执行
-        </el-button>
+        <el-button type="primary" :loading="executing" @click="executeAction"> 确认执行 </el-button>
       </template>
     </el-dialog>
 
@@ -52,11 +55,7 @@
       :show-close="false"
     >
       <div class="progress-content">
-        <el-progress
-          :percentage="progressPercent"
-          :status="progressStatus"
-          :stroke-width="20"
-        />
+        <el-progress :percentage="progressPercent" :status="progressStatus" :stroke-width="20" />
         <p class="progress-text">{{ progressText }}</p>
       </div>
       <template #footer>
@@ -75,11 +74,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  Delete,
-  Check,
-  Edit
-} from '@element-plus/icons-vue'
+import { Delete, Check, Edit } from '@element-plus/icons-vue'
 
 export interface BatchActionItem {
   key: string
@@ -102,7 +97,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   actions: () => [],
-  showProgress: true
+  showProgress: true,
 })
 
 const emit = defineEmits<{
@@ -121,7 +116,7 @@ const defaultActions: BatchActionItem[] = [
     confirmTitle: '确认删除',
     confirmMessage: '删除后无法恢复，确定要删除这些数据吗？',
     warningMessage: '此操作不可撤销！',
-    handler: async () => {}
+    handler: async () => {},
   },
   {
     key: 'batchApprove',
@@ -131,15 +126,15 @@ const defaultActions: BatchActionItem[] = [
     confirm: true,
     confirmTitle: '确认审批',
     confirmMessage: '确定要批量审批通过选中的数据吗？',
-    handler: async () => {}
+    handler: async () => {},
   },
   {
     key: 'batchEdit',
     label: '批量修改',
     type: 'primary',
     icon: Edit,
-    handler: async () => {}
-  }
+    handler: async () => {},
+  },
 ]
 
 const computedActions = computed(() => {

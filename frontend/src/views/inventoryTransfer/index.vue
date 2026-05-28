@@ -1,8 +1,34 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElInputNumber,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+} from 'element-plus'
 import { Plus, Edit, Delete, View, Check, ArrowRight } from '@element-plus/icons-vue'
-import { listInventoryTransfers, getInventoryTransfer, createInventoryTransfer, updateInventoryTransfer, deleteInventoryTransfer, approveInventoryTransfer, getTransferItems, type InventoryTransferEntity, type TransferItem } from '@/api/inventoryTransfer'
+import {
+  listInventoryTransfers,
+  getInventoryTransfer,
+  createInventoryTransfer,
+  updateInventoryTransfer,
+  deleteInventoryTransfer,
+  approveInventoryTransfer,
+  getTransferItems,
+  type InventoryTransferEntity,
+  type TransferItem,
+} from '@/api/inventoryTransfer'
 import { request } from '@/api/request'
 
 const tableData = ref<InventoryTransferEntity[]>([])
@@ -12,11 +38,11 @@ const searchForm = ref({
   transfer_no: '',
   from_warehouse_id: '',
   to_warehouse_id: '',
-  status: ''
+  status: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -27,7 +53,7 @@ const form = ref<Partial<InventoryTransferEntity>>({
   from_warehouse_id: 0,
   to_warehouse_id: 0,
   status: 'draft',
-  items: []
+  items: [],
 })
 
 const viewDialogVisible = ref(false)
@@ -40,11 +66,11 @@ const productOptions = ref<{ label: string; value: number }[]>([])
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
-  { label: '已审核', value: 'approved' }
+  { label: '已审核', value: 'approved' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -58,9 +84,13 @@ const loadData = async () => {
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       transfer_no: searchForm.value.transfer_no,
-      from_warehouse_id: searchForm.value.from_warehouse_id ? Number(searchForm.value.from_warehouse_id) : undefined,
-      to_warehouse_id: searchForm.value.to_warehouse_id ? Number(searchForm.value.to_warehouse_id) : undefined,
-      status: searchForm.value.status
+      from_warehouse_id: searchForm.value.from_warehouse_id
+        ? Number(searchForm.value.from_warehouse_id)
+        : undefined,
+      to_warehouse_id: searchForm.value.to_warehouse_id
+        ? Number(searchForm.value.to_warehouse_id)
+        : undefined,
+      status: searchForm.value.status,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -99,7 +129,7 @@ const handleReset = () => {
     transfer_no: '',
     from_warehouse_id: '',
     to_warehouse_id: '',
-    status: ''
+    status: '',
   }
   handleSearch()
 }
@@ -123,7 +153,7 @@ const openAddDialog = async () => {
     from_warehouse_id: 0,
     to_warehouse_id: 0,
     status: 'draft',
-    items: [{ product_id: 0, quantity: 0, cost_price: 0, amount: 0 }]
+    items: [{ product_id: 0, quantity: 0, cost_price: 0, amount: 0 }],
   }
   dialogVisible.value = true
 }
@@ -168,7 +198,7 @@ const handleSubmit = async () => {
     ElMessage.warning('调出和调入仓库不能相同')
     return
   }
-  const validItems = (form.value.items || []).filter(e => e.product_id > 0 && e.quantity !== 0)
+  const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的调拨明细')
     return
@@ -196,7 +226,7 @@ const handleDelete = async (row: InventoryTransferEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个调拨单吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteInventoryTransfer(row.id!)
     ElMessage.success('删除成功')
@@ -209,7 +239,7 @@ const handleDelete = async (row: InventoryTransferEntity) => {
 const handleApprove = async (row: InventoryTransferEntity) => {
   try {
     await ElMessageBox.confirm('确定要审核这个调拨单吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await approveInventoryTransfer(row.id!)
     ElMessage.success('审核成功')
@@ -243,25 +273,27 @@ loadProducts()
             class="filter-item"
           >
             <ElOption label="全部" value="" />
-            <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="String(w.value)" />
+            <ElOption
+              v-for="w in warehouseOptions"
+              :key="w.value"
+              :label="w.label"
+              :value="String(w.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.to_warehouse_id"
-            placeholder="调入仓库"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.to_warehouse_id" placeholder="调入仓库" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="String(w.value)" />
+            <ElOption
+              v-for="w in warehouseOptions"
+              :key="w.value"
+              :label="w.label"
+              :value="String(w.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -269,9 +301,7 @@ loadProducts()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增调拨单
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增调拨单 </ElButton>
       </div>
     </div>
 
@@ -281,12 +311,12 @@ loadProducts()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="transfer_no" label="调拨单号" width="150" />
       <ElTableColumn prop="transfer_date" label="调拨日期" width="120" />
@@ -337,7 +367,12 @@ loadProducts()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="800px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="800px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -355,7 +390,12 @@ loadProducts()
           <ElCol :span="10">
             <ElFormItem label="调出仓库" prop="from_warehouse_id">
               <ElSelect v-model="form.from_warehouse_id" placeholder="请选择调出仓库">
-                <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="w.value" />
+                <ElOption
+                  v-for="w in warehouseOptions"
+                  :key="w.value"
+                  :label="w.label"
+                  :value="w.value"
+                />
               </ElSelect>
             </ElFormItem>
           </ElCol>
@@ -365,7 +405,12 @@ loadProducts()
           <ElCol :span="10">
             <ElFormItem label="调入仓库" prop="to_warehouse_id">
               <ElSelect v-model="form.to_warehouse_id" placeholder="请选择调入仓库">
-                <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="w.value" />
+                <ElOption
+                  v-for="w in warehouseOptions"
+                  :key="w.value"
+                  :label="w.label"
+                  :value="w.value"
+                />
               </ElSelect>
             </ElFormItem>
           </ElCol>
@@ -380,12 +425,13 @@ loadProducts()
               <span class="col-action">操作</span>
             </div>
             <div v-for="(item, index) in form.items" :key="index" class="items-row">
-              <ElSelect
-                v-model="item.product_id"
-                placeholder="选择产品"
-                class="col-product"
-              >
-                <ElOption v-for="p in productOptions" :key="p.value" :label="p.label" :value="p.value" />
+              <ElSelect v-model="item.product_id" placeholder="选择产品" class="col-product">
+                <ElOption
+                  v-for="p in productOptions"
+                  :key="p.value"
+                  :label="p.label"
+                  :value="p.value"
+                />
               </ElSelect>
               <ElInputNumber v-model="item.quantity" class="col-qty" />
               <ElInputNumber v-model="item.cost_price" :precision="2" class="col-price" />
@@ -395,7 +441,8 @@ loadProducts()
                 size="small"
                 type="danger"
                 @click="removeItem(index)"
-              >删除</ElButton>
+                >删除</ElButton
+              >
             </div>
             <ElButton type="text" @click="addItem">+ 添加明细</ElButton>
           </div>
@@ -407,15 +454,26 @@ loadProducts()
       </template>
     </ElDialog>
 
-    <ElDialog title="调拨单详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="调拨单详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
           <ElDescriptionsItem label="调拨单号">{{ viewData.transfer_no }}</ElDescriptionsItem>
           <ElDescriptionsItem label="调拨日期">{{ viewData.transfer_date }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="调出仓库">{{ viewData.from_warehouse_name }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="调出仓库">{{
+            viewData.from_warehouse_name
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="调入仓库">{{ viewData.to_warehouse_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="调拨金额">{{ viewData.total_amount.toFixed(2) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="调拨金额">{{
+            viewData.total_amount.toFixed(2)
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="状态">{{
+            getStatusLabel(viewData.status)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建人">{{ viewData.created_by_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
         </ElDescriptions>
@@ -509,7 +567,9 @@ loadProducts()
   margin-right: 10px;
 }
 
-.col-qty, .col-price, .col-amount {
+.col-qty,
+.col-price,
+.col-amount {
   width: 100px;
   margin-right: 10px;
 }

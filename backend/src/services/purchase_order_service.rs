@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use crate::models::{
-    department, product, purchase_order, purchase_order_item, purchase_receipt, supplier, warehouse,
+    department, product, purchase_order, purchase_order_item, purchase_receipt, status, supplier, warehouse,
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -95,6 +95,18 @@ impl PurchaseOrderService {
         .await
     }
 
+    /// 生成采购订单号（使用事务连接）
+    /// 格式：PO + 年月日 + 三位序号（PO20260315001）
+    pub async fn generate_order_no_with_txn(&self, txn: &sea_orm::DatabaseTransaction) -> Result<String, AppError> {
+        DocumentNumberGenerator::generate_no(
+            txn,
+            "PO",
+            purchase_order::Entity,
+            purchase_order::Column::OrderNo,
+        )
+        .await
+    }
+
     /// 生成入库单号
     /// 格式：PR + 年月日 + 三位序号（PR20260315001）
     pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
@@ -115,74 +127,125 @@ impl PurchaseOrderService {
     ) -> Result<purchase_order::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 业务验证：检查供应商是否存在
-        let supplier_exists = supplier::Entity::find_by_id(req.supplier_id).one(&txn).await?;
+        // 1. 验证请求参数
+        let (warehouse_id, department_id) = self.validate_order_request(&req, &txn).await?;
+
+        // 2. 创建订单主表
+        let order = self.create_order_header(&req, warehouse_id, department_id, user_id, &txn).await?;
+
+        // 3. 创建订单明细并计算总金额
+        let (total_amount, total_quantity, total_quantity_alt) = self.create_order_items(&req, order.id, &txn).await?;
+
+        // 4. 更新订单总金额和数量
+        let mut order_active: purchase_order::ActiveModel = order.into();
+        order_active.total_amount = Set(total_amount);
+        order_active.total_quantity = Set(total_quantity);
+        order_active.total_quantity_alt = Set(total_quantity_alt);
+        order_active.updated_at = Set(chrono::Utc::now());
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_active, Some(0)).await?;
+
+        // 5. 预算检查与占用（非阻断）
+        self.check_and_occupy_budget(&order, department_id, total_amount, user_id).await;
+
+        // 6. 提交事务
+        txn.commit().await?;
+
+        Ok(order)
+    }
+
+    /// 验证采购订单请求参数
+    async fn validate_order_request(
+        &self,
+        req: &CreatePurchaseOrderRequest,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(i32, i32), AppError> {
+        // 检查供应商是否存在
+        let supplier_exists = supplier::Entity::find_by_id(req.supplier_id).one(txn).await?;
         if supplier_exists.is_none() {
-            tracing::error!("Transaction rolled back: 供应商 ID {} 不存在", req.supplier_id);
-            txn.rollback().await.ok();
+            tracing::error!("供应商 ID {} 不存在", req.supplier_id);
             return Err(AppError::BadRequest(format!("供应商 ID {} 不存在", req.supplier_id)));
         }
 
-        // 业务验证：仓库是否存在
-        if let Some(warehouse_id) = req.warehouse_id {
-            let warehouse_exists = warehouse::Entity::find_by_id(warehouse_id).one(&txn).await?;
-            if warehouse_exists.is_none() {
-                tracing::error!("Transaction rolled back: 仓库 ID {} 不存在", warehouse_id);
-                txn.rollback().await.ok();
-                return Err(AppError::BadRequest(format!("仓库 ID {} 不存在", warehouse_id)));
-            }
+        // 检查仓库是否存在
+        let warehouse_id = req.warehouse_id.ok_or_else(|| {
+            AppError::BadRequest("仓库 ID 不能为空".to_string())
+        })?;
+        let warehouse_exists = warehouse::Entity::find_by_id(warehouse_id).one(txn).await?;
+        if warehouse_exists.is_none() {
+            tracing::error!("仓库 ID {} 不存在", warehouse_id);
+            return Err(AppError::BadRequest(format!("仓库 ID {} 不存在", warehouse_id)));
         }
 
-        // 业务验证：部门是否存在
-        if let Some(department_id) = req.department_id {
-            let department_exists = department::Entity::find_by_id(department_id).one(&txn).await?;
-            if department_exists.is_none() {
-                tracing::error!("Transaction rolled back: 部门 ID {} 不存在", department_id);
-                txn.rollback().await.ok();
-                return Err(AppError::BadRequest(format!("部门 ID {} 不存在", department_id)));
-            }
+        // 检查部门是否存在
+        let department_id = req.department_id.ok_or_else(|| {
+            AppError::BadRequest("部门 ID 不能为空".to_string())
+        })?;
+        let department_exists = department::Entity::find_by_id(department_id).one(txn).await?;
+        if department_exists.is_none() {
+            tracing::error!("Transaction rolled back: 部门 ID {} 不存在", department_id);
+            return Err(AppError::BadRequest(format!("部门 ID {} 不存在", department_id)));
         }
 
-        // 业务验证：日期合理性检查
+        // 日期合理性检查
         if let Some(expected_date) = req.expected_delivery_date {
             if expected_date < req.order_date {
-                tracing::error!("Transaction rolled back: 预计交货日期不能早于订单日期");
-                txn.rollback().await.ok();
+                tracing::error!("预计交货日期不能早于订单日期");
                 return Err(AppError::BadRequest("预计交货日期不能早于订单日期".to_string()));
             }
         }
 
-        // 1. 生成订单号
-        let order_no = DocumentNumberGenerator::generate_no(&txn, "PO", purchase_order::Entity, purchase_order::Column::OrderNo).await?;
+        Ok((warehouse_id, department_id))
+    }
 
-        // 2. 创建采购订单主表
+    /// 创建采购订单主表
+    async fn create_order_header(
+        &self,
+        req: &CreatePurchaseOrderRequest,
+        warehouse_id: i32,
+        department_id: i32,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<purchase_order::Model, AppError> {
+        // 生成订单号
+        let order_no = DocumentNumberGenerator::generate_no(txn, "PO", purchase_order::Entity, purchase_order::Column::OrderNo).await?;
+
+        // 创建采购订单主表
         let order = purchase_order::ActiveModel {
             order_no: Set(order_no),
             supplier_id: Set(req.supplier_id),
             order_date: Set(req.order_date),
             expected_delivery_date: Set(req.expected_delivery_date),
-            warehouse_id: Set(req.warehouse_id.unwrap_or(1)),
-            department_id: Set(req.department_id.unwrap_or(1)),
+            warehouse_id: Set(warehouse_id),
+            department_id: Set(department_id),
             purchaser_id: Set(user_id),
-            currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
+            currency: Set(req.currency.clone().unwrap_or_else(|| "CNY".to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             order_status: Set("DRAFT".to_string()),
-            payment_terms: Set(req.payment_terms),
-            shipping_terms: Set(req.shipping_terms),
-            notes: Set(req.notes),
-            attachment_urls: Set(req.attachment_urls),
+            payment_terms: Set(req.payment_terms.clone()),
+            shipping_terms: Set(req.shipping_terms.clone()),
+            notes: Set(req.notes.clone()),
+            attachment_urls: Set(req.attachment_urls.clone()),
             created_by: Set(user_id),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
 
-        // 3. 创建订单明细
+        Ok(order)
+    }
+
+    /// 创建采购订单明细
+    async fn create_order_items(
+        &self,
+        req: &CreatePurchaseOrderRequest,
+        order_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(Decimal, Decimal, Decimal), AppError> {
         let mut total_amount = Decimal::new(0, 0);
         let mut total_quantity = Decimal::new(0, 0);
         let mut total_quantity_alt = Decimal::new(0, 0);
 
-        let items = req.items.unwrap_or_default();
+        let items = req.items.clone().unwrap_or_default();
 
         // 业务验证：产品是否存在
         {
@@ -195,10 +258,9 @@ impl PurchaseOrderService {
                 }
             }
             for product_id in product_ids {
-                let product_exists = product::Entity::find_by_id(product_id).one(&txn).await?;
+                let product_exists = product::Entity::find_by_id(product_id).one(txn).await?;
                 if product_exists.is_none() {
-                    tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
-                    txn.rollback().await.ok();
+                    tracing::error!("产品 ID {} 不存在", product_id);
                     return Err(AppError::BadRequest(format!("产品 ID {} 不存在", product_id)));
                 }
             }
@@ -223,7 +285,7 @@ impl PurchaseOrderService {
 
             purchase_order_item::ActiveModel {
                 id: Set(0),
-                order_id: Set(order.id),
+                order_id: Set(order_id),
                 line_no: Set(item_req.line_no.unwrap_or((index + 1) as i32)),
                 product_id: Set(item_req.material_id.unwrap_or(0)), // 使用 material_id 作为 product_id
                 quantity: Set(quantity_ordered),
@@ -242,20 +304,21 @@ impl PurchaseOrderService {
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
             }
-            .insert(&txn)
+            .insert(txn)
             .await?;
         }
 
-        // 4. 更新订单总金额和数量
-        let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.total_amount = Set(total_amount);
-        order_active.total_quantity = Set(total_quantity);
-        order_active.total_quantity_alt = Set(total_quantity_alt);
-        order_active.updated_at = Set(chrono::Utc::now());
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_active, Some(0)).await?;
+        Ok((total_amount, total_quantity, total_quantity_alt))
+    }
 
-        // 5. 预算检查与占用（非阻断）
-        let department_id = req.department_id.unwrap_or(1);
+    /// 检查并占用预算（非阻断）
+    async fn check_and_occupy_budget(
+        &self,
+        order: &purchase_order::Model,
+        department_id: i32,
+        total_amount: Decimal,
+        user_id: i32,
+    ) {
         let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
 
         // 查找部门对应的预算方案
@@ -319,11 +382,6 @@ impl PurchaseOrderService {
                 );
             }
         }
-
-        // 6. 提交事务
-        txn.commit().await?;
-
-        Ok(order)
     }
 
     /// 更新采购订单（仅草稿状态）
@@ -337,10 +395,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "DRAFT" && order.order_status != "REJECTED" {
+        if order.order_status != status::purchase_order::DRAFT && order.order_status != status::purchase_order::REJECTED {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许修改，当前状态：{}",
                 order.order_status
@@ -404,10 +462,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "DRAFT" {
+        if order.order_status != status::purchase_order::DRAFT {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许删除，当前状态：{}",
                 order.order_status
@@ -439,10 +497,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "DRAFT" && order.order_status != "REJECTED" {
+        if order.order_status != status::purchase_order::DRAFT && order.order_status != status::purchase_order::REJECTED {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许提交，当前状态：{}",
                 order.order_status
@@ -468,7 +526,7 @@ impl PurchaseOrderService {
 
         // 5. 更新状态为 PENDING_APPROVAL
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set("PENDING_APPROVAL".to_string());
+        order_active.order_status = Set(status::purchase_order::PENDING_APPROVAL.to_string());
         order_active.updated_at = Set(Utc::now());
         order_active.updated_by = Set(Some(user_id));
 
@@ -504,10 +562,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "SUBMITTED" && order.order_status != "PENDING_APPROVAL" {
+        if order.order_status != status::purchase_order::SUBMITTED && order.order_status != status::purchase_order::PENDING_APPROVAL {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许审批，当前状态：{}",
                 order.order_status
@@ -517,7 +575,7 @@ impl PurchaseOrderService {
         // 3. 更新状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set("APPROVED".to_string());
+        order_active.order_status = Set(status::purchase_order::APPROVED.to_string());
         order_active.approved_by = Set(Some(user_id));
         order_active.approved_at = Set(Some(now));
         order_active.updated_by = Set(Some(user_id));
@@ -539,10 +597,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "SUBMITTED" && order.order_status != "PENDING_APPROVAL" {
+        if order.order_status != status::purchase_order::SUBMITTED && order.order_status != status::purchase_order::PENDING_APPROVAL {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许拒绝，当前状态：{}",
                 order.order_status
@@ -552,7 +610,7 @@ impl PurchaseOrderService {
         // 3. 更新状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set("REJECTED".to_string());
+        order_active.order_status = Set(status::purchase_order::REJECTED.to_string());
         order_active.rejected_reason = Set(Some(reason));
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(now);
@@ -571,10 +629,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status == "RECEIVED" || order.order_status == "CLOSED" || order.order_status == "CANCELLED" {
+        if order.order_status == status::purchase_order::RECEIVED || order.order_status == status::purchase_order::CLOSED || order.order_status == status::purchase_order::CANCELLED {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许收货，当前状态：{}",
                 order.order_status
@@ -584,7 +642,7 @@ impl PurchaseOrderService {
         // 3. 更新状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set("RECEIVED".to_string());
+        order_active.order_status = Set(status::purchase_order::RECEIVED.to_string());
         order_active.updated_at = Set(now);
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
@@ -602,10 +660,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态（已完成或部分入库的订单才能关闭）
-        if !["COMPLETED", "PARTIAL_RECEIVED"].contains(&order.order_status.as_str()) {
+        if ![status::purchase_order::COMPLETED, status::purchase_order::PARTIAL_RECEIVED].contains(&order.order_status.as_str()) {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许关闭，当前状态：{}",
                 order.order_status
@@ -614,7 +672,7 @@ impl PurchaseOrderService {
 
         // 3. 更新状态
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set("CLOSED".to_string());
+        order_active.order_status = Set(status::purchase_order::CLOSED.to_string());
         order_active.updated_by = Set(Some(user_id));
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
@@ -633,10 +691,10 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
-        if order.order_status != "DRAFT" {
+        if order.order_status != status::purchase_order::DRAFT {
             return Err(AppError::BusinessError(format!(
                 "订单状态不允许添加明细，当前状态：{}",
                 order.order_status
@@ -700,13 +758,13 @@ impl PurchaseOrderService {
         let item = purchase_order_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", item_id)))?;
+            .ok_or(AppError::NotFound(format!("订单明细 {}", item_id)))?;
 
         // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(item.order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "采购订单 {}",
                 item.order_id
             )))?;
@@ -759,13 +817,13 @@ impl PurchaseOrderService {
         let item = purchase_order_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", item_id)))?;
+            .ok_or(AppError::NotFound(format!("订单明细 {}", item_id)))?;
 
         // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(item.order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "采购订单 {}",
                 item.order_id
             )))?;
@@ -819,7 +877,7 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.total_amount = Set(total_amount);
@@ -881,7 +939,7 @@ impl PurchaseOrderService {
             .into_model::<PurchaseOrderDto>()
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         Ok(order)
     }
@@ -1004,24 +1062,27 @@ impl PurchaseOrderService {
         shortage_level: String,
         affected_orders_count: i32,
     ) -> Result<purchase_order::Model, AppError> {
+        // 开启事务
+        let txn = (*self.db).begin().await?;
+
         // 1. 获取产品信息
         let product = product::Entity::find_by_id(material_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("物料 ID {} 不存在", material_id)))?;
+            .ok_or(AppError::NotFound(format!("物料 ID {} 不存在", material_id)))?;
 
         // 2. 查找默认供应商
         let supplier = supplier::Entity::find()
             .filter(supplier::Column::Status.eq("active"))
-            .one(&*self.db)
+            .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound("没有可用的活跃供应商".to_string()))?;
+            .ok_or(AppError::NotFound("没有可用的活跃供应商".to_string()))?;
 
         // 3. 计算建议采购量（缺口数量 * 1.2，20%余量）
         let suggested_quantity = shortage_quantity * Decimal::new(12, 1);
 
-        // 4. 生成采购订单号
-        let order_no = self.generate_order_no().await?;
+        // 4. 生成采购订单号（使用事务连接）
+        let order_no = self.generate_order_no_with_txn(&txn).await?;
 
         // 5. 根据缺料级别确定优先级
         let priority = match shortage_level.as_str() {
@@ -1050,7 +1111,7 @@ impl PurchaseOrderService {
             created_by: Set(1), // 系统用户
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
 
         // 7. 创建订单明细
@@ -1083,8 +1144,11 @@ impl PurchaseOrderService {
             updated_at: Set(Utc::now()),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
+
+        // 8. 提交事务
+        txn.commit().await?;
 
         tracing::info!(
             "创建缺料预警采购建议: 订单号={}, 物料={} ({})，建议采购量={}, 优先级={}",
@@ -1107,27 +1171,30 @@ impl PurchaseOrderService {
         reorder_point: Decimal,
         reorder_quantity: Decimal,
     ) -> Result<purchase_order::Model, AppError> {
+        // 开启事务
+        let txn = (*self.db).begin().await?;
+
         // 1. 获取产品信息
         let product = product::Entity::find_by_id(product_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("产品 ID {} 不存在", product_id)))?;
+            .ok_or(AppError::NotFound(format!("产品 ID {} 不存在", product_id)))?;
 
         // 2. 获取仓库信息
         let warehouse = warehouse::Entity::find_by_id(warehouse_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("仓库 ID {} 不存在", warehouse_id)))?;
+            .ok_or(AppError::NotFound(format!("仓库 ID {} 不存在", warehouse_id)))?;
 
         // 3. 查找默认供应商（这里简化处理，实际可能需要更复杂的供应商选择逻辑）
         let supplier = supplier::Entity::find()
             .filter(supplier::Column::Status.eq("active"))
-            .one(&*self.db)
+            .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound("没有可用的活跃供应商".to_string()))?;
+            .ok_or(AppError::NotFound("没有可用的活跃供应商".to_string()))?;
 
-        // 4. 生成采购订单号
-        let order_no = self.generate_order_no().await?;
+        // 4. 生成采购订单号（使用事务连接）
+        let order_no = self.generate_order_no_with_txn(&txn).await?;
 
         // 5. 创建采购订单
         let order = purchase_order::ActiveModel {
@@ -1148,7 +1215,7 @@ impl PurchaseOrderService {
             created_by: Set(1), // 系统用户
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
 
         // 6. 创建订单明细
@@ -1179,8 +1246,11 @@ impl PurchaseOrderService {
             updated_at: Set(Utc::now()),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
+
+        // 7. 提交事务
+        txn.commit().await?;
 
         tracing::info!(
             "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",

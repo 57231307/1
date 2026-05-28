@@ -16,16 +16,14 @@
           </el-button>
         </div>
       </template>
-      
-      <el-table :data="budgetList" v-loading="loading" stripe border>
+
+      <el-table v-loading="loading" :data="budgetList" stripe border>
         <el-table-column prop="budget_no" label="预算编号" width="160" />
         <el-table-column prop="name" label="预算名称" min-width="160" />
         <el-table-column prop="period" label="期间" width="120" />
         <el-table-column prop="department_name" label="部门" min-width="160" />
         <el-table-column prop="total_amount" label="总金额" width="140">
-          <template #default="{ row }">
-            ¥{{ row.total_amount?.toFixed(2) }}
-          </template>
+          <template #default="{ row }"> ¥{{ row.total_amount?.toFixed(2) }} </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
@@ -37,9 +35,30 @@
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
-            <el-button type="success" link size="small" @click="openDialog('edit', row)" v-if="row.status === 'draft'">编辑</el-button>
-            <el-button type="warning" link size="small" @click="handleSubmit(row)" v-if="row.status === 'draft'">提交</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
+            <el-button
+              v-if="row.status === 'draft'"
+              type="success"
+              link
+              size="small"
+              @click="openDialog('edit', row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="warning"
+              link
+              size="small"
+              @click="handleSubmit(row)"
+              >提交</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -63,7 +82,7 @@
       width="600px"
       @close="resetForm"
     >
-      <el-form :model="budgetForm" :rules="budgetRules" ref="budgetFormRef" label-width="120px">
+      <el-form ref="budgetFormRef" :model="budgetForm" :rules="budgetRules" label-width="120px">
         <el-form-item label="预算编号" prop="budget_no">
           <el-input v-model="budgetForm.budget_no" placeholder="请输入预算编号" />
         </el-form-item>
@@ -77,15 +96,27 @@
           <el-input-number v-model="budgetForm.department_id" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="总金额" prop="total_amount">
-          <el-input-number v-model="budgetForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="budgetForm.total_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="budgetForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+          <el-input
+            v-model="budgetForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm">确认</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm"
+          >确认</el-button
+        >
       </template>
     </el-dialog>
 
@@ -94,14 +125,20 @@
         <el-descriptions-item label="预算编号">{{ currentBudget?.budget_no }}</el-descriptions-item>
         <el-descriptions-item label="预算名称">{{ currentBudget?.name }}</el-descriptions-item>
         <el-descriptions-item label="期间">{{ currentBudget?.period }}</el-descriptions-item>
-        <el-descriptions-item label="部门ID">{{ currentBudget?.department_id }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">¥{{ currentBudget?.total_amount?.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="部门ID">{{
+          currentBudget?.department_id
+        }}</el-descriptions-item>
+        <el-descriptions-item label="总金额"
+          >¥{{ currentBudget?.total_amount?.toFixed(2) }}</el-descriptions-item
+        >
         <el-descriptions-item label="状态">
           <el-tag :type="BUDGET_STATUS[currentBudget?.status as keyof typeof BUDGET_STATUS]?.type">
             {{ BUDGET_STATUS[currentBudget?.status as keyof typeof BUDGET_STATUS]?.label }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentBudget?.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentBudget?.remark || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -169,11 +206,11 @@ const fetchBudgets = async () => {
 const openDialog = (type: 'create' | 'edit', row?: Budget) => {
   dialogType.value = type
   resetForm()
-  
+
   if (type === 'edit' && row) {
     Object.assign(budgetForm, row)
   }
-  
+
   dialogVisible.value = true
 }
 
@@ -193,10 +230,10 @@ const resetForm = () => {
 
 const handleSubmitForm = async () => {
   if (!budgetFormRef.value) return
-  
+
   await budgetFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogType.value === 'create') {
@@ -208,7 +245,7 @@ const handleSubmitForm = async () => {
           ElMessage.success('更新成功')
         }
       }
-      
+
       dialogVisible.value = false
       fetchBudgets()
     } catch (e: any) {
@@ -226,7 +263,9 @@ const viewDetail = (row: Budget) => {
 
 const handleSubmit = async (row: Budget) => {
   try {
-    await ElMessageBox.confirm(`确认提交预算 ${row.budget_no} 进行审核吗？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确认提交预算 ${row.budget_no} 进行审核吗？`, '确认', {
+      type: 'warning',
+    })
     await updateBudget(row.id, { status: 'pending' })
     ElMessage.success('提交成功')
     fetchBudgets()
@@ -242,7 +281,7 @@ const handleDelete = async (row: Budget) => {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
-    
+
     await deleteBudget(row.id)
     ElMessage.success('删除成功')
     fetchBudgets()

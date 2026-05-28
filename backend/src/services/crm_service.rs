@@ -516,7 +516,7 @@ impl CrmService {
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .one(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .ok_or_else(|| AppError::NotFound("Lead not found".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         let opportunities = crm_opportunity::Entity::find()
             .filter(crm_opportunity::Column::LeadId.eq(lead_id))

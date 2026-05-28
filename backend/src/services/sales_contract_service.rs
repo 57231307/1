@@ -149,43 +149,13 @@ impl SalesContractService {
             ));
         }
 
-        // 检查执行金额
-        // 注意：sales_contract 模型没有 executed_amount 字段，暂时跳过检查
-        // let new_executed_amount = contract.executed_amount + req.execution_amount;
-        // if new_executed_amount > contract.total_amount {
-        //     return Err(AppError::ValidationError(format!(
-        //         "执行金额 {:.2} 超过合同总金额 {:.2}",
-        //         new_executed_amount, contract.total_amount
-        //     )));
-        // }
-
         // 开启事务
         let txn = (*self.db).begin().await?;
 
-        // 创建执行记录
-        // 待实现(v1.1): 引入 sales_contract_execution 跟踪合同执行进度
-        // let execution = sales_contract::contract_execution::ActiveModel {
-        //     contract_id: Set(contract_id),
-        //     execution_type: Set(req.execution_type),
-        //     execution_amount: Set(req.execution_amount),
-        //     related_bill_type: Set(req.related_bill_type),
-        //     related_bill_id: Set(req.related_bill_id),
-        //     remark: Set(req.remark),
-        //     created_by: Set(Some(user_id)),
-        //     ..Default::default()
-        // };
-        // execution.insert(&txn).await?;
-
         // 更新合同已执行金额
         let contract_active: sales_contract::ActiveModel = contract.into();
-        // 注意：sales_contract 模型没有 executed_amount 和 updated_by 字段
-        // contract_active.executed_amount = Set(new_executed_amount);
-        // contract_active.updated_by = Set(Some(user_id));
 
         // 检查合同是否完成
-        // if new_executed_amount >= contract.total_amount {
-        //     contract_active.status = Set("completed".to_string());
-        // }
 
         contract_active.save(&txn).await?;
 

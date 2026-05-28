@@ -73,7 +73,7 @@ const props = withDefaults(defineProps<Props>(), {
   pageSize: 10,
   pageSizes: () => [10, 20, 50, 100],
   autoSave: true,
-  dragHandleSelector: '.drag-handle'
+  dragHandleSelector: '.drag-handle',
 })
 
 const emit = defineEmits<{
@@ -91,17 +91,17 @@ const selectedRows = ref<any[]>([])
 
 const tableData = computed({
   get: () => props.data,
-  set: (val) => emit('update:data', val)
+  set: (val) => emit('update:data', val),
 })
 
 const currentPage = computed({
   get: () => props.currentPage,
-  set: (val) => emit('update:currentPage', val)
+  set: (val) => emit('update:currentPage', val),
 })
 
 const pageSize = computed({
   get: () => props.pageSize,
-  set: (val) => emit('update:pageSize', val)
+  set: (val) => emit('update:pageSize', val),
 })
 
 const handleSelectionChange = (selection: any[]) => {
@@ -142,7 +142,7 @@ const initSortable = () => {
       if (props.autoSave) {
         ElMessage.success('排序已保存')
       }
-    }
+    },
   })
 }
 
@@ -155,7 +155,8 @@ defineExpose({
   tableRef,
   selectedRows,
   clearSelection: () => tableRef.value?.clearSelection(),
-  toggleRowSelection: (row: any, selected?: boolean) => tableRef.value?.toggleRowSelection(row, selected)
+  toggleRowSelection: (row: any, selected?: boolean) =>
+    tableRef.value?.toggleRowSelection(row, selected),
 })
 </script>
 

@@ -110,7 +110,13 @@ pub async fn login(
                     .filter(crate::models::role_permission::Column::Allowed.eq(true))
                     .all(state.db.as_ref())
                     .await
-                    .unwrap_or_default();
+                    .map_err(|e| {
+                        tracing::error!("Failed to query role permissions: {}", e);
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ApiResponse::error("Failed to query permissions".to_string())),
+                        )
+                    })?;
                     
                 permissions = role_perms.into_iter().map(|p| UserPermissionDto {
                     resource: p.resource_type,
@@ -126,8 +132,16 @@ pub async fn login(
                 role_id: user.role_id,
             };
 
-            // 生成 CSRF Token，基于 JWT token 前32字节作为会话标识
-            let session_id = format!("jwt:{}", &token[..token.len().min(32)]);
+            // 生成 CSRF Token，使用 JWT claims 中的 session_id 作为会话标识
+            let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
+                .map_err(|e| {
+                    tracing::error!("Failed to decode JWT token: {}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiResponse::error("Internal server error".to_string())),
+                    )
+                })?;
+            let session_id = claims.session_id;
             let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
 
             // 生成 refresh_token (简单的随机字符串)

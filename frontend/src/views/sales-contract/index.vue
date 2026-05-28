@@ -28,15 +28,30 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="合同编号/合同名称" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="合同编号/合同名称"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="客户">
-          <el-select v-model="queryParams.customer_id" placeholder="选择客户" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.customer_id"
+            placeholder="选择客户"
+            clearable
+            @change="handleQuery"
+          >
             <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="合同状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.status"
+            placeholder="选择状态"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="草稿" value="DRAFT" />
             <el-option label="待审批" value="PENDING" />
             <el-option label="已审批" value="APPROVED" />
@@ -46,7 +61,14 @@
           </el-select>
         </el-form-item>
         <el-form-item label="签订日期">
-          <el-date-picker v-model="queryParams.date_range" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" @change="handleQuery" />
+          <el-date-picker
+            v-model="queryParams.date_range"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            @change="handleQuery"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
@@ -65,7 +87,12 @@
       <el-table v-loading="loading" :data="contractList" border stripe>
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="contract_no" label="合同编号" width="150" show-overflow-tooltip />
-        <el-table-column prop="contract_name" label="合同名称" min-width="200" show-overflow-tooltip />
+        <el-table-column
+          prop="contract_name"
+          label="合同名称"
+          min-width="200"
+          show-overflow-tooltip
+        />
         <el-table-column prop="customer_name" label="客户" width="150" show-overflow-tooltip />
         <el-table-column prop="total_amount" label="合同金额" width="120" align="right">
           <template #default="{ row }">
@@ -83,11 +110,46 @@
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.status === 'DRAFT'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="row.status === 'DRAFT'" type="success" link size="small" @click="handleSubmit(row)">提交</el-button>
-            <el-button v-if="row.status === 'PENDING'" type="success" link size="small" @click="handleApprove(row)">审批</el-button>
-            <el-button v-if="row.status === 'APPROVED'" type="warning" link size="small" @click="handleExecute(row)">执行</el-button>
-            <el-button v-if="row.status === 'DRAFT'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              type="success"
+              link
+              size="small"
+              @click="handleSubmit(row)"
+              >提交</el-button
+            >
+            <el-button
+              v-if="row.status === 'PENDING'"
+              type="success"
+              link
+              size="small"
+              @click="handleApprove(row)"
+              >审批</el-button
+            >
+            <el-button
+              v-if="row.status === 'APPROVED'"
+              type="warning"
+              link
+              size="small"
+              @click="handleExecute(row)"
+              >执行</el-button
+            >
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -106,7 +168,12 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="800px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -141,24 +208,44 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="合同金额" prop="total_amount">
-              <el-input-number v-model="formData.total_amount" :precision="2" :min="0" style="width: 100%" />
+              <el-input-number
+                v-model="formData.total_amount"
+                :precision="2"
+                :min="0"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="签订日期" prop="signed_date">
-              <el-date-picker v-model="formData.signed_date" type="date" placeholder="请选择签订日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.signed_date"
+                type="date"
+                placeholder="请选择签订日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="生效日期" prop="effective_date">
-              <el-date-picker v-model="formData.effective_date" type="date" placeholder="请选择生效日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.effective_date"
+                type="date"
+                placeholder="请选择生效日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="到期日期" prop="expiry_date">
-              <el-date-picker v-model="formData.expiry_date" type="date" placeholder="请选择到期日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.expiry_date"
+                type="date"
+                placeholder="请选择到期日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -181,7 +268,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="交货日期" prop="delivery_date">
-              <el-date-picker v-model="formData.delivery_date" type="date" placeholder="请选择交货日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.delivery_date"
+                type="date"
+                placeholder="请选择交货日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -214,7 +306,7 @@ const queryParams = reactive({
   keyword: '',
   customer_id: '',
   status: '',
-  date_range: []
+  date_range: [],
 })
 
 // 列表数据
@@ -245,14 +337,14 @@ const formData = reactive({
   payment_method: '',
   delivery_date: '',
   delivery_location: '',
-  remarks: ''
+  remarks: '',
 })
 
 // 表单验证规则
 const formRules = {
   contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
   contract_name: [{ required: true, message: '请输入合同名称', trigger: 'blur' }],
-  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }]
+  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
 }
 
 // 获取列表数据
@@ -311,15 +403,13 @@ const handleCreate = () => {
     payment_method: '',
     delivery_date: '',
     delivery_location: '',
-    remarks: ''
+    remarks: '',
   })
   dialogVisible.value = true
 }
 
 // 查看
-const handleView = (row: any) => {
-  console.log('查看:', row)
-}
+const handleView = (row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -418,7 +508,7 @@ const getStatusType = (status: string) => {
     APPROVED: 'success',
     EXECUTING: 'primary',
     COMPLETED: 'success',
-    CANCELLED: 'danger'
+    CANCELLED: 'danger',
   }
   return map[status] || 'info'
 }
@@ -431,7 +521,7 @@ const getStatusLabel = (status: string) => {
     APPROVED: '已审批',
     EXECUTING: '执行中',
     COMPLETED: '已完成',
-    CANCELLED: '已取消'
+    CANCELLED: '已取消',
   }
   return map[status] || status
 }

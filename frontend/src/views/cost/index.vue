@@ -15,12 +15,7 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="queryForm.status" placeholder="请选择状态" clearable>
-            <el-option
-              v-for="(item, key) in COST_STATUS"
-              :key="key"
-              :label="item"
-              :value="key"
-            />
+            <el-option v-for="(item, key) in COST_STATUS" :key="key" :label="item" :value="key" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -40,26 +35,27 @@
           </el-button>
         </div>
       </template>
-      
-      <el-table
-        :data="collectionList"
-        v-loading="loading"
-        stripe
-        border
-      >
+
+      <el-table v-loading="loading" :data="collectionList" stripe border>
         <el-table-column prop="collection_no" label="归集编号" width="160" />
         <el-table-column prop="status" label="成本类型" width="140" />
         <el-table-column prop="collection_date" label="期间" width="120" />
         <el-table-column prop="department_name" label="部门" min-width="160" />
         <el-table-column prop="total_cost" label="总成本" width="140">
-          <template #default="{ row }">
-            ¥{{ row.total_cost?.toFixed(2) }}
-          </template>
+          <template #default="{ row }"> ¥{{ row.total_cost?.toFixed(2) }} </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag 
-              :type="row.status === 'draft' ? 'warning' : row.status === 'pending' ? 'processing' : row.status === 'approved' ? 'success' : 'danger'"
+            <el-tag
+              :type="
+                row.status === 'draft'
+                  ? 'warning'
+                  : row.status === 'pending'
+                    ? 'processing'
+                    : row.status === 'approved'
+                      ? 'success'
+                      : 'danger'
+              "
             >
               {{ COST_STATUS[row.status as keyof typeof COST_STATUS] || row.status }}
             </el-tag>
@@ -68,9 +64,30 @@
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
-            <el-button type="success" link size="small" @click="openDialog('edit', row)" v-if="row.status === 'draft'">编辑</el-button>
-            <el-button type="warning" link size="small" @click="handleSubmit(row)" v-if="row.status === 'draft'">提交</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
+            <el-button
+              v-if="row.status === 'draft'"
+              type="success"
+              link
+              size="small"
+              @click="openDialog('edit', row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="warning"
+              link
+              size="small"
+              @click="handleSubmit(row)"
+              >提交</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -96,7 +113,7 @@
       width="600px"
       @close="resetForm"
     >
-      <el-form :model="costForm" :rules="costRules" ref="costFormRef" label-width="120px">
+      <el-form ref="costFormRef" :model="costForm" :rules="costRules" label-width="120px">
         <el-form-item label="归集编号" prop="collection_no">
           <el-input v-model="costForm.collection_no" placeholder="请输入归集编号" />
         </el-form-item>
@@ -110,7 +127,12 @@
           <el-input-number v-model="costForm.warehouse_id" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="总成本" prop="total_cost">
-          <el-input-number v-model="costForm.total_cost" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="costForm.total_cost"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="costForm.notes" type="textarea" :rows="3" placeholder="请输入备注" />
@@ -118,26 +140,44 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm">确认</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm"
+          >确认</el-button
+        >
       </template>
     </el-dialog>
 
     <!-- 详情对话框 -->
     <el-dialog v-model="detailVisible" title="成本归集详情" width="600px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="归集编号">{{ currentCost?.collection_no }}</el-descriptions-item>
+        <el-descriptions-item label="归集编号">{{
+          currentCost?.collection_no
+        }}</el-descriptions-item>
         <el-descriptions-item label="成本类型">{{ currentCost?.status }}</el-descriptions-item>
         <el-descriptions-item label="期间">{{ currentCost?.collection_date }}</el-descriptions-item>
         <el-descriptions-item label="部门ID">{{ currentCost?.warehouse_id }}</el-descriptions-item>
-        <el-descriptions-item label="总成本">¥{{ currentCost?.total_cost?.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="总成本"
+          >¥{{ currentCost?.total_cost?.toFixed(2) }}</el-descriptions-item
+        >
         <el-descriptions-item label="状态">
-          <el-tag :type="currentCost?.status === 'draft' ? 'warning' : currentCost?.status === 'pending' ? 'processing' : currentCost?.status === 'approved' ? 'success' : 'danger'">
+          <el-tag
+            :type="
+              currentCost?.status === 'draft'
+                ? 'warning'
+                : currentCost?.status === 'pending'
+                  ? 'processing'
+                  : currentCost?.status === 'approved'
+                    ? 'success'
+                    : 'danger'
+            "
+          >
             {{ currentCost?.status || '未知' }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentCost?.created_at }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ currentCost?.updated_at }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentCost?.notes || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentCost?.notes || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -220,11 +260,11 @@ const resetQuery = () => {
 const openDialog = (type: 'create' | 'edit', row?: CostCollection) => {
   dialogType.value = type
   resetForm()
-  
+
   if (type === 'edit' && row) {
     Object.assign(costForm, row)
   }
-  
+
   dialogVisible.value = true
 }
 
@@ -245,10 +285,10 @@ const resetForm = () => {
 // 提交表单
 const handleSubmitForm = async () => {
   if (!costFormRef.value) return
-  
+
   await costFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogType.value === 'create') {
@@ -260,7 +300,7 @@ const handleSubmitForm = async () => {
           ElMessage.success('更新成功')
         }
       }
-      
+
       dialogVisible.value = false
       fetchCollections()
     } catch (e: any) {
@@ -283,7 +323,7 @@ const handleSubmit = async (row: CostCollection) => {
     await ElMessageBox.confirm(`确认提交归集 ${row.collection_no} 进行审核吗？`, '确认', {
       type: 'warning',
     })
-    
+
     await updateCostCollection(row.id!, { status: 'pending' })
     ElMessage.success('提交成功')
     fetchCollections()
@@ -297,12 +337,16 @@ const handleSubmit = async (row: CostCollection) => {
 // 删除成本归集
 const handleDelete = async (row: CostCollection) => {
   try {
-    await ElMessageBox.confirm(`确认删除归集 ${row.collection_no} 吗？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-    })
-    
+    await ElMessageBox.confirm(
+      `确认删除归集 ${row.collection_no} 吗？此操作不可恢复。`,
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+      }
+    )
+
     await deleteCostCollection(row.id!)
     ElMessage.success('删除成功')
     fetchCollections()

@@ -24,24 +24,52 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="缸号/批次号" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="缸号/批次号"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="色号">
-          <el-input v-model="queryParams.color_no" placeholder="请输入色号" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.color_no"
+            placeholder="请输入色号"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="产品">
-          <el-select v-model="queryParams.product_id" placeholder="选择产品" clearable filterable @change="handleQuery">
+          <el-select
+            v-model="queryParams.product_id"
+            placeholder="选择产品"
+            clearable
+            filterable
+            @change="handleQuery"
+          >
             <el-option v-for="p in products" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.status"
+            placeholder="选择状态"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="进行中" value="ACTIVE" />
             <el-option label="已完成" value="COMPLETED" />
           </el-select>
         </el-form-item>
         <el-form-item label="染色日期">
-          <el-date-picker v-model="queryParams.date_range" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" @change="handleQuery" />
+          <el-date-picker
+            v-model="queryParams.date_range"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            @change="handleQuery"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
@@ -74,9 +102,30 @@
         <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.status === 'ACTIVE'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="row.status === 'ACTIVE'" type="success" link size="small" @click="handleComplete(row)">完成</el-button>
-            <el-button v-if="row.status === 'ACTIVE'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button
+              v-if="row.status === 'ACTIVE'"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.status === 'ACTIVE'"
+              type="success"
+              link
+              size="small"
+              @click="handleComplete(row)"
+              >完成</el-button
+            >
+            <el-button
+              v-if="row.status === 'ACTIVE'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -95,7 +144,12 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="700px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -126,12 +180,22 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="染色日期" prop="dye_date">
-              <el-date-picker v-model="formData.dye_date" type="date" placeholder="请选择染色日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.dye_date"
+                type="date"
+                placeholder="请选择染色日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="染色数量" prop="quantity">
-              <el-input-number v-model="formData.quantity" :precision="2" :min="0" style="width: 100%" />
+              <el-input-number
+                v-model="formData.quantity"
+                :precision="2"
+                :min="0"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -160,7 +224,7 @@ const queryParams = reactive({
   color_no: '',
   product_id: '',
   status: '',
-  date_range: []
+  date_range: [],
 })
 
 // 列表数据
@@ -185,7 +249,7 @@ const formData = reactive({
   color_code: '',
   dye_date: '',
   quantity: 0,
-  remarks: ''
+  remarks: '',
 })
 
 // 表单验证规则
@@ -194,7 +258,7 @@ const formRules = {
   product_id: [{ required: true, message: '请选择产品', trigger: 'change' }],
   color_no: [{ required: true, message: '请输入色号', trigger: 'blur' }],
   dye_date: [{ required: true, message: '请选择染色日期', trigger: 'change' }],
-  quantity: [{ required: true, message: '请输入染色数量', trigger: 'blur' }]
+  quantity: [{ required: true, message: '请输入染色数量', trigger: 'blur' }],
 }
 
 // 获取列表数据
@@ -248,15 +312,13 @@ const handleCreate = () => {
     color_code: '',
     dye_date: '',
     quantity: 0,
-    remarks: ''
+    remarks: '',
   })
   dialogVisible.value = true
 }
 
 // 查看
-const handleView = (row: any) => {
-  console.log('查看:', row)
-}
+const handleView = (row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -319,7 +381,7 @@ const handleCurrentChange = (val: number) => {
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     ACTIVE: 'warning',
-    COMPLETED: 'success'
+    COMPLETED: 'success',
   }
   return map[status] || 'info'
 }
@@ -328,7 +390,7 @@ const getStatusType = (status: string) => {
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     ACTIVE: '进行中',
-    COMPLETED: '已完成'
+    COMPLETED: '已完成',
   }
   return map[status] || status
 }

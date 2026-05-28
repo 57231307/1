@@ -55,7 +55,7 @@ impl ApPaymentService {
         let request = ap_payment_request::Entity::find_by_id(req.request_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "付款申请 {}",
                 req.request_id
             )))?;
@@ -118,7 +118,7 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款单 {}", id)))?;
 
         // 2. 检查状态（仅已登记可修改）
         if payment.payment_status != "REGISTERED" {
@@ -170,7 +170,7 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款单 ID: {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款单 ID: {}", id)))?;
 
         // 2. 检查状态
         if payment.payment_status != "REGISTERED" {
@@ -328,7 +328,7 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款单 {}", id)))?;
 
         Ok(payment)
     }

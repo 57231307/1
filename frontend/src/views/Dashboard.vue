@@ -192,7 +192,7 @@ import {
   Clock,
   Warning,
   TrendCharts,
-  Refresh
+  Refresh,
 } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api/dashboard'
 
@@ -231,17 +231,17 @@ const formatCurrency = (amount: number | undefined) => {
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
-    minimumFractionDigits: 0
+    minimumFractionDigits: 0,
   }).format(amount)
 }
 
 const getActivityTypeColor = (type: string) => {
   const typeMap: Record<string, any> = {
-    '订单': 'success',
-    '采购': 'warning',
-    '库存': 'info',
-    '审批': 'primary',
-    '系统': 'danger'
+    订单: 'success',
+    采购: 'warning',
+    库存: 'info',
+    审批: 'primary',
+    系统: 'danger',
   }
   return typeMap[type] || 'info'
 }

@@ -178,18 +178,15 @@ const crmEnhancedApi = {
     request.delete<ApiResponse<void>>(`/crm/customers/enhanced/${id}`),
 
   // 客户 360 视图
-  getCustomer360: (id: number) =>
-    request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`),
+  getCustomer360: (id: number) => request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`),
 
   // 标签管理
-  getTags: () =>
-    request.get<ApiResponse<CustomerTag[]>>('/crm/tags'),
+  getTags: () => request.get<ApiResponse<CustomerTag[]>>('/crm/tags'),
 
   createTag: (data: { name: string; color: string; category: string }) =>
     request.post<ApiResponse<CustomerTag>>('/crm/tags', data),
 
-  deleteTag: (id: number) =>
-    request.delete<ApiResponse<void>>(`/crm/tags/${id}`),
+  deleteTag: (id: number) => request.delete<ApiResponse<void>>(`/crm/tags/${id}`),
 
   addTagToCustomer: (customerId: number, tagId: number) =>
     request.post<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`),
@@ -208,8 +205,7 @@ const crmEnhancedApi = {
     request.post<ApiResponse<void>>('/crm/pool/batch-claim', { customer_ids: customerIds }),
 
   // 回收规则
-  getRecycleRules: () =>
-    request.get<ApiResponse<RecycleRule[]>>('/crm/recycle-rules'),
+  getRecycleRules: () => request.get<ApiResponse<RecycleRule[]>>('/crm/recycle-rules'),
 
   createRecycleRule: (data: Partial<RecycleRule>) =>
     request.post<ApiResponse<RecycleRule>>('/crm/recycle-rules', data),
@@ -217,8 +213,7 @@ const crmEnhancedApi = {
   updateRecycleRule: (id: number, data: Partial<RecycleRule>) =>
     request.put<ApiResponse<RecycleRule>>(`/crm/recycle-rules/${id}`, data),
 
-  deleteRecycleRule: (id: number) =>
-    request.delete<ApiResponse<void>>(`/crm/recycle-rules/${id}`),
+  deleteRecycleRule: (id: number) => request.delete<ApiResponse<void>>(`/crm/recycle-rules/${id}`),
 
   // 客户分配
   assignCustomer: (data: { customer_ids: number[]; assign_to: number; reason?: string }) =>
@@ -230,22 +225,26 @@ const crmEnhancedApi = {
   getAssignmentHistory: (params?: AssignmentQueryParams) =>
     request.get<ApiResponse<PageResult<AssignmentRecord>>>('/crm/assignments/history', { params }),
 
-  getSalesUsers: () =>
-    request.get<ApiResponse<SalesUser[]>>('/crm/sales-users'),
+  getSalesUsers: () => request.get<ApiResponse<SalesUser[]>>('/crm/sales-users'),
 
   // 跟进记录
   getFollowUps: (customerId: number, params?: QueryParams) =>
-    request.get<ApiResponse<PageResult<FollowUpRecord>>>(`/crm/customers/${customerId}/follow-ups`, { params }),
+    request.get<ApiResponse<PageResult<FollowUpRecord>>>(
+      `/crm/customers/${customerId}/follow-ups`,
+      { params }
+    ),
 
-  createFollowUp: (customerId: number, data: { type: string; content: string; next_follow_date?: string }) =>
-    request.post<ApiResponse<FollowUpRecord>>(`/crm/customers/${customerId}/follow-ups`, data),
+  createFollowUp: (
+    customerId: number,
+    data: { type: string; content: string; next_follow_date?: string }
+  ) => request.post<ApiResponse<FollowUpRecord>>(`/crm/customers/${customerId}/follow-ups`, data),
 
   // RFM 模型
   getRfmScore: (customerId: number) =>
     request.get<ApiResponse<RfmScore>>(`/crm/customers/${customerId}/rfm`),
 
   getRfmDistribution: () =>
-    request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution')
+    request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution'),
 }
 
 export default crmEnhancedApi

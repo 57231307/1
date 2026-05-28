@@ -2,7 +2,7 @@
   <div class="scheduling-gantt">
     <div class="page-header">
       <div class="header-left">
-        <el-button @click="$router.back()" link>
+        <el-button link @click="$router.back()">
           <el-icon><ArrowLeft /></el-icon>
           返回排程管理
         </el-button>
@@ -15,10 +15,10 @@
           range-separator="至"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-          @change="fetchGanttData"
           style="width: 240px"
+          @change="fetchGanttData"
         />
-        <el-button type="primary" @click="handleAutoSchedule" :loading="scheduling">
+        <el-button type="primary" :loading="scheduling" @click="handleAutoSchedule">
           <el-icon><Cpu /></el-icon>
           自动排程
         </el-button>
@@ -97,16 +97,26 @@
           </div>
         </div>
       </template>
-      <div ref="ganttChartRef" class="gantt-chart-container" v-loading="loading"></div>
+      <div ref="ganttChartRef" v-loading="loading" class="gantt-chart-container"></div>
     </el-card>
 
     <el-dialog v-model="autoScheduleDialogVisible" title="自动排程参数" width="500px">
       <el-form :model="scheduleForm" label-width="120px">
         <el-form-item label="排程开始日期">
-          <el-date-picker v-model="scheduleForm.start_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="scheduleForm.start_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="排程结束日期">
-          <el-date-picker v-model="scheduleForm.end_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="scheduleForm.end_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="优先级模式">
           <el-select v-model="scheduleForm.priority_mode" style="width: 100%">
@@ -125,7 +135,9 @@
       </el-form>
       <template #footer>
         <el-button @click="autoScheduleDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmAutoSchedule" :loading="scheduling">开始排程</el-button>
+        <el-button type="primary" :loading="scheduling" @click="confirmAutoSchedule"
+          >开始排程</el-button
+        >
       </template>
     </el-dialog>
 
@@ -145,15 +157,25 @@
           </el-select>
         </el-form-item>
         <el-form-item label="开始时间">
-          <el-date-picker v-model="adjustForm.start_time" type="datetime" placeholder="选择开始时间" style="width: 100%" />
+          <el-date-picker
+            v-model="adjustForm.start_time"
+            type="datetime"
+            placeholder="选择开始时间"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="结束时间">
-          <el-date-picker v-model="adjustForm.end_time" type="datetime" placeholder="选择结束时间" style="width: 100%" />
+          <el-date-picker
+            v-model="adjustForm.end_time"
+            type="datetime"
+            placeholder="选择结束时间"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="adjustDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmAdjust" :loading="adjusting">确认调整</el-button>
+        <el-button type="primary" :loading="adjusting" @click="confirmAdjust">确认调整</el-button>
       </template>
     </el-dialog>
 
@@ -198,11 +220,17 @@ import {
   Warning,
   OfficeBuilding,
   Calendar,
-  Switch
+  Switch,
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
-import { schedulingApi, type GanttData, type ScheduleTask, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
+import {
+  schedulingApi,
+  type GanttData,
+  type ScheduleTask,
+  type ConflictItem,
+  type SchedulingParams,
+} from '@/api/scheduling'
 
 const dateRange = ref<[Date, Date] | null>(null)
 const loading = ref(false)
@@ -216,7 +244,7 @@ const ganttData = ref<GanttData>({
   work_centers: [],
   date_range: { start: '', end: '' },
   total_tasks: 0,
-  conflict_count: 0
+  conflict_count: 0,
 })
 
 const conflictList = ref<ConflictItem[]>([])
@@ -225,14 +253,14 @@ const adjustTask = ref<ScheduleTask>({} as ScheduleTask)
 const adjustForm = ref({
   work_center_id: 0,
   start_time: '',
-  end_time: ''
+  end_time: '',
 })
 
 const scheduleForm = ref<SchedulingParams>({
   start_date: new Date().toISOString().split('T')[0],
   end_date: '',
   priority_mode: 'priority',
-  optimization_target: 'balance_load'
+  optimization_target: 'balance_load',
 })
 
 const ganttChartRef = ref<HTMLElement>()
@@ -253,7 +281,7 @@ const statusColorMap: Record<string, string> = {
   scheduled: '#409eff',
   running: '#e6a23c',
   completed: '#67c23a',
-  conflict: '#f56c6c'
+  conflict: '#f56c6c',
 }
 
 const statusLabelMap: Record<string, string> = {
@@ -261,7 +289,7 @@ const statusLabelMap: Record<string, string> = {
   scheduled: '已排程',
   running: '生产中',
   completed: '已完成',
-  conflict: '冲突'
+  conflict: '冲突',
 }
 
 const formatTime = (t: string) => {
@@ -305,11 +333,11 @@ const renderGanttChart = (data: GanttData) => {
     dates.push(`${d.getMonth() + 1}/${d.getDate()}`)
   }
 
-  const categories = data.work_centers.map(wc => wc.name)
+  const categories = data.work_centers.map((wc) => wc.name)
 
   const seriesData: any[] = []
-  data.work_centers.forEach(wc => {
-    wc.tasks.forEach(task => {
+  data.work_centers.forEach((wc) => {
+    wc.tasks.forEach((task) => {
       const start = new Date(task.start_time).getTime()
       const end = new Date(task.end_time).getTime()
       const color = task.has_conflict ? statusColorMap.conflict : statusColorMap[task.status]
@@ -317,7 +345,7 @@ const renderGanttChart = (data: GanttData) => {
         name: task.order_no,
         value: [categories.indexOf(wc.name), start, end, task.duration_hours],
         itemStyle: { color },
-        taskData: task
+        taskData: task,
       })
     })
   })
@@ -338,58 +366,65 @@ const renderGanttChart = (data: GanttData) => {
             ${t.has_conflict ? `<div style="color: #f56c6c; margin-top: 4px">冲突: ${t.conflict_details || '存在时间冲突'}</div>` : ''}
           </div>
         `
-      }
+      },
     },
     grid: { left: 120, right: 40, top: 40, bottom: 40, containLabel: false },
     xAxis: {
       type: 'category',
       data: dates,
       axisLine: { lineStyle: { color: '#dcdfe6' } },
-      axisLabel: { color: '#606266', rotate: 45 }
+      axisLabel: { color: '#606266', rotate: 45 },
     },
     yAxis: {
       type: 'category',
       data: categories,
       axisLine: { lineStyle: { color: '#dcdfe6' } },
       axisLabel: { color: '#303133', fontWeight: 600 },
-      inverse: true
+      inverse: true,
     },
     dataZoom: [
       { type: 'slider', xAxisIndex: 0, start: 0, end: 100, bottom: 10, height: 20 },
-      { type: 'inside', xAxisIndex: 0, start: 0, end: 100 }
+      { type: 'inside', xAxisIndex: 0, start: 0, end: 100 },
     ],
-    series: [{
-      type: 'custom',
-      renderItem: (params: any, api: any) => {
-        const catIndex = api.value(0)
-        const start = api.coord([api.value(1), catIndex])
-        const end = api.coord([api.value(2), catIndex])
-        const height = api.size([0, 1])[1] * 0.6
-        const rectShape = echarts.graphic.clipRectByRect({
-          x: start[0],
-          y: start[1] - height / 2,
-          width: end[0] - start[0],
-          height: height
-        }, {
-          x: params.coordSys.x,
-          y: params.coordSys.y,
-          width: params.coordSys.width,
-          height: params.coordSys.height
-        })
-        return rectShape && {
-          type: 'rect',
-          transition: ['shape'],
-          shape: rectShape,
-          style: api.style()
-        }
+    series: [
+      {
+        type: 'custom',
+        renderItem: (params: any, api: any) => {
+          const catIndex = api.value(0)
+          const start = api.coord([api.value(1), catIndex])
+          const end = api.coord([api.value(2), catIndex])
+          const height = api.size([0, 1])[1] * 0.6
+          const rectShape = echarts.graphic.clipRectByRect(
+            {
+              x: start[0],
+              y: start[1] - height / 2,
+              width: end[0] - start[0],
+              height: height,
+            },
+            {
+              x: params.coordSys.x,
+              y: params.coordSys.y,
+              width: params.coordSys.width,
+              height: params.coordSys.height,
+            }
+          )
+          return (
+            rectShape && {
+              type: 'rect',
+              transition: ['shape'],
+              shape: rectShape,
+              style: api.style(),
+            }
+          )
+        },
+        encode: {
+          x: [1, 2],
+          y: 0,
+        },
+        data: seriesData,
+        itemStyle: { borderRadius: 4 },
       },
-      encode: {
-        x: [1, 2],
-        y: 0
-      },
-      data: seriesData,
-      itemStyle: { borderRadius: 4 }
-    }]
+    ],
   }
 
   ganttChart.setOption(option, true)
@@ -406,7 +441,7 @@ const handleTaskClick = (task: ScheduleTask) => {
   adjustForm.value = {
     work_center_id: task.work_center_id,
     start_time: task.start_time,
-    end_time: task.end_time
+    end_time: task.end_time,
   }
   adjustDialogVisible.value = true
 }
@@ -417,7 +452,7 @@ const confirmAdjust = async () => {
     await schedulingApi.adjustTask(adjustTask.value.id, {
       start_time: adjustForm.value.start_time,
       end_time: adjustForm.value.end_time,
-      work_center_id: adjustForm.value.work_center_id
+      work_center_id: adjustForm.value.work_center_id,
     })
     ElMessage.success('排程调整成功')
     adjustDialogVisible.value = false
@@ -448,7 +483,9 @@ const confirmAutoSchedule = async () => {
   try {
     const res = await schedulingApi.autoSchedule(scheduleForm.value)
     const result = res.data!
-    ElMessage.success(`排程完成: ${result.scheduled_count} 个任务已排程, ${result.conflict_count} 个冲突`)
+    ElMessage.success(
+      `排程完成: ${result.scheduled_count} 个任务已排程, ${result.conflict_count} 个冲突`
+    )
     autoScheduleDialogVisible.value = false
     if (result.conflict_count > 0) {
       conflictList.value = result.conflicts
@@ -474,16 +511,22 @@ const getMockGanttData = (): GanttData => {
     { id: 2, name: '缝纫中心', code: 'WC002' },
     { id: 3, name: '印染中心', code: 'WC003' },
     { id: 4, name: '包装中心', code: 'WC004' },
-    { id: 5, name: '质检中心', code: 'WC005' }
+    { id: 5, name: '质检中心', code: 'WC005' },
   ]
 
-  const statuses: ScheduleTask['status'][] = ['pending', 'scheduled', 'running', 'completed', 'conflict']
+  const statuses: ScheduleTask['status'][] = [
+    'pending',
+    'scheduled',
+    'running',
+    'completed',
+    'conflict',
+  ]
   const products = ['面料A-001', '面料B-002', '面料C-003', '面料D-004', '面料E-005']
 
   const tasks: Record<number, ScheduleTask[]> = {}
   let taskId = 1
 
-  workCenters.forEach(wc => {
+  workCenters.forEach((wc) => {
     tasks[wc.id] = []
     for (let i = 0; i < 5; i++) {
       const start = new Date(today)
@@ -501,10 +544,11 @@ const getMockGanttData = (): GanttData => {
         quantity: Math.floor(Math.random() * 500 + 100),
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        duration_hours: Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60) * 10) / 10,
+        duration_hours:
+          Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60)) * 10) / 10,
         status,
         priority: Math.floor(Math.random() * 3) + 1,
-        has_conflict: false
+        has_conflict: false,
       })
     }
   })
@@ -516,10 +560,10 @@ const getMockGanttData = (): GanttData => {
   }
 
   return {
-    work_centers: workCenters.map(wc => ({ ...wc, tasks: tasks[wc.id] || [] })),
+    work_centers: workCenters.map((wc) => ({ ...wc, tasks: tasks[wc.id] || [] })),
     date_range: { start: todayStr, end: endStr },
     total_tasks: Object.values(tasks).flat().length,
-    conflict_count: 1
+    conflict_count: 1,
   }
 }
 
@@ -680,11 +724,21 @@ onUnmounted(() => {
   border-radius: 3px;
 }
 
-.legend-dot.pending { background: #909399; }
-.legend-dot.scheduled { background: #409eff; }
-.legend-dot.running { background: #e6a23c; }
-.legend-dot.completed { background: #67c23a; }
-.legend-dot.conflict { background: #f56c6c; }
+.legend-dot.pending {
+  background: #909399;
+}
+.legend-dot.scheduled {
+  background: #409eff;
+}
+.legend-dot.running {
+  background: #e6a23c;
+}
+.legend-dot.completed {
+  background: #67c23a;
+}
+.legend-dot.conflict {
+  background: #f56c6c;
+}
 
 .gantt-chart-container {
   height: 500px;

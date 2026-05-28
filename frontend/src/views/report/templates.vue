@@ -21,7 +21,7 @@ import {
   type ReportTemplateField,
   type ReportFilterCondition,
   type ReportField,
-  type ReportSubscription
+  type ReportSubscription,
 } from '@/api/report-enhanced'
 
 const loading = ref(false)
@@ -32,7 +32,7 @@ const pagination = ref({ page: 1, pageSize: 20 })
 const searchForm = ref({
   name: '',
   type: '',
-  category: ''
+  category: '',
 })
 
 const templateTypes = [
@@ -42,7 +42,7 @@ const templateTypes = [
   { label: '财务报表', value: 'finance' },
   { label: '应收报表', value: 'ar' },
   { label: '应付报表', value: 'ap' },
-  { label: '自定义', value: 'custom' }
+  { label: '自定义', value: 'custom' },
 ]
 
 const categories = [
@@ -50,7 +50,7 @@ const categories = [
   { label: '运营报表', value: 'operation' },
   { label: '财务报表', value: 'finance' },
   { label: '分析报表', value: 'analysis' },
-  { label: '汇总报表', value: 'summary' }
+  { label: '汇总报表', value: 'summary' },
 ]
 
 const dialogVisible = ref(false)
@@ -65,7 +65,7 @@ const form = ref<Partial<ReportTemplate>>({
   filters: [],
   group_by: [],
   sort_by: [],
-  chart_type: 'none'
+  chart_type: 'none',
 })
 
 const availableFields = ref<ReportField[]>([])
@@ -89,7 +89,7 @@ const subForm = ref({
   schedule_time: '09:00',
   recipients: '',
   format: 'excel' as 'pdf' | 'excel' | 'both',
-  active: true
+  active: true,
 })
 
 const exportDialogVisible = ref(false)
@@ -97,7 +97,7 @@ const exportForm = ref({
   template_id: 0,
   template_name: '',
   format: 'excel' as 'pdf' | 'excel',
-  date_range: { start: '', end: '' }
+  date_range: { start: '', end: '' },
 })
 
 const loadTemplates = async () => {
@@ -106,7 +106,7 @@ const loadTemplates = async () => {
     const res: any = await listReportTemplates({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...searchForm.value
+      ...searchForm.value,
     })
     templates.value = res.data?.list || []
     total.value = res.data?.total || 0
@@ -149,7 +149,7 @@ const openCreateDialog = async () => {
     filters: [],
     group_by: [],
     sort_by: [],
-    chart_type: 'none'
+    chart_type: 'none',
   }
   selectedFieldKeys.value = []
   fieldConfigs.value = {}
@@ -170,7 +170,7 @@ const openEditDialog = async (row: ReportTemplate) => {
       fieldConfigs.value[f.field_key] = {
         display_label: f.display_label,
         width: f.width,
-        format: f.format
+        format: f.format,
       }
     })
     filterConditions.value = data.filters || []
@@ -208,7 +208,7 @@ const handleTypeChange = async () => {
 }
 
 const selectedFields = computed(() => {
-  return availableFields.value.filter(f => selectedFieldKeys.value.includes(f.key))
+  return availableFields.value.filter((f) => selectedFieldKeys.value.includes(f.key))
 })
 
 const handleSubmit = async () => {
@@ -221,15 +221,15 @@ const handleSubmit = async () => {
     return
   }
 
-  const fields: ReportTemplateField[] = selectedFieldKeys.value.map(key => {
-    const field = availableFields.value.find(f => f.key === key)
+  const fields: ReportTemplateField[] = selectedFieldKeys.value.map((key) => {
+    const field = availableFields.value.find((f) => f.key === key)
     const config = fieldConfigs.value[key] || {}
     return {
       field_key: key,
       display_label: config.display_label || field?.label || key,
       visible: true,
       width: config.width,
-      format: config.format
+      format: config.format,
     }
   })
 
@@ -242,7 +242,7 @@ const handleSubmit = async () => {
     filters: filterConditions.value,
     group_by: form.value.group_by || [],
     sort_by: form.value.sort_by || [],
-    chart_type: form.value.chart_type || 'none'
+    chart_type: form.value.chart_type || 'none',
   }
 
   try {
@@ -264,7 +264,7 @@ const addFilter = () => {
   filterConditions.value.push({
     field: '',
     operator: 'eq',
-    value: ''
+    value: '',
   })
 }
 
@@ -287,7 +287,7 @@ const handleExport = (row: ReportTemplate) => {
     template_id: row.id,
     template_name: row.name,
     format: 'excel',
-    date_range: { start: '', end: '' }
+    date_range: { start: '', end: '' },
   }
   exportDialogVisible.value = true
 }
@@ -296,9 +296,10 @@ const doExport = async () => {
   try {
     const blob = await exportReport(exportForm.value.template_id, {
       format: exportForm.value.format,
-      date_range: exportForm.value.date_range.start && exportForm.value.date_range.end
-        ? { start: exportForm.value.date_range.start, end: exportForm.value.date_range.end }
-        : undefined
+      date_range:
+        exportForm.value.date_range.start && exportForm.value.date_range.end
+          ? { start: exportForm.value.date_range.start, end: exportForm.value.date_range.end }
+          : undefined,
     })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -338,7 +339,7 @@ const openSubForm = (row?: ReportSubscription) => {
       schedule_time: row.schedule_time,
       recipients: row.recipients.join(', '),
       format: row.format,
-      active: row.active
+      active: row.active,
     }
   } else {
     subForm.value = {
@@ -349,7 +350,7 @@ const openSubForm = (row?: ReportSubscription) => {
       schedule_time: '09:00',
       recipients: '',
       format: 'excel',
-      active: true
+      active: true,
     }
   }
   subFormVisible.value = true
@@ -360,13 +361,16 @@ const handleSubmitSubscription = async () => {
     ElMessage.warning('请填写接收人邮箱')
     return
   }
-  const recipients = subForm.value.recipients.split(',').map(r => r.trim()).filter(Boolean)
+  const recipients = subForm.value.recipients
+    .split(',')
+    .map((r) => r.trim())
+    .filter(Boolean)
   const data = {
     template_id: subForm.value.template_id,
     schedule: subForm.value.schedule,
     schedule_time: subForm.value.schedule_time,
     recipients,
-    format: subForm.value.format
+    format: subForm.value.format,
   }
 
   try {
@@ -376,7 +380,7 @@ const handleSubmitSubscription = async () => {
         schedule_time: subForm.value.schedule_time,
         recipients,
         format: subForm.value.format,
-        active: subForm.value.active
+        active: subForm.value.active,
       })
       ElMessage.success('更新成功')
     } else {
@@ -384,7 +388,10 @@ const handleSubmitSubscription = async () => {
       ElMessage.success('创建成功')
     }
     subFormVisible.value = false
-    handleSubscriptions({ id: subForm.value.template_id, name: subForm.value.template_name } as ReportTemplate)
+    handleSubscriptions({
+      id: subForm.value.template_id,
+      name: subForm.value.template_name,
+    } as ReportTemplate)
   } catch {
     ElMessage.error('操作失败')
   }
@@ -437,7 +444,7 @@ const chartTypeOptions = [
   { label: '柱状图', value: 'bar' },
   { label: '折线图', value: 'line' },
   { label: '饼图', value: 'pie' },
-  { label: '面积图', value: 'area' }
+  { label: '面积图', value: 'area' },
 ]
 
 const operatorOptions = [
@@ -449,7 +456,7 @@ const operatorOptions = [
   { label: '小于等于', value: 'lte' },
   { label: '包含', value: 'contains' },
   { label: '在...中', value: 'in' },
-  { label: '区间', value: 'between' }
+  { label: '区间', value: 'between' },
 ]
 
 loadTemplates()
@@ -460,11 +467,21 @@ loadTemplates()
     <div class="filter-container">
       <el-row :gutter="20">
         <el-col :span="7">
-          <el-input v-model="searchForm.name" placeholder="模板名称" clearable @keyup.enter="handleSearch" />
+          <el-input
+            v-model="searchForm.name"
+            placeholder="模板名称"
+            clearable
+            @keyup.enter="handleSearch"
+          />
         </el-col>
         <el-col :span="5">
           <el-select v-model="searchForm.type" placeholder="报表类型" clearable>
-            <el-option v-for="t in templateTypes" :key="t.value" :label="t.label" :value="t.value" />
+            <el-option
+              v-for="t in templateTypes"
+              :key="t.value"
+              :label="t.label"
+              :value="t.value"
+            />
           </el-select>
         </el-col>
         <el-col :span="5">
@@ -482,12 +499,19 @@ loadTemplates()
       </el-row>
     </div>
 
-    <el-table :data="templates" :loading="loading" border fit highlight-current-row style="width: 100%">
+    <el-table
+      :data="templates"
+      :loading="loading"
+      border
+      fit
+      highlight-current-row
+      style="width: 100%"
+    >
       <el-table-column prop="name" label="模板名称" min-width="160" show-overflow-tooltip />
       <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
       <el-table-column label="类型" width="100">
         <template #default="scope">
-          {{ templateTypes.find(t => t.value === scope.row.type)?.label || scope.row.type }}
+          {{ templateTypes.find((t) => t.value === scope.row.type)?.label || scope.row.type }}
         </template>
       </el-table-column>
       <el-table-column label="分类" width="100">
@@ -500,7 +524,9 @@ loadTemplates()
       </el-table-column>
       <el-table-column label="图表" width="80" align="center">
         <template #default="scope">
-          <el-tag v-if="scope.row.chart_type !== 'none'" size="small" type="success">{{ scope.row.chart_type }}</el-tag>
+          <el-tag v-if="scope.row.chart_type !== 'none'" size="small" type="success">{{
+            scope.row.chart_type
+          }}</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -541,12 +567,17 @@ loadTemplates()
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
+      class="pagination-container"
       @current-change="handlePageChange"
       @size-change="handlePageSizeChange"
-      class="pagination-container"
     />
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="900px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="900px"
+      :close-on-click-modal="false"
+    >
       <el-form :model="form" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -556,8 +587,17 @@ loadTemplates()
           </el-col>
           <el-col :span="12">
             <el-form-item label="报表类型" required>
-              <el-select v-model="form.type" placeholder="请选择报表类型" @change="handleTypeChange">
-                <el-option v-for="t in templateTypes" :key="t.value" :label="t.label" :value="t.value" />
+              <el-select
+                v-model="form.type"
+                placeholder="请选择报表类型"
+                @change="handleTypeChange"
+              >
+                <el-option
+                  v-for="t in templateTypes"
+                  :key="t.value"
+                  :label="t.label"
+                  :value="t.value"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -566,20 +606,35 @@ loadTemplates()
           <el-col :span="12">
             <el-form-item label="分类">
               <el-select v-model="form.category" placeholder="请选择分类">
-                <el-option v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
+                <el-option
+                  v-for="c in categories"
+                  :key="c.value"
+                  :label="c.label"
+                  :value="c.value"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="图表类型">
               <el-select v-model="form.chart_type" placeholder="请选择图表类型">
-                <el-option v-for="c in chartTypeOptions" :key="c.value" :label="c.label" :value="c.value" />
+                <el-option
+                  v-for="c in chartTypeOptions"
+                  :key="c.value"
+                  :label="c.label"
+                  :value="c.value"
+                />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="2" placeholder="请输入模板描述" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="2"
+            placeholder="请输入模板描述"
+          />
         </el-form-item>
 
         <el-divider content-position="left">字段配置</el-divider>
@@ -641,7 +696,12 @@ loadTemplates()
             <el-icon><Plus /></el-icon> 添加筛选条件
           </el-button>
           <div v-for="(condition, index) in filterConditions" :key="index" class="filter-row">
-            <el-select v-model="condition.field" placeholder="字段" size="small" style="width: 160px">
+            <el-select
+              v-model="condition.field"
+              placeholder="字段"
+              size="small"
+              style="width: 160px"
+            >
               <el-option
                 v-for="f in availableFields"
                 :key="f.key"
@@ -649,11 +709,32 @@ loadTemplates()
                 :value="f.key"
               />
             </el-select>
-            <el-select v-model="condition.operator" placeholder="操作符" size="small" style="width: 120px; margin-left: 8px">
-              <el-option v-for="op in operatorOptions" :key="op.value" :label="op.label" :value="op.value" />
+            <el-select
+              v-model="condition.operator"
+              placeholder="操作符"
+              size="small"
+              style="width: 120px; margin-left: 8px"
+            >
+              <el-option
+                v-for="op in operatorOptions"
+                :key="op.value"
+                :label="op.label"
+                :value="op.value"
+              />
             </el-select>
-            <el-input v-model="condition.value" placeholder="值" size="small" style="width: 160px; margin-left: 8px" />
-            <el-button size="small" type="danger" @click="removeFilter(index)" style="margin-left: 8px">删除</el-button>
+            <el-input
+              v-model="condition.value"
+              placeholder="值"
+              size="small"
+              style="width: 160px; margin-left: 8px"
+            />
+            <el-button
+              size="small"
+              type="danger"
+              style="margin-left: 8px"
+              @click="removeFilter(index)"
+              >删除</el-button
+            >
           </div>
         </div>
       </el-form>
@@ -726,7 +807,12 @@ loadTemplates()
         <el-table-column prop="schedule_time" label="发送时间" width="100" />
         <el-table-column label="接收人" min-width="200">
           <template #default="scope">
-            <el-tag v-for="(r, i) in scope.row.recipients" :key="i" size="small" style="margin-right: 4px">
+            <el-tag
+              v-for="(r, i) in scope.row.recipients"
+              :key="i"
+              size="small"
+              style="margin-right: 4px"
+            >
               {{ r }}
             </el-tag>
           </template>
@@ -747,10 +833,16 @@ loadTemplates()
             <el-button size="small" @click="openSubForm(scope.row)">
               <el-icon><Edit /></el-icon>
             </el-button>
-            <el-button size="small" :type="scope.row.active ? 'warning' : 'success'" @click="handleToggleSubscription(scope.row)">
+            <el-button
+              size="small"
+              :type="scope.row.active ? 'warning' : 'success'"
+              @click="handleToggleSubscription(scope.row)"
+            >
               {{ scope.row.active ? '禁用' : '启用' }}
             </el-button>
-            <el-button size="small" type="success" @click="handleSendNow(scope.row)">发送</el-button>
+            <el-button size="small" type="success" @click="handleSendNow(scope.row)"
+              >发送</el-button
+            >
             <el-button size="small" type="danger" @click="handleDeleteSubscription(scope.row)">
               <el-icon><Delete /></el-icon>
             </el-button>
@@ -769,7 +861,12 @@ loadTemplates()
           </el-select>
         </el-form-item>
         <el-form-item label="发送时间">
-          <el-time-picker v-model="subForm.schedule_time" format="HH:mm" value-format="HH:mm" style="width: 100%" />
+          <el-time-picker
+            v-model="subForm.schedule_time"
+            format="HH:mm"
+            value-format="HH:mm"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="接收人邮箱">
           <el-input v-model="subForm.recipients" placeholder="多个邮箱用逗号分隔" />

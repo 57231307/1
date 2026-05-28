@@ -38,7 +38,9 @@ export interface Supplier {
   updated_at?: string
 }
 
-export function listSuppliers(params?: SupplierQueryParams): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
+export function listSuppliers(
+  params?: SupplierQueryParams
+): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
   return request.get('/suppliers', { params })
 }
 
@@ -56,8 +58,7 @@ export const supplierApi = {
 
   getById: (id: number) => request.get<ApiResponse<Supplier>>(`/suppliers/${id}`),
 
-  create: (data: Partial<Supplier>) =>
-    request.post<ApiResponse<Supplier>>('/suppliers', data),
+  create: (data: Partial<Supplier>) => request.post<ApiResponse<Supplier>>('/suppliers', data),
 
   update: (id: number, data: Partial<Supplier>) =>
     request.put<ApiResponse<Supplier>>(`/suppliers/${id}`, data),

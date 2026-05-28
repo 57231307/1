@@ -89,15 +89,35 @@
         <el-card shadow="hover" class="filter-card">
           <el-form :inline="true" :model="queryParams" class="filter-form">
             <el-form-item label="关键词">
-              <el-input v-model="queryParams.keyword" placeholder="产品编码/名称" clearable @clear="handleQuery" />
+              <el-input
+                v-model="queryParams.keyword"
+                placeholder="产品编码/名称"
+                clearable
+                @clear="handleQuery"
+              />
             </el-form-item>
             <el-form-item label="仓库">
-              <el-select v-model="queryParams.warehouse_id" placeholder="选择仓库" clearable @change="handleQuery">
-                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouse_name || wh.name" :value="wh.id" />
+              <el-select
+                v-model="queryParams.warehouse_id"
+                placeholder="选择仓库"
+                clearable
+                @change="handleQuery"
+              >
+                <el-option
+                  v-for="wh in warehouses"
+                  :key="wh.id"
+                  :label="wh.warehouse_name || wh.name"
+                  :value="wh.id"
+                />
               </el-select>
             </el-form-item>
             <el-form-item label="状态">
-              <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+              <el-select
+                v-model="queryParams.status"
+                placeholder="选择状态"
+                clearable
+                @change="handleQuery"
+              >
                 <el-option label="正常" value="normal" />
                 <el-option label="预警" value="warning" />
                 <el-option label="冻结" value="frozen" />
@@ -143,8 +163,12 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleView(row)">详情</el-button>
-                <el-button type="warning" link size="small" @click="handleAdjust(row)">调整</el-button>
+                <el-button type="primary" link size="small" @click="handleView(row)"
+                  >详情</el-button
+                >
+                <el-button type="warning" link size="small" @click="handleAdjust(row)"
+                  >调整</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -185,7 +209,9 @@
             </el-table-column>
             <el-table-column label="操作" width="100">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handlePurchase(row)">采购</el-button>
+                <el-button type="primary" link size="small" @click="handlePurchase(row)"
+                  >采购</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -216,8 +242,17 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleViewTransfer(row)">详情</el-button>
-                <el-button v-if="row.status === 'pending'" type="success" link size="small" @click="handleApproveTransfer(row)">审批</el-button>
+                <el-button type="primary" link size="small" @click="handleViewTransfer(row)"
+                  >详情</el-button
+                >
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="handleApproveTransfer(row)"
+                  >审批</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -233,13 +268,13 @@
       :close-on-click-modal="false"
     >
       <el-form :model="adjustmentForm" label-width="100px">
-        <el-form-item label="产品" v-if="adjustmentForm.product_name">
+        <el-form-item v-if="adjustmentForm.product_name" label="产品">
           <el-input :value="adjustmentForm.product_name" disabled />
         </el-form-item>
-        <el-form-item label="仓库" v-if="adjustmentForm.warehouse_name">
+        <el-form-item v-if="adjustmentForm.warehouse_name" label="仓库">
           <el-input :value="adjustmentForm.warehouse_name" disabled />
         </el-form-item>
-        <el-form-item label="当前库存" v-if="adjustmentForm.current_quantity">
+        <el-form-item v-if="adjustmentForm.current_quantity" label="当前库存">
           <el-input :value="adjustmentForm.current_quantity" disabled />
         </el-form-item>
         <el-form-item label="调整类型">
@@ -249,10 +284,19 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="调整数量">
-          <el-input-number v-model="adjustmentForm.adjustment_quantity" :min="1" style="width: 100%" />
+          <el-input-number
+            v-model="adjustmentForm.adjustment_quantity"
+            :min="1"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="调整原因">
-          <el-input v-model="adjustmentForm.reason" type="textarea" :rows="3" placeholder="请输入调整原因" />
+          <el-input
+            v-model="adjustmentForm.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入调整原因"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -272,31 +316,64 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="调出仓库">
-              <el-select v-model="transferForm.from_warehouse_id" placeholder="请选择调出仓库" style="width: 100%">
-                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouse_name || wh.name" :value="wh.id" />
+              <el-select
+                v-model="transferForm.from_warehouse_id"
+                placeholder="请选择调出仓库"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="wh in warehouses"
+                  :key="wh.id"
+                  :label="wh.warehouse_name || wh.name"
+                  :value="wh.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="调入仓库">
-              <el-select v-model="transferForm.to_warehouse_id" placeholder="请选择调入仓库" style="width: 100%">
-                <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouse_name || wh.name" :value="wh.id" />
+              <el-select
+                v-model="transferForm.to_warehouse_id"
+                placeholder="请选择调入仓库"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="wh in warehouses"
+                  :key="wh.id"
+                  :label="wh.warehouse_name || wh.name"
+                  :value="wh.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-divider content-position="left">调拨产品</el-divider>
-        <div v-for="(item, index) in transferForm.items" :key="index" style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <div
+          v-for="(item, index) in transferForm.items"
+          :key="index"
+          style="display: flex; gap: 10px; margin-bottom: 10px"
+        >
           <el-input v-model="item.product_name" placeholder="产品名称" style="flex: 2" />
           <el-input-number v-model="item.quantity" :min="1" placeholder="数量" style="flex: 1" />
-          <el-button type="danger" :icon="Delete" circle @click="handleRemoveTransferItem(index)" :disabled="transferForm.items.length <= 1" />
+          <el-button
+            type="danger"
+            :icon="Delete"
+            circle
+            :disabled="transferForm.items.length <= 1"
+            @click="handleRemoveTransferItem(index)"
+          />
         </div>
         <el-button type="primary" link @click="handleAddTransferItem">
           <el-icon><Plus /></el-icon>
           添加产品
         </el-button>
-        <el-form-item label="备注" style="margin-top: 16px;">
-          <el-input v-model="transferForm.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+        <el-form-item label="备注" style="margin-top: 16px">
+          <el-input
+            v-model="transferForm.remark"
+            type="textarea"
+            :rows="2"
+            placeholder="请输入备注"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -311,8 +388,18 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  Box, Warning, Edit, RefreshRight, Download, Search, Refresh, Printer,
-  OfficeBuilding, WarningFilled, Plus, Delete
+  Box,
+  Warning,
+  Edit,
+  RefreshRight,
+  Download,
+  Search,
+  Refresh,
+  Printer,
+  OfficeBuilding,
+  WarningFilled,
+  Plus,
+  Delete,
 } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 
@@ -328,7 +415,7 @@ const stats = ref({
   totalQuantity: 0,
   alertCount: 0,
   warehouseCount: 0,
-  lowStockCount: 0
+  lowStockCount: 0,
 })
 
 const queryParams = reactive({
@@ -336,7 +423,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   warehouse_id: undefined as number | undefined,
-  status: ''
+  status: '',
 })
 
 const formatNumber = (num: number) => {
@@ -347,7 +434,7 @@ const getStatusType = (status: string) => {
   const typeMap: Record<string, any> = {
     normal: 'success',
     warning: 'warning',
-    frozen: 'info'
+    frozen: 'info',
   }
   return typeMap[status] || 'info'
 }
@@ -356,7 +443,7 @@ const getStatusText = (status: string) => {
   const textMap: Record<string, string> = {
     normal: '正常',
     warning: '预警',
-    frozen: '冻结'
+    frozen: '冻结',
   }
   return textMap[status] || status
 }
@@ -366,7 +453,7 @@ const getTransferStatusType = (status: string) => {
     pending: 'warning',
     approved: 'success',
     executed: 'primary',
-    cancelled: 'info'
+    cancelled: 'info',
   }
   return typeMap[status] || 'info'
 }
@@ -376,7 +463,7 @@ const getTransferStatusText = (status: string) => {
     pending: '待审批',
     approved: '已审批',
     executed: '已执行',
-    cancelled: '已取消'
+    cancelled: '已取消',
   }
   return textMap[status] || status
 }
@@ -388,13 +475,13 @@ const fetchData = async () => {
     const res = await inventoryApi.getStockList(queryParams)
     stocks.value = res.data?.list || []
     total.value = res.data?.total || 0
-    
+
     const summaryRes = await inventoryApi.getInventoryReport({})
     stats.value = {
       totalQuantity: summaryRes.data?.total_quantity || 0,
       alertCount: summaryRes.data?.alert_count || 0,
       warehouseCount: summaryRes.data?.warehouse_count || 0,
-      lowStockCount: summaryRes.data?.low_stock_count || 0
+      lowStockCount: summaryRes.data?.low_stock_count || 0,
     }
   } catch (error: any) {
     ElMessage.error(error.message || '获取库存列表失败')
@@ -466,7 +553,7 @@ const adjustmentForm = ref({
   current_quantity: 0,
   adjustment_type: 'increase',
   adjustment_quantity: 0,
-  reason: ''
+  reason: '',
 })
 
 const transferDialogVisible = ref(false)
@@ -474,7 +561,7 @@ const transferForm = ref({
   from_warehouse_id: null as number | null,
   to_warehouse_id: null as number | null,
   items: [{ product_id: null as number | null, product_name: '', quantity: 0 }],
-  remark: ''
+  remark: '',
 })
 
 const handleAdjustment = () => {
@@ -485,7 +572,7 @@ const handleAdjustment = () => {
     current_quantity: 0,
     adjustment_type: 'increase',
     adjustment_quantity: 0,
-    reason: ''
+    reason: '',
   }
   adjustmentDialogVisible.value = true
 }
@@ -498,7 +585,7 @@ const handleAdjust = (row: any) => {
     current_quantity: row.quantity,
     adjustment_type: 'increase',
     adjustment_quantity: 0,
-    reason: ''
+    reason: '',
   }
   adjustmentDialogVisible.value = true
 }
@@ -512,14 +599,14 @@ const handleSubmitAdjustment = async () => {
     ElMessage.warning('请输入调整原因')
     return
   }
-  
+
   try {
     const { inventoryApi } = await import('@/api/inventory')
     await inventoryApi.createStockAdjustment({
       stock_id: adjustmentForm.value.stock_id,
       adjustment_type: adjustmentForm.value.adjustment_type,
       quantity: adjustmentForm.value.adjustment_quantity,
-      reason: adjustmentForm.value.reason
+      reason: adjustmentForm.value.reason,
     })
     ElMessage.success('库存调整成功')
     adjustmentDialogVisible.value = false
@@ -535,14 +622,14 @@ const handleTransfer = () => {
 
 const handlePrint = () => {
   const printData = stocks.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '产品编码': item.product_code,
-    '产品名称': item.product_name,
-    '规格': item.specification,
-    '单位': item.unit,
-    '库存数量': item.quantity,
-    '仓库': item.warehouse_name,
-    '库存金额': `¥${item.stock_value}`
+    序号: index + 1,
+    产品编码: item.product_code,
+    产品名称: item.product_name,
+    规格: item.specification,
+    单位: item.unit,
+    库存数量: item.quantity,
+    仓库: item.warehouse_name,
+    库存金额: `¥${item.stock_value}`,
   }))
   printJS({
     printable: printData,
@@ -552,15 +639,25 @@ const handlePrint = () => {
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+    gridStyle: 'border-collapse: collapse; width: 100%;',
   })
 }
 
 const handleExport = () => {
   const csvContent = [
     ['产品编码', '产品名称', '规格', '单位', '库存数量', '仓库', '库存金额'],
-    ...stocks.value.map((item: any) => [item.product_code, item.product_name, item.specification, item.unit, item.quantity, item.warehouse_name, item.stock_value])
-  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+    ...stocks.value.map((item: any) => [
+      item.product_code,
+      item.product_name,
+      item.specification,
+      item.unit,
+      item.quantity,
+      item.warehouse_name,
+      item.stock_value,
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -582,7 +679,7 @@ const handleNewTransfer = () => {
     from_warehouse_id: null,
     to_warehouse_id: null,
     items: [{ product_id: null, product_name: '', quantity: 0 }],
-    remark: ''
+    remark: '',
   }
   transferDialogVisible.value = true
 }
@@ -610,20 +707,20 @@ const handleSubmitTransfer = async () => {
     ElMessage.warning('调出仓库和调入仓库不能相同')
     return
   }
-  
-  const validItems = transferForm.value.items.filter(item => item.product_id && item.quantity > 0)
+
+  const validItems = transferForm.value.items.filter((item) => item.product_id && item.quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请添加至少一个调拨产品')
     return
   }
-  
+
   try {
     const { inventoryApi } = await import('@/api/inventory')
     await inventoryApi.createTransfer({
       from_warehouse_id: transferForm.value.from_warehouse_id,
       to_warehouse_id: transferForm.value.to_warehouse_id,
       items: validItems,
-      remark: transferForm.value.remark
+      remark: transferForm.value.remark,
     })
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false

@@ -42,7 +42,10 @@ export function createDepartment(data: DepartmentCreateRequest): Promise<ApiResp
   return request.post('/departments', data)
 }
 
-export function updateDepartment(id: number, data: DepartmentUpdateRequest): Promise<ApiResponse<Department>> {
+export function updateDepartment(
+  id: number,
+  data: DepartmentUpdateRequest
+): Promise<ApiResponse<Department>> {
   return request.put(`/departments/${id}`, data)
 }
 

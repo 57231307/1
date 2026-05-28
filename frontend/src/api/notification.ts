@@ -37,7 +37,9 @@ export interface UpdateSettingRequest {
   enableSms: boolean
 }
 
-export function listNotifications(params?: NotificationQueryParams): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
+export function listNotifications(
+  params?: NotificationQueryParams
+): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
   return request.get('/notifications', { params })
 }
 
@@ -69,6 +71,8 @@ export function getSettings(): Promise<ApiResponse<NotificationSetting[]>> {
   return request.get('/notifications/settings')
 }
 
-export function updateSetting(data: UpdateSettingRequest): Promise<ApiResponse<NotificationSetting>> {
+export function updateSetting(
+  data: UpdateSettingRequest
+): Promise<ApiResponse<NotificationSetting>> {
   return request.put('/notifications/settings', data)
 }

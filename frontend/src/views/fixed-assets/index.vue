@@ -5,7 +5,7 @@
       <el-button type="primary" @click="handleCreate">新增资产</el-button>
     </div>
 
-    <el-table :data="assetList" v-loading="loading" border>
+    <el-table v-loading="loading" :data="assetList" border>
       <el-table-column prop="assetCode" label="资产编码" />
       <el-table-column prop="assetName" label="资产名称" />
       <el-table-column prop="category" label="资产类别" />
@@ -34,12 +34,7 @@
       width="700px"
       @close="handleDialogClose"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="120px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="资产编码" prop="assetCode">
@@ -52,11 +47,15 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="资产类别" prop="category">
-              <el-select v-model="formData.category" placeholder="请选择资产类别" style="width: 100%">
+              <el-select
+                v-model="formData.category"
+                placeholder="请选择资产类别"
+                style="width: 100%"
+              >
                 <el-option label="房屋建筑物" value="building" />
                 <el-option label="机器设备" value="machine" />
                 <el-option label="运输工具" value="vehicle" />
@@ -72,20 +71,33 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="原值 (元)" prop="originalValue">
-              <el-input-number v-model="formData.originalValue" :min="0" :precision="2" :step="100" style="width: 100%" placeholder="请输入原值" />
+              <el-input-number
+                v-model="formData.originalValue"
+                :min="0"
+                :precision="2"
+                :step="100"
+                style="width: 100%"
+                placeholder="请输入原值"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="预计残值 (元)" prop="salvageValue">
-              <el-input-number v-model="formData.salvageValue" :min="0" :precision="2" style="width: 100%" placeholder="请输入预计残值" />
+              <el-input-number
+                v-model="formData.salvageValue"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+                placeholder="请输入预计残值"
+              />
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="购置日期" prop="purchaseDate">
@@ -101,7 +113,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="使用部门" prop="departmentId">
-              <el-select v-model="formData.departmentId" placeholder="请选择使用部门" style="width: 100%" clearable>
+              <el-select
+                v-model="formData.departmentId"
+                placeholder="请选择使用部门"
+                style="width: 100%"
+                clearable
+              >
                 <el-option
                   v-for="dept in departmentList"
                   :key="dept.id"
@@ -112,7 +129,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="存放地点" prop="location">
@@ -125,11 +142,17 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="折旧年限 (年)" prop="depreciationYears">
-              <el-input-number v-model="formData.depreciationYears" :min="1" :max="50" style="width: 100%" placeholder="请输入折旧年限" />
+              <el-input-number
+                v-model="formData.depreciationYears"
+                :min="1"
+                :max="50"
+                style="width: 100%"
+                placeholder="请输入折旧年限"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -142,11 +165,16 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
-              <el-input v-model="formData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+              <el-input
+                v-model="formData.remarks"
+                type="textarea"
+                :rows="3"
+                placeholder="请输入备注"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -154,9 +182,7 @@
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
-          确定
-        </el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit"> 确定 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -190,7 +216,7 @@ const formData = reactive<any>({
   responsiblePerson: '',
   depreciationYears: 5,
   status: 'in_use',
-  remarks: ''
+  remarks: '',
 })
 
 const formRules: FormRules = {
@@ -199,23 +225,23 @@ const formRules: FormRules = {
   category: [{ required: true, message: '请选择资产类别', trigger: 'change' }],
   originalValue: [{ required: true, message: '请输入原值', trigger: 'blur' }],
   purchaseDate: [{ required: true, message: '请选择购置日期', trigger: 'change' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
 const getStatusType = (status: string) => {
   const types: Record<string, any> = {
-    'in_use': 'success',
-    'idle': 'warning',
-    'scrapped': 'danger'
+    in_use: 'success',
+    idle: 'warning',
+    scrapped: 'danger',
   }
   return types[status] || 'info'
 }
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    'in_use': '使用中',
-    'idle': '闲置',
-    'scrapped': '已报废'
+    in_use: '使用中',
+    idle: '闲置',
+    scrapped: '已报废',
   }
   return labels[status] || status
 }
@@ -257,7 +283,7 @@ const handleCreate = () => {
     responsiblePerson: '',
     depreciationYears: 5,
     status: 'in_use',
-    remarks: ''
+    remarks: '',
   })
   dialogVisible.value = true
 }
@@ -278,14 +304,14 @@ const handleEdit = (row: any) => {
     responsiblePerson: row.responsiblePerson,
     depreciationYears: row.depreciationYears,
     status: row.status,
-    remarks: row.remarks
+    remarks: row.remarks,
   })
   dialogVisible.value = true
 }
 
 const handleDelete = async (row: any) => {
   if (!row.id) return
-  
+
   try {
     await deleteAsset(row.id)
     ElMessage.success('删除成功')
@@ -297,10 +323,10 @@ const handleDelete = async (row: any) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {

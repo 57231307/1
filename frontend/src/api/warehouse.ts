@@ -41,21 +41,18 @@ export const warehouseApi = {
   list: (params?: WarehouseQueryParams) =>
     request.get<ApiResponse<{ list: Warehouse[]; total: number }>>('/warehouses', { params }),
 
-  getById: (id: number) =>
-    request.get<ApiResponse<Warehouse>>(`/warehouses/${id}`),
+  getById: (id: number) => request.get<ApiResponse<Warehouse>>(`/warehouses/${id}`),
 
-  create: (data: Partial<Warehouse>) =>
-    request.post<ApiResponse<Warehouse>>('/warehouses', data),
+  create: (data: Partial<Warehouse>) => request.post<ApiResponse<Warehouse>>('/warehouses', data),
 
   update: (id: number, data: Partial<Warehouse>) =>
     request.put<ApiResponse<Warehouse>>(`/warehouses/${id}`, data),
 
-  delete: (id: number) =>
-    request.delete<ApiResponse<null>>(`/warehouses/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<null>>(`/warehouses/${id}`),
 
   getLocations: (warehouseId: number) =>
     request.get<ApiResponse<WarehouseLocation[]>>('/warehouses/locations', {
-      params: { warehouse_id: warehouseId }
+      params: { warehouse_id: warehouseId },
     }),
 
   createLocation: (data: Partial<WarehouseLocation>) =>
@@ -64,8 +61,7 @@ export const warehouseApi = {
   updateLocation: (id: number, data: Partial<WarehouseLocation>) =>
     request.put<ApiResponse<WarehouseLocation>>(`/warehouses/locations/${id}`, data),
 
-  deleteLocation: (id: number) =>
-    request.delete<ApiResponse<null>>(`/warehouses/locations/${id}`),
+  deleteLocation: (id: number) => request.delete<ApiResponse<null>>(`/warehouses/locations/${id}`),
 
   getLocation: (id: number) =>
     request.get<ApiResponse<WarehouseLocation>>(`/warehouses/locations/${id}`),

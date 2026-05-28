@@ -1,8 +1,29 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElDescriptions, ElTabs, ElTabPane } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+  ElTabs,
+  ElTabPane,
+} from 'element-plus'
 import { View } from '@element-plus/icons-vue'
-import { listAssistDimensions, queryAssistRecords, getAssistSummary, type AssistDimensionResponse, type AssistRecordResponse, type AssistSummaryResponse } from '@/api/assist-accounting'
+import {
+  listAssistDimensions,
+  queryAssistRecords,
+  getAssistSummary,
+  type AssistDimensionResponse,
+  type AssistRecordResponse,
+  type AssistSummaryResponse,
+} from '@/api/assist-accounting'
 
 const activeTab = ref('records')
 const dimensions = ref<AssistDimensionResponse[]>([])
@@ -15,19 +36,19 @@ const searchForm = ref({
   accounting_period: '',
   dimension_code: '',
   business_type: '',
-  warehouse_id: ''
+  warehouse_id: '',
 })
 
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const viewDialogVisible = ref(false)
 const viewData = ref<AssistRecordResponse | null>(null)
 
 const dimensionOptions = computed(() => {
-  return dimensions.value.map(d => ({ label: d.dimension_name, value: d.dimension_code }))
+  return dimensions.value.map((d) => ({ label: d.dimension_name, value: d.dimension_code }))
 })
 
 const businessTypeOptions = [
@@ -36,11 +57,11 @@ const businessTypeOptions = [
   { label: '销售出库', value: 'SALES_DELIVERY' },
   { label: '库存调整', value: 'INVENTORY_ADJUSTMENT' },
   { label: '生产投入', value: 'PRODUCTION_INPUT' },
-  { label: '生产产出', value: 'PRODUCTION_OUTPUT' }
+  { label: '生产产出', value: 'PRODUCTION_OUTPUT' },
 ]
 
 const getBusinessTypeLabel = (value: string) => {
-  return businessTypeOptions.find(b => b.value === value)?.label || value
+  return businessTypeOptions.find((b) => b.value === value)?.label || value
 }
 
 const loadDimensions = async () => {
@@ -60,9 +81,11 @@ const loadRecords = async () => {
       accounting_period: searchForm.value.accounting_period || undefined,
       dimension_code: searchForm.value.dimension_code || undefined,
       business_type: searchForm.value.business_type || undefined,
-      warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
+      warehouse_id: searchForm.value.warehouse_id
+        ? Number(searchForm.value.warehouse_id)
+        : undefined,
       page: pagination.value.page - 1,
-      page_size: pagination.value.pageSize
+      page_size: pagination.value.pageSize,
     })
     tableData.value = res.data.records
     const d = res.data as any
@@ -80,7 +103,7 @@ const loadSummary = async () => {
     const period = searchForm.value.accounting_period || new Date().toISOString().slice(0, 7)
     const res: any = await getAssistSummary({
       accounting_period: period,
-      dimension_code: searchForm.value.dimension_code || undefined
+      dimension_code: searchForm.value.dimension_code || undefined,
     })
     const d = res.data as any
     summaryData.value = d?.data || d?.items || d || []
@@ -105,7 +128,7 @@ const handleReset = () => {
     accounting_period: '',
     dimension_code: '',
     business_type: '',
-    warehouse_id: ''
+    warehouse_id: '',
   }
   handleSearch()
 }
@@ -146,22 +169,24 @@ loadRecords()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.dimension_code"
-            placeholder="核算维度"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.dimension_code" placeholder="核算维度" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="d in dimensionOptions" :key="d.value" :label="d.label" :value="d.value" />
+            <ElOption
+              v-for="d in dimensionOptions"
+              :key="d.value"
+              :label="d.label"
+              :value="d.value"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.business_type"
-            placeholder="业务类型"
-            class="filter-item"
-          >
-            <ElOption v-for="b in businessTypeOptions" :key="b.value" :label="b.label" :value="b.value" />
+          <ElSelect v-model="searchForm.business_type" placeholder="业务类型" class="filter-item">
+            <ElOption
+              v-for="b in businessTypeOptions"
+              :key="b.value"
+              :label="b.label"
+              :value="b.value"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
@@ -190,16 +215,18 @@ loadRecords()
           :loading="loading"
           :page-size="pagination.pageSize"
           :current-page="pagination.page"
-          @current-change="handlePageChange"
-          @size-change="handlePageSizeChange"
           border
           fit
           highlight-current-row
           style="width: 100%"
+          @current-change="handlePageChange"
+          @size-change="handlePageSizeChange"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="business_type" label="业务类型" width="120">
-            <template #default="scope">{{ getBusinessTypeLabel(scope.row.business_type) }}</template>
+            <template #default="scope">{{
+              getBusinessTypeLabel(scope.row.business_type)
+            }}</template>
           </ElTableColumn>
           <ElTableColumn prop="business_no" label="业务单号" width="150" />
           <ElTableColumn prop="batch_no" label="批次号" width="120" />
@@ -243,14 +270,23 @@ loadRecords()
       </ElTabPane>
     </ElTabs>
 
-    <ElDialog title="辅助核算记录详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="辅助核算记录详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="3" border>
           <ElDescriptionsItem label="ID">{{ viewData.id }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="业务类型">{{ getBusinessTypeLabel(viewData.business_type) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="业务类型">{{
+            getBusinessTypeLabel(viewData.business_type)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="业务单号">{{ viewData.business_no }}</ElDescriptionsItem>
           <ElDescriptionsItem label="业务ID">{{ viewData.business_id }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="会计科目ID">{{ viewData.account_subject_id }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="会计科目ID">{{
+            viewData.account_subject_id
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="五维ID">{{ viewData.five_dimension_id }}</ElDescriptionsItem>
           <ElDescriptionsItem label="产品ID">{{ viewData.product_id }}</ElDescriptionsItem>
           <ElDescriptionsItem label="批次号">{{ viewData.batch_no }}</ElDescriptionsItem>
@@ -264,7 +300,9 @@ loadRecords()
           <ElDescriptionsItem label="贷方金额">{{ viewData.credit_amount }}</ElDescriptionsItem>
           <ElDescriptionsItem label="车间ID">{{ viewData.workshop_id || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="客户ID">{{ viewData.customer_id || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="供应商ID">{{ viewData.supplier_id || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="供应商ID">{{
+            viewData.supplier_id || '-'
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="备注">{{ viewData.remarks || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
         </ElDescriptions>

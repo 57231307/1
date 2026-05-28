@@ -1,8 +1,28 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTabs, ElTabPane, ElTable, ElTableColumn, ElButton, ElSelect, ElRow, ElCol, ElMessage, ElCard } from 'element-plus'
+import {
+  ElTabs,
+  ElTabPane,
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElSelect,
+  ElRow,
+  ElCol,
+  ElMessage,
+  ElCard,
+} from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { getBalanceSheet, getProfitStatement, getCashFlowStatement, getTrialBalance, type BalanceSheetItem, type ProfitStatementItem, type CashFlowItem, type ReportData } from '@/api/financeReport'
+import {
+  getBalanceSheet,
+  getProfitStatement,
+  getCashFlowStatement,
+  getTrialBalance,
+  type BalanceSheetItem,
+  type ProfitStatementItem,
+  type CashFlowItem,
+  type ReportData,
+} from '@/api/financeReport'
 
 const activeTab = ref('balance')
 const loading = ref(false)
@@ -26,7 +46,7 @@ const loadPeriods = () => {
     const month = date.getMonth() + 1
     result.push({
       label: `${year}年${month}月`,
-      value: `${year}-${month.toString().padStart(2, '0')}`
+      value: `${year}-${month.toString().padStart(2, '0')}`,
     })
   }
   periods.value = result
@@ -48,7 +68,10 @@ const loadBalanceSheet = async () => {
 const loadProfitStatement = async () => {
   loading.value = true
   try {
-    const res: any = await getProfitStatement({ year: selectedYear.value, month: selectedMonth.value })
+    const res: any = await getProfitStatement({
+      year: selectedYear.value,
+      month: selectedMonth.value,
+    })
     profitStatementData.value = res.data!
   } catch (error) {
     ElMessage.error('加载利润表失败')
@@ -60,7 +83,10 @@ const loadProfitStatement = async () => {
 const loadCashFlow = async () => {
   loading.value = true
   try {
-    const res: any = await getCashFlowStatement({ year: selectedYear.value, month: selectedMonth.value })
+    const res: any = await getCashFlowStatement({
+      year: selectedYear.value,
+      month: selectedMonth.value,
+    })
     cashFlowData.value = res.data!
   } catch (error) {
     ElMessage.error('加载现金流量表失败')
@@ -118,11 +144,7 @@ loadBalanceSheet()
     <div class="filter-bar">
       <ElRow :gutter="20" align="middle">
         <ElCol :span="4">
-          <ElSelect
-            v-model="selectedPeriod"
-            placeholder="选择期间"
-            @change="handlePeriodChange"
-          >
+          <ElSelect v-model="selectedPeriod" placeholder="选择期间" @change="handlePeriodChange">
             <ElOption v-for="p in periods" :key="p.value" :label="p.label" :value="p.value" />
           </ElSelect>
         </ElCol>
@@ -231,7 +253,12 @@ loadBalanceSheet()
             </ElTableColumn>
             <ElTableColumn label="净流量" width="180" align="right">
               <template #default="scope">
-                <span :class="{ 'positive': (scope.row as CashFlowItem).net_flow >= 0, 'negative': (scope.row as CashFlowItem).net_flow < 0 }">
+                <span
+                  :class="{
+                    positive: (scope.row as CashFlowItem).net_flow >= 0,
+                    negative: (scope.row as CashFlowItem).net_flow < 0,
+                  }"
+                >
                   {{ formatAmount((scope.row as CashFlowItem).net_flow || 0) }}
                 </span>
               </template>
@@ -240,7 +267,12 @@ loadBalanceSheet()
           <div class="report-summary">
             <div class="summary-item">
               <span class="label">现金净增加额:</span>
-              <span :class="['value', cashFlowData.total && cashFlowData.total >= 0 ? 'positive' : 'negative']">
+              <span
+                :class="[
+                  'value',
+                  cashFlowData.total && cashFlowData.total >= 0 ? 'positive' : 'negative',
+                ]"
+              >
                 {{ formatAmount(cashFlowData.total || 0) }}
               </span>
             </div>

@@ -47,16 +47,14 @@ export const fabricApi = {
 
   getById: (id: number) => request.get<ApiResponse<Fabric>>(`/products/${id}`),
 
-  create: (data: Partial<Fabric>) =>
-    request.post<ApiResponse<Fabric>>('/products', data),
+  create: (data: Partial<Fabric>) => request.post<ApiResponse<Fabric>>('/products', data),
 
   update: (id: number, data: Partial<Fabric>) =>
     request.put<ApiResponse<Fabric>>(`/products/${id}`, data),
 
   delete: (id: number) => request.delete<ApiResponse<null>>(`/products/${id}`),
 
-  getCategories: () =>
-    request.get<ApiResponse<FabricCategory[]>>('/product-categories'),
+  getCategories: () => request.get<ApiResponse<FabricCategory[]>>('/product-categories'),
 
   createCategory: (data: Partial<FabricCategory>) =>
     request.post<ApiResponse<FabricCategory>>('/product-categories', data),
@@ -64,8 +62,7 @@ export const fabricApi = {
   updateCategory: (id: number, data: Partial<FabricCategory>) =>
     request.put<ApiResponse<FabricCategory>>(`/product-categories/${id}`, data),
 
-  deleteCategory: (id: number) =>
-    request.delete<ApiResponse<null>>(`/product-categories/${id}`),
+  deleteCategory: (id: number) => request.delete<ApiResponse<null>>(`/product-categories/${id}`),
 
   batchImport: (data: Fabric[]) =>
     request.post<ApiResponse<{ success: number; failed: number }>>('/products/import', data),

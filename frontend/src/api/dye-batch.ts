@@ -37,7 +37,10 @@ export function createDyeBatch(data: Partial<DyeBatch>): Promise<ApiResponse<Dye
   return request.post('/dye-batches', data)
 }
 
-export function updateDyeBatch(id: number, data: Partial<DyeBatch>): Promise<ApiResponse<DyeBatch>> {
+export function updateDyeBatch(
+  id: number,
+  data: Partial<DyeBatch>
+): Promise<ApiResponse<DyeBatch>> {
   return request.put(`/dye-batches/${id}`, data)
 }
 

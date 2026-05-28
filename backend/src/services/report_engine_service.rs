@@ -345,7 +345,7 @@ impl ReportEngineService {
                     // 处理日期筛选
                     if filter.operator == ">=" {
                         if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
-                            let datetime = date.and_hms_opt(0, 0, 0).unwrap();
+                            let datetime = date.and_hms_opt(0, 0, 0).expect("valid time");
                             query = query.filter(
                                 crate::models::sales_order::Column::OrderDate.gte(datetime)
                             );
@@ -1102,7 +1102,7 @@ impl ReportEngineService {
             "inventory_status" => self.query_inventory_report(custom_filters, page, page_size).await,
             "purchase_summary" => self.query_purchase_report(custom_filters, page, page_size).await,
             id if id.starts_with("custom_") => {
-                Err(AppError::NotFound("自定义模板需要通过 aggregate_data 接口执行".to_string()))
+                Err(AppError::BadRequest("自定义模板需要通过 aggregate_data 接口执行".to_string()))
             }
             _ => Err(AppError::NotFound(format!("报表模板 {} 不存在", template_id))),
         }?;
@@ -1133,14 +1133,14 @@ impl ReportEngineService {
                 "order_date" => {
                     if filter.operator == ">=" {
                         if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
-                            let datetime = date.and_hms_opt(0, 0, 0).unwrap();
+                            let datetime = date.and_hms_opt(0, 0, 0).expect("valid time");
                             query = query.filter(
                                 crate::models::sales_order::Column::OrderDate.gte(datetime)
                             );
                         }
                     } else if filter.operator == "<=" {
                         if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
-                            let datetime = date.and_hms_opt(23, 59, 59).unwrap();
+                            let datetime = date.and_hms_opt(23, 59, 59).expect("valid time");
                             query = query.filter(
                                 crate::models::sales_order::Column::OrderDate.lte(datetime)
                             );

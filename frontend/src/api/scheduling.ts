@@ -75,9 +75,18 @@ export const schedulingApi = {
   detectConflicts: (params?: { start_date?: string; end_date?: string }) =>
     request.get<ApiResponse<ConflictItem[]>>('/scheduling/conflicts', { params }),
 
-  adjustTask: (taskId: number, data: { start_time: string; end_time: string; work_center_id?: number }) =>
-    request.put<ApiResponse<ScheduleTask>>(`/scheduling/tasks/${taskId}/adjust`, data),
+  adjustTask: (
+    taskId: number,
+    data: { start_time: string; end_time: string; work_center_id?: number }
+  ) => request.put<ApiResponse<ScheduleTask>>(`/scheduling/tasks/${taskId}/adjust`, data),
 
-  getScheduleTasks: (params?: { page?: number; page_size?: number; status?: string; work_center_id?: number }) =>
-    request.get<ApiResponse<{ list: ScheduleTask[]; total: number }>>('/scheduling/tasks', { params }),
+  getScheduleTasks: (params?: {
+    page?: number
+    page_size?: number
+    status?: string
+    work_center_id?: number
+  }) =>
+    request.get<ApiResponse<{ list: ScheduleTask[]; total: number }>>('/scheduling/tasks', {
+      params,
+    }),
 }

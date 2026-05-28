@@ -113,7 +113,9 @@
         <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
         <el-table-column prop="category_name" label="分类" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.category_name" type="info" size="small">{{ row.category_name }}</el-tag>
+            <el-tag v-if="row.category_name" type="info" size="small">{{
+              row.category_name
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
@@ -167,14 +169,14 @@
       width="500px"
       :close-on-click-modal="false"
     >
-      <div style="margin-bottom: 16px;">
+      <div style="margin-bottom: 16px">
         <el-alert type="info" :closable="false">
           <template #title>
             <div>请先下载导入模板，按照模板格式填写数据后上传。</div>
           </template>
         </el-alert>
       </div>
-      <div style="margin-bottom: 16px;">
+      <div style="margin-bottom: 16px">
         <el-button type="primary" link @click="handleDownloadTemplate">
           <el-icon><Download /></el-icon>
           下载导入模板
@@ -196,7 +198,9 @@
       </el-upload>
       <template #footer>
         <el-button @click="importDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="importLoading" @click="handleImportSubmit">确定导入</el-button>
+        <el-button type="primary" :loading="importLoading" @click="handleImportSubmit"
+          >确定导入</el-button
+        >
       </template>
     </el-dialog>
 
@@ -230,7 +234,11 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="产品分类" prop="category_id">
-              <el-select v-model="formData.category_id" placeholder="请选择分类" style="width: 100%">
+              <el-select
+                v-model="formData.category_id"
+                placeholder="请选择分类"
+                style="width: 100%"
+              >
                 <el-option
                   v-for="item in categories"
                   :key="item.id"
@@ -261,23 +269,38 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="售价" prop="price">
-              <el-input-number v-model="formData.price" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="formData.price"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="成本价" prop="cost_price">
-              <el-input-number v-model="formData.cost_price" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="formData.cost_price"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="描述" prop="description">
-          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
         </el-form-item>
         <el-form-item label="状态" prop="is_active">
           <el-switch v-model="formData.is_active" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </el-form>
-      <template #footer v-if="dialogMode !== 'view'">
+      <template v-if="dialogMode !== 'view'" #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
       </template>
@@ -289,7 +312,15 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Upload, Download, Goods, CircleCheck, Collection, Money } from '@element-plus/icons-vue'
+import {
+  Plus,
+  Upload,
+  Download,
+  Goods,
+  CircleCheck,
+  Collection,
+  Money,
+} from '@element-plus/icons-vue'
 import { productApi, type Product, type ProductCategory } from '@/api/product'
 
 const loading = ref(false)
@@ -306,7 +337,7 @@ const stats = ref({
   totalProducts: 0,
   activeProducts: 0,
   totalCategories: 0,
-  avgPrice: 0
+  avgPrice: 0,
 })
 
 const queryParams = reactive({
@@ -314,7 +345,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   category_id: undefined as number | undefined,
-  is_active: undefined as boolean | undefined
+  is_active: undefined as boolean | undefined,
 })
 
 const formData = reactive({
@@ -328,31 +359,27 @@ const formData = reactive({
   price: 0,
   cost_price: 0,
   description: '',
-  is_active: true
+  is_active: true,
 })
 
 const formRules: FormRules = {
   product_code: [
     { required: true, message: '请输入产品编码', trigger: 'blur' },
-    { max: 50, message: '长度不能超过50个字符', trigger: 'blur' }
+    { max: 50, message: '长度不能超过50个字符', trigger: 'blur' },
   ],
   product_name: [
     { required: true, message: '请输入产品名称', trigger: 'blur' },
-    { max: 200, message: '长度不能超过200个字符', trigger: 'blur' }
+    { max: 200, message: '长度不能超过200个字符', trigger: 'blur' },
   ],
-  category_id: [
-    { required: true, message: '请选择产品分类', trigger: 'change' }
-  ],
-  unit: [
-    { required: true, message: '请输入单位', trigger: 'blur' }
-  ]
+  category_id: [{ required: true, message: '请选择产品分类', trigger: 'change' }],
+  unit: [{ required: true, message: '请输入单位', trigger: 'blur' }],
 }
 
 const dialogTitle = computed(() => {
   const titles = {
     create: '新建产品',
     edit: '编辑产品',
-    view: '查看产品'
+    view: '查看产品',
   }
   return titles[dialogMode.value]
 })
@@ -366,13 +393,14 @@ const fetchData = async () => {
     const d = res.data as any
     products.value = d?.list || d?.data || d || []
     total.value = res.data?.total || 0
-    
+
     // 计算统计数据
     stats.value.totalProducts = total.value
-    stats.value.activeProducts = products.value.filter(p => p.is_active).length
-    stats.value.avgPrice = products.value.length > 0
-      ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
-      : 0
+    stats.value.activeProducts = products.value.filter((p) => p.is_active).length
+    stats.value.avgPrice =
+      products.value.length > 0
+        ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
+        : 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取产品列表失败')
     products.value = []
@@ -397,12 +425,12 @@ const fetchCategories = async () => {
 const buildTree = (items: ProductCategory[]): ProductCategory[] => {
   const map = new Map<number, ProductCategory>()
   const tree: ProductCategory[] = []
-  
-  items.forEach(item => {
+
+  items.forEach((item) => {
     map.set(item.id, { ...item, children: [] })
   })
-  
-  items.forEach(item => {
+
+  items.forEach((item) => {
     const node = map.get(item.id)!
     if (item.parent_id && map.has(item.parent_id)) {
       map.get(item.parent_id)!.children!.push(node)
@@ -410,7 +438,7 @@ const buildTree = (items: ProductCategory[]): ProductCategory[] => {
       tree.push(node)
     }
   })
-  
+
   return tree
 }
 
@@ -463,7 +491,9 @@ const handleEdit = (row: Product) => {
 
 const handleDelete = async (row: Product) => {
   try {
-    await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
     await productApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -476,10 +506,10 @@ const handleDelete = async (row: Product) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {
@@ -517,7 +547,7 @@ const handleImportSubmit = async () => {
     ElMessage.warning('请选择要导入的文件')
     return
   }
-  
+
   importLoading.value = true
   try {
     const res = await productApi.importProducts(importFile.value)
@@ -556,31 +586,120 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.product-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.stats-row { margin-bottom: 20px; }
-.stat-card { border-radius: 12px; transition: all 0.3s ease; }
-.stat-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
-.stat-card.highlight { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.stat-card.highlight .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.highlight .stat-label, .stat-card.highlight .stat-value { color: white; }
-.stat-card.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-card.warning .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.warning .stat-label, .stat-card.warning .stat-value { color: white; }
-.stat-content { display: flex; align-items: center; gap: 16px; }
-.stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-.stat-icon.total-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.stat-icon.active-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.category-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.price-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.stat-info { flex: 1; }
-.stat-label { font-size: 14px; color: #909399; margin-bottom: 4px; }
-.stat-value { font-size: 28px; font-weight: 700; color: #303133; line-height: 1.2; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
-:deep(.el-card__header) { padding: 16px 20px; border-bottom: 1px solid #ebeef5; }
-:deep(.el-card__body) { padding: 20px; }
+.product-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.stats-row {
+  margin-bottom: 20px;
+}
+.stat-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.stat-card.highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.stat-card.highlight .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-card.highlight .stat-label,
+.stat-card.highlight .stat-value {
+  color: white;
+}
+.stat-card.warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+.stat-card.warning .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-card.warning .stat-label,
+.stat-card.warning .stat-value {
+  color: white;
+}
+.stat-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+.stat-icon.total-icon {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+.stat-icon.active-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-icon.category-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-icon.price-icon {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+.stat-info {
+  flex: 1;
+}
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+:deep(.el-card__body) {
+  padding: 20px;
+}
 </style>

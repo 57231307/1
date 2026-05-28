@@ -11,7 +11,13 @@
           end-placeholder="结束日期"
           @change="handleDateChange"
         />
-        <el-select v-model="selectedWorkCenter" placeholder="选择工作中心" clearable style="width: 200px; margin-left: 12px" @change="handleWorkCenterChange">
+        <el-select
+          v-model="selectedWorkCenter"
+          placeholder="选择工作中心"
+          clearable
+          style="width: 200px; margin-left: 12px"
+          @change="handleWorkCenterChange"
+        >
           <el-option label="全部" :value="undefined" />
           <el-option v-for="wc in workCenters" :key="wc.id" :label="wc.name" :value="wc.id" />
         </el-select>
@@ -102,14 +108,16 @@
               </el-button>
             </div>
           </template>
-          <el-table :data="workCenters" stripe style="width: 100%" v-loading="tableLoading">
+          <el-table v-loading="tableLoading" :data="workCenters" stripe style="width: 100%">
             <el-table-column prop="code" label="编号" width="120" />
             <el-table-column prop="name" label="名称" width="150" />
             <el-table-column prop="capacity_hours" label="产能工时" width="120" />
             <el-table-column prop="used_hours" label="已用工时" width="120" />
             <el-table-column prop="load_rate" label="负荷率" width="120">
               <template #default="{ row }">
-                <el-tag :type="getLoadRateType(row.load_rate)">{{ (row.load_rate * 100).toFixed(1) }}%</el-tag>
+                <el-tag :type="getLoadRateType(row.load_rate)"
+                  >{{ (row.load_rate * 100).toFixed(1) }}%</el-tag
+                >
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
@@ -144,7 +152,7 @@
               <el-tag type="danger">{{ bottlenecks.length }} 个瓶颈</el-tag>
             </div>
           </template>
-          <div class="bottleneck-list" v-loading="bottleneckLoading">
+          <div v-loading="bottleneckLoading" class="bottleneck-list">
             <div v-if="bottlenecks.length === 0" class="empty-state">
               <el-icon><CircleCheck /></el-icon>
               <p>暂无瓶颈工作中心</p>
@@ -155,7 +163,9 @@
                 <el-tag type="danger" size="small">瓶颈</el-tag>
               </div>
               <div class="bottleneck-info">
-                <span>负荷率: <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span>
+                <span
+                  >负荷率: <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span
+                >
                 <span>已用工时: {{ item.used_hours }} / {{ item.capacity_hours }}</span>
               </div>
             </div>
@@ -169,16 +179,15 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  OfficeBuilding,
-  CircleCheck,
-  Loading,
-  Warning,
-  Refresh
-} from '@element-plus/icons-vue'
+import { OfficeBuilding, CircleCheck, Loading, Warning, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
-import { capacityApi, type CapacitySummary, type WorkCenter, type CapacityTrend } from '@/api/capacity'
+import {
+  capacityApi,
+  type CapacitySummary,
+  type WorkCenter,
+  type CapacityTrend,
+} from '@/api/capacity'
 
 const dateRange = ref<[Date, Date] | null>(null)
 const trendDays = ref(7)
@@ -224,7 +233,10 @@ const fetchSummary = async () => {
 
 const fetchTrendData = async () => {
   try {
-    const res = await capacityApi.getTrend({ days: trendDays.value, work_center_id: selectedWorkCenter.value })
+    const res = await capacityApi.getTrend({
+      days: trendDays.value,
+      work_center_id: selectedWorkCenter.value,
+    })
     const data = res.data!
     renderCapacityChart(data)
   } catch (error: any) {
@@ -241,13 +253,42 @@ const renderCapacityChart = (data: CapacityTrend[]) => {
     tooltip: { trigger: 'axis' },
     legend: { data: ['计划工时', '实际工时', '产能工时'], bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: data.map(d => d.date), axisLine: { lineStyle: { color: '#909399' } } },
-    yAxis: { type: 'value', name: '工时', axisLine: { lineStyle: { color: '#909399' } }, splitLine: { lineStyle: { color: '#ebeef5' } } },
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => d.date),
+      axisLine: { lineStyle: { color: '#909399' } },
+    },
+    yAxis: {
+      type: 'value',
+      name: '工时',
+      axisLine: { lineStyle: { color: '#909399' } },
+      splitLine: { lineStyle: { color: '#ebeef5' } },
+    },
     series: [
-      { name: '计划工时', type: 'line', data: data.map(d => d.planned_hours), smooth: true, itemStyle: { color: '#409eff' }, areaStyle: { color: 'rgba(64, 158, 255, 0.1)' } },
-      { name: '实际工时', type: 'line', data: data.map(d => d.actual_hours), smooth: true, itemStyle: { color: '#67c23a' } },
-      { name: '产能工时', type: 'line', data: data.map(d => d.capacity_hours), smooth: true, itemStyle: { color: '#e6a23c' }, lineStyle: { type: 'dashed' } }
-    ]
+      {
+        name: '计划工时',
+        type: 'line',
+        data: data.map((d) => d.planned_hours),
+        smooth: true,
+        itemStyle: { color: '#409eff' },
+        areaStyle: { color: 'rgba(64, 158, 255, 0.1)' },
+      },
+      {
+        name: '实际工时',
+        type: 'line',
+        data: data.map((d) => d.actual_hours),
+        smooth: true,
+        itemStyle: { color: '#67c23a' },
+      },
+      {
+        name: '产能工时',
+        type: 'line',
+        data: data.map((d) => d.capacity_hours),
+        smooth: true,
+        itemStyle: { color: '#e6a23c' },
+        lineStyle: { type: 'dashed' },
+      },
+    ],
   }
   capacityChart.setOption(option)
 }
@@ -255,7 +296,10 @@ const renderCapacityChart = (data: CapacityTrend[]) => {
 const fetchWorkCenters = async () => {
   tableLoading.value = true
   try {
-    const res = await capacityApi.listWorkCenters({ page: currentPage.value, page_size: pageSize.value })
+    const res = await capacityApi.listWorkCenters({
+      page: currentPage.value,
+      page_size: pageSize.value,
+    })
     workCenters.value = res.data!.list
     total.value = res.data!.total
   } catch (error: any) {

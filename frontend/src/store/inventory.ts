@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { inventoryApi, type InventoryStock, type StockAlert, type InventoryQueryParams } from '@/api/inventory'
+import {
+  inventoryApi,
+  type InventoryStock,
+  type StockAlert,
+  type InventoryQueryParams,
+} from '@/api/inventory'
 
 export const useInventoryStore = defineStore('inventory', () => {
   const stocks = ref<InventoryStock[]>([])

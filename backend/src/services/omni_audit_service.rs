@@ -72,9 +72,14 @@ impl OmniAuditEngine {
                     user_id: ActiveValue::Set(Some(msg.user_id)),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),
-                    response_status: ActiveValue::Set(Some(msg.duration_ms)),
+                    response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or_else(|_| match msg.status.as_str() {
+                        "SUCCESS" => 200,
+                        "FAILED" => 500,
+                        "DENIED" => 403,
+                        _ => 0,
+                    }))),
                     duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
-                    created_at: ActiveValue::Set(Some(Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()))),
+                    created_at: ActiveValue::Set(Some(Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).expect("UTC offset 0 is always valid")))),
                     ..Default::default()
                 };
 

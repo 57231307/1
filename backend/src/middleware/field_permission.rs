@@ -1,4 +1,5 @@
 use crate::middleware::auth_context::AuthContext;
+use crate::models::role;
 use crate::services::field_permission_service::FieldPermissionService;
 use crate::utils::app_state::AppState;
 use axum::{
@@ -7,8 +8,24 @@ use axum::{
     http::{Request, Response},
     middleware::Next,
 };
+use sea_orm::EntityTrait;
 use serde_json::Value;
-use std::sync::Arc;
+
+/// 检查角色是否是管理员角色
+async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
+    // 从数据库查询角色，检查code是否为"admin"
+    match role::Entity::find_by_id(role_id)
+        .one(db)
+        .await
+    {
+        Ok(Some(role)) => role.code == "admin",
+        Ok(None) => false,
+        Err(e) => {
+            tracing::warn!("查询角色失败: {}", e);
+            false
+        }
+    }
+}
 
 /// 字段权限中间件
 ///
@@ -32,8 +49,8 @@ pub async fn field_permission_middleware(
         None => return next.run(request).await,
     };
 
-    // Admin 角色不需要字段级过滤
-    if role_id == 1 {
+    // 检查是否是管理员角色（从数据库查询，而非硬编码）
+    if is_admin_role(&state.db, role_id).await {
         return next.run(request).await;
     }
 

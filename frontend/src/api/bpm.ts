@@ -56,18 +56,24 @@ export const bpmApi = {
   approveTask: (data: { task_id: string; comment?: string; variables?: any }) =>
     request.post<ApiResponse<null>>('/bpm/tasks/approve', data),
 
-  queryTasks: (params?: { assignee?: number; status?: string; page?: number; page_size?: number }) =>
-    request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/tasks', { params }),
+  queryTasks: (params?: {
+    assignee?: number
+    status?: string
+    page?: number
+    page_size?: number
+  }) => request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/tasks', { params }),
 
   transferTask: (taskId: string, targetUserId: number, reason?: string) =>
-    request.post<ApiResponse<null>>(`/bpm/tasks/${taskId}/transfer`, { target_user_id: targetUserId, reason }),
+    request.post<ApiResponse<null>>(`/bpm/tasks/${taskId}/transfer`, {
+      target_user_id: targetUserId,
+      reason,
+    }),
 
-  urgeTask: (taskId: string) =>
-    request.post<ApiResponse<null>>(`/bpm/tasks/${taskId}/urge`),
+  urgeTask: (taskId: string) => request.post<ApiResponse<null>>(`/bpm/tasks/${taskId}/urge`),
 
   getBusinessRelation: (businessType: string, businessId: number) =>
     request.get<ApiResponse<any>>('/bpm/business-relation', {
-      params: { business_type: businessType, business_id: businessId }
+      params: { business_type: businessType, business_id: businessId },
     }),
 
   getProcessVisualization: (instanceId: string) =>
@@ -79,12 +85,15 @@ export const bpmApi = {
   getInstanceDetail: (instanceId: string) =>
     request.get<ApiResponse<any>>(`/bpm/instances/${instanceId}/detail`),
 
-  getMonitorStats: () =>
-    request.get<ApiResponse<any>>('/bpm/monitor/stats'),
+  getMonitorStats: () => request.get<ApiResponse<any>>('/bpm/monitor/stats'),
 
   getPendingTasksForMonitor: (params?: any) =>
-    request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/monitor/pending-tasks', { params }),
+    request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/monitor/pending-tasks', {
+      params,
+    }),
 
   listInstancesForMonitor: (params?: any) =>
-    request.get<ApiResponse<{ list: BPMInstance[]; total: number }>>('/bpm/monitor/instances', { params }),
+    request.get<ApiResponse<{ list: BPMInstance[]; total: number }>>('/bpm/monitor/instances', {
+      params,
+    }),
 }

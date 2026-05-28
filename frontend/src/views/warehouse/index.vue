@@ -104,12 +104,7 @@
       :close-on-click-modal="false"
       @close="resetForm"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="仓库编码" prop="warehouse_code">
@@ -125,7 +120,11 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="仓库类型" prop="warehouse_type">
-              <el-select v-model="formData.warehouse_type" placeholder="请选择类型" style="width: 100%">
+              <el-select
+                v-model="formData.warehouse_type"
+                placeholder="请选择类型"
+                style="width: 100%"
+              >
                 <el-option label="原料仓" value="raw" />
                 <el-option label="成品仓" value="finished" />
                 <el-option label="半成品仓" value="semi" />
@@ -155,7 +154,12 @@
           </el-col>
         </el-row>
         <el-form-item label="描述" prop="description">
-          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -201,7 +205,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   warehouse_type: '',
-  status: ''
+  status: '',
 })
 
 const formData = reactive({
@@ -215,29 +219,23 @@ const formData = reactive({
   capacity: undefined as number | undefined,
   description: '',
   is_default: false,
-  status: 'active'
+  status: 'active',
 })
 
 const formRules: FormRules = {
-  warehouse_code: [
-    { required: true, message: '请输入仓库编码', trigger: 'blur' }
-  ],
-  warehouse_name: [
-    { required: true, message: '请输入仓库名称', trigger: 'blur' }
-  ],
-  warehouse_type: [
-    { required: true, message: '请选择仓库类型', trigger: 'change' }
-  ]
+  warehouse_code: [{ required: true, message: '请输入仓库编码', trigger: 'blur' }],
+  warehouse_name: [{ required: true, message: '请输入仓库名称', trigger: 'blur' }],
+  warehouse_type: [{ required: true, message: '请选择仓库类型', trigger: 'change' }],
 }
 
-const dialogTitle = computed(() => isEdit.value ? '编辑仓库' : '新建仓库')
+const dialogTitle = computed(() => (isEdit.value ? '编辑仓库' : '新建仓库'))
 
 const getWarehouseTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     raw: '原料仓',
     finished: '成品仓',
     semi: '半成品仓',
-    return: '退货仓'
+    return: '退货仓',
   }
   return labels[type] || type
 }
@@ -247,7 +245,7 @@ const getWarehouseTypeTag = (type: string) => {
     raw: 'warning',
     finished: 'success',
     semi: 'info',
-    return: 'danger'
+    return: 'danger',
   }
   return tags[type] || ''
 }
@@ -309,7 +307,9 @@ const handleEdit = (row: Warehouse) => {
 
 const handleDelete = async (row: Warehouse) => {
   try {
-    await ElMessageBox.confirm(`确定删除仓库 "${row.warehouse_name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除仓库 "${row.warehouse_name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
     await warehouseApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -322,10 +322,10 @@ const handleDelete = async (row: Warehouse) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (isEdit.value) {
@@ -351,11 +351,36 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.warehouse-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.warehouse-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
 </style>

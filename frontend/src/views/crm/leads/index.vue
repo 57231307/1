@@ -28,10 +28,20 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="线索编号/公司名称/联系人" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="线索编号/公司名称/联系人"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="线索来源">
-          <el-select v-model="queryParams.lead_source" placeholder="选择来源" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.lead_source"
+            placeholder="选择来源"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="网站" value="WEBSITE" />
             <el-option label="电话" value="PHONE" />
             <el-option label="展会" value="EXHIBITION" />
@@ -40,7 +50,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="线索状态">
-          <el-select v-model="queryParams.lead_status" placeholder="选择状态" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.lead_status"
+            placeholder="选择状态"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="新线索" value="NEW" />
             <el-option label="已联系" value="CONTACTED" />
             <el-option label="已qualified" value="QUALIFIED" />
@@ -49,12 +64,23 @@
           </el-select>
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="queryParams.owner_id" placeholder="选择负责人" clearable filterable @change="handleQuery">
+          <el-select
+            v-model="queryParams.owner_id"
+            placeholder="选择负责人"
+            clearable
+            filterable
+            @change="handleQuery"
+          >
             <el-option v-for="u in users" :key="u.id" :label="u.name" :value="u.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="优先级">
-          <el-select v-model="queryParams.priority" placeholder="选择优先级" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.priority"
+            placeholder="选择优先级"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="低" value="LOW" />
             <el-option label="中" value="MEDIUM" />
             <el-option label="高" value="HIGH" />
@@ -75,11 +101,22 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="leadList" border stripe @selection-change="handleSelectionChange">
+      <el-table
+        v-loading="loading"
+        :data="leadList"
+        border
+        stripe
+        @selection-change="handleSelectionChange"
+      >
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="lead_no" label="线索编号" width="120" show-overflow-tooltip />
-        <el-table-column prop="company_name" label="公司名称" min-width="150" show-overflow-tooltip />
+        <el-table-column
+          prop="company_name"
+          label="公司名称"
+          min-width="150"
+          show-overflow-tooltip
+        />
         <el-table-column prop="contact_name" label="联系人" width="100" show-overflow-tooltip />
         <el-table-column prop="mobile_phone" label="手机号" width="120" show-overflow-tooltip />
         <el-table-column prop="lead_source" label="线索来源" width="100" align="center">
@@ -89,12 +126,16 @@
         </el-table-column>
         <el-table-column prop="lead_status" label="线索状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.lead_status)">{{ getStatusLabel(row.lead_status) }}</el-tag>
+            <el-tag :type="getStatusType(row.lead_status)">{{
+              getStatusLabel(row.lead_status)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="priority" label="优先级" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="getPriorityType(row.priority)">{{ getPriorityLabel(row.priority) }}</el-tag>
+            <el-tag :type="getPriorityType(row.priority)">{{
+              getPriorityLabel(row.priority)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="owner_name" label="负责人" width="100" show-overflow-tooltip />
@@ -103,10 +144,38 @@
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.lead_status !== 'CONVERTED'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="row.lead_status === 'NEW'" type="warning" link size="small" @click="handleContact(row)">联系</el-button>
-            <el-button v-if="row.lead_status === 'QUALIFIED'" type="success" link size="small" @click="handleConvert(row)">转化</el-button>
-            <el-button v-if="row.lead_status !== 'CONVERTED'" type="danger" link size="small" @click="handleLost(row)">流失</el-button>
+            <el-button
+              v-if="row.lead_status !== 'CONVERTED'"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.lead_status === 'NEW'"
+              type="warning"
+              link
+              size="small"
+              @click="handleContact(row)"
+              >联系</el-button
+            >
+            <el-button
+              v-if="row.lead_status === 'QUALIFIED'"
+              type="success"
+              link
+              size="small"
+              @click="handleConvert(row)"
+              >转化</el-button
+            >
+            <el-button
+              v-if="row.lead_status !== 'CONVERTED'"
+              type="danger"
+              link
+              size="small"
+              @click="handleLost(row)"
+              >流失</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -125,7 +194,12 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="800px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -189,7 +263,12 @@
           </el-col>
         </el-row>
         <el-form-item label="需求描述" prop="requirement_desc">
-          <el-input v-model="formData.requirement_desc" type="textarea" :rows="3" placeholder="请输入需求描述" />
+          <el-input
+            v-model="formData.requirement_desc"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入需求描述"
+          />
         </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input v-model="formData.remarks" type="textarea" :rows="2" placeholder="请输入备注" />
@@ -216,7 +295,7 @@ const queryParams = reactive({
   lead_source: '',
   lead_status: '',
   owner_id: '',
-  priority: ''
+  priority: '',
 })
 
 // 列表数据
@@ -245,14 +324,14 @@ const formData = reactive({
   priority: 'MEDIUM',
   owner_id: '',
   requirement_desc: '',
-  remarks: ''
+  remarks: '',
 })
 
 // 表单验证规则
 const formRules = {
   lead_source: [{ required: true, message: '请选择线索来源', trigger: 'change' }],
   contact_name: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
-  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }]
+  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }],
 }
 
 // 获取列表数据
@@ -309,15 +388,13 @@ const handleCreate = () => {
     priority: 'MEDIUM',
     owner_id: '',
     requirement_desc: '',
-    remarks: ''
+    remarks: '',
   })
   dialogVisible.value = true
 }
 
 // 查看
-const handleView = (row: any) => {
-  console.log('查看:', row)
-}
+const handleView = (row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -404,7 +481,7 @@ const getSourceLabel = (source: string) => {
     PHONE: '电话',
     EXHIBITION: '展会',
     REFERRAL: '推荐',
-    OTHER: '其他'
+    OTHER: '其他',
   }
   return map[source] || source
 }
@@ -416,7 +493,7 @@ const getStatusType = (status: string) => {
     CONTACTED: 'warning',
     QUALIFIED: 'primary',
     CONVERTED: 'success',
-    LOST: 'danger'
+    LOST: 'danger',
   }
   return map[status] || 'info'
 }
@@ -428,7 +505,7 @@ const getStatusLabel = (status: string) => {
     CONTACTED: '已联系',
     QUALIFIED: '已qualified',
     CONVERTED: '已转化',
-    LOST: '已流失'
+    LOST: '已流失',
   }
   return map[status] || status
 }
@@ -439,7 +516,7 @@ const getPriorityType = (priority: string) => {
     LOW: 'info',
     MEDIUM: '',
     HIGH: 'warning',
-    URGENT: 'danger'
+    URGENT: 'danger',
   }
   return map[priority] || ''
 }
@@ -450,7 +527,7 @@ const getPriorityLabel = (priority: string) => {
     LOW: '低',
     MEDIUM: '中',
     HIGH: '高',
-    URGENT: '紧急'
+    URGENT: '紧急',
   }
   return map[priority] || priority
 }

@@ -5,7 +5,7 @@
       <el-button type="primary" @click="handleCreate">新建退货单</el-button>
     </div>
 
-    <el-table :data="returnList" v-loading="loading" border>
+    <el-table v-loading="loading" :data="returnList" border>
       <el-table-column prop="returnNo" label="退货单号" />
       <el-table-column prop="salesOrderNo" label="销售订单号" />
       <el-table-column prop="customerName" label="客户名称" />
@@ -22,32 +22,44 @@
         <template #default="{ row }">
           <el-button size="small" @click="handleView(row)">详情</el-button>
           <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-          <el-button size="small" type="primary" @click="handleApprove(row)" v-if="row.status === 'PENDING'">审核</el-button>
+          <el-button
+            v-if="row.status === 'PENDING'"
+            size="small"
+            type="primary"
+            @click="handleApprove(row)"
+            >审核</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
 
     <!-- 详情对话框 -->
-    <el-dialog
-      v-model="viewDialogVisible"
-      title="退货单详情"
-      width="800px"
-    >
+    <el-dialog v-model="viewDialogVisible" title="退货单详情" width="800px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="退货单号">{{ currentReturn.returnNo }}</el-descriptions-item>
-        <el-descriptions-item label="销售订单号">{{ currentReturn.salesOrderNo }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ currentReturn.customerName }}</el-descriptions-item>
+        <el-descriptions-item label="销售订单号">{{
+          currentReturn.salesOrderNo
+        }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{
+          currentReturn.customerName
+        }}</el-descriptions-item>
         <el-descriptions-item label="退货日期">{{ currentReturn.returnDate }}</el-descriptions-item>
-        <el-descriptions-item label="退货金额">¥{{ currentReturn.totalAmount }}</el-descriptions-item>
+        <el-descriptions-item label="退货金额"
+          >¥{{ currentReturn.totalAmount }}</el-descriptions-item
+        >
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentReturn.status)">
             {{ getStatusLabel(currentReturn.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.reason }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentReturn.remarks }}</el-descriptions-item>
+        <el-descriptions-item label="退货原因" :span="2">{{
+          currentReturn.reason
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentReturn.remarks
+        }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <div style="margin-top: 20px">
         <h4>退货明细</h4>
         <el-table :data="currentReturn.items || []" border size="small">
@@ -68,12 +80,7 @@
       width="900px"
       @close="handleEditDialogClose"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="120px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="销售订单号" prop="salesOrderId">
@@ -95,7 +102,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="客户" prop="customerId">
-              <el-select v-model="formData.customerId" placeholder="请选择客户" style="width: 100%" filterable>
+              <el-select
+                v-model="formData.customerId"
+                placeholder="请选择客户"
+                style="width: 100%"
+                filterable
+              >
                 <el-option
                   v-for="customer in customerList"
                   :key="customer.id"
@@ -106,7 +118,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="退货日期" prop="returnDate">
@@ -132,25 +144,35 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
-              <el-input v-model="formData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+              <el-input
+                v-model="formData.remarks"
+                type="textarea"
+                :rows="3"
+                placeholder="请输入备注"
+              />
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-divider />
-        
+
         <el-form-item label="退货明细">
-          <el-button type="primary" size="small" @click="handleAddItem" style="margin-bottom: 10px">
+          <el-button type="primary" size="small" style="margin-bottom: 10px" @click="handleAddItem">
             添加明细
           </el-button>
           <el-table :data="formData.items" border style="width: 100%">
             <el-table-column label="产品名称" width="200">
               <template #default="{ row }">
-                <el-select v-model="row.productId" placeholder="选择产品" style="width: 100%" filterable>
+                <el-select
+                  v-model="row.productId"
+                  placeholder="选择产品"
+                  style="width: 100%"
+                  filterable
+                >
                   <el-option
                     v-for="product in productList"
                     :key="product.id"
@@ -162,12 +184,24 @@
             </el-table-column>
             <el-table-column label="数量" width="120">
               <template #default="{ row }">
-                <el-input-number v-model="row.quantity" :min="1" :precision="2" style="width: 100%" @change="calculateTotal" />
+                <el-input-number
+                  v-model="row.quantity"
+                  :min="1"
+                  :precision="2"
+                  style="width: 100%"
+                  @change="calculateTotal"
+                />
               </template>
             </el-table-column>
             <el-table-column label="单价" width="120">
               <template #default="{ row }">
-                <el-input-number v-model="row.unitPrice" :min="0" :precision="2" style="width: 100%" @change="calculateTotal" />
+                <el-input-number
+                  v-model="row.unitPrice"
+                  :min="0"
+                  :precision="2"
+                  style="width: 100%"
+                  @change="calculateTotal"
+                />
               </template>
             </el-table-column>
             <el-table-column label="金额" width="120">
@@ -182,16 +216,23 @@
             </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ $index }">
-                <el-button type="danger" size="small" @click="handleRemoveItem($index)">删除</el-button>
+                <el-button type="danger" size="small" @click="handleRemoveItem($index)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12" :offset="12">
             <el-form-item label="退货总金额">
-              <el-input-number v-model="formData.totalAmount" :precision="2" :disabled="true" style="width: 100%" />
+              <el-input-number
+                v-model="formData.totalAmount"
+                :precision="2"
+                :disabled="true"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -199,9 +240,7 @@
 
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
-          确定
-        </el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit"> 确定 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -239,32 +278,32 @@ const formData = reactive<any>({
   remarks: '',
   items: [] as any[],
   totalAmount: 0,
-  status: 'PENDING'
+  status: 'PENDING',
 })
 
 const formRules: FormRules = {
   salesOrderId: [{ required: true, message: '请选择销售订单', trigger: 'change' }],
   customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
   returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
-  reason: [{ required: true, message: '请选择退货原因', trigger: 'change' }]
+  reason: [{ required: true, message: '请选择退货原因', trigger: 'change' }],
 }
 
 const getStatusType = (status: string) => {
   const types: Record<string, any> = {
-    'PENDING': 'warning',
-    'APPROVED': 'success',
-    'REJECTED': 'danger',
-    'COMPLETED': 'info'
+    PENDING: 'warning',
+    APPROVED: 'success',
+    REJECTED: 'danger',
+    COMPLETED: 'info',
   }
   return types[status] || 'info'
 }
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    'PENDING': '待审核',
-    'APPROVED': '已通过',
-    'REJECTED': '已拒绝',
-    'COMPLETED': '已完成'
+    PENDING: '待审核',
+    APPROVED: '已通过',
+    REJECTED: '已拒绝',
+    COMPLETED: '已完成',
   }
   return labels[status] || status
 }
@@ -293,7 +332,7 @@ const loadSalesOrders = async () => {
 const loadCustomers = async () => {
   try {
     const res = await listCustomers()
-  customerList.value = (res.data as any).list || []
+    customerList.value = (res.data as any).list || []
   } catch (error) {
     // 忽略错误
   }
@@ -302,7 +341,7 @@ const loadCustomers = async () => {
 const loadProducts = async () => {
   try {
     const res = await productApi.list()
-  productList.value = (res.data as any).list || []
+    productList.value = (res.data as any).list || []
   } catch (error) {
     // 忽略错误
   }
@@ -321,7 +360,7 @@ const handleCreate = () => {
     remarks: '',
     items: [{ id: null, productId: null, quantity: 1, unitPrice: 0, reason: '' }],
     totalAmount: 0,
-    status: 'PENDING'
+    status: 'PENDING',
   })
   editDialogVisible.value = true
 }
@@ -344,14 +383,14 @@ const handleEdit = (row: any) => {
     remarks: row.remarks,
     items: row.items ? [...row.items] : [],
     totalAmount: row.totalAmount,
-    status: row.status
+    status: row.status,
   })
   editDialogVisible.value = true
 }
 
 const handleApprove = async (row: any) => {
   if (!row.id) return
-  
+
   try {
     await salesReturnApi.approve(row.id)
     ElMessage.success('审核成功')
@@ -362,7 +401,7 @@ const handleApprove = async (row: any) => {
 }
 
 const handleSalesOrderChange = (orderId: number) => {
-  const order = salesOrderList.value.find(o => o.id === orderId)
+  const order = salesOrderList.value.find((o) => o.id === orderId)
   if (order) {
     formData.salesOrderNo = order.orderNo
     formData.customerId = order.customerId
@@ -372,7 +411,7 @@ const handleSalesOrderChange = (orderId: number) => {
       formData.items = order.items.map((item: any) => ({
         ...item,
         quantity: 0,
-        reason: ''
+        reason: '',
       }))
     }
     calculateTotal()
@@ -388,7 +427,7 @@ const handleAddItem = () => {
     quantity: 1,
     unitPrice: 0,
     amount: 0,
-    reason: ''
+    reason: '',
   })
 }
 
@@ -399,21 +438,21 @@ const handleRemoveItem = (index: number) => {
 
 const calculateTotal = () => {
   formData.totalAmount = formData.items.reduce((sum: number, item: any) => {
-    return sum + (item.quantity * item.unitPrice)
+    return sum + item.quantity * item.unitPrice
   }, 0)
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     if (formData.items.length === 0) {
       ElMessage.warning('请至少添加一条退货明细')
       return
     }
-    
+
     submitLoading.value = true
     try {
       const submitData = {
@@ -423,10 +462,10 @@ const handleSubmit = async () => {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           amount: item.quantity * item.unitPrice,
-          reason: item.reason
-        }))
+          reason: item.reason,
+        })),
       }
-      
+
       if (dialogMode.value === 'create') {
         await salesReturnApi.create(submitData)
         ElMessage.success('创建成功')

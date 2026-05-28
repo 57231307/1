@@ -34,7 +34,9 @@ export interface ContractItem {
   remark: string
 }
 
-export function listPurchaseContracts(params?: QueryParams): Promise<ApiResponse<PurchaseContract[]>> {
+export function listPurchaseContracts(
+  params?: QueryParams
+): Promise<ApiResponse<PurchaseContract[]>> {
   return request.get('/purchase-contracts', { params })
 }
 
@@ -42,11 +44,16 @@ export function getPurchaseContract(id: number): Promise<ApiResponse<PurchaseCon
   return request.get(`/purchase-contracts/${id}`)
 }
 
-export function createPurchaseContract(data: Partial<PurchaseContract>): Promise<ApiResponse<PurchaseContract>> {
+export function createPurchaseContract(
+  data: Partial<PurchaseContract>
+): Promise<ApiResponse<PurchaseContract>> {
   return request.post('/purchase-contracts', data)
 }
 
-export function updatePurchaseContract(id: number, data: Partial<PurchaseContract>): Promise<ApiResponse<PurchaseContract>> {
+export function updatePurchaseContract(
+  id: number,
+  data: Partial<PurchaseContract>
+): Promise<ApiResponse<PurchaseContract>> {
   return request.put(`/purchase-contracts/${id}`, data)
 }
 

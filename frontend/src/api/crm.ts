@@ -27,7 +27,14 @@ export interface Opportunity {
   name: string
   customer_id: number
   customer_name: string
-  stage: 'qualification' | 'needs_analysis' | 'value_proposition' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost'
+  stage:
+    | 'qualification'
+    | 'needs_analysis'
+    | 'value_proposition'
+    | 'proposal'
+    | 'negotiation'
+    | 'closed_won'
+    | 'closed_lost'
   estimated_amount: number
   probability: number
   expected_close_date: string
@@ -62,7 +69,9 @@ export function updateLeadStatus(id: number, data: { status: string }): Promise<
   return request.put(`/crm/leads/${id}/status`, data)
 }
 
-export function convertLead(id: number): Promise<ApiResponse<{ customer_id: number; opportunity_id: number }>> {
+export function convertLead(
+  id: number
+): Promise<ApiResponse<{ customer_id: number; opportunity_id: number }>> {
   return request.post(`/crm/leads/${id}/convert`)
 }
 
@@ -78,7 +87,10 @@ export function createOpportunity(data: Partial<Opportunity>): Promise<ApiRespon
   return request.post('/crm/opportunities', data)
 }
 
-export function updateOpportunity(id: number, data: Partial<Opportunity>): Promise<ApiResponse<Opportunity>> {
+export function updateOpportunity(
+  id: number,
+  data: Partial<Opportunity>
+): Promise<ApiResponse<Opportunity>> {
   return request.put(`/crm/opportunities/${id}`, data)
 }
 

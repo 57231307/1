@@ -14,7 +14,13 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="模板分类">
-          <el-select v-model="filterForm.category" placeholder="全部分类" clearable style="width: 160px" @change="handleSearch">
+          <el-select
+            v-model="filterForm.category"
+            placeholder="全部分类"
+            clearable
+            style="width: 160px"
+            @change="handleSearch"
+          >
             <el-option label="销售模板" value="sales" />
             <el-option label="采购模板" value="purchase" />
             <el-option label="财务模板" value="finance" />
@@ -30,8 +36,16 @@
       </el-form>
     </el-card>
 
-    <el-row :gutter="20" v-loading="loading">
-      <el-col v-for="template in templates" :key="template.id" :xs="24" :sm="12" :md="8" :lg="6" class="template-col">
+    <el-row v-loading="loading" :gutter="20">
+      <el-col
+        v-for="template in templates"
+        :key="template.id"
+        :xs="24"
+        :sm="12"
+        :md="8"
+        :lg="6"
+        class="template-col"
+      >
         <el-card shadow="hover" class="template-card">
           <div class="template-header">
             <div class="template-icon" :class="`icon-${template.category}`">
@@ -42,8 +56,15 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item @click="handleViewDetail(template)">查看详情</el-dropdown-item>
-                  <el-dropdown-item @click="handleCreateFromTemplate(template)">从模板创建</el-dropdown-item>
-                  <el-dropdown-item divided @click="handleDeleteTemplate(template)" style="color: #f56c6c">删除模板</el-dropdown-item>
+                  <el-dropdown-item @click="handleCreateFromTemplate(template)"
+                    >从模板创建</el-dropdown-item
+                  >
+                  <el-dropdown-item
+                    divided
+                    style="color: #f56c6c"
+                    @click="handleDeleteTemplate(template)"
+                    >删除模板</el-dropdown-item
+                  >
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -58,7 +79,9 @@
           </div>
           <div class="template-footer">
             <span class="template-time">{{ template.created_at }}</span>
-            <el-button type="primary" size="small" @click="handleCreateFromTemplate(template)">使用此模板</el-button>
+            <el-button type="primary" size="small" @click="handleCreateFromTemplate(template)"
+              >使用此模板</el-button
+            >
           </div>
         </el-card>
       </el-col>
@@ -66,7 +89,7 @@
 
     <el-empty v-if="!loading && templates.length === 0" description="暂无模板数据" />
 
-    <div class="pagination-wrapper" v-if="pagination.total > 0">
+    <div v-if="pagination.total > 0" class="pagination-wrapper">
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.page_size"
@@ -81,16 +104,32 @@
     <el-dialog v-model="detailDialogVisible" title="模板详情" width="700px" destroy-on-close>
       <div v-if="currentTemplate" class="template-detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="模板名称">{{ currentTemplate.template_name }}</el-descriptions-item>
-          <el-descriptions-item label="模板分类">{{ getCategoryText(currentTemplate.category) }}</el-descriptions-item>
-          <el-descriptions-item label="模板标识">{{ currentTemplate.template_key }}</el-descriptions-item>
-          <el-descriptions-item label="使用次数">{{ currentTemplate.usage_count }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ currentTemplate.created_at }}</el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2">{{ currentTemplate.description || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="模板名称">{{
+            currentTemplate.template_name
+          }}</el-descriptions-item>
+          <el-descriptions-item label="模板分类">{{
+            getCategoryText(currentTemplate.category)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="模板标识">{{
+            currentTemplate.template_key
+          }}</el-descriptions-item>
+          <el-descriptions-item label="使用次数">{{
+            currentTemplate.usage_count
+          }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{
+            currentTemplate.created_at
+          }}</el-descriptions-item>
+          <el-descriptions-item label="描述" :span="2">{{
+            currentTemplate.description || '-'
+          }}</el-descriptions-item>
         </el-descriptions>
         <div v-if="currentTemplate.process_definition" class="process-preview">
           <h4>流程节点预览</h4>
-          <el-table :data="currentTemplate.process_definition.nodes || []" size="small" style="margin-top: 12px">
+          <el-table
+            :data="currentTemplate.process_definition.nodes || []"
+            size="small"
+            style="margin-top: 12px"
+          >
             <el-table-column prop="type" label="节点类型" width="120">
               <template #default="{ row }">
                 <el-tag size="small">{{ getNodeTypeName(row.type) }}</el-tag>
@@ -109,7 +148,9 @@
       </div>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="handleCreateFromTemplate(currentTemplate)">从模板创建</el-button>
+        <el-button type="primary" @click="handleCreateFromTemplate(currentTemplate)"
+          >从模板创建</el-button
+        >
       </template>
     </el-dialog>
 
@@ -124,7 +165,9 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmCreateFromTemplate" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="confirmCreateFromTemplate"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -133,7 +176,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MoreFilled, Document, ShoppingBag, Money, User, TrendCharts, Connection } from '@element-plus/icons-vue'
+import {
+  MoreFilled,
+  Document,
+  ShoppingBag,
+  Money,
+  User,
+  TrendCharts,
+  Connection,
+} from '@element-plus/icons-vue'
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
 import type { ProcessTemplate } from '@/api/bpm-enhanced'
 
@@ -150,22 +201,47 @@ const createDialogVisible = ref(false)
 const createForm = reactive({ process_name: '' })
 
 const getCategoryText = (category: string) => {
-  const map: Record<string, string> = { sales: '销售', purchase: '采购', finance: '财务', hr: '人事', production: '生产', common: '通用' }
+  const map: Record<string, string> = {
+    sales: '销售',
+    purchase: '采购',
+    finance: '财务',
+    hr: '人事',
+    production: '生产',
+    common: '通用',
+  }
   return map[category] || category
 }
 
 const getCategoryIcon = (category: string) => {
-  const map: Record<string, any> = { sales: TrendCharts, purchase: ShoppingBag, finance: Money, hr: User, production: Connection, common: Document }
+  const map: Record<string, any> = {
+    sales: TrendCharts,
+    purchase: ShoppingBag,
+    finance: Money,
+    hr: User,
+    production: Connection,
+    common: Document,
+  }
   return map[category] || Document
 }
 
 const getNodeTypeName = (type: string) => {
-  const map: Record<string, string> = { start: '开始', end: '结束', approval: '审批', condition: '条件', notify: '通知' }
+  const map: Record<string, string> = {
+    start: '开始',
+    end: '结束',
+    approval: '审批',
+    condition: '条件',
+    notify: '通知',
+  }
   return map[type] || type
 }
 
 const getAssigneeTypeText = (type: string) => {
-  const map: Record<string, string> = { user: '指定用户', role: '角色', department: '部门', dynamic: '动态' }
+  const map: Record<string, string> = {
+    user: '指定用户',
+    role: '角色',
+    department: '部门',
+    dynamic: '动态',
+  }
   return map[type] || type
 }
 
@@ -175,7 +251,7 @@ const fetchData = async () => {
     const res = await bpmEnhancedApi.listTemplates({
       page: pagination.page,
       page_size: pagination.page_size,
-      category: filterForm.category || undefined
+      category: filterForm.category || undefined,
     })
     templates.value = res.data.list
     pagination.total = res.data.total
@@ -214,7 +290,10 @@ const confirmCreateFromTemplate = async () => {
   if (!currentTemplate.value) return
   submitLoading.value = true
   try {
-    const data = createForm.process_name !== currentTemplate.value.template_name ? { process_name: createForm.process_name } : undefined
+    const data =
+      createForm.process_name !== currentTemplate.value.template_name
+        ? { process_name: createForm.process_name }
+        : undefined
     await bpmEnhancedApi.createFromTemplate(currentTemplate.value.id, data)
     ElMessage.success('创建成功')
     createDialogVisible.value = false
@@ -227,7 +306,9 @@ const confirmCreateFromTemplate = async () => {
 
 const handleDeleteTemplate = async (row: ProcessTemplate) => {
   try {
-    await ElMessageBox.confirm(`确定删除模板「${row.template_name}」吗？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除模板「${row.template_name}」吗？`, '确认', {
+      type: 'warning',
+    })
     await bpmEnhancedApi.deleteTemplate(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -236,36 +317,138 @@ const handleDeleteTemplate = async (row: ProcessTemplate) => {
   }
 }
 
-onMounted(() => { fetchData() })
+onMounted(() => {
+  fetchData()
+})
 </script>
 
 <style scoped>
-.bpm-templates-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.filter-card { margin-bottom: 20px; }
-.filter-form { margin-bottom: 0; }
-.template-col { margin-bottom: 20px; }
-.template-card { border-radius: 12px; transition: all 0.3s ease; height: 100%; }
-.template-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
-.template-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-.template-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; }
-.icon-sales { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.icon-purchase { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.icon-finance { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.icon-hr { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-.icon-production { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.icon-common { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
-.template-actions { cursor: pointer; color: #909399; }
-.template-body { margin-bottom: 16px; }
-.template-name { font-size: 16px; font-weight: 600; color: #303133; margin: 0 0 8px 0; }
-.template-desc { font-size: 13px; color: #909399; margin: 0 0 12px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.template-meta { display: flex; align-items: center; gap: 12px; }
-.usage-count { font-size: 12px; color: #909399; }
-.template-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid #ebeef5; }
-.template-time { font-size: 12px; color: #c0c4cc; }
-.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 20px; }
-.template-detail { padding: 8px 0; }
-.process-preview { margin-top: 20px; }
-.process-preview h4 { font-size: 14px; font-weight: 600; color: #303133; margin: 0 0 8px 0; }
+.bpm-templates-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.filter-form {
+  margin-bottom: 0;
+}
+.template-col {
+  margin-bottom: 20px;
+}
+.template-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  height: 100%;
+}
+.template-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.template-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+}
+.icon-sales {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+.icon-purchase {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+.icon-finance {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+.icon-hr {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+.icon-production {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.icon-common {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+.template-actions {
+  cursor: pointer;
+  color: #909399;
+}
+.template-body {
+  margin-bottom: 16px;
+}
+.template-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 8px 0;
+}
+.template-desc {
+  font-size: 13px;
+  color: #909399;
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.template-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.usage-count {
+  font-size: 12px;
+  color: #909399;
+}
+.template-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
+}
+.template-time {
+  font-size: 12px;
+  color: #c0c4cc;
+}
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.template-detail {
+  padding: 8px 0;
+}
+.process-preview {
+  margin-top: 20px;
+}
+.process-preview h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 8px 0;
+}
 </style>

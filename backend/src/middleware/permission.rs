@@ -3,6 +3,7 @@
 use crate::middleware::public_routes::is_public_path;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::role_permission;
+use crate::models::role;
 use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
@@ -11,6 +12,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use chrono::{DateTime, Utc, Duration};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use tracing::warn;
 
@@ -122,15 +124,54 @@ fn method_to_action(method: &Method) -> String {
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 
-// Cache: role_id -> Vec<role_permission::Model>
-static PERMISSION_CACHE: Lazy<DashMap<i32, Vec<role_permission::Model>>> =
+/// 缓存项，包含数据和过期时间
+#[derive(Clone)]
+struct CacheEntry<T: Clone> {
+    data: T,
+    expires_at: DateTime<Utc>,
+}
+
+impl<T: Clone> CacheEntry<T> {
+    fn new(data: T, ttl: Duration) -> Self {
+        Self {
+            data,
+            expires_at: Utc::now() + ttl,
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        Utc::now() > self.expires_at
+    }
+}
+
+// Cache: role_id -> CacheEntry<Vec<role_permission::Model>>
+static PERMISSION_CACHE: Lazy<DashMap<i32, CacheEntry<Vec<role_permission::Model>>>> =
     Lazy::new(|| DashMap::new());
+
+/// 权限缓存TTL（5分钟）
+const PERMISSION_CACHE_TTL: i64 = 5;
 
 pub fn clear_permission_cache(role_id: Option<i32>) {
     if let Some(id) = role_id {
         PERMISSION_CACHE.remove(&id);
     } else {
         PERMISSION_CACHE.clear();
+    }
+}
+
+/// 检查角色是否是管理员角色
+async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
+    // 从数据库查询角色，检查code是否为"admin"
+    match role::Entity::find_by_id(role_id)
+        .one(db)
+        .await
+    {
+        Ok(Some(role)) => role.code == "admin",
+        Ok(None) => false,
+        Err(e) => {
+            warn!("查询角色失败: {}", e);
+            false
+        }
     }
 }
 
@@ -141,28 +182,43 @@ async fn check_permission(
     resource_id: Option<i32>,
     action: &str,
 ) -> bool {
-    // Admin role bypasses all permission checks
-    if role_id == 1 {
+    // 检查是否是管理员角色（从数据库查询，而非硬编码）
+    if is_admin_role(db, role_id).await {
         return true;
     }
 
-    // Attempt to load from cache
+    // 尝试从缓存加载，检查是否过期
     let permissions = if let Some(cached) = PERMISSION_CACHE.get(&role_id) {
-        cached.clone()
+        if cached.is_expired() {
+            // 缓存已过期，移除并重新加载
+            PERMISSION_CACHE.remove(&role_id);
+            None
+        } else {
+            Some(cached.data.clone())
+        }
     } else {
-        // Load from DB
-        let db_perms = role_permission::Entity::find()
-            .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId.eq(role_id))
-            .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Allowed.eq(true))
-            .all(db)
-            .await
-            .unwrap_or_default();
-            
-        PERMISSION_CACHE.insert(role_id, db_perms.clone());
-        db_perms
+        None
     };
 
-    // Check if any permission matches
+    let permissions = match permissions {
+        Some(perms) => perms,
+        None => {
+            // 从数据库加载
+            let db_perms = role_permission::Entity::find()
+                .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId.eq(role_id))
+                .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Allowed.eq(true))
+                .all(db)
+                .await
+                .unwrap_or_default();
+            
+            // 插入缓存，设置TTL
+            let ttl = Duration::minutes(PERMISSION_CACHE_TTL);
+            PERMISSION_CACHE.insert(role_id, CacheEntry::new(db_perms.clone(), ttl));
+            db_perms
+        }
+    };
+
+    // 检查是否有匹配的权限
     permissions.into_iter().any(|p| {
         p.resource_type == resource_type &&
         p.action == action &&

@@ -1,8 +1,30 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElTabs, ElTabPane, ElResult } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElInputNumber,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+  ElCard,
+  ElTabs,
+  ElTabPane,
+  ElResult,
+} from 'element-plus'
 import { Search, Box, Refresh } from '@element-plus/icons-vue'
-import { scanToShip, scanInventory, getScanHistory, type ScanData, type ScanHistory } from '@/api/barcode-scanner'
+import {
+  scanToShip,
+  scanInventory,
+  getScanHistory,
+  type ScanData,
+  type ScanHistory,
+} from '@/api/barcode-scanner'
 
 const activeTab = ref('scan')
 const barcodeInput = ref('')
@@ -14,24 +36,24 @@ const loading = ref(false)
 
 const shipForm = ref({
   orderId: 0,
-  barcode: ''
+  barcode: '',
 })
 
 const historyData = ref<ScanHistory[]>([])
 const total = ref(0)
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const statusOptions = [
   { label: '在库', value: 'IN_STOCK' },
   { label: '已发货', value: 'SHIPPED' },
-  { label: '已报废', value: 'SCRAPPED' }
+  { label: '已报废', value: 'SCRAPPED' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const handleScan = async () => {
@@ -67,7 +89,7 @@ const handleScanToShip = async () => {
   try {
     const res: any = await scanToShip({
       barcode: barcodeInput.value,
-      order_id: Number(orderId.value)
+      order_id: Number(orderId.value),
     })
     scanSuccess.value = true
     scanMessage.value = res.data!.data.message
@@ -122,13 +144,17 @@ loadHistory()
               />
             </div>
             <div class="scan-actions">
-              <ElButton type="primary" @click="handleScan" :loading="loading" class="scan-btn">
+              <ElButton type="primary" :loading="loading" class="scan-btn" @click="handleScan">
                 <Search /> 扫码查询
               </ElButton>
             </div>
           </div>
 
-          <div v-if="scanMessage" class="scan-result-message" :class="{ 'success': scanSuccess, 'error': !scanSuccess }">
+          <div
+            v-if="scanMessage"
+            class="scan-result-message"
+            :class="{ success: scanSuccess, error: !scanSuccess }"
+          >
             {{ scanMessage }}
           </div>
 
@@ -139,15 +165,21 @@ loadHistory()
               <ElDescriptionsItem label="条码">{{ scanResult.barcode }}</ElDescriptionsItem>
               <ElDescriptionsItem label="布卷号">{{ scanResult.piece_no }}</ElDescriptionsItem>
               <ElDescriptionsItem label="产品ID">{{ scanResult.product_id }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="产品名称">{{ scanResult.product_name }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="产品名称">{{
+                scanResult.product_name
+              }}</ElDescriptionsItem>
               <ElDescriptionsItem label="批次号">{{ scanResult.batch_no }}</ElDescriptionsItem>
               <ElDescriptionsItem label="色号">{{ scanResult.color_no }}</ElDescriptionsItem>
               <ElDescriptionsItem label="等级">{{ scanResult.grade }}</ElDescriptionsItem>
               <ElDescriptionsItem label="米数">{{ scanResult.quantity_meters }}</ElDescriptionsItem>
               <ElDescriptionsItem label="公斤数">{{ scanResult.quantity_kg }}</ElDescriptionsItem>
               <ElDescriptionsItem label="仓库ID">{{ scanResult.warehouse_id }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="仓库名称">{{ scanResult.warehouse_name }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="状态">{{ getStatusLabel(scanResult.status) }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="仓库名称">{{
+                scanResult.warehouse_name
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="状态">{{
+                getStatusLabel(scanResult.status)
+              }}</ElDescriptionsItem>
             </ElDescriptions>
           </div>
 
@@ -166,7 +198,11 @@ loadHistory()
             <ElRow :gutter="20">
               <ElCol :span="8">
                 <ElFormItem label="订单ID">
-                  <ElInputNumber v-model="shipForm.orderId" placeholder="请输入订单ID" class="w-full" />
+                  <ElInputNumber
+                    v-model="shipForm.orderId"
+                    placeholder="请输入订单ID"
+                    class="w-full"
+                  />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="12">
@@ -180,14 +216,24 @@ loadHistory()
                 </ElFormItem>
               </ElCol>
               <ElCol :span="4">
-                <ElButton type="primary" @click="handleScanToShip" :loading="loading" class="w-full" style="margin-top: 24px;">
+                <ElButton
+                  type="primary"
+                  :loading="loading"
+                  class="w-full"
+                  style="margin-top: 24px"
+                  @click="handleScanToShip"
+                >
                   <Box /> 扫码发货
                 </ElButton>
               </ElCol>
             </ElRow>
           </ElForm>
 
-          <div v-if="scanMessage" class="scan-result-message" :class="{ 'success': scanSuccess, 'error': !scanSuccess }">
+          <div
+            v-if="scanMessage"
+            class="scan-result-message"
+            :class="{ success: scanSuccess, error: !scanSuccess }"
+          >
             {{ scanMessage }}
           </div>
 
@@ -201,10 +247,8 @@ loadHistory()
       </ElTabPane>
 
       <ElTabPane label="扫码历史" name="history">
-        <div class="filter-actions" style="margin-bottom: 20px;">
-          <ElButton @click="loadHistory">
-            <Refresh /> 刷新
-          </ElButton>
+        <div class="filter-actions" style="margin-bottom: 20px">
+          <ElButton @click="loadHistory"> <Refresh /> 刷新 </ElButton>
         </div>
 
         <ElTable
@@ -213,12 +257,12 @@ loadHistory()
           :loading="loading"
           :page-size="pagination.pageSize"
           :current-page="pagination.page"
-          @current-change="handlePageChange"
-          @size-change="handlePageSizeChange"
           border
           fit
           highlight-current-row
           style="width: 100%"
+          @current-change="handlePageChange"
+          @size-change="handlePageSizeChange"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="barcode" label="条码" width="180" />

@@ -6,13 +6,13 @@
           <span>供应商评估管理</span>
         </div>
       </template>
-      
+
       <el-tabs v-model="activeTab">
         <el-tab-pane label="评估记录" name="records">
           <div class="toolbar">
             <el-button type="primary" @click="handleCreateRecord">新建评估</el-button>
           </div>
-          
+
           <el-table :data="recordList" border stripe>
             <el-table-column prop="supplierName" label="供应商名称" />
             <el-table-column prop="period" label="评估周期" />
@@ -34,7 +34,7 @@
               </template>
             </el-table-column>
           </el-table>
-          
+
           <el-pagination
             v-model:current-page="recordPagination.page"
             v-model:page-size="recordPagination.pageSize"
@@ -43,10 +43,10 @@
             @current-change="fetchRecords"
           />
         </el-tab-pane>
-        
+
         <el-tab-pane label="供应商排名" name="rankings">
           <el-button type="primary" @click="fetchRankings">刷新排名</el-button>
-          
+
           <el-table :data="rankingList" border stripe>
             <el-table-column prop="rank" label="排名" width="80">
               <template #default="{ row }">
@@ -70,10 +70,14 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
-    
+
     <!-- 创建/编辑对话框 -->
-    <el-dialog v-model="recordDialogVisible" :title="isEdit ? '编辑评估' : '新建评估'" width="600px">
-      <el-form :model="recordForm" :rules="recordRules" ref="recordFormRef" label-width="120px">
+    <el-dialog
+      v-model="recordDialogVisible"
+      :title="isEdit ? '编辑评估' : '新建评估'"
+      width="600px"
+    >
+      <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-width="120px">
         <el-form-item label="供应商" prop="supplierId">
           <el-select v-model="recordForm.supplierId" placeholder="请选择供应商" style="width: 100%">
             <el-option label="供应商A" :value="1" />
@@ -88,24 +92,32 @@
           <el-input v-model="recordForm.remark" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="recordDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveRecord" :loading="submitLoading">保存</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSaveRecord"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
-    
+
     <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="评估详情" width="700px">
-      <el-descriptions :column="2" border v-if="currentRecord">
+      <el-descriptions v-if="currentRecord" :column="2" border>
         <el-descriptions-item label="供应商">{{ currentRecord.supplierName }}</el-descriptions-item>
         <el-descriptions-item label="评估周期">{{ currentRecord.period }}</el-descriptions-item>
         <el-descriptions-item label="总分">{{ currentRecord.totalScore }}</el-descriptions-item>
         <el-descriptions-item label="评级">{{ currentRecord.rating }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ currentRecord.status }}</el-descriptions-item>
-        <el-descriptions-item label="评估人">{{ currentRecord.evaluatorName }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ currentRecord.createdAt }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentRecord.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="评估人">{{
+          currentRecord.evaluatorName
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{
+          currentRecord.createdAt
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentRecord.remark || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>
@@ -118,7 +130,7 @@ import {
   listEvaluationRecords,
   createEvaluationRecord,
   getSupplierRankings,
-  type EvaluationRecord
+  type EvaluationRecord,
 } from '@/api/supplier-evaluation'
 
 const activeTab = ref('records')
@@ -128,7 +140,7 @@ const rankingList = ref<any[]>([])
 const recordPagination = reactive({
   page: 1,
   pageSize: 20,
-  total: 0
+  total: 0,
 })
 
 const recordDialogVisible = ref(false)
@@ -141,19 +153,19 @@ const currentRecord = ref<EvaluationRecord | null>(null)
 const recordForm = reactive({
   supplierId: undefined as number | undefined,
   period: '',
-  remark: ''
+  remark: '',
 })
 
 const recordRules = {
   supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  period: [{ required: true, message: '请输入评估周期', trigger: 'blur' }]
+  period: [{ required: true, message: '请输入评估周期', trigger: 'blur' }],
 }
 
 const fetchRecords = async () => {
   try {
     const res: any = await listEvaluationRecords({
       page: recordPagination.page,
-      pageSize: recordPagination.pageSize
+      pageSize: recordPagination.pageSize,
     })
     if (res.data) {
       recordList.value = res.data!.list || res.data! || []
@@ -170,7 +182,7 @@ const fetchRankings = async () => {
     if (res.data) {
       rankingList.value = (res.data! || []).map((item: any, index: number) => ({
         ...item,
-        rank: index + 1
+        rank: index + 1,
       }))
     }
   } catch (e) {
@@ -191,10 +203,10 @@ const handleViewRecord = (row: EvaluationRecord) => {
 
 const handleSaveRecord = async () => {
   if (!recordFormRef.value) return
-  
+
   await recordFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       await createEvaluationRecord(recordForm as any)

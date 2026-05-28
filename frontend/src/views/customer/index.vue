@@ -99,12 +99,7 @@
       :close-on-click-modal="false"
       @close="resetForm"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="120px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
         <el-divider content-position="left">基本信息</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -138,7 +133,11 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="客户类型" prop="customer_type">
-              <el-select v-model="formData.customer_type" placeholder="请选择类型" style="width: 100%">
+              <el-select
+                v-model="formData.customer_type"
+                placeholder="请选择类型"
+                style="width: 100%"
+              >
                 <el-option label="零售" value="retail" />
                 <el-option label="批发" value="wholesale" />
                 <el-option label="VIP" value="vip" />
@@ -154,7 +153,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="年采购额" prop="annual_purchase">
-              <el-input-number v-model="formData.annual_purchase" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="formData.annual_purchase"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -195,7 +199,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="信用额度" prop="credit_limit">
-              <el-input-number v-model="formData.credit_limit" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="formData.credit_limit"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -274,7 +283,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   customer_type: '',
-  status: ''
+  status: '',
 })
 
 const formData = reactive({
@@ -301,26 +310,20 @@ const formData = reactive({
   main_products: '',
   annual_purchase: 0,
   quality_requirement: '',
-  inspection_standard: ''
+  inspection_standard: '',
 })
 
 const formRules: FormRules = {
-  customer_code: [
-    { required: true, message: '请输入客户编码', trigger: 'blur' }
-  ],
-  customer_name: [
-    { required: true, message: '请输入客户名称', trigger: 'blur' }
-  ],
-  contact_person: [
-    { required: true, message: '请输入联系人', trigger: 'blur' }
-  ],
+  customer_code: [{ required: true, message: '请输入客户编码', trigger: 'blur' }],
+  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
+  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
   contact_phone: [
     { required: true, message: '请输入电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-  ]
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+  ],
 }
 
-const dialogTitle = computed(() => isEdit.value ? '编辑客户' : '新建客户')
+const dialogTitle = computed(() => (isEdit.value ? '编辑客户' : '新建客户'))
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
@@ -328,7 +331,7 @@ const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     retail: '零售',
     vip: 'VIP',
-    wholesale: '批发'
+    wholesale: '批发',
   }
   return labels[type] || type
 }
@@ -337,7 +340,7 @@ const getCustomerTypeTag = (type: string) => {
   const tags: Record<string, string> = {
     retail: '',
     vip: 'warning',
-    wholesale: 'success'
+    wholesale: 'success',
   }
   return tags[type] || ''
 }
@@ -412,7 +415,9 @@ const handleEdit = (row: Customer) => {
 
 const handleDelete = async (row: Customer) => {
   try {
-    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
     await customerApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -425,10 +430,10 @@ const handleDelete = async (row: Customer) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (isEdit.value) {
@@ -454,11 +459,36 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.customer-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.customer-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
 </style>

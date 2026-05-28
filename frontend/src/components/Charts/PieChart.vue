@@ -40,7 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
   autoResize: true,
   roseType: false,
   showLabel: true,
-  radius: undefined
+  radius: undefined,
 })
 
 const emit = defineEmits<{
@@ -60,7 +60,7 @@ const chartOption = computed<EChartsOption>(() => {
       orient: 'vertical',
       left: 'left',
       top: 'middle',
-      data: props.data.map(d => d.name)
+      data: props.data.map((d) => d.name),
     },
     series: [
       {
@@ -75,11 +75,11 @@ const chartOption = computed<EChartsOption>(() => {
           itemStyle: {
             shadowBlur: 10,
             shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
-          }
-        }
-      }
-    ]
+            shadowColor: 'rgba(0, 0, 0, 0.5)',
+          },
+        },
+      },
+    ],
   }
 })
 

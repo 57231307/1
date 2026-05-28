@@ -43,11 +43,16 @@ export function getSalesContract(id: number): Promise<ApiResponse<SalesContract>
   return request.get(`/sales-contracts/${id}`)
 }
 
-export function createSalesContract(data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
+export function createSalesContract(
+  data: Partial<SalesContract>
+): Promise<ApiResponse<SalesContract>> {
   return request.post('/sales-contracts', data)
 }
 
-export function updateSalesContract(id: number, data: Partial<SalesContract>): Promise<ApiResponse<SalesContract>> {
+export function updateSalesContract(
+  id: number,
+  data: Partial<SalesContract>
+): Promise<ApiResponse<SalesContract>> {
   return request.put(`/sales-contracts/${id}`, data)
 }
 

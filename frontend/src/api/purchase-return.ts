@@ -46,19 +46,19 @@ export interface PurchaseReturnQueryParams {
 
 export const purchaseReturnApi = {
   list: (params?: PurchaseReturnQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseReturn[]; total: number }>>('/purchases/returns', { params }),
+    request.get<ApiResponse<{ list: PurchaseReturn[]; total: number }>>('/purchases/returns', {
+      params,
+    }),
 
   create: (data: Partial<PurchaseReturn>) =>
     request.post<ApiResponse<PurchaseReturn>>('/purchases/returns', data),
 
-  getById: (id: number) =>
-    request.get<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}`),
+  getById: (id: number) => request.get<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}`),
 
   update: (id: number, data: Partial<PurchaseReturn>) =>
     request.put<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}`, data),
 
-  delete: (id: number) =>
-    request.delete<ApiResponse<void>>(`/purchases/returns/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<void>>(`/purchases/returns/${id}`),
 
   submit: (id: number) =>
     request.post<ApiResponse<PurchaseReturn>>(`/purchases/returns/${id}/submit`),

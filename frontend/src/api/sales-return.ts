@@ -52,26 +52,21 @@ export const salesReturnApi = {
   create: (data: Partial<SalesReturn>) =>
     request.post<ApiResponse<SalesReturn>>('/sales-returns', data),
 
-  getById: (id: number) =>
-    request.get<ApiResponse<SalesReturn>>(`/sales-returns/${id}`),
+  getById: (id: number) => request.get<ApiResponse<SalesReturn>>(`/sales-returns/${id}`),
 
   update: (id: number, data: Partial<SalesReturn>) =>
     request.put<ApiResponse<SalesReturn>>(`/sales-returns/${id}`, data),
 
-  delete: (id: number) =>
-    request.delete<ApiResponse<void>>(`/sales-returns/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<void>>(`/sales-returns/${id}`),
 
-  submit: (id: number) =>
-    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/submit`),
+  submit: (id: number) => request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/submit`),
 
-  approve: (id: number) =>
-    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/approve`),
+  approve: (id: number) => request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/approve`),
 
   reject: (id: number, reason?: string) =>
     request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/reject`, { reason }),
 
-  execute: (id: number) =>
-    request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/execute`),
+  execute: (id: number) => request.post<ApiResponse<SalesReturn>>(`/sales-returns/${id}/execute`),
 
   listItems: (id: number) =>
     request.get<ApiResponse<{ items: SalesReturnItem[] }>>(`/sales-returns/${id}/items`),

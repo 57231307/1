@@ -65,17 +65,14 @@ export const salesApi = {
 
   deleteOrder: (id: number) => request.delete<ApiResponse<null>>(`/sales/orders/${id}`),
 
-  submitOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/sales/orders/${id}/submit`),
+  submitOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/submit`),
 
-  approveOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/sales/orders/${id}/approve`),
+  approveOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/approve`),
 
   rejectOrder: (id: number, reason: string) =>
     request.post<ApiResponse<null>>(`/sales/orders/${id}/reject`, { reason }),
 
-  cancelOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`),
+  cancelOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`),
 
   createDelivery: (orderId: number, data: any) =>
     request.post<ApiResponse<any>>(`/sales/orders/${orderId}/deliveries`, data),
@@ -86,8 +83,7 @@ export const salesApi = {
   getOrderStatistics: (params: any) =>
     request.get<ApiResponse<any>>('/sales/orders/statistics', { params }),
 
-  createReturn: (data: any) =>
-    request.post<ApiResponse<any>>('/sales/returns', data),
+  createReturn: (data: any) => request.post<ApiResponse<any>>('/sales/returns', data),
 
   getReturns: (params?: any) =>
     request.get<ApiResponse<{ list: any[]; total: number }>>('/sales/returns', { params }),

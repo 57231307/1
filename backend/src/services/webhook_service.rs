@@ -134,7 +134,7 @@ impl WebhookService {
             Err(_) => {
                 final_model.last_status = Set(Some("ERROR".to_string()));
                 // 获取当前retry_count值并递增
-                let current_count: i32 = final_model.retry_count.clone().unwrap();
+                let current_count: i32 = final_model.retry_count.clone().unwrap_or(0);
                 final_model.retry_count = Set(current_count + 1);
             }
         }

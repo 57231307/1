@@ -24,10 +24,20 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="商机编号/商机名称/客户名称" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="商机编号/商机名称/客户名称"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="商机阶段">
-          <el-select v-model="queryParams.opportunity_stage" placeholder="选择阶段" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.opportunity_stage"
+            placeholder="选择阶段"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="初步接触" value="INITIAL" />
             <el-option label="需求确认" value="REQUIREMENT" />
             <el-option label="方案报价" value="PROPOSAL" />
@@ -37,12 +47,23 @@
           </el-select>
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="queryParams.owner_id" placeholder="选择负责人" clearable filterable @change="handleQuery">
+          <el-select
+            v-model="queryParams.owner_id"
+            placeholder="选择负责人"
+            clearable
+            filterable
+            @change="handleQuery"
+          >
             <el-option v-for="u in users" :key="u.id" :label="u.name" :value="u.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="优先级">
-          <el-select v-model="queryParams.priority" placeholder="选择优先级" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.priority"
+            placeholder="选择优先级"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="低" value="LOW" />
             <el-option label="中" value="MEDIUM" />
             <el-option label="高" value="HIGH" />
@@ -66,7 +87,12 @@
       <el-table v-loading="loading" :data="opportunityList" border stripe>
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="opportunity_no" label="商机编号" width="120" show-overflow-tooltip />
-        <el-table-column prop="opportunity_name" label="商机名称" min-width="150" show-overflow-tooltip />
+        <el-table-column
+          prop="opportunity_name"
+          label="商机名称"
+          min-width="150"
+          show-overflow-tooltip
+        />
         <el-table-column prop="customer_name" label="客户" width="150" show-overflow-tooltip />
         <el-table-column prop="estimated_amount" label="预估金额" width="120" align="right">
           <template #default="{ row }">
@@ -74,13 +100,13 @@
           </template>
         </el-table-column>
         <el-table-column prop="win_probability" label="成交概率" width="100" align="center">
-          <template #default="{ row }">
-            {{ row.win_probability }}%
-          </template>
+          <template #default="{ row }"> {{ row.win_probability }}% </template>
         </el-table-column>
         <el-table-column prop="opportunity_stage" label="商机阶段" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStageType(row.opportunity_stage)">{{ getStageLabel(row.opportunity_stage) }}</el-tag>
+            <el-tag :type="getStageType(row.opportunity_stage)">{{
+              getStageLabel(row.opportunity_stage)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="expected_close_date" label="预计成交" width="120" align="center" />
@@ -89,10 +115,38 @@
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'" type="warning" link size="small" @click="handleFollow(row)">跟进</el-button>
-            <el-button v-if="row.opportunity_stage === 'NEGOTIATION'" type="success" link size="small" @click="handleWin(row)">成交</el-button>
-            <el-button v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'" type="danger" link size="small" @click="handleLost(row)">流失</el-button>
+            <el-button
+              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              type="warning"
+              link
+              size="small"
+              @click="handleFollow(row)"
+              >跟进</el-button
+            >
+            <el-button
+              v-if="row.opportunity_stage === 'NEGOTIATION'"
+              type="success"
+              link
+              size="small"
+              @click="handleWin(row)"
+              >成交</el-button
+            >
+            <el-button
+              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              type="danger"
+              link
+              size="small"
+              @click="handleLost(row)"
+              >流失</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -111,7 +165,12 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="800px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -151,7 +210,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="预估金额" prop="estimated_amount">
-              <el-input-number v-model="formData.estimated_amount" :precision="2" :min="0" style="width: 100%" />
+              <el-input-number
+                v-model="formData.estimated_amount"
+                :precision="2"
+                :min="0"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -163,7 +227,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="预计成交" prop="expected_close_date">
-              <el-date-picker v-model="formData.expected_close_date" type="date" placeholder="请选择预计成交日期" style="width: 100%" />
+              <el-date-picker
+                v-model="formData.expected_close_date"
+                type="date"
+                placeholder="请选择预计成交日期"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -175,7 +244,12 @@
           </el-col>
         </el-row>
         <el-form-item label="产品描述" prop="product_desc">
-          <el-input v-model="formData.product_desc" type="textarea" :rows="3" placeholder="请输入产品描述" />
+          <el-input
+            v-model="formData.product_desc"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入产品描述"
+          />
         </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input v-model="formData.remarks" type="textarea" :rows="2" placeholder="请输入备注" />
@@ -191,10 +265,20 @@
     <el-dialog v-model="followVisible" title="跟进记录" width="600px">
       <el-form :model="followData" label-width="80px">
         <el-form-item label="跟进内容">
-          <el-input v-model="followData.content" type="textarea" :rows="4" placeholder="请输入跟进内容" />
+          <el-input
+            v-model="followData.content"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入跟进内容"
+          />
         </el-form-item>
         <el-form-item label="下次跟进">
-          <el-date-picker v-model="followData.next_follow_up_date" type="date" placeholder="请选择下次跟进日期" style="width: 100%" />
+          <el-date-picker
+            v-model="followData.next_follow_up_date"
+            type="date"
+            placeholder="请选择下次跟进日期"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -217,7 +301,7 @@ const queryParams = reactive({
   keyword: '',
   opportunity_stage: '',
   owner_id: '',
-  priority: ''
+  priority: '',
 })
 
 // 列表数据
@@ -239,7 +323,7 @@ const followVisible = ref(false)
 const followData = reactive({
   opportunity_id: null,
   content: '',
-  next_follow_up_date: ''
+  next_follow_up_date: '',
 })
 
 // 表单数据
@@ -254,7 +338,7 @@ const formData = reactive({
   expected_close_date: '',
   owner_id: '',
   product_desc: '',
-  remarks: ''
+  remarks: '',
 })
 
 // 表单验证规则
@@ -262,7 +346,7 @@ const formRules = {
   opportunity_name: [{ required: true, message: '请输入商机名称', trigger: 'blur' }],
   customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
   opportunity_stage: [{ required: true, message: '请选择商机阶段', trigger: 'change' }],
-  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }]
+  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }],
 }
 
 // 获取列表数据
@@ -328,15 +412,13 @@ const handleCreate = () => {
     expected_close_date: '',
     owner_id: '',
     product_desc: '',
-    remarks: ''
+    remarks: '',
   })
   dialogVisible.value = true
 }
 
 // 查看
-const handleView = (row: any) => {
-  console.log('查看:', row)
-}
+const handleView = (row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -428,7 +510,7 @@ const getStageType = (stage: string) => {
     PROPOSAL: 'warning',
     NEGOTIATION: 'primary',
     WON: 'success',
-    LOST: 'danger'
+    LOST: 'danger',
   }
   return map[stage] || 'info'
 }
@@ -441,7 +523,7 @@ const getStageLabel = (stage: string) => {
     PROPOSAL: '方案报价',
     NEGOTIATION: '谈判',
     WON: '成交',
-    LOST: '流失'
+    LOST: '流失',
   }
   return map[stage] || stage
 }

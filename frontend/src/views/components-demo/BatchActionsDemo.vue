@@ -9,12 +9,7 @@
         @complete="handleComplete"
       />
 
-      <el-table
-        :data="tableData"
-        @selection-change="handleSelectionChange"
-        row-key="id"
-        border
-      >
+      <el-table :data="tableData" row-key="id" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="名称" />
@@ -53,7 +48,7 @@ const tableData = ref([
   { id: 3, name: '订单 #1003', status: 'approved', date: '2026-01-17' },
   { id: 4, name: '订单 #1004', status: 'pending', date: '2026-01-18' },
   { id: 5, name: '订单 #1005', status: 'pending', date: '2026-01-19' },
-  { id: 6, name: '订单 #1006', status: 'approved', date: '2026-01-20' }
+  { id: 6, name: '订单 #1006', status: 'approved', date: '2026-01-20' },
 ])
 
 const handleSelectionChange = (selection: any[]) => {

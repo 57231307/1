@@ -1,8 +1,34 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElInputNumber, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElInputNumber,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+} from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
-import { listInventoryAdjustments, getInventoryAdjustment, createInventoryAdjustment, updateInventoryAdjustment, deleteInventoryAdjustment, approveInventoryAdjustment, getAdjustmentItems, type InventoryAdjustmentEntity, type AdjustmentItem } from '@/api/inventoryAdjustment'
+import {
+  listInventoryAdjustments,
+  getInventoryAdjustment,
+  createInventoryAdjustment,
+  updateInventoryAdjustment,
+  deleteInventoryAdjustment,
+  approveInventoryAdjustment,
+  getAdjustmentItems,
+  type InventoryAdjustmentEntity,
+  type AdjustmentItem,
+} from '@/api/inventoryAdjustment'
 import { request } from '@/api/request'
 
 const tableData = ref<InventoryAdjustmentEntity[]>([])
@@ -11,11 +37,11 @@ const loading = ref(false)
 const searchForm = ref({
   adjust_no: '',
   warehouse_id: '',
-  status: ''
+  status: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -26,7 +52,7 @@ const form = ref<Partial<InventoryAdjustmentEntity>>({
   warehouse_id: 0,
   reason: '',
   status: 'draft',
-  items: []
+  items: [],
 })
 
 const viewDialogVisible = ref(false)
@@ -39,11 +65,11 @@ const productOptions = ref<{ label: string; value: number }[]>([])
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
-  { label: '已审核', value: 'approved' }
+  { label: '已审核', value: 'approved' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -57,8 +83,10 @@ const loadData = async () => {
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       adjust_no: searchForm.value.adjust_no,
-      warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
-      status: searchForm.value.status
+      warehouse_id: searchForm.value.warehouse_id
+        ? Number(searchForm.value.warehouse_id)
+        : undefined,
+      status: searchForm.value.status,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -96,7 +124,7 @@ const handleReset = () => {
   searchForm.value = {
     adjust_no: '',
     warehouse_id: '',
-    status: ''
+    status: '',
   }
   handleSearch()
 }
@@ -120,7 +148,7 @@ const openAddDialog = async () => {
     warehouse_id: 0,
     reason: '',
     status: 'draft',
-    items: [{ product_id: 0, quantity: 0, cost_price: 0, amount: 0 }]
+    items: [{ product_id: 0, quantity: 0, cost_price: 0, amount: 0 }],
   }
   dialogVisible.value = true
 }
@@ -161,7 +189,7 @@ const handleSubmit = async () => {
     ElMessage.warning('请填写必填字段')
     return
   }
-  const validItems = (form.value.items || []).filter(e => e.product_id > 0 && e.quantity !== 0)
+  const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的调整明细')
     return
@@ -189,7 +217,7 @@ const handleDelete = async (row: InventoryAdjustmentEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个调整单吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteInventoryAdjustment(row.id!)
     ElMessage.success('删除成功')
@@ -202,7 +230,7 @@ const handleDelete = async (row: InventoryAdjustmentEntity) => {
 const handleApprove = async (row: InventoryAdjustmentEntity) => {
   try {
     await ElMessageBox.confirm('确定要审核这个调整单吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await approveInventoryAdjustment(row.id!)
     ElMessage.success('审核成功')
@@ -230,21 +258,18 @@ loadProducts()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.warehouse_id"
-            placeholder="选择仓库"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.warehouse_id" placeholder="选择仓库" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="String(w.value)" />
+            <ElOption
+              v-for="w in warehouseOptions"
+              :key="w.value"
+              :label="w.label"
+              :value="String(w.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -252,9 +277,7 @@ loadProducts()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增调整单
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增调整单 </ElButton>
       </div>
     </div>
 
@@ -264,12 +287,12 @@ loadProducts()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="adjust_no" label="调整单号" width="150" />
       <ElTableColumn prop="adjust_date" label="调整日期" width="120" />
@@ -320,7 +343,12 @@ loadProducts()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="800px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="800px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -338,7 +366,12 @@ loadProducts()
           <ElCol :span="12">
             <ElFormItem label="仓库" prop="warehouse_id">
               <ElSelect v-model="form.warehouse_id" placeholder="请选择仓库">
-                <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="w.value" />
+                <ElOption
+                  v-for="w in warehouseOptions"
+                  :key="w.value"
+                  :label="w.label"
+                  :value="w.value"
+                />
               </ElSelect>
             </ElFormItem>
           </ElCol>
@@ -358,12 +391,13 @@ loadProducts()
               <span class="col-action">操作</span>
             </div>
             <div v-for="(item, index) in form.items" :key="index" class="items-row">
-              <ElSelect
-                v-model="item.product_id"
-                placeholder="选择产品"
-                class="col-product"
-              >
-                <ElOption v-for="p in productOptions" :key="p.value" :label="p.label" :value="p.value" />
+              <ElSelect v-model="item.product_id" placeholder="选择产品" class="col-product">
+                <ElOption
+                  v-for="p in productOptions"
+                  :key="p.value"
+                  :label="p.label"
+                  :value="p.value"
+                />
               </ElSelect>
               <ElInputNumber v-model="item.quantity" class="col-qty" />
               <ElInputNumber v-model="item.cost_price" :precision="2" class="col-price" />
@@ -373,7 +407,8 @@ loadProducts()
                 size="small"
                 type="danger"
                 @click="removeItem(index)"
-              >删除</ElButton>
+                >删除</ElButton
+              >
             </div>
             <ElButton type="text" @click="addItem">+ 添加明细</ElButton>
           </div>
@@ -385,15 +420,24 @@ loadProducts()
       </template>
     </ElDialog>
 
-    <ElDialog title="调整单详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="调整单详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
           <ElDescriptionsItem label="调整单号">{{ viewData.adjust_no }}</ElDescriptionsItem>
           <ElDescriptionsItem label="调整日期">{{ viewData.adjust_date }}</ElDescriptionsItem>
           <ElDescriptionsItem label="仓库">{{ viewData.warehouse_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="调整原因">{{ viewData.reason }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="调整金额">{{ viewData.total_amount.toFixed(2) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="调整金额">{{
+            viewData.total_amount.toFixed(2)
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="状态">{{
+            getStatusLabel(viewData.status)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建人">{{ viewData.created_by_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
         </ElDescriptions>
@@ -476,7 +520,9 @@ loadProducts()
   margin-right: 10px;
 }
 
-.col-qty, .col-price, .col-amount {
+.col-qty,
+.col-price,
+.col-amount {
   width: 100px;
   margin-right: 10px;
 }

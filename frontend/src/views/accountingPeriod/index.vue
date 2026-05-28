@@ -1,8 +1,32 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+} from 'element-plus'
 import { Plus, Edit, Delete, View, Calendar } from '@element-plus/icons-vue'
-import { listAccountingPeriods, getAccountingPeriod, createAccountingPeriod, updateAccountingPeriod, deleteAccountingPeriod, closePeriod, reopenPeriod, getCurrentPeriod, type AccountingPeriodEntity } from '@/api/accounting-period'
+import {
+  listAccountingPeriods,
+  getAccountingPeriod,
+  createAccountingPeriod,
+  updateAccountingPeriod,
+  deleteAccountingPeriod,
+  closePeriod,
+  reopenPeriod,
+  getCurrentPeriod,
+  type AccountingPeriodEntity,
+} from '@/api/accounting-period'
 
 const tableData = ref<AccountingPeriodEntity[]>([])
 const total = ref(0)
@@ -10,11 +34,11 @@ const loading = ref(false)
 const searchForm = ref({
   year: '',
   month: '',
-  status: ''
+  status: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -25,7 +49,7 @@ const form = ref<Partial<AccountingPeriodEntity>>({
   month: 1,
   start_date: '',
   end_date: '',
-  status: 'open'
+  status: 'open',
 })
 
 const viewDialogVisible = ref(false)
@@ -36,11 +60,11 @@ const currentPeriod = ref<AccountingPeriodEntity | null>(null)
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '已打开', value: 'open' },
-  { label: '已关闭', value: 'closed' }
+  { label: '已关闭', value: 'closed' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -49,12 +73,12 @@ const getStatusClass = (value: string) => {
 
 const months = Array.from({ length: 12 }, (_, i) => ({
   label: `${i + 1}月`,
-  value: i + 1
+  value: i + 1,
 }))
 
 const years = Array.from({ length: 10 }, (_, i) => ({
   label: `${new Date().getFullYear() - 5 + i}年`,
-  value: new Date().getFullYear() - 5 + i
+  value: new Date().getFullYear() - 5 + i,
 }))
 
 const generatePeriodDates = () => {
@@ -77,7 +101,7 @@ const loadData = async () => {
       pageSize: pagination.value.pageSize,
       year: searchForm.value.year ? Number(searchForm.value.year) : undefined,
       month: searchForm.value.month ? Number(searchForm.value.month) : undefined,
-      status: searchForm.value.status || undefined
+      status: searchForm.value.status || undefined,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -106,7 +130,7 @@ const handleReset = () => {
   searchForm.value = {
     year: '',
     month: '',
-    status: ''
+    status: '',
   }
   handleSearch()
 }
@@ -130,7 +154,7 @@ const openAddDialog = () => {
     month: now.getMonth() + 1,
     start_date: '',
     end_date: '',
-    status: 'open'
+    status: 'open',
   }
   generatePeriodDates()
   dialogVisible.value = true
@@ -180,7 +204,7 @@ const handleDelete = async (row: AccountingPeriodEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个会计期间吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteAccountingPeriod(row.id!)
     ElMessage.success('删除成功')
@@ -193,7 +217,7 @@ const handleDelete = async (row: AccountingPeriodEntity) => {
 const handleClose = async (row: AccountingPeriodEntity) => {
   try {
     await ElMessageBox.confirm('确定要关闭这个会计期间吗？关闭后将无法录入凭证。', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await closePeriod(row.id!)
     ElMessage.success('期间已关闭')
@@ -207,7 +231,7 @@ const handleClose = async (row: AccountingPeriodEntity) => {
 const handleReopen = async (row: AccountingPeriodEntity) => {
   try {
     await ElMessageBox.confirm('确定要重新打开这个会计期间吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await reopenPeriod(row.id!)
     ElMessage.success('期间已重新打开')
@@ -224,7 +248,7 @@ loadCurrentPeriod()
 
 <template>
   <div class="app-container">
-    <div class="current-period-card" v-if="currentPeriod">
+    <div v-if="currentPeriod" class="current-period-card">
       <div class="card-icon">
         <Calendar />
       </div>
@@ -240,31 +264,24 @@ loadCurrentPeriod()
     <div class="filter-container">
       <ElRow :gutter="20">
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.year"
-            placeholder="选择年份"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.year" placeholder="选择年份" class="filter-item">
             <ElOption label="全部" value="" />
             <ElOption v-for="y in years" :key="y.value" :label="y.label" :value="String(y.value)" />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.month"
-            placeholder="选择月份"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.month" placeholder="选择月份" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="m in months" :key="m.value" :label="m.label" :value="String(m.value)" />
+            <ElOption
+              v-for="m in months"
+              :key="m.value"
+              :label="m.label"
+              :value="String(m.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -272,9 +289,7 @@ loadCurrentPeriod()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增期间
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增期间 </ElButton>
       </div>
     </div>
 
@@ -284,12 +299,12 @@ loadCurrentPeriod()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="name" label="期间名称" width="150" />
       <ElTableColumn prop="year" label="年份" width="80" />
@@ -345,7 +360,12 @@ loadCurrentPeriod()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="500px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="500px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElFormItem label="期间名称" prop="name">
           <ElInput v-model="form.name" placeholder="自动生成" readonly />
@@ -353,22 +373,14 @@ loadCurrentPeriod()
         <ElRow :gutter="20">
           <ElCol :span="12">
             <ElFormItem label="年份" prop="year">
-              <ElSelect
-                v-model="form.year"
-                placeholder="选择年份"
-                @change="generatePeriodDates"
-              >
+              <ElSelect v-model="form.year" placeholder="选择年份" @change="generatePeriodDates">
                 <ElOption v-for="y in years" :key="y.value" :label="y.label" :value="y.value" />
               </ElSelect>
             </ElFormItem>
           </ElCol>
           <ElCol :span="12">
             <ElFormItem label="月份" prop="month">
-              <ElSelect
-                v-model="form.month"
-                placeholder="选择月份"
-                @change="generatePeriodDates"
-              >
+              <ElSelect v-model="form.month" placeholder="选择月份" @change="generatePeriodDates">
                 <ElOption v-for="m in months" :key="m.value" :label="m.label" :value="m.value" />
               </ElSelect>
             </ElFormItem>
@@ -393,7 +405,12 @@ loadCurrentPeriod()
       </template>
     </ElDialog>
 
-    <ElDialog title="期间详情" :visible="viewDialogVisible" width="500px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="期间详情"
+      :visible="viewDialogVisible"
+      width="500px"
+      @close="viewDialogVisible = false"
+    >
       <ElDescriptions v-if="viewData" :column="2" border>
         <ElDescriptionsItem label="期间名称">{{ viewData.name }}</ElDescriptionsItem>
         <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>

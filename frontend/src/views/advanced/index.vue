@@ -19,7 +19,9 @@
                   </el-select>
                 </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" :loading="forecastLoading" @click="runSalesForecast">开始预测</el-button>
+                  <el-button type="primary" :loading="forecastLoading" @click="runSalesForecast"
+                    >开始预测</el-button
+                  >
                 </el-form-item>
               </el-form>
               <el-empty v-if="!forecastResult" description="点击开始预测" />
@@ -27,17 +29,30 @@
                 <h4>预测结果</h4>
                 <el-divider />
                 <el-descriptions :column="2" border>
-                  <el-descriptions-item label="预测销售额">{{ formatMoney(forecastResult.sales_amount) }}</el-descriptions-item>
-                  <el-descriptions-item label="预测订单数">{{ forecastResult.order_count }}</el-descriptions-item>
-                  <el-descriptions-item label="置信度">{{ forecastResult.confidence }}%</el-descriptions-item>
-                  <el-descriptions-item label="预测趋势">{{ forecastResult.trend }}</el-descriptions-item>
+                  <el-descriptions-item label="预测销售额">{{
+                    formatMoney(forecastResult.sales_amount)
+                  }}</el-descriptions-item>
+                  <el-descriptions-item label="预测订单数">{{
+                    forecastResult.order_count
+                  }}</el-descriptions-item>
+                  <el-descriptions-item label="置信度"
+                    >{{ forecastResult.confidence }}%</el-descriptions-item
+                  >
+                  <el-descriptions-item label="预测趋势">{{
+                    forecastResult.trend
+                  }}</el-descriptions-item>
                 </el-descriptions>
               </div>
             </el-card>
 
             <el-card shadow="hover">
               <template #header><div class="card-header">库存优化建议</div></template>
-              <el-button type="primary" :loading="inventoryLoading" @click="runInventoryOptimization">生成建议</el-button>
+              <el-button
+                type="primary"
+                :loading="inventoryLoading"
+                @click="runInventoryOptimization"
+                >生成建议</el-button
+              >
               <el-divider />
               <el-empty v-if="!inventoryResult" description="点击生成优化建议" />
               <div v-else>
@@ -47,8 +62,19 @@
                   <el-table-column prop="suggestion" label="建议" min-width="200" />
                   <el-table-column prop="priority" label="优先级" width="100">
                     <template #default="{ row }">
-                      <el-tag :type="row.priority === 'high' ? 'danger' : row.priority === 'medium' ? 'warning' : 'info'" size="small">
-                        {{ row.priority === 'high' ? '高' : row.priority === 'medium' ? '中' : '低' }}
+                      <el-tag
+                        :type="
+                          row.priority === 'high'
+                            ? 'danger'
+                            : row.priority === 'medium'
+                              ? 'warning'
+                              : 'info'
+                        "
+                        size="small"
+                      >
+                        {{
+                          row.priority === 'high' ? '高' : row.priority === 'medium' ? '中' : '低'
+                        }}
                       </el-tag>
                     </template>
                   </el-table-column>
@@ -69,7 +95,9 @@
                   </el-select>
                 </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" :loading="anomalyLoading" @click="runAnomalyDetection">检测异常</el-button>
+                  <el-button type="primary" :loading="anomalyLoading" @click="runAnomalyDetection"
+                    >检测异常</el-button
+                  >
                 </el-form-item>
               </el-form>
               <el-empty v-if="!anomalyResult" description="点击开始检测" />
@@ -78,7 +106,11 @@
                   <el-table-column prop="item" label="检测项" width="150" />
                   <el-table-column prop="type" label="类型" width="100">
                     <template #default="{ row }">
-                      <el-tag :type="row.severity === 'critical' ? 'danger' : 'warning'" size="small">{{ row.type }}</el-tag>
+                      <el-tag
+                        :type="row.severity === 'critical' ? 'danger' : 'warning'"
+                        size="small"
+                        >{{ row.type }}</el-tag
+                      >
                     </template>
                   </el-table-column>
                   <el-table-column prop="description" label="描述" min-width="200" />
@@ -89,12 +121,19 @@
 
             <el-card shadow="hover">
               <template #header><div class="card-header">智能推荐</div></template>
-              <el-button type="primary" :loading="recommendLoading" @click="getRecommendations">获取推荐</el-button>
+              <el-button type="primary" :loading="recommendLoading" @click="getRecommendations"
+                >获取推荐</el-button
+              >
               <el-divider />
               <el-empty v-if="!recommendationResult" description="点击获取推荐" />
               <div v-else>
                 <el-timeline>
-                  <el-timeline-item v-for="(rec, i) in recommendationResult" :key="i" :type="rec.type === 'suggestion' ? 'primary' : 'success'" :timestamp="rec.created_at">
+                  <el-timeline-item
+                    v-for="(rec, i) in recommendationResult"
+                    :key="i"
+                    :type="rec.type === 'suggestion' ? 'primary' : 'success'"
+                    :timestamp="rec.created_at"
+                  >
                     {{ rec.content }}
                   </el-timeline-item>
                 </el-timeline>
@@ -110,7 +149,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="reportTemplates" v-loading="reportLoading" stripe>
+          <el-table v-loading="reportLoading" :data="reportTemplates" stripe>
             <el-table-column prop="template_name" label="报表名称" width="180" />
             <el-table-column prop="template_code" label="报表编码" width="120" />
             <el-table-column prop="category" label="分类" width="120" />
@@ -118,9 +157,15 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="executeReport(row)">执行</el-button>
-                <el-button type="success" link size="small" @click="exportReport(row, 'excel')">导出 Excel</el-button>
-                <el-button type="warning" link size="small" @click="exportReport(row, 'pdf')">导出 PDF</el-button>
+                <el-button type="primary" link size="small" @click="executeReport(row)"
+                  >执行</el-button
+                >
+                <el-button type="success" link size="small" @click="exportReport(row, 'excel')"
+                  >导出 Excel</el-button
+                >
+                <el-button type="warning" link size="small" @click="exportReport(row, 'pdf')"
+                  >导出 PDF</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -130,7 +175,12 @@
           <div class="report-result">
             <el-empty v-if="!reportData" description="暂无数据" />
             <el-table v-else :data="reportData" border stripe>
-              <el-table-column v-for="col in reportColumns" :key="col.key" :prop="col.key" :label="col.label" />
+              <el-table-column
+                v-for="col in reportColumns"
+                :key="col.key"
+                :prop="col.key"
+                :label="col.label"
+              />
             </el-table>
           </div>
           <template #footer>
@@ -149,7 +199,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="tenants" v-loading="tenantLoading" stripe>
+          <el-table v-loading="tenantLoading" :data="tenants" stripe>
             <el-table-column prop="tenant_code" label="租户编码" width="120" />
             <el-table-column prop="tenant_name" label="租户名称" width="180" />
             <el-table-column prop="domain" label="域名" width="180" />
@@ -158,8 +208,19 @@
             <el-table-column prop="max_users" label="最大用户" width="100" align="right" />
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'active' ? 'success' : row.status === 'suspended' ? 'danger' : 'info'" size="small">
-                  {{ row.status === 'active' ? '正常' : row.status === 'suspended' ? '暂停' : '停用' }}
+                <el-tag
+                  :type="
+                    row.status === 'active'
+                      ? 'success'
+                      : row.status === 'suspended'
+                        ? 'danger'
+                        : 'info'
+                  "
+                  size="small"
+                >
+                  {{
+                    row.status === 'active' ? '正常' : row.status === 'suspended' ? '暂停' : '停用'
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -167,9 +228,15 @@
             <el-table-column prop="subscription_end_date" label="结束日期" width="120" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openTenantDialog(row)">编辑</el-button>
-                <el-button type="warning" link size="small" @click="updateTenantStatus(row)">更新状态</el-button>
-                <el-button type="danger" link size="small" @click="deleteTenant(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="openTenantDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="warning" link size="small" @click="updateTenantStatus(row)"
+                  >更新状态</el-button
+                >
+                <el-button type="danger" link size="small" @click="deleteTenant(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -220,7 +287,18 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { forecastSales, optimizeInventory, detectAnomalies, getRecommendations as getRecommendationsApi, listReportTemplates, executeReport as executeReportApi, listTenants, createTenant, updateTenant, deleteTenant as deleteTenantApi } from '@/api/advanced'
+import {
+  forecastSales,
+  optimizeInventory,
+  detectAnomalies,
+  getRecommendations as getRecommendationsApi,
+  listReportTemplates,
+  executeReport as executeReportApi,
+  listTenants,
+  createTenant,
+  updateTenant,
+  deleteTenant as deleteTenantApi,
+} from '@/api/advanced'
 
 const activeTab = ref('ai')
 const forecastPeriod = ref('3m')
@@ -241,7 +319,8 @@ const reportColumns = ref<any[]>([])
 const tenants = ref<any[]>([])
 const tenantLoading = ref(false)
 
-const formatMoney = (amount: number) => '¥' + (amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00')
+const formatMoney = (amount: number) =>
+  '¥' + (amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00')
 
 const runSalesForecast = async () => {
   forecastLoading.value = true
@@ -348,7 +427,7 @@ const openTenantDialog = (row?: any) => {
       contact_phone: '',
       email: '',
       address: '',
-      status: 'active'
+      status: 'active',
     }
   }
   tenantDialogVisible.value = true
@@ -357,11 +436,17 @@ const openTenantDialog = (row?: any) => {
 const updateTenantStatus = async (row: any) => {
   try {
     const newStatus = row.status === 'active' ? 'inactive' : 'active'
-    await ElMessageBox.confirm(`确定${newStatus === 'active' ? '启用' : '禁用'}租户 "${row.name}" 吗？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      `确定${newStatus === 'active' ? '启用' : '禁用'}租户 "${row.name}" 吗？`,
+      '确认',
+      { type: 'warning' }
+    )
     await updateTenant(row.id, { status: newStatus })
     ElMessage.success('状态更新成功')
     fetchTenants()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 const tenantDialogVisible = ref(false)
@@ -374,7 +459,7 @@ const tenantForm = ref({
   contact_phone: '',
   email: '',
   address: '',
-  status: 'active'
+  status: 'active',
 })
 
 const submitTenant = async () => {
@@ -399,7 +484,9 @@ const deleteTenant = async (row: any) => {
     await deleteTenantApi(row.id)
     ElMessage.success('删除成功')
     fetchTenants()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 onMounted(() => {
@@ -409,11 +496,34 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.advanced-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
-.card-header { font-weight: 600; }
-.mb-20 { margin-bottom: 20px; }
-.mb-10 { margin-bottom: 10px; }
-.report-result { max-height: 60vh; overflow: auto; }
+.advanced-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+.card-header {
+  font-weight: 600;
+}
+.mb-20 {
+  margin-bottom: 20px;
+}
+.mb-10 {
+  margin-bottom: 10px;
+}
+.report-result {
+  max-height: 60vh;
+  overflow: auto;
+}
 </style>

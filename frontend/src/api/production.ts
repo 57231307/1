@@ -32,7 +32,9 @@ export const PRODUCTION_ORDER_STATUS = {
 }
 
 // 获取生产订单列表
-export function listProductionOrders(params?: QueryParams): Promise<ApiResponse<{ list: ProductionOrder[]; total: number }>> {
+export function listProductionOrders(
+  params?: QueryParams
+): Promise<ApiResponse<{ list: ProductionOrder[]; total: number }>> {
   return request.get('/production/orders', { params })
 }
 
@@ -42,12 +44,17 @@ export function getProductionOrder(id: number): Promise<ApiResponse<ProductionOr
 }
 
 // 创建生产订单
-export function createProductionOrder(data: Partial<ProductionOrder>): Promise<ApiResponse<ProductionOrder>> {
+export function createProductionOrder(
+  data: Partial<ProductionOrder>
+): Promise<ApiResponse<ProductionOrder>> {
   return request.post('/production/orders', data)
 }
 
 // 更新生产订单
-export function updateProductionOrder(id: number, data: Partial<ProductionOrder>): Promise<ApiResponse<ProductionOrder>> {
+export function updateProductionOrder(
+  id: number,
+  data: Partial<ProductionOrder>
+): Promise<ApiResponse<ProductionOrder>> {
   return request.put(`/production/orders/${id}`, data)
 }
 
@@ -57,6 +64,9 @@ export function deleteProductionOrder(id: number): Promise<ApiResponse<void>> {
 }
 
 // 更新生产订单状态
-export function updateProductionOrderStatus(id: number, status: string): Promise<ApiResponse<void>> {
+export function updateProductionOrderStatus(
+  id: number,
+  status: string
+): Promise<ApiResponse<void>> {
   return request.put(`/production/orders/${id}/status`, { status })
 }

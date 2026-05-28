@@ -21,11 +21,9 @@ export interface CostCollection {
   updated_at?: string
 }
 
-export const listCollections = (params?: any) =>
-  request.get('/cost-collections', { params })
+export const listCollections = (params?: any) => request.get('/cost-collections', { params })
 
-export const getCollection = (id: number) =>
-  request.get(`/cost-collections/${id}`)
+export const getCollection = (id: number) => request.get(`/cost-collections/${id}`)
 
 export const createCollection = (data: Partial<CostCollection>) =>
   request.post('/cost-collections', data)
@@ -33,8 +31,7 @@ export const createCollection = (data: Partial<CostCollection>) =>
 export const updateCollection = (id: number, data: Partial<CostCollection>) =>
   request.put(`/cost-collections/${id}`, data)
 
-export const deleteCollection = (id: number) =>
-  request.delete(`/cost-collections/${id}`)
+export const deleteCollection = (id: number) => request.delete(`/cost-collections/${id}`)
 
 export const auditCollection = (id: number, approved: boolean, comment?: string) =>
   request.post(`/cost-collections/${id}/audit`, { approved, comment })
@@ -49,5 +46,5 @@ export const COST_STATUS = {
   DRAFT: 'draft',
   PENDING: 'pending',
   APPROVED: 'approved',
-  REJECTED: 'rejected'
+  REJECTED: 'rejected',
 }

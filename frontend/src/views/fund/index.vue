@@ -23,36 +23,72 @@
               </div>
             </div>
           </template>
-          
-          <el-table :data="accountList" v-loading="loading" stripe border>
+
+          <el-table v-loading="loading" :data="accountList" stripe border>
             <el-table-column prop="account_no" label="账户编号" width="160" />
             <el-table-column prop="account_name" label="账户名称" min-width="160" />
             <el-table-column prop="bank_name" label="开户行" min-width="160" />
             <el-table-column prop="current_balance" label="当前余额" width="140">
               <template #default="{ row }">
-                <span class="balance-positive">¥{{ (row.current_balance || row.balance || 0).toFixed(2) }}</span>
+                <span class="balance-positive"
+                  >¥{{ (row.current_balance || row.balance || 0).toFixed(2) }}</span
+                >
               </template>
             </el-table-column>
             <el-table-column prop="frozen_balance" label="冻结余额" width="140">
               <template #default="{ row }">
-                <span v-if="row.frozen_balance" class="balance-frozen">¥{{ row.frozen_balance.toFixed(2) }}</span>
+                <span v-if="row.frozen_balance" class="balance-frozen"
+                  >¥{{ row.frozen_balance.toFixed(2) }}</span
+                >
                 <span v-else>-</span>
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="120">
               <template #default="{ row }">
-                <el-tag :type="FUND_ACCOUNT_STATUS[row.status as keyof typeof FUND_ACCOUNT_STATUS]?.type">
+                <el-tag
+                  :type="FUND_ACCOUNT_STATUS[row.status as keyof typeof FUND_ACCOUNT_STATUS]?.type"
+                >
                   {{ FUND_ACCOUNT_STATUS[row.status as keyof typeof FUND_ACCOUNT_STATUS]?.label }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="360" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
-                <el-button type="success" link size="small" @click="handleDeposit(row)" v-if="row.status === 'active'">存款</el-button>
-                <el-button type="warning" link size="small" @click="handleWithdraw(row)" v-if="row.status === 'active'">取款</el-button>
-                <el-button type="info" link size="small" @click="openTransferDialog(row)" v-if="row.status === 'active'">转账</el-button>
-                <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.status === 'inactive'">删除</el-button>
+                <el-button type="primary" link size="small" @click="viewDetail(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'active'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="handleDeposit(row)"
+                  >存款</el-button
+                >
+                <el-button
+                  v-if="row.status === 'active'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="handleWithdraw(row)"
+                  >取款</el-button
+                >
+                <el-button
+                  v-if="row.status === 'active'"
+                  type="info"
+                  link
+                  size="small"
+                  @click="openTransferDialog(row)"
+                  >转账</el-button
+                >
+                <el-button
+                  v-if="row.status === 'inactive'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="handleDelete(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -81,8 +117,8 @@
               </el-button>
             </div>
           </template>
-          
-          <el-table :data="transferList" v-loading="transferLoading" stripe border>
+
+          <el-table v-loading="transferLoading" :data="transferList" stripe border>
             <el-table-column prop="transfer_no" label="转账编号" width="180" />
             <el-table-column prop="from_account_name" label="转出账户" min-width="140" />
             <el-table-column prop="to_account_name" label="转入账户" min-width="140" />
@@ -102,7 +138,9 @@
             <el-table-column prop="created_at" label="转账时间" width="160" />
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewTransferDetail(row)">详情</el-button>
+                <el-button type="primary" link size="small" @click="viewTransferDetail(row)"
+                  >详情</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -128,7 +166,7 @@
       width="600px"
       @close="resetForm"
     >
-      <el-form :model="accountForm" :rules="accountRules" ref="accountFormRef" label-width="120px">
+      <el-form ref="accountFormRef" :model="accountForm" :rules="accountRules" label-width="120px">
         <el-form-item label="账户编号" prop="account_no">
           <el-input v-model="accountForm.account_no" placeholder="请输入账户编号" />
         </el-form-item>
@@ -136,16 +174,20 @@
           <el-input v-model="accountForm.account_name" placeholder="请输入账户名称" />
         </el-form-item>
         <el-form-item label="账户类型" prop="account_type">
-          <el-select v-model="accountForm.account_type" placeholder="请选择账户类型" style="width: 100%">
+          <el-select
+            v-model="accountForm.account_type"
+            placeholder="请选择账户类型"
+            style="width: 100%"
+          >
             <el-option label="现金账户" value="cash" />
             <el-option label="银行账户" value="bank" />
             <el-option label="虚拟账户" value="virtual" />
           </el-select>
         </el-form-item>
-        <el-form-item label="开户行" v-if="accountForm.account_type === 'bank'">
+        <el-form-item v-if="accountForm.account_type === 'bank'" label="开户行">
           <el-input v-model="accountForm.bank_name" placeholder="请输入开户行" />
         </el-form-item>
-        <el-form-item label="银行账号" v-if="accountForm.account_type === 'bank'">
+        <el-form-item v-if="accountForm.account_type === 'bank'" label="银行账号">
           <el-input v-model="accountForm.bank_account" placeholder="请输入银行账号" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -155,115 +197,195 @@
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="accountForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+          <el-input
+            v-model="accountForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm">确认</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm"
+          >确认</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="detailVisible" title="账户详情" width="600px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="账户编号">{{ currentAccount?.account_no || currentAccount?.account_code }}</el-descriptions-item>
-        <el-descriptions-item label="账户名称">{{ currentAccount?.account_name }}</el-descriptions-item>
-        <el-descriptions-item label="账户类型">{{ currentAccount?.account_type }}</el-descriptions-item>
+        <el-descriptions-item label="账户编号">{{
+          currentAccount?.account_no || currentAccount?.account_code
+        }}</el-descriptions-item>
+        <el-descriptions-item label="账户名称">{{
+          currentAccount?.account_name
+        }}</el-descriptions-item>
+        <el-descriptions-item label="账户类型">{{
+          currentAccount?.account_type
+        }}</el-descriptions-item>
         <el-descriptions-item label="当前余额">
-          <span class="balance-positive">¥{{ (currentAccount?.current_balance || currentAccount?.balance || 0).toFixed(2) }}</span>
+          <span class="balance-positive"
+            >¥{{
+              (currentAccount?.current_balance || currentAccount?.balance || 0).toFixed(2)
+            }}</span
+          >
         </el-descriptions-item>
         <el-descriptions-item label="冻结余额">
-          <span v-if="currentAccount?.frozen_balance" class="balance-frozen">¥{{ currentAccount.frozen_balance.toFixed(2) }}</span>
+          <span v-if="currentAccount?.frozen_balance" class="balance-frozen"
+            >¥{{ currentAccount.frozen_balance.toFixed(2) }}</span
+          >
           <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="可用余额">
-          <span class="balance-available">¥{{ (currentAccount?.available_balance || 0).toFixed(2) }}</span>
+          <span class="balance-available"
+            >¥{{ (currentAccount?.available_balance || 0).toFixed(2) }}</span
+          >
         </el-descriptions-item>
-        <el-descriptions-item label="开户行">{{ currentAccount?.bank_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="开户行">{{
+          currentAccount?.bank_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="FUND_ACCOUNT_STATUS[currentAccount?.status as keyof typeof FUND_ACCOUNT_STATUS]?.type">
-            {{ FUND_ACCOUNT_STATUS[currentAccount?.status as keyof typeof FUND_ACCOUNT_STATUS]?.label }}
+          <el-tag
+            :type="
+              FUND_ACCOUNT_STATUS[currentAccount?.status as keyof typeof FUND_ACCOUNT_STATUS]?.type
+            "
+          >
+            {{
+              FUND_ACCOUNT_STATUS[currentAccount?.status as keyof typeof FUND_ACCOUNT_STATUS]?.label
+            }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ currentAccount?.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentAccount?.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{
+          currentAccount?.created_at
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentAccount?.remark || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
-    <el-dialog v-model="operationVisible" :title="operationType === 'deposit' ? '存款' : '取款'" width="500px">
-      <el-form :model="operationForm" :rules="operationRules" ref="operationFormRef" label-width="120px">
+    <el-dialog
+      v-model="operationVisible"
+      :title="operationType === 'deposit' ? '存款' : '取款'"
+      width="500px"
+    >
+      <el-form
+        ref="operationFormRef"
+        :model="operationForm"
+        :rules="operationRules"
+        label-width="120px"
+      >
         <el-form-item label="操作账户">
           <el-input :value="currentAccount?.account_name" disabled />
         </el-form-item>
         <el-form-item label="当前余额">
-          <span class="balance-positive">¥{{ (currentAccount?.current_balance || currentAccount?.balance || 0).toFixed(2) }}</span>
+          <span class="balance-positive"
+            >¥{{
+              (currentAccount?.current_balance || currentAccount?.balance || 0).toFixed(2)
+            }}</span
+          >
         </el-form-item>
         <el-form-item label="金额" prop="amount">
-          <el-input-number v-model="operationForm.amount" :min="0.01" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="operationForm.amount"
+            :min="0.01"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="operationForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+          <el-input
+            v-model="operationForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="operationVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleOperationSubmit">确认</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleOperationSubmit"
+          >确认</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="transferVisible" title="资金转账" width="600px">
-      <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="120px">
+      <el-form
+        ref="transferFormRef"
+        :model="transferForm"
+        :rules="transferRules"
+        label-width="120px"
+      >
         <el-form-item label="转出账户" prop="from_account_id">
-          <el-select 
-            v-model="transferForm.from_account_id" 
-            placeholder="请选择转出账户" 
+          <el-select
+            v-model="transferForm.from_account_id"
+            placeholder="请选择转出账户"
             style="width: 100%"
             filterable
             @change="handleFromAccountChange"
           >
-            <el-option 
-              v-for="account in activeAccounts" 
-              :key="account.id" 
+            <el-option
+              v-for="account in activeAccounts"
+              :key="account.id"
               :label="`${account.account_name} (可用: ¥${(account.available_balance || account.current_balance || account.balance || 0).toFixed(2)})`"
-              :value="account.id" 
+              :value="account.id"
             />
           </el-select>
         </el-form-item>
         <el-form-item label="转入账户" prop="to_account_id">
-          <el-select 
-            v-model="transferForm.to_account_id" 
-            placeholder="请选择转入账户" 
+          <el-select
+            v-model="transferForm.to_account_id"
+            placeholder="请选择转入账户"
             style="width: 100%"
             filterable
           >
-            <el-option 
-              v-for="account in otherAccounts" 
-              :key="account.id" 
+            <el-option
+              v-for="account in otherAccounts"
+              :key="account.id"
               :label="`${account.account_name} (当前: ¥${(account.current_balance || account.balance || 0).toFixed(2)})`"
-              :value="account.id" 
+              :value="account.id"
             />
           </el-select>
         </el-form-item>
         <el-form-item label="转账金额" prop="amount">
-          <el-input-number 
-            v-model="transferForm.amount" 
-            :min="0.01" 
+          <el-input-number
+            v-model="transferForm.amount"
+            :min="0.01"
             :max="availableBalance"
-            :precision="2" 
+            :precision="2"
             style="width: 100%"
             placeholder="请输入转账金额"
           />
           <div v-if="selectedFromAccount" class="balance-hint">
-            可用余额: <span class="balance-available">¥{{ (selectedFromAccount.available_balance || selectedFromAccount.current_balance || selectedFromAccount.balance || 0).toFixed(2) }}</span>
+            可用余额:
+            <span class="balance-available"
+              >¥{{
+                (
+                  selectedFromAccount.available_balance ||
+                  selectedFromAccount.current_balance ||
+                  selectedFromAccount.balance ||
+                  0
+                ).toFixed(2)
+              }}</span
+            >
           </div>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="transferForm.remark" type="textarea" :rows="3" placeholder="请输入转账备注" />
+          <el-input
+            v-model="transferForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入转账备注"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="transferVisible = false">取消</el-button>
-        <el-button type="primary" :loading="transferSubmitLoading" @click="handleTransferSubmit">确认转账</el-button>
+        <el-button type="primary" :loading="transferSubmitLoading" @click="handleTransferSubmit"
+          >确认转账</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -357,35 +479,42 @@ const transferRules: FormRules = {
   to_account_id: [{ required: true, message: '请选择转入账户', trigger: 'change' }],
   amount: [
     { required: true, message: '请输入转账金额', trigger: 'blur' },
-    { 
+    {
       validator: (_rule, value, callback) => {
         if (value <= 0) {
           callback(new Error('转账金额必须大于0'))
-        } else if (value > availableBalance) {
+        } else if (value > availableBalance.value) {
           callback(new Error('转账金额不能超过可用余额'))
         } else {
           callback()
         }
       },
-      trigger: 'blur' 
-    }
+      trigger: 'blur',
+    },
   ],
 }
 
 const activeAccounts = computed(() => {
-  return accountList.value.filter(acc => acc.status === 'active')
+  return accountList.value.filter((acc) => acc.status === 'active')
 })
 
 const otherAccounts = computed(() => {
-  return accountList.value.filter(acc => acc.id !== transferForm.from_account_id && acc.status === 'active')
+  return accountList.value.filter(
+    (acc) => acc.id !== transferForm.from_account_id && acc.status === 'active'
+  )
 })
 
 const selectedFromAccount = computed(() => {
-  return accountList.value.find(acc => acc.id === transferForm.from_account_id)
+  return accountList.value.find((acc) => acc.id === transferForm.from_account_id)
 })
 
 const availableBalance = computed(() => {
-  return selectedFromAccount.value ? (selectedFromAccount.value.available_balance || selectedFromAccount.value.current_balance || selectedFromAccount.value.balance || 0) : 999999999
+  return selectedFromAccount.value
+    ? selectedFromAccount.value.available_balance ||
+        selectedFromAccount.value.current_balance ||
+        selectedFromAccount.value.balance ||
+        0
+    : 999999999
 })
 
 const fetchAccounts = async () => {
@@ -417,11 +546,11 @@ const fetchTransfers = async () => {
 const openDialog = (type: 'create' | 'edit', row?: FundAccount) => {
   dialogType.value = type
   resetForm()
-  
+
   if (type === 'edit' && row) {
     Object.assign(accountForm, row)
   }
-  
+
   dialogVisible.value = true
 }
 
@@ -454,10 +583,10 @@ const resetTransferForm = () => {
 
 const handleSubmitForm = async () => {
   if (!accountFormRef.value) return
-  
+
   await accountFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogType.value === 'create') {
@@ -469,7 +598,7 @@ const handleSubmitForm = async () => {
           ElMessage.success('更新成功')
         }
       }
-      
+
       dialogVisible.value = false
       fetchAccounts()
     } catch (e: any) {
@@ -503,18 +632,18 @@ const handleWithdraw = (row: FundAccount) => {
 
 const handleOperationSubmit = async () => {
   if (!operationFormRef.value || !currentAccount.value) return
-  
+
   await operationFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       const action = operationType.value === 'deposit' ? depositFund : withdrawFund
       const actionText = operationType.value === 'deposit' ? '存款' : '取款'
-      
+
       await action(currentAccount.value!.id, operationForm.amount, operationForm.remark)
       ElMessage.success(`${actionText}成功`)
-      
+
       operationVisible.value = false
       fetchAccounts()
     } catch (e: any) {
@@ -541,10 +670,10 @@ const handleFromAccountChange = () => {
 
 const handleTransferSubmit = async () => {
   if (!transferFormRef.value) return
-  
+
   await transferFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     transferSubmitLoading.value = true
     try {
       await transferFund({
@@ -554,7 +683,7 @@ const handleTransferSubmit = async () => {
         remark: transferForm.remark,
       })
       ElMessage.success('转账成功')
-      
+
       transferVisible.value = false
       fetchAccounts()
       if (activeTab.value === 'transfer') {
@@ -594,12 +723,16 @@ const getTransferStatusLabel = (status: string) => {
 
 const handleDelete = async (row: FundAccount) => {
   try {
-    await ElMessageBox.confirm(`确认删除账户 ${row.account_no || row.account_code} 吗？`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-    })
-    
+    await ElMessageBox.confirm(
+      `确认删除账户 ${row.account_no || row.account_code} 吗？`,
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+      }
+    )
+
     ElMessage.success('删除成功')
     fetchAccounts()
   } catch (e: any) {

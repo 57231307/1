@@ -62,11 +62,16 @@ export interface ConvertToOrderParams {
   order_type: 'purchase' | 'production'
 }
 
-export function calculateMrp(data: MrpCalculationParams): Promise<ApiResponse<MrpCalculationResult>> {
+export function calculateMrp(
+  data: MrpCalculationParams
+): Promise<ApiResponse<MrpCalculationResult>> {
   return request.post('/mrp/calculate', data)
 }
 
-export function getMrpHistory(params?: { page?: number; page_size?: number }): Promise<ApiResponse<PageResult<MrpHistoryRecord>>> {
+export function getMrpHistory(params?: {
+  page?: number
+  page_size?: number
+}): Promise<ApiResponse<PageResult<MrpHistoryRecord>>> {
   return request.get('/mrp/history', { params })
 }
 
@@ -74,10 +79,14 @@ export function getMrpResult(id: number): Promise<ApiResponse<MrpCalculationResu
   return request.get(`/mrp/history/${id}`)
 }
 
-export function convertToOrder(data: ConvertToOrderParams): Promise<ApiResponse<{ order_ids: number[] }>> {
+export function convertToOrder(
+  data: ConvertToOrderParams
+): Promise<ApiResponse<{ order_ids: number[] }>> {
   return request.post('/mrp/convert', data)
 }
 
-export function getProductsForMrp(params?: { keyword?: string }): Promise<ApiResponse<MrpProduct[]>> {
+export function getProductsForMrp(params?: {
+  keyword?: string
+}): Promise<ApiResponse<MrpProduct[]>> {
   return request.get('/mrp/products', { params })
 }

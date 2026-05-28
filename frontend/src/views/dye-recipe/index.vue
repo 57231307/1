@@ -24,13 +24,28 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="配方名称/配方编号" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.keyword"
+            placeholder="配方名称/配方编号"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="色号">
-          <el-input v-model="queryParams.color_no" placeholder="请输入色号" clearable @clear="handleQuery" />
+          <el-input
+            v-model="queryParams.color_no"
+            placeholder="请输入色号"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable @change="handleQuery">
+          <el-select
+            v-model="queryParams.status"
+            placeholder="选择状态"
+            clearable
+            @change="handleQuery"
+          >
             <el-option label="草稿" value="DRAFT" />
             <el-option label="待审批" value="PENDING" />
             <el-option label="已审批" value="APPROVED" />
@@ -54,7 +69,12 @@
       <el-table v-loading="loading" :data="recipeList" border stripe>
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="recipe_no" label="配方编号" width="120" show-overflow-tooltip />
-        <el-table-column prop="recipe_name" label="配方名称" min-width="150" show-overflow-tooltip />
+        <el-table-column
+          prop="recipe_name"
+          label="配方名称"
+          min-width="150"
+          show-overflow-tooltip
+        />
         <el-table-column prop="color_no" label="色号" width="100" show-overflow-tooltip />
         <el-table-column prop="color_name" label="颜色名称" width="120" show-overflow-tooltip />
         <el-table-column prop="version" label="版本" width="80" align="center" />
@@ -67,9 +87,30 @@
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.status === 'DRAFT'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-if="row.status === 'DRAFT'" type="success" link size="small" @click="handleSubmit(row)">提交</el-button>
-            <el-button v-if="row.status === 'PENDING'" type="success" link size="small" @click="handleApprove(row)">审批</el-button>
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              type="success"
+              link
+              size="small"
+              @click="handleSubmit(row)"
+              >提交</el-button
+            >
+            <el-button
+              v-if="row.status === 'PENDING'"
+              type="success"
+              link
+              size="small"
+              @click="handleApprove(row)"
+              >审批</el-button
+            >
             <el-button type="info" link size="small" @click="handleVersion(row)">版本</el-button>
           </template>
         </el-table-column>
@@ -89,7 +130,12 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="800px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -116,7 +162,12 @@
           </el-col>
         </el-row>
         <el-form-item label="配方内容" prop="content">
-          <el-input v-model="formData.content" type="textarea" :rows="10" placeholder="请输入配方内容" />
+          <el-input
+            v-model="formData.content"
+            type="textarea"
+            :rows="10"
+            placeholder="请输入配方内容"
+          />
         </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input v-model="formData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
@@ -132,7 +183,12 @@
     <el-dialog v-model="versionVisible" title="版本历史" width="800px">
       <el-table :data="versionList" border stripe>
         <el-table-column prop="version" label="版本" width="80" align="center" />
-        <el-table-column prop="recipe_name" label="配方名称" min-width="150" show-overflow-tooltip />
+        <el-table-column
+          prop="recipe_name"
+          label="配方名称"
+          min-width="150"
+          show-overflow-tooltip
+        />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
@@ -141,7 +197,9 @@
         <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
         <el-table-column label="操作" width="100" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleViewVersion(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleViewVersion(row)"
+              >查看</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -160,7 +218,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   color_no: '',
-  status: ''
+  status: '',
 })
 
 // 列表数据
@@ -185,7 +243,7 @@ const formData = reactive({
   color_no: '',
   color_name: '',
   content: '',
-  remarks: ''
+  remarks: '',
 })
 
 // 表单验证规则
@@ -194,7 +252,7 @@ const formRules = {
   recipe_name: [{ required: true, message: '请输入配方名称', trigger: 'blur' }],
   color_no: [{ required: true, message: '请输入色号', trigger: 'blur' }],
   color_name: [{ required: true, message: '请输入颜色名称', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入配方内容', trigger: 'blur' }]
+  content: [{ required: true, message: '请输入配方内容', trigger: 'blur' }],
 }
 
 // 获取列表数据
@@ -235,15 +293,13 @@ const handleCreate = () => {
     color_no: '',
     color_name: '',
     content: '',
-    remarks: ''
+    remarks: '',
   })
   dialogVisible.value = true
 }
 
 // 查看
-const handleView = (row: any) => {
-  console.log('查看:', row)
-}
+const handleView = (row: any) => {}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -286,9 +342,7 @@ const handleVersion = async (row: any) => {
 }
 
 // 查看版本
-const handleViewVersion = (row: any) => {
-  console.log('查看版本:', row)
-}
+const handleViewVersion = (row: any) => {}
 
 // 导出
 const handleExport = () => {
@@ -324,7 +378,7 @@ const getStatusType = (status: string) => {
     DRAFT: 'info',
     PENDING: 'warning',
     APPROVED: 'success',
-    INACTIVE: 'danger'
+    INACTIVE: 'danger',
   }
   return map[status] || 'info'
 }
@@ -335,7 +389,7 @@ const getStatusLabel = (status: string) => {
     DRAFT: '草稿',
     PENDING: '待审批',
     APPROVED: '已审批',
-    INACTIVE: '已停用'
+    INACTIVE: '已停用',
   }
   return map[status] || status
 }

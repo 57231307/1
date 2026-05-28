@@ -76,7 +76,7 @@
             <el-table-column prop="created_at" label="申请时间" width="160" />
             <el-table-column prop="due_date" label="截止时间" width="160">
               <template #default="{ row }">
-                <span v-if="row.due_date" :class="{ 'overdue': isOverdue(row.due_date) }">
+                <span v-if="row.due_date" :class="{ overdue: isOverdue(row.due_date) }">
                   {{ row.due_date }}
                 </span>
                 <span v-else>-</span>
@@ -91,9 +91,15 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleApprove(row)">审批</el-button>
-                <el-button type="warning" link size="small" @click="handleDetail(row)">详情</el-button>
-                <el-button type="info" link size="small" @click="handleTransfer(row)">转交</el-button>
+                <el-button type="primary" link size="small" @click="handleApprove(row)"
+                  >审批</el-button
+                >
+                <el-button type="warning" link size="small" @click="handleDetail(row)"
+                  >详情</el-button
+                >
+                <el-button type="info" link size="small" @click="handleTransfer(row)"
+                  >转交</el-button
+                >
                 <el-button type="danger" link size="small" @click="handleUrge(row)">催办</el-button>
               </template>
             </el-table-column>
@@ -121,7 +127,9 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleTrace(row)">追溯</el-button>
+                <el-button type="primary" link size="small" @click="handleTrace(row)"
+                  >追溯</el-button
+                >
                 <el-button type="info" link size="small" @click="handleCancel(row)">撤回</el-button>
               </template>
             </el-table-column>
@@ -143,7 +151,12 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="comment" label="审批意见" min-width="150" show-overflow-tooltip />
+            <el-table-column
+              prop="comment"
+              label="审批意见"
+              min-width="150"
+              show-overflow-tooltip
+            />
           </el-table>
         </el-card>
       </el-tab-pane>
@@ -169,8 +182,12 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleViewProcess(row)">查看</el-button>
-                <el-button type="info" link size="small" @click="handleProcessImage(row)">流程图</el-button>
+                <el-button type="primary" link size="small" @click="handleViewProcess(row)"
+                  >查看</el-button
+                >
+                <el-button type="info" link size="small" @click="handleProcessImage(row)"
+                  >流程图</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -192,7 +209,7 @@ const stats = ref({
   pendingTasks: 8,
   completedTasks: 156,
   urgentTasks: 3,
-  avgProcessingTime: 4.5
+  avgProcessingTime: 4.5,
 })
 
 const pendingTasks = ref<any[]>([])
@@ -211,12 +228,22 @@ const getPriorityText = (priority: string) => {
 }
 
 const getProcessStatusType = (status: string) => {
-  const map: Record<string, any> = { running: 'primary', completed: 'success', cancelled: 'info', suspended: 'warning' }
+  const map: Record<string, any> = {
+    running: 'primary',
+    completed: 'success',
+    cancelled: 'info',
+    suspended: 'warning',
+  }
   return map[status] || 'info'
 }
 
 const getProcessStatusText = (status: string) => {
-  const map: Record<string, string> = { running: '进行中', completed: '已完成', cancelled: '已取消', suspended: '已挂起' }
+  const map: Record<string, string> = {
+    running: '进行中',
+    completed: '已完成',
+    cancelled: '已取消',
+    suspended: '已挂起',
+  }
   return map[status] || status
 }
 
@@ -282,22 +309,28 @@ const handleApprove = async (row: any) => {
     await bpmApi.approveTask({ task_id: row.task_id, comment: '同意' })
     ElMessage.success('审批成功')
     fetchPendingTasks()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
-const handleDetail = (row: any) => { ElMessage.info(`查看详情：${row.business_key}`) }
+const handleDetail = (row: any) => {
+  ElMessage.info(`查看详情：${row.business_key}`)
+}
 
 const handleTransfer = async (row: any) => {
   try {
     const { value: targetUserId } = await ElMessageBox.prompt('请输入接收人的用户 ID', '转交任务', {
       type: 'info',
       inputPattern: /^\d+$/,
-      inputErrorMessage: '请输入有效的用户 ID'
+      inputErrorMessage: '请输入有效的用户 ID',
     })
     await bpmApi.transferTask(row.task_id, parseInt(targetUserId), '工作转交')
     ElMessage.success('任务转交成功')
     fetchPendingTasks()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 const handleUrge = async (row: any) => {
@@ -305,42 +338,139 @@ const handleUrge = async (row: any) => {
     await ElMessageBox.confirm('确定催办此任务吗？', '确认', { type: 'warning' })
     await bpmApi.urgeTask(row.task_id)
     ElMessage.success('催办成功')
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
-const handleTrace = (row: any) => { ElMessage.info(`追溯流程：${row.instance_id}`) }
-const handleCancel = (row: any) => { ElMessage.info(`撤回流程：${row.instance_id}`) }
-const handleViewProcess = (row: any) => { ElMessage.info(`查看流程：${row.instance_id}`) }
-const handleProcessImage = (row: any) => { ElMessage.info(`查看流程图：${row.instance_id}`) }
+const handleTrace = (row: any) => {
+  ElMessage.info(`追溯流程：${row.instance_id}`)
+}
+const handleCancel = (row: any) => {
+  ElMessage.info(`撤回流程：${row.instance_id}`)
+}
+const handleViewProcess = (row: any) => {
+  ElMessage.info(`查看流程：${row.instance_id}`)
+}
+const handleProcessImage = (row: any) => {
+  ElMessage.info(`查看流程图：${row.instance_id}`)
+}
 
-onMounted(() => { fetchPendingTasks() })
+onMounted(() => {
+  fetchPendingTasks()
+})
 </script>
 
 <style scoped>
-.bpm-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.stats-row { margin-bottom: 20px; }
-.stat-card { border-radius: 12px; transition: all 0.3s ease; }
-.stat-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
-.stat-card.highlight { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.stat-card.highlight .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.highlight .stat-label, .stat-card.highlight .stat-value { color: white; }
-.stat-card.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-card.warning .stat-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-card.warning .stat-label, .stat-card.warning .stat-value { color: white; }
-.stat-content { display: flex; align-items: center; gap: 16px; }
-.stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-.stat-icon.pending-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.completed-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.stat-icon.urgent-icon { background: rgba(255, 255, 255, 0.2); color: white; }
-.stat-icon.avg-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.stat-info { flex: 1; }
-.stat-label { font-size: 14px; color: #909399; margin-bottom: 4px; }
-.stat-value { font-size: 28px; font-weight: 700; color: #303133; line-height: 1.2; }
-.table-card { margin-bottom: 20px; }
-.overdue { color: #f56c6c; font-weight: 600; }
-:deep(.el-tabs__header) { margin-bottom: 20px; }
-:deep(.el-card__header) { padding: 16px 20px; border-bottom: 1px solid #ebeef5; }
-:deep(.el-card__body) { padding: 20px; }
+.bpm-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.stats-row {
+  margin-bottom: 20px;
+}
+.stat-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.stat-card.highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.stat-card.highlight .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-card.highlight .stat-label,
+.stat-card.highlight .stat-value {
+  color: white;
+}
+.stat-card.warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+.stat-card.warning .stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-card.warning .stat-label,
+.stat-card.warning .stat-value {
+  color: white;
+}
+.stat-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+.stat-icon.pending-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-icon.completed-icon {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+.stat-icon.urgent-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.stat-icon.avg-icon {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+.stat-info {
+  flex: 1;
+}
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.overdue {
+  color: #f56c6c;
+  font-weight: 600;
+}
+:deep(.el-tabs__header) {
+  margin-bottom: 20px;
+}
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+:deep(.el-card__body) {
+  padding: 20px;
+}
 </style>

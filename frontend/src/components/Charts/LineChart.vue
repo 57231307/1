@@ -42,7 +42,7 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   autoResize: true,
   showArea: false,
-  smooth: true
+  smooth: true,
 })
 
 const emit = defineEmits<{
@@ -53,26 +53,26 @@ const emit = defineEmits<{
 const chartRef = ref()
 
 const chartOption = computed<EChartsOption>(() => {
-  const seriesConfig = props.series.map(item => ({
+  const seriesConfig = props.series.map((item) => ({
     name: item.name,
     type: 'line' as const,
     data: item.data,
     smooth: item.smooth ?? props.smooth,
-    areaStyle: item.areaStyle ?? props.showArea ? {} : undefined
+    areaStyle: (item.areaStyle ?? props.showArea) ? {} : undefined,
   }))
 
   return {
     title: props.title ? { text: props.title, left: 'center' } : undefined,
     tooltip: { trigger: 'axis' },
-    legend: { data: props.series.map(s => s.name), top: props.title ? 30 : 0 },
+    legend: { data: props.series.map((s) => s.name), top: props.title ? 30 : 0 },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: {
       type: 'category',
       data: props.xAxisData,
-      boundaryGap: false
+      boundaryGap: false,
     },
     yAxis: { type: 'value' },
-    series: seriesConfig
+    series: seriesConfig,
   }
 })
 

@@ -1,8 +1,32 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider, ElSteps, ElStep, ElResult } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElInputNumber,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+  ElCard,
+  ElDivider,
+  ElSteps,
+  ElStep,
+  ElResult,
+} from 'element-plus'
 import { Search, ArrowRightBold, ArrowLeftBold, Camera } from '@element-plus/icons-vue'
-import { getTraceByFiveDimension, forwardTrace, backwardTrace, createTraceSnapshot, type FullTraceChainResponse, type TraceChainResponse } from '@/api/business-trace'
+import {
+  getTraceByFiveDimension,
+  forwardTrace,
+  backwardTrace,
+  createTraceSnapshot,
+  type FullTraceChainResponse,
+  type TraceChainResponse,
+} from '@/api/business-trace'
 
 const traceMode = ref<'five_dimension' | 'forward' | 'backward'>('five_dimension')
 const fiveDimensionId = ref('')
@@ -14,12 +38,12 @@ const snapshotMessage = ref('')
 
 const forwardForm = ref({
   supplier_id: 0,
-  batch_no: ''
+  batch_no: '',
 })
 
 const backwardForm = ref({
   customer_id: 0,
-  batch_no: ''
+  batch_no: '',
 })
 
 const stageStatusMap: Record<string, string> = {
@@ -28,7 +52,7 @@ const stageStatusMap: Record<string, string> = {
   PRODUCTION_INPUT: 'process',
   PRODUCTION_OUTPUT: 'process',
   INVENTORY_OUT: 'process',
-  SALES_DELIVERY: 'success'
+  SALES_DELIVERY: 'success',
 }
 
 const handleFiveDimensionTrace = async () => {
@@ -57,7 +81,7 @@ const handleForwardTrace = async () => {
   try {
     const res: any = await forwardTrace({
       supplier_id: Number(forwardForm.value.supplier_id),
-      batch_no: forwardForm.value.batch_no
+      batch_no: forwardForm.value.batch_no,
     })
     forwardResult.value = res.data.traces
   } catch (error) {
@@ -76,7 +100,7 @@ const handleBackwardTrace = async () => {
   try {
     const res: any = await backwardTrace({
       customer_id: Number(backwardForm.value.customer_id),
-      batch_no: backwardForm.value.batch_no
+      batch_no: backwardForm.value.batch_no,
     })
     backwardResult.value = res.data.traces
   } catch (error) {
@@ -119,12 +143,23 @@ const handleCreateSnapshot = async () => {
               />
             </ElCol>
             <ElCol :span="4">
-              <ElButton type="primary" @click="handleFiveDimensionTrace" :loading="loading" class="w-full">
+              <ElButton
+                type="primary"
+                :loading="loading"
+                class="w-full"
+                @click="handleFiveDimensionTrace"
+              >
                 <Search /> 追溯
               </ElButton>
             </ElCol>
             <ElCol :span="4">
-              <ElButton type="success" @click="handleCreateSnapshot" :disabled="!traceResult" :loading="loading" class="w-full">
+              <ElButton
+                type="success"
+                :disabled="!traceResult"
+                :loading="loading"
+                class="w-full"
+                @click="handleCreateSnapshot"
+              >
                 <Camera /> 创建快照
               </ElButton>
             </ElCol>
@@ -138,15 +173,23 @@ const handleCreateSnapshot = async () => {
         <div v-if="traceResult" class="trace-result">
           <ElCard title="追溯链详情" class="detail-card">
             <ElDescriptions :column="3" border>
-              <ElDescriptionsItem label="追溯链ID">{{ traceResult.trace_chain_id }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="五维ID">{{ traceResult.five_dimension_id }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="追溯链ID">{{
+                traceResult.trace_chain_id
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="五维ID">{{
+                traceResult.five_dimension_id
+              }}</ElDescriptionsItem>
               <ElDescriptionsItem label="产品ID">{{ traceResult.product_id }}</ElDescriptionsItem>
               <ElDescriptionsItem label="批次号">{{ traceResult.batch_no }}</ElDescriptionsItem>
               <ElDescriptionsItem label="色号">{{ traceResult.color_no }}</ElDescriptionsItem>
               <ElDescriptionsItem label="等级">{{ traceResult.grade }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="环节总数">{{ traceResult.total_stages }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="环节总数">{{
+                traceResult.total_stages
+              }}</ElDescriptionsItem>
               <ElDescriptionsItem label="开始时间">{{ traceResult.start_time }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="结束时间">{{ traceResult.end_time || '-' }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="结束时间">{{
+                traceResult.end_time || '-'
+              }}</ElDescriptionsItem>
             </ElDescriptions>
           </ElCard>
 
@@ -168,7 +211,7 @@ const handleCreateSnapshot = async () => {
             </ElSteps>
 
             <ElDivider />
-            
+
             <h4>环节明细</h4>
             <ElTable :data="traceResult.stages" border style="width: 100%">
               <ElTableColumn prop="stage_id" label="环节ID" width="100" />
@@ -208,7 +251,13 @@ const handleCreateSnapshot = async () => {
                 </ElFormItem>
               </ElCol>
               <ElCol :span="4">
-                <ElButton type="primary" @click="handleForwardTrace" :loading="loading" class="w-full" style="margin-top: 24px;">
+                <ElButton
+                  type="primary"
+                  :loading="loading"
+                  class="w-full"
+                  style="margin-top: 24px"
+                  @click="handleForwardTrace"
+                >
                   <ArrowRightBold /> 正向追溯
                 </ElButton>
               </ElCol>
@@ -258,7 +307,13 @@ const handleCreateSnapshot = async () => {
                 </ElFormItem>
               </ElCol>
               <ElCol :span="4">
-                <ElButton type="primary" @click="handleBackwardTrace" :loading="loading" class="w-full" style="margin-top: 24px;">
+                <ElButton
+                  type="primary"
+                  :loading="loading"
+                  class="w-full"
+                  style="margin-top: 24px"
+                  @click="handleBackwardTrace"
+                >
                   <ArrowLeftBold /> 反向追溯
                 </ElButton>
               </ElCol>

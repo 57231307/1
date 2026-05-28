@@ -1,11 +1,6 @@
 <template>
   <div class="bom-form">
-    <el-form
-      ref="formRef"
-      :model="localFormData"
-      :rules="formRules"
-      label-width="100px"
-    >
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="产品名称" prop="product_name">
@@ -21,11 +16,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="是否默认" prop="is_default">
-            <el-switch
-              v-model="localFormData.is_default"
-              active-text="是"
-              inactive-text="否"
-            />
+            <el-switch v-model="localFormData.is_default" active-text="是" inactive-text="否" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -147,30 +138,28 @@ const localFormData = ref({
   is_default: props.formData.is_default,
   status: props.formData.status,
   remark: props.formData.remark,
-  items: [...props.formData.items.map(item => ({ ...item }))]
+  items: [...props.formData.items.map((item) => ({ ...item }))],
 })
 
-watch(() => props.formData, (newVal) => {
-  localFormData.value = {
-    product_name: newVal.product_name,
-    version: newVal.version,
-    is_default: newVal.is_default,
-    status: newVal.status,
-    remark: newVal.remark,
-    items: [...newVal.items.map(item => ({ ...item }))]
-  }
-}, { deep: true })
+watch(
+  () => props.formData,
+  (newVal) => {
+    localFormData.value = {
+      product_name: newVal.product_name,
+      version: newVal.version,
+      is_default: newVal.is_default,
+      status: newVal.status,
+      remark: newVal.remark,
+      items: [...newVal.items.map((item) => ({ ...item }))],
+    }
+  },
+  { deep: true }
+)
 
 const formRules: FormRules = {
-  product_name: [
-    { required: true, message: '请输入产品名称', trigger: 'blur' }
-  ],
-  version: [
-    { required: true, message: '请输入版本号', trigger: 'blur' }
-  ],
-  status: [
-    { required: true, message: '请选择状态', trigger: 'change' }
-  ]
+  product_name: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+  version: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
 const handleAddItem = () => {
@@ -178,7 +167,7 @@ const handleAddItem = () => {
     material_name: '',
     quantity: 1,
     unit: '',
-    loss_rate: 0
+    loss_rate: 0,
   })
 }
 
@@ -193,7 +182,7 @@ const handleSubmit = async () => {
     if (!valid) return
 
     const hasEmptyItems = localFormData.value.items.some(
-      item => !item.material_name || !item.unit
+      (item) => !item.material_name || !item.unit
     )
     if (hasEmptyItems) {
       ElMessage.warning('请填写完整的物料明细')
@@ -208,7 +197,7 @@ const handleSubmit = async () => {
         is_default: localFormData.value.is_default,
         status: localFormData.value.status,
         remark: localFormData.value.remark,
-        items: localFormData.value.items
+        items: localFormData.value.items,
       })
     } finally {
       submitLoading.value = false
@@ -222,10 +211,33 @@ const handleCancel = () => {
 </script>
 
 <style scoped>
-.bom-form { padding: 10px 0; }
-.items-section { margin-top: 24px; }
-.items-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.items-title { font-size: 16px; font-weight: 600; color: #303133; margin: 0; }
-.items-table { margin-bottom: 20px; }
-.form-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #ebeef5; }
+.bom-form {
+  padding: 10px 0;
+}
+.items-section {
+  margin-top: 24px;
+}
+.items-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.items-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+.items-table {
+  margin-bottom: 20px;
+}
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #ebeef5;
+}
 </style>

@@ -22,7 +22,9 @@ export const BUDGET_STATUS = {
   rejected: { label: '已拒绝', type: 'danger' },
 }
 
-export function listBudgets(params?: QueryParams): Promise<ApiResponse<{ list: Budget[]; total: number }>> {
+export function listBudgets(
+  params?: QueryParams
+): Promise<ApiResponse<{ list: Budget[]; total: number }>> {
   return request.get('/budgets', { params })
 }
 

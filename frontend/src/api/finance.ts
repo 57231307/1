@@ -41,11 +41,16 @@ export function getSubject(id: number): Promise<ApiResponse<AccountSubject>> {
   return request.get(`/gl/subjects/${id}`)
 }
 
-export function createSubject(data: AccountSubjectCreateRequest): Promise<ApiResponse<AccountSubject>> {
+export function createSubject(
+  data: AccountSubjectCreateRequest
+): Promise<ApiResponse<AccountSubject>> {
   return request.post('/gl/subjects', data)
 }
 
-export function updateSubject(id: number, data: AccountSubjectUpdateRequest): Promise<ApiResponse<AccountSubject>> {
+export function updateSubject(
+  id: number,
+  data: AccountSubjectUpdateRequest
+): Promise<ApiResponse<AccountSubject>> {
   return request.put(`/gl/subjects/${id}`, data)
 }
 

@@ -44,7 +44,7 @@
         </el-card>
 
         <el-card shadow="hover">
-          <el-table :data="invoices" v-loading="invoiceLoading" stripe>
+          <el-table v-loading="invoiceLoading" :data="invoices" stripe>
             <el-table-column prop="invoice_no" label="发票号" width="140" />
             <el-table-column prop="customer_name" label="客户" width="150" />
             <el-table-column prop="invoice_date" label="发票日期" width="120" />
@@ -80,9 +80,25 @@
             <el-table-column prop="due_date" label="到期日" width="120" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewInvoice(row)">查看</el-button>
-                <el-button v-if="row.status === 'pending'" type="success" link size="small" @click="approveInvoice(row)">审核</el-button>
-                <el-button v-if="row.status === 'pending'" type="danger" link size="small" @click="cancelInvoice(row)">取消</el-button>
+                <el-button type="primary" link size="small" @click="viewInvoice(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="approveInvoice(row)"
+                  >审核</el-button
+                >
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="cancelInvoice(row)"
+                  >取消</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -99,7 +115,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="reconciliations" v-loading="reconciliationLoading" stripe>
+          <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe>
             <el-table-column prop="reconciliation_no" label="对账单号" width="140" />
             <el-table-column prop="customer_name" label="客户" width="150" />
             <el-table-column prop="reconciliation_date" label="对账日期" width="120" />
@@ -131,7 +147,14 @@
             <el-table-column prop="confirmed_at" label="确认时间" width="160" />
             <el-table-column label="操作" width="120" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status === 'pending'" type="success" link size="small" @click="confirmReconciliation(row)">确认</el-button>
+                <el-button
+                  v-if="row.status === 'pending'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="confirmReconciliation(row)"
+                  >确认</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -183,7 +206,7 @@
         </el-row>
 
         <el-card shadow="hover" class="mt-20">
-          <el-table :data="funds" v-loading="fundLoading" stripe>
+          <el-table v-loading="fundLoading" :data="funds" stripe>
             <el-table-column prop="account_code" label="账户编码" width="120" />
             <el-table-column prop="account_name" label="账户名称" min-width="150" />
             <el-table-column prop="account_type" label="账户类型" width="100">
@@ -217,9 +240,15 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="depositFund(row)">存入</el-button>
-                <el-button type="primary" link size="small" @click="withdrawFund(row)">取出</el-button>
-                <el-button type="warning" link size="small" @click="freezeFund(row)">冻结</el-button>
+                <el-button type="primary" link size="small" @click="depositFund(row)"
+                  >存入</el-button
+                >
+                <el-button type="primary" link size="small" @click="withdrawFund(row)"
+                  >取出</el-button
+                >
+                <el-button type="warning" link size="small" @click="freezeFund(row)"
+                  >冻结</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -232,8 +261,17 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户" prop="customer_id">
-              <el-select v-model="invoiceForm.customer_id" placeholder="选择客户" style="width: 100%">
-                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
+              <el-select
+                v-model="invoiceForm.customer_id"
+                placeholder="选择客户"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="c in customers"
+                  :key="c.id"
+                  :label="c.customer_name"
+                  :value="c.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -246,24 +284,46 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发票日期" prop="invoice_date">
-              <el-date-picker v-model="invoiceForm.invoice_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="invoiceForm.invoice_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="到期日">
-              <el-date-picker v-model="invoiceForm.due_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="invoiceForm.due_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发票金额" prop="invoice_amount">
-              <el-input-number v-model="invoiceForm.invoice_amount" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="invoiceForm.invoice_amount"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="税额">
-              <el-input-number v-model="invoiceForm.tax_amount" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="invoiceForm.tax_amount"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -273,24 +333,41 @@
       </el-form>
       <template #footer>
         <el-button @click="invoiceDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice">确定</el-button>
+        <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="reconciliationDialogVisible" title="新建对账" width="500px">
       <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px">
         <el-form-item label="客户">
-          <el-select v-model="reconciliationForm.customer_id" placeholder="选择客户" style="width: 100%">
+          <el-select
+            v-model="reconciliationForm.customer_id"
+            placeholder="选择客户"
+            style="width: 100%"
+          >
             <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="对账日期">
-          <el-date-picker v-model="reconciliationForm.reconciliation_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker
+            v-model="reconciliationForm.reconciliation_date"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="reconciliationDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="reconciliationSubmitLoading" @click="submitReconciliation">确定</el-button>
+        <el-button
+          type="primary"
+          :loading="reconciliationSubmitLoading"
+          @click="submitReconciliation"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -326,7 +403,12 @@
     <el-dialog v-model="fundOperationDialogVisible" :title="fundOperationTitle" width="400px">
       <el-form label-width="80px">
         <el-form-item label="金额">
-          <el-input-number v-model="fundOperationAmount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="fundOperationAmount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item v-if="fundOperationType === 'freeze'" label="原因">
           <el-input v-model="fundOperationReason" type="textarea" placeholder="请输入冻结原因" />
@@ -337,7 +419,9 @@
       </el-form>
       <template #footer>
         <el-button @click="fundOperationDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="fundOperationLoading" @click="submitFundOperation">确定</el-button>
+        <el-button type="primary" :loading="fundOperationLoading" @click="submitFundOperation"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -349,9 +433,27 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listARInvoices, createARInvoice, approveARInvoice, cancelARInvoice, type ARInvoice } from '@/api/ar'
-import { listARReconciliations, createARReconciliation, updateARReconciliationStatus, type ARReconciliation } from '@/api/ar'
-import { listFundAccounts, createFundAccount, depositFund as depositFundApi, withdrawFund as withdrawFundApi, freezeFund as freezeFundApi, type FundAccount } from '@/api/ar'
+import {
+  listARInvoices,
+  createARInvoice,
+  approveARInvoice,
+  cancelARInvoice,
+  type ARInvoice,
+} from '@/api/ar'
+import {
+  listARReconciliations,
+  createARReconciliation,
+  updateARReconciliationStatus,
+  type ARReconciliation,
+} from '@/api/ar'
+import {
+  listFundAccounts,
+  createFundAccount,
+  depositFund as depositFundApi,
+  withdrawFund as withdrawFundApi,
+  freezeFund as freezeFundApi,
+  type FundAccount,
+} from '@/api/ar'
 import { listCustomers, type Customer } from '@/api/customer'
 
 const activeTab = ref('invoice')
@@ -368,7 +470,7 @@ const fundLoading = ref(false)
 const invoiceQuery = reactive({
   customer_name: '',
   invoice_no: '',
-  status: ''
+  status: '',
 })
 
 const formatMoney = (amount: number) => {
@@ -376,17 +478,32 @@ const formatMoney = (amount: number) => {
 }
 
 const getInvoiceStatusLabel = (status: string) => {
-  const map: Record<string, string> = { pending: '待审核', approved: '已审核', verified: '已核销', cancelled: '已取消' }
+  const map: Record<string, string> = {
+    pending: '待审核',
+    approved: '已审核',
+    verified: '已核销',
+    cancelled: '已取消',
+  }
   return map[status] || status
 }
 
 const getARInvoiceStatusText = (status: string) => {
-  const map: Record<string, string> = { pending: '待审核', approved: '已审核', verified: '已核销', cancelled: '已取消' }
+  const map: Record<string, string> = {
+    pending: '待审核',
+    approved: '已审核',
+    verified: '已核销',
+    cancelled: '已取消',
+  }
   return map[status] || status
 }
 
 const getInvoiceStatusType = (status: string) => {
-  const map: Record<string, string> = { pending: 'warning', approved: 'success', verified: 'primary', cancelled: 'info' }
+  const map: Record<string, string> = {
+    pending: 'warning',
+    approved: 'success',
+    verified: 'primary',
+    cancelled: 'info',
+  }
   return map[status] || 'info'
 }
 
@@ -396,18 +513,29 @@ const getReconciliationStatusLabel = (status: string) => {
 }
 
 const getReconciliationStatusType = (status: string) => {
-  const map: Record<string, string> = { pending: 'warning', confirmed: 'success', disputed: 'danger' }
+  const map: Record<string, string> = {
+    pending: 'warning',
+    confirmed: 'success',
+    disputed: 'danger',
+  }
   return map[status] || 'info'
 }
 
 const getAccountTypeLabel = (type: string) => {
-  const map: Record<string, string> = { bank: '银行账户', cash: '现金账户', alipay: '支付宝', wechat: '微信' }
+  const map: Record<string, string> = {
+    bank: '银行账户',
+    cash: '现金账户',
+    alipay: '支付宝',
+    wechat: '微信',
+  }
   return map[type] || type
 }
 
 const totalBalance = computed(() => funds.value.reduce((sum, f) => sum + (f.balance || 0), 0))
 const totalFrozen = computed(() => funds.value.reduce((sum, f) => sum + (f.frozen_balance || 0), 0))
-const totalAvailable = computed(() => funds.value.reduce((sum, f) => sum + (f.available_balance || 0), 0))
+const totalAvailable = computed(() =>
+  funds.value.reduce((sum, f) => sum + (f.available_balance || 0), 0)
+)
 
 const fetchInvoices = async () => {
   invoiceLoading.value = true
@@ -472,14 +600,14 @@ const invoiceForm = reactive({
   invoice_amount: 0,
   tax_amount: 0,
   due_date: '',
-  remark: ''
+  remark: '',
 })
 
 const invoiceRules: FormRules = {
   customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
   invoice_no: [{ required: true, message: '请输入发票号', trigger: 'blur' }],
   invoice_date: [{ required: true, message: '请选择发票日期', trigger: 'change' }],
-  invoice_amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }]
+  invoice_amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }],
 }
 
 const openInvoiceDialog = () => {
@@ -497,7 +625,7 @@ const openInvoiceDialog = () => {
 const submitInvoice = async () => {
   const valid = await invoiceFormRef.value?.validate()
   if (!valid) return
-  
+
   invoiceSubmitLoading.value = true
   try {
     await createARInvoice(invoiceForm)
@@ -546,7 +674,7 @@ const reconciliationFormRef = ref<FormInstance>()
 const reconciliationSubmitLoading = ref(false)
 const reconciliationForm = reactive({
   customer_id: undefined as number | undefined,
-  reconciliation_date: ''
+  reconciliation_date: '',
 })
 
 const openReconciliationDialog = () => {
@@ -560,7 +688,7 @@ const submitReconciliation = async () => {
     ElMessage.warning('请选择客户')
     return
   }
-  
+
   reconciliationSubmitLoading.value = true
   try {
     await createARReconciliation(reconciliationForm)
@@ -595,13 +723,13 @@ const fundForm = reactive({
   account_name: '',
   account_type: 'bank',
   bank_name: '',
-  bank_account: ''
+  bank_account: '',
 })
 
 const fundRules: FormRules = {
   account_code: [{ required: true, message: '请输入账户编码', trigger: 'blur' }],
   account_name: [{ required: true, message: '请输入账户名称', trigger: 'blur' }],
-  account_type: [{ required: true, message: '请选择账户类型', trigger: 'change' }]
+  account_type: [{ required: true, message: '请选择账户类型', trigger: 'change' }],
 }
 
 const openFundDialog = () => {
@@ -617,7 +745,7 @@ const openFundDialog = () => {
 const submitFund = async () => {
   const valid = await fundFormRef.value?.validate()
   if (!valid) return
-  
+
   fundSubmitLoading.value = true
   try {
     await createFundAccount(fundForm)
@@ -673,23 +801,32 @@ const submitFundOperation = async () => {
     ElMessage.warning('请输入有效金额')
     return
   }
-  
+
   if (!currentFundAccount.value) return
-  
+
   fundOperationLoading.value = true
   try {
     if (fundOperationType.value === 'deposit') {
-      await depositFundApi(currentFundAccount.value.id, { amount: fundOperationAmount.value, remark: fundOperationRemark.value })
+      await depositFundApi(currentFundAccount.value.id, {
+        amount: fundOperationAmount.value,
+        remark: fundOperationRemark.value,
+      })
       ElMessage.success('存入成功')
     } else if (fundOperationType.value === 'withdraw') {
-      await withdrawFundApi(currentFundAccount.value.id, { amount: fundOperationAmount.value, remark: fundOperationRemark.value })
+      await withdrawFundApi(currentFundAccount.value.id, {
+        amount: fundOperationAmount.value,
+        remark: fundOperationRemark.value,
+      })
       ElMessage.success('取出成功')
     } else if (fundOperationType.value === 'freeze') {
       if (!fundOperationReason.value) {
         ElMessage.warning('请输入冻结原因')
         return
       }
-      await freezeFundApi(currentFundAccount.value.id, { amount: fundOperationAmount.value, reason: fundOperationReason.value })
+      await freezeFundApi(currentFundAccount.value.id, {
+        amount: fundOperationAmount.value,
+        reason: fundOperationReason.value,
+      })
       ElMessage.success('冻结成功')
     }
     fundOperationDialogVisible.value = false
@@ -703,13 +840,13 @@ const submitFundOperation = async () => {
 
 const handlePrintInvoices = () => {
   const printData = invoices.value.map((item: any, index: number) => ({
-    '序号': index + 1,
-    '发票号': item.invoice_no,
-    '客户': item.customer_name,
-    '发票金额': `¥${item.invoice_amount}`,
-    '税额': `¥${item.tax_amount}`,
-    '状态': getARInvoiceStatusText(item.status),
-    '发票日期': item.invoice_date
+    序号: index + 1,
+    发票号: item.invoice_no,
+    客户: item.customer_name,
+    发票金额: `¥${item.invoice_amount}`,
+    税额: `¥${item.tax_amount}`,
+    状态: getARInvoiceStatusText(item.status),
+    发票日期: item.invoice_date,
   }))
   printJS({
     printable: printData,
@@ -719,15 +856,24 @@ const handlePrintInvoices = () => {
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
-    gridStyle: 'border-collapse: collapse; width: 100%;'
+    gridStyle: 'border-collapse: collapse; width: 100%;',
   })
 }
 
 const handleExportInvoices = () => {
   const csvContent = [
     ['发票号', '客户', '发票金额', '税额', '状态', '发票日期'],
-    ...invoices.value.map((item: any) => [item.invoice_no, item.customer_name, item.invoice_amount, item.tax_amount, getARInvoiceStatusText(item.status), item.invoice_date])
-  ].map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n')
+    ...invoices.value.map((item: any) => [
+      item.invoice_no,
+      item.customer_name,
+      item.invoice_amount,
+      item.tax_amount,
+      getARInvoiceStatusText(item.status),
+      item.invoice_date,
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -745,15 +891,50 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.ar-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
-.filter-card { margin-bottom: 20px; }
-.text-red { color: #f56c6c; }
-.text-orange { color: #e6a23c; }
-.text-green { color: #67c23a; }
-.mt-20 { margin-top: 20px; }
-.fund-summary .summary-item { text-align: center; padding: 10px 0; }
-.fund-summary .summary-label { font-size: 14px; color: #909399; margin-bottom: 8px; }
-.fund-summary .summary-value { font-size: 24px; font-weight: 600; color: #303133; }
+.ar-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.text-red {
+  color: #f56c6c;
+}
+.text-orange {
+  color: #e6a23c;
+}
+.text-green {
+  color: #67c23a;
+}
+.mt-20 {
+  margin-top: 20px;
+}
+.fund-summary .summary-item {
+  text-align: center;
+  padding: 10px 0;
+}
+.fund-summary .summary-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+.fund-summary .summary-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
 </style>

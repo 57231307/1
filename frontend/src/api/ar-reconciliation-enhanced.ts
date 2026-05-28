@@ -82,19 +82,30 @@ export interface QueryParams {
   end_date?: string
 }
 
-export function autoReconcile(params: { start_date: string; end_date: string; customer_id?: number }): Promise<ApiResponse<{ task_id: number; message: string }>> {
+export function autoReconcile(params: {
+  start_date: string
+  end_date: string
+  customer_id?: number
+}): Promise<ApiResponse<{ task_id: number; message: string }>> {
   return request.post('/ar-reconciliation/auto-reconcile', params)
 }
 
-export function getAutoReconciliationResults(params?: QueryParams): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
+export function getAutoReconciliationResults(
+  params?: QueryParams
+): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
   return request.get('/ar-reconciliation/auto-reconcile/results', { params })
 }
 
-export function getAgingAnalysis(params?: { customer_id?: number; as_of_date?: string }): Promise<ApiResponse<AgingAnalysisResult[]>> {
+export function getAgingAnalysis(params?: {
+  customer_id?: number
+  as_of_date?: string
+}): Promise<ApiResponse<AgingAnalysisResult[]>> {
   return request.get('/ar-reconciliation/aging-analysis', { params })
 }
 
-export function getReconciliationDetails(id: number): Promise<ApiResponse<ReconciliationDetailItem[]>> {
+export function getReconciliationDetails(
+  id: number
+): Promise<ApiResponse<ReconciliationDetailItem[]>> {
   return request.get(`/ar-reconciliation/${id}/details`)
 }
 
@@ -102,11 +113,16 @@ export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ mess
   return request.post(`/ar-reconciliation/${id}/confirm/send`)
 }
 
-export function getCustomerConfirmations(params?: QueryParams): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
+export function getCustomerConfirmations(
+  params?: QueryParams
+): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
   return request.get('/ar-reconciliation/confirmations', { params })
 }
 
-export function updateConfirmationStatus(id: number, data: { status: 'confirmed' | 'disputed'; remark?: string }): Promise<ApiResponse<CustomerConfirmation>> {
+export function updateConfirmationStatus(
+  id: number,
+  data: { status: 'confirmed' | 'disputed'; remark?: string }
+): Promise<ApiResponse<CustomerConfirmation>> {
   return request.put(`/ar-reconciliation/confirmations/${id}/status`, data)
 }
 
@@ -118,7 +134,10 @@ export function getDisputes(params?: QueryParams): Promise<ApiResponse<PageResul
   return request.get('/ar-reconciliation/disputes', { params })
 }
 
-export function resolveDispute(id: number, data: { resolution: string }): Promise<ApiResponse<DisputeRecord>> {
+export function resolveDispute(
+  id: number,
+  data: { resolution: string }
+): Promise<ApiResponse<DisputeRecord>> {
   return request.put(`/ar-reconciliation/disputes/${id}/resolve`, data)
 }
 

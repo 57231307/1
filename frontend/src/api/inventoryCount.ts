@@ -43,8 +43,7 @@ export interface QueryParams {
 export const listInventoryCounts = (params?: QueryParams) =>
   request.get('/inventory/counts', { params })
 
-export const getInventoryCount = (id: number) =>
-  request.get(`/inventory/counts/${id}`)
+export const getInventoryCount = (id: number) => request.get(`/inventory/counts/${id}`)
 
 export const createInventoryCount = (data: Partial<InventoryCountEntity>) =>
   request.post('/inventory/counts', data)
@@ -52,17 +51,14 @@ export const createInventoryCount = (data: Partial<InventoryCountEntity>) =>
 export const updateInventoryCount = (id: number, data: Partial<InventoryCountEntity>) =>
   request.put(`/inventory/counts/${id}`, data)
 
-export const deleteInventoryCount = (id: number) =>
-  request.delete(`/inventory/counts/${id}`)
+export const deleteInventoryCount = (id: number) => request.delete(`/inventory/counts/${id}`)
 
-export const approveInventoryCount = (id: number) =>
-  request.post(`/inventory/counts/${id}/approve`)
+export const approveInventoryCount = (id: number) => request.post(`/inventory/counts/${id}/approve`)
 
 export const completeInventoryCount = (id: number) =>
   request.post(`/inventory/counts/${id}/complete`)
 
-export const getCountItems = (id: number) =>
-  request.get(`/inventory/counts/${id}`)
+export const getCountItems = (id: number) => request.get(`/inventory/counts/${id}`)
 
 export const updateCountItem = (itemId: number, data: Partial<CountItem>) =>
   request.put(`/inventory/counts/items/${itemId}`, data)

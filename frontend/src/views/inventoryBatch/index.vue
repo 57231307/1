@@ -6,17 +6,32 @@
           <span>批次管理</span>
         </div>
       </template>
-      
+
       <div class="toolbar">
         <el-form inline>
           <el-form-item label="批次号">
-            <el-input v-model="queryParams.batchNo" placeholder="请输入" clearable style="width: 180px" />
+            <el-input
+              v-model="queryParams.batchNo"
+              placeholder="请输入"
+              clearable
+              style="width: 180px"
+            />
           </el-form-item>
           <el-form-item label="色号">
-            <el-input v-model="queryParams.colorNo" placeholder="请输入" clearable style="width: 180px" />
+            <el-input
+              v-model="queryParams.colorNo"
+              placeholder="请输入"
+              clearable
+              style="width: 180px"
+            />
           </el-form-item>
           <el-form-item label="等级">
-            <el-select v-model="queryParams.grade" placeholder="请选择" clearable style="width: 120px">
+            <el-select
+              v-model="queryParams.grade"
+              placeholder="请选择"
+              clearable
+              style="width: 120px"
+            >
               <el-option label="一等品" value="一等品" />
               <el-option label="二等品" value="二等品" />
               <el-option label="三等品" value="三等品" />
@@ -31,7 +46,7 @@
           <el-button type="primary" @click="handleCreate">新建批次</el-button>
         </div>
       </div>
-      
+
       <el-table :data="batchList" border stripe>
         <el-table-column prop="batchNo" label="批次号" width="140" />
         <el-table-column prop="productName" label="产品名称" />
@@ -57,7 +72,9 @@
         </el-table-column>
         <el-table-column prop="qualityStatus" label="品质状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.qualityStatus === '合格'" type="success">{{ row.qualityStatus }}</el-tag>
+            <el-tag v-if="row.qualityStatus === '合格'" type="success">{{
+              row.qualityStatus
+            }}</el-tag>
             <el-tag v-else type="danger">{{ row.qualityStatus }}</el-tag>
           </template>
         </el-table-column>
@@ -71,7 +88,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.pageSize"
@@ -80,10 +97,10 @@
         @current-change="fetchBatches"
       />
     </el-card>
-    
+
     <!-- 新建/编辑对话框 -->
     <el-dialog v-model="batchDialogVisible" :title="isEdit ? '编辑批次' : '新建批次'" width="700px">
-      <el-form :model="batchForm" :rules="batchRules" ref="batchFormRef" label-width="120px">
+      <el-form ref="batchFormRef" :model="batchForm" :rules="batchRules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="批次号" prop="batchNo">
@@ -155,42 +172,63 @@
           </el-col>
         </el-row>
         <el-form-item label="生产日期" prop="productionDate">
-          <el-date-picker v-model="batchForm.productionDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker
+            v-model="batchForm.productionDate"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input v-model="batchForm.remarks" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="batchDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveBatch" :loading="submitLoading">保存</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSaveBatch">保存</el-button>
       </template>
     </el-dialog>
-    
+
     <!-- 查看详情对话框 -->
     <el-dialog v-model="viewDialogVisible" title="批次详情" width="700px">
-      <el-descriptions :column="2" border v-if="currentBatch">
+      <el-descriptions v-if="currentBatch" :column="2" border>
         <el-descriptions-item label="批次号">{{ currentBatch.batchNo }}</el-descriptions-item>
         <el-descriptions-item label="产品">{{ currentBatch.productName }}</el-descriptions-item>
         <el-descriptions-item label="仓库">{{ currentBatch.warehouseName }}</el-descriptions-item>
         <el-descriptions-item label="色号">{{ currentBatch.colorNo }}</el-descriptions-item>
         <el-descriptions-item label="缸号">{{ currentBatch.dyeLotNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="等级">{{ currentBatch.grade }}</el-descriptions-item>
-        <el-descriptions-item label="数量(米)">{{ currentBatch.quantityMeters }}</el-descriptions-item>
+        <el-descriptions-item label="数量(米)">{{
+          currentBatch.quantityMeters
+        }}</el-descriptions-item>
         <el-descriptions-item label="数量(kg)">{{ currentBatch.quantityKg }}</el-descriptions-item>
-        <el-descriptions-item label="克重">{{ currentBatch.gramWeight || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="克重">{{
+          currentBatch.gramWeight || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="幅宽">{{ currentBatch.width || '-' }}</el-descriptions-item>
         <el-descriptions-item label="库存状态">{{ currentBatch.stockStatus }}</el-descriptions-item>
-        <el-descriptions-item label="品质状态">{{ currentBatch.qualityStatus }}</el-descriptions-item>
-        <el-descriptions-item label="生产日期" :span="2">{{ currentBatch.productionDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentBatch.remarks || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="品质状态">{{
+          currentBatch.qualityStatus
+        }}</el-descriptions-item>
+        <el-descriptions-item label="生产日期" :span="2">{{
+          currentBatch.productionDate || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          currentBatch.remarks || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
-    
+
     <!-- 调拨对话框 -->
     <el-dialog v-model="transferDialogVisible" title="批次调拨" width="500px">
-      <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="120px">
+      <el-form
+        ref="transferFormRef"
+        :model="transferForm"
+        :rules="transferRules"
+        label-width="120px"
+      >
         <el-form-item label="目标仓库" prop="toWarehouseId">
           <el-select v-model="transferForm.toWarehouseId" placeholder="请选择" style="width: 100%">
             <el-option label="仓库1" :value="1" />
@@ -207,10 +245,12 @@
           <el-input v-model="transferForm.remarks" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="transferDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveTransfer" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSaveTransfer"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -226,20 +266,20 @@ import {
   updateBatch,
   deleteBatch,
   transferBatch,
-  type InventoryBatch
+  type InventoryBatch,
 } from '@/api/inventoryBatch'
 
 const batchList = ref<InventoryBatch[]>([])
 const pagination = reactive({
   page: 1,
   pageSize: 20,
-  total: 0
+  total: 0,
 })
 
 const queryParams = reactive({
   batchNo: '',
   colorNo: '',
-  grade: ''
+  grade: '',
 })
 
 const batchDialogVisible = ref(false)
@@ -264,14 +304,14 @@ const batchForm = reactive({
   gramWeight: undefined as number | undefined,
   width: undefined as number | undefined,
   productionDate: '',
-  remarks: ''
+  remarks: '',
 })
 
 const transferForm = reactive({
   toWarehouseId: undefined as number | undefined,
   quantityMeters: 0,
   quantityKg: 0,
-  remarks: ''
+  remarks: '',
 })
 
 const batchRules = {
@@ -281,13 +321,13 @@ const batchRules = {
   colorNo: [{ required: true, message: '请输入色号', trigger: 'blur' }],
   grade: [{ required: true, message: '请选择等级', trigger: 'change' }],
   quantityMeters: [{ required: true, message: '请输入数量', trigger: 'blur' }],
-  quantityKg: [{ required: true, message: '请输入数量', trigger: 'blur' }]
+  quantityKg: [{ required: true, message: '请输入数量', trigger: 'blur' }],
 }
 
 const transferRules = {
   toWarehouseId: [{ required: true, message: '请选择目标仓库', trigger: 'change' }],
   quantityMeters: [{ required: true, message: '请输入调拨数量', trigger: 'blur' }],
-  quantityKg: [{ required: true, message: '请输入调拨数量', trigger: 'blur' }]
+  quantityKg: [{ required: true, message: '请输入调拨数量', trigger: 'blur' }],
 }
 
 const fetchBatches = async () => {
@@ -295,7 +335,7 @@ const fetchBatches = async () => {
     const res: any = await listBatches({
       page: pagination.page,
       pageSize: pagination.pageSize,
-      ...queryParams
+      ...queryParams,
     })
     if (res.data) {
       batchList.value = res.data!.list || res.data! || []
@@ -327,7 +367,7 @@ const handleCreate = () => {
     gramWeight: undefined,
     width: undefined,
     productionDate: '',
-    remarks: ''
+    remarks: '',
   })
   batchDialogVisible.value = true
 }
@@ -335,7 +375,7 @@ const handleCreate = () => {
 const handleEdit = async (row: InventoryBatch) => {
   if (!row.id) return
   isEdit.value = true
-  
+
   try {
     const res: any = await getBatch(row.id)
     if (res.data) {
@@ -351,23 +391,23 @@ const handleEdit = async (row: InventoryBatch) => {
         gramWeight: res.data.gramWeight,
         width: res.data.width,
         productionDate: res.data.productionDate,
-        remarks: res.data.remarks
+        remarks: res.data.remarks,
       })
     }
   } catch (e) {
     ElMessage.error('获取批次详情失败')
     return
   }
-  
+
   batchDialogVisible.value = true
 }
 
 const handleSaveBatch = async () => {
   if (!batchFormRef.value) return
-  
+
   await batchFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (isEdit.value) {
@@ -407,17 +447,17 @@ const handleTransfer = (row: InventoryBatch) => {
     toWarehouseId: undefined,
     quantityMeters: row.quantityMeters || 0,
     quantityKg: row.quantityKg || 0,
-    remarks: ''
+    remarks: '',
   })
   transferDialogVisible.value = true
 }
 
 const handleSaveTransfer = async () => {
   if (!transferFormRef.value || !currentTransferBatchId.value) return
-  
+
   await transferFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       await transferBatch(currentTransferBatchId.value!, transferForm as any)
@@ -434,14 +474,14 @@ const handleSaveTransfer = async () => {
 
 const handleDelete = async (row: InventoryBatch) => {
   if (!row.id) return
-  
+
   try {
     await ElMessageBox.confirm('确认删除该批次？', '提示', {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     })
-    
+
     await deleteBatch(row.id)
     ElMessage.success('删除成功')
     fetchBatches()

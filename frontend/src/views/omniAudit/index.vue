@@ -1,6 +1,22 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElInput, ElSelect, ElDatePicker, ElMessage, ElRow, ElCol, ElCard, ElTabs, ElTabPane, ElStatistic, ElDescriptions } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElCard,
+  ElTabs,
+  ElTabPane,
+  ElStatistic,
+  ElDescriptions,
+} from 'element-plus'
 import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue'
 import { getDashboardStats, searchLogs, type AuditStats, type AuditLog } from '@/api/omniAudit'
 
@@ -17,12 +33,12 @@ const searchForm = ref({
   action: '',
   status: '',
   start_time: '',
-  end_time: ''
+  end_time: '',
 })
 
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const viewDialogVisible = ref(false)
@@ -31,11 +47,11 @@ const viewData = ref<AuditLog | null>(null)
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '成功', value: 'SUCCESS' },
-  { label: '失败', value: 'FAILED' }
+  { label: '失败', value: 'FAILED' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -66,7 +82,7 @@ const loadLogs = async () => {
       start_time: searchForm.value.start_time || undefined,
       end_time: searchForm.value.end_time || undefined,
       page: pagination.value.page - 1,
-      page_size: pagination.value.pageSize
+      page_size: pagination.value.pageSize,
     })
     logs.value = res.data!.data.items
     total.value = res.data!.data.total
@@ -90,7 +106,7 @@ const handleReset = () => {
     action: '',
     status: '',
     start_time: '',
-    end_time: ''
+    end_time: '',
   }
   handleSearch()
 }
@@ -193,16 +209,17 @@ loadLogs()
               />
             </ElCol>
             <ElCol :span="6">
-              <ElSelect
-                v-model="searchForm.status"
-                placeholder="状态"
-                class="filter-item"
-              >
-                <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
+              <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
+                <ElOption
+                  v-for="s in statusOptions"
+                  :key="s.value"
+                  :label="s.label"
+                  :value="s.value"
+                />
               </ElSelect>
             </ElCol>
           </ElRow>
-          <ElRow :gutter="20" style="margin-top: 10px;">
+          <ElRow :gutter="20" style="margin-top: 10px">
             <ElCol :span="10">
               <ElDatePicker
                 v-model="searchForm.start_time"
@@ -234,12 +251,12 @@ loadLogs()
           :loading="loading"
           :page-size="pagination.pageSize"
           :current-page="pagination.page"
-          @current-change="handlePageChange"
-          @size-change="handlePageSizeChange"
           border
           fit
           highlight-current-row
           style="width: 100%"
+          @current-change="handlePageChange"
+          @size-change="handlePageSizeChange"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="user_name" label="用户" width="100" />
@@ -265,7 +282,12 @@ loadLogs()
       </ElTabPane>
     </ElTabs>
 
-    <ElDialog title="审计日志详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="审计日志详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="2" border>
           <ElDescriptionsItem label="ID">{{ viewData.id }}</ElDescriptionsItem>
@@ -276,16 +298,18 @@ loadLogs()
           <ElDescriptionsItem label="事件名称">{{ viewData.event_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="资源">{{ viewData.resource }}</ElDescriptionsItem>
           <ElDescriptionsItem label="操作">{{ viewData.action }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="状态">{{
+            getStatusLabel(viewData.status)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="耗时(ms)">{{ viewData.duration_ms }}</ElDescriptionsItem>
           <ElDescriptionsItem label="IP地址">{{ viewData.ip_address || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
         </ElDescriptions>
-        <div v-if="viewData.payload" style="margin-top: 20px;">
+        <div v-if="viewData.payload" style="margin-top: 20px">
           <h4>请求参数</h4>
           <pre class="payload-pre">{{ JSON.stringify(viewData.payload, null, 2) }}</pre>
         </div>
-        <div v-if="viewData.error_msg" style="margin-top: 20px;">
+        <div v-if="viewData.error_msg" style="margin-top: 20px">
           <h4>错误信息</h4>
           <div class="error-box">{{ viewData.error_msg }}</div>
         </div>

@@ -37,7 +37,9 @@ export interface FundTransferRecord {
   created_at: string
 }
 
-export function listFundAccounts(params?: QueryParams): Promise<ApiResponse<{ list: FundAccount[]; total: number }>> {
+export function listFundAccounts(
+  params?: QueryParams
+): Promise<ApiResponse<{ list: FundAccount[]; total: number }>> {
   return request.get('/fund-management/accounts', { params })
 }
 
@@ -49,15 +51,26 @@ export function createFundAccount(data: Partial<FundAccount>): Promise<ApiRespon
   return request.post('/fund-management/accounts', data)
 }
 
-export function updateFundAccount(id: number, data: Partial<FundAccount>): Promise<ApiResponse<FundAccount>> {
+export function updateFundAccount(
+  id: number,
+  data: Partial<FundAccount>
+): Promise<ApiResponse<FundAccount>> {
   return request.put(`/fund-management/accounts/${id}`, data)
 }
 
-export function depositFund(id: number, amount: number, remark?: string): Promise<ApiResponse<void>> {
+export function depositFund(
+  id: number,
+  amount: number,
+  remark?: string
+): Promise<ApiResponse<void>> {
   return request.post(`/fund-management/accounts/${id}/deposit`, { amount, remark })
 }
 
-export function withdrawFund(id: number, amount: number, remark?: string): Promise<ApiResponse<void>> {
+export function withdrawFund(
+  id: number,
+  amount: number,
+  remark?: string
+): Promise<ApiResponse<void>> {
   return request.post(`/fund-management/accounts/${id}/withdraw`, { amount, remark })
 }
 
@@ -73,11 +86,18 @@ export function deleteFundAccount(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/fund-management/accounts/${id}`)
 }
 
-export function transferFund(data: { from_account_id: number; to_account_id: number; amount: number; remark?: string }): Promise<ApiResponse<void>> {
+export function transferFund(data: {
+  from_account_id: number
+  to_account_id: number
+  amount: number
+  remark?: string
+}): Promise<ApiResponse<void>> {
   return request.post('/fund-management/transfer', data)
 }
 
-export function listFundTransfers(params?: QueryParams): Promise<ApiResponse<FundTransferRecord[]>> {
+export function listFundTransfers(
+  params?: QueryParams
+): Promise<ApiResponse<FundTransferRecord[]>> {
   return request.get('/fund-management/transfers', { params })
 }
 

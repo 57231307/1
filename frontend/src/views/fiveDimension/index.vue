@@ -1,8 +1,30 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElMessage, ElRow, ElCol, ElDescriptions, ElCard, ElDivider } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+  ElCard,
+  ElDivider,
+} from 'element-plus'
 import { Search, View, Refresh, Key } from '@element-plus/icons-vue'
-import { listFiveDimensionStats, getStatsByFiveDimensionId, parseFiveDimensionId, searchFiveDimension, type FiveDimensionStatsResponse, type FiveDimensionItem } from '@/api/five-dimension'
+import {
+  listFiveDimensionStats,
+  getStatsByFiveDimensionId,
+  parseFiveDimensionId,
+  searchFiveDimension,
+  type FiveDimensionStatsResponse,
+  type FiveDimensionItem,
+} from '@/api/five-dimension'
 
 const tableData = ref<FiveDimensionStatsResponse[]>([])
 const total = ref(0)
@@ -11,11 +33,11 @@ const searchForm = ref({
   product_id: '',
   batch_no: '',
   color_no: '',
-  grade: ''
+  grade: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const viewDialogVisible = ref(false)
@@ -35,7 +57,7 @@ const gradeOptions = [
   { label: '一等品', value: '一等品' },
   { label: '二等品', value: '二等品' },
   { label: '三等品', value: '三等品' },
-  { label: '次品', value: '次品' }
+  { label: '次品', value: '次品' },
 ]
 
 const searchTypeOptions = [
@@ -43,7 +65,7 @@ const searchTypeOptions = [
   { label: '批次', value: 'batch' },
   { label: '色号', value: 'color' },
   { label: '染缸号', value: 'dye_lot' },
-  { label: '等级', value: 'grade' }
+  { label: '等级', value: 'grade' },
 ]
 
 const loadData = async () => {
@@ -55,7 +77,7 @@ const loadData = async () => {
       product_id: searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined,
       batch_no: searchForm.value.batch_no || undefined,
       color_no: searchForm.value.color_no || undefined,
-      grade: searchForm.value.grade || undefined
+      grade: searchForm.value.grade || undefined,
     })
     tableData.value = res.data!.items
     total.value = res.data!.total
@@ -76,7 +98,7 @@ const handleReset = () => {
     product_id: '',
     batch_no: '',
     color_no: '',
-    grade: ''
+    grade: '',
   }
   handleSearch()
 }
@@ -131,7 +153,7 @@ const handleQuickSearch = async () => {
       keyword: searchKeyword.value,
       search_type: searchType.value,
       page: 0,
-      page_size: 50
+      page_size: 50,
     })
     searchResults.value = res.data!.items
   } catch (error) {
@@ -163,12 +185,10 @@ loadData()
             />
           </ElCol>
           <ElCol :span="4">
-            <ElButton type="primary" @click="handleParse" class="w-full">
-              <Key /> 解析
-            </ElButton>
+            <ElButton type="primary" class="w-full" @click="handleParse"> <Key /> 解析 </ElButton>
           </ElCol>
           <ElCol :span="4">
-            <ElButton type="success" @click="searchDialogVisible = true" class="w-full">
+            <ElButton type="success" class="w-full" @click="searchDialogVisible = true">
               <Search /> 快速搜索
             </ElButton>
           </ElCol>
@@ -179,7 +199,9 @@ loadData()
             <ElDescriptionsItem label="产品ID">{{ parseResult.product_id }}</ElDescriptionsItem>
             <ElDescriptionsItem label="批次号">{{ parseResult.batch_no }}</ElDescriptionsItem>
             <ElDescriptionsItem label="色号">{{ parseResult.color_no }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="染缸号">{{ parseResult.dye_lot_no || '-' }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="染缸号">{{
+              parseResult.dye_lot_no || '-'
+            }}</ElDescriptionsItem>
             <ElDescriptionsItem label="等级">{{ parseResult.grade }}</ElDescriptionsItem>
           </ElDescriptions>
         </div>
@@ -189,7 +211,7 @@ loadData()
         </div>
       </ElCard>
 
-      <ElRow :gutter="20" style="margin-top: 20px;">
+      <ElRow :gutter="20" style="margin-top: 20px">
         <ElCol :span="6">
           <ElInput
             v-model="searchForm.product_id"
@@ -215,11 +237,7 @@ loadData()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.grade"
-            placeholder="等级"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.grade" placeholder="等级" class="filter-item">
             <ElOption label="全部" value="" />
             <ElOption v-for="g in gradeOptions" :key="g.value" :label="g.label" :value="g.value" />
           </ElSelect>
@@ -228,9 +246,7 @@ loadData()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton @click="loadData">
-          <Refresh /> 刷新
-        </ElButton>
+        <ElButton @click="loadData"> <Refresh /> 刷新 </ElButton>
       </div>
     </div>
 
@@ -240,12 +256,12 @@ loadData()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="dimension.product_id" label="产品ID" width="100" />
       <ElTableColumn prop="dimension.product_name" label="产品名称" width="150" />
@@ -270,20 +286,31 @@ loadData()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog title="五维统计详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="五维统计详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="3" border>
-          <ElDescriptionsItem label="产品ID">{{ viewData.dimension.product_id }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="产品名称">{{ viewData.dimension.product_name || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="产品ID">{{
+            viewData.dimension.product_id
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="产品名称">{{
+            viewData.dimension.product_name || '-'
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="批次号">{{ viewData.dimension.batch_no }}</ElDescriptionsItem>
           <ElDescriptionsItem label="色号">{{ viewData.dimension.color_no }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="染缸号">{{ viewData.dimension.dye_lot_no || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="染缸号">{{
+            viewData.dimension.dye_lot_no || '-'
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="等级">{{ viewData.dimension.grade }}</ElDescriptionsItem>
           <ElDescriptionsItem label="总米数">{{ viewData.total_meters }}</ElDescriptionsItem>
           <ElDescriptionsItem label="总公斤数">{{ viewData.total_kg }}</ElDescriptionsItem>
           <ElDescriptionsItem label="库存记录数">{{ viewData.stock_count }}</ElDescriptionsItem>
         </ElDescriptions>
-        <div style="margin-top: 20px;">
+        <div style="margin-top: 20px">
           <h4>仓库分布</h4>
           <ElTable :data="viewData.warehouse_distribution" border style="width: 100%">
             <ElTableColumn prop="warehouse_id" label="仓库ID" width="100" />
@@ -295,14 +322,24 @@ loadData()
       </div>
     </ElDialog>
 
-    <ElDialog title="快速搜索" :visible="searchDialogVisible" width="700px" @close="searchDialogVisible = false">
+    <ElDialog
+      title="快速搜索"
+      :visible="searchDialogVisible"
+      width="700px"
+      @close="searchDialogVisible = false"
+    >
       <ElForm :model="searchFormRef" label-width="80px">
         <ElFormItem label="搜索关键词">
           <ElInput v-model="searchFormRef.keyword" placeholder="请输入搜索关键词" />
         </ElFormItem>
         <ElFormItem label="搜索类型">
           <ElSelect v-model="searchType">
-            <ElOption v-for="t in searchTypeOptions" :key="t.value" :label="t.label" :value="t.value" />
+            <ElOption
+              v-for="t in searchTypeOptions"
+              :key="t.value"
+              :label="t.label"
+              :value="t.value"
+            />
           </ElSelect>
         </ElFormItem>
       </ElForm>
@@ -310,7 +347,7 @@ loadData()
         <ElButton @click="searchDialogVisible = false">取消</ElButton>
         <ElButton type="primary" @click="handleQuickSearch">搜索</ElButton>
       </template>
-      <div v-if="searchResults.length > 0" style="margin-top: 10px;">
+      <div v-if="searchResults.length > 0" style="margin-top: 10px">
         <ElDivider />
         <ElTable :data="searchResults" border style="width: 100%" size="small">
           <ElTableColumn prop="product_id" label="产品ID" width="80" />
@@ -321,7 +358,9 @@ loadData()
           <ElTableColumn prop="grade" label="等级" width="80" />
           <ElTableColumn label="操作" width="80">
             <template #default="scope">
-              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row)">选择</ElButton>
+              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row)"
+                >选择</ElButton
+              >
             </template>
           </ElTableColumn>
         </ElTable>

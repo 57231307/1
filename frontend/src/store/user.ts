@@ -9,7 +9,7 @@ export const useUserStore = defineStore('user', () => {
   const userInfo = ref<UserInfo | null>(null)
 
   async function login(loginData: LoginRequest) {
-    const res = await loginApi(loginData) as any
+    const res = (await loginApi(loginData)) as any
     // 后端返回 {code, data: {token, refresh_token, user, ...}, message}
     const responseData = res.data || res
     token.value = responseData.token

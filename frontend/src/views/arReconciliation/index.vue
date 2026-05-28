@@ -1,8 +1,33 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElDatePicker, ElMessageBox, ElMessage, ElRow, ElCol, ElDescriptions } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElSelect,
+  ElDatePicker,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+  ElDescriptions,
+} from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
-import { listArReconciliations, getArReconciliation, createArReconciliation, updateArReconciliation, deleteArReconciliation, confirmReconciliation, getReconciliationDetails, type ArReconciliationEntity, type ReconciliationDetail } from '@/api/ar-reconciliation'
+import {
+  listArReconciliations,
+  getArReconciliation,
+  createArReconciliation,
+  updateArReconciliation,
+  deleteArReconciliation,
+  confirmReconciliation,
+  getReconciliationDetails,
+  type ArReconciliationEntity,
+  type ReconciliationDetail,
+} from '@/api/ar-reconciliation'
 import { request } from '@/api/request'
 
 const tableData = ref<ArReconciliationEntity[]>([])
@@ -12,11 +37,11 @@ const searchForm = ref({
   customer_name: '',
   status: '',
   start_date: '',
-  end_date: ''
+  end_date: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -26,7 +51,7 @@ const form = ref<Partial<ArReconciliationEntity>>({
   customer_name: '',
   start_date: '',
   end_date: '',
-  status: 'draft'
+  status: 'draft',
 })
 
 const viewDialogVisible = ref(false)
@@ -38,11 +63,11 @@ const customerOptions = ref<{ label: string; value: number }[]>([])
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
-  { label: '已确认', value: 'confirmed' }
+  { label: '已确认', value: 'confirmed' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -55,7 +80,7 @@ const loadData = async () => {
     const res: any = await listArReconciliations({
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...searchForm.value
+      ...searchForm.value,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -85,7 +110,7 @@ const handleReset = () => {
     customer_name: '',
     status: '',
     start_date: '',
-    end_date: ''
+    end_date: '',
   }
   handleSearch()
 }
@@ -107,7 +132,7 @@ const openAddDialog = () => {
     customer_name: '',
     start_date: '',
     end_date: '',
-    status: 'draft'
+    status: 'draft',
   }
   dialogVisible.value = true
 }
@@ -157,7 +182,7 @@ const handleDelete = async (row: ArReconciliationEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个对账吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteArReconciliation(row.id!)
     ElMessage.success('删除成功')
@@ -170,7 +195,7 @@ const handleDelete = async (row: ArReconciliationEntity) => {
 const handleConfirm = async (row: ArReconciliationEntity) => {
   try {
     await ElMessageBox.confirm('确定要确认这个对账吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await confirmReconciliation(row.id!)
     ElMessage.success('确认成功')
@@ -197,11 +222,7 @@ loadCustomers()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -225,9 +246,7 @@ loadCustomers()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增对账
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增对账 </ElButton>
       </div>
     </div>
 
@@ -237,12 +256,12 @@ loadCustomers()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="customer_code" label="客户编码" width="120" />
       <ElTableColumn prop="customer_name" label="客户名称" width="150" />
@@ -299,11 +318,21 @@ loadCustomers()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="500px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="500px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElFormItem label="客户" prop="customer_id">
           <ElSelect v-model="form.customer_id" placeholder="请选择客户">
-            <ElOption v-for="c in customerOptions" :key="c.value" :label="c.label" :value="c.value" />
+            <ElOption
+              v-for="c in customerOptions"
+              :key="c.value"
+              :label="c.label"
+              :value="c.value"
+            />
           </ElSelect>
         </ElFormItem>
         <ElRow :gutter="20">
@@ -325,21 +354,36 @@ loadCustomers()
       </template>
     </ElDialog>
 
-    <ElDialog title="对账详情" :visible="viewDialogVisible" width="800px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="对账详情"
+      :visible="viewDialogVisible"
+      width="800px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
           <ElDescriptionsItem label="客户编码">{{ viewData.customer_code }}</ElDescriptionsItem>
           <ElDescriptionsItem label="客户名称">{{ viewData.customer_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="对账起始">{{ viewData.start_date }}</ElDescriptionsItem>
           <ElDescriptionsItem label="对账截止">{{ viewData.end_date }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="发票金额">{{ viewData.total_invoice.toFixed(2) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="回款金额">{{ viewData.total_payment.toFixed(2) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="调整金额">{{ viewData.total_adjustment.toFixed(2) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="发票金额">{{
+            viewData.total_invoice.toFixed(2)
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="回款金额">{{
+            viewData.total_payment.toFixed(2)
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="调整金额">{{
+            viewData.total_adjustment.toFixed(2)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="余额">{{ viewData.balance.toFixed(2) }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{ getStatusLabel(viewData.status) }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="状态">{{
+            getStatusLabel(viewData.status)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建人">{{ viewData.created_by_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="确认时间">{{ viewData.confirmed_at || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="确认时间">{{
+            viewData.confirmed_at || '-'
+          }}</ElDescriptionsItem>
         </ElDescriptions>
 
         <div style="margin-top: 20px">

@@ -87,7 +87,10 @@ export function createAPInvoice(data: Partial<APInvoice>): Promise<ApiResponse<A
   return request.post('/ap/invoices', data)
 }
 
-export function updateAPInvoice(id: number, data: Partial<APInvoice>): Promise<ApiResponse<APInvoice>> {
+export function updateAPInvoice(
+  id: number,
+  data: Partial<APInvoice>
+): Promise<ApiResponse<APInvoice>> {
   return request.put(`/ap/invoices/${id}`, data)
 }
 
@@ -103,11 +106,16 @@ export function cancelAPInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/invoices/${id}/cancel`)
 }
 
-export function autoGenerateAPInvoices(data: { order_ids: number[] }): Promise<ApiResponse<{ invoice_ids: number[] }>> {
+export function autoGenerateAPInvoices(data: {
+  order_ids: number[]
+}): Promise<ApiResponse<{ invoice_ids: number[] }>> {
   return request.post('/ap/invoices/auto-generate', data)
 }
 
-export function getAPAgingAnalysis(params?: { supplier_id?: number; date?: string }): Promise<ApiResponse<any[]>> {
+export function getAPAgingAnalysis(params?: {
+  supplier_id?: number
+  date?: string
+}): Promise<ApiResponse<any[]>> {
   return request.get('/ap/invoices/aging', { params })
 }
 
@@ -123,7 +131,10 @@ export function createAPPayment(data: Partial<APPayment>): Promise<ApiResponse<A
   return request.post('/ap/payments', data)
 }
 
-export function updateAPPayment(id: number, data: Partial<APPayment>): Promise<ApiResponse<APPayment>> {
+export function updateAPPayment(
+  id: number,
+  data: Partial<APPayment>
+): Promise<ApiResponse<APPayment>> {
   return request.put(`/ap/payments/${id}`, data)
 }
 
@@ -131,7 +142,9 @@ export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/payments/${id}/confirm`)
 }
 
-export function listAPPaymentRequests(params?: QueryParams): Promise<ApiResponse<APPaymentRequest[]>> {
+export function listAPPaymentRequests(
+  params?: QueryParams
+): Promise<ApiResponse<APPaymentRequest[]>> {
   return request.get('/ap/payment-requests', { params })
 }
 
@@ -139,11 +152,16 @@ export function getAPPaymentRequest(id: number): Promise<ApiResponse<APPaymentRe
   return request.get(`/ap/payment-requests/${id}`)
 }
 
-export function createAPPaymentRequest(data: Partial<APPaymentRequest>): Promise<ApiResponse<APPaymentRequest>> {
+export function createAPPaymentRequest(
+  data: Partial<APPaymentRequest>
+): Promise<ApiResponse<APPaymentRequest>> {
   return request.post('/ap/payment-requests', data)
 }
 
-export function updateAPPaymentRequest(id: number, data: Partial<APPaymentRequest>): Promise<ApiResponse<APPaymentRequest>> {
+export function updateAPPaymentRequest(
+  id: number,
+  data: Partial<APPaymentRequest>
+): Promise<ApiResponse<APPaymentRequest>> {
   return request.put(`/ap/payment-requests/${id}`, data)
 }
 
@@ -171,11 +189,18 @@ export function getAPVerification(id: number): Promise<ApiResponse<APVerificatio
   return request.get(`/ap/verifications/${id}`)
 }
 
-export function autoVerifyAP(data: { invoice_id: number; payment_id?: number }): Promise<ApiResponse<APVerification>> {
+export function autoVerifyAP(data: {
+  invoice_id: number
+  payment_id?: number
+}): Promise<ApiResponse<APVerification>> {
   return request.post('/ap/verifications/auto', data)
 }
 
-export function manualVerifyAP(data: { invoice_id: number; payment_id: number; amount: number }): Promise<ApiResponse<APVerification>> {
+export function manualVerifyAP(data: {
+  invoice_id: number
+  payment_id: number
+  amount: number
+}): Promise<ApiResponse<APVerification>> {
   return request.post('/ap/verifications/manual', data)
 }
 
@@ -191,7 +216,9 @@ export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
   return request.get('/ap/verifications/unverified/payments')
 }
 
-export function listAPReconciliations(params?: QueryParams): Promise<ApiResponse<APReconciliation[]>> {
+export function listAPReconciliations(
+  params?: QueryParams
+): Promise<ApiResponse<APReconciliation[]>> {
   return request.get('/ap/reconciliations', { params })
 }
 
@@ -199,7 +226,11 @@ export function getAPReconciliation(id: number): Promise<ApiResponse<APReconcili
   return request.get(`/ap/reconciliations/${id}`)
 }
 
-export function generateAPReconciliation(data: { supplier_id: number; start_date: string; end_date: string }): Promise<ApiResponse<APReconciliation>> {
+export function generateAPReconciliation(data: {
+  supplier_id: number
+  start_date: string
+  end_date: string
+}): Promise<ApiResponse<APReconciliation>> {
   return request.post('/ap/reconciliations/generate', data)
 }
 

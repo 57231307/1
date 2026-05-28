@@ -1,8 +1,28 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElInput, ElSelect, ElMessageBox, ElMessage, ElRow, ElCol,  } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElInput,
+  ElSelect,
+  ElMessageBox,
+  ElMessage,
+  ElRow,
+  ElCol,
+} from 'element-plus'
 import { Plus, Check } from '@element-plus/icons-vue'
-import { listInventoryCounts, getInventoryCount, createInventoryCount, deleteInventoryCount, completeInventoryCount, getCountItems, updateCountItem, type InventoryCountEntity, type CountItem } from '@/api/inventoryCount'
+import {
+  listInventoryCounts,
+  getInventoryCount,
+  createInventoryCount,
+  deleteInventoryCount,
+  completeInventoryCount,
+  getCountItems,
+  updateCountItem,
+  type InventoryCountEntity,
+  type CountItem,
+} from '@/api/inventoryCount'
 import { request } from '@/api/request'
 
 const tableData = ref<InventoryCountEntity[]>([])
@@ -11,11 +31,11 @@ const loading = ref(false)
 const searchForm = ref({
   count_no: '',
   warehouse_id: '',
-  status: ''
+  status: '',
 })
 const pagination = ref({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
 const dialogVisible = ref(false)
@@ -24,7 +44,7 @@ const form = ref<Partial<InventoryCountEntity>>({
   count_no: '',
   count_date: new Date().toISOString().split('T')[0],
   warehouse_id: 0,
-  status: 'draft'
+  status: 'draft',
 })
 
 const viewDialogVisible = ref(false)
@@ -37,11 +57,11 @@ const warehouseOptions = ref<{ label: string; value: number }[]>([])
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '进行中', value: 'draft' },
-  { label: '已完成', value: 'completed' }
+  { label: '已完成', value: 'completed' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.find((s) => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -55,8 +75,10 @@ const loadData = async () => {
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
       count_no: searchForm.value.count_no,
-      warehouse_id: searchForm.value.warehouse_id ? Number(searchForm.value.warehouse_id) : undefined,
-      status: searchForm.value.status
+      warehouse_id: searchForm.value.warehouse_id
+        ? Number(searchForm.value.warehouse_id)
+        : undefined,
+      status: searchForm.value.status,
     })
     tableData.value = res.data!.list
     total.value = res.data!.total
@@ -85,7 +107,7 @@ const handleReset = () => {
   searchForm.value = {
     count_no: '',
     warehouse_id: '',
-    status: ''
+    status: '',
   }
   handleSearch()
 }
@@ -107,7 +129,7 @@ const openAddDialog = async () => {
     count_no: res.data,
     count_date: new Date().toISOString().split('T')[0],
     warehouse_id: 0,
-    status: 'draft'
+    status: 'draft',
   }
   dialogVisible.value = true
 }
@@ -146,7 +168,7 @@ const handleDelete = async (row: InventoryCountEntity) => {
   }
   try {
     await ElMessageBox.confirm('确定要删除这个盘点吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await deleteInventoryCount(row.id!)
     ElMessage.success('删除成功')
@@ -159,7 +181,7 @@ const handleDelete = async (row: InventoryCountEntity) => {
 const handleApprove = async (row: InventoryCountEntity) => {
   try {
     await ElMessageBox.confirm('确定要审批通过这个盘点吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await completeInventoryCount(row.id!)
     ElMessage.success('盘点已审批')
@@ -172,7 +194,7 @@ const handleApprove = async (row: InventoryCountEntity) => {
 const handleComplete = async (row: InventoryCountEntity) => {
   try {
     await ElMessageBox.confirm('确定要完成这个盘点吗？', '提示', {
-      type: 'warning'
+      type: 'warning',
     })
     await completeInventoryCount(row.id!)
     ElMessage.success('盘点已完成')
@@ -205,21 +227,18 @@ loadWarehouses()
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.warehouse_id"
-            placeholder="选择仓库"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.warehouse_id" placeholder="选择仓库" class="filter-item">
             <ElOption label="全部" value="" />
-            <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="String(w.value)" />
+            <ElOption
+              v-for="w in warehouseOptions"
+              :key="w.value"
+              :label="w.label"
+              :value="String(w.value)"
+            />
           </ElSelect>
         </ElCol>
         <ElCol :span="6">
-          <ElSelect
-            v-model="searchForm.status"
-            placeholder="状态"
-            class="filter-item"
-          >
+          <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
             <ElOption v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </ElSelect>
         </ElCol>
@@ -227,9 +246,7 @@ loadWarehouses()
       <div class="filter-actions">
         <ElButton type="primary" @click="handleSearch">查询</ElButton>
         <ElButton @click="handleReset">重置</ElButton>
-        <ElButton type="success" @click="openAddDialog">
-          <Plus /> 新增盘点
-        </ElButton>
+        <ElButton type="success" @click="openAddDialog"> <Plus /> 新增盘点 </ElButton>
       </div>
     </div>
 
@@ -239,12 +256,12 @@ loadWarehouses()
       :loading="loading"
       :page-size="pagination.pageSize"
       :current-page="pagination.page"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
       border
       fit
       highlight-current-row
       style="width: 100%"
+      @current-change="handlePageChange"
+      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="count_no" label="盘点单号" width="150" />
       <ElTableColumn prop="count_date" label="盘点日期" width="120" />
@@ -261,9 +278,7 @@ loadWarehouses()
       <ElTableColumn prop="completed_at" label="完成时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="{ row }">
-          <ElButton size="small" @click="openViewDialog(row)">
-            <View /> 查看
-          </ElButton>
+          <ElButton size="small" @click="openViewDialog(row)"> <View /> 查看 </ElButton>
           <ElButton
             v-if="row.status === 'draft'"
             size="small"
@@ -285,12 +300,18 @@ loadWarehouses()
             size="small"
             type="danger"
             @click="handleDelete(row)"
-          >删除</ElButton>
+            >删除</ElButton
+          >
         </template>
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog :title="dialogTitle" :visible="dialogVisible" width="500px" @close="dialogVisible = false">
+    <ElDialog
+      :title="dialogTitle"
+      :visible="dialogVisible"
+      width="500px"
+      @close="dialogVisible = false"
+    >
       <ElForm :model="form" label-width="100px">
         <ElFormItem label="盘点单号" prop="count_no">
           <ElInput v-model="form.count_no" readonly />
@@ -300,7 +321,12 @@ loadWarehouses()
         </ElFormItem>
         <ElFormItem label="仓库" prop="warehouse_id">
           <ElSelect v-model="form.warehouse_id" placeholder="请选择仓库">
-            <ElOption v-for="w in warehouseOptions" :key="w.value" :label="w.label" :value="w.value" />
+            <ElOption
+              v-for="w in warehouseOptions"
+              :key="w.value"
+              :label="w.label"
+              :value="w.value"
+            />
           </ElSelect>
         </ElFormItem>
       </ElForm>
@@ -310,7 +336,12 @@ loadWarehouses()
       </template>
     </ElDialog>
 
-    <ElDialog title="盘点详情" :visible="viewDialogVisible" width="900px" @close="viewDialogVisible = false">
+    <ElDialog
+      title="盘点详情"
+      :visible="viewDialogVisible"
+      width="900px"
+      @close="viewDialogVisible = false"
+    >
       <div v-if="viewData">
         <el-descriptions :column="4" border>
           <Item label="盘点单号">{{ viewData.count_no }}</Item>
@@ -335,22 +366,22 @@ loadWarehouses()
                 <ElInputNumber
                   v-if="viewData.status === 'draft'"
                   v-model="row.actual_qty"
-                  @change="updateActualQty(row)"
                   :precision="0"
+                  @change="updateActualQty(row)"
                 />
                 <span v-else>{{ row.actual_qty }}</span>
               </template>
             </ElTableColumn>
             <ElTableColumn prop="diff_qty" label="差异数量" width="120" align="right">
               <template #default="{ row }">
-                <span :class="{ 'positive': row.diff_qty > 0, 'negative': row.diff_qty < 0 }">
+                <span :class="{ positive: row.diff_qty > 0, negative: row.diff_qty < 0 }">
                   {{ row.diff_qty }}
                 </span>
               </template>
             </ElTableColumn>
             <ElTableColumn prop="diff_amount" label="差异金额" width="120" align="right">
               <template #default="{ row }">
-                <span :class="{ 'positive': row.diff_amount > 0, 'negative': row.diff_amount < 0 }">
+                <span :class="{ positive: row.diff_amount > 0, negative: row.diff_amount < 0 }">
                   {{ row.diff_amount.toFixed(2) }}
                 </span>
               </template>

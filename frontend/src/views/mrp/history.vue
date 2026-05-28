@@ -9,7 +9,7 @@
 
     <!-- 历史记录列表 -->
     <el-card class="table-card">
-      <el-table :data="historyList" v-loading="loading" stripe border>
+      <el-table v-loading="loading" :data="historyList" stripe border>
         <el-table-column prop="calculation_no" label="计算编号" width="180" />
         <el-table-column label="产品" min-width="200">
           <template #default="{ row }">
@@ -36,7 +36,13 @@
         <el-table-column prop="created_at" label="计算时间" width="180" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewResult(row)" :disabled="row.status !== 'completed'">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              :disabled="row.status !== 'completed'"
+              @click="viewResult(row)"
+            >
               查看结果
             </el-button>
           </template>
@@ -61,11 +67,21 @@
     <el-dialog v-model="resultVisible" title="MRP 计算结果" width="90%" top="5vh">
       <template v-if="currentResult">
         <el-descriptions :column="3" border class="result-header">
-          <el-descriptions-item label="计算编号">{{ currentResult.calculation_no }}</el-descriptions-item>
-          <el-descriptions-item label="需求数量">{{ currentResult.demand_quantity }}</el-descriptions-item>
-          <el-descriptions-item label="需求日期">{{ currentResult.demand_date }}</el-descriptions-item>
-          <el-descriptions-item label="计算时间">{{ currentResult.created_at }}</el-descriptions-item>
-          <el-descriptions-item label="完成时间">{{ currentResult.completed_at || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="计算编号">{{
+            currentResult.calculation_no
+          }}</el-descriptions-item>
+          <el-descriptions-item label="需求数量">{{
+            currentResult.demand_quantity
+          }}</el-descriptions-item>
+          <el-descriptions-item label="需求日期">{{
+            currentResult.demand_date
+          }}</el-descriptions-item>
+          <el-descriptions-item label="计算时间">{{
+            currentResult.created_at
+          }}</el-descriptions-item>
+          <el-descriptions-item label="完成时间">{{
+            currentResult.completed_at || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="STATUS_MAP[currentResult.status as keyof typeof STATUS_MAP]?.type">
               {{ STATUS_MAP[currentResult.status as keyof typeof STATUS_MAP]?.label }}
@@ -95,10 +111,17 @@
           <el-table-column prop="safety_stock" label="安全库存" width="100" align="right" />
           <el-table-column prop="net_requirement" label="净需求" width="120" align="right">
             <template #default="{ row }">
-              <span :class="{ 'highlight-quantity': row.net_requirement > 0 }">{{ row.net_requirement }}</span>
+              <span :class="{ 'highlight-quantity': row.net_requirement > 0 }">{{
+                row.net_requirement
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="suggested_order_quantity" label="建议订单量" width="130" align="right" />
+          <el-table-column
+            prop="suggested_order_quantity"
+            label="建议订单量"
+            width="130"
+            align="right"
+          />
           <el-table-column prop="suggested_date" label="建议日期" width="130" />
         </el-table>
       </template>
@@ -109,7 +132,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getMrpHistory, getMrpResult, type MrpHistoryRecord, type MrpCalculationResult } from '../../api/mrp'
+import {
+  getMrpHistory,
+  getMrpResult,
+  type MrpHistoryRecord,
+  type MrpCalculationResult,
+} from '../../api/mrp'
 
 const STATUS_MAP = {
   pending: { label: '待计算', type: 'info' },

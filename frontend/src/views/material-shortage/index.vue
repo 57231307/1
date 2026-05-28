@@ -3,7 +3,7 @@
     <div class="page-header">
       <h2>缺料预警</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCheck" :loading="checking">
+        <el-button type="primary" :loading="checking" @click="handleCheck">
           <el-icon><Refresh /></el-icon>
           触发检查
         </el-button>
@@ -66,7 +66,7 @@
     </el-row>
 
     <el-row :gutter="20" class="severity-row">
-      <el-col :xs="24" :sm="12" :lg="6" v-for="level in severityLevels" :key="level.value">
+      <el-col v-for="level in severityLevels" :key="level.value" :xs="24" :sm="12" :lg="6">
         <el-card shadow="hover" :class="['severity-card', level.class]">
           <div class="severity-content">
             <div class="severity-label">{{ level.label }}</div>
@@ -87,14 +87,26 @@
         <div class="card-header">
           <span>缺料预警列表</span>
           <div class="filter-actions">
-            <el-select v-model="filterSeverity" placeholder="严重程度" clearable style="width: 120px" @change="handleFilterChange">
+            <el-select
+              v-model="filterSeverity"
+              placeholder="严重程度"
+              clearable
+              style="width: 120px"
+              @change="handleFilterChange"
+            >
               <el-option label="全部" value="" />
               <el-option label="严重" value="critical" />
               <el-option label="高" value="high" />
               <el-option label="中" value="medium" />
               <el-option label="低" value="low" />
             </el-select>
-            <el-select v-model="filterStatus" placeholder="处理状态" clearable style="width: 120px; margin-left: 12px" @change="handleFilterChange">
+            <el-select
+              v-model="filterStatus"
+              placeholder="处理状态"
+              clearable
+              style="width: 120px; margin-left: 12px"
+              @change="handleFilterChange"
+            >
               <el-option label="全部" value="" />
               <el-option label="待处理" value="pending" />
               <el-option label="已通知" value="notified" />
@@ -104,7 +116,7 @@
         </div>
       </template>
 
-      <el-table :data="shortageList" stripe style="width: 100%" v-loading="tableLoading">
+      <el-table v-loading="tableLoading" :data="shortageList" stripe style="width: 100%">
         <el-table-column prop="material_code" label="物料编码" width="130" />
         <el-table-column prop="material_name" label="物料名称" width="150" />
         <el-table-column prop="spec" label="规格" width="120" />
@@ -123,24 +135,44 @@
         <el-table-column prop="expected_date" label="需求日期" width="120" />
         <el-table-column prop="source_type" label="来源" width="100">
           <template #default="{ row }">
-            <el-tag :type="getSourceTypeColor(row.source_type)" size="small">{{ getSourceTypeLabel(row.source_type) }}</el-tag>
+            <el-tag :type="getSourceTypeColor(row.source_type)" size="small">{{
+              getSourceTypeLabel(row.source_type)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="source_no" label="来源单号" width="140" />
         <el-table-column prop="severity" label="严重程度" width="100">
           <template #default="{ row }">
-            <el-tag :type="getSeverityColor(row.severity)" size="small">{{ getSeverityLabel(row.severity) }}</el-tag>
+            <el-tag :type="getSeverityColor(row.severity)" size="small">{{
+              getSeverityLabel(row.severity)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="getStatusColor(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
+            <el-tag :type="getStatusColor(row.status)" size="small">{{
+              getStatusLabel(row.status)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'pending'" type="primary" link size="small" @click="handleNotify(row)">通知</el-button>
-            <el-button v-if="row.status !== 'resolved'" type="success" link size="small" @click="handleResolve(row)">解决</el-button>
+            <el-button
+              v-if="row.status === 'pending'"
+              type="primary"
+              link
+              size="small"
+              @click="handleNotify(row)"
+              >通知</el-button
+            >
+            <el-button
+              v-if="row.status !== 'resolved'"
+              type="success"
+              link
+              size="small"
+              @click="handleResolve(row)"
+              >解决</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -162,14 +194,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Warning, CircleClose, WarningFilled, Clock, Refresh } from '@element-plus/icons-vue'
 import {
-  Warning,
-  CircleClose,
-  WarningFilled,
-  Clock,
-  Refresh
-} from '@element-plus/icons-vue'
-import { materialShortageApi, type MaterialShortageSummary, type MaterialShortage } from '@/api/material-shortage'
+  materialShortageApi,
+  type MaterialShortageSummary,
+  type MaterialShortage,
+} from '@/api/material-shortage'
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -186,7 +216,7 @@ const severityLevels = [
   { value: 'critical', label: '严重', color: '#f56c6c', class: 'critical' },
   { value: 'high', label: '高', color: '#e6a23c', class: 'high' },
   { value: 'medium', label: '中', color: '#409eff', class: 'medium' },
-  { value: 'low', label: '低', color: '#909399', class: 'low' }
+  { value: 'low', label: '低', color: '#909399', class: 'low' },
 ]
 
 const getSeverityCount = (severity: string) => {
@@ -194,7 +224,7 @@ const getSeverityCount = (severity: string) => {
     critical: summary.value.critical_count || 0,
     high: summary.value.high_count || 0,
     medium: summary.value.medium_count || 0,
-    low: summary.value.low_count || 0
+    low: summary.value.low_count || 0,
   }
   return map[severity] || 0
 }
@@ -207,7 +237,12 @@ const getSeverityPercentage = (severity: string) => {
 }
 
 const getSeverityColor = (severity: string) => {
-  const map: Record<string, string> = { critical: 'danger', high: 'warning', medium: '', low: 'info' }
+  const map: Record<string, string> = {
+    critical: 'danger',
+    high: 'warning',
+    medium: '',
+    low: 'info',
+  }
   return map[severity] || 'info'
 }
 
@@ -217,7 +252,11 @@ const getSeverityLabel = (severity: string) => {
 }
 
 const getStatusColor = (status: string) => {
-  const map: Record<string, string> = { pending: 'danger', notified: 'warning', resolved: 'success' }
+  const map: Record<string, string> = {
+    pending: 'danger',
+    notified: 'warning',
+    resolved: 'success',
+  }
   return map[status] || 'info'
 }
 
@@ -227,7 +266,11 @@ const getStatusLabel = (status: string) => {
 }
 
 const getSourceTypeColor = (type: string) => {
-  const map: Record<string, string> = { production: 'primary', sales: 'success', purchase: 'warning' }
+  const map: Record<string, string> = {
+    production: 'primary',
+    sales: 'success',
+    purchase: 'warning',
+  }
   return map[type] || 'info'
 }
 

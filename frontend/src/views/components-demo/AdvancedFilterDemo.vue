@@ -12,7 +12,7 @@
         @scheme-loaded="handleSchemeLoaded"
       />
 
-      <el-card class="result-card" v-if="filterResult">
+      <el-card v-if="filterResult" class="result-card">
         <template #header>筛选结果</template>
         <pre>{{ JSON.stringify(filterResult, null, 2) }}</pre>
       </el-card>
@@ -26,15 +26,20 @@ import AdvancedFilter, { type FilterGroup, type SavedScheme } from '@/components
 
 const filterFields = [
   { key: 'name', label: '订单名称', type: 'text' as const },
-  { key: 'status', label: '订单状态', type: 'select' as const, options: [
-    { label: '待处理', value: 'pending' },
-    { label: '处理中', value: 'processing' },
-    { label: '已完成', value: 'completed' },
-    { label: '已取消', value: 'cancelled' }
-  ]},
+  {
+    key: 'status',
+    label: '订单状态',
+    type: 'select' as const,
+    options: [
+      { label: '待处理', value: 'pending' },
+      { label: '处理中', value: 'processing' },
+      { label: '已完成', value: 'completed' },
+      { label: '已取消', value: 'cancelled' },
+    ],
+  },
   { key: 'amount', label: '订单金额', type: 'number' as const },
   { key: 'date', label: '创建日期', type: 'date' as const },
-  { key: 'customer', label: '客户名称', type: 'text' as const }
+  { key: 'customer', label: '客户名称', type: 'text' as const },
 ]
 
 const savedSchemes = ref<SavedScheme[]>([
@@ -44,12 +49,10 @@ const savedSchemes = ref<SavedScheme[]>([
     groups: [
       {
         logic: 'AND',
-        items: [
-          { field: 'status', operator: 'eq', value: 'pending' }
-        ]
-      }
+        items: [{ field: 'status', operator: 'eq', value: 'pending' }],
+      },
     ],
-    createdAt: '2026-01-15T10:00:00Z'
+    createdAt: '2026-01-15T10:00:00Z',
   },
   {
     id: '2',
@@ -57,13 +60,11 @@ const savedSchemes = ref<SavedScheme[]>([
     groups: [
       {
         logic: 'AND',
-        items: [
-          { field: 'amount', operator: 'gte', value: 10000 }
-        ]
-      }
+        items: [{ field: 'amount', operator: 'gte', value: 10000 }],
+      },
     ],
-    createdAt: '2026-01-16T10:00:00Z'
-  }
+    createdAt: '2026-01-16T10:00:00Z',
+  },
 ])
 
 const filterResult = ref<FilterGroup[] | null>(null)

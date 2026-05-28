@@ -16,8 +16,8 @@
           </el-button>
         </div>
       </template>
-      
-      <el-table :data="reportList" v-loading="loading" stripe border>
+
+      <el-table v-loading="loading" :data="reportList" stripe border>
         <el-table-column prop="reportName" label="报告名称" min-width="160" />
         <el-table-column prop="reportType" label="报告类型" width="140" />
         <el-table-column prop="period" label="期间" width="120" />
@@ -32,8 +32,22 @@
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
-            <el-button type="success" link size="small" @click="handleExecute(row)" v-if="row.status === 'draft'">执行</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
+            <el-button
+              v-if="row.status === 'draft'"
+              type="success"
+              link
+              size="small"
+              @click="handleExecute(row)"
+              >执行</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -57,12 +71,16 @@
       width="600px"
       @close="resetForm"
     >
-      <el-form :model="reportForm" :rules="reportRules" ref="reportFormRef" label-width="120px">
+      <el-form ref="reportFormRef" :model="reportForm" :rules="reportRules" label-width="120px">
         <el-form-item label="报告名称" prop="reportName">
           <el-input v-model="reportForm.reportName" placeholder="请输入报告名称" />
         </el-form-item>
         <el-form-item label="报告类型" prop="reportType">
-          <el-select v-model="reportForm.reportType" placeholder="请选择报告类型" style="width: 100%">
+          <el-select
+            v-model="reportForm.reportType"
+            placeholder="请选择报告类型"
+            style="width: 100%"
+          >
             <el-option label="收入分析" value="income" />
             <el-option label="支出分析" value="expense" />
             <el-option label="利润分析" value="profit" />
@@ -75,14 +93,20 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm">确认</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmitForm"
+          >确认</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="detailVisible" title="财务分析详情" width="700px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="报告名称">{{ currentReport?.reportName }}</el-descriptions-item>
-        <el-descriptions-item label="报告类型">{{ currentReport?.reportType }}</el-descriptions-item>
+        <el-descriptions-item label="报告名称">{{
+          currentReport?.reportName
+        }}</el-descriptions-item>
+        <el-descriptions-item label="报告类型">{{
+          currentReport?.reportType
+        }}</el-descriptions-item>
         <el-descriptions-item label="期间">{{ currentReport?.period }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="currentReport?.status === 'completed' ? 'success' : 'warning'">
@@ -93,13 +117,8 @@
         <el-descriptions-item label="更新时间">{{ currentReport?.updatedAt }}</el-descriptions-item>
       </el-descriptions>
       <el-divider />
-      <el-alert
-        title="分析结果预览"
-        type="info"
-        :closable="false"
-        style="margin-bottom: 20px"
-      />
-      <el-empty description="分析数据将在此处显示" v-if="true" />
+      <el-alert title="分析结果预览" type="info" :closable="false" style="margin-bottom: 20px" />
+      <el-empty v-if="true" description="分析数据将在此处显示" />
     </el-dialog>
   </div>
 </template>
@@ -161,11 +180,11 @@ const fetchReports = async () => {
 const openDialog = (type: 'create' | 'edit', row?: FinancialReport) => {
   dialogType.value = type
   resetForm()
-  
+
   if (type === 'edit' && row) {
     Object.assign(reportForm, row)
   }
-  
+
   dialogVisible.value = true
 }
 
@@ -182,10 +201,10 @@ const resetForm = () => {
 
 const handleSubmitForm = async () => {
   if (!reportFormRef.value) return
-  
+
   await reportFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogType.value === 'create') {
@@ -197,7 +216,7 @@ const handleSubmitForm = async () => {
           ElMessage.success('更新成功')
         }
       }
-      
+
       dialogVisible.value = false
       fetchReports()
     } catch (e: any) {
@@ -231,7 +250,7 @@ const handleDelete = async (row: FinancialReport) => {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
-    
+
     await deleteReport(row.id!)
     ElMessage.success('删除成功')
     fetchReports()

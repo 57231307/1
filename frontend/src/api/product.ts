@@ -50,17 +50,14 @@ export const productApi = {
   list: (params?: ProductQueryParams) =>
     request.get<ApiResponse<{ list: Product[]; total: number }>>('/products', { params }),
 
-  getById: (id: number) =>
-    request.get<ApiResponse<Product>>(`/products/${id}`),
+  getById: (id: number) => request.get<ApiResponse<Product>>(`/products/${id}`),
 
-  create: (data: Partial<Product>) =>
-    request.post<ApiResponse<Product>>('/products', data),
+  create: (data: Partial<Product>) => request.post<ApiResponse<Product>>('/products', data),
 
   update: (id: number, data: Partial<Product>) =>
     request.put<ApiResponse<Product>>(`/products/${id}`, data),
 
-  delete: (id: number) =>
-    request.delete<ApiResponse<null>>(`/products/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<null>>(`/products/${id}`),
 
   batchCreate: (data: Partial<Product>[]) =>
     request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/create', data),
@@ -69,10 +66,11 @@ export const productApi = {
     request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/update', data),
 
   batchDelete: (ids: number[]) =>
-    request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/delete', { ids }),
+    request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/delete', {
+      ids,
+    }),
 
-  getCategories: () =>
-    request.get<ApiResponse<ProductCategory[]>>('/product-categories'),
+  getCategories: () => request.get<ApiResponse<ProductCategory[]>>('/product-categories'),
 
   createCategory: (data: Partial<ProductCategory>) =>
     request.post<ApiResponse<ProductCategory>>('/product-categories', data),
@@ -80,11 +78,9 @@ export const productApi = {
   updateCategory: (id: number, data: Partial<ProductCategory>) =>
     request.put<ApiResponse<ProductCategory>>(`/product-categories/${id}`, data),
 
-  deleteCategory: (id: number) =>
-    request.delete<ApiResponse<null>>(`/product-categories/${id}`),
+  deleteCategory: (id: number) => request.delete<ApiResponse<null>>(`/product-categories/${id}`),
 
-  getCategoryTree: () =>
-    request.get<ApiResponse<ProductCategory[]>>('/product-categories/tree'),
+  getCategoryTree: () => request.get<ApiResponse<ProductCategory[]>>('/product-categories/tree'),
 
   getColors: (productId: number) =>
     request.get<ApiResponse<ProductColor[]>>(`/products/${productId}/colors`),
@@ -101,14 +97,13 @@ export const productApi = {
   batchCreateColors: (productId: number, colors: Partial<ProductColor>[]) =>
     request.post<ApiResponse<any>>(`/products/${productId}/colors/batch`, colors),
 
-  getImportTemplate: () =>
-    request.get<Blob>('/products/import-template', { responseType: 'blob' }),
+  getImportTemplate: () => request.get<Blob>('/products/import-template', { responseType: 'blob' }),
 
   importProducts: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
     return request.post<ApiResponse<any>>('/products/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
 

@@ -20,7 +20,12 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="流程分类">
-          <el-select v-model="filterForm.category" placeholder="全部分类" clearable style="width: 160px">
+          <el-select
+            v-model="filterForm.category"
+            placeholder="全部分类"
+            clearable
+            style="width: 160px"
+          >
             <el-option label="销售流程" value="sales" />
             <el-option label="采购流程" value="purchase" />
             <el-option label="财务流程" value="finance" />
@@ -29,7 +34,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="关键词">
-          <el-input v-model="filterForm.keyword" placeholder="搜索流程名称" clearable style="width: 200px" />
+          <el-input
+            v-model="filterForm.keyword"
+            placeholder="搜索流程名称"
+            clearable
+            style="width: 200px"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -39,7 +49,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table :data="definitions" stripe v-loading="loading">
+      <el-table v-loading="loading" :data="definitions" stripe>
         <el-table-column prop="process_key" label="流程标识" width="150" />
         <el-table-column prop="process_name" label="流程名称" min-width="180" />
         <el-table-column prop="category" label="分类" width="120">
@@ -60,8 +70,12 @@
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="success" link size="small" @click="handleVersions(row)">版本</el-button>
-            <el-button type="warning" link size="small" @click="handleSaveTemplate(row)">保存为模板</el-button>
+            <el-button type="success" link size="small" @click="handleVersions(row)"
+              >版本</el-button
+            >
+            <el-button type="warning" link size="small" @click="handleSaveTemplate(row)"
+              >保存为模板</el-button
+            >
             <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -81,9 +95,13 @@
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" destroy-on-close>
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="流程标识" prop="process_key">
-          <el-input v-model="formData.process_key" placeholder="例如: sales_order_approval" :disabled="isEdit" />
+          <el-input
+            v-model="formData.process_key"
+            placeholder="例如: sales_order_approval"
+            :disabled="isEdit"
+          />
         </el-form-item>
         <el-form-item label="流程名称" prop="process_name">
           <el-input v-model="formData.process_name" placeholder="请输入流程名称" />
@@ -98,7 +116,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="流程描述">
-          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入流程描述" />
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入流程描述"
+          />
         </el-form-item>
         <el-form-item label="节点配置">
           <el-button type="primary" plain size="small" @click="handleAddNode">
@@ -124,7 +147,11 @@
             </el-table-column>
             <el-table-column label="审批人类型" width="130">
               <template #default="{ row }">
-                <el-select v-model="row.assignee_type" size="small" :disabled="row.type !== 'approval'">
+                <el-select
+                  v-model="row.assignee_type"
+                  size="small"
+                  :disabled="row.type !== 'approval'"
+                >
                   <el-option label="指定用户" value="user" />
                   <el-option label="角色" value="role" />
                   <el-option label="部门" value="department" />
@@ -133,12 +160,19 @@
             </el-table-column>
             <el-table-column label="审批人值" min-width="150">
               <template #default="{ row }">
-                <el-input v-model="row.assignee_value" size="small" :disabled="row.type !== 'approval'" placeholder="用户ID/角色/部门" />
+                <el-input
+                  v-model="row.assignee_value"
+                  size="small"
+                  :disabled="row.type !== 'approval'"
+                  placeholder="用户ID/角色/部门"
+                />
               </template>
             </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ $index }">
-                <el-button type="danger" link size="small" @click="handleRemoveNode($index)">删除</el-button>
+                <el-button type="danger" link size="small" @click="handleRemoveNode($index)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -146,13 +180,15 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="versionDialogVisible" title="版本管理" width="800px" destroy-on-close>
       <div class="version-header">
-        <span>当前流程：<strong>{{ currentDefinition?.process_name }}</strong></span>
+        <span
+          >当前流程：<strong>{{ currentDefinition?.process_name }}</strong></span
+        >
         <el-button type="primary" size="small" @click="handleCreateVersion">
           <el-icon><Plus /></el-icon>
           创建新版本
@@ -162,7 +198,12 @@
         <el-table-column prop="version" label="版本号" width="100" align="center" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : row.status === 'draft' ? 'info' : 'warning'" size="small">
+            <el-tag
+              :type="
+                row.status === 'active' ? 'success' : row.status === 'draft' ? 'info' : 'warning'
+              "
+              size="small"
+            >
               {{ getVersionStatusText(row.status) }}
             </el-tag>
           </template>
@@ -172,7 +213,13 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button v-if="row.status !== 'active'" type="success" link size="small" @click="handleActivateVersion(row)">
+            <el-button
+              v-if="row.status !== 'active'"
+              type="success"
+              link
+              size="small"
+              @click="handleActivateVersion(row)"
+            >
               激活
             </el-button>
             <span v-else class="active-tag">当前激活</span>
@@ -182,7 +229,12 @@
     </el-dialog>
 
     <el-dialog v-model="templateDialogVisible" title="保存为模板" width="500px" destroy-on-close>
-      <el-form :model="templateForm" :rules="templateRules" ref="templateFormRef" label-width="100px">
+      <el-form
+        ref="templateFormRef"
+        :model="templateForm"
+        :rules="templateRules"
+        label-width="100px"
+      >
         <el-form-item label="模板名称" prop="template_name">
           <el-input v-model="templateForm.template_name" placeholder="请输入模板名称" />
         </el-form-item>
@@ -197,12 +249,19 @@
           </el-select>
         </el-form-item>
         <el-form-item label="模板描述">
-          <el-input v-model="templateForm.description" type="textarea" :rows="3" placeholder="请输入模板描述" />
+          <el-input
+            v-model="templateForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入模板描述"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="templateDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleConfirmSaveTemplate" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleConfirmSaveTemplate"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -223,13 +282,13 @@ const currentDefinition = ref<ProcessDefinition | null>(null)
 
 const filterForm = reactive({
   category: '',
-  keyword: ''
+  keyword: '',
 })
 
 const pagination = reactive({
   page: 1,
   page_size: 10,
-  total: 0
+  total: 0,
 })
 
 const dialogVisible = ref(false)
@@ -240,13 +299,13 @@ const formData = reactive<Partial<ProcessDefinition>>({
   process_name: '',
   category: '',
   description: '',
-  nodes: []
+  nodes: [],
 })
 
 const formRules: FormRules = {
   process_key: [{ required: true, message: '请输入流程标识', trigger: 'blur' }],
   process_name: [{ required: true, message: '请输入流程名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择流程分类', trigger: 'change' }]
+  category: [{ required: true, message: '请选择流程分类', trigger: 'change' }],
 }
 
 const versionDialogVisible = ref(false)
@@ -255,29 +314,45 @@ const templateFormRef = ref<FormInstance>()
 const templateForm = reactive({
   template_name: '',
   category: '',
-  description: ''
+  description: '',
 })
 
 const templateRules: FormRules = {
   template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择模板分类', trigger: 'change' }]
+  category: [{ required: true, message: '请选择模板分类', trigger: 'change' }],
 }
 
 const dialogTitle = ref('新建流程定义')
 
 const getStatusType = (status: string) => {
-  const map: Record<string, any> = { draft: 'info', active: 'success', suspended: 'warning', deprecated: 'danger' }
+  const map: Record<string, any> = {
+    draft: 'info',
+    active: 'success',
+    suspended: 'warning',
+    deprecated: 'danger',
+  }
   return map[status] || 'info'
 }
 
 const getStatusText = (status: string) => {
-  const map: Record<string, string> = { draft: '草稿', active: '已激活', suspended: '已暂停', deprecated: '已废弃' }
+  const map: Record<string, string> = {
+    draft: '草稿',
+    active: '已激活',
+    suspended: '已暂停',
+    deprecated: '已废弃',
+  }
   return map[status] || status
 }
 
 const getCategoryText = (category?: string) => {
-  const map: Record<string, string> = { sales: '销售', purchase: '采购', finance: '财务', hr: '人事', production: '生产' }
-  return category ? (map[category] || category) : '-'
+  const map: Record<string, string> = {
+    sales: '销售',
+    purchase: '采购',
+    finance: '财务',
+    hr: '人事',
+    production: '生产',
+  }
+  return category ? map[category] || category : '-'
 }
 
 const getVersionStatusText = (status: string) => {
@@ -292,7 +367,7 @@ const fetchData = async () => {
       page: pagination.page,
       page_size: pagination.page_size,
       category: filterForm.category || undefined,
-      keyword: filterForm.keyword || undefined
+      keyword: filterForm.keyword || undefined,
     })
     definitions.value = res.data.list
     pagination.total = res.data.total
@@ -333,7 +408,7 @@ const handleEdit = (row: ProcessDefinition) => {
     process_name: row.process_name,
     category: row.category,
     description: row.description,
-    nodes: row.nodes || []
+    nodes: row.nodes || [],
   })
   dialogVisible.value = true
 }
@@ -345,7 +420,7 @@ const handleAddNode = () => {
     type: 'approval',
     name: '新审批节点',
     assignee_type: 'user',
-    assignee_value: ''
+    assignee_value: '',
   })
 }
 
@@ -378,7 +453,9 @@ const handleSubmit = async () => {
 
 const handleDelete = async (row: ProcessDefinition) => {
   try {
-    await ElMessageBox.confirm(`确定删除流程定义「${row.process_name}」吗？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除流程定义「${row.process_name}」吗？`, '确认', {
+      type: 'warning',
+    })
     await bpmEnhancedApi.deleteDefinition(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -402,7 +479,7 @@ const handleCreateVersion = async () => {
   if (!currentDefinition.value) return
   try {
     const { value: changeLog } = await ElMessageBox.prompt('请输入变更说明', '创建新版本', {
-      inputPlaceholder: '例如：新增财务审批节点'
+      inputPlaceholder: '例如：新增财务审批节点',
     })
     await bpmEnhancedApi.createVersion(currentDefinition.value.id, { change_log: changeLog })
     ElMessage.success('新版本创建成功')
@@ -448,17 +525,50 @@ const handleConfirmSaveTemplate = async () => {
   })
 }
 
-onMounted(() => { fetchData() })
+onMounted(() => {
+  fetchData()
+})
 </script>
 
 <style scoped>
-.bpm-definitions-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.filter-card { margin-bottom: 20px; }
-.filter-form { margin-bottom: 0; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 20px; }
-.version-header { display: flex; justify-content: space-between; align-items: center; }
-.active-tag { color: #67c23a; font-weight: 600; }
+.bpm-definitions-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.filter-form {
+  margin-bottom: 0;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.version-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.active-tag {
+  color: #67c23a;
+  font-weight: 600;
+}
 </style>

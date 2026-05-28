@@ -266,9 +266,9 @@ impl VoucherService {
         &self,
         id: i32,
         req: UpdateVoucherRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<voucher::Model, AppError> {
-        info!("更新凭证 ID: {}", id);
+        info!("更新凭证 ID: {}, 操作用户: {}", id, user_id);
 
         let voucher_record = self.get_by_id(id).await?;
         let voucher_model = voucher_record.voucher;
@@ -296,10 +296,7 @@ impl VoucherService {
             active_model.voucher_date = sea_orm::Set(voucher_date);
         }
 
-        let updated_voucher = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+        let updated_voucher = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(user_id)).await?;
 
         if let Some(items) = req.items {
             vi::Entity::delete_many()

@@ -47,7 +47,9 @@ export interface Defect {
   remark: string
 }
 
-export function listQualityStandards(params?: QueryParams): Promise<ApiResponse<QualityStandard[]>> {
+export function listQualityStandards(
+  params?: QueryParams
+): Promise<ApiResponse<QualityStandard[]>> {
   return request.get('/quality-standards', { params })
 }
 
@@ -55,11 +57,16 @@ export function getQualityStandard(id: number): Promise<ApiResponse<QualityStand
   return request.get(`/quality-standards/${id}`)
 }
 
-export function createQualityStandard(data: Partial<QualityStandard>): Promise<ApiResponse<QualityStandard>> {
+export function createQualityStandard(
+  data: Partial<QualityStandard>
+): Promise<ApiResponse<QualityStandard>> {
   return request.post('/quality-standards', data)
 }
 
-export function updateQualityStandard(id: number, data: Partial<QualityStandard>): Promise<ApiResponse<QualityStandard>> {
+export function updateQualityStandard(
+  id: number,
+  data: Partial<QualityStandard>
+): Promise<ApiResponse<QualityStandard>> {
   return request.put(`/quality-standards/${id}`, data)
 }
 
@@ -87,7 +94,9 @@ export function getQualityRecord(id: number): Promise<ApiResponse<QualityRecord>
   return request.get(`/quality-inspection/records/${id}`)
 }
 
-export function createQualityRecord(data: Partial<QualityRecord>): Promise<ApiResponse<QualityRecord>> {
+export function createQualityRecord(
+  data: Partial<QualityRecord>
+): Promise<ApiResponse<QualityRecord>> {
   return request.post('/quality-inspection/records', data)
 }
 

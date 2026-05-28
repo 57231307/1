@@ -11,7 +11,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="dyeBatches" v-loading="dyeLoading" stripe>
+          <el-table v-loading="dyeLoading" :data="dyeBatches" stripe>
             <el-table-column prop="batch_no" label="批次号" width="140" />
             <el-table-column prop="color_name" label="颜色" width="120" />
             <el-table-column prop="greige_fabric_name" label="坯布" width="150" />
@@ -27,8 +27,17 @@
             <el-table-column prop="start_date" label="开始日期" width="120" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openDyeDialog(row)">编辑</el-button>
-                <el-button v-if="row.status === 'in_progress'" type="success" link size="small" @click="completeDye(row)">完成</el-button>
+                <el-button type="primary" link size="small" @click="openDyeDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="row.status === 'in_progress'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="completeDye(row)"
+                  >完成</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -45,7 +54,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="greigeFabrics" v-loading="greigeLoading" stripe>
+          <el-table v-loading="greigeLoading" :data="greigeFabrics" stripe>
             <el-table-column prop="fabric_code" label="编号" width="120" />
             <el-table-column prop="fabric_name" label="名称" min-width="150" />
             <el-table-column prop="supplier_name" label="供应商" width="150" />
@@ -62,9 +71,15 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openGreigeDialog(row)">编辑</el-button>
-                <el-button type="success" link size="small" @click="openStockInDialog(row)">入库</el-button>
-                <el-button type="warning" link size="small" @click="openStockOutDialog(row)">出库</el-button>
+                <el-button type="primary" link size="small" @click="openGreigeDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="success" link size="small" @click="openStockInDialog(row)"
+                  >入库</el-button
+                >
+                <el-button type="warning" link size="small" @click="openStockOutDialog(row)"
+                  >出库</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -81,7 +96,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="dyeRecipes" v-loading="recipeLoading" stripe>
+          <el-table v-loading="recipeLoading" :data="dyeRecipes" stripe>
             <el-table-column prop="recipe_no" label="配方号" width="120" />
             <el-table-column prop="recipe_name" label="名称" width="150" />
             <el-table-column prop="color_name" label="颜色" width="120" />
@@ -89,7 +104,16 @@
             <el-table-column prop="version" label="版本" width="80" />
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'approved' ? 'success' : row.status === 'draft' ? 'info' : 'danger'" size="small">
+                <el-tag
+                  :type="
+                    row.status === 'approved'
+                      ? 'success'
+                      : row.status === 'draft'
+                        ? 'info'
+                        : 'danger'
+                  "
+                  size="small"
+                >
                   {{ getRecipeStatusLabel(row.status) }}
                 </el-tag>
               </template>
@@ -97,9 +121,25 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewRecipe(row)">查看</el-button>
-                <el-button type="success" link size="small" @click="approveRecipe(row)" v-if="row.status === 'draft'">审批</el-button>
-                <el-button type="warning" link size="small" @click="createNewVersion(row)" v-if="row.status === 'approved'">新版本</el-button>
+                <el-button type="primary" link size="small" @click="viewRecipe(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="approveRecipe(row)"
+                  >审批</el-button
+                >
+                <el-button
+                  v-if="row.status === 'approved'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="createNewVersion(row)"
+                  >新版本</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -107,7 +147,11 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="dyeDialogVisible" :title="dyeForm.id ? '编辑染色批次' : '新建染色批次'" width="600px">
+    <el-dialog
+      v-model="dyeDialogVisible"
+      :title="dyeForm.id ? '编辑染色批次' : '新建染色批次'"
+      width="600px"
+    >
       <el-form ref="dyeFormRef" :model="dyeForm" label-width="100px">
         <el-form-item label="批次号" prop="batch_no">
           <el-input v-model="dyeForm.batch_no" :disabled="!!dyeForm.id" />
@@ -117,14 +161,24 @@
         </el-form-item>
         <el-form-item label="坯布" prop="greige_fabric_id">
           <el-select v-model="dyeForm.greige_fabric_id" placeholder="选择坯布" style="width: 100%">
-            <el-option v-for="g in greigeFabrics" :key="g.id" :label="g.fabric_name" :value="g.id" />
+            <el-option
+              v-for="g in greigeFabrics"
+              :key="g.id"
+              :label="g.fabric_name"
+              :value="g.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="计划数量" prop="planned_quantity">
           <el-input-number v-model="dyeForm.planned_quantity" style="width: 100%" />
         </el-form-item>
         <el-form-item label="开始日期" prop="start_date">
-          <el-date-picker v-model="dyeForm.start_date" type="date" style="width: 100%" value-format="YYYY-MM-DD" />
+          <el-date-picker
+            v-model="dyeForm.start_date"
+            type="date"
+            style="width: 100%"
+            value-format="YYYY-MM-DD"
+          />
         </el-form-item>
         <el-form-item label="染色机台" prop="machine_code">
           <el-input v-model="dyeForm.machine_code" />
@@ -139,7 +193,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="greigeDialogVisible" :title="greigeForm.id ? '编辑坯布' : '新建坯布'" width="600px">
+    <el-dialog
+      v-model="greigeDialogVisible"
+      :title="greigeForm.id ? '编辑坯布' : '新建坯布'"
+      width="600px"
+    >
       <el-form ref="greigeFormRef" :model="greigeForm" label-width="100px">
         <el-form-item label="编号" prop="fabric_code">
           <el-input v-model="greigeForm.fabric_code" :disabled="!!greigeForm.id" />
@@ -167,11 +225,17 @@
       </el-form>
       <template #footer>
         <el-button @click="greigeDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="greigeSubmitLoading" @click="submitGreige">确定</el-button>
+        <el-button type="primary" :loading="greigeSubmitLoading" @click="submitGreige"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
-    <el-dialog v-model="recipeDialogVisible" :title="recipeForm.id ? '编辑配方' : '新建配方'" width="700px">
+    <el-dialog
+      v-model="recipeDialogVisible"
+      :title="recipeForm.id ? '编辑配方' : '新建配方'"
+      width="700px"
+    >
       <el-form ref="recipeFormRef" :model="recipeForm" label-width="100px">
         <el-form-item label="配方号" prop="recipe_no">
           <el-input v-model="recipeForm.recipe_no" :disabled="!!recipeForm.id" />
@@ -204,11 +268,15 @@
             </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ $index }">
-                <el-button type="danger" link size="small" @click="removeRecipeItem($index)">删除</el-button>
+                <el-button type="danger" link size="small" @click="removeRecipeItem($index)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
-          <el-button type="primary" link style="margin-top: 8px" @click="addRecipeItem">添加化学品</el-button>
+          <el-button type="primary" link style="margin-top: 8px" @click="addRecipeItem"
+            >添加化学品</el-button
+          >
         </el-form-item>
         <el-form-item label="工艺参数" prop="process_parameters">
           <el-input v-model="processParamsText" type="textarea" placeholder="JSON格式" />
@@ -216,7 +284,9 @@
       </el-form>
       <template #footer>
         <el-button @click="recipeDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="recipeSubmitLoading" @click="submitRecipe">确定</el-button>
+        <el-button type="primary" :loading="recipeSubmitLoading" @click="submitRecipe"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -227,9 +297,30 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
-import { listDyeBatches, createDyeBatch, updateDyeBatch, completeDyeBatch, type DyeBatch } from '@/api/dye-batch'
-import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
-import { listDyeRecipes, getDyeRecipe, createDyeRecipe, updateDyeRecipe, approveDyeRecipe, createNewVersion as createNewVersionApi, type DyeRecipe } from '@/api/dye-recipe'
+import {
+  listDyeBatches,
+  createDyeBatch,
+  updateDyeBatch,
+  completeDyeBatch,
+  type DyeBatch,
+} from '@/api/dye-batch'
+import {
+  listGreigeFabrics,
+  createGreigeFabric,
+  updateGreigeFabric,
+  stockInGreigeFabric,
+  stockOutGreigeFabric,
+  type GreigeFabric,
+} from '@/api/greige-fabric'
+import {
+  listDyeRecipes,
+  getDyeRecipe,
+  createDyeRecipe,
+  updateDyeRecipe,
+  approveDyeRecipe,
+  createNewVersion as createNewVersionApi,
+  type DyeRecipe,
+} from '@/api/dye-recipe'
 import { listSuppliers, type Supplier } from '@/api/supplier'
 
 const activeTab = ref('dye')
@@ -281,12 +372,22 @@ const fetchSuppliers = async () => {
 }
 
 const getStatusType = (status: string) => {
-  const map: Record<string, any> = { pending: 'info', in_progress: 'warning', completed: 'success', cancelled: 'danger' }
+  const map: Record<string, any> = {
+    pending: 'info',
+    in_progress: 'warning',
+    completed: 'success',
+    cancelled: 'danger',
+  }
   return map[status] || 'info'
 }
 
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = { pending: '待处理', in_progress: '进行中', completed: '已完成', cancelled: '已取消' }
+  const map: Record<string, string> = {
+    pending: '待处理',
+    in_progress: '进行中',
+    completed: '已完成',
+    cancelled: '已取消',
+  }
   return map[status] || status
 }
 
@@ -298,13 +399,41 @@ const getRecipeStatusLabel = (status: string) => {
 const dyeDialogVisible = ref(false)
 const dyeFormRef = ref<FormInstance>()
 const dyeSubmitLoading = ref(false)
-const dyeForm = reactive({ id: 0, batch_no: '', color_name: '', greige_fabric_id: undefined as number | undefined, planned_quantity: 0, actual_quantity: 0, unit: '米', status: 'pending', start_date: '', end_date: '', machine_code: '', operator: '', remark: '' })
+const dyeForm = reactive({
+  id: 0,
+  batch_no: '',
+  color_name: '',
+  greige_fabric_id: undefined as number | undefined,
+  planned_quantity: 0,
+  actual_quantity: 0,
+  unit: '米',
+  status: 'pending',
+  start_date: '',
+  end_date: '',
+  machine_code: '',
+  operator: '',
+  remark: '',
+})
 
 const openDyeDialog = async (row?: DyeBatch) => {
   if (row) {
     Object.assign(dyeForm, row)
   } else {
-    Object.assign(dyeForm, { id: 0, batch_no: '', color_name: '', greige_fabric_id: undefined, planned_quantity: 0, actual_quantity: 0, unit: '米', status: 'pending', start_date: '', end_date: '', machine_code: '', operator: '', remark: '' })
+    Object.assign(dyeForm, {
+      id: 0,
+      batch_no: '',
+      color_name: '',
+      greige_fabric_id: undefined,
+      planned_quantity: 0,
+      actual_quantity: 0,
+      unit: '米',
+      status: 'pending',
+      start_date: '',
+      end_date: '',
+      machine_code: '',
+      operator: '',
+      remark: '',
+    })
   }
   dyeDialogVisible.value = true
 }
@@ -341,13 +470,41 @@ const completeDye = async (row: DyeBatch) => {
 const greigeDialogVisible = ref(false)
 const greigeFormRef = ref<FormInstance>()
 const greigeSubmitLoading = ref(false)
-const greigeForm = reactive({ id: 0, fabric_code: '', fabric_name: '', fabric_type: '', supplier_id: undefined as number | undefined, width: 0, weight: 0, unit: '米', composition: '', quantity: 0, min_order_quantity: 0, status: 'active', description: '' })
+const greigeForm = reactive({
+  id: 0,
+  fabric_code: '',
+  fabric_name: '',
+  fabric_type: '',
+  supplier_id: undefined as number | undefined,
+  width: 0,
+  weight: 0,
+  unit: '米',
+  composition: '',
+  quantity: 0,
+  min_order_quantity: 0,
+  status: 'active',
+  description: '',
+})
 
 const openGreigeDialog = async (row?: GreigeFabric) => {
   if (row) {
     Object.assign(greigeForm, row)
   } else {
-    Object.assign(greigeForm, { id: 0, fabric_code: '', fabric_name: '', fabric_type: '', supplier_id: undefined, width: 0, weight: 0, unit: '米', composition: '', quantity: 0, min_order_quantity: 0, status: 'active', description: '' })
+    Object.assign(greigeForm, {
+      id: 0,
+      fabric_code: '',
+      fabric_name: '',
+      fabric_type: '',
+      supplier_id: undefined,
+      width: 0,
+      weight: 0,
+      unit: '米',
+      composition: '',
+      quantity: 0,
+      min_order_quantity: 0,
+      status: 'active',
+      description: '',
+    })
   }
   greigeDialogVisible.value = true
 }
@@ -371,39 +528,75 @@ const submitGreige = async () => {
 }
 
 const openStockInDialog = (row: GreigeFabric) => {
-  ElMessageBox.prompt('请输入入库数量', '坯布入库').then(async ({ value }) => {
-    const qty = parseFloat(value)
-    if (!isNaN(qty) && qty > 0) {
-      await stockInGreigeFabric(row.id, { quantity: qty })
-      ElMessage.success('入库成功')
-      fetchGreigeFabrics()
-    }
-  }).catch(() => {})
+  ElMessageBox.prompt('请输入入库数量', '坯布入库')
+    .then(async ({ value }) => {
+      const qty = parseFloat(value)
+      if (!isNaN(qty) && qty > 0) {
+        await stockInGreigeFabric(row.id, { quantity: qty })
+        ElMessage.success('入库成功')
+        fetchGreigeFabrics()
+      }
+    })
+    .catch(() => {})
 }
 
 const openStockOutDialog = (row: GreigeFabric) => {
-  ElMessageBox.prompt('请输入出库数量', '坯布出库').then(async ({ value }) => {
-    const qty = parseFloat(value)
-    if (!isNaN(qty) && qty > 0) {
-      await stockOutGreigeFabric(row.id, { quantity: qty })
-      ElMessage.success('出库成功')
-      fetchGreigeFabrics()
-    }
-  }).catch(() => {})
+  ElMessageBox.prompt('请输入出库数量', '坯布出库')
+    .then(async ({ value }) => {
+      const qty = parseFloat(value)
+      if (!isNaN(qty) && qty > 0) {
+        await stockOutGreigeFabric(row.id, { quantity: qty })
+        ElMessage.success('出库成功')
+        fetchGreigeFabrics()
+      }
+    })
+    .catch(() => {})
 }
 
 const recipeDialogVisible = ref(false)
 const recipeFormRef = ref<FormInstance>()
 const recipeSubmitLoading = ref(false)
 const processParamsText = ref('')
-const recipeForm = reactive({ id: 0, recipe_no: '', recipe_name: '', color_code: '', color_name: '', fabric_type: '', version: 1 as number, status: 'draft' as const, recipe_items: [] as any[], process_parameters: {} as Record<string, any> })
+const recipeForm = reactive({
+  id: 0,
+  recipe_no: '',
+  recipe_name: '',
+  color_code: '',
+  color_name: '',
+  fabric_type: '',
+  version: 1 as number,
+  status: 'draft' as const,
+  recipe_items: [] as any[],
+  process_parameters: {} as Record<string, any>,
+})
 
 const openRecipeDialog = async (row?: DyeRecipe) => {
   if (row) {
     Object.assign(recipeForm, { ...row, version: Number(row.version) || 1 })
     processParamsText.value = JSON.stringify(row.process_parameters, null, 2)
   } else {
-    Object.assign(recipeForm, { id: 0, recipe_no: '', recipe_name: '', color_code: '', color_name: '', fabric_type: '', version: 1, status: 'draft' as const, recipe_items: [{ id: 0, chemical_name: '', chemical_code: '', dosage: 0, dosage_unit: 'g/l', sequence: 1, remark: '' }], process_parameters: {} })
+    Object.assign(recipeForm, {
+      id: 0,
+      recipe_no: '',
+      recipe_name: '',
+      color_code: '',
+      color_name: '',
+      fabric_type: '',
+      version: 1,
+      status: 'draft' as const,
+      recipe_items: [
+        {
+          id: 0,
+          chemical_name: '',
+          chemical_code: '',
+          dosage: 0,
+          dosage_unit: 'g/l',
+          sequence: 1,
+          remark: '',
+        },
+      ],
+      process_parameters: {},
+    })
     processParamsText.value = ''
   }
   recipeDialogVisible.value = true
@@ -418,7 +611,9 @@ const submitRecipe = async () => {
   recipeSubmitLoading.value = true
   try {
     try {
-      recipeForm.process_parameters = processParamsText.value ? JSON.parse(processParamsText.value) : {}
+      recipeForm.process_parameters = processParamsText.value
+        ? JSON.parse(processParamsText.value)
+        : {}
     } catch (e) {
       ElMessage.error('工艺参数格式错误')
       return
@@ -462,7 +657,15 @@ const createNewVersion = async (row: DyeRecipe) => {
 
 const addRecipeItem = () => {
   const len = recipeForm.recipe_items.length
-  recipeForm.recipe_items.push({ id: 0, chemical_name: '', chemical_code: '', dosage: 0, dosage_unit: 'g/l', sequence: len + 1, remark: '' })
+  recipeForm.recipe_items.push({
+    id: 0,
+    chemical_name: '',
+    chemical_code: '',
+    dosage: 0,
+    dosage_unit: 'g/l',
+    sequence: len + 1,
+    remark: '',
+  })
 }
 
 const removeRecipeItem = (index: number) => {
@@ -480,7 +683,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.fabric-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
+.fabric-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
 </style>

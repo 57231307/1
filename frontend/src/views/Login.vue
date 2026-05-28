@@ -67,14 +67,14 @@ const rules: FormRules = {
 async function handleLogin() {
   const form = formRef.value
   if (!form) return
-  
+
   await form.validate(async (valid) => {
     if (!valid) return
-    
+
     loading.value = true
     try {
       await userStore.login(loginForm)
-      
+
       if (userStore.userInfo?.permissions) {
         const permList = userStore.userInfo.permissions.map((code: string) => ({
           id: 0,
@@ -82,13 +82,13 @@ async function handleLogin() {
           code: code,
           type: 'menu',
           resource: code.split(':')[0] || code,
-          action: code.split(':')[1] || '*'
+          action: code.split(':')[1] || '*',
         }))
         permissionStore.setPermissions(permList)
       }
-      
+
       ElMessage.success('登录成功')
-      
+
       const redirect = (route.query.redirect as string) || '/'
       router.push(redirect)
     } catch (error: any) {

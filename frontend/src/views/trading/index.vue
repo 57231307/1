@@ -11,7 +11,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="purchaseContracts" v-loading="purchaseContractLoading" stripe>
+          <el-table v-loading="purchaseContractLoading" :data="purchaseContracts" stripe>
             <el-table-column prop="contract_no" label="合同编号" width="140" />
             <el-table-column prop="supplier_name" label="供应商" width="150" />
             <el-table-column prop="contract_date" label="合同日期" width="120" />
@@ -20,15 +20,35 @@
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" size="small">{{ getContractStatusLabel(row.status) }}</el-tag>
+                <el-tag :type="getStatusType(row.status)" size="small">{{
+                  getContractStatusLabel(row.status)
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewPurchaseContract(row)">查看</el-button>
-                <el-button type="success" link size="small" @click="approvePurchaseContract(row)" v-if="row.status === 'draft'">审批</el-button>
-                <el-button type="warning" link size="small" @click="executePurchaseContract(row)" v-if="row.status === 'approved'">执行</el-button>
-                <el-button type="danger" link size="small" @click="deletePurchaseContract(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="viewPurchaseContract(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="approvePurchaseContract(row)"
+                  >审批</el-button
+                >
+                <el-button
+                  v-if="row.status === 'approved'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="executePurchaseContract(row)"
+                  >执行</el-button
+                >
+                <el-button type="danger" link size="small" @click="deletePurchaseContract(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -45,7 +65,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="purchasePrices" v-loading="purchasePriceLoading" stripe>
+          <el-table v-loading="purchasePriceLoading" :data="purchasePrices" stripe>
             <el-table-column prop="product_name" label="产品" width="150" />
             <el-table-column prop="supplier_name" label="供应商" width="150" />
             <el-table-column prop="price" label="价格" width="100" align="right">
@@ -57,13 +77,19 @@
             <el-table-column prop="expiry_date" label="失效日期" width="120" />
             <el-table-column prop="status" label="状态" width="80" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '有效' : '无效' }}</el-tag>
+                <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{
+                  row.status === 'active' ? '有效' : '无效'
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openPurchasePriceDialog(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="deletePurchasePrice(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="openPurchasePriceDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="deletePurchasePrice(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -80,7 +106,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="salesContracts" v-loading="salesContractLoading" stripe>
+          <el-table v-loading="salesContractLoading" :data="salesContracts" stripe>
             <el-table-column prop="contract_no" label="合同编号" width="140" />
             <el-table-column prop="customer_name" label="客户" width="150" />
             <el-table-column prop="contract_date" label="合同日期" width="120" />
@@ -89,14 +115,27 @@
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" size="small">{{ getContractStatusLabel(row.status) }}</el-tag>
+                <el-tag :type="getStatusType(row.status)" size="small">{{
+                  getContractStatusLabel(row.status)
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewSalesContract(row)">查看</el-button>
-                <el-button type="success" link size="small" @click="approveSalesContract(row)" v-if="row.status === 'draft'">审批</el-button>
-                <el-button type="danger" link size="small" @click="deleteSalesContract(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="viewSalesContract(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="approveSalesContract(row)"
+                  >审批</el-button
+                >
+                <el-button type="danger" link size="small" @click="deleteSalesContract(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -113,7 +152,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="salesPrices" v-loading="salesPriceLoading" stripe>
+          <el-table v-loading="salesPriceLoading" :data="salesPrices" stripe>
             <el-table-column prop="product_name" label="产品" width="150" />
             <el-table-column prop="customer_name" label="客户" width="150" />
             <el-table-column prop="price" label="价格" width="100" align="right">
@@ -124,13 +163,19 @@
             <el-table-column prop="effective_date" label="生效日期" width="120" />
             <el-table-column prop="status" label="状态" width="80" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '有效' : '无效' }}</el-tag>
+                <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{
+                  row.status === 'active' ? '有效' : '无效'
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openSalesPriceDialog(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="deleteSalesPrice(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="openSalesPriceDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="deleteSalesPrice(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -147,7 +192,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="salesReturns" v-loading="returnLoading" stripe>
+          <el-table v-loading="returnLoading" :data="salesReturns" stripe>
             <el-table-column prop="return_no" label="退货单号" width="140" />
             <el-table-column prop="customer_name" label="客户" width="150" />
             <el-table-column prop="order_no" label="销售单号" width="140" />
@@ -158,13 +203,19 @@
             <el-table-column prop="reason" label="退货原因" min-width="150" />
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" size="small">{{ getReturnStatusLabel(row.status) }}</el-tag>
+                <el-tag :type="getStatusType(row.status)" size="small">{{
+                  getReturnStatusLabel(row.status)
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openReturnDialog(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="deleteSalesReturn(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="openReturnDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="deleteSalesReturn(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -173,7 +224,11 @@
     </el-tabs>
 
     <!-- 采购合同对话框 -->
-    <el-dialog v-model="purchaseContractDialogVisible" :title="purchaseContractDialogTitle" width="600px">
+    <el-dialog
+      v-model="purchaseContractDialogVisible"
+      :title="purchaseContractDialogTitle"
+      width="600px"
+    >
       <el-form :model="purchaseContractForm" label-width="100px">
         <el-form-item label="合同编号">
           <el-input v-model="purchaseContractForm.contract_no" placeholder="请输入合同编号" />
@@ -182,13 +237,27 @@
           <el-input v-model="purchaseContractForm.supplier_name" placeholder="请输入供应商名称" />
         </el-form-item>
         <el-form-item label="合同日期">
-          <el-date-picker v-model="purchaseContractForm.contract_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="purchaseContractForm.contract_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="总金额">
-          <el-input-number v-model="purchaseContractForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="purchaseContractForm.total_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="purchaseContractForm.status" placeholder="请选择状态" style="width: 100%">
+          <el-select
+            v-model="purchaseContractForm.status"
+            placeholder="请选择状态"
+            style="width: 100%"
+          >
             <el-option label="草稿" value="draft" />
             <el-option label="待审批" value="pending" />
             <el-option label="已审批" value="approved" />
@@ -198,7 +267,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="purchaseContractForm.remarks" type="textarea" placeholder="请输入备注" />
+          <el-input
+            v-model="purchaseContractForm.remarks"
+            type="textarea"
+            placeholder="请输入备注"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -219,10 +292,19 @@
           <el-input v-model="purchasePriceForm.supplier_name" placeholder="请输入供应商名称" />
         </el-form-item>
         <el-form-item label="价格">
-          <el-input-number v-model="purchasePriceForm.price" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="purchasePriceForm.price"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="币种">
-          <el-select v-model="purchasePriceForm.currency" placeholder="请选择币种" style="width: 100%">
+          <el-select
+            v-model="purchasePriceForm.currency"
+            placeholder="请选择币种"
+            style="width: 100%"
+          >
             <el-option label="人民币" value="CNY" />
             <el-option label="美元" value="USD" />
             <el-option label="欧元" value="EUR" />
@@ -232,13 +314,27 @@
           <el-input v-model="purchasePriceForm.unit" placeholder="请输入单位" />
         </el-form-item>
         <el-form-item label="生效日期">
-          <el-date-picker v-model="purchasePriceForm.effective_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="purchasePriceForm.effective_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="失效日期">
-          <el-date-picker v-model="purchasePriceForm.expiry_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="purchasePriceForm.expiry_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="purchasePriceForm.status" placeholder="请选择状态" style="width: 100%">
+          <el-select
+            v-model="purchasePriceForm.status"
+            placeholder="请选择状态"
+            style="width: 100%"
+          >
             <el-option label="有效" value="active" />
             <el-option label="无效" value="inactive" />
           </el-select>
@@ -262,13 +358,27 @@
           <el-input v-model="salesContractForm.customer_name" placeholder="请输入客户名称" />
         </el-form-item>
         <el-form-item label="合同日期">
-          <el-date-picker v-model="salesContractForm.contract_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="salesContractForm.contract_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="总金额">
-          <el-input-number v-model="salesContractForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="salesContractForm.total_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="salesContractForm.status" placeholder="请选择状态" style="width: 100%">
+          <el-select
+            v-model="salesContractForm.status"
+            placeholder="请选择状态"
+            style="width: 100%"
+          >
             <el-option label="草稿" value="draft" />
             <el-option label="待审批" value="pending" />
             <el-option label="已审批" value="approved" />
@@ -299,7 +409,12 @@
           <el-input v-model="salesPriceForm.customer_name" placeholder="请输入客户名称" />
         </el-form-item>
         <el-form-item label="价格">
-          <el-input-number v-model="salesPriceForm.price" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="salesPriceForm.price"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="币种">
           <el-select v-model="salesPriceForm.currency" placeholder="请选择币种" style="width: 100%">
@@ -312,7 +427,12 @@
           <el-input v-model="salesPriceForm.unit" placeholder="请输入单位" />
         </el-form-item>
         <el-form-item label="生效日期">
-          <el-date-picker v-model="salesPriceForm.effective_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="salesPriceForm.effective_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="salesPriceForm.status" placeholder="请选择状态" style="width: 100%">
@@ -342,10 +462,20 @@
           <el-input v-model="returnForm.order_no" placeholder="请输入销售单号" />
         </el-form-item>
         <el-form-item label="退货日期">
-          <el-date-picker v-model="returnForm.return_date" type="date" placeholder="选择日期" style="width: 100%" />
+          <el-date-picker
+            v-model="returnForm.return_date"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="退货金额">
-          <el-input-number v-model="returnForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="returnForm.total_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="退货原因">
           <el-input v-model="returnForm.reason" type="textarea" placeholder="请输入退货原因" />
@@ -374,35 +504,35 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { 
-  listPurchaseContracts, 
-  createPurchaseContract, 
-  updatePurchaseContract, 
+import {
+  listPurchaseContracts,
+  createPurchaseContract,
+  updatePurchaseContract,
   deletePurchaseContract as apiDeletePurchaseContract,
   approvePurchaseContract as apiApprovePurchaseContract,
   executePurchaseContract as apiExecutePurchaseContract,
-  type PurchaseContract, 
-  listPurchasePrices, 
-  createPurchasePrice, 
-  updatePurchasePrice, 
+  type PurchaseContract,
+  listPurchasePrices,
+  createPurchasePrice,
+  updatePurchasePrice,
   deletePurchasePrice as apiDeletePurchasePrice,
-  type PurchasePrice, 
-  listSalesContracts, 
-  createSalesContract, 
-  updateSalesContract, 
+  type PurchasePrice,
+  listSalesContracts,
+  createSalesContract,
+  updateSalesContract,
   deleteSalesContract as apiDeleteSalesContract,
   approveSalesContract as apiApproveSalesContract,
-  type SalesContract, 
-  listSalesPrices, 
-  createSalesPrice, 
-  updateSalesPrice, 
+  type SalesContract,
+  listSalesPrices,
+  createSalesPrice,
+  updateSalesPrice,
   deleteSalesPrice as apiDeleteSalesPrice,
-  type SalesPrice, 
-  listSalesReturns, 
-  createSalesReturn, 
-  updateSalesReturn, 
+  type SalesPrice,
+  listSalesReturns,
+  createSalesReturn,
+  updateSalesReturn,
   deleteSalesReturn as apiDeleteSalesReturn,
-  type SalesReturn 
+  type SalesReturn,
 } from '@/api/trading'
 
 const activeTab = ref('purchase-contract')
@@ -439,7 +569,7 @@ const purchaseContractForm = ref({
   contract_date: '',
   total_amount: 0,
   status: 'draft',
-  remarks: ''
+  remarks: '',
 })
 
 const purchasePriceForm = ref({
@@ -451,7 +581,7 @@ const purchasePriceForm = ref({
   unit: '',
   effective_date: '',
   expiry_date: '',
-  status: 'active'
+  status: 'active',
 })
 
 const salesContractForm = ref({
@@ -461,7 +591,7 @@ const salesContractForm = ref({
   contract_date: '',
   total_amount: 0,
   status: 'draft',
-  remarks: ''
+  remarks: '',
 })
 
 const salesPriceForm = ref({
@@ -472,7 +602,7 @@ const salesPriceForm = ref({
   currency: 'CNY',
   unit: '',
   effective_date: '',
-  status: 'active'
+  status: 'active',
 })
 
 const returnForm = ref({
@@ -483,7 +613,7 @@ const returnForm = ref({
   return_date: '',
   total_amount: 0,
   reason: '',
-  status: 'draft'
+  status: 'draft',
 })
 
 const fetchPurchaseContracts = async () => {
@@ -541,17 +671,37 @@ const formatMoney = (amount: number) => {
 }
 
 const getStatusType = (status: string) => {
-  const map: Record<string, any> = { draft: 'info', pending: 'warning', approved: 'success', active: 'primary', completed: 'success', cancelled: 'danger' }
+  const map: Record<string, any> = {
+    draft: 'info',
+    pending: 'warning',
+    approved: 'success',
+    active: 'primary',
+    completed: 'success',
+    cancelled: 'danger',
+  }
   return map[status] || 'info'
 }
 
 const getContractStatusLabel = (status: string) => {
-  const map: Record<string, string> = { draft: '草稿', pending: '待审批', approved: '已审批', active: '执行中', completed: '已完成', cancelled: '已取消' }
+  const map: Record<string, string> = {
+    draft: '草稿',
+    pending: '待审批',
+    approved: '已审批',
+    active: '执行中',
+    completed: '已完成',
+    cancelled: '已取消',
+  }
   return map[status] || status
 }
 
 const getReturnStatusLabel = (status: string) => {
-  const map: Record<string, string> = { draft: '草稿', pending: '待审批', approved: '已审批', rejected: '已拒绝', completed: '已完成' }
+  const map: Record<string, string> = {
+    draft: '草稿',
+    pending: '待审批',
+    approved: '已审批',
+    rejected: '已拒绝',
+    completed: '已完成',
+  }
   return map[status] || status
 }
 
@@ -569,7 +719,7 @@ const openPurchaseContractDialog = (row?: PurchaseContract) => {
       contract_date: '',
       total_amount: 0,
       status: 'draft',
-      remarks: ''
+      remarks: '',
     }
   }
   purchaseContractDialogVisible.value = true
@@ -601,7 +751,9 @@ const approvePurchaseContract = async (row: PurchaseContract) => {
     await apiApprovePurchaseContract(row.id)
     ElMessage.success('审批成功')
     fetchPurchaseContracts()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 const executePurchaseContract = async (row: PurchaseContract) => {
@@ -610,7 +762,9 @@ const executePurchaseContract = async (row: PurchaseContract) => {
     await apiExecutePurchaseContract(row.id)
     ElMessage.success('执行成功')
     fetchPurchaseContracts()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 const deletePurchaseContract = async (row: PurchaseContract) => {
@@ -619,7 +773,9 @@ const deletePurchaseContract = async (row: PurchaseContract) => {
     await apiDeletePurchaseContract(row.id)
     ElMessage.success('删除成功')
     fetchPurchaseContracts()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 // 采购价格操作
@@ -638,7 +794,7 @@ const openPurchasePriceDialog = (row?: PurchasePrice) => {
       unit: '',
       effective_date: '',
       expiry_date: '',
-      status: 'active'
+      status: 'active',
     }
   }
   purchasePriceDialogVisible.value = true
@@ -666,7 +822,9 @@ const deletePurchasePrice = async (row: PurchasePrice) => {
     await apiDeletePurchasePrice(row.id)
     ElMessage.success('删除成功')
     fetchPurchasePrices()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 // 销售合同操作
@@ -683,7 +841,7 @@ const openSalesContractDialog = (row?: SalesContract) => {
       contract_date: '',
       total_amount: 0,
       status: 'draft',
-      remarks: ''
+      remarks: '',
     }
   }
   salesContractDialogVisible.value = true
@@ -715,7 +873,9 @@ const approveSalesContract = async (row: SalesContract) => {
     await apiApproveSalesContract(row.id)
     ElMessage.success('审批成功')
     fetchSalesContracts()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 const deleteSalesContract = async (row: SalesContract) => {
@@ -724,7 +884,9 @@ const deleteSalesContract = async (row: SalesContract) => {
     await apiDeleteSalesContract(row.id)
     ElMessage.success('删除成功')
     fetchSalesContracts()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 // 销售价格操作
@@ -742,7 +904,7 @@ const openSalesPriceDialog = (row?: SalesPrice) => {
       currency: 'CNY',
       unit: '',
       effective_date: '',
-      status: 'active'
+      status: 'active',
     }
   }
   salesPriceDialogVisible.value = true
@@ -770,7 +932,9 @@ const deleteSalesPrice = async (row: SalesPrice) => {
     await apiDeleteSalesPrice(row.id)
     ElMessage.success('删除成功')
     fetchSalesPrices()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 // 销售退货操作
@@ -788,7 +952,7 @@ const openReturnDialog = (row?: SalesReturn) => {
       return_date: '',
       total_amount: 0,
       reason: '',
-      status: 'draft'
+      status: 'draft',
     }
   }
   returnDialogVisible.value = true
@@ -816,7 +980,9 @@ const deleteSalesReturn = async (row: SalesReturn) => {
     await apiDeleteSalesReturn(row.id)
     ElMessage.success('删除成功')
     fetchSalesReturns()
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 onMounted(() => {
@@ -829,7 +995,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.trading-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
+.trading-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
 </style>

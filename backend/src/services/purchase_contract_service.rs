@@ -150,16 +150,6 @@ impl PurchaseContractService {
             ));
         }
 
-        // 检查执行金额
-        // 注意：purchase_contract 模型没有 executed_amount 字段，暂时跳过检查
-        // let new_executed_amount = contract.executed_amount + req.execution_amount;
-        // if new_executed_amount > contract.total_amount {
-        //     return Err(AppError::ValidationError(format!(
-        //         "执行金额 {:.2} 超过合同总金额 {:.2}",
-        //         new_executed_amount, contract.total_amount
-        //     )));
-        // }
-
         // 开启事务
         let txn = (*self.db).begin().await?;
 

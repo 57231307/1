@@ -32,9 +32,19 @@
           </el-select>
         </el-form-item>
         <el-form-item label="在池天数">
-          <el-input-number v-model="queryParams.days_min" :min="0" placeholder="最小" style="width: 100px" />
+          <el-input-number
+            v-model="queryParams.days_min"
+            :min="0"
+            placeholder="最小"
+            style="width: 100px"
+          />
           <span class="mx-2">-</span>
-          <el-input-number v-model="queryParams.days_max" :min="0" placeholder="最大" style="width: 100px" />
+          <el-input-number
+            v-model="queryParams.days_max"
+            :min="0"
+            placeholder="最大"
+            style="width: 100px"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -49,7 +59,9 @@
           <el-icon><Select /></el-icon>
           批量领取
         </el-button>
-        <span class="selected-count" v-if="selectedRows.length">已选 {{ selectedRows.length }} 项</span>
+        <span v-if="selectedRows.length" class="selected-count"
+          >已选 {{ selectedRows.length }} 项</span
+        >
       </div>
 
       <el-table
@@ -76,7 +88,10 @@
         </el-table-column>
         <el-table-column prop="days_in_pool" label="在池天数" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.days_in_pool > 30 ? 'danger' : row.days_in_pool > 15 ? 'warning' : 'info'" size="small">
+            <el-tag
+              :type="row.days_in_pool > 30 ? 'danger' : row.days_in_pool > 15 ? 'warning' : 'info'"
+              size="small"
+            >
               {{ row.days_in_pool }}天
             </el-tag>
           </template>
@@ -114,7 +129,7 @@
             </div>
           </template>
 
-          <el-table :data="recycleRules" v-loading="rulesLoading" stripe>
+          <el-table v-loading="rulesLoading" :data="recycleRules" stripe>
             <el-table-column prop="name" label="规则名称" min-width="150" />
             <el-table-column prop="days_limit" label="天数限制" width="100" align="center">
               <template #default="{ row }">{{ row.days_limit }}天</template>
@@ -126,7 +141,12 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="min_follow_up_count" label="最低跟进次数" width="120" align="center" />
+            <el-table-column
+              prop="min_follow_up_count"
+              label="最低跟进次数"
+              width="120"
+              align="center"
+            />
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
@@ -136,8 +156,12 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleEditRule(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="handleDeleteRule(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="handleEditRule(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="handleDeleteRule(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -162,8 +186,17 @@
         <el-form-item label="需跟进" prop="follow_up_required">
           <el-switch v-model="ruleForm.follow_up_required" />
         </el-form-item>
-        <el-form-item label="最低跟进次数" prop="min_follow_up_count" v-if="ruleForm.follow_up_required">
-          <el-input-number v-model="ruleForm.min_follow_up_count" :min="1" :max="100" style="width: 100%" />
+        <el-form-item
+          v-if="ruleForm.follow_up_required"
+          label="最低跟进次数"
+          prop="min_follow_up_count"
+        >
+          <el-input-number
+            v-model="ruleForm.min_follow_up_count"
+            :min="1"
+            :max="100"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="ruleForm.status">
@@ -174,7 +207,9 @@
       </el-form>
       <template #footer>
         <el-button @click="ruleDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="ruleSubmitLoading" @click="submitRuleForm">保存</el-button>
+        <el-button type="primary" :loading="ruleSubmitLoading" @click="submitRuleForm"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -185,10 +220,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Select } from '@element-plus/icons-vue'
-import crmEnhancedApi, {
-  type PoolCustomer,
-  type RecycleRule
-} from '@/api/crm-enhanced'
+import crmEnhancedApi, { type PoolCustomer, type RecycleRule } from '@/api/crm-enhanced'
 
 const loading = ref(false)
 const rulesLoading = ref(false)
@@ -209,7 +241,7 @@ const queryParams = reactive({
   customer_type: '',
   source: '',
   days_min: undefined as number | undefined,
-  days_max: undefined as number | undefined
+  days_max: undefined as number | undefined,
 })
 
 const ruleForm = reactive({
@@ -218,11 +250,15 @@ const ruleForm = reactive({
   days_limit: 30,
   follow_up_required: true,
   min_follow_up_count: 3,
-  status: 'active' as 'active' | 'inactive'
+  status: 'active' as 'active' | 'inactive',
 })
 
 const getTypeLabel = (type: string) => {
-  const labels: Record<string, string> = { normal: '普通客户', vip: 'VIP客户', wholesale: '批发客户' }
+  const labels: Record<string, string> = {
+    normal: '普通客户',
+    vip: 'VIP客户',
+    wholesale: '批发客户',
+  }
   return labels[type] || type
 }
 
@@ -232,7 +268,12 @@ const getTypeTag = (type: string) => {
 }
 
 const getSourceLabel = (source: string) => {
-  const labels: Record<string, string> = { website: '网站', phone: '电话', exhibition: '展会', referral: '推荐' }
+  const labels: Record<string, string> = {
+    website: '网站',
+    phone: '电话',
+    exhibition: '展会',
+    referral: '推荐',
+  }
   return labels[source] || source
 }
 
@@ -284,7 +325,9 @@ const handleSelectionChange = (rows: PoolCustomer[]) => {
 
 const handleClaim = async (row: PoolCustomer) => {
   try {
-    await ElMessageBox.confirm(`确定领取客户 "${row.customer_name}" 吗？`, '确认领取', { type: 'info' })
+    await ElMessageBox.confirm(`确定领取客户 "${row.customer_name}" 吗？`, '确认领取', {
+      type: 'info',
+    })
     await crmEnhancedApi.claimFromPool(row.id)
     ElMessage.success('领取成功')
     fetchPoolList()
@@ -298,8 +341,12 @@ const handleClaim = async (row: PoolCustomer) => {
 const handleBatchClaim = async () => {
   if (!selectedRows.value.length) return
   try {
-    await ElMessageBox.confirm(`确定领取选中的 ${selectedRows.value.length} 个客户吗？`, '批量领取确认', { type: 'info' })
-    const ids = selectedRows.value.map(r => r.id)
+    await ElMessageBox.confirm(
+      `确定领取选中的 ${selectedRows.value.length} 个客户吗？`,
+      '批量领取确认',
+      { type: 'info' }
+    )
+    const ids = selectedRows.value.map((r) => r.id)
     await crmEnhancedApi.batchClaimFromPool(ids)
     ElMessage.success('批量领取成功')
     selectedRows.value = []
@@ -356,7 +403,9 @@ const submitRuleForm = async () => {
 
 const handleDeleteRule = async (row: RecycleRule) => {
   try {
-    await ElMessageBox.confirm(`确定删除回收规则 "${row.name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除回收规则 "${row.name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
     await crmEnhancedApi.deleteRecycleRule(row.id)
     ElMessage.success('删除成功')
     fetchRecycleRules()
@@ -374,15 +423,54 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.pool-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.selected-count { color: #909399; font-size: 14px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
-.card-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-.mt-20 { margin-top: 20px; }
-.mx-2 { margin: 0 8px; }
+.pool-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.selected-count {
+  color: #909399;
+  font-size: 14px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+.mt-20 {
+  margin-top: 20px;
+}
+.mx-2 {
+  margin: 0 8px;
+}
 </style>

@@ -54,7 +54,10 @@ export const useFabricStore = defineStore('fabric', () => {
     }
   }
 
-  const updateFabric = async (id: number, data: Partial<Fabric>): Promise<ApiResponse<Fabric> | null> => {
+  const updateFabric = async (
+    id: number,
+    data: Partial<Fabric>
+  ): Promise<ApiResponse<Fabric> | null> => {
     try {
       const res = await fabricApi.update(id, data)
       await fetchFabrics()

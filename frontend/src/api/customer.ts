@@ -30,7 +30,9 @@ export interface Customer {
   updated_at?: string
 }
 
-export function listCustomers(params?: CustomerQueryParams): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
+export function listCustomers(
+  params?: CustomerQueryParams
+): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
   return request.get('/customers', { params })
 }
 
@@ -48,8 +50,7 @@ export const customerApi = {
 
   getById: (id: number) => request.get<ApiResponse<Customer>>(`/customers/${id}`),
 
-  create: (data: Partial<Customer>) =>
-    request.post<ApiResponse<Customer>>('/customers', data),
+  create: (data: Partial<Customer>) => request.post<ApiResponse<Customer>>('/customers', data),
 
   update: (id: number, data: Partial<Customer>) =>
     request.put<ApiResponse<Customer>>(`/customers/${id}`, data),

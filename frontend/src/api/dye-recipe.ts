@@ -44,7 +44,10 @@ export function createDyeRecipe(data: Partial<DyeRecipe>): Promise<ApiResponse<D
   return request.post('/dye-recipes', data)
 }
 
-export function updateDyeRecipe(id: number, data: Partial<DyeRecipe>): Promise<ApiResponse<DyeRecipe>> {
+export function updateDyeRecipe(
+  id: number,
+  data: Partial<DyeRecipe>
+): Promise<ApiResponse<DyeRecipe>> {
   return request.put(`/dye-recipes/${id}`, data)
 }
 

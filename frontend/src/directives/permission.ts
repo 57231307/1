@@ -29,7 +29,7 @@ export const permission: Directive = {
     let hasPermission = false
 
     if (Array.isArray(value)) {
-      hasPermission = value.some(perm => permissions.includes(perm))
+      hasPermission = value.some((perm) => permissions.includes(perm))
     } else {
       hasPermission = permissions.includes(value)
     }
@@ -37,7 +37,7 @@ export const permission: Directive = {
     if (!hasPermission) {
       el.parentNode?.removeChild(el)
     }
-  }
+  },
 }
 
 /**
@@ -65,5 +65,5 @@ export const role: Directive = {
     if (!hasRole) {
       el.parentNode?.removeChild(el)
     }
-  }
+  },
 }

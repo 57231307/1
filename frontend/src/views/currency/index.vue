@@ -6,13 +6,13 @@
           <span>多币种管理</span>
         </div>
       </template>
-      
+
       <el-tabs v-model="activeTab">
         <el-tab-pane label="币种列表" name="currencies">
           <div class="toolbar">
             <el-button type="primary" @click="handleCreateCurrency">新建币种</el-button>
           </div>
-          
+
           <el-table :data="currencyList" border stripe>
             <el-table-column prop="code" label="币种代码" width="120">
               <template #default="{ row }">
@@ -36,33 +36,48 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
-        
+
         <el-tab-pane label="汇率管理" name="exchange-rates">
           <div class="toolbar">
             <el-button type="primary" @click="handleCreateExchangeRate">新建汇率</el-button>
           </div>
-          
+
           <div class="rate-query">
             <el-form inline>
               <el-form-item label="源币种">
                 <el-select v-model="rateQuery.fromCurrency" placeholder="请选择">
-                  <el-option v-for="curr in currencyList" :key="curr.code" :label="curr.name" :value="curr.code" />
+                  <el-option
+                    v-for="curr in currencyList"
+                    :key="curr.code"
+                    :label="curr.name"
+                    :value="curr.code"
+                  />
                 </el-select>
               </el-form-item>
               <el-form-item label="目标币种">
                 <el-select v-model="rateQuery.toCurrency" placeholder="请选择">
-                  <el-option v-for="curr in currencyList" :key="curr.code" :label="curr.name" :value="curr.code" />
+                  <el-option
+                    v-for="curr in currencyList"
+                    :key="curr.code"
+                    :label="curr.name"
+                    :value="curr.code"
+                  />
                 </el-select>
               </el-form-item>
               <el-form-item label="日期">
-                <el-date-picker v-model="rateQuery.date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" />
+                <el-date-picker
+                  v-model="rateQuery.date"
+                  type="date"
+                  placeholder="选择日期"
+                  value-format="YYYY-MM-DD"
+                />
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="fetchExchangeRate">查询汇率</el-button>
               </el-form-item>
             </el-form>
           </div>
-          
+
           <el-card v-if="currentRate" class="rate-display">
             <div class="rate-content">
               <div class="rate-pair">
@@ -77,10 +92,15 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
-    
+
     <!-- 新建币种对话框 -->
     <el-dialog v-model="currencyDialogVisible" title="新建币种" width="500px">
-      <el-form :model="currencyForm" :rules="currencyRules" ref="currencyFormRef" label-width="120px">
+      <el-form
+        ref="currencyFormRef"
+        :model="currencyForm"
+        :rules="currencyRules"
+        label-width="120px"
+      >
         <el-form-item label="币种代码" prop="code">
           <el-input v-model="currencyForm.code" placeholder="例如：USD, CNY, EUR" maxlength="10" />
         </el-form-item>
@@ -94,43 +114,66 @@
           <el-switch v-model="currencyForm.isBase" />
         </el-form-item>
         <el-form-item label="精度" prop="precision">
-          <el-input-number v-model="currencyForm.precision" :min="0" :max="10" style="width: 100%" />
+          <el-input-number
+            v-model="currencyForm.precision"
+            :min="0"
+            :max="10"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="currencyDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveCurrency" :loading="submitLoading">保存</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSaveCurrency"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
-    
+
     <!-- 新建汇率对话框 -->
     <el-dialog v-model="rateDialogVisible" title="新建汇率" width="500px">
-      <el-form :model="rateForm" :rules="rateRules" ref="rateFormRef" label-width="120px">
+      <el-form ref="rateFormRef" :model="rateForm" :rules="rateRules" label-width="120px">
         <el-form-item label="源币种" prop="fromCurrency">
           <el-select v-model="rateForm.fromCurrency" placeholder="请选择" style="width: 100%">
-            <el-option v-for="curr in currencyList" :key="curr.code" :label="curr.name" :value="curr.code" />
+            <el-option
+              v-for="curr in currencyList"
+              :key="curr.code"
+              :label="curr.name"
+              :value="curr.code"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="目标币种" prop="toCurrency">
           <el-select v-model="rateForm.toCurrency" placeholder="请选择" style="width: 100%">
-            <el-option v-for="curr in currencyList" :key="curr.code" :label="curr.name" :value="curr.code" />
+            <el-option
+              v-for="curr in currencyList"
+              :key="curr.code"
+              :label="curr.name"
+              :value="curr.code"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="汇率" prop="rate">
           <el-input-number v-model="rateForm.rate" :min="0" :precision="6" style="width: 100%" />
         </el-form-item>
         <el-form-item label="生效日期" prop="effectiveDate">
-          <el-date-picker v-model="rateForm.effectiveDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker
+            v-model="rateForm.effectiveDate"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="来源" prop="source">
           <el-input v-model="rateForm.source" placeholder="可选" />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="rateDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveRate" :loading="submitLoading">保存</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSaveRate">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -145,7 +188,7 @@ import {
   createExchangeRate,
   getExchangeRate,
   type Currency,
-  type ExchangeRate
+  type ExchangeRate,
 } from '@/api/currency'
 
 const activeTab = ref('currencies')
@@ -163,7 +206,7 @@ const currencyForm = reactive({
   name: '',
   symbol: '',
   isBase: false,
-  precision: 2
+  precision: 2,
 })
 
 const rateForm = reactive({
@@ -171,26 +214,26 @@ const rateForm = reactive({
   toCurrency: '',
   rate: 0,
   effectiveDate: '',
-  source: ''
+  source: '',
 })
 
 const rateQuery = reactive({
   fromCurrency: '',
   toCurrency: '',
-  date: ''
+  date: '',
 })
 
 const currencyRules = {
   code: [{ required: true, message: '请输入币种代码', trigger: 'blur' }],
   name: [{ required: true, message: '请输入币种名称', trigger: 'blur' }],
-  precision: [{ required: true, message: '请输入精度', trigger: 'blur' }]
+  precision: [{ required: true, message: '请输入精度', trigger: 'blur' }],
 }
 
 const rateRules = {
   fromCurrency: [{ required: true, message: '请选择源币种', trigger: 'change' }],
   toCurrency: [{ required: true, message: '请选择目标币种', trigger: 'change' }],
   rate: [{ required: true, message: '请输入汇率', trigger: 'blur' }],
-  effectiveDate: [{ required: true, message: '请选择生效日期', trigger: 'change' }]
+  effectiveDate: [{ required: true, message: '请选择生效日期', trigger: 'change' }],
 }
 
 const fetchCurrencies = async () => {
@@ -209,12 +252,12 @@ const fetchExchangeRate = async () => {
     ElMessage.warning('请选择源币种和目标币种')
     return
   }
-  
+
   try {
     const res: any = await getExchangeRate({
       fromCurrency: rateQuery.fromCurrency,
       toCurrency: rateQuery.toCurrency,
-      date: rateQuery.date
+      date: rateQuery.date,
     })
     if (res.data) {
       currentRate.value = res.data!
@@ -231,10 +274,10 @@ const handleCreateCurrency = () => {
 
 const handleSaveCurrency = async () => {
   if (!currencyFormRef.value) return
-  
+
   await currencyFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       await createCurrency(currencyForm as any)
@@ -256,10 +299,10 @@ const handleCreateExchangeRate = () => {
 
 const handleSaveRate = async () => {
   if (!rateFormRef.value) return
-  
+
   await rateFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       await createExchangeRate(rateForm as any)

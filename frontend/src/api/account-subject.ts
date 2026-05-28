@@ -15,6 +15,19 @@ export interface AccountSubjectEntity {
   updated_at?: string
 }
 
+export interface AccountSubject {
+  id?: number
+  subject_code: string
+  subject_name: string
+  subject_type: string
+  parent_id?: number
+  level: number
+  balance_direction: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export interface QueryParams {
   page?: number
   pageSize?: number

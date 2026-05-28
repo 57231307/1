@@ -41,15 +41,22 @@ fn verify_csrf_token(token: &str, session_id: &str, secret: &str) -> bool {
 }
 
 /// 从请求中提取会话标识
-/// 优先使用 JWT token 作为会话标识，如果没有则使用 IP + User-Agent 的哈希
-fn extract_session_id(request: &Request<Body>) -> Option<String> {
+/// 优先使用 JWT token 中的 session_id，如果没有则使用 IP + User-Agent 的哈希
+fn extract_session_id(request: &Request<Body>, secret: &str) -> Option<String> {
     // 尝试从 Authorization header 提取 JWT
     if let Some(auth_header) = request.headers().get(axum::http::header::AUTHORIZATION) {
         if let Ok(auth_str) = auth_header.to_str() {
             if auth_str.starts_with("Bearer ") {
                 let token = &auth_str[7..];
                 if !token.is_empty() {
-                    return Some(format!("jwt:{}", &token[..token.len().min(32)]));
+                    // 尝试解码 JWT 获取 session_id
+                    match crate::services::auth_service::AuthService::validate_token_static(token, secret) {
+                        Ok(claims) => return Some(claims.session_id),
+                        Err(e) => {
+                            // JWT 解码失败，记录警告并回退到其他方法
+                            tracing::warn!("Failed to decode JWT for session ID: {}", e);
+                        }
+                    }
                 }
             }
         }
@@ -117,7 +124,7 @@ pub async fn csrf_middleware(
 
     if let Some(csrf_token) = csrf_token_header {
         // 验证 CSRF Token 的有效性
-        let session_id = extract_session_id(&request);
+        let session_id = extract_session_id(&request, &state.jwt_secret);
 
         if let Some(session_id) = session_id {
             if verify_csrf_token(csrf_token, &session_id, &state.cookie_secret) {

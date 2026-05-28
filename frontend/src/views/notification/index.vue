@@ -11,7 +11,7 @@
           </div>
         </div>
       </template>
-      
+
       <div class="toolbar">
         <el-radio-group v-model="statusFilter" @change="fetchNotifications">
           <el-radio-button value="">全部</el-radio-button>
@@ -19,9 +19,14 @@
           <el-radio-button value="READ">已读</el-radio-button>
         </el-radio-group>
       </div>
-      
+
       <div class="notification-list">
-        <div v-for="item in notificationList" :key="item.id" class="notification-item" :class="{ unread: item.status === 'UNREAD' }">
+        <div
+          v-for="item in notificationList"
+          :key="item.id"
+          class="notification-item"
+          :class="{ unread: item.status === 'UNREAD' }"
+        >
           <div class="item-header">
             <div class="item-type">
               <el-tag v-if="item.notificationType === 'SYSTEM'" type="danger">系统</el-tag>
@@ -39,15 +44,24 @@
             {{ item.content }}
           </div>
           <div class="item-actions">
-            <el-button link type="primary" size="small" @click="handleView(item)">查看详情</el-button>
-            <el-button link type="primary" size="small" v-if="item.status === 'UNREAD'" @click="handleMarkRead(item)">标为已读</el-button>
+            <el-button link type="primary" size="small" @click="handleView(item)"
+              >查看详情</el-button
+            >
+            <el-button
+              v-if="item.status === 'UNREAD'"
+              link
+              type="primary"
+              size="small"
+              @click="handleMarkRead(item)"
+              >标为已读</el-button
+            >
             <el-button link type="danger" size="small" @click="handleDelete(item)">删除</el-button>
           </div>
         </div>
-        
+
         <el-empty v-if="notificationList.length === 0" description="暂无通知" />
       </div>
-      
+
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.page_size"
@@ -56,10 +70,10 @@
         @current-change="fetchNotifications"
       />
     </el-card>
-    
+
     <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="通知详情" width="600px">
-      <div class="notification-detail" v-if="currentNotification">
+      <div v-if="currentNotification" class="notification-detail">
         <div class="detail-info">
           <div class="info-item">
             <span class="label">标题：</span>
@@ -67,9 +81,15 @@
           </div>
           <div class="info-item">
             <span class="label">类型：</span>
-            <el-tag v-if="currentNotification.notificationType === 'SYSTEM'" type="danger">系统</el-tag>
-            <el-tag v-else-if="currentNotification.notificationType === 'INTERNAL'" type="primary">内部</el-tag>
-            <el-tag v-else-if="currentNotification.notificationType === 'EMAIL'" type="success">邮件</el-tag>
+            <el-tag v-if="currentNotification.notificationType === 'SYSTEM'" type="danger"
+              >系统</el-tag
+            >
+            <el-tag v-else-if="currentNotification.notificationType === 'INTERNAL'" type="primary"
+              >内部</el-tag
+            >
+            <el-tag v-else-if="currentNotification.notificationType === 'EMAIL'" type="success"
+              >邮件</el-tag
+            >
             <el-tag v-else type="warning">{{ currentNotification.notificationType }}</el-tag>
           </div>
           <div class="info-item">
@@ -96,7 +116,7 @@ import {
   markAllAsRead,
   deleteNotification,
   getUnreadCount,
-  type Notification
+  type Notification,
 } from '@/api/notification'
 
 const notificationList = ref<Notification[]>([])
@@ -106,7 +126,7 @@ const statusFilter = ref('')
 const pagination = reactive({
   page: 1,
   page_size: 20,
-  total: 0
+  total: 0,
 })
 
 const detailDialogVisible = ref(false)
@@ -117,7 +137,7 @@ const fetchNotifications = async () => {
     const res: any = await listNotifications({
       page: pagination.page,
       page_size: pagination.page_size,
-      status: statusFilter.value || undefined
+      status: statusFilter.value || undefined,
     } as any)
     if (res.data) {
       notificationList.value = res.data!.list || res.data! || []
@@ -141,7 +161,7 @@ const fetchUnreadCount = async () => {
 
 const handleView = async (item: Notification) => {
   if (!item.id) return
-  
+
   try {
     const res: any = await getNotification(item.id)
     if (res.data) {
@@ -157,7 +177,7 @@ const handleView = async (item: Notification) => {
 
 const handleMarkRead = async (item: Notification) => {
   if (!item.id) return
-  
+
   try {
     await markAsRead(item.id)
     ElMessage.success('已标为已读')
@@ -181,14 +201,14 @@ const handleMarkAllRead = async () => {
 
 const handleDelete = async (item: Notification) => {
   if (!item.id) return
-  
+
   try {
     await ElMessageBox.confirm('确认删除该通知？', '提示', {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     })
-    
+
     await deleteNotification(item.id)
     ElMessage.success('删除成功')
     fetchNotifications()

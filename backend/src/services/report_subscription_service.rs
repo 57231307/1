@@ -194,7 +194,7 @@ impl ReportSubscriptionService {
         if enabled {
             // 重新计算下次执行时间
             let now = Utc::now();
-            let next_run = match active_model.frequency.clone().unwrap().as_str() {
+            let next_run = match active_model.frequency.clone().ok_or(AppError::BadRequest("frequency is required".to_string()))?.as_str() {
                 "DAILY" => Some(now + chrono::Duration::days(1)),
                 "WEEKLY" => Some(now + chrono::Duration::weeks(1)),
                 "MONTHLY" => Some(now + chrono::Duration::days(30)),

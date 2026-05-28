@@ -17,7 +17,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   height: '400px',
   loading: false,
-  autoResize: true
+  autoResize: true,
 })
 
 const emit = defineEmits<{
@@ -32,7 +32,7 @@ let resizeObserver: ResizeObserver | null = null
 const defaultOption = computed<EChartsOption>(() => ({
   tooltip: { trigger: 'axis' },
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-  ...props.option
+  ...props.option,
 }))
 
 const initChart = () => {
@@ -43,7 +43,7 @@ const initChart = () => {
     text: '加载中...',
     color: '#409EFF',
     textColor: '#000',
-    maskColor: 'rgba(255, 255, 255, 0.8)'
+    maskColor: 'rgba(255, 255, 255, 0.8)',
   })
   chartInstance.on('click', (params) => emit('click', params))
   emit('ready', chartInstance)
@@ -60,10 +60,13 @@ const handleResize = () => {
 }
 
 watch(() => props.option, updateChart, { deep: true })
-watch(() => props.loading, () => {
-  if (!chartInstance) return
-  props.loading ? chartInstance.showLoading() : chartInstance.hideLoading()
-})
+watch(
+  () => props.loading,
+  () => {
+    if (!chartInstance) return
+    props.loading ? chartInstance.showLoading() : chartInstance.hideLoading()
+  }
+)
 
 onMounted(() => {
   initChart()

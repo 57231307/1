@@ -75,6 +75,5 @@ export const dashboardApi = {
   getInventoryStats: (params?: DashboardQuery) =>
     request.get<ApiResponse<InventoryStatistics>>('/dashboard/inventory-stats', { params }),
 
-  getLowStockAlerts: () =>
-    request.get<ApiResponse<LowStockAlert[]>>('/dashboard/low-stock-alerts'),
+  getLowStockAlerts: () => request.get<ApiResponse<LowStockAlert[]>>('/dashboard/low-stock-alerts'),
 }

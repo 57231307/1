@@ -141,7 +141,7 @@ impl DashboardService {
         let now = Utc::now();
         use chrono::Datelike;
         let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date"));
         let monthly_sales_dec = sales_order::Entity::find()
             .filter(sales_order::Column::OrderDate.gte(start_of_month))
             .select_only()

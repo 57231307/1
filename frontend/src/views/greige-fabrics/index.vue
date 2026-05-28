@@ -5,7 +5,7 @@
       <el-button type="primary" @click="handleCreate">新建坯布</el-button>
     </div>
 
-    <el-table :data="greigeList" v-loading="loading" border>
+    <el-table v-loading="loading" :data="greigeList" border>
       <el-table-column prop="batchNo" label="坯布批号" />
       <el-table-column prop="productId" label="产品 ID" />
       <el-table-column prop="quantity" label="数量" />
@@ -33,20 +33,26 @@
       width="600px"
       @close="handleDialogClose"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="坯布批号" prop="batchNo">
           <el-input v-model="formData.batchNo" placeholder="请输入坯布批号" />
         </el-form-item>
         <el-form-item label="产品 ID" prop="productId">
-          <el-input-number v-model="formData.productId" :min="1" placeholder="请输入产品 ID" style="width: 100%" />
+          <el-input-number
+            v-model="formData.productId"
+            :min="1"
+            placeholder="请输入产品 ID"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="数量" prop="quantity">
-          <el-input-number v-model="formData.quantity" :min="0" :precision="2" placeholder="请输入数量" style="width: 100%" />
+          <el-input-number
+            v-model="formData.quantity"
+            :min="0"
+            :precision="2"
+            placeholder="请输入数量"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="单位" prop="unit">
           <el-select v-model="formData.unit" placeholder="请选择单位">
@@ -57,12 +63,7 @@
         </el-form-item>
         <el-form-item label="仓库" prop="warehouseId">
           <el-select v-model="formData.warehouseId" placeholder="请选择仓库">
-            <el-option
-              v-for="wh in warehouseList"
-              :key="wh.id"
-              :label="wh.name"
-              :value="wh.id"
-            />
+            <el-option v-for="wh in warehouseList" :key="wh.id" :label="wh.name" :value="wh.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -75,9 +76,7 @@
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
-          确定
-        </el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit"> 确定 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -87,7 +86,12 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listGreigeFabrics, createGreigeFabric, updateGreigeFabric, deleteGreigeFabric } from '@/api/greige-fabric'
+import {
+  listGreigeFabrics,
+  createGreigeFabric,
+  updateGreigeFabric,
+  deleteGreigeFabric,
+} from '@/api/greige-fabric'
 import { warehouseApi } from '@/api/warehouse'
 
 const loading = ref(false)
@@ -104,7 +108,7 @@ const formData = reactive<any>({
   quantity: 0,
   unit: 'm',
   warehouseId: null,
-  status: 'available'
+  status: 'available',
 })
 
 const formRules: FormRules = {
@@ -113,7 +117,7 @@ const formRules: FormRules = {
   quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }],
   unit: [{ required: true, message: '请选择单位', trigger: 'change' }],
   warehouseId: [{ required: true, message: '请选择仓库', trigger: 'change' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
 const loadGreigeFabrics = async () => {
@@ -146,7 +150,7 @@ const handleCreate = () => {
     quantity: 0,
     unit: 'm',
     warehouseId: null,
-    status: 'available'
+    status: 'available',
   })
   dialogVisible.value = true
 }
@@ -160,14 +164,14 @@ const handleEdit = (row: any) => {
     quantity: row.quantity,
     unit: row.unit,
     warehouseId: row.warehouseId,
-    status: row.status
+    status: row.status,
   })
   dialogVisible.value = true
 }
 
 const handleDelete = async (row: any) => {
   if (!row.id) return
-  
+
   try {
     await deleteGreigeFabric(row.id)
     ElMessage.success('删除成功')
@@ -179,10 +183,10 @@ const handleDelete = async (row: any) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {

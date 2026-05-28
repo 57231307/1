@@ -11,7 +11,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="standards" v-loading="standardLoading" stripe>
+          <el-table v-loading="standardLoading" :data="standards" stripe>
             <el-table-column prop="standard_code" label="标准编号" width="140" />
             <el-table-column prop="standard_name" label="标准名称" width="180" />
             <el-table-column prop="type" label="类型" width="100">
@@ -40,11 +40,41 @@
             </el-table-column>
             <el-table-column label="操作" width="300" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewStandard(row)">查看</el-button>
-                <el-button type="primary" link size="small" @click="viewVersionHistory(row)" v-if="row.status !== 'draft'">版本历史</el-button>
-                <el-button type="primary" link size="small" @click="openStandardDialog(row)" v-if="row.status === 'draft'">编辑</el-button>
-                <el-button type="success" link size="small" @click="approveStandard(row)" v-if="row.status === 'draft'">审批</el-button>
-                <el-button type="warning" link size="small" @click="publishStandard(row)" v-if="row.status === 'approved'">发布</el-button>
+                <el-button type="primary" link size="small" @click="viewStandard(row)"
+                  >查看</el-button
+                >
+                <el-button
+                  v-if="row.status !== 'draft'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="viewVersionHistory(row)"
+                  >版本历史</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openStandardDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  type="success"
+                  link
+                  size="small"
+                  @click="approveStandard(row)"
+                  >审批</el-button
+                >
+                <el-button
+                  v-if="row.status === 'approved'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="publishStandard(row)"
+                  >发布</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -61,7 +91,7 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="records" v-loading="recordLoading" stripe>
+          <el-table v-loading="recordLoading" :data="records" stripe>
             <el-table-column prop="record_no" label="记录编号" width="140" />
             <el-table-column prop="inspection_type" label="检验类型" width="120" />
             <el-table-column prop="product_name" label="产品" width="150" />
@@ -70,7 +100,12 @@
             <el-table-column prop="inspector" label="检验员" width="100" />
             <el-table-column prop="result" label="检验结果" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.result === 'pass' ? 'success' : row.result === 'fail' ? 'danger' : 'warning'" size="small">
+                <el-tag
+                  :type="
+                    row.result === 'pass' ? 'success' : row.result === 'fail' ? 'danger' : 'warning'
+                  "
+                  size="small"
+                >
                   {{ row.result === 'pass' ? '合格' : row.result === 'fail' ? '不合格' : '待检' }}
                 </el-tag>
               </template>
@@ -90,13 +125,28 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table :data="defects" v-loading="defectLoading" stripe>
+          <el-table v-loading="defectLoading" :data="defects" stripe>
             <el-table-column prop="defect_type" label="缺陷类型" width="140" />
             <el-table-column prop="defect_description" label="缺陷描述" min-width="200" />
             <el-table-column prop="severity" label="严重程度" width="100" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.severity === 'critical' ? 'danger' : row.severity === 'major' ? 'warning' : 'info'" size="small">
-                  {{ row.severity === 'critical' ? '严重' : row.severity === 'major' ? '重大' : '轻微' }}
+                <el-tag
+                  :type="
+                    row.severity === 'critical'
+                      ? 'danger'
+                      : row.severity === 'major'
+                        ? 'warning'
+                        : 'info'
+                  "
+                  size="small"
+                >
+                  {{
+                    row.severity === 'critical'
+                      ? '严重'
+                      : row.severity === 'major'
+                        ? '重大'
+                        : '轻微'
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -110,7 +160,14 @@
             </el-table-column>
             <el-table-column label="操作" width="120" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="processDefect(row)" v-if="!row.processed">处理</el-button>
+                <el-button
+                  v-if="!row.processed"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="processDefect(row)"
+                  >处理</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -118,10 +175,23 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="standardDialogVisible" :title="standardForm.id ? '编辑标准' : '新建标准'" width="700px">
-      <el-form ref="standardFormRef" :model="standardForm" :rules="standardFormRules" label-width="100px">
+    <el-dialog
+      v-model="standardDialogVisible"
+      :title="standardForm.id ? '编辑标准' : '新建标准'"
+      width="700px"
+    >
+      <el-form
+        ref="standardFormRef"
+        :model="standardForm"
+        :rules="standardFormRules"
+        label-width="100px"
+      >
         <el-form-item label="标准编号" prop="standard_code">
-          <el-input v-model="standardForm.standard_code" :disabled="!!standardForm.id" placeholder="请输入标准编号" />
+          <el-input
+            v-model="standardForm.standard_code"
+            :disabled="!!standardForm.id"
+            placeholder="请输入标准编号"
+          />
         </el-form-item>
         <el-form-item label="标准名称" prop="standard_name">
           <el-input v-model="standardForm.standard_name" placeholder="请输入标准名称" />
@@ -136,20 +206,36 @@
           <el-input v-model="standardForm.version" placeholder="例如：1.0" />
         </el-form-item>
         <el-form-item label="标准内容" prop="content">
-          <el-input v-model="standardForm.content" type="textarea" :rows="6" placeholder="请输入标准内容" />
+          <el-input
+            v-model="standardForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="请输入标准内容"
+          />
         </el-form-item>
         <el-form-item label="附件" prop="attachments">
-          <el-input v-model="attachmentsText" type="textarea" placeholder="JSON格式数组，例如：[&quot;附件1.pdf&quot;, &quot;附件2.docx&quot;]" />
+          <el-input
+            v-model="attachmentsText"
+            type="textarea"
+            placeholder='JSON格式数组，例如：["附件1.pdf", "附件2.docx"]'
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="standardDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="standardSubmitLoading" @click="submitStandard">确定</el-button>
+        <el-button type="primary" :loading="standardSubmitLoading" @click="submitStandard"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="approveDialogVisible" title="审批质量标准" width="500px">
-      <el-form ref="approveFormRef" :model="approveForm" :rules="approveFormRules" label-width="80px">
+      <el-form
+        ref="approveFormRef"
+        :model="approveForm"
+        :rules="approveFormRules"
+        label-width="80px"
+      >
         <el-form-item label="标准编号">
           <el-input :model-value="approveStandardItem?.standard_code" disabled />
         </el-form-item>
@@ -160,18 +246,27 @@
           <el-input :model-value="approveStandardItem?.version" disabled />
         </el-form-item>
         <el-form-item label="审批意见" prop="approval_comment">
-          <el-input v-model="approveForm.approval_comment" type="textarea" :rows="4" placeholder="请输入审批意见" />
+          <el-input
+            v-model="approveForm.approval_comment"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入审批意见"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="approveDialogVisible = false">取消</el-button>
-        <el-button type="warning" :loading="approveSubmitLoading" @click="rejectStandard">驳回</el-button>
-        <el-button type="primary" :loading="approveSubmitLoading" @click="confirmApprove">通过</el-button>
+        <el-button type="warning" :loading="approveSubmitLoading" @click="rejectStandard"
+          >驳回</el-button
+        >
+        <el-button type="primary" :loading="approveSubmitLoading" @click="confirmApprove"
+          >通过</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="versionHistoryVisible" title="版本历史" width="800px">
-      <el-table :data="versionHistoryList" v-loading="versionHistoryLoading" stripe>
+      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe>
         <el-table-column prop="version" label="版本" width="100" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
@@ -198,7 +293,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="recordDialogVisible" :title="recordForm.id ? '编辑检验' : '新建检验'" width="700px">
+    <el-dialog
+      v-model="recordDialogVisible"
+      :title="recordForm.id ? '编辑检验' : '新建检验'"
+      width="700px"
+    >
       <el-form ref="recordFormRef" :model="recordForm" label-width="100px">
         <el-form-item label="记录编号" prop="record_no">
           <el-input v-model="recordForm.record_no" :disabled="!!recordForm.id" />
@@ -218,7 +317,12 @@
           <el-input v-model="recordForm.batch_no" />
         </el-form-item>
         <el-form-item label="检验日期" prop="inspection_date">
-          <el-date-picker v-model="recordForm.inspection_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker
+            v-model="recordForm.inspection_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="检验员" prop="inspector">
           <el-input v-model="recordForm.inspector" />
@@ -236,7 +340,9 @@
       </el-form>
       <template #footer>
         <el-button @click="recordDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="recordSubmitLoading" @click="submitRecord">确定</el-button>
+        <el-button type="primary" :loading="recordSubmitLoading" @click="submitRecord"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -246,21 +352,21 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { 
-  listQualityStandards, 
-  getQualityStandard, 
-  createQualityStandard, 
-  updateQualityStandard, 
-  approveQualityStandard, 
-  publishQualityStandard, 
-  listQualityRecords, 
-  createQualityRecord, 
-  listDefects, 
+import {
+  listQualityStandards,
+  getQualityStandard,
+  createQualityStandard,
+  updateQualityStandard,
+  approveQualityStandard,
+  publishQualityStandard,
+  listQualityRecords,
+  createQualityRecord,
+  listDefects,
   processDefect as processDefectApi,
   getQualityStandardVersions,
-  type QualityStandard, 
-  type QualityRecord, 
-  type Defect 
+  type QualityStandard,
+  type QualityRecord,
+  type Defect,
 } from '@/api/quality'
 
 const activeTab = ref('standard')
@@ -302,16 +408,21 @@ const fetchDefects = async () => {
 }
 
 const getStandardStatusLabel = (status: string) => {
-  const map: Record<string, string> = { draft: '草稿', approved: '已审批', published: '已发布', rejected: '已驳回' }
+  const map: Record<string, string> = {
+    draft: '草稿',
+    approved: '已审批',
+    published: '已发布',
+    rejected: '已驳回',
+  }
   return map[status] || status
 }
 
 const getStandardStatusType = (status: string) => {
-  const map: Record<string, any> = { 
-    draft: 'info', 
-    approved: 'warning', 
-    published: 'success', 
-    rejected: 'danger' 
+  const map: Record<string, any> = {
+    draft: 'info',
+    approved: 'warning',
+    published: 'success',
+    rejected: 'danger',
   }
   return map[status] || 'info'
 }
@@ -320,7 +431,16 @@ const standardDialogVisible = ref(false)
 const standardFormRef = ref<FormInstance>()
 const standardSubmitLoading = ref(false)
 const attachmentsText = ref('')
-const standardForm = reactive({ id: 0, standard_code: '', standard_name: '', version: '1.0', type: 'product' as const, status: 'draft' as const, content: '', attachments: [] as string[] })
+const standardForm = reactive({
+  id: 0,
+  standard_code: '',
+  standard_name: '',
+  version: '1.0',
+  type: 'product' as const,
+  status: 'draft' as const,
+  content: '',
+  attachments: [] as string[],
+})
 const standardFormRules: FormRules = {
   standard_code: [{ required: true, message: '请输入标准编号', trigger: 'blur' }],
   standard_name: [{ required: true, message: '请输入标准名称', trigger: 'blur' }],
@@ -334,7 +454,16 @@ const openStandardDialog = (row?: QualityStandard) => {
     Object.assign(standardForm, row)
     attachmentsText.value = JSON.stringify(row.attachments || [], null, 2)
   } else {
-    Object.assign(standardForm, { id: 0, standard_code: '', standard_name: '', version: '1.0', type: 'product', status: 'draft', content: '', attachments: [] })
+    Object.assign(standardForm, {
+      id: 0,
+      standard_code: '',
+      standard_name: '',
+      version: '1.0',
+      type: 'product',
+      status: 'draft',
+      content: '',
+      attachments: [],
+    })
     attachmentsText.value = ''
   }
   standardDialogVisible.value = true
@@ -349,7 +478,7 @@ const submitStandard = async () => {
   if (!standardFormRef.value) return
   await standardFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     standardSubmitLoading.value = true
     try {
       if (attachmentsText.value) {
@@ -395,7 +524,7 @@ const confirmApprove = async () => {
   if (!approveFormRef.value || !approveStandardItem.value!) return
   await approveFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     approveSubmitLoading.value = true
     try {
       await approveQualityStandard(approveStandardItem.value!.id)
@@ -423,7 +552,9 @@ const rejectStandard = async () => {
 
 const publishStandard = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm('确定发布此标准吗？发布后将无法编辑。', '确认发布', { type: 'warning' })
+    await ElMessageBox.confirm('确定发布此标准吗？发布后将无法编辑。', '确认发布', {
+      type: 'warning',
+    })
     await publishQualityStandard(row.id)
     ElMessage.success('发布成功')
     fetchStandards()
@@ -452,13 +583,37 @@ const viewVersionHistory = async (row: QualityStandard) => {
 const recordDialogVisible = ref(false)
 const recordFormRef = ref<FormInstance>()
 const recordSubmitLoading = ref(false)
-const recordForm = reactive({ id: 0, record_no: '', inspection_type: '', product_id: undefined as number | undefined, product_name: '', batch_no: '', inspection_date: '', inspector: '', result: 'pending' as const, defects: [] as Defect[], remark: '' })
+const recordForm = reactive({
+  id: 0,
+  record_no: '',
+  inspection_type: '',
+  product_id: undefined as number | undefined,
+  product_name: '',
+  batch_no: '',
+  inspection_date: '',
+  inspector: '',
+  result: 'pending' as const,
+  defects: [] as Defect[],
+  remark: '',
+})
 
 const openRecordDialog = (row?: QualityRecord) => {
   if (row) {
     Object.assign(recordForm, row)
   } else {
-    Object.assign(recordForm, { id: 0, record_no: '', inspection_type: '', product_id: undefined, product_name: '', batch_no: '', inspection_date: '', inspector: '', result: 'pending', defects: [], remark: '' })
+    Object.assign(recordForm, {
+      id: 0,
+      record_no: '',
+      inspection_type: '',
+      product_id: undefined,
+      product_name: '',
+      batch_no: '',
+      inspection_date: '',
+      inspector: '',
+      result: 'pending',
+      defects: [],
+      remark: '',
+    })
   }
   recordDialogVisible.value = true
 }
@@ -504,7 +659,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.quality-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0; }
+.quality-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
 </style>

@@ -17,7 +17,7 @@
       <div v-if="currentStep === 0" class="step-content">
         <h3>环境检查</h3>
         <div class="check-list">
-          <div class="check-item" v-for="item in envChecks" :key="item.name">
+          <div v-for="item in envChecks" :key="item.name" class="check-item">
             <el-icon :class="item.status ? 'success' : 'error'">
               <CircleCheckFilled v-if="item.status" />
               <CircleCloseFilled v-else />
@@ -27,10 +27,10 @@
           </div>
         </div>
         <div class="step-actions">
-          <el-button type="primary" @click="checkEnvironment" :loading="checking">
+          <el-button type="primary" :loading="checking" @click="checkEnvironment">
             {{ checking ? '检查中...' : '重新检查' }}
           </el-button>
-          <el-button type="primary" @click="nextStep" :disabled="!allChecksPassed">
+          <el-button type="primary" :disabled="!allChecksPassed" @click="nextStep">
             下一步
           </el-button>
         </div>
@@ -58,12 +58,10 @@
         </el-form>
         <div class="step-actions">
           <el-button @click="prevStep">上一步</el-button>
-          <el-button type="primary" @click="testConnection" :loading="testing">
+          <el-button type="primary" :loading="testing" @click="testConnection">
             {{ testing ? '测试中...' : '测试连接' }}
           </el-button>
-          <el-button type="primary" @click="nextStep" :disabled="!dbConnected">
-            下一步
-          </el-button>
+          <el-button type="primary" :disabled="!dbConnected" @click="nextStep"> 下一步 </el-button>
         </div>
       </div>
 
@@ -78,7 +76,11 @@
             <el-input v-model="adminConfig.password" type="password" placeholder="请输入密码" />
           </el-form-item>
           <el-form-item label="确认密码">
-            <el-input v-model="adminConfig.confirmPassword" type="password" placeholder="请再次输入密码" />
+            <el-input
+              v-model="adminConfig.confirmPassword"
+              type="password"
+              placeholder="请再次输入密码"
+            />
           </el-form-item>
           <el-form-item label="邮箱">
             <el-input v-model="adminConfig.email" placeholder="admin@example.com" />
@@ -86,9 +88,7 @@
         </el-form>
         <div class="step-actions">
           <el-button @click="prevStep">上一步</el-button>
-          <el-button type="primary" @click="nextStep" :disabled="!isAdminValid">
-            下一步
-          </el-button>
+          <el-button type="primary" :disabled="!isAdminValid" @click="nextStep"> 下一步 </el-button>
         </div>
       </div>
 
@@ -105,7 +105,7 @@
         </div>
         <div class="step-actions">
           <el-button @click="prevStep">上一步</el-button>
-          <el-button type="primary" @click="install" :loading="installing" :disabled="installed">
+          <el-button type="primary" :loading="installing" :disabled="installed" @click="install">
             {{ installing ? '安装中...' : installed ? '安装完成' : '开始安装' }}
           </el-button>
         </div>
@@ -119,9 +119,7 @@
         <h3>安装成功！</h3>
         <p>系统已成功安装，您现在可以登录使用。</p>
         <div class="step-actions">
-          <el-button type="primary" @click="goToLogin">
-            进入登录页面
-          </el-button>
+          <el-button type="primary" @click="goToLogin"> 进入登录页面 </el-button>
         </div>
       </div>
     </div>
@@ -147,10 +145,10 @@ const dbConnected = ref(false)
 const envChecks = ref([
   { name: '后端服务连接', status: false },
   { name: '数据库连接', status: false },
-  { name: '必要依赖', status: false }
+  { name: '必要依赖', status: false },
 ])
 
-const allChecksPassed = computed(() => envChecks.value.every(item => item.status))
+const allChecksPassed = computed(() => envChecks.value.every((item) => item.status))
 
 // 数据库配置
 const dbConfig = ref({
@@ -158,7 +156,7 @@ const dbConfig = ref({
   port: '5432',
   name: 'bingxi',
   username: 'bingxi',
-  password: ''
+  password: '',
 })
 
 // 管理员配置
@@ -166,14 +164,16 @@ const adminConfig = ref({
   username: 'admin',
   password: '',
   confirmPassword: '',
-  email: 'admin@example.com'
+  email: 'admin@example.com',
 })
 
 const isAdminValid = computed(() => {
-  return adminConfig.value.username &&
+  return (
+    adminConfig.value.username &&
     adminConfig.value.password &&
     adminConfig.value.password === adminConfig.value.confirmPassword &&
     adminConfig.value.password.length >= 6
+  )
 })
 
 // 检查环境
@@ -205,7 +205,7 @@ async function testConnection() {
     const res = await fetch('/api/v1/erp/init/test-database', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dbConfig.value)
+      body: JSON.stringify(dbConfig.value),
     })
     const data = await res.json()
     if (data.success) {
@@ -233,8 +233,8 @@ async function install() {
       body: JSON.stringify({
         db_config: dbConfig.value,
         admin_username: adminConfig.value.username,
-        admin_password: adminConfig.value.password
-      })
+        admin_password: adminConfig.value.password,
+      }),
     })
     const data = await res.json()
     if (data.success) {

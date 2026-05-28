@@ -468,7 +468,7 @@ impl BudgetManagementService {
         let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         
         let plan = crate::models::budget_plan::Entity::find_by_id(req.item_id)
-            .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("Budget plan not found".into()))?;
+            .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("预算方案不存在".into()))?;
 
         // 记录调整单
         let adjust_no = format!("BA{}", chrono::Local::now().format("%Y%m%d%H%M%S"));

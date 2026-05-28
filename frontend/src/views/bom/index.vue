@@ -124,7 +124,7 @@ const queryParams = reactive({
   page: 1,
   page_size: 20,
   product_name: '',
-  status: ''
+  status: '',
 })
 
 const formData = reactive({
@@ -140,7 +140,7 @@ const formData = reactive({
     quantity: number
     unit: string
     loss_rate: number
-  }>
+  }>,
 })
 
 const dialogTitle = computed(() => {
@@ -151,7 +151,7 @@ const getStatusType = (status: string) => {
   const types: Record<string, string> = {
     draft: 'info',
     active: 'success',
-    archived: 'warning'
+    archived: 'warning',
   }
   return types[status] || 'info'
 }
@@ -160,7 +160,7 @@ const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
     draft: '草稿',
     active: '启用',
-    archived: '归档'
+    archived: '归档',
   }
   return labels[status] || status
 }
@@ -218,7 +218,7 @@ const handleEdit = (row: Bom) => {
     is_default: row.is_default,
     status: row.status,
     remark: row.remark,
-    items: row.items || []
+    items: row.items || [],
   })
   dialogMode.value = 'edit'
   dialogVisible.value = true
@@ -226,7 +226,10 @@ const handleEdit = (row: Bom) => {
 
 const handleCopy = async (row: Bom) => {
   try {
-    await ElMessageBox.confirm(`确定复制 BOM "${row.product_name} - ${row.version}" 吗？`, '复制确认')
+    await ElMessageBox.confirm(
+      `确定复制 BOM "${row.product_name} - ${row.version}" 吗？`,
+      '复制确认'
+    )
     await bomApi.copy(row.id)
     ElMessage.success('复制成功')
     fetchData()
@@ -239,7 +242,10 @@ const handleCopy = async (row: Bom) => {
 
 const handleSetDefault = async (row: Bom) => {
   try {
-    await ElMessageBox.confirm(`确定将 BOM "${row.product_name} - ${row.version}" 设为默认吗？`, '设为默认确认')
+    await ElMessageBox.confirm(
+      `确定将 BOM "${row.product_name} - ${row.version}" 设为默认吗？`,
+      '设为默认确认'
+    )
     await bomApi.setDefault(row.id)
     ElMessage.success('设置成功')
     fetchData()
@@ -252,7 +258,11 @@ const handleSetDefault = async (row: Bom) => {
 
 const handleDelete = async (row: Bom) => {
   try {
-    await ElMessageBox.confirm(`确定删除 BOM "${row.product_name} - ${row.version}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      `确定删除 BOM "${row.product_name} - ${row.version}" 吗？`,
+      '删除确认',
+      { type: 'warning' }
+    )
     await bomApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -285,13 +295,43 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.bom-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
-:deep(.el-card__header) { padding: 16px 20px; border-bottom: 1px solid #ebeef5; }
-:deep(.el-card__body) { padding: 20px; }
+.bom-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+:deep(.el-card__body) {
+  padding: 20px;
+}
 </style>

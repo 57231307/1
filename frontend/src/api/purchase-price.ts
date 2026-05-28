@@ -27,11 +27,16 @@ export function getPurchasePrice(id: number): Promise<ApiResponse<PurchasePrice>
   return request.get(`/purchase-prices/${id}`)
 }
 
-export function createPurchasePrice(data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
+export function createPurchasePrice(
+  data: Partial<PurchasePrice>
+): Promise<ApiResponse<PurchasePrice>> {
   return request.post('/purchase-prices', data)
 }
 
-export function updatePurchasePrice(id: number, data: Partial<PurchasePrice>): Promise<ApiResponse<PurchasePrice>> {
+export function updatePurchasePrice(
+  id: number,
+  data: Partial<PurchasePrice>
+): Promise<ApiResponse<PurchasePrice>> {
   return request.put(`/purchase-prices/${id}`, data)
 }
 

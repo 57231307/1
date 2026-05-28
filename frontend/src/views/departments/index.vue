@@ -5,7 +5,7 @@
       <el-button type="primary" @click="handleCreate">新建部门</el-button>
     </div>
 
-    <el-table :data="departmentList" v-loading="loading" border>
+    <el-table v-loading="loading" :data="departmentList" border>
       <el-table-column prop="name" label="部门名称" />
       <el-table-column prop="code" label="部门编码" />
       <el-table-column prop="parent_id" label="上级部门" />
@@ -32,12 +32,7 @@
       width="600px"
       @close="handleDialogClose"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="部门名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入部门名称" />
         </el-form-item>
@@ -68,9 +63,7 @@
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
-          确定
-        </el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit"> 确定 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -80,7 +73,12 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { listDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/api/department'
+import {
+  listDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+} from '@/api/department'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -94,13 +92,13 @@ const formData = reactive<any>({
   code: '',
   parent_id: null,
   manager_name: '',
-  status: 1
+  status: 1,
 })
 
 const formRules: FormRules = {
   name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
 const loadDepartments = async () => {
@@ -123,7 +121,7 @@ const handleCreate = () => {
     code: '',
     parent_id: null,
     manager_name: '',
-    status: 1
+    status: 1,
   })
   dialogVisible.value = true
 }
@@ -136,14 +134,14 @@ const handleEdit = (row: any) => {
     code: row.code,
     parent_id: row.parent_id,
     manager_name: row.manager_name,
-    status: row.status
+    status: row.status,
   })
   dialogVisible.value = true
 }
 
 const handleDelete = async (row: any) => {
   if (!row.id) return
-  
+
   try {
     await deleteDepartment(row.id)
     ElMessage.success('删除成功')
@@ -155,10 +153,10 @@ const handleDelete = async (row: any) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {

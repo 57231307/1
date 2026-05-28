@@ -39,12 +39,7 @@
         </el-form-item>
         <el-form-item label="标签">
           <el-select v-model="queryParams.tag_id" placeholder="选择标签" clearable>
-            <el-option
-              v-for="tag in tags"
-              :key="tag.id"
-              :label="tag.name"
-              :value="tag.id"
-            />
+            <el-option v-for="tag in tags" :key="tag.id" :label="tag.name" :value="tag.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -67,7 +62,9 @@
             <el-table-column prop="customer_code" label="客户编码" width="120" fixed />
             <el-table-column prop="customer_name" label="客户名称" min-width="180" fixed>
               <template #default="{ row }">
-                <el-button type="primary" link @click="viewDetail(row.id)">{{ row.customer_name }}</el-button>
+                <el-button type="primary" link @click="viewDetail(row.id)">{{
+                  row.customer_name
+                }}</el-button>
               </template>
             </el-table-column>
             <el-table-column prop="contact_person" label="联系人" width="100" />
@@ -109,9 +106,15 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewDetail(row.id)">详情</el-button>
-                <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-                <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+                <el-button type="primary" link size="small" @click="viewDetail(row.id)"
+                  >详情</el-button
+                >
+                <el-button type="primary" link size="small" @click="handleEdit(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="handleDelete(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -134,7 +137,9 @@
               <el-table-column prop="customer_code" label="客户编码" width="120" />
               <el-table-column prop="customer_name" label="客户名称" min-width="180">
                 <template #default="{ row }">
-                  <el-button type="primary" link @click="viewDetail(row.id)">{{ row.customer_name }}</el-button>
+                  <el-button type="primary" link @click="viewDetail(row.id)">{{
+                    row.customer_name
+                  }}</el-button>
                 </template>
               </el-table-column>
               <el-table-column prop="owner_name" label="负责人" width="100" />
@@ -157,7 +162,9 @@
               <el-table-column prop="total_orders" label="订单数" width="80" align="center" />
               <el-table-column label="操作" width="100" fixed="right">
                 <template #default="{ row }">
-                  <el-button type="primary" link size="small" @click="viewDetail(row.id)">详情</el-button>
+                  <el-button type="primary" link size="small" @click="viewDetail(row.id)"
+                    >详情</el-button
+                  >
                 </template>
               </el-table-column>
             </el-table>
@@ -186,12 +193,7 @@
       :close-on-click-modal="false"
       @close="resetForm"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户编码" prop="customer_code">
@@ -224,7 +226,11 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="客户类型" prop="customer_type">
-              <el-select v-model="formData.customer_type" placeholder="请选择类型" style="width: 100%">
+              <el-select
+                v-model="formData.customer_type"
+                placeholder="请选择类型"
+                style="width: 100%"
+              >
                 <el-option label="普通客户" value="normal" />
                 <el-option label="VIP客户" value="vip" />
                 <el-option label="批发客户" value="wholesale" />
@@ -243,7 +249,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="信用额度" prop="credit_limit">
-              <el-input-number v-model="formData.credit_limit" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="formData.credit_limit"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -302,7 +313,7 @@ const queryParams = reactive({
   keyword: '',
   customer_type: '',
   status: '',
-  tag_id: undefined as number | undefined
+  tag_id: undefined as number | undefined,
 })
 
 const formData = reactive({
@@ -318,26 +329,20 @@ const formData = reactive({
   credit_limit: 0,
   bank_name: '',
   bank_account: '',
-  status: 'active'
+  status: 'active',
 })
 
 const formRules: FormRules = {
-  customer_code: [
-    { required: true, message: '请输入客户编码', trigger: 'blur' }
-  ],
-  customer_name: [
-    { required: true, message: '请输入客户名称', trigger: 'blur' }
-  ],
-  contact_person: [
-    { required: true, message: '请输入联系人', trigger: 'blur' }
-  ],
+  customer_code: [{ required: true, message: '请输入客户编码', trigger: 'blur' }],
+  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
+  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
   phone: [
     { required: true, message: '请输入电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-  ]
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+  ],
 }
 
-const dialogTitle = computed(() => isEdit.value ? '编辑客户' : '新建客户')
+const dialogTitle = computed(() => (isEdit.value ? '编辑客户' : '新建客户'))
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
@@ -345,7 +350,7 @@ const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     normal: '普通客户',
     vip: 'VIP客户',
-    wholesale: '批发客户'
+    wholesale: '批发客户',
   }
   return labels[type] || type
 }
@@ -354,13 +359,19 @@ const getCustomerTypeTag = (type: string) => {
   const tags: Record<string, string> = {
     normal: '',
     vip: 'warning',
-    wholesale: 'success'
+    wholesale: 'success',
   }
   return tags[type] || ''
 }
 
 const getRfmLevelTag = (level: string) => {
-  const tags: Record<string, string> = { A: 'success', B: 'primary', C: 'warning', D: 'info', E: 'danger' }
+  const tags: Record<string, string> = {
+    A: 'success',
+    B: 'primary',
+    C: 'warning',
+    D: 'info',
+    E: 'danger',
+  }
   return tags[level] || ''
 }
 
@@ -463,7 +474,9 @@ const handleEdit = (row: CustomerWithTags) => {
 
 const handleDelete = async (row: CustomerWithTags) => {
   try {
-    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
     await crmEnhancedApi.deleteCustomer(row.id)
     ElMessage.success('删除成功')
     fetchCustomerList()
@@ -510,19 +523,66 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.crm-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
-.table-tag { border: none; margin-right: 4px; }
-.no-tags { color: #909399; font-size: 12px; }
-.mb-20 { margin-bottom: 20px; }
+.crm-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+.table-tag {
+  border: none;
+  margin-right: 4px;
+}
+.no-tags {
+  color: #909399;
+  font-size: 12px;
+}
+.mb-20 {
+  margin-bottom: 20px;
+}
 
-.rfm-card { text-align: center; }
-.rfm-card-content { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.rfm-card-level { font-size: 32px; font-weight: 700; color: #303133; }
-.rfm-card-count { font-size: 14px; color: #909399; }
+.rfm-card {
+  text-align: center;
+}
+.rfm-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.rfm-card-level {
+  font-size: 32px;
+  font-weight: 700;
+  color: #303133;
+}
+.rfm-card-count {
+  font-size: 14px;
+  color: #909399;
+}
 </style>

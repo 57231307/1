@@ -56,7 +56,10 @@ export function createAsset(data: FixedAssetCreateRequest): Promise<ApiResponse<
   return request.post('/fixed-assets', data)
 }
 
-export function updateAsset(id: number, data: FixedAssetUpdateRequest): Promise<ApiResponse<FixedAsset>> {
+export function updateAsset(
+  id: number,
+  data: FixedAssetUpdateRequest
+): Promise<ApiResponse<FixedAsset>> {
   return request.put(`/fixed-assets/${id}`, data)
 }
 
@@ -127,7 +130,10 @@ export function createBudget(data: BudgetCreateRequest): Promise<ApiResponse<Bud
   return request.post('/budgets', data)
 }
 
-export function updateBudget(id: number, data: Partial<BudgetCreateRequest>): Promise<ApiResponse<Budget>> {
+export function updateBudget(
+  id: number,
+  data: Partial<BudgetCreateRequest>
+): Promise<ApiResponse<Budget>> {
   return request.put(`/budgets/${id}`, data)
 }
 
@@ -139,7 +145,11 @@ export function approveBudget(id: number): Promise<ApiResponse<void>> {
   return request.post(`/budgets/${id}/approve`)
 }
 
-export function adjustBudget(data: { budget_id: number; adjustment_amount: number; reason: string }): Promise<ApiResponse<void>> {
+export function adjustBudget(data: {
+  budget_id: number
+  adjustment_amount: number
+  reason: string
+}): Promise<ApiResponse<void>> {
   return request.post('/budgets/adjust', data)
 }
 
@@ -147,5 +157,8 @@ export function listBudgetItems(params?: QueryParams): Promise<ApiResponse<Budge
   return request.get('/budgets/items', { params })
 }
 
-export const batchDepreciateAssets = (data: { asset_ids: number[]; calculation_date: string; user_id: number }) =>
-  request.post('/fixed-assets/batch-depreciate', data)
+export const batchDepreciateAssets = (data: {
+  asset_ids: number[]
+  calculation_date: string
+  user_id: number
+}) => request.post('/fixed-assets/batch-depreciate', data)

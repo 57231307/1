@@ -78,7 +78,7 @@ impl SalesReturnService {
         let return_order = crate::models::sales_return::Entity::find_by_id(return_id)
             .one(txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
+            .ok_or(AppError::NotFound(format!("退货单 {}", return_id)))?;
 
         let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
         return_active.total_amount = sea_orm::ActiveValue::Set(total);

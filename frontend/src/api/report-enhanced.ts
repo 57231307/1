@@ -90,7 +90,9 @@ export interface UpdateSubscriptionRequest {
   active?: boolean
 }
 
-export function listReportTemplates(params?: Record<string, any>): Promise<ApiResponse<PageResult<ReportTemplate>>> {
+export function listReportTemplates(
+  params?: Record<string, any>
+): Promise<ApiResponse<PageResult<ReportTemplate>>> {
   return request.get('/reports/enhanced/templates', { params })
 }
 
@@ -98,11 +100,16 @@ export function getReportTemplate(id: number): Promise<ApiResponse<ReportTemplat
   return request.get(`/reports/enhanced/templates/${id}`)
 }
 
-export function createReportTemplate(data: CreateTemplateRequest): Promise<ApiResponse<ReportTemplate>> {
+export function createReportTemplate(
+  data: CreateTemplateRequest
+): Promise<ApiResponse<ReportTemplate>> {
   return request.post('/reports/enhanced/templates', data)
 }
 
-export function updateReportTemplate(id: number, data: UpdateTemplateRequest): Promise<ApiResponse<ReportTemplate>> {
+export function updateReportTemplate(
+  id: number,
+  data: UpdateTemplateRequest
+): Promise<ApiResponse<ReportTemplate>> {
   return request.put(`/reports/enhanced/templates/${id}`, data)
 }
 
@@ -114,23 +121,42 @@ export function getAvailableFields(templateType: string): Promise<ApiResponse<Re
   return request.get(`/reports/enhanced/fields/${templateType}`)
 }
 
-export function exportReport(templateId: number, params: { format: 'pdf' | 'excel'; date_range?: { start: string; end: string }; filters?: ReportFilterCondition[] }): Promise<Blob> {
-  return request.post(`/reports/enhanced/templates/${templateId}/export`, params, { responseType: 'blob' })
+export function exportReport(
+  templateId: number,
+  params: {
+    format: 'pdf' | 'excel'
+    date_range?: { start: string; end: string }
+    filters?: ReportFilterCondition[]
+  }
+): Promise<Blob> {
+  return request.post(`/reports/enhanced/templates/${templateId}/export`, params, {
+    responseType: 'blob',
+  })
 }
 
-export function previewReport(templateId: number, params?: Record<string, any>): Promise<ApiResponse<any>> {
+export function previewReport(
+  templateId: number,
+  params?: Record<string, any>
+): Promise<ApiResponse<any>> {
   return request.get(`/reports/enhanced/templates/${templateId}/preview`, { params })
 }
 
-export function listSubscriptions(params?: Record<string, any>): Promise<ApiResponse<PageResult<ReportSubscription>>> {
+export function listSubscriptions(
+  params?: Record<string, any>
+): Promise<ApiResponse<PageResult<ReportSubscription>>> {
   return request.get('/reports/enhanced/subscriptions', { params })
 }
 
-export function createSubscription(data: CreateSubscriptionRequest): Promise<ApiResponse<ReportSubscription>> {
+export function createSubscription(
+  data: CreateSubscriptionRequest
+): Promise<ApiResponse<ReportSubscription>> {
   return request.post('/reports/enhanced/subscriptions', data)
 }
 
-export function updateSubscription(id: number, data: UpdateSubscriptionRequest): Promise<ApiResponse<ReportSubscription>> {
+export function updateSubscription(
+  id: number,
+  data: UpdateSubscriptionRequest
+): Promise<ApiResponse<ReportSubscription>> {
   return request.put(`/reports/enhanced/subscriptions/${id}`, data)
 }
 

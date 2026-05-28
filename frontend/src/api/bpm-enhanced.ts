@@ -86,8 +86,12 @@ export interface ApprovalChainNode {
 }
 
 export const bpmEnhancedApi = {
-  listDefinitions: (params?: { page?: number; page_size?: number; category?: string; keyword?: string }) =>
-    request.get<ApiResponse<PageResult<ProcessDefinition>>>('/bpm/definitions', { params }),
+  listDefinitions: (params?: {
+    page?: number
+    page_size?: number
+    category?: string
+    keyword?: string
+  }) => request.get<ApiResponse<PageResult<ProcessDefinition>>>('/bpm/definitions', { params }),
 
   getDefinition: (id: number) =>
     request.get<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`),
@@ -98,8 +102,7 @@ export const bpmEnhancedApi = {
   updateDefinition: (id: number, data: Partial<ProcessDefinition>) =>
     request.put<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`, data),
 
-  deleteDefinition: (id: number) =>
-    request.delete<ApiResponse<null>>(`/bpm/definitions/${id}`),
+  deleteDefinition: (id: number) => request.delete<ApiResponse<null>>(`/bpm/definitions/${id}`),
 
   createVersion: (definitionId: number, data?: { change_log?: string }) =>
     request.post<ApiResponse<ProcessVersion>>(`/bpm/definitions/${definitionId}/versions`, data),
@@ -110,20 +113,21 @@ export const bpmEnhancedApi = {
   activateVersion: (versionId: number) =>
     request.post<ApiResponse<null>>(`/bpm/versions/${versionId}/activate`),
 
-  saveAsTemplate: (definitionId: number, data: { template_name: string; category: string; description?: string }) =>
+  saveAsTemplate: (
+    definitionId: number,
+    data: { template_name: string; category: string; description?: string }
+  ) =>
     request.post<ApiResponse<ProcessTemplate>>(`/bpm/definitions/${definitionId}/template`, data),
 
   listTemplates: (params?: { page?: number; page_size?: number; category?: string }) =>
     request.get<ApiResponse<PageResult<ProcessTemplate>>>('/bpm/templates', { params }),
 
-  getTemplate: (id: number) =>
-    request.get<ApiResponse<ProcessTemplate>>(`/bpm/templates/${id}`),
+  getTemplate: (id: number) => request.get<ApiResponse<ProcessTemplate>>(`/bpm/templates/${id}`),
 
   createFromTemplate: (templateId: number, data?: { process_name?: string }) =>
     request.post<ApiResponse<ProcessDefinition>>(`/bpm/templates/${templateId}/create`, data),
 
-  deleteTemplate: (id: number) =>
-    request.delete<ApiResponse<null>>(`/bpm/templates/${id}`),
+  deleteTemplate: (id: number) => request.delete<ApiResponse<null>>(`/bpm/templates/${id}`),
 
   getPendingTasks: (params?: { page?: number; page_size?: number }) =>
     request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/pending', { params }),

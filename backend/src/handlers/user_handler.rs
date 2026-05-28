@@ -1,6 +1,7 @@
 use crate::services::auth_service::AuthService;
 use crate::services::user_service::UserService;
 use crate::services::role_permission_service::RolePermissionService;
+use crate::models::user;
 use crate::utils::response::ApiResponse;
 use crate::utils::password_validator::{validate_password, get_password_feedback};
 use axum::{
@@ -62,6 +63,21 @@ pub struct UserResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+impl From<user::Model> for UserResponse {
+    fn from(user: user::Model) -> Self {
+        Self {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            phone: user.phone,
+            role_id: user.role_id,
+            department_id: user.department_id,
+            is_active: user.is_active,
+            created_at: user.created_at,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct UserListResponse {
     pub users: Vec<UserResponse>,
@@ -83,16 +99,7 @@ pub async fn get_user(
     let user_service = UserService::new(state.db.clone());
 
     match user_service.find_by_id(id).await {
-        Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            phone: user.phone,
-            role_id: user.role_id,
-            department_id: user.department_id,
-            is_active: user.is_active,
-            created_at: user.created_at,
-        }))),
+        Ok(user) => Ok(Json(ApiResponse::success(user.into()))),
         Err(e) => Err((StatusCode::NOT_FOUND, Json(ApiResponse::error(e.to_string())))),
     }
 }
@@ -122,16 +129,7 @@ pub async fn create_user(
         )
         .await
     {
-        Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            phone: user.phone,
-            role_id: user.role_id,
-            department_id: user.department_id,
-            is_active: user.is_active,
-            created_at: user.created_at,
-        }))),
+        Ok(user) => Ok(Json(ApiResponse::success(user.into()))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
     }
 }
@@ -150,16 +148,7 @@ pub async fn list_users(
         Ok((users, total)) => {
             let user_responses: Vec<UserResponse> = users
                 .into_iter()
-                .map(|user| UserResponse {
-                    id: user.id,
-                    username: user.username,
-                    email: user.email,
-                    phone: user.phone,
-                    role_id: user.role_id,
-                    department_id: user.department_id,
-                    is_active: user.is_active,
-                    created_at: user.created_at,
-                })
+                .map(|user| user.into())
                 .collect();
 
             Ok(Json(ApiResponse::success(UserListResponse {
@@ -205,16 +194,7 @@ pub async fn update_user(
         )
         .await
     {
-        Ok(user) => Ok(Json(ApiResponse::success(UserResponse {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            phone: user.phone,
-            role_id: user.role_id,
-            department_id: user.department_id,
-            is_active: user.is_active,
-            created_at: user.created_at,
-        }))),
+        Ok(user) => Ok(Json(ApiResponse::success(user.into()))),
         Err(e) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error(e.to_string())))),
     }
 }

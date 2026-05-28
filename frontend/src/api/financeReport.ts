@@ -61,8 +61,12 @@ export function getGeneralLedger(accountSubjectCode: string, params?: QueryParam
   return request.get(`/finance/reports/general-ledger/${accountSubjectCode}`, { params })
 }
 
-export function getSubsidiaryLedger(customerId?: number, supplierId?: number, params?: QueryParams) {
-  return request.get('/finance/reports/subsidiary-ledger', { 
-    params: { customer_id: customerId, supplier_id: supplierId, ...params } 
+export function getSubsidiaryLedger(
+  customerId?: number,
+  supplierId?: number,
+  params?: QueryParams
+) {
+  return request.get('/finance/reports/subsidiary-ledger', {
+    params: { customer_id: customerId, supplier_id: supplierId, ...params },
   })
 }

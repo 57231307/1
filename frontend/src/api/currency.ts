@@ -51,6 +51,10 @@ export function createExchangeRate(data: CreateExchangeRateRequest) {
   return request.post('/exchange-rates', data)
 }
 
-export function getExchangeRate(params: { fromCurrency: string; toCurrency: string; date?: string }) {
+export function getExchangeRate(params: {
+  fromCurrency: string
+  toCurrency: string
+  date?: string
+}) {
   return request.get('/exchange-rates', { params })
 }

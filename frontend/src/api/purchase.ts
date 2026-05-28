@@ -51,8 +51,7 @@ export const purchaseApi = {
       params,
     }),
 
-  getOrderById: (id: number) =>
-    request.get<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`),
+  getOrderById: (id: number) => request.get<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`),
 
   createOrder: (data: Partial<PurchaseOrder>) =>
     request.post<ApiResponse<PurchaseOrder>>('/purchases/orders', data),
@@ -60,14 +59,11 @@ export const purchaseApi = {
   updateOrder: (id: number, data: Partial<PurchaseOrder>) =>
     request.put<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`, data),
 
-  deleteOrder: (id: number) =>
-    request.delete<ApiResponse<null>>(`/purchases/orders/${id}`),
+  deleteOrder: (id: number) => request.delete<ApiResponse<null>>(`/purchases/orders/${id}`),
 
-  submitOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/purchases/orders/${id}/submit`),
+  submitOrder: (id: number) => request.post<ApiResponse<null>>(`/purchases/orders/${id}/submit`),
 
-  approveOrder: (id: number) =>
-    request.post<ApiResponse<null>>(`/purchases/orders/${id}/approve`),
+  approveOrder: (id: number) => request.post<ApiResponse<null>>(`/purchases/orders/${id}/approve`),
 
   rejectOrder: (id: number, reason: string) =>
     request.post<ApiResponse<null>>(`/purchases/orders/${id}/reject`, { reason }),
@@ -75,8 +71,7 @@ export const purchaseApi = {
   getReceipts: (params?: any) =>
     request.get<ApiResponse<{ list: any[]; total: number }>>('/purchases/receipts', { params }),
 
-  createReceipt: (data: any) =>
-    request.post<ApiResponse<any>>('/purchases/receipts', data),
+  createReceipt: (data: any) => request.post<ApiResponse<any>>('/purchases/receipts', data),
 
   receiveItems: (receiptId: number, data: any) =>
     request.post<ApiResponse<any>>(`/purchases/receipts/${receiptId}/receive`, data),

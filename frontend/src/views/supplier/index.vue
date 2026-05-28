@@ -94,12 +94,7 @@
       :close-on-click-modal="false"
       @close="resetForm"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="120px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
         <el-divider content-position="left">基本信息</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -121,7 +116,11 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="供应商类型" prop="supplier_type">
-              <el-select v-model="formData.supplier_type" placeholder="请选择类型" style="width: 100%">
+              <el-select
+                v-model="formData.supplier_type"
+                placeholder="请选择类型"
+                style="width: 100%"
+              >
                 <el-option label="生产商" value="manufacturer" />
                 <el-option label="经销商" value="distributor" />
                 <el-option label="服务商" value="service" />
@@ -176,7 +175,11 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="纳税人类型" prop="taxpayer_type">
-              <el-select v-model="formData.taxpayer_type" placeholder="请选择类型" style="width: 100%">
+              <el-select
+                v-model="formData.taxpayer_type"
+                placeholder="请选择类型"
+                style="width: 100%"
+              >
                 <el-option label="一般纳税人" value="general" />
                 <el-option label="小规模纳税人" value="small" />
               </el-select>
@@ -184,7 +187,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="注册资本(万)" prop="registered_capital">
-              <el-input-number v-model="formData.registered_capital" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="formData.registered_capital"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -256,7 +264,7 @@ const queryParams = reactive({
   page_size: 20,
   keyword: '',
   grade: '',
-  status: ''
+  status: '',
 })
 
 const formData = reactive({
@@ -280,30 +288,26 @@ const formData = reactive({
   bank_account: '',
   grade: '',
   status: 'active',
-  remarks: ''
+  remarks: '',
 })
 
 const formRules: FormRules = {
-  supplier_code: [
-    { required: true, message: '请输入供应商编码', trigger: 'blur' }
-  ],
-  supplier_name: [
-    { required: true, message: '请输入供应商名称', trigger: 'blur' }
-  ],
+  supplier_code: [{ required: true, message: '请输入供应商编码', trigger: 'blur' }],
+  supplier_name: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
   contact_phone: [
     { required: true, message: '请输入联系电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-  ]
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+  ],
 }
 
-const dialogTitle = computed(() => isEdit.value ? '编辑供应商' : '新建供应商')
+const dialogTitle = computed(() => (isEdit.value ? '编辑供应商' : '新建供应商'))
 
 const getGradeTag = (grade: string) => {
   const tags: Record<string, string> = {
     A: 'success',
     B: '',
     C: 'warning',
-    D: 'danger'
+    D: 'danger',
   }
   return tags[grade] || ''
 }
@@ -375,7 +379,9 @@ const handleEdit = (row: Supplier) => {
 
 const handleDelete = async (row: Supplier) => {
   try {
-    await ElMessageBox.confirm(`确定删除供应商 "${row.supplier_name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除供应商 "${row.supplier_name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
     await supplierApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -388,10 +394,10 @@ const handleDelete = async (row: Supplier) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitLoading.value = true
     try {
       if (isEdit.value) {
@@ -417,11 +423,36 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.supplier-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.filter-card { margin-bottom: 20px; }
-.table-card { margin-bottom: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.supplier-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.filter-card {
+  margin-bottom: 20px;
+}
+.table-card {
+  margin-bottom: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
 </style>

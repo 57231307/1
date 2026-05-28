@@ -32,26 +32,42 @@
               </template>
 
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="客户编码">{{ customer.customer_code }}</el-descriptions-item>
-                <el-descriptions-item label="客户名称">{{ customer.customer_name }}</el-descriptions-item>
-                <el-descriptions-item label="联系人">{{ customer.contact_person }}</el-descriptions-item>
+                <el-descriptions-item label="客户编码">{{
+                  customer.customer_code
+                }}</el-descriptions-item>
+                <el-descriptions-item label="客户名称">{{
+                  customer.customer_name
+                }}</el-descriptions-item>
+                <el-descriptions-item label="联系人">{{
+                  customer.contact_person
+                }}</el-descriptions-item>
                 <el-descriptions-item label="电话">{{ customer.phone }}</el-descriptions-item>
-                <el-descriptions-item label="邮箱" :span="2">{{ customer.email }}</el-descriptions-item>
-                <el-descriptions-item label="地址" :span="2">{{ customer.address }}</el-descriptions-item>
+                <el-descriptions-item label="邮箱" :span="2">{{
+                  customer.email
+                }}</el-descriptions-item>
+                <el-descriptions-item label="地址" :span="2">{{
+                  customer.address
+                }}</el-descriptions-item>
                 <el-descriptions-item label="客户类型">
                   <el-tag :type="getTypeTag(customer.customer_type)" size="small">
                     {{ getTypeLabel(customer.customer_type) }}
                   </el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item label="负责人">{{ customer.owner_name }}</el-descriptions-item>
+                <el-descriptions-item label="负责人">{{
+                  customer.owner_name
+                }}</el-descriptions-item>
                 <el-descriptions-item label="信用额度">
                   {{ customer.credit_limit ? formatCurrency(customer.credit_limit) : '-' }}
                 </el-descriptions-item>
-                <el-descriptions-item label="订单总数">{{ customer.total_orders }}</el-descriptions-item>
+                <el-descriptions-item label="订单总数">{{
+                  customer.total_orders
+                }}</el-descriptions-item>
                 <el-descriptions-item label="累计金额">
                   {{ customer.total_amount ? formatCurrency(customer.total_amount) : '-' }}
                 </el-descriptions-item>
-                <el-descriptions-item label="最近下单">{{ customer.last_order_date || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="最近下单">{{
+                  customer.last_order_date || '-'
+                }}</el-descriptions-item>
               </el-descriptions>
             </el-card>
 
@@ -63,9 +79,15 @@
               </template>
 
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="税号" :span="2">{{ customer.tax_number || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="开户银行">{{ customer.bank_name || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="银行账号">{{ customer.bank_account || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="税号" :span="2">{{
+                  customer.tax_number || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="开户银行">{{
+                  customer.bank_name || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="银行账号">{{
+                  customer.bank_account || '-'
+                }}</el-descriptions-item>
               </el-descriptions>
             </el-card>
 
@@ -97,7 +119,7 @@
           <el-col :span="8">
             <el-card shadow="hover">
               <template #header><div class="card-header">RFM 评分</div></template>
-              <div class="rfm-display" v-if="customer.rfm_score">
+              <div v-if="customer.rfm_score" class="rfm-display">
                 <div class="rfm-level">
                   <span class="level-badge">{{ customer.rfm_score.level }}</span>
                   <span class="level-label">{{ customer.rfm_score.label }}</span>
@@ -194,7 +216,7 @@
                   <span class="follow-up-operator">跟进人：{{ record.operator_name }}</span>
                 </div>
                 <p class="follow-up-content">{{ record.content }}</p>
-                <div class="follow-up-next" v-if="record.next_follow_date">
+                <div v-if="record.next_follow_date" class="follow-up-next">
                   <el-icon><Clock /></el-icon>
                   下次跟进：{{ record.next_follow_date }}
                 </div>
@@ -218,7 +240,12 @@
     </div>
 
     <!-- 新增跟进对话框 -->
-    <el-dialog v-model="followUpDialogVisible" title="新增跟进记录" width="500px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="followUpDialogVisible"
+      title="新增跟进记录"
+      width="500px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="followUpFormRef" :model="followUpForm" label-width="100px">
         <el-form-item label="跟进方式" prop="type">
           <el-select v-model="followUpForm.type" placeholder="请选择跟进方式" style="width: 100%">
@@ -230,7 +257,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="跟进内容" prop="content">
-          <el-input v-model="followUpForm.content" type="textarea" :rows="4" placeholder="请输入跟进内容" />
+          <el-input
+            v-model="followUpForm.content"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入跟进内容"
+          />
         </el-form-item>
         <el-form-item label="下次跟进">
           <el-date-picker
@@ -243,7 +275,9 @@
       </el-form>
       <template #footer>
         <el-button @click="followUpDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="followUpSubmitLoading" @click="submitFollowUp">保存</el-button>
+        <el-button type="primary" :loading="followUpSubmitLoading" @click="submitFollowUp"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
@@ -278,7 +312,7 @@ import { Back, Plus, Clock } from '@element-plus/icons-vue'
 import crmEnhancedApi, {
   type Customer360,
   type FollowUpRecord,
-  type CustomerTag
+  type CustomerTag,
 } from '@/api/crm-enhanced'
 
 const route = useRoute()
@@ -297,17 +331,17 @@ const tagFormRef = ref<FormInstance>()
 
 const followUpQuery = reactive({
   page: 1,
-  page_size: 10
+  page_size: 10,
 })
 
 const followUpForm = reactive({
   type: 'phone',
   content: '',
-  next_follow_date: ''
+  next_follow_date: '',
 })
 
 const tagForm = reactive({
-  name: ''
+  name: '',
 })
 
 const customerId = Number(route.params.id)
@@ -315,7 +349,11 @@ const customerId = Number(route.params.id)
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
 const getTypeLabel = (type: string) => {
-  const labels: Record<string, string> = { normal: '普通客户', vip: 'VIP客户', wholesale: '批发客户' }
+  const labels: Record<string, string> = {
+    normal: '普通客户',
+    vip: 'VIP客户',
+    wholesale: '批发客户',
+  }
   return labels[type] || type
 }
 
@@ -325,12 +363,24 @@ const getTypeTag = (type: string) => {
 }
 
 const getFollowUpType = (type: string) => {
-  const types: Record<string, string> = { phone: 'primary', meeting: 'success', email: 'info', wechat: 'warning', visit: 'danger' }
+  const types: Record<string, string> = {
+    phone: 'primary',
+    meeting: 'success',
+    email: 'info',
+    wechat: 'warning',
+    visit: 'danger',
+  }
   return types[type] || ''
 }
 
 const getFollowUpTypeLabel = (type: string) => {
-  const labels: Record<string, string> = { phone: '电话', meeting: '面谈', email: '邮件', wechat: '微信', visit: '拜访' }
+  const labels: Record<string, string> = {
+    phone: '电话',
+    meeting: '面谈',
+    email: '邮件',
+    wechat: '微信',
+    visit: '拜访',
+  }
   return labels[type] || type
 }
 
@@ -388,7 +438,7 @@ const submitFollowUp = async () => {
     await crmEnhancedApi.createFollowUp(customerId, {
       type: followUpForm.type,
       content: followUpForm.content,
-      next_follow_date: followUpForm.next_follow_date || undefined
+      next_follow_date: followUpForm.next_follow_date || undefined,
     })
     ElMessage.success('跟进记录已保存')
     followUpDialogVisible.value = false
@@ -407,7 +457,7 @@ const handleAddTag = async () => {
     return
   }
 
-  const selectedTag = availableTags.value.find(t => t.name === tagForm.name)
+  const selectedTag = availableTags.value.find((t) => t.name === tagForm.name)
   if (!selectedTag) return
 
   try {
@@ -448,39 +498,163 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.detail-page { padding: 24px; background-color: #f5f7fa; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.header-left .page-title { font-size: 28px; font-weight: 600; color: #303133; margin: 0 0 12px 0; }
-.header-actions { display: flex; gap: 12px; }
-.detail-content { min-height: 400px; }
-.section-card { margin-bottom: 0; }
-.card-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-.mt-20 { margin-top: 20px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.detail-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.header-left .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.detail-content {
+  min-height: 400px;
+}
+.section-card {
+  margin-bottom: 0;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+.mt-20 {
+  margin-top: 20px;
+}
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
 
-.rfm-display { padding: 12px 0; }
-.rfm-level { text-align: center; margin-bottom: 20px; }
-.level-badge { display: inline-block; width: 60px; height: 60px; line-height: 60px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; font-size: 28px; font-weight: 700; }
-.level-label { display: block; margin-top: 8px; font-size: 14px; color: #606266; }
-.rfm-scores { display: flex; flex-direction: column; gap: 12px; }
-.rfm-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #fafafa; border-radius: 6px; }
-.rfm-label { font-size: 13px; color: #606266; }
-.rfm-value { font-size: 18px; font-weight: 600; color: #303133; }
+.rfm-display {
+  padding: 12px 0;
+}
+.rfm-level {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.level-badge {
+  display: inline-block;
+  width: 60px;
+  height: 60px;
+  line-height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+}
+.level-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: #606266;
+}
+.rfm-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rfm-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #fafafa;
+  border-radius: 6px;
+}
+.rfm-label {
+  font-size: 13px;
+  color: #606266;
+}
+.rfm-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
 
-.tags-container { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; }
-.tag-item { border: none; }
-.no-tags { color: #909399; font-size: 13px; }
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 40px;
+}
+.tag-item {
+  border: none;
+}
+.no-tags {
+  color: #909399;
+  font-size: 13px;
+}
 
-.address-list { display: flex; flex-direction: column; gap: 12px; }
-.address-item { padding: 12px; background: #fafafa; border-radius: 6px; }
-.address-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.addr-name { font-weight: 600; color: #303133; }
-.addr-phone { font-size: 13px; color: #606266; margin-bottom: 4px; }
-.addr-detail { font-size: 13px; color: #909399; }
+.address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.address-item {
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 6px;
+}
+.address-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.addr-name {
+  font-weight: 600;
+  color: #303133;
+}
+.addr-phone {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 4px;
+}
+.addr-detail {
+  font-size: 13px;
+  color: #909399;
+}
 
-.follow-up-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.follow-up-type { font-weight: 600; color: #303133; }
-.follow-up-operator { font-size: 12px; color: #909399; }
-.follow-up-content { color: #606266; margin: 0 0 8px 0; line-height: 1.6; }
-.follow-up-next { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #409eff; }
+.follow-up-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.follow-up-type {
+  font-weight: 600;
+  color: #303133;
+}
+.follow-up-operator {
+  font-size: 12px;
+  color: #909399;
+}
+.follow-up-content {
+  color: #606266;
+  margin: 0 0 8px 0;
+  line-height: 1.6;
+}
+.follow-up-next {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #409eff;
+}
 </style>

@@ -13,7 +13,7 @@ function subscribeTokenRefresh(cb: (token: string) => void) {
 }
 
 function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers.forEach((cb) => cb(token))
   refreshSubscribers = []
 }
 
@@ -77,7 +77,7 @@ class Request {
       },
       async (error) => {
         const originalRequest = error.config
-        
+
         if (error.response?.status === 401 && !originalRequest?._retry) {
           if (isRefreshing) {
             return new Promise((resolve) => {
@@ -87,16 +87,16 @@ class Request {
               })
             })
           }
-          
+
           originalRequest._retry = true
           isRefreshing = true
-          
+
           try {
             const refreshToken = getRefreshToken()
             if (!refreshToken) {
               throw new Error('No refresh token')
             }
-            
+
             const tokenData = await refreshApi(refreshToken)
             setToken(tokenData.token)
             onTokenRefreshed(tokenData.token)
@@ -110,21 +110,21 @@ class Request {
             isRefreshing = false
           }
         }
-        
+
         if (originalRequest?._retry && shouldRetry(error)) {
           originalRequest._retryCount = originalRequest._retryCount || 0
-          
+
           if (originalRequest._retryCount < 3) {
             originalRequest._retryCount++
             const delay = Math.min(1000 * originalRequest._retryCount + Math.random() * 1000, 5000)
-            await new Promise(resolve => setTimeout(resolve, delay))
+            await new Promise((resolve) => setTimeout(resolve, delay))
             return this.instance(originalRequest)
           }
         }
-        
+
         const safeMessage = getSafeErrorMessage(error.response?.status)
         ElMessage.error(safeMessage)
-        
+
         if (error.response?.status === 401) {
           removeToken()
           router.push('/login')
@@ -163,7 +163,7 @@ const SAFE_ERROR_MESSAGES: Record<number, string> = {
   429: '请求过于频繁',
   500: '服务器内部错误',
   502: '网关错误',
-  503: '服务暂时不可用'
+  503: '服务暂时不可用',
 }
 
 function shouldRetry(error: any): boolean {

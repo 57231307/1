@@ -17,7 +17,7 @@ import {
   type AgingAnalysisResult,
   type ReconciliationDetailItem,
   type CustomerConfirmation,
-  type DisputeRecord
+  type DisputeRecord,
 } from '@/api/ar-reconciliation-enhanced'
 import { request } from '@/api/request'
 
@@ -31,7 +31,7 @@ const searchForm = ref({
   customer_name: '',
   match_status: '',
   start_date: '',
-  end_date: ''
+  end_date: '',
 })
 
 const agingData = ref<AgingAnalysisResult[]>([])
@@ -53,7 +53,7 @@ const disputeForm = ref<Partial<DisputeRecord>>({
   dispute_type: 'amount',
   dispute_amount: 0,
   description: '',
-  status: 'open'
+  status: 'open',
 })
 const disputes = ref<DisputeRecord[]>([])
 const disputesTotal = ref(0)
@@ -62,21 +62,21 @@ const matchStatusOptions = [
   { label: '全部', value: '' },
   { label: '已匹配', value: 'matched' },
   { label: '部分匹配', value: 'partial' },
-  { label: '未匹配', value: 'unmatched' }
+  { label: '未匹配', value: 'unmatched' },
 ]
 
 const disputeTypeOptions = [
   { label: '金额争议', value: 'amount' },
   { label: '质量争议', value: 'quality' },
   { label: '交付争议', value: 'delivery' },
-  { label: '其他', value: 'other' }
+  { label: '其他', value: 'other' },
 ]
 
 const disputeStatusOptions = [
   { label: '待处理', value: 'open' },
   { label: '调查中', value: 'investigating' },
   { label: '已解决', value: 'resolved' },
-  { label: '已关闭', value: 'closed' }
+  { label: '已关闭', value: 'closed' },
 ]
 
 const customerOptions = ref<{ label: string; value: number }[]>([])
@@ -100,7 +100,7 @@ const handleAutoReconcile = async () => {
     reconcileLoading.value = true
     await autoReconcile({
       start_date: searchForm.value.start_date,
-      end_date: searchForm.value.end_date
+      end_date: searchForm.value.end_date,
     })
     ElMessage.success('自动对账任务已启动')
     loadData()
@@ -122,7 +122,7 @@ const loadData = async () => {
       customer_name: searchForm.value.customer_name || undefined,
       status: searchForm.value.match_status || undefined,
       start_date: searchForm.value.start_date || undefined,
-      end_date: searchForm.value.end_date || undefined
+      end_date: searchForm.value.end_date || undefined,
     })
     tableData.value = res.data?.list || []
     total.value = res.data?.total || 0
@@ -137,7 +137,7 @@ const loadAgingAnalysis = async () => {
   try {
     const res: any = await getAgingAnalysis({
       customer_id: undefined,
-      as_of_date: searchForm.value.end_date || undefined
+      as_of_date: searchForm.value.end_date || undefined,
     })
     agingData.value = res.data || []
     await nextTick()
@@ -156,52 +156,57 @@ const renderCharts = () => {
     pieChart = echarts.init(pieChartRef.value)
   }
 
-  const buckets = agingData.value.length > 0
-    ? agingData.value[0].buckets
-    : [
-        { label: '0-30天', range: '0-30', amount: 0, percentage: 0, count: 0 },
-        { label: '31-60天', range: '31-60', amount: 0, percentage: 0, count: 0 },
-        { label: '61-90天', range: '61-90', amount: 0, percentage: 0, count: 0 },
-        { label: '90天以上', range: '90+', amount: 0, percentage: 0, count: 0 }
-      ]
+  const buckets =
+    agingData.value.length > 0
+      ? agingData.value[0].buckets
+      : [
+          { label: '0-30天', range: '0-30', amount: 0, percentage: 0, count: 0 },
+          { label: '31-60天', range: '31-60', amount: 0, percentage: 0, count: 0 },
+          { label: '61-90天', range: '61-90', amount: 0, percentage: 0, count: 0 },
+          { label: '90天以上', range: '90+', amount: 0, percentage: 0, count: 0 },
+        ]
 
   const barOption = {
     title: { text: '账龄分析柱状图', left: 'center' },
     tooltip: { trigger: 'axis', formatter: '{b}: {c} 元' },
-    xAxis: { type: 'category', data: buckets.map(b => b.label) },
+    xAxis: { type: 'category', data: buckets.map((b) => b.label) },
     yAxis: { type: 'value', name: '金额（元）' },
-    series: [{
-      type: 'bar',
-      data: buckets.map(b => b.amount),
-      itemStyle: {
-        color: (params: any) => {
-          const colors = ['#67c23a', '#e6a23c', '#f56c6c', '#909399']
-          return colors[params.dataIndex] || '#409eff'
-        }
+    series: [
+      {
+        type: 'bar',
+        data: buckets.map((b) => b.amount),
+        itemStyle: {
+          color: (params: any) => {
+            const colors = ['#67c23a', '#e6a23c', '#f56c6c', '#909399']
+            return colors[params.dataIndex] || '#409eff'
+          },
+        },
+        label: { show: true, position: 'top', formatter: '{c}' },
       },
-      label: { show: true, position: 'top', formatter: '{c}' }
-    }],
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true }
+    ],
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
   }
 
   const pieOption = {
     title: { text: '账龄分布占比', left: 'center' },
     tooltip: { trigger: 'item', formatter: '{b}: {c}元 ({d}%)' },
     legend: { bottom: '0%' },
-    series: [{
-      type: 'pie',
-      radius: ['40%', '70%'],
-      avoidLabelOverlap: false,
-      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
-      label: { show: true, formatter: '{b}: {d}%' },
-      data: buckets.map((b, i) => ({
-        value: b.amount,
-        name: b.label,
-        itemStyle: {
-          color: ['#67c23a', '#e6a23c', '#f56c6c', '#909399'][i]
-        }
-      }))
-    }]
+    series: [
+      {
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+        label: { show: true, formatter: '{b}: {d}%' },
+        data: buckets.map((b, i) => ({
+          value: b.amount,
+          name: b.label,
+          itemStyle: {
+            color: ['#67c23a', '#e6a23c', '#f56c6c', '#909399'][i],
+          },
+        })),
+      },
+    ],
   }
 
   barChart.setOption(barOption)
@@ -256,7 +261,7 @@ const handleViewConfirmations = async () => {
   try {
     const res: any = await getCustomerConfirmations({
       page: 1,
-      pageSize: 20
+      pageSize: 20,
     })
     confirmData.value = res.data?.list || []
     confirmTotal.value = res.data?.total || 0
@@ -280,7 +285,10 @@ const handleConfirmStatus = async (row: CustomerConfirmation, status: 'confirmed
   }
 }
 
-const updateConfirmationStatus = async (id: number, data: { status: 'confirmed' | 'disputed'; remark?: string }) => {
+const updateConfirmationStatus = async (
+  id: number,
+  data: { status: 'confirmed' | 'disputed'; remark?: string }
+) => {
   const { updateConfirmationStatus: api } = await import('@/api/ar-reconciliation-enhanced')
   return api(id, data)
 }
@@ -291,7 +299,7 @@ const openDisputeDialog = async (row: AutoReconciliationResult) => {
     dispute_amount: 0,
     description: '',
     status: 'open',
-    reconciliation_id: row.id
+    reconciliation_id: row.id,
   }
   disputes.value = []
   try {
@@ -323,7 +331,7 @@ const handleResolveDispute = async (row: DisputeRecord) => {
   try {
     const { value } = await ElMessageBox.prompt('请输入解决方案', '解决争议', {
       inputType: 'textarea',
-      inputValidator: (v) => !v ? '解决方案不能为空' : true
+      inputValidator: (v) => (!v ? '解决方案不能为空' : true),
     })
     await resolveDispute(row.id, { resolution: value })
     ElMessage.success('争议已解决')
@@ -336,25 +344,38 @@ const handleResolveDispute = async (row: DisputeRecord) => {
 }
 
 const getMatchStatusType = (status: string) => {
-  const map: Record<string, string> = { matched: 'success', partial: 'warning', unmatched: 'danger' }
+  const map: Record<string, string> = {
+    matched: 'success',
+    partial: 'warning',
+    unmatched: 'danger',
+  }
   return map[status] || 'info'
 }
 
 const getMatchStatusLabel = (status: string) => {
-  const map: Record<string, string> = { matched: '已匹配', partial: '部分匹配', unmatched: '未匹配' }
+  const map: Record<string, string> = {
+    matched: '已匹配',
+    partial: '部分匹配',
+    unmatched: '未匹配',
+  }
   return map[status] || status
 }
 
 const getDisputeTypeLabel = (type: string) => {
-  return disputeTypeOptions.find(o => o.value === type)?.label || type
+  return disputeTypeOptions.find((o) => o.value === type)?.label || type
 }
 
 const getDisputeStatusLabel = (status: string) => {
-  return disputeStatusOptions.find(o => o.value === status)?.label || status
+  return disputeStatusOptions.find((o) => o.value === status)?.label || status
 }
 
 const getDisputeStatusType = (status: string) => {
-  const map: Record<string, string> = { open: 'info', investigating: 'warning', resolved: 'success', closed: 'info' }
+  const map: Record<string, string> = {
+    open: 'info',
+    investigating: 'warning',
+    resolved: 'success',
+    closed: 'info',
+  }
   return map[status] || 'info'
 }
 
@@ -364,7 +385,11 @@ const getConfirmStatusLabel = (status: string) => {
 }
 
 const getConfirmStatusType = (status: string) => {
-  const map: Record<string, string> = { pending: 'warning', confirmed: 'success', disputed: 'danger' }
+  const map: Record<string, string> = {
+    pending: 'warning',
+    confirmed: 'success',
+    disputed: 'danger',
+  }
   return map[status] || 'info'
 }
 
@@ -380,18 +405,38 @@ onMounted(() => {
     <div class="filter-container">
       <el-row :gutter="20">
         <el-col :span="6">
-          <el-input v-model="searchForm.customer_name" placeholder="客户名称" clearable @keyup.enter="handleSearch" />
+          <el-input
+            v-model="searchForm.customer_name"
+            placeholder="客户名称"
+            clearable
+            @keyup.enter="handleSearch"
+          />
         </el-col>
         <el-col :span="5">
           <el-select v-model="searchForm.match_status" placeholder="匹配状态" clearable>
-            <el-option v-for="s in matchStatusOptions" :key="s.value" :label="s.label" :value="s.value" />
+            <el-option
+              v-for="s in matchStatusOptions"
+              :key="s.value"
+              :label="s.label"
+              :value="s.value"
+            />
           </el-select>
         </el-col>
         <el-col :span="5">
-          <el-date-picker v-model="searchForm.start_date" type="date" placeholder="开始日期" class="w-100" />
+          <el-date-picker
+            v-model="searchForm.start_date"
+            type="date"
+            placeholder="开始日期"
+            class="w-100"
+          />
         </el-col>
         <el-col :span="5">
-          <el-date-picker v-model="searchForm.end_date" type="date" placeholder="结束日期" class="w-100" />
+          <el-date-picker
+            v-model="searchForm.end_date"
+            type="date"
+            placeholder="结束日期"
+            class="w-100"
+          />
         </el-col>
         <el-col :span="3">
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -402,9 +447,7 @@ onMounted(() => {
         <el-button type="success" :loading="reconcileLoading" @click="handleAutoReconcile">
           <Refresh /> 自动对账
         </el-button>
-        <el-button type="warning" @click="handleViewConfirmations">
-          <Send /> 客户确认
-        </el-button>
+        <el-button type="warning" @click="handleViewConfirmations"> <Send /> 客户确认 </el-button>
         <el-button type="danger" @click="openDisputeDialog({ id: 0 } as any)">
           <CircleClose /> 争议处理
         </el-button>
@@ -431,7 +474,14 @@ onMounted(() => {
           <el-tag type="info">共 {{ total }} 条</el-tag>
         </div>
       </template>
-      <el-table :data="tableData" :loading="loading" border fit highlight-current-row style="width: 100%">
+      <el-table
+        :data="tableData"
+        :loading="loading"
+        border
+        fit
+        highlight-current-row
+        style="width: 100%"
+      >
         <el-table-column prop="customer_code" label="客户编码" width="120" />
         <el-table-column prop="customer_name" label="客户名称" width="160" />
         <el-table-column label="匹配状态" width="100">
@@ -477,20 +527,30 @@ onMounted(() => {
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next"
+        class="pagination-container"
         @current-change="handlePageChange"
         @size-change="handlePageSizeChange"
-        class="pagination-container"
       />
     </el-card>
 
     <el-dialog v-model="detailDialogVisible" title="对账明细" width="900px">
       <div v-if="currentReconciliation" class="detail-header">
         <el-descriptions :column="4" border>
-          <el-descriptions-item label="客户编码">{{ currentReconciliation.customer_code }}</el-descriptions-item>
-          <el-descriptions-item label="客户名称">{{ currentReconciliation.customer_name }}</el-descriptions-item>
-          <el-descriptions-item label="发票金额">{{ currentReconciliation.invoice_amount.toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="回款金额">{{ currentReconciliation.payment_amount.toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="差异金额">{{ currentReconciliation.difference.toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="客户编码">{{
+            currentReconciliation.customer_code
+          }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{
+            currentReconciliation.customer_name
+          }}</el-descriptions-item>
+          <el-descriptions-item label="发票金额">{{
+            currentReconciliation.invoice_amount.toFixed(2)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="回款金额">{{
+            currentReconciliation.payment_amount.toFixed(2)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="差异金额">{{
+            currentReconciliation.difference.toFixed(2)
+          }}</el-descriptions-item>
           <el-descriptions-item label="匹配状态">
             <el-tag :type="getMatchStatusType(currentReconciliation.match_status)" size="small">
               {{ getMatchStatusLabel(currentReconciliation.match_status) }}
@@ -501,8 +561,23 @@ onMounted(() => {
       <el-table :data="detailData" border style="width: 100%; margin-top: 16px">
         <el-table-column prop="type" label="类型" width="100">
           <template #default="scope">
-            <el-tag size="small" :type="scope.row.type === 'invoice' ? '' : scope.row.type === 'payment' ? 'success' : 'warning'">
-              {{ scope.row.type === 'invoice' ? '发票' : scope.row.type === 'payment' ? '回款' : '调整' }}
+            <el-tag
+              size="small"
+              :type="
+                scope.row.type === 'invoice'
+                  ? ''
+                  : scope.row.type === 'payment'
+                    ? 'success'
+                    : 'warning'
+              "
+            >
+              {{
+                scope.row.type === 'invoice'
+                  ? '发票'
+                  : scope.row.type === 'payment'
+                    ? '回款'
+                    : '调整'
+              }}
             </el-tag>
           </template>
         </el-table-column>
@@ -575,18 +650,33 @@ onMounted(() => {
           <el-col :span="12">
             <el-form-item label="争议类型">
               <el-select v-model="disputeForm.dispute_type">
-                <el-option v-for="o in disputeTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
+                <el-option
+                  v-for="o in disputeTypeOptions"
+                  :key="o.value"
+                  :label="o.label"
+                  :value="o.value"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="争议金额">
-              <el-input-number v-model="disputeForm.dispute_amount" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="disputeForm.dispute_amount"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="争议描述">
-          <el-input v-model="disputeForm.description" type="textarea" :rows="3" placeholder="请详细描述争议内容" />
+          <el-input
+            v-model="disputeForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请详细描述争议内容"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSubmitDispute">提交争议</el-button>
