@@ -302,6 +302,7 @@ impl ProductService {
     }
 
     /// 创建产品色号
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_product_color(
         &self,
         product_id: i32,
@@ -357,6 +358,7 @@ impl ProductService {
     }
 
     /// 更新产品色号
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_product_color(
         &self,
         id: i32,

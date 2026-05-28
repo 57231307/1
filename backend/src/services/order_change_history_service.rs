@@ -18,6 +18,7 @@ impl OrderChangeHistoryService {
     }
 
     /// 记录订单变更历史
+    #[allow(clippy::too_many_arguments)]
     pub async fn record_change(
         &self,
         order_id: i32,

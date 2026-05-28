@@ -212,6 +212,7 @@ impl MaterialShortageService {
         };
 
         // material_id -> (total_required, unit, [(product_id, qty_per_unit)])
+        #[allow(clippy::type_complexity)]
         let mut material_requirements: HashMap<i32, (Decimal, Option<String>, Vec<(i32, Decimal)>)> =
             HashMap::new();
 

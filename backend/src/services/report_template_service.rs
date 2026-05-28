@@ -318,6 +318,7 @@ impl ReportTemplateService {
         let mut data: Vec<Vec<String>> = Vec::new();
         for row in &result {
             let mut row_data: Vec<String> = Vec::new();
+            #[allow(clippy::needless_range_loop)]
             for i in 0..column_count {
                 let value: String = row.try_get("", &headers[i]).unwrap_or_default();
                 row_data.push(value);

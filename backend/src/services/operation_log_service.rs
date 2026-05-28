@@ -59,6 +59,7 @@ impl OperationLogService {
     }
 
     /// 记录成功操作
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_success(
         &self,
         user_id: Option<i32>,
@@ -94,6 +95,7 @@ impl OperationLogService {
     }
 
     /// 记录失败操作
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_failure(
         &self,
         user_id: Option<i32>,

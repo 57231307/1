@@ -20,6 +20,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建默认凭证分录（填充所有必填字段）
+    #[allow(clippy::too_many_arguments)]
     fn make_voucher_item(
         line_no: i32,
         subject_code: &str,
@@ -60,45 +61,42 @@ impl InventoryFinanceBridgeService {
 
         tokio::spawn(async move {
             while let Ok(event) = receiver.recv().await {
-                match event {
-                    BusinessEvent::InventoryTransactionCreated {
+                if let BusinessEvent::InventoryTransactionCreated {
+                    transaction_id,
+                    transaction_type,
+                    product_id,
+                    warehouse_id,
+                    quantity_meters,
+                    quantity_kg,
+                    source_bill_type,
+                    source_bill_no,
+                    source_bill_id,
+                    batch_no,
+                    color_no,
+                    created_by,
+                } = event {
+                    info!(
+                        "处理库存交易创建事件: 交易ID={}, 类型={}, 产品ID={}, 仓库ID={}",
+                        transaction_id, transaction_type, product_id, warehouse_id
+                    );
+
+                    let bridge_service = InventoryFinanceBridgeService::new(db.clone());
+                    if let Err(e) = bridge_service.handle_inventory_transaction(
                         transaction_id,
-                        transaction_type,
+                        &transaction_type,
                         product_id,
                         warehouse_id,
                         quantity_meters,
                         quantity_kg,
-                        source_bill_type,
-                        source_bill_no,
+                        source_bill_type.as_deref(),
+                        source_bill_no.as_deref(),
                         source_bill_id,
-                        batch_no,
-                        color_no,
+                        &batch_no,
+                        &color_no,
                         created_by,
-                    } => {
-                        info!(
-                            "处理库存交易创建事件: 交易ID={}, 类型={}, 产品ID={}, 仓库ID={}",
-                            transaction_id, transaction_type, product_id, warehouse_id
-                        );
-
-                        let bridge_service = InventoryFinanceBridgeService::new(db.clone());
-                        if let Err(e) = bridge_service.handle_inventory_transaction(
-                            transaction_id,
-                            &transaction_type,
-                            product_id,
-                            warehouse_id,
-                            quantity_meters,
-                            quantity_kg,
-                            source_bill_type.as_deref(),
-                            source_bill_no.as_deref(),
-                            source_bill_id,
-                            &batch_no,
-                            &color_no,
-                            created_by,
-                        ).await {
-                            error!("处理库存交易事件失败: 交易ID={}, 错误={}", transaction_id, e);
-                        }
+                    ).await {
+                        error!("处理库存交易事件失败: 交易ID={}, 错误={}", transaction_id, e);
                     }
-                    _ => {}
                 }
             }
         });

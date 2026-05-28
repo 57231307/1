@@ -72,6 +72,7 @@ impl InventoryStockService {
             .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_stock(
         &self,
         warehouse_id: i32,
@@ -286,6 +287,7 @@ impl InventoryStockService {
     }
 
     /// 查询库存（支持批次、色号、等级过滤）
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_stock_fabric(
         &self,
         page: u64,
@@ -480,6 +482,7 @@ impl InventoryStockService {
     }
 
     /// 查询库存流水
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_transactions(
         &self,
         page: u64,

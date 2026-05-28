@@ -166,6 +166,7 @@ pub struct ScheduledOrderQuery {
 /// 排程 Service
 pub struct SchedulingService {
     db: Arc<DatabaseConnection>,
+    #[allow(dead_code)]
     capacity_service: Arc<CapacityService>,
 }
 

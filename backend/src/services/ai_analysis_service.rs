@@ -149,6 +149,7 @@ impl AiAnalysisService {
         let mut level = values[0];
         let mut trend = if n > 1 { values[1] - values[0] } else { 0.0 };
 
+        #[allow(clippy::needless_range_loop)]
         for i in 1..n {
             let prev_level = level;
             level = alpha * values[i] + (1.0 - alpha) * (level + trend);
@@ -159,6 +160,7 @@ impl AiAnalysisService {
         let mut residuals = Vec::new();
         let mut fit_level = values[0];
         let mut fit_trend = if n > 1 { values[1] - values[0] } else { 0.0 };
+        #[allow(clippy::needless_range_loop)]
         for i in 0..n {
             let predicted = fit_level + fit_trend;
             residuals.push(values[i] - predicted);

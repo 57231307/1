@@ -33,6 +33,7 @@ impl CustomerService {
     }
 
     /// 创建客户
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_customer(
         &self,
         customer_code: String,
@@ -155,6 +156,7 @@ impl CustomerService {
     }
 
     /// 更新客户信息
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_customer(
         &self,
         customer_id: i32,

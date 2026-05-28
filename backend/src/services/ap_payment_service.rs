@@ -334,6 +334,7 @@ impl ApPaymentService {
     }
 
     /// 获取付款单列表
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_list(
         &self,
         supplier_id: Option<i32>,

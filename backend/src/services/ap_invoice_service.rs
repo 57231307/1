@@ -422,6 +422,7 @@ impl ApInvoiceService {
     }
 
     /// 获取应付单列表（含分页、筛选）
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_list(
         &self,
         supplier_id: Option<i32>,

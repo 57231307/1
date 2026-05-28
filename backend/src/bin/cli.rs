@@ -205,6 +205,7 @@ fn build_release_url(version: &str) -> String {
 }
 
 /// 构建 GitHub API 链接
+#[allow(dead_code)]
 fn build_api_url() -> String {
     format!(
         "https://api.github.com/repos/{}/releases/latest",

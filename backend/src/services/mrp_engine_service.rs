@@ -74,6 +74,7 @@ struct StockInfo {
 
 /// BOM展开节点
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct BomNode {
     product_id: i32,
     quantity: Decimal,
@@ -121,6 +122,7 @@ impl MrpEngineService {
     }
 
     /// 计算单个物料需求
+    #[allow(clippy::too_many_arguments)]
     pub async fn calculate_requirement(
         &self,
         product_id: i32,
@@ -174,6 +176,7 @@ impl MrpEngineService {
     }
 
     /// 递归展开BOM
+    #[allow(clippy::too_many_arguments)]
     async fn explode_bom_recursive(
         &self,
         product_id: i32,
@@ -246,6 +249,7 @@ impl MrpEngineService {
     }
 
     /// 展开BOM计算子物料需求
+    #[allow(clippy::too_many_arguments)]
     pub async fn explode_bom(
         &self,
         product_id: i32,
@@ -276,6 +280,7 @@ impl MrpEngineService {
     }
 
     /// 执行MRP计算并保存结果
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_mrp_calculation(
         &self,
         product_id: i32,

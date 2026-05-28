@@ -339,15 +339,15 @@ impl ReportEngineService {
                         crate::models::sales_order::Column::Status.eq(filter.value.clone())
                     );
                 }
-                "order_date" => {
+                "order_date"
+                    if filter.operator == ">=" =>
+                {
                     // 处理日期筛选
-                    if filter.operator == ">=" {
-                        if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
-                            let datetime = date.and_hms_opt(0, 0, 0).expect("valid time");
-                            query = query.filter(
-                                crate::models::sales_order::Column::OrderDate.gte(datetime)
-                            );
-                        }
+                    if let Ok(date) = chrono::NaiveDate::parse_from_str(&filter.value, "%Y-%m-%d") {
+                        let datetime = date.and_hms_opt(0, 0, 0).expect("valid time");
+                        query = query.filter(
+                            crate::models::sales_order::Column::OrderDate.gte(datetime)
+                        );
                     }
                 }
                 _ => {}
@@ -372,7 +372,7 @@ impl ReportEngineService {
             AggregationType::GroupBy => {
                 // 分组聚合
                 let group_fields = request.group_by.as_deref().unwrap_or(&[]);
-                let mut columns = Vec::new();
+                let columns;
                 let mut rows = Vec::new();
 
                 if group_fields.contains(&"status".to_string()) {
@@ -538,7 +538,7 @@ impl ReportEngineService {
         let (columns, rows) = match request.aggregation_type {
             AggregationType::GroupBy => {
                 let group_fields = request.group_by.as_deref().unwrap_or(&[]);
-                let mut columns = Vec::new();
+                let columns;
                 let mut rows = Vec::new();
 
                 if group_fields.contains(&"order_status".to_string()) {
@@ -701,7 +701,7 @@ impl ReportEngineService {
         let (columns, rows) = match request.aggregation_type {
             AggregationType::GroupBy => {
                 let group_fields = request.group_by.as_deref().unwrap_or(&[]);
-                let mut columns = Vec::new();
+                let columns;
                 let mut rows = Vec::new();
 
                 if group_fields.contains(&"warehouse_id".to_string()) {
@@ -862,7 +862,7 @@ impl ReportEngineService {
         let (columns, rows) = match request.aggregation_type {
             AggregationType::GroupBy => {
                 let group_fields = request.group_by.as_deref().unwrap_or(&[]);
-                let mut columns = Vec::new();
+                let columns;
                 let mut rows = Vec::new();
 
                 if group_fields.contains(&"status".to_string()) {
@@ -1470,6 +1470,7 @@ impl ReportEngineService {
 
             let mut y_pos = page_height - margin;
 
+            #[allow(clippy::needless_range_loop)]
             for line_idx in start_line..end_line {
                 y_pos -= line_height;
                 let y_str = format!("{:.1}", y_pos);

@@ -1180,6 +1180,7 @@ impl PurchaseOrderService {
     }
 
     /// 根据缺料预警创建采购建议
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_purchase_suggestion_from_shortage(
         &self,
         material_id: i32,

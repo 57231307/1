@@ -595,6 +595,7 @@ impl EventNotificationService {
     }
 
     /// 发送通知给多个用户
+    #[allow(clippy::too_many_arguments)]
     pub async fn notify_multiple_users(
         &self,
         user_ids: Vec<i32>,

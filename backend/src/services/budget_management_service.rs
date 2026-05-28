@@ -340,6 +340,7 @@ impl BudgetManagementService {
 
     /// 创建预算执行明细
     /// 用于记录预算的下达、调整和使用
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_execution(
         &self,
         plan_id: i32,

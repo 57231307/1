@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 #![allow(dead_code, unused_imports, unused_variables)]
 //! 登录日志 Model
 //!

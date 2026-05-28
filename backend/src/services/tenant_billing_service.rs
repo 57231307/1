@@ -582,6 +582,7 @@ impl TenantBillingService {
         Ok(renewed_count)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn generate_invoice(
         &self,
         tenant_id: i32,

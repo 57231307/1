@@ -237,29 +237,25 @@ impl ImportExportService {
                     let value = value.trim();
                     if !value.is_empty() {
                         match col_def.data_type.as_str() {
-                            "decimal" => {
-                                if value.parse::<f64>().is_err() {
-                                    errors.push(ImportError {
-                                        row: (row_idx + 1) as u64,
-                                        field: Some(col_def.field.clone()),
-                                        message: format!(
-                                            "'{}' 不是有效的数字格式",
-                                            col_def.title
-                                        ),
-                                    });
-                                }
+                            "decimal" if value.parse::<f64>().is_err() => {
+                                errors.push(ImportError {
+                                    row: (row_idx + 1) as u64,
+                                    field: Some(col_def.field.clone()),
+                                    message: format!(
+                                        "'{}' 不是有效的数字格式",
+                                        col_def.title
+                                    ),
+                                });
                             }
-                            "integer" => {
-                                if value.parse::<i64>().is_err() {
-                                    errors.push(ImportError {
-                                        row: (row_idx + 1) as u64,
-                                        field: Some(col_def.field.clone()),
-                                        message: format!(
-                                            "'{}' 不是有效的整数格式",
-                                            col_def.title
-                                        ),
-                                    });
-                                }
+                            "integer" if value.parse::<i64>().is_err() => {
+                                errors.push(ImportError {
+                                    row: (row_idx + 1) as u64,
+                                    field: Some(col_def.field.clone()),
+                                    message: format!(
+                                        "'{}' 不是有效的整数格式",
+                                        col_def.title
+                                    ),
+                                });
                             }
                             _ => {}
                         }
