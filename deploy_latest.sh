@@ -4,9 +4,13 @@
 
 set -e
 
-SERVER_IP="111.230.99.236"
-SSH_USER="root"
-SSH_PASS="Txx19960917"
+SERVER_IP="${BINGXI_SERVER_IP:-111.230.99.236}"
+SSH_USER="${BINGXI_SSH_USER:-root}"
+SSH_PASS="${BINGXI_SSH_PASS}"
+if [ -z "$SSH_PASS" ]; then
+    echo "错误：请设置 BINGXI_SSH_PASS 环境变量"
+    exit 1
+fi
 REPO="57231307/1"
 
 # 加速地址
@@ -86,10 +90,15 @@ deploy_remote() {
         cd /tmp/bingxi-deploy
         unzip -o /tmp/bingxi-erp-latest.zip
 
-        # 停止旧服务
-        systemctl stop bingxi 2>/dev/null || true
-        systemctl stop bingxi-backend 2>/dev/null || true
-        systemctl disable bingxi 2>/dev/null || true
+        # 停止并禁用旧服务
+        stop_old_services() {
+            systemctl stop bingxi 2>/dev/null || true
+            systemctl stop bingxi-backend 2>/dev/null || true
+            systemctl disable bingxi 2>/dev/null || true
+            rm -f /etc/systemd/system/bingxi.service
+            systemctl daemon-reload
+        }
+        stop_old_services
         sleep 2
 
         # 杀死占用端口的进程

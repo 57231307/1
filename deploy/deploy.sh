@@ -15,8 +15,8 @@ NC='\033[0m'
 APP_NAME="bingxi-backend"
 DEPLOY_DIR="/opt/bingxi-erp"
 BACKEND_DIR="$DEPLOY_DIR/backend"
-FRONTEND_DIR="/opt/bingxi/frontend/dist"
-CONFIG_DIR="/etc/bingxi"
+FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
+CONFIG_DIR="/etc/bingxi-erp"
 BACKUP_DIR="$DEPLOY_DIR/backups"
 LOG_DIR="$DEPLOY_DIR/backend/logs"
 ENV_FILE="$CONFIG_DIR/.env"
@@ -39,6 +39,8 @@ stop_old_services() {
     systemctl stop bingxi 2>/dev/null || true
     systemctl stop bingxi-backend 2>/dev/null || true
     systemctl disable bingxi 2>/dev/null || true
+    rm -f /etc/systemd/system/bingxi.service
+    systemctl daemon-reload
     sleep 2
 
     # 杀死占用端口的进程
@@ -515,7 +517,7 @@ case "$1" in
         ;;
     8|migrate)
         echo "执行数据库迁移..."
-        source /etc/bingxi/.env
+        source /etc/bingxi-erp/.env
         for f in /opt/bingxi-erp/database/migration/*.sql; do
             if [ -f "$f" ]; then
                 echo "执行: $(basename $f)"

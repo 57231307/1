@@ -14,9 +14,9 @@ NC='\033[0m' # No Color
 APP_NAME="bingxi-backend"
 APP_USER="bingxi"
 APP_GROUP="bingxi"
-INSTALL_DIR="/opt/bingxi"
-BIN_DIR="$INSTALL_DIR/bin"
-CONFIG_DIR="/etc/bingxi"
+INSTALL_DIR="/opt/bingxi-erp"
+BIN_DIR="$INSTALL_DIR/backend"
+CONFIG_DIR="/etc/bingxi-erp"
 LOG_DIR="/var/log/bingxi-erp"
 SERVICE_FILE="bingxi-backend.service"
 

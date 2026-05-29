@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 APP_NAME="bingxi-frontend"
-INSTALL_DIR="/var/www/bingxi-frontend"
+INSTALL_DIR="/opt/bingxi-erp/frontend/dist"
 NGINX_CONFIG="/etc/nginx/sites-available/bingxi-frontend"
 NGINX_ENABLED="/etc/nginx/sites-enabled/bingxi-frontend"
 

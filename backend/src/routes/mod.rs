@@ -1251,7 +1251,9 @@ pub fn create_router(state: AppState) -> Router {
         // 静态文件服务 - CSS样式文件
         .route("/static/*path", get({
             move |axum::extract::Path(path): axum::extract::Path<String>| async move {
-                let static_path = format!("/workspace/frontend/static/{}", path);
+                let static_dir = std::env::var("FRONTEND_STATIC_DIR")
+                    .unwrap_or_else(|_| "/workspace/frontend/static".to_string());
+                let static_path = format!("{}/{}", static_dir, path);
                 if let Ok(content) = tokio::fs::read(&static_path).await {
                     let body = axum::body::Body::from(content);
                     let mut res = axum::response::Response::new(body);

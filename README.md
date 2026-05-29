@@ -180,25 +180,25 @@ docker-compose down
 
 ### 业务模块
 
-- [采购管理模块文档](./docs/modules/purchase.md)
-- [销售管理模块文档](./docs/modules/sales.md)
-- [库存管理模块文档](./docs/modules/inventory.md)
-- [生产管理模块文档](./docs/modules/production.md)
-- [财务管理模块文档](./docs/modules/finance.md)
-- [CRM 模块文档](./docs/modules/crm.md)
+- [采购管理模块文档](./docs/modules/purchase.md) (待创建)
+- [销售管理模块文档](./docs/modules/sales.md) (待创建)
+- [库存管理模块文档](./docs/modules/inventory.md) (待创建)
+- [生产管理模块文档](./docs/modules/production.md) (待创建)
+- [财务管理模块文档](./docs/modules/finance.md) (待创建)
+- [CRM 模块文档](./docs/modules/crm.md) (待创建)
 
 ### 高级功能
 
-- [AI 智能分析](./docs/features/ai-analysis.md)
-- [BPM 审批流](./docs/features/bpm.md)
-- [报表引擎](./docs/features/report-engine.md)
-- [多租户 SaaS](./docs/features/multi-tenant.md)
+- [AI 智能分析](./docs/features/ai-analysis.md) (待创建)
+- [BPM 审批流](./docs/features/bpm.md) (待创建)
+- [报表引擎](./docs/features/report-engine.md) (待创建)
+- [多租户 SaaS](./docs/features/multi-tenant.md) (待创建)
 
 ### API 参考
 
-- [REST API 文档](./docs/api/rest.md)
+- [REST API 文档](./docs/api/rest.md) (待创建)
 - [OpenAPI Specification](http://localhost:8080/swagger-ui)
-- [API 认证指南](./docs/api/authentication.md)
+- [API 认证指南](./docs/api/authentication.md) (待创建)
 
 ## 🌐 API 文档
 
@@ -354,7 +354,7 @@ docker run -d \
 
 ### Kubernetes 部署
 
-详见 [Kubernetes 部署指南](./docs/deployment/kubernetes.md)
+详见 [Kubernetes 部署指南](./docs/deployment/kubernetes.md) (待创建)
 
 ## 🤝 贡献
 
@@ -370,7 +370,7 @@ docker run -d \
 
 ### 开发环境设置
 
-详见 [开发环境设置指南](./docs/development/setup.md)
+详见 [开发环境设置指南](./docs/development/setup.md) (待创建)
 
 ### 行为准则
 

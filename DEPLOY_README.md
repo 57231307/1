@@ -52,7 +52,7 @@ scp /tmp/release.tar.gz root@111.230.99.236:/tmp/
 tar -xzf /tmp/release.tar.gz -C /tmp/
 
 # 停止服务
-systemctl stop bingxi
+systemctl stop bingxi-backend
 
 # 备份
 cp -r /opt/bingxi /opt/bingxi.backup.$(date +%Y%m%d_%H%M%S)
@@ -79,14 +79,14 @@ COOKIE__SECRET=openssl rand -hex 32
 ENVEOF
 
 # 安装服务
-cp /workspace/deploy/bingxi.service /etc/systemd/system/
+cp /workspace/deploy/bingxi-backend.service /etc/systemd/system/
 cp /workspace/deploy/nginx.conf /etc/nginx/sites-available/bingxi
 ln -sf /etc/nginx/sites-available/bingxi /etc/nginx/sites-enabled/
 
 # 启动
 systemctl daemon-reload
-systemctl enable bingxi
-systemctl start bingxi
+systemctl enable bingxi-backend
+systemctl start bingxi-backend
 systemctl restart nginx
 ```
 
@@ -118,19 +118,19 @@ COOKIE__SECRET=随机生成
 
 ```bash
 # 查看服务状态
-systemctl status bingxi
+systemctl status bingxi-backend
 
 # 查看日志
-journalctl -u bingxi -f
+journalctl -u bingxi-backend -f
 
 # 重启服务
-systemctl restart bingxi
+systemctl restart bingxi-backend
 
 # 停止服务
-systemctl stop bingxi
+systemctl stop bingxi-backend
 
 # 启动服务
-systemctl start bingxi
+systemctl start bingxi-backend
 
 # 查看 Nginx 状态
 systemctl status nginx
@@ -164,7 +164,7 @@ chmod 755 /opt/bingxi/backend/server
 
 ```bash
 # 查看系统日志
-journalctl -u bingxi --no-pager -n 50
+journalctl -u bingxi-backend --no-pager -n 50
 
 # 检查配置文件
 cat /etc/bingxi/.env
@@ -201,7 +201,7 @@ systemctl restart nginx
 ### 系统资源
 ```bash
 # CPU 和内存
-top -p $(pgrep -f bingxi)
+top -p $(pgrep -f bingxi-backend)
 
 # 磁盘使用
 df -h /opt/bingxi

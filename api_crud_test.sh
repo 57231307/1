@@ -7,7 +7,7 @@ BASE_API="/api/v1/erp"
 echo "=== 登录获取 token ==="
 TOKEN=$(curl -s -X POST "${SERVER}${BASE_API}/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  -d "{\"username\":\"admin\",\"password\":\"${BINGXI_ADMIN_PASSWORD:-admin123}\"}" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
 
 echo "Token: ${TOKEN:0:50}..."
 echo ""

@@ -174,7 +174,7 @@ impl InitService {
         let possible_paths = [
             PathBuf::from("database/migration"),
             PathBuf::from("../database/migration"),
-            PathBuf::from("/opt/bingxi-erp/database/migration"),
+            PathBuf::from(std::env::var("MIGRATION_DIR").unwrap_or_else(|_| "/opt/bingxi-erp/database/migration".to_string())),
             PathBuf::from("/opt/bingxi/database/migration"),
         ];
 

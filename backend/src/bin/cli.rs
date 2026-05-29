@@ -9,14 +9,20 @@ use std::process::Command;
 /// 服务名称 (systemd service name)
 const SERVICE_NAME: &str = "bingxi";
 
-/// 安装目录
-const INSTALL_DIR: &str = "/opt/bingxi-erp";
+/// 获取安装目录 (支持环境变量覆盖)
+fn get_install_dir() -> String {
+    std::env::var("BINGXI_INSTALL_DIR").unwrap_or_else(|_| "/opt/bingxi-erp".to_string())
+}
 
-/// 日志目录
-const LOG_DIR: &str = "/opt/bingxi-erp/backend/logs";
+/// 获取日志目录 (支持环境变量覆盖)
+fn get_log_dir() -> String {
+    std::env::var("BINGXI_LOG_DIR").unwrap_or_else(|_| format!("{}/backend/logs", get_install_dir()))
+}
 
-/// 备份目录
-const BACKUP_DIR: &str = "/opt/bingxi-erp/backups";
+/// 获取备份目录 (支持环境变量覆盖)
+fn get_backup_dir() -> String {
+    std::env::var("BINGXI_BACKUP_DIR").unwrap_or_else(|_| format!("{}/backups", get_install_dir()))
+}
 
 /// GitHub 仓库
 const GITHUB_REPO: &str = "57231307/1";
@@ -402,7 +408,7 @@ fn cmd_logs(lines: u16, follow: bool, log_type: &str) {
                 .status();
         }
         "frontend" => {
-            let path = format!("{}/frontend/logs/error.log", INSTALL_DIR);
+            let path = format!("{}/frontend/logs/error.log", get_install_dir());
             let mut args = vec!["-n", &lines_str];
             if follow { args.push("-f"); }
             args.push(&path);
@@ -428,7 +434,7 @@ fn cmd_logs(lines: u16, follow: bool, log_type: &str) {
 
 fn cmd_backup(backup_type: &str) {
     let ts = timestamp();
-    let backup_dir = format!("{}/{}", BACKUP_DIR, ts);
+    let backup_dir = format!("{}/{}", get_backup_dir(), ts);
     
     println!("=== 开始备份 ===\n");
     println!("备份目录: {}", backup_dir);
@@ -452,7 +458,7 @@ fn cmd_backup(backup_type: &str) {
     // 备份文件
     if backup_type == "files" || backup_type == "all" {
         println!("\n备份配置文件...");
-        let config_dir = format!("{}/backend/config.yaml", INSTALL_DIR);
+        let config_dir = format!("{}/backend/config.yaml", get_install_dir());
         let env_file = "/etc/bingxi/.env";
         let service_file = format!("/etc/systemd/system/{}.service", SERVICE_NAME);
         
@@ -465,8 +471,8 @@ fn cmd_backup(backup_type: &str) {
     
     // 压缩
     println!("\n压缩备份...");
-    let tar_file = format!("{}/backup_{}.tar.gz", BACKUP_DIR, ts);
-    let _ = run_cmd("tar", &["-czf", &tar_file, "-C", BACKUP_DIR, &ts.to_string()]);
+    let tar_file = format!("{}/backup_{}.tar.gz", get_backup_dir(), ts);
+    let _ = run_cmd("tar", &["-czf", &tar_file, "-C", &get_backup_dir(), &ts.to_string()]);
     let _ = run_cmd("rm", &["-rf", &backup_dir]);
     
     println!("\n[OK] 备份完成: {}", tar_file);
@@ -513,7 +519,7 @@ fn cmd_restore(file: &str) {
             let dst = if *name == ".env" {
                 "/etc/bingxi/.env".to_string()
             } else {
-                format!("{}/backend/{}", INSTALL_DIR, name)
+                format!("{}/backend/{}", get_install_dir(), name)
             };
             let _ = run_cmd("cp", &[&src, &dst]);
             println!("[OK] 恢复: {}", name);
@@ -559,13 +565,13 @@ fn cmd_health() {
     
     // 磁盘空间
     println!("\n--- 磁盘使用 ---");
-    if let Ok(df) = run_cmd("df", &["-h", INSTALL_DIR]) {
+    if let Ok(df) = run_cmd("df", &["-h", &get_install_dir()]) {
         println!("{}", df);
     }
     
     // 日志大小
     println!("\n--- 日志大小 ---");
-    if let Ok(du) = run_cmd("du", &["-sh", LOG_DIR]) {
+    if let Ok(du) = run_cmd("du", &["-sh", &get_log_dir()]) {
         println!("{}", du);
     }
 }
@@ -631,7 +637,7 @@ fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     
     println!("\n[OK] 升级完成");
     println!("新版本: {}", target);
-    println!("备份位置: {}", BACKUP_DIR);
+    println!("备份位置: {}", get_backup_dir());
     println!("\n如需回滚: bingxi rollback");
 }
 
@@ -660,30 +666,30 @@ fn deploy_release(package: &str) {
     // 备份旧文件
     println!("备份旧文件...");
     let ts = timestamp();
-    let old_backup = format!("{}/old.{}", INSTALL_DIR, ts);
+    let old_backup = format!("{}/old.{}", get_install_dir(), ts);
     let _ = run_cmd("mkdir", &["-p", &old_backup]);
-    let _ = run_cmd("cp", &["-r", &format!("{}/backend/server", INSTALL_DIR), &old_backup]);
-    let _ = run_cmd("cp", &["-r", &format!("{}/backend/bingxi", INSTALL_DIR), &old_backup]);
+    let _ = run_cmd("cp", &["-r", &format!("{}/backend/server", get_install_dir()), &old_backup]);
+    let _ = run_cmd("cp", &["-r", &format!("{}/backend/bingxi", get_install_dir()), &old_backup]);
     
     // 更新后端
     println!("更新后端...");
     let _ = run_cmd("cp", &[
         &format!("{}/backend/server", extract_dir),
-        &format!("{}/backend/server", INSTALL_DIR),
+        &format!("{}/backend/server", get_install_dir()),
     ]);
     let _ = run_cmd("cp", &[
         &format!("{}/backend/bingxi", extract_dir),
-        &format!("{}/backend/bingxi", INSTALL_DIR),
+        &format!("{}/backend/bingxi", get_install_dir()),
     ]);
-    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/server", INSTALL_DIR)]);
-    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/bingxi", INSTALL_DIR)]);
+    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/server", get_install_dir())]);
+    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/bingxi", get_install_dir())]);
     
     // 更新前端
     println!("更新前端...");
-    let _ = run_cmd("rm", &["-rf", &format!("{}/frontend/dist", INSTALL_DIR)]);
+    let _ = run_cmd("rm", &["-rf", &format!("{}/frontend/dist", get_install_dir())]);
     let _ = run_cmd("mv", &[
         &format!("{}/frontend/dist", extract_dir),
-        &format!("{}/frontend/dist", INSTALL_DIR),
+        &format!("{}/frontend/dist", get_install_dir()),
     ]);
     
     // 清理
@@ -719,8 +725,8 @@ fn cmd_deploy(package: &str) {
 fn cmd_rollback() {
     println!("=== 回滚版本 ===\n");
     
-    let server_old = format!("{}/backend/server.old", INSTALL_DIR);
-    let bingxi_old = format!("{}/backend/bingxi.old", INSTALL_DIR);
+    let server_old = format!("{}/backend/server.old", get_install_dir());
+    let bingxi_old = format!("{}/backend/bingxi.old", get_install_dir());
     
     if !std::path::Path::new(&server_old).exists() {
         println!("[ERROR] 未找到旧版本文件");
@@ -733,10 +739,10 @@ fn cmd_rollback() {
     std::thread::sleep(std::time::Duration::from_secs(2));
     
     println!("恢复旧版本...");
-    let _ = run_cmd("mv", &[&server_old, &format!("{}/backend/server", INSTALL_DIR)]);
-    let _ = run_cmd("mv", &[&bingxi_old, &format!("{}/backend/bingxi", INSTALL_DIR)]);
-    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/server", INSTALL_DIR)]);
-    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/bingxi", INSTALL_DIR)]);
+    let _ = run_cmd("mv", &[&server_old, &format!("{}/backend/server", get_install_dir())]);
+    let _ = run_cmd("mv", &[&bingxi_old, &format!("{}/backend/bingxi", get_install_dir())]);
+    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/server", get_install_dir())]);
+    let _ = run_cmd("chmod", &["+x", &format!("{}/backend/bingxi", get_install_dir())]);
     
     println!("启动服务...");
     let _ = run_cmd("systemctl", &["start", SERVICE_NAME]);
@@ -755,13 +761,13 @@ fn cmd_clean(clean_type: &str) {
     
     if clean_type == "logs" || clean_type == "all" {
         println!("清理旧日志 (30天前)...");
-        let _ = run_cmd("find", &[LOG_DIR, "-name", "*.log*", "-mtime", "+30", "-delete"]);
+        let _ = run_cmd("find", &[&get_log_dir(), "-name", "*.log*", "-mtime", "+30", "-delete"]);
         println!("[OK] 日志清理完成");
     }
     
     if clean_type == "backups" || clean_type == "all" {
         println!("清理旧备份 (90天前)...");
-        let _ = run_cmd("find", &[BACKUP_DIR, "-name", "backup_*", "-mtime", "+90", "-delete"]);
+        let _ = run_cmd("find", &[&get_backup_dir(), "-name", "backup_*", "-mtime", "+90", "-delete"]);
         println!("[OK] 备份清理完成");
     }
     
@@ -779,7 +785,7 @@ fn cmd_config() {
     println!("=== 系统配置 ===\n");
     
     // 后端配置
-    let config_file = format!("{}/backend/config.yaml", INSTALL_DIR);
+    let config_file = format!("{}/backend/config.yaml", get_install_dir());
     println!("--- {} ---", config_file);
     match std::fs::read_to_string(&config_file) {
         Ok(content) => println!("{}", content),
@@ -848,7 +854,7 @@ fn cmd_info() {
     println!("=== Bingxi ERP 系统信息 ===\n");
     
     println!("CLI 版本: v{}", env!("CARGO_PKG_VERSION"));
-    println!("安装目录: {}", INSTALL_DIR);
+    println!("安装目录: {}", get_install_dir());
     println!("服务状态: {}", if is_service_active(SERVICE_NAME) { "运行中" } else { "已停止" });
     
     println!("\n--- 系统信息 ---");
@@ -857,7 +863,7 @@ fn cmd_info() {
     }
     
     println!("\n--- 磁盘使用 ---");
-    if let Ok(df) = run_cmd("df", &["-h", INSTALL_DIR]) {
+    if let Ok(df) = run_cmd("df", &["-h", &get_install_dir()]) {
         println!("{}", df);
     }
     
