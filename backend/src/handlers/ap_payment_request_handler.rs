@@ -3,9 +3,11 @@
 //! 付款申请 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::supplier;
 use crate::services::ap_payment_request_service::{
     ApPaymentRequestService, CreateApPaymentRequest, UpdateApPaymentRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -13,8 +15,6 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
-use crate::models::{supplier};
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -62,7 +62,12 @@ pub async fn list_requests(
         auth.username, total
     );
 
-    let mut result = crate::utils::response::build_paginated_response(requests, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let mut result = crate::utils::response::build_paginated_response(
+        requests,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -249,13 +254,15 @@ pub async fn submit_request(
             String::new()
         };
 
-        let _ = event_service.notify_payment_request(
-            auth.user_id,
-            &request.request_no,
-            &request.request_amount.to_string(),
-            &supplier_name,
-            request.id,
-        ).await;
+        let _ = event_service
+            .notify_payment_request(
+                auth.user_id,
+                &request.request_no,
+                &request.request_amount.to_string(),
+                &supplier_name,
+                request.id,
+            )
+            .await;
     }
 
     info!(

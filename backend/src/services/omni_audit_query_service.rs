@@ -1,8 +1,6 @@
 use crate::models::omni_audit_log;
 use crate::utils::error::AppError;
-use sea_orm::{
-    DatabaseConnection, EntityTrait, QueryOrder, QuerySelect,
-};
+use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder, QuerySelect};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -38,14 +36,21 @@ impl OmniAuditQueryService {
     }
 
     pub async fn get_dashboard_stats(&self) -> Result<AuditStats, AppError> {
-        let all_logs = omni_audit_log::Entity::find()
-            .all(self.db.as_ref())
-            .await?;
+        let all_logs = omni_audit_log::Entity::find().all(self.db.as_ref()).await?;
 
         let total = all_logs.len() as i64;
-        let ui_clicks = all_logs.iter().filter(|l| l.module.as_deref() == Some("UI_CLICK")).count() as i64;
-        let api_calls = all_logs.iter().filter(|l| l.module.as_deref() == Some("API_CALL")).count() as i64;
-        let security_alerts = all_logs.iter().filter(|l| l.module.as_deref() == Some("SECURITY_ALERT")).count() as i64;
+        let ui_clicks = all_logs
+            .iter()
+            .filter(|l| l.module.as_deref() == Some("UI_CLICK"))
+            .count() as i64;
+        let api_calls = all_logs
+            .iter()
+            .filter(|l| l.module.as_deref() == Some("API_CALL"))
+            .count() as i64;
+        let security_alerts = all_logs
+            .iter()
+            .filter(|l| l.module.as_deref() == Some("SECURITY_ALERT"))
+            .count() as i64;
 
         Ok(AuditStats {
             total_events_today: total,

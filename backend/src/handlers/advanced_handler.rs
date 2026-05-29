@@ -97,7 +97,9 @@ pub async fn inventory_optimization(
     let db = state.db.clone();
     let service = AiAnalysisService::new(state.db);
 
-    let product_id = payload.as_ref().and_then(|p| p.product_id.map(|pid| pid as i32));
+    let product_id = payload
+        .as_ref()
+        .and_then(|p| p.product_id.map(|pid| pid as i32));
 
     match service.optimize_inventory(product_id).await {
         Ok(suggestions) => {
@@ -144,7 +146,10 @@ pub async fn inventory_optimization(
                     product_name,
                     suggestion: format!(
                         "{} (当前库存: {:.0}, 再订货点: {:.0}, 建议订货: {:.0})",
-                        s.reason, current, reorder_point, s.reorder_quantity.to_f64().unwrap_or(0.0)
+                        s.reason,
+                        current,
+                        reorder_point,
+                        s.reorder_quantity.to_f64().unwrap_or(0.0)
                     ),
                     priority: priority.to_string(),
                 });
@@ -311,7 +316,11 @@ pub async fn list_report_templates() -> impl IntoResponse {
                 description: format!(
                     "包含 {} 个列: {}",
                     t.columns.len(),
-                    t.columns.iter().map(|c| c.title.as_str()).collect::<Vec<_>>().join(", ")
+                    t.columns
+                        .iter()
+                        .map(|c| c.title.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 ),
                 created_at: Utc::now().format("%Y-%m-%d").to_string(),
             }
@@ -409,9 +418,7 @@ pub async fn export_report(
 // ============================================================================
 
 /// 采购合同列表
-pub async fn list_purchase_contracts(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_purchase_contracts(State(state): State<AppState>) -> impl IntoResponse {
     match PurchaseContractEntity::find()
         .order_by_desc(crate::models::purchase_contract::Column::CreatedAt)
         .all(&*state.db)
@@ -423,8 +430,12 @@ pub async fn list_purchase_contracts(
                 .map(|c| PurchaseContract {
                     id: c.id as u32,
                     contract_no: c.contract_no,
-                    supplier_name: c.supplier_name.unwrap_or_else(|| format!("供应商 #{}", c.supplier_id)),
-                    contract_date: c.signed_date.map_or_else(|| "".to_string(), |d| d.to_string()),
+                    supplier_name: c
+                        .supplier_name
+                        .unwrap_or_else(|| format!("供应商 #{}", c.supplier_id)),
+                    contract_date: c
+                        .signed_date
+                        .map_or_else(|| "".to_string(), |d| d.to_string()),
                     total_amount: c.total_amount.and_then(|d| d.to_f64()).unwrap_or(0.0),
                     status: c.status,
                 })
@@ -476,9 +487,16 @@ pub async fn create_purchase_contract(
         Ok(inserted) => Json(ApiResponse::success(PurchaseContract {
             id: inserted.id as u32,
             contract_no: inserted.contract_no,
-            supplier_name: inserted.supplier_name.unwrap_or_else(|| format!("供应商 #{}", inserted.supplier_id)),
-            contract_date: inserted.signed_date.map_or_else(|| "".to_string(), |d| d.to_string()),
-            total_amount: inserted.total_amount.and_then(|d| d.to_f64()).unwrap_or(0.0),
+            supplier_name: inserted
+                .supplier_name
+                .unwrap_or_else(|| format!("供应商 #{}", inserted.supplier_id)),
+            contract_date: inserted
+                .signed_date
+                .map_or_else(|| "".to_string(), |d| d.to_string()),
+            total_amount: inserted
+                .total_amount
+                .and_then(|d| d.to_f64())
+                .unwrap_or(0.0),
             status: inserted.status,
         })),
         Err(e) => {
@@ -490,23 +508,27 @@ pub async fn create_purchase_contract(
 
 /// 获取采购合同
 pub async fn get_purchase_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID".to_string(),
+    ))
 }
 
 /// 更新采购合同
 pub async fn update_purchase_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID和更新数据".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID和更新数据".to_string(),
+    ))
 }
 
 /// 删除采购合同
 pub async fn delete_purchase_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID".to_string(),
+    ))
 }
 
 /// 审批采购合同
-pub async fn approve_purchase_contract(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn approve_purchase_contract(State(state): State<AppState>) -> impl IntoResponse {
     use sea_orm::{ActiveModelTrait, ColumnTrait, QueryFilter};
 
     match PurchaseContractEntity::find()
@@ -534,7 +556,9 @@ pub async fn approve_purchase_contract(
 
 /// 执行采购合同
 pub async fn execute_purchase_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID".to_string(),
+    ))
 }
 
 // ============================================================================
@@ -542,9 +566,7 @@ pub async fn execute_purchase_contract() -> impl IntoResponse {
 // ============================================================================
 
 /// 采购价格列表
-pub async fn list_purchase_prices(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_purchase_prices(State(state): State<AppState>) -> impl IntoResponse {
     match PurchasePriceEntity::find()
         .order_by_desc(crate::models::purchase_price::Column::EffectiveDate)
         .all(&*state.db)
@@ -561,7 +583,9 @@ pub async fn list_purchase_prices(
                     currency: p.currency,
                     unit: p.unit,
                     effective_date: p.effective_date.to_string(),
-                    expiry_date: p.expiry_date.map_or_else(|| "".to_string(), |d| d.to_string()),
+                    expiry_date: p
+                        .expiry_date
+                        .map_or_else(|| "".to_string(), |d| d.to_string()),
                     status: p.status,
                 })
                 .collect();
@@ -614,7 +638,9 @@ pub async fn create_purchase_price(
             currency: inserted.currency,
             unit: inserted.unit,
             effective_date: inserted.effective_date.to_string(),
-            expiry_date: inserted.expiry_date.map_or_else(|| "".to_string(), |d| d.to_string()),
+            expiry_date: inserted
+                .expiry_date
+                .map_or_else(|| "".to_string(), |d| d.to_string()),
             status: inserted.status,
         })),
         Err(e) => {
@@ -626,17 +652,23 @@ pub async fn create_purchase_price(
 
 /// 更新采购价格
 pub async fn update_purchase_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供价格ID和更新数据".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供价格ID和更新数据".to_string(),
+    ))
 }
 
 /// 删除采购价格
 pub async fn delete_purchase_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供价格ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供价格ID".to_string(),
+    ))
 }
 
 /// 审批采购价格
 pub async fn approve_purchase_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供价格ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供价格ID".to_string(),
+    ))
 }
 
 // ============================================================================
@@ -644,9 +676,7 @@ pub async fn approve_purchase_price() -> impl IntoResponse {
 // ============================================================================
 
 /// 销售合同列表
-pub async fn list_sales_contracts(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_sales_contracts(State(state): State<AppState>) -> impl IntoResponse {
     match SalesContractEntity::find()
         .order_by_desc(crate::models::sales_contract::Column::CreatedAt)
         .all(&*state.db)
@@ -658,8 +688,12 @@ pub async fn list_sales_contracts(
                 .map(|c| SalesContract {
                     id: c.id as u32,
                     contract_no: c.contract_no,
-                    customer_name: c.customer_name.unwrap_or_else(|| format!("客户 #{}", c.customer_id)),
-                    contract_date: c.signed_date.map_or_else(|| "".to_string(), |d| d.to_string()),
+                    customer_name: c
+                        .customer_name
+                        .unwrap_or_else(|| format!("客户 #{}", c.customer_id)),
+                    contract_date: c
+                        .signed_date
+                        .map_or_else(|| "".to_string(), |d| d.to_string()),
                     total_amount: c.total_amount.and_then(|d| d.to_f64()).unwrap_or(0.0),
                     status: c.status,
                 })
@@ -711,9 +745,16 @@ pub async fn create_sales_contract(
         Ok(inserted) => Json(ApiResponse::success(SalesContract {
             id: inserted.id as u32,
             contract_no: inserted.contract_no,
-            customer_name: inserted.customer_name.unwrap_or_else(|| format!("客户 #{}", inserted.customer_id)),
-            contract_date: inserted.signed_date.map_or_else(|| "".to_string(), |d| d.to_string()),
-            total_amount: inserted.total_amount.and_then(|d| d.to_f64()).unwrap_or(0.0),
+            customer_name: inserted
+                .customer_name
+                .unwrap_or_else(|| format!("客户 #{}", inserted.customer_id)),
+            contract_date: inserted
+                .signed_date
+                .map_or_else(|| "".to_string(), |d| d.to_string()),
+            total_amount: inserted
+                .total_amount
+                .and_then(|d| d.to_f64())
+                .unwrap_or(0.0),
             status: inserted.status,
         })),
         Err(e) => {
@@ -725,23 +766,27 @@ pub async fn create_sales_contract(
 
 /// 获取销售合同
 pub async fn get_sales_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID".to_string(),
+    ))
 }
 
 /// 更新销售合同
 pub async fn update_sales_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID和更新数据".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID和更新数据".to_string(),
+    ))
 }
 
 /// 删除销售合同
 pub async fn delete_sales_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供合同ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供合同ID".to_string(),
+    ))
 }
 
 /// 审批销售合同
-pub async fn approve_sales_contract(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn approve_sales_contract(State(state): State<AppState>) -> impl IntoResponse {
     use sea_orm::{ActiveModelTrait, ColumnTrait, QueryFilter};
 
     match SalesContractEntity::find()
@@ -772,9 +817,7 @@ pub async fn approve_sales_contract(
 // ============================================================================
 
 /// 销售价格列表
-pub async fn list_sales_prices(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_sales_prices(State(state): State<AppState>) -> impl IntoResponse {
     match SalesPriceEntity::find()
         .order_by_desc(crate::models::sales_price::Column::EffectiveDate)
         .all(&*state.db)
@@ -786,7 +829,9 @@ pub async fn list_sales_prices(
                 .map(|p| SalesPrice {
                     id: p.id as u32,
                     product_name: format!("产品 #{}", p.product_id),
-                    customer_name: p.customer_id.map_or_else(|| "全部客户".to_string(), |cid| format!("客户 #{}", cid)),
+                    customer_name: p
+                        .customer_id
+                        .map_or_else(|| "全部客户".to_string(), |cid| format!("客户 #{}", cid)),
                     price: p.price.to_f64().unwrap_or(0.0),
                     currency: p.currency,
                     unit: p.unit,
@@ -840,7 +885,9 @@ pub async fn create_sales_price(
         Ok(inserted) => Json(ApiResponse::success(SalesPrice {
             id: inserted.id as u32,
             product_name: format!("产品 #{}", inserted.product_id),
-            customer_name: inserted.customer_id.map_or_else(|| "全部客户".to_string(), |cid| format!("客户 #{}", cid)),
+            customer_name: inserted
+                .customer_id
+                .map_or_else(|| "全部客户".to_string(), |cid| format!("客户 #{}", cid)),
             price: inserted.price.to_f64().unwrap_or(0.0),
             currency: inserted.currency,
             unit: inserted.unit,
@@ -856,17 +903,23 @@ pub async fn create_sales_price(
 
 /// 更新销售价格
 pub async fn update_sales_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供价格ID和更新数据".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供价格ID和更新数据".to_string(),
+    ))
 }
 
 /// 删除销售价格
 pub async fn delete_sales_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供价格ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供价格ID".to_string(),
+    ))
 }
 
 /// 审批销售价格
 pub async fn approve_sales_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供价格ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供价格ID".to_string(),
+    ))
 }
 
 // ============================================================================
@@ -874,9 +927,7 @@ pub async fn approve_sales_price() -> impl IntoResponse {
 // ============================================================================
 
 /// 销售退货列表
-pub async fn list_sales_returns(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_sales_returns(State(state): State<AppState>) -> impl IntoResponse {
     match SalesReturnEntity::find()
         .order_by_desc(crate::models::sales_return::Column::CreatedAt)
         .all(&*state.db)
@@ -889,7 +940,9 @@ pub async fn list_sales_returns(
                     id: r.id as u32,
                     return_no: r.return_no,
                     customer_name: format!("客户 #{}", r.customer_id),
-                    order_no: r.sales_order_id.map_or_else(|| "".to_string(), |oid| format!("SO{}", oid)),
+                    order_no: r
+                        .sales_order_id
+                        .map_or_else(|| "".to_string(), |oid| format!("SO{}", oid)),
                     return_date: r.return_date.to_string(),
                     total_amount: r.total_amount.to_f64().unwrap_or(0.0),
                     reason: r.reason,
@@ -925,7 +978,8 @@ pub async fn create_sales_return(
         reason: sea_orm::ActiveValue::Set(payload.reason.clone()),
         status: sea_orm::ActiveValue::Set("pending".to_string()),
         total_amount: sea_orm::ActiveValue::Set(
-            rust_decimal::Decimal::try_from(payload.total_amount).unwrap_or(rust_decimal::Decimal::ZERO),
+            rust_decimal::Decimal::try_from(payload.total_amount)
+                .unwrap_or(rust_decimal::Decimal::ZERO),
         ),
         remarks: sea_orm::ActiveValue::Set(None),
         approved_by: sea_orm::ActiveValue::Set(None),
@@ -942,7 +996,9 @@ pub async fn create_sales_return(
             id: inserted.id as u32,
             return_no: inserted.return_no,
             customer_name: format!("客户 #{}", inserted.customer_id),
-            order_no: inserted.sales_order_id.map_or_else(|| "".to_string(), |oid| format!("SO{}", oid)),
+            order_no: inserted
+                .sales_order_id
+                .map_or_else(|| "".to_string(), |oid| format!("SO{}", oid)),
             return_date: inserted.return_date.to_string(),
             total_amount: inserted.total_amount.to_f64().unwrap_or(0.0),
             reason: inserted.reason,
@@ -957,17 +1013,23 @@ pub async fn create_sales_return(
 
 /// 获取销售退货
 pub async fn get_sales_return() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供退货ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供退货ID".to_string(),
+    ))
 }
 
 /// 更新销售退货
 pub async fn update_sales_return() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供退货ID和更新数据".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供退货ID和更新数据".to_string(),
+    ))
 }
 
 /// 删除销售退货
 pub async fn delete_sales_return() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供退货ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供退货ID".to_string(),
+    ))
 }
 
 // ============================================================================
@@ -975,9 +1037,7 @@ pub async fn delete_sales_return() -> impl IntoResponse {
 // ============================================================================
 
 /// 租户列表
-pub async fn list_tenants(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_tenants(State(state): State<AppState>) -> impl IntoResponse {
     match TenantEntity::find()
         .order_by_asc(crate::models::tenant::Column::CreatedAt)
         .all(&*state.db)
@@ -991,12 +1051,16 @@ pub async fn list_tenants(
                     tenant_code: t.code,
                     tenant_name: t.name,
                     domain: t.custom_domain.unwrap_or_else(|| "".to_string()),
-                    subscription_plan: t.plan_id.map_or_else(|| "free".to_string(), |pid| format!("plan_{}", pid)),
+                    subscription_plan: t
+                        .plan_id
+                        .map_or_else(|| "free".to_string(), |pid| format!("plan_{}", pid)),
                     current_users: 0,
                     max_users: 0,
                     status: t.status,
                     subscription_start_date: "".to_string(),
-                    subscription_end_date: t.expired_at.map_or_else(|| "".to_string(), |d| d.format("%Y-%m-%d").to_string()),
+                    subscription_end_date: t
+                        .expired_at
+                        .map_or_else(|| "".to_string(), |d| d.format("%Y-%m-%d").to_string()),
                 })
                 .collect();
             Json(ApiResponse::success(items))
@@ -1039,12 +1103,16 @@ pub async fn create_tenant(
             tenant_code: inserted.code,
             tenant_name: inserted.name,
             domain: inserted.custom_domain.unwrap_or_else(|| "".to_string()),
-            subscription_plan: inserted.plan_id.map_or_else(|| "free".to_string(), |pid| format!("plan_{}", pid)),
+            subscription_plan: inserted
+                .plan_id
+                .map_or_else(|| "free".to_string(), |pid| format!("plan_{}", pid)),
             current_users: 0,
             max_users: 0,
             status: inserted.status,
             subscription_start_date: "".to_string(),
-            subscription_end_date: inserted.expired_at.map_or_else(|| "".to_string(), |d| d.format("%Y-%m-%d").to_string()),
+            subscription_end_date: inserted
+                .expired_at
+                .map_or_else(|| "".to_string(), |d| d.format("%Y-%m-%d").to_string()),
         })),
         Err(e) => {
             tracing::error!("创建租户失败: {}", e);
@@ -1055,19 +1123,26 @@ pub async fn create_tenant(
 
 /// 获取租户
 pub async fn get_tenant() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供租户ID".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供租户ID".to_string(),
+    ))
 }
 
 /// 更新租户
 pub async fn update_tenant() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error("请提供租户ID和更新数据".to_string()))
+    Json(ApiResponse::<serde_json::Value>::error(
+        "请提供租户ID和更新数据".to_string(),
+    ))
 }
 
 // ============================================================================
 // 辅助函数
 // ============================================================================
 
-async fn get_product_name(db: &Arc<DatabaseConnection>, product_id: i32) -> Result<String, AppError> {
+async fn get_product_name(
+    db: &Arc<DatabaseConnection>,
+    product_id: i32,
+) -> Result<String, AppError> {
     match ProductEntity::find_by_id(product_id).one(&**db).await {
         Ok(Some(product)) => Ok(product.name),
         Ok(None) => Ok(format!("产品 #{}", product_id)),

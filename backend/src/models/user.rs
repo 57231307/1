@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "users")]
 pub struct Model {
@@ -16,11 +16,11 @@ pub struct Model {
     pub role_id: Option<i32>,
     pub department_id: Option<i32>,
     pub is_active: bool,
-    
+
     // TOTP 二次验证字段
     pub totp_secret: Option<String>,
     pub is_totp_enabled: bool,
-    
+
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

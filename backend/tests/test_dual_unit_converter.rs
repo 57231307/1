@@ -1,8 +1,8 @@
 //! DualUnitConverter 单元测试
 
 use bingxi_backend::utils::dual_unit_converter::DualUnitConverter;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromStr;
+use rust_decimal::Decimal;
 
 #[test]
 fn test_meters_to_kg_basic() {
@@ -55,7 +55,10 @@ fn test_auto_convert_meters() {
     let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width).unwrap();
     assert_eq!(result.original_unit, "米");
     assert_eq!(result.converted_unit, "公斤");
-    assert_eq!(result.converted_quantity, Decimal::from_str("153.000").unwrap());
+    assert_eq!(
+        result.converted_quantity,
+        Decimal::from_str("153.000").unwrap()
+    );
 }
 
 #[test]
@@ -87,7 +90,8 @@ fn test_validate_dual_unit_valid() {
     let gram_weight = Decimal::from_str("170").unwrap();
     let width = Decimal::from_str("180").unwrap();
 
-    let result = DualUnitConverter::validate_dual_unit(meters, kg, gram_weight, width, None).unwrap();
+    let result =
+        DualUnitConverter::validate_dual_unit(meters, kg, gram_weight, width, None).unwrap();
     assert!(result);
 }
 
@@ -98,7 +102,8 @@ fn test_validate_dual_unit_invalid() {
     let gram_weight = Decimal::from_str("170").unwrap();
     let width = Decimal::from_str("180").unwrap();
 
-    let result = DualUnitConverter::validate_dual_unit(meters, kg, gram_weight, width, None).unwrap();
+    let result =
+        DualUnitConverter::validate_dual_unit(meters, kg, gram_weight, width, None).unwrap();
     assert!(!result);
 }
 
@@ -111,7 +116,9 @@ fn test_validate_dual_unit_custom_tolerance() {
 
     // 使用 1% 容差
     let tolerance = Decimal::from_str("0.01").unwrap();
-    let result = DualUnitConverter::validate_dual_unit(meters, kg, gram_weight, width, Some(tolerance)).unwrap();
+    let result =
+        DualUnitConverter::validate_dual_unit(meters, kg, gram_weight, width, Some(tolerance))
+            .unwrap();
     assert!(result);
 }
 

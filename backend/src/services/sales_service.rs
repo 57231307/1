@@ -1,24 +1,25 @@
 #![allow(dead_code)]
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QuerySelect, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 
+use crate::models::ar_invoice::{self, Column as ArInvoiceColumn, Entity as ArInvoiceEntity};
+use crate::models::customer;
 use crate::models::dto::PageRequest;
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
+use crate::services::user_service::UserService;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
-use crate::models::ar_invoice::{self, Entity as ArInvoiceEntity, Column as ArInvoiceColumn};
-use crate::models::customer;
-use serde::{Deserialize, Serialize};
-use sea_orm::{FromQueryResult, JoinType, RelationTrait};
-use crate::services::user_service::UserService;
 use chrono;
+use sea_orm::{FromQueryResult, JoinType, RelationTrait};
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 /// 销售订单详情响应
@@ -206,7 +207,10 @@ impl SalesService {
         order_no: Option<String>,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, AppError> {
         let mut query = SalesOrderEntity::find()
-            .column_as(crate::models::customer::Column::CustomerName, "customer_name")
+            .column_as(
+                crate::models::customer::Column::CustomerName,
+                "customer_name",
+            )
             .join(JoinType::LeftJoin, sales_order::Relation::Customer.def());
 
         // 应用过滤条件
@@ -244,27 +248,28 @@ impl SalesService {
     }
 
     /// 获取销售订单详情（包含明细项）
-    pub async fn get_order_detail(
-        &self,
-        order_id: i32,
-    ) -> Result<SalesOrderDetail, AppError> {
+    pub async fn get_order_detail(&self, order_id: i32) -> Result<SalesOrderDetail, AppError> {
         // 获取订单主表数据
         let mut order = SalesOrderEntity::find_by_id(order_id)
-            .column_as(crate::models::customer::Column::CustomerName, "customer_name")
+            .column_as(
+                crate::models::customer::Column::CustomerName,
+                "customer_name",
+            )
             .join(JoinType::LeftJoin, sales_order::Relation::Customer.def())
             .into_model::<SalesOrderDetail>()
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 获取订单明细项
         use crate::models::product;
         let items = SalesOrderItemEntity::find()
             .column_as(product::Column::Code, "product_code")
             .column_as(product::Column::Name, "product_name")
-            .join(JoinType::LeftJoin, sales_order_item::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                sales_order_item::Relation::Product.def(),
+            )
             .filter(sales_order_item::Column::OrderId.eq(order_id))
             .order_by(sales_order_item::Column::Id, Order::Asc)
             .into_model::<SalesOrderItemDetail>()
@@ -287,46 +292,55 @@ impl SalesService {
         let customer = crate::models::customer::Entity::find_by_id(request.customer_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::BusinessError(format!("客户 {} 不存在", request.customer_id)))?;
-            
+            .ok_or(AppError::BusinessError(format!(
+                "客户 {} 不存在",
+                request.customer_id
+            )))?;
+
         // 业务逻辑验证：日期合理性检查
-        let required_date = request.required_date.unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
+        let required_date = request
+            .required_date
+            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
         if required_date < chrono::Utc::now() {
             tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
             if let Err(e) = txn.rollback().await {
                 tracing::error!("事务回滚失败: {}", e);
             }
-            return Err(AppError::BusinessError("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
+            return Err(AppError::BusinessError(
+                "创建面料订单失败: 交付日期不能早于当前时间".to_string(),
+            ));
         }
-            
+
         let _credit_limit = customer.credit_limit;
-        
+
         // 计算当前未付应收账款总额
         let _total_unpaid = {
             use crate::models::ar_invoice;
             use sea_orm::QueryFilter;
-            
+
             let unpaid_result = ar_invoice::Entity::find()
                 .filter(ar_invoice::Column::CustomerId.eq(request.customer_id))
                 .filter(ar_invoice::Column::Status.ne("CANCELLED"))
                 .filter(ar_invoice::Column::Status.ne("COMPLETED"))
                 .all(&txn)
                 .await;
-            
+
             match unpaid_result {
                 Ok(invoices) => invoices.iter().map(|i| i.invoice_amount).sum(),
                 Err(_) => rust_decimal::Decimal::ZERO,
             }
         };
-        
+
         // 计算本单金额
         let mut order_amount = rust_decimal::Decimal::new(0, 0);
         for item in &request.items {
             let qty = item.quantity;
             let price = item.unit_price;
-            let discount = item.discount_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
+            let discount = item
+                .discount_percent
+                .unwrap_or(rust_decimal::Decimal::new(0, 0));
             let tax = item.tax_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
-            
+
             let mut subtotal = qty * price;
             if discount > rust_decimal::Decimal::new(0, 0) {
                 let disc_amt = subtotal * discount / rust_decimal::Decimal::new(100, 0);
@@ -338,20 +352,21 @@ impl SalesService {
             }
             order_amount += subtotal;
         }
-        
+
         // 使用信用服务检查额度
-        let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
+        let credit_service =
+            crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let order_amount_bigdecimal = {
             use bigdecimal::BigDecimal;
             BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
                 .unwrap_or_else(|| BigDecimal::from(0))
         };
-        
+
         let credit_available = credit_service
             .check_credit_available(request.customer_id, order_amount_bigdecimal.clone())
             .await
             .map_err(|e| AppError::BusinessError(format!("信用检查失败: {}", e)))?;
-        
+
         if !credit_available {
             tracing::error!("Transaction rolled back: 信用额度不足");
             txn.rollback().await?;
@@ -385,7 +400,9 @@ impl SalesService {
             order_date: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
-            status: sea_orm::ActiveValue::Set(request.status.unwrap_or_else(|| "draft".to_string())),
+            status: sea_orm::ActiveValue::Set(
+                request.status.unwrap_or_else(|| "draft".to_string()),
+            ),
             subtotal: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             tax_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             discount_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -406,7 +423,8 @@ impl SalesService {
         let order_entity = order.insert(&txn).await?;
 
         // 检查库存并预留（使用inventory_reservation表）
-        self.lock_inventory(order_entity.id, &request.items, user_id, &txn).await?;
+        self.lock_inventory(order_entity.id, &request.items, user_id, &txn)
+            .await?;
 
         // 创建订单明细项并计算金额
         let mut subtotal = rust_decimal::Decimal::ZERO;
@@ -423,17 +441,23 @@ impl SalesService {
             if !product_ids.is_empty() {
                 use crate::models::product;
                 let existing_products = product::Entity::find()
-                    .filter(product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()))
+                    .filter(
+                        product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()),
+                    )
                     .all(&txn)
                     .await?;
-                let existing_product_ids: std::collections::HashSet<i32> = existing_products.into_iter().map(|p| p.id).collect();
+                let existing_product_ids: std::collections::HashSet<i32> =
+                    existing_products.into_iter().map(|p| p.id).collect();
                 for product_id in product_ids {
                     if !existing_product_ids.contains(&product_id) {
                         tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
                         if let Err(e) = txn.rollback().await {
                             tracing::error!("事务回滚失败: {}", e);
                         }
-                        return Err(AppError::BusinessError(format!("产品 ID {} 不存在", product_id)));
+                        return Err(AppError::BusinessError(format!(
+                            "产品 ID {} 不存在",
+                            product_id
+                        )));
                     }
                 }
             }
@@ -447,8 +471,7 @@ impl SalesService {
 
             // 计算明细项金额
             let item_subtotal = item_req.quantity * item_req.unit_price;
-            let item_discount =
-                item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
+            let item_discount = item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
             let item_after_discount = item_subtotal - item_discount;
             let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
             let item_total = item_after_discount + item_tax;
@@ -522,45 +545,73 @@ impl SalesService {
         order_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
         order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
 
         // 占用信用额度（必须在事务内，失败则回滚）
-        let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
+        let credit_service =
+            crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let order_amount_bigdecimal = {
             use bigdecimal::BigDecimal;
             BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
                 .unwrap_or_else(|| BigDecimal::from(0))
         };
-        credit_service.occupy_credit(request.customer_id, order_amount_bigdecimal.clone(), user_id).await
+        credit_service
+            .occupy_credit(
+                request.customer_id,
+                order_amount_bigdecimal.clone(),
+                user_id,
+            )
+            .await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);
                 AppError::BusinessError(format!("信用额度占用失败: {}", e))
             })?;
-        tracing::info!("客户 {} 信用额度占用成功，金额: {}", request.customer_id, order_amount);
+        tracing::info!(
+            "客户 {} 信用额度占用成功，金额: {}",
+            request.customer_id,
+            order_amount
+        );
         // 检查信用预警
-        if let Ok(Some(warning)) = credit_service.check_credit_warning(request.customer_id).await {
+        if let Ok(Some(warning)) = credit_service
+            .check_credit_warning(request.customer_id)
+            .await
+        {
             tracing::warn!("信用预警: {}", warning);
         }
 
         // 订单回写商机：更新商机的 actual_amount 和 actual_close_date
         if let Some(opportunity_id) = request.opportunity_id {
             use crate::models::crm_opportunity;
-            
+
             let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::BusinessError(format!("商机 {} 不存在", opportunity_id)))?;
+                .ok_or_else(|| {
+                    AppError::BusinessError(format!("商机 {} 不存在", opportunity_id))
+                })?;
 
             let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
             opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
-            opp_active.actual_close_date = sea_orm::ActiveValue::Set(Some(chrono::Utc::now().date_naive()));
-            opp_active.opportunity_stage = sea_orm::ActiveValue::Set(Some("closed_won".to_string()));
+            opp_active.actual_close_date =
+                sea_orm::ActiveValue::Set(Some(chrono::Utc::now().date_naive()));
+            opp_active.opportunity_stage =
+                sea_orm::ActiveValue::Set(Some("closed_won".to_string()));
             opp_active.opportunity_status = sea_orm::ActiveValue::Set(Some("won".to_string()));
             opp_active.updated_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
-            
+
             opp_active.update(&txn).await?;
-            
-            tracing::info!("商机 {} 已关联订单并更新实际金额: {}", opportunity_id, total_amount);
+
+            tracing::info!(
+                "商机 {} 已关联订单并更新实际金额: {}",
+                opportunity_id,
+                total_amount
+            );
         }
 
         // 提交事务
@@ -580,9 +631,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，已发货或已完成的订单不允许修改
         if order.status == "shipped" || order.status == "completed" {
@@ -613,7 +662,13 @@ impl SalesService {
             order_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
 
         // 如果需要更新明细项
         if let Some(items) = request.items {
@@ -639,8 +694,7 @@ impl SalesService {
                 let item_discount =
                     item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
                 let item_after_discount = item_subtotal - item_discount;
-                let item_tax =
-                    item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
+                let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
                 let item_total = item_after_discount + item_tax;
 
                 subtotal += &item_subtotal;
@@ -693,10 +747,10 @@ impl SalesService {
                     ),
                     final_price: sea_orm::ActiveValue::Set(item_req.final_price),
                     shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                        shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                        paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
-                        is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
-                    };
+                    shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
+                    is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+                };
 
                 item.insert(&txn).await?;
             }
@@ -713,7 +767,13 @@ impl SalesService {
             order_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
             order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
             order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                order_update,
+                Some(0),
+            )
+            .await?;
         }
 
         // 提交事务
@@ -729,9 +789,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，已发货或已完成的订单不允许删除
         if order.status == "shipped" || order.status == "completed" {
@@ -872,7 +930,13 @@ impl SalesService {
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     ..Default::default()
                 };
-                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", stock_update, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    stock_update,
+                    Some(0),
+                )
+                .await?;
             } else {
                 return Err(AppError::BusinessError(format!(
                     "产品 {} 没有库存记录，无法锁定",
@@ -906,7 +970,11 @@ impl SalesService {
                 if s.quantity_on_hand < item.quantity {
                     return Err(AppError::BusinessError(format!(
                         "产品 {} 在仓库 {} (批次 {}) 库存不足，当前可用 {}，需要 {}",
-                        item.product_id, item.warehouse_id, item.batch_no, s.quantity_on_hand, item.quantity
+                        item.product_id,
+                        item.warehouse_id,
+                        item.batch_no,
+                        s.quantity_on_hand,
+                        item.quantity
                     )));
                 }
 
@@ -920,7 +988,13 @@ impl SalesService {
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     ..Default::default()
                 };
-                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", stock_update, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    stock_update,
+                    Some(0),
+                )
+                .await?;
 
                 // 查找对应的预留记录并标记为已使用
                 let reservation = InventoryReservationEntity::find()
@@ -935,7 +1009,13 @@ impl SalesService {
                     let mut res_update: inventory_reservation::ActiveModel = res.into();
                     res_update.status = sea_orm::ActiveValue::Set("used".to_string());
                     res_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                    crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", res_update, Some(0)).await?;
+                    crate::services::audit_log_service::AuditLogService::update_with_audit(
+                        txn,
+                        "auto_audit",
+                        res_update,
+                        Some(0),
+                    )
+                    .await?;
                 }
             } else {
                 return Err(AppError::BusinessError(format!(
@@ -943,7 +1023,7 @@ impl SalesService {
                     item.product_id, item.warehouse_id, item.batch_no
                 )));
             }
-            
+
             // 更新订单明细的已发货数量
             let order_item = SalesOrderItemEntity::find_by_id(item.order_item_id)
                 .one(txn)
@@ -951,8 +1031,15 @@ impl SalesService {
             if let Some(oi) = order_item {
                 let current_shipped = oi.shipped_quantity;
                 let mut oi_update: sales_order_item::ActiveModel = oi.into();
-                oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
-                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", oi_update, Some(0)).await?;
+                oi_update.shipped_quantity =
+                    sea_orm::ActiveValue::Set(current_shipped + item.quantity);
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    oi_update,
+                    Some(0),
+                )
+                .await?;
             }
         }
         Ok(())
@@ -986,14 +1073,26 @@ impl SalesService {
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                     ..Default::default()
                 };
-                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", stock_update, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    stock_update,
+                    Some(0),
+                )
+                .await?;
             }
 
             let mut res_update: inventory_reservation::ActiveModel = res.into();
             res_update.status = sea_orm::ActiveValue::Set("cancelled".to_string());
             res_update.released_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
             res_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", res_update, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                txn,
+                "auto_audit",
+                res_update,
+                Some(0),
+            )
+            .await?;
         }
         Ok(())
     }
@@ -1008,9 +1107,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 2. 检查状态 - 只有草稿状态可以提交
         if order.status != "draft" {
@@ -1027,15 +1124,21 @@ impl SalesService {
         let mut order_update: sales_order::ActiveModel = order.clone().into();
         order_update.status = sea_orm::ActiveValue::Set("pending_approval".to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", order_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
 
         // 5. 挂载 BPM 引擎
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
-        
+
         // 获取用户信息
         let user_service = UserService::new(self.db.clone());
         let user = user_service.find_by_id(user_id).await?;
-        
+
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "sales_order_approval".to_string(),
             business_type: "sales_order".to_string(),
@@ -1059,14 +1162,16 @@ impl SalesService {
     }
 
     /// 审核销售订单
-    pub async fn approve_order(&self, order_id: i32, user_id: i32) -> Result<SalesOrderDetail, AppError> {
+    pub async fn approve_order(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有待审批状态可以审核
         if order.status != "pending_approval" {
@@ -1122,7 +1227,14 @@ impl SalesService {
             ..Default::default()
         };
 
-        let approved_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
+        let approved_order =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                updated_order,
+                Some(0),
+            )
+            .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -1132,14 +1244,16 @@ impl SalesService {
     }
 
     /// 发货处理
-    pub async fn ship_order(&self, order_id: i32, req: ShipOrderRequest) -> Result<SalesOrderDetail, AppError> {
+    pub async fn ship_order(
+        &self,
+        order_id: i32,
+        req: ShipOrderRequest,
+    ) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有已审核状态可以发货
         if order.status != "approved" {
@@ -1164,7 +1278,13 @@ impl SalesService {
             ..Default::default()
         };
 
-        let shipped_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
+        let shipped_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            updated_order,
+            Some(0),
+        )
+        .await?;
 
         // 自动生成应收账款单据
         let invoice_no = DocumentNumberGenerator::generate_no(
@@ -1172,17 +1292,19 @@ impl SalesService {
             "AR",
             ArInvoiceEntity,
             ArInvoiceColumn::InvoiceNo,
-        ).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
-        
+        )
+        .await
+        .map_err(|e| AppError::BusinessError(e.to_string()))?;
+
         // 查询客户信息
         let customer = customer::Entity::find_by_id(order.customer_id)
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::BusinessError(format!("客户 {} 不存在", order.customer_id)))?;
-        
+
         let invoice_date = chrono::Utc::now().date_naive();
         let due_date = invoice_date + chrono::Duration::days(30);
-        
+
         let ar_invoice = ar_invoice::ActiveModel {
             invoice_no: sea_orm::ActiveValue::Set(invoice_no),
             invoice_date: sea_orm::ActiveValue::Set(invoice_date),
@@ -1200,7 +1322,7 @@ impl SalesService {
             created_by: sea_orm::ActiveValue::Set(0), // 系统生成
             ..Default::default()
         };
-        
+
         ar_invoice.insert(&txn).await?;
 
         // 提交事务
@@ -1216,9 +1338,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有已发货状态可以完成
         if order.status != "shipped" {
@@ -1239,7 +1359,14 @@ impl SalesService {
             ..Default::default()
         };
 
-        let completed_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
+        let completed_order =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                updated_order,
+                Some(0),
+            )
+            .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -1247,7 +1374,10 @@ impl SalesService {
         // 订单完成后更新商机状态
         if let Some(opportunity_id) = order.opportunity_id {
             let crm_service = crate::services::crm_service::CrmService::new(self.db.clone());
-            if let Err(e) = crm_service.update_opportunity_on_order_complete(opportunity_id, order.total_amount).await {
+            if let Err(e) = crm_service
+                .update_opportunity_on_order_complete(opportunity_id, order.total_amount)
+                .await
+            {
                 tracing::error!("更新商机状态失败 (商机 {}): {}", opportunity_id, e);
             } else {
                 tracing::info!("成功更新商机状态为已成交 (商机 {})", opportunity_id);
@@ -1259,7 +1389,11 @@ impl SalesService {
     }
 
     /// 拒绝销售订单
-    pub async fn reject_order(&self, order_id: i32, reason: String) -> Result<SalesOrderDetail, AppError> {
+    pub async fn reject_order(
+        &self,
+        order_id: i32,
+        reason: String,
+    ) -> Result<SalesOrderDetail, AppError> {
         // 1. 查询订单
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -1287,7 +1421,14 @@ impl SalesService {
             ..Default::default()
         };
 
-        let rejected_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
+        let rejected_order =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                updated_order,
+                Some(0),
+            )
+            .await?;
 
         txn.commit().await?;
 
@@ -1343,13 +1484,12 @@ impl SalesService {
                 let mut row = std::collections::HashMap::new();
                 row.insert("订单编号".to_string(), o.order_no);
                 row.insert("客户ID".to_string(), o.customer_id.to_string());
-                row.insert(
-                    "客户名称".to_string(),
-                    o.customer_name.unwrap_or_default(),
-                );
+                row.insert("客户名称".to_string(), o.customer_name.unwrap_or_default());
                 row.insert(
                     "商机ID".to_string(),
-                    o.opportunity_id.map(|id| id.to_string()).unwrap_or_default(),
+                    o.opportunity_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_default(),
                 );
                 row.insert(
                     "订单日期".to_string(),
@@ -1362,7 +1502,9 @@ impl SalesService {
                 row.insert(
                     "发货日期".to_string(),
                     o.ship_date
-                        .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .map(|d: chrono::DateTime<chrono::Utc>| {
+                            d.format("%Y-%m-%d %H:%M:%S").to_string()
+                        })
                         .unwrap_or_default(),
                 );
                 row.insert("状态".to_string(), o.status);
@@ -1384,16 +1526,22 @@ impl SalesService {
                 row.insert("备注".to_string(), o.notes.unwrap_or_default());
                 row.insert(
                     "创建人ID".to_string(),
-                    o.created_by.map(|id: i32| id.to_string()).unwrap_or_default(),
+                    o.created_by
+                        .map(|id: i32| id.to_string())
+                        .unwrap_or_default(),
                 );
                 row.insert(
                     "审批人ID".to_string(),
-                    o.approved_by.map(|id: i32| id.to_string()).unwrap_or_default(),
+                    o.approved_by
+                        .map(|id: i32| id.to_string())
+                        .unwrap_or_default(),
                 );
                 row.insert(
                     "审批时间".to_string(),
                     o.approved_at
-                        .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .map(|d: chrono::DateTime<chrono::Utc>| {
+                            d.format("%Y-%m-%d %H:%M:%S").to_string()
+                        })
                         .unwrap_or_default(),
                 );
                 row

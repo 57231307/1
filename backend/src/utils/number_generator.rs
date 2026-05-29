@@ -1,6 +1,8 @@
-use sea_orm::{ConnectionTrait, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait, FromQueryResult};
-use chrono::Utc;
 use crate::utils::error::AppError;
+use chrono::Utc;
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
+};
 
 /// 通用单号生成器
 pub struct DocumentNumberGenerator;

@@ -3,9 +3,9 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 use crate::services::currency_service::CurrencyService;
 use crate::utils::app_state::AppState;
@@ -43,7 +43,8 @@ pub async fn list_currencies(
 
     match service.list_currencies().await {
         Ok(models) => {
-            let responses: Vec<CurrencyResponse> = models.into_iter().map(CurrencyResponse::from).collect();
+            let responses: Vec<CurrencyResponse> =
+                models.into_iter().map(CurrencyResponse::from).collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {
@@ -103,8 +104,18 @@ pub async fn create_exchange_rate(
 ) -> Result<Json<ApiResponse<ExchangeRateResponse>>, StatusCode> {
     let service = CurrencyService::new(state.db);
 
-    match service.create_exchange_rate(req.from_currency, req.to_currency, req.rate, req.effective_date).await {
-        Ok(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model)))),
+    match service
+        .create_exchange_rate(
+            req.from_currency,
+            req.to_currency,
+            req.rate,
+            req.effective_date,
+        )
+        .await
+    {
+        Ok(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(
+            model,
+        )))),
         Err(e) => {
             tracing::error!("创建汇率失败: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -124,8 +135,13 @@ pub async fn get_exchange_rate(
 ) -> Result<Json<ApiResponse<ExchangeRateResponse>>, StatusCode> {
     let service = CurrencyService::new(state.db);
 
-    match service.get_exchange_rate(&query.from_currency, &query.to_currency).await {
-        Ok(Some(model)) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model)))),
+    match service
+        .get_exchange_rate(&query.from_currency, &query.to_currency)
+        .await
+    {
+        Ok(Some(model)) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(
+            model,
+        )))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
             tracing::error!("获取汇率失败: {}", e);
@@ -149,9 +165,13 @@ pub async fn list_exchange_rates(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    match service.list_exchange_rates(query.from_currency, page, page_size).await {
+    match service
+        .list_exchange_rates(query.from_currency, page, page_size)
+        .await
+    {
         Ok((models, _total)) => {
-            let responses: Vec<ExchangeRateResponse> = models.into_iter().map(ExchangeRateResponse::from).collect();
+            let responses: Vec<ExchangeRateResponse> =
+                models.into_iter().map(ExchangeRateResponse::from).collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {

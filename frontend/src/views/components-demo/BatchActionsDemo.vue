@@ -38,7 +38,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import BatchActions from '@/components/BatchActions.vue'
-import { ElMessage as _ElMessage } from 'element-plus'
 
 const selectedRows = ref<any[]>([])
 
@@ -57,7 +56,7 @@ const handleSelectionChange = (selection: any[]) => {
 
 const handleComplete = (key: string, success: boolean) => {
   if (success) {
-    console.log(`操作 ${key} 完成`)
+    // 操作完成处理
   }
 }
 </script>

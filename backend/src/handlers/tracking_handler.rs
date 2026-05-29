@@ -1,6 +1,6 @@
-use axum::{Json};
-use serde::{Deserialize, Serialize};
 use crate::utils::response::ApiResponse;
+use axum::Json;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct PageViewRequest {
@@ -17,6 +17,12 @@ pub struct PageViewResponse {
 pub async fn track_page_view(
     Json(req): Json<PageViewRequest>,
 ) -> Result<Json<ApiResponse<PageViewResponse>>, axum::http::StatusCode> {
-    tracing::debug!("Page view tracked: path={}, timestamp={}", req.path, req.timestamp);
-    Ok(Json(ApiResponse::success(PageViewResponse { success: true })))
+    tracing::debug!(
+        "Page view tracked: path={}, timestamp={}",
+        req.path,
+        req.timestamp
+    );
+    Ok(Json(ApiResponse::success(PageViewResponse {
+        success: true,
+    })))
 }

@@ -117,7 +117,9 @@ impl QualityStandardService {
             version: Set(req.version.unwrap_or_else(|| "1.0".to_string())),
             content: Set(req.content.unwrap_or_default()),
             status: Set("draft".to_string()),
-            effective_date: Set(req.effective_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            effective_date: Set(req
+                .effective_date
+                .unwrap_or_else(|| chrono::Utc::now().date_naive())),
             expiry_date: Set(req.expiry_date),
             ..Default::default()
         };
@@ -166,7 +168,6 @@ impl QualityStandardService {
         // 检查是否有引用
         // 说明: 当前业务模型暂时无需树状结构，跳过 ParentId 检查
         let referenced_count = 0;
-
 
         if referenced_count > 0 {
             return Err(AppError::ValidationError(

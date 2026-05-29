@@ -158,7 +158,9 @@ pub async fn get_notification(
         }
     }
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(notification)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        notification,
+    )?)))
 }
 
 // ========== 通知设置接口 ==========

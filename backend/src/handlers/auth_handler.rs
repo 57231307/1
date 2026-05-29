@@ -1,21 +1,21 @@
+use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 use axum::{
-    extract::{State, Extension},
+    extract::{Extension, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
 use axum_extra::extract::cookie::{Cookie, SameSite};
-use serde::{Deserialize, Serialize};
-use validator::Validate;
-use utoipa::ToSchema;
 use chrono::{Duration as ChronoDuration, Utc};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+use validator::Validate;
 
 const MAX_FAILED_ATTEMPTS: i32 = 5;
 const LOCKOUT_DURATION_MINUTES: i64 = 30;
@@ -28,7 +28,6 @@ pub struct LoginRequest {
     // 可选：如果用户开启了 TOTP，则必须在登录时传入此项
     pub totp_token: Option<String>,
 }
-
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UserPermissionDto {
@@ -76,14 +75,20 @@ pub async fn login(
             .field_errors()
             .iter()
             .map(|(field, errs)| {
-                let msgs: Vec<String> = errs.iter().filter_map(|e| e.message.as_ref().map(|m| m.to_string())).collect();
+                let msgs: Vec<String> = errs
+                    .iter()
+                    .filter_map(|e| e.message.as_ref().map(|m| m.to_string()))
+                    .collect();
                 format!("{}: {}", field, msgs.join(", "))
             })
             .collect();
-            
+
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::error(format!("输入验证失败: {}", error_msgs.join("; ")))),
+            Json(ApiResponse::error(format!(
+                "输入验证失败: {}",
+                error_msgs.join("; ")
+            ))),
         ));
     }
 
@@ -102,8 +107,8 @@ pub async fn login(
 
     // Check account lockout before authentication (per username+IP to prevent DoS)
     let since = Utc::now() - ChronoDuration::minutes(LOCKOUT_DURATION_MINUTES);
-    use sea_orm::PaginatorTrait;
     use crate::models::log_login;
+    use sea_orm::PaginatorTrait;
 
     // Per-IP lockout: prevents an attacker from locking out a legitimate user
     let recent_ip_failures = log_login::Entity::find()
@@ -125,18 +130,29 @@ pub async fn login(
         .unwrap_or(0);
 
     if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
-        tracing::warn!("Account locked due to too many failed attempts from IP: {} for user {}", client_ip, payload.username);
+        tracing::warn!(
+            "Account locked due to too many failed attempts from IP: {} for user {}",
+            client_ip,
+            payload.username
+        );
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
-            Json(ApiResponse::error("登录失败次数过多，请30分钟后再试".to_string())),
+            Json(ApiResponse::error(
+                "登录失败次数过多，请30分钟后再试".to_string(),
+            )),
         ));
     }
 
     if recent_user_failures >= (MAX_FAILED_ATTEMPTS * 2) as u64 {
-        tracing::warn!("Account globally locked due to too many failed attempts: {}", payload.username);
+        tracing::warn!(
+            "Account globally locked due to too many failed attempts: {}",
+            payload.username
+        );
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
-            Json(ApiResponse::error("账号已被锁定，请30分钟后再试".to_string())),
+            Json(ApiResponse::error(
+                "账号已被锁定，请30分钟后再试".to_string(),
+            )),
         ));
     }
 
@@ -153,23 +169,56 @@ pub async fn login(
                     Some(ref t) => t,
                     None => {
                         // Record failed login (missing TOTP)
-                        record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "FAILED", Some("TOTP token missing")).await;
-                        return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("需要提供两步验证码".to_string()))));
+                        record_login_attempt(
+                            &state,
+                            &payload.username,
+                            user.id,
+                            &client_ip,
+                            &user_agent,
+                            "FAILED",
+                            Some("TOTP token missing"),
+                        )
+                        .await;
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(ApiResponse::error("需要提供两步验证码".to_string())),
+                        ));
                     }
                 };
-                
+
                 let totp_service = TotpService::new(state.db.clone());
                 match totp_service.verify_login_totp(user.id, totp_token).await {
-                    Ok(true) => {}, // 验证通过
+                    Ok(true) => {} // 验证通过
                     _ => {
-                        record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "FAILED", Some("TOTP verification failed")).await;
-                        return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("两步验证码错误".to_string()))));
+                        record_login_attempt(
+                            &state,
+                            &payload.username,
+                            user.id,
+                            &client_ip,
+                            &user_agent,
+                            "FAILED",
+                            Some("TOTP verification failed"),
+                        )
+                        .await;
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(ApiResponse::error("两步验证码错误".to_string())),
+                        ));
                     }
                 }
             }
 
             // Record successful login
-            record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "SUCCESS", None).await;
+            record_login_attempt(
+                &state,
+                &payload.username,
+                user.id,
+                &client_ip,
+                &user_agent,
+                "SUCCESS",
+                None,
+            )
+            .await;
 
             // Update last login timestamp
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
@@ -186,15 +235,20 @@ pub async fn login(
                         tracing::error!("Failed to query role permissions: {}", e);
                         (
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ApiResponse::error("Failed to query permissions".to_string())),
+                            Json(ApiResponse::error(
+                                "Failed to query permissions".to_string(),
+                            )),
                         )
                     })?;
-                    
-                permissions = role_perms.into_iter().map(|p| UserPermissionDto {
-                    resource: p.resource_type,
-                    action: p.action,
-                    resource_id: p.resource_id,
-                }).collect();
+
+                permissions = role_perms
+                    .into_iter()
+                    .map(|p| UserPermissionDto {
+                        resource: p.resource_type,
+                        action: p.action,
+                        resource_id: p.resource_id,
+                    })
+                    .collect();
             }
 
             let user_info = UserInfo {
@@ -205,8 +259,8 @@ pub async fn login(
             };
 
             // 生成 CSRF Token，使用 JWT claims 中的 session_id 作为会话标识
-            let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
-                .map_err(|e| {
+            let claims =
+                AuthService::validate_token_static(&token, &state.jwt_secret).map_err(|e| {
                     tracing::error!("Failed to decode JWT token: {}", e);
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -214,7 +268,10 @@ pub async fn login(
                     )
                 })?;
             let session_id = claims.session_id.clone();
-            let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+            let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(
+                &session_id,
+                &state.cookie_secret,
+            );
 
             // 生成 refresh_token (简单的随机字符串)
             let refresh_token = uuid::Uuid::new_v4().to_string();
@@ -229,9 +286,9 @@ pub async fn login(
 
             // 创建 HttpOnly Cookie
             // 开发环境下关闭secure标志，允许HTTP传输；生产环境必须开启HTTPS
-            let is_production = std::env::var("ENV")
-                .unwrap_or_else(|_| "development".to_string()) == "production";
-            
+            let is_production =
+                std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
+
             let cookie = Cookie::build(("jwt", token))
                 .path("/")
                 .http_only(true)
@@ -246,7 +303,16 @@ pub async fn login(
         }
         Err(e) => {
             // Record failed login attempt
-            record_login_attempt(&state, &payload.username, 0, &client_ip, &user_agent, "FAILED", Some(&e.to_string())).await;
+            record_login_attempt(
+                &state,
+                &payload.username,
+                0,
+                &client_ip,
+                &user_agent,
+                "FAILED",
+                Some(&e.to_string()),
+            )
+            .await;
             let error_response = ApiResponse::<()>::error(e.to_string());
             Err((StatusCode::UNAUTHORIZED, Json(error_response)))
         }
@@ -279,7 +345,7 @@ async fn record_login_attempt(
     };
 
     match active_log.insert(state.db.as_ref()).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => tracing::error!("Failed to record login attempt: {}", e),
     }
 }
@@ -308,11 +374,14 @@ pub async fn logout(
             Ok(claims) => {
                 let now = chrono::Utc::now().timestamp() as usize;
                 let exp = claims.exp.timestamp() as usize;
-                
+
                 if exp > now {
                     let ttl = std::time::Duration::from_secs((exp - now) as u64);
                     // 将 Token 加入黑名单
-                    state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl));
+                    state
+                        .cache
+                        .get_token_blacklist()
+                        .set(token.to_string(), true, Some(ttl));
                     tracing::info!("Token blacklisted for user {}", claims.username);
                 }
             }
@@ -322,8 +391,8 @@ pub async fn logout(
         }
     }
 
-    let is_production = std::env::var("ENV")
-        .unwrap_or_else(|_| "development".to_string()) == "production";
+    let is_production =
+        std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
 
     let removal_cookie = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
         .path("/")
@@ -332,10 +401,14 @@ pub async fn logout(
         .same_site(SameSite::Lax)
         .max_age(time::Duration::ZERO)
         .build();
-        
+
     let jar = jar.add(removal_cookie);
 
-    Ok((jar, axum::Json(ApiResponse::success(LogoutResponse { success: true }))).into_response())
+    Ok((
+        jar,
+        axum::Json(ApiResponse::success(LogoutResponse { success: true })),
+    )
+        .into_response())
 }
 
 #[derive(Debug, Serialize)]
@@ -359,7 +432,11 @@ pub async fn refresh_token(
         ))?;
 
     // 检查 Token 是否在黑名单中
-    let is_blacklisted = state.cache.get_token_blacklist().get(&token.to_string()).is_some();
+    let is_blacklisted = state
+        .cache
+        .get_token_blacklist()
+        .get(&token.to_string())
+        .is_some();
     if is_blacklisted {
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -367,11 +444,12 @@ pub async fn refresh_token(
         ));
     }
 
-    let claims = AuthService::validate_token_static(token, &state.jwt_secret)
-        .map_err(|_| (
+    let claims = AuthService::validate_token_static(token, &state.jwt_secret).map_err(|_| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ApiResponse::error("无效的令牌")),
-        ))?;
+        )
+    })?;
 
     // 检查是否在刷新期内（7天）
     let now = chrono::Utc::now();
@@ -384,7 +462,12 @@ pub async fn refresh_token(
 
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
     let new_token = auth_service
-        .generate_token(claims.sub, &claims.username, claims.role_id, claims.tenant_id)
+        .generate_token(
+            claims.sub,
+            &claims.username,
+            claims.role_id,
+            claims.tenant_id,
+        )
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -397,13 +480,19 @@ pub async fn refresh_token(
     let exp = claims.exp.timestamp() as usize;
     if exp > now_ts {
         let ttl = std::time::Duration::from_secs((exp - now_ts) as u64);
-        state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl));
-        tracing::info!("Old token blacklisted after refresh for user {}", claims.username);
+        state
+            .cache
+            .get_token_blacklist()
+            .set(token.to_string(), true, Some(ttl));
+        tracing::info!(
+            "Old token blacklisted after refresh for user {}",
+            claims.username
+        );
     }
 
     // 生成新的 CSRF Token (use same session_id derivation as login)
-    let new_claims = AuthService::validate_token_static(&new_token, &state.jwt_secret)
-        .map_err(|e| {
+    let new_claims =
+        AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
             tracing::error!("Failed to decode new JWT token: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -411,7 +500,8 @@ pub async fn refresh_token(
             )
         })?;
     let session_id = new_claims.session_id;
-    let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+    let csrf_token =
+        crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
 
     Ok(Json(ApiResponse::success(RefreshTokenResponse {
         token: new_token,
@@ -432,10 +522,19 @@ pub async fn setup_totp(
     Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<ApiResponse<TotpSetupResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
     let totp_service = TotpService::new(state.db.clone());
-    
-    match totp_service.generate_totp_secret(auth.user_id, &auth.username).await {
-        Ok((secret, qr_code)) => Ok(Json(ApiResponse::success(TotpSetupResponse { secret, qr_code }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
+
+    match totp_service
+        .generate_totp_secret(auth.user_id, &auth.username)
+        .await
+    {
+        Ok((secret, qr_code)) => Ok(Json(ApiResponse::success(TotpSetupResponse {
+            secret,
+            qr_code,
+        }))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }
 
@@ -451,11 +550,23 @@ pub async fn enable_totp(
     Json(payload): Json<TotpVerifyRequest>,
 ) -> Result<Json<ApiResponse<bool>>, (StatusCode, Json<ApiResponse<()>>)> {
     let totp_service = TotpService::new(state.db.clone());
-    
-    match totp_service.verify_and_enable(auth.user_id, &payload.token).await {
-        Ok(true) => Ok(Json(ApiResponse::success_with_msg(true, "双因素认证已成功开启"))),
-        Ok(false) => Err((StatusCode::BAD_REQUEST, Json(ApiResponse::error("验证码不正确".to_string())))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(e.to_string())))),
+
+    match totp_service
+        .verify_and_enable(auth.user_id, &payload.token)
+        .await
+    {
+        Ok(true) => Ok(Json(ApiResponse::success_with_msg(
+            true,
+            "双因素认证已成功开启",
+        ))),
+        Ok(false) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::error("验证码不正确".to_string())),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )),
     }
 }
 
@@ -491,7 +602,8 @@ pub async fn get_csrf_token(
         .unwrap_or("unknown");
 
     let session_id = format!("client:{}:{}", ip, &user_agent[..user_agent.len().min(50)]);
-    let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+    let csrf_token =
+        crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
 
     Json(ApiResponse::success(CsrfTokenResponse { csrf_token }))
 }

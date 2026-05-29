@@ -197,7 +197,6 @@ impl BudgetManagementService {
         // 说明: 当前业务模型无需树状结构，跳过 ParentId 检查
         let children_count = 0;
 
-
         if children_count > 0 {
             return Err(AppError::ValidationError(
                 "存在子科目，无法删除".to_string(),
@@ -461,12 +460,23 @@ impl BudgetManagementService {
         Ok(response)
     }
 
-    pub async fn adjust_budget(&self, req: crate::models::dto::budget_dto::AdjustBudgetRequest, user_id: i32) -> Result<crate::models::budget_adjustment::Model, AppError> {
+    pub async fn adjust_budget(
+        &self,
+        req: crate::models::dto::budget_dto::AdjustBudgetRequest,
+        user_id: i32,
+    ) -> Result<crate::models::budget_adjustment::Model, AppError> {
         use sea_orm::TransactionTrait;
-        let txn = self.db.begin().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+        let txn = self
+            .db
+            .begin()
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
         let plan = crate::models::budget_plan::Entity::find_by_id(req.item_id)
-            .one(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?.ok_or_else(|| AppError::NotFound("预算方案不存在".into()))?;
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("预算方案不存在".into()))?;
 
         // 记录调整单
         let adjust_no = format!("BA{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
@@ -474,7 +484,11 @@ impl BudgetManagementService {
             adjustment_no: sea_orm::Set(adjust_no),
             budget_id: sea_orm::Set(plan.id),
             adjustment_date: sea_orm::Set(chrono::Local::now().naive_local().date()),
-            adjustment_type: sea_orm::Set(if req.adjust_amount.is_sign_negative() { "DECREASE".to_string() } else { "INCREASE".to_string() }),
+            adjustment_type: sea_orm::Set(if req.adjust_amount.is_sign_negative() {
+                "DECREASE".to_string()
+            } else {
+                "INCREASE".to_string()
+            }),
             amount: sea_orm::Set(req.adjust_amount.abs()),
             budget_before: sea_orm::Set(plan.total_amount),
             budget_after: sea_orm::Set(plan.total_amount + req.adjust_amount),
@@ -482,15 +496,23 @@ impl BudgetManagementService {
             approval_status: sea_orm::Set("APPROVED".to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
-        }.insert(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        }
+        .insert(&txn)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 简化：直接批准，更新 plan 金额
         let mut plan_active: crate::models::budget_plan::ActiveModel = plan.clone().into();
         let current_amount = plan.total_amount;
         plan_active.total_amount = sea_orm::Set(current_amount + req.adjust_amount);
-        let _ = plan_active.update(&txn).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let _ = plan_active
+            .update(&txn)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        txn.commit().await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(adjustment)
     }
 
@@ -577,7 +599,9 @@ impl BudgetManagementService {
         );
 
         // 先检查预算是否可用
-        let available = self.check_budget_available(department_id, plan_id, amount).await?;
+        let available = self
+            .check_budget_available(department_id, plan_id, amount)
+            .await?;
         if !available {
             return Err(AppError::ValidationError(
                 "预算余额不足，无法占用".to_string(),
@@ -585,17 +609,19 @@ impl BudgetManagementService {
         }
 
         // 创建预算执行记录
-        let execution = self.create_execution(
-            plan_id,
-            "使用".to_string(),
-            amount,
-            chrono::Utc::now().date_naive(),
-            Some("采购订单".to_string()),
-            Some(document_type),
-            Some(document_id),
-            Some(format!("采购订单占用预算，单据ID: {}", document_id)),
-            user_id,
-        ).await?;
+        let execution = self
+            .create_execution(
+                plan_id,
+                "使用".to_string(),
+                amount,
+                chrono::Utc::now().date_naive(),
+                Some("采购订单".to_string()),
+                Some(document_type),
+                Some(document_id),
+                Some(format!("采购订单占用预算，单据ID: {}", document_id)),
+                user_id,
+            )
+            .await?;
 
         info!("预算占用成功：执行ID={}", execution.id);
         Ok(execution)
@@ -618,17 +644,19 @@ impl BudgetManagementService {
         );
 
         // 创建释放记录（负数金额）
-        let execution = self.create_execution(
-            plan_id,
-            "使用".to_string(),
-            -amount, // 负数表示释放
-            chrono::Utc::now().date_naive(),
-            Some("采购订单取消".to_string()),
-            Some(document_type),
-            Some(document_id),
-            Some(format!("采购订单取消释放预算，单据ID: {}", document_id)),
-            user_id,
-        ).await?;
+        let execution = self
+            .create_execution(
+                plan_id,
+                "使用".to_string(),
+                -amount, // 负数表示释放
+                chrono::Utc::now().date_naive(),
+                Some("采购订单取消".to_string()),
+                Some(document_type),
+                Some(document_id),
+                Some(format!("采购订单取消释放预算，单据ID: {}", document_id)),
+                user_id,
+            )
+            .await?;
 
         info!("预算释放成功：执行ID={}", execution.id);
         Ok(execution)
@@ -651,17 +679,19 @@ impl BudgetManagementService {
         );
 
         // 创建核销记录
-        let execution = self.create_execution(
-            plan_id,
-            "使用".to_string(),
-            amount,
-            chrono::Utc::now().date_naive(),
-            Some("付款核销".to_string()),
-            Some(document_type),
-            Some(document_id),
-            Some(format!("付款确认核销预算，单据ID: {}", document_id)),
-            user_id,
-        ).await?;
+        let execution = self
+            .create_execution(
+                plan_id,
+                "使用".to_string(),
+                amount,
+                chrono::Utc::now().date_naive(),
+                Some("付款核销".to_string()),
+                Some(document_type),
+                Some(document_id),
+                Some(format!("付款确认核销预算，单据ID: {}", document_id)),
+                user_id,
+            )
+            .await?;
 
         info!("预算核销成功：执行ID={}", execution.id);
         Ok(execution)

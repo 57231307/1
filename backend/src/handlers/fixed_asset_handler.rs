@@ -3,15 +3,15 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fixed_asset;
 use crate::services::fixed_asset_service::{
-    CreateAssetRequest, DisposalRequest, FixedAssetService, DepreciationResult,
+    CreateAssetRequest, DepreciationResult, DisposalRequest, FixedAssetService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -103,7 +103,11 @@ pub async fn create_asset(
     auth: AuthContext,
     Json(req): Json<CreateAssetRequestDto>,
 ) -> Result<Json<ApiResponse<fixed_asset::Model>>, AppError> {
-    info!("用户 {} 正在创建资产：{}", auth.user_id, req.asset_no.as_deref().unwrap_or("自动生成"));
+    info!(
+        "用户 {} 正在创建资产：{}",
+        auth.user_id,
+        req.asset_no.as_deref().unwrap_or("自动生成")
+    );
 
     let service = FixedAssetService::new(state.db.clone());
     let create_req = CreateAssetRequest {
@@ -193,7 +197,6 @@ pub async fn delete_asset(
     Ok(Json(ApiResponse::success(message)))
 }
 
-
 /// PUT /api/v1/erp/fixed-assets/:id - 更新固定资产
 pub async fn update_asset(
     Path(id): Path<i32>,
@@ -227,7 +230,9 @@ pub async fn update_asset(
     let mut active_model: crate::models::fixed_asset::ActiveModel = asset.into();
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
-    let updated = active_model.update(&*state.db).await
+    let updated = active_model
+        .update(&*state.db)
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -243,10 +248,12 @@ pub async fn batch_depreciate(
     Json(req): Json<BatchDepreciateRequest>,
 ) -> Result<Json<ApiResponse<Vec<DepreciationResult>>>, AppError> {
     info!("用户 {} 正在批量计算折旧", auth.username);
-    
+
     let service = FixedAssetService::new(state.db.clone());
-    let results = service.batch_calculate_depreciation(req.asset_ids, req.calculation_date, req.user_id).await?;
-    
+    let results = service
+        .batch_calculate_depreciation(req.asset_ids, req.calculation_date, req.user_id)
+        .await?;
+
     Ok(Json(ApiResponse::success(results)))
 }
 

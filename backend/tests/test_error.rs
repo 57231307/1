@@ -1,7 +1,7 @@
 //! AppError 单元测试
 
-use bingxi_backend::utils::error::AppError;
 use axum::http::StatusCode;
+use bingxi_backend::utils::error::AppError;
 
 #[test]
 fn test_error_display_database() {
@@ -102,7 +102,9 @@ fn test_error_from_validation_errors() {
         name: String,
     }
 
-    let input = TestInput { name: "".to_string() };
+    let input = TestInput {
+        name: "".to_string(),
+    };
     let validation_err = input.validate().unwrap_err();
     let app_err: AppError = validation_err.into();
     assert!(matches!(app_err, AppError::ValidationError(_)));

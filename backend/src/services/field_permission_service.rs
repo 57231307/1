@@ -5,9 +5,9 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::field_permission::{self, Entity as FieldPermissionEntity};
 use crate::models::role;
+use crate::utils::error::AppError;
 
 /// 字段权限详情
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,16 +95,11 @@ impl FieldPermissionService {
     }
 
     /// 获取单个字段权限详情
-    pub async fn get_field_permission(
-        &self,
-        id: i32,
-    ) -> Result<FieldPermissionDetail, AppError> {
+    pub async fn get_field_permission(&self, id: i32) -> Result<FieldPermissionDetail, AppError> {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("字段权限 {} 未找到", id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("字段权限 {} 未找到", id)))?;
 
         Ok(FieldPermissionDetail {
             id: perm.id,
@@ -179,9 +174,7 @@ impl FieldPermissionService {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("字段权限 {} 未找到", id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("字段权限 {} 未找到", id)))?;
 
         let mut active: field_permission::ActiveModel = perm.into();
 
@@ -220,9 +213,7 @@ impl FieldPermissionService {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("字段权限 {} 未找到", id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("字段权限 {} 未找到", id)))?;
 
         // 软删除：禁用而不是真正删除
         let mut active: field_permission::ActiveModel = perm.into();
@@ -236,10 +227,7 @@ impl FieldPermissionService {
     /// 检查角色是否为管理员角色（从数据库查询角色编码）
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
         use sea_orm::EntityTrait;
-        match role::Entity::find_by_id(role_id)
-            .one(&*self.db)
-            .await?
-        {
+        match role::Entity::find_by_id(role_id).one(&*self.db).await? {
             Some(r) => Ok(r.code == "admin"),
             None => Ok(false),
         }
@@ -359,11 +347,7 @@ impl FieldPermissionService {
     }
 
     /// 掩码处理 JSON 数据中的字段（无读权限时显示为 "***"）
-    pub fn mask_fields(
-        &self,
-        data: &mut serde_json::Value,
-        permissions: &[FieldPermissionDetail],
-    ) {
+    pub fn mask_fields(&self, data: &mut serde_json::Value, permissions: &[FieldPermissionDetail]) {
         if let Some(obj) = data.as_object_mut() {
             for perm in permissions {
                 if !perm.can_read && perm.mask_strategy == "MASK" {

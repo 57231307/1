@@ -3,13 +3,13 @@ use crate::models::purchase_contract;
 use crate::services::purchase_contract_service::{
     CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -199,7 +199,9 @@ pub async fn update_contract(
 
     // 检查状态
     if contract.status != "draft" {
-        return Err(AppError::ValidationError("只有草稿状态的合同才能修改".to_string()));
+        return Err(AppError::ValidationError(
+            "只有草稿状态的合同才能修改".to_string(),
+        ));
     }
 
     // 更新字段
@@ -215,7 +217,9 @@ pub async fn update_contract(
     let mut active_model: crate::models::purchase_contract::ActiveModel = contract.into();
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
-    let updated = active_model.update(&*state.db).await
+    let updated = active_model
+        .update(&*state.db)
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -239,7 +243,9 @@ pub async fn delete_contract(
 
     // 检查状态
     if contract.status != "draft" {
-        return Err(AppError::ValidationError("只有草稿状态的合同才能删除".to_string()));
+        return Err(AppError::ValidationError(
+            "只有草稿状态的合同才能删除".to_string(),
+        ));
     }
 
     // 软删除
@@ -248,8 +254,13 @@ pub async fn delete_contract(
     active_model.status = sea_orm::Set("cancelled".to_string());
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
-    active_model.update(&*state.db).await
+    active_model
+        .update(&*state.db)
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    Ok(Json(ApiResponse::success_with_message((), "采购合同已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "采购合同已删除",
+    )))
 }

@@ -245,9 +245,7 @@ impl EmailService {
     async fn send_via_tencent(&self, _message: EmailMessage) -> Result<(), AppError> {
         // 腾讯云邮件服务实现
         tracing::info!("腾讯云邮件功能待实现，请先配置 SendGrid 或其他邮件服务");
-        Err(AppError::BusinessError(
-            "腾讯云邮件功能待实现".to_string(),
-        ))
+        Err(AppError::BusinessError("腾讯云邮件功能待实现".to_string()))
     }
 
     /// 检查邮件服务是否可用
@@ -371,9 +369,9 @@ impl EmailTemplate {
         error_message: Option<String>,
         message_id: Option<String>,
     ) -> Result<(), AppError> {
-        use sea_orm::{ActiveModelTrait, Set};
-        use chrono::Utc;
         use crate::models::email_log;
+        use chrono::Utc;
+        use sea_orm::{ActiveModelTrait, Set};
 
         let active_model = email_log::ActiveModel {
             tenant_id: Set(tenant_id),
@@ -391,7 +389,11 @@ impl EmailTemplate {
 
         tracing::info!(
             "邮件发送记录已保存: tenant_id={}, user_id={:?}, to={:?}, subject={}, status={}",
-            tenant_id, user_id, to, subject, status
+            tenant_id,
+            user_id,
+            to,
+            subject,
+            status
         );
 
         Ok(())

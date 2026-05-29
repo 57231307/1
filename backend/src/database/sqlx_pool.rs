@@ -79,7 +79,14 @@ impl SqlxDatabase {
                 }
                 Err(e) => {
                     last_error = Some(e);
-                    warn!("数据库连接尝试 {} 失败: {}", attempt, last_error.as_ref().map(|e| e.to_string()).unwrap_or_else(|| "Unknown".into()));
+                    warn!(
+                        "数据库连接尝试 {} 失败: {}",
+                        attempt,
+                        last_error
+                            .as_ref()
+                            .map(|e| e.to_string())
+                            .unwrap_or_else(|| "Unknown".into())
+                    );
                     if attempt < max_retries {
                         // 等待一段时间后重试
                         tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
@@ -104,9 +111,7 @@ impl SqlxDatabase {
 
     /// 测试数据库连接
     pub async fn test_connection(&self) -> Result<(), sqlx::Error> {
-        sqlx::query("SELECT 1")
-            .execute(self.pool())
-            .await?;
+        sqlx::query("SELECT 1").execute(self.pool()).await?;
         Ok(())
     }
 }

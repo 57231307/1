@@ -85,7 +85,9 @@ pub async fn delete_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     service.delete_lead(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({"deleted": true}))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({"deleted": true}),
+    )))
 }
 
 /// POST /api/v1/erp/crm/customers/:id/tags - 添加标签
@@ -179,5 +181,7 @@ pub async fn delete_tag(
     _auth: AuthContext,
     _id: Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    Ok(Json(ApiResponse::success(serde_json::json!({"deleted": true}))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({"deleted": true}),
+    )))
 }

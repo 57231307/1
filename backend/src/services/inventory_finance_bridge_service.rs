@@ -6,7 +6,7 @@ use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// 库存财务桥接服务
 /// 负责监听库存变动事件并自动生成相应的会计凭证
@@ -74,28 +74,35 @@ impl InventoryFinanceBridgeService {
                     batch_no,
                     color_no,
                     created_by,
-                } = event {
+                } = event
+                {
                     info!(
                         "处理库存交易创建事件: 交易ID={}, 类型={}, 产品ID={}, 仓库ID={}",
                         transaction_id, transaction_type, product_id, warehouse_id
                     );
 
                     let bridge_service = InventoryFinanceBridgeService::new(db.clone());
-                    if let Err(e) = bridge_service.handle_inventory_transaction(
-                        transaction_id,
-                        &transaction_type,
-                        product_id,
-                        warehouse_id,
-                        quantity_meters,
-                        quantity_kg,
-                        source_bill_type.as_deref(),
-                        source_bill_no.as_deref(),
-                        source_bill_id,
-                        &batch_no,
-                        &color_no,
-                        created_by,
-                    ).await {
-                        error!("处理库存交易事件失败: 交易ID={}, 错误={}", transaction_id, e);
+                    if let Err(e) = bridge_service
+                        .handle_inventory_transaction(
+                            transaction_id,
+                            &transaction_type,
+                            product_id,
+                            warehouse_id,
+                            quantity_meters,
+                            quantity_kg,
+                            source_bill_type.as_deref(),
+                            source_bill_no.as_deref(),
+                            source_bill_id,
+                            &batch_no,
+                            &color_no,
+                            created_by,
+                        )
+                        .await
+                    {
+                        error!(
+                            "处理库存交易事件失败: 交易ID={}, 错误={}",
+                            transaction_id, e
+                        );
                     }
                 }
             }
@@ -124,42 +131,82 @@ impl InventoryFinanceBridgeService {
             "PURCHASE_RECEIPT" => {
                 // 采购入库凭证：借：库存商品 / 贷：应付账款
                 self.create_purchase_receipt_voucher(
-                    product_id, warehouse_id, quantity_meters, quantity_kg,
-                    source_bill_type, source_bill_no, source_bill_id,
-                    batch_no, color_no, created_by,
-                ).await?;
+                    product_id,
+                    warehouse_id,
+                    quantity_meters,
+                    quantity_kg,
+                    source_bill_type,
+                    source_bill_no,
+                    source_bill_id,
+                    batch_no,
+                    color_no,
+                    created_by,
+                )
+                .await?;
             }
             "SALES_DELIVERY" => {
                 // 销售出库凭证：借：主营业务成本 / 贷：库存商品
                 self.create_sales_delivery_voucher(
-                    product_id, warehouse_id, quantity_meters, quantity_kg,
-                    source_bill_type, source_bill_no, source_bill_id,
-                    batch_no, color_no, created_by,
-                ).await?;
+                    product_id,
+                    warehouse_id,
+                    quantity_meters,
+                    quantity_kg,
+                    source_bill_type,
+                    source_bill_no,
+                    source_bill_id,
+                    batch_no,
+                    color_no,
+                    created_by,
+                )
+                .await?;
             }
             "INVENTORY_ADJUSTMENT" => {
                 // 库存调整凭证
                 self.create_inventory_adjustment_voucher(
-                    product_id, warehouse_id, quantity_meters, quantity_kg,
-                    source_bill_type, source_bill_no, source_bill_id,
-                    batch_no, color_no, created_by,
-                ).await?;
+                    product_id,
+                    warehouse_id,
+                    quantity_meters,
+                    quantity_kg,
+                    source_bill_type,
+                    source_bill_no,
+                    source_bill_id,
+                    batch_no,
+                    color_no,
+                    created_by,
+                )
+                .await?;
             }
             "PRODUCTION_RECEIPT" => {
                 // 生产入库凭证：借：库存商品 / 贷：生产成本
                 self.create_production_receipt_voucher(
-                    product_id, warehouse_id, quantity_meters, quantity_kg,
-                    source_bill_type, source_bill_no, source_bill_id,
-                    batch_no, color_no, created_by,
-                ).await?;
+                    product_id,
+                    warehouse_id,
+                    quantity_meters,
+                    quantity_kg,
+                    source_bill_type,
+                    source_bill_no,
+                    source_bill_id,
+                    batch_no,
+                    color_no,
+                    created_by,
+                )
+                .await?;
             }
             "PRODUCTION_ISSUE" => {
                 // 生产领料凭证：借：生产成本 / 贷：库存商品
                 self.create_production_issue_voucher(
-                    product_id, warehouse_id, quantity_meters, quantity_kg,
-                    source_bill_type, source_bill_no, source_bill_id,
-                    batch_no, color_no, created_by,
-                ).await?;
+                    product_id,
+                    warehouse_id,
+                    quantity_meters,
+                    quantity_kg,
+                    source_bill_type,
+                    source_bill_no,
+                    source_bill_id,
+                    batch_no,
+                    color_no,
+                    created_by,
+                )
+                .await?;
             }
             _ => {
                 info!("未处理的库存交易类型: {}", transaction_type);
@@ -186,13 +233,20 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
-        let product_name = self.get_product_name(product_id).await.unwrap_or_else(|_| format!("产品{}", product_id));
+        let product_name = self
+            .get_product_name(product_id)
+            .await
+            .unwrap_or_else(|_| format!("产品{}", product_id));
         let _ = self.get_warehouse_name(warehouse_id).await;
 
-        let summary = format!("采购入库：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no);
+        let summary = format!(
+            "采购入库：{} {}米 {}公斤 批次:{} 色号:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no
+        );
 
-        let amount = self.calculate_inventory_amount(product_id, quantity_meters).await?;
+        let amount = self
+            .calculate_inventory_amount(product_id, quantity_meters)
+            .await?;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -206,16 +260,27 @@ impl InventoryFinanceBridgeService {
             items: vec![
                 // 借：库存商品
                 Self::make_voucher_item(
-                    1, "1405", "库存商品", amount, Decimal::ZERO,
+                    1,
+                    "1405",
+                    "库存商品",
+                    amount,
+                    Decimal::ZERO,
                     Some(summary.clone()),
-                    Some(quantity_meters), Some(quantity_kg),
+                    Some(quantity_meters),
+                    Some(quantity_kg),
                     Some(amount / quantity_meters),
                 ),
                 // 贷：应付账款
                 Self::make_voucher_item(
-                    2, "2202", "应付账款", Decimal::ZERO, amount,
+                    2,
+                    "2202",
+                    "应付账款",
+                    Decimal::ZERO,
+                    amount,
                     Some(summary.clone()),
-                    None, None, None,
+                    None,
+                    None,
+                    None,
                 ),
             ],
         };
@@ -249,13 +314,20 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
-        let product_name = self.get_product_name(product_id).await.unwrap_or_else(|_| format!("产品{}", product_id));
+        let product_name = self
+            .get_product_name(product_id)
+            .await
+            .unwrap_or_else(|_| format!("产品{}", product_id));
         let _ = self.get_warehouse_name(warehouse_id).await;
 
-        let summary = format!("销售出库：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no);
+        let summary = format!(
+            "销售出库：{} {}米 {}公斤 批次:{} 色号:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no
+        );
 
-        let amount = self.calculate_inventory_amount(product_id, quantity_meters).await?;
+        let amount = self
+            .calculate_inventory_amount(product_id, quantity_meters)
+            .await?;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -269,16 +341,26 @@ impl InventoryFinanceBridgeService {
             items: vec![
                 // 借：主营业务成本
                 Self::make_voucher_item(
-                    1, "6401", "主营业务成本", amount, Decimal::ZERO,
+                    1,
+                    "6401",
+                    "主营业务成本",
+                    amount,
+                    Decimal::ZERO,
                     Some(summary.clone()),
-                    Some(quantity_meters), Some(quantity_kg),
+                    Some(quantity_meters),
+                    Some(quantity_kg),
                     Some(amount / quantity_meters),
                 ),
                 // 贷：库存商品
                 Self::make_voucher_item(
-                    2, "1405", "库存商品", Decimal::ZERO, amount,
+                    2,
+                    "1405",
+                    "库存商品",
+                    Decimal::ZERO,
+                    amount,
                     Some(summary.clone()),
-                    Some(quantity_meters), Some(quantity_kg),
+                    Some(quantity_meters),
+                    Some(quantity_kg),
                     Some(amount / quantity_meters),
                 ),
             ],
@@ -313,13 +395,20 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
-        let product_name = self.get_product_name(product_id).await.unwrap_or_else(|_| format!("产品{}", product_id));
+        let product_name = self
+            .get_product_name(product_id)
+            .await
+            .unwrap_or_else(|_| format!("产品{}", product_id));
         let _ = self.get_warehouse_name(warehouse_id).await;
 
-        let summary = format!("库存调整：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no);
+        let summary = format!(
+            "库存调整：{} {}米 {}公斤 批次:{} 色号:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no
+        );
 
-        let amount = self.calculate_inventory_amount(product_id, quantity_meters.abs()).await?;
+        let amount = self
+            .calculate_inventory_amount(product_id, quantity_meters.abs())
+            .await?;
 
         let voucher_request = if quantity_meters > Decimal::ZERO {
             // 盘盈：借：库存商品，贷：待处理财产损溢
@@ -334,15 +423,26 @@ impl InventoryFinanceBridgeService {
                 color_no: Some(color_no.to_string()),
                 items: vec![
                     Self::make_voucher_item(
-                        1, "1405", "库存商品", amount, Decimal::ZERO,
+                        1,
+                        "1405",
+                        "库存商品",
+                        amount,
+                        Decimal::ZERO,
                         Some(summary.clone()),
-                        Some(quantity_meters), Some(quantity_kg),
+                        Some(quantity_meters),
+                        Some(quantity_kg),
                         Some(amount / quantity_meters),
                     ),
                     Self::make_voucher_item(
-                        2, "1901", "待处理财产损溢", Decimal::ZERO, amount,
+                        2,
+                        "1901",
+                        "待处理财产损溢",
+                        Decimal::ZERO,
+                        amount,
                         Some(summary.clone()),
-                        None, None, None,
+                        None,
+                        None,
+                        None,
                     ),
                 ],
             }
@@ -359,14 +459,25 @@ impl InventoryFinanceBridgeService {
                 color_no: Some(color_no.to_string()),
                 items: vec![
                     Self::make_voucher_item(
-                        1, "1901", "待处理财产损溢", amount, Decimal::ZERO,
+                        1,
+                        "1901",
+                        "待处理财产损溢",
+                        amount,
+                        Decimal::ZERO,
                         Some(summary.clone()),
-                        None, None, None,
+                        None,
+                        None,
+                        None,
                     ),
                     Self::make_voucher_item(
-                        2, "1405", "库存商品", Decimal::ZERO, amount,
+                        2,
+                        "1405",
+                        "库存商品",
+                        Decimal::ZERO,
+                        amount,
                         Some(summary.clone()),
-                        Some(-quantity_meters), Some(-quantity_kg),
+                        Some(-quantity_meters),
+                        Some(-quantity_kg),
                         Some(amount / (-quantity_meters)),
                     ),
                 ],
@@ -401,13 +512,20 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
-        let product_name = self.get_product_name(product_id).await.unwrap_or_else(|_| format!("产品{}", product_id));
+        let product_name = self
+            .get_product_name(product_id)
+            .await
+            .unwrap_or_else(|_| format!("产品{}", product_id));
         let _ = self.get_warehouse_name(warehouse_id).await;
 
-        let summary = format!("生产入库：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no);
+        let summary = format!(
+            "生产入库：{} {}米 {}公斤 批次:{} 色号:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no
+        );
 
-        let amount = self.calculate_inventory_amount(product_id, quantity_meters).await?;
+        let amount = self
+            .calculate_inventory_amount(product_id, quantity_meters)
+            .await?;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -421,16 +539,27 @@ impl InventoryFinanceBridgeService {
             items: vec![
                 // 借：库存商品
                 Self::make_voucher_item(
-                    1, "1405", "库存商品", amount, Decimal::ZERO,
+                    1,
+                    "1405",
+                    "库存商品",
+                    amount,
+                    Decimal::ZERO,
                     Some(summary.clone()),
-                    Some(quantity_meters), Some(quantity_kg),
+                    Some(quantity_meters),
+                    Some(quantity_kg),
                     Some(amount / quantity_meters),
                 ),
                 // 贷：生产成本
                 Self::make_voucher_item(
-                    2, "5001", "生产成本", Decimal::ZERO, amount,
+                    2,
+                    "5001",
+                    "生产成本",
+                    Decimal::ZERO,
+                    amount,
                     Some(summary.clone()),
-                    None, None, None,
+                    None,
+                    None,
+                    None,
                 ),
             ],
         };
@@ -463,13 +592,20 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
-        let product_name = self.get_product_name(product_id).await.unwrap_or_else(|_| format!("产品{}", product_id));
+        let product_name = self
+            .get_product_name(product_id)
+            .await
+            .unwrap_or_else(|_| format!("产品{}", product_id));
         let _ = self.get_warehouse_name(warehouse_id).await;
 
-        let summary = format!("生产领料：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no);
+        let summary = format!(
+            "生产领料：{} {}米 {}公斤 批次:{} 色号:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no
+        );
 
-        let amount = self.calculate_inventory_amount(product_id, quantity_meters).await?;
+        let amount = self
+            .calculate_inventory_amount(product_id, quantity_meters)
+            .await?;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -483,16 +619,26 @@ impl InventoryFinanceBridgeService {
             items: vec![
                 // 借：生产成本
                 Self::make_voucher_item(
-                    1, "5001", "生产成本", amount, Decimal::ZERO,
+                    1,
+                    "5001",
+                    "生产成本",
+                    amount,
+                    Decimal::ZERO,
                     Some(summary.clone()),
-                    Some(quantity_meters), Some(quantity_kg),
+                    Some(quantity_meters),
+                    Some(quantity_kg),
                     Some(amount / quantity_meters),
                 ),
                 // 贷：库存商品
                 Self::make_voucher_item(
-                    2, "1405", "库存商品", Decimal::ZERO, amount,
+                    2,
+                    "1405",
+                    "库存商品",
+                    Decimal::ZERO,
+                    amount,
                     Some(summary.clone()),
-                    Some(quantity_meters), Some(quantity_kg),
+                    Some(quantity_meters),
+                    Some(quantity_kg),
                     Some(amount / quantity_meters),
                 ),
             ],

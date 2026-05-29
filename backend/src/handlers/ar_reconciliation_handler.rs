@@ -3,9 +3,9 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ar_reconciliation_service::{
@@ -80,7 +80,9 @@ pub async fn create_reconciliation(
     };
 
     match service.create(create_req).await {
-        Ok(model) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(model)))),
+        Ok(model) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+            model,
+        )))),
         Err(e) => {
             tracing::error!("创建对账单失败: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -111,7 +113,10 @@ pub async fn list_reconciliations(
 
     match service.list(req).await {
         Ok((models, _total)) => {
-            let responses: Vec<ReconciliationResponse> = models.into_iter().map(ReconciliationResponse::from).collect();
+            let responses: Vec<ReconciliationResponse> = models
+                .into_iter()
+                .map(ReconciliationResponse::from)
+                .collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {
@@ -129,7 +134,9 @@ pub async fn get_reconciliation(
     let service = ArReconciliationService::new(state.db);
 
     match service.get_by_id(id).await {
-        Ok(Some(model)) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(model)))),
+        Ok(Some(model)) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+            model,
+        )))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
             tracing::error!("获取对账单失败: {}", e);
@@ -152,7 +159,9 @@ pub async fn update_reconciliation_status(
     let service = ArReconciliationService::new(state.db);
 
     match service.update_status(id, &req.status).await {
-        Ok(model) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(model)))),
+        Ok(model) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+            model,
+        )))),
         Err(e) => {
             tracing::error!("更新对账单状态失败: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

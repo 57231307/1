@@ -2,13 +2,13 @@
 //!
 //! 采购退货服务层，负责采购退货的核心业务逻辑
 
-use crate::models::{purchase_return, purchase_return_item, product};
+use crate::models::{product, purchase_return, purchase_return_item};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -115,7 +115,13 @@ impl PurchaseReturnService {
         }
         return_active.updated_at = Set(Utc::now());
 
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            return_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(return_order)
     }
@@ -145,7 +151,13 @@ impl PurchaseReturnService {
         return_active.return_status = Set(Some("submitted".to_string()));
         return_active.updated_at = Set(Utc::now());
 
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            return_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(return_order)
     }
@@ -176,9 +188,11 @@ impl PurchaseReturnService {
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .count(&*self.db)
             .await?;
-        
+
         if item_count == 0 {
-            return Err(AppError::BusinessError("退货单至少需要一行明细".to_string()));
+            return Err(AppError::BusinessError(
+                "退货单至少需要一行明细".to_string(),
+            ));
         }
 
         // 开启事务
@@ -189,15 +203,21 @@ impl PurchaseReturnService {
         return_active.approved_by = Set(Some(user_id));
         return_active.approved_at = Set(Some(Utc::now()));
         return_active.updated_at = Set(Utc::now());
-        
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", return_active, Some(0)).await?;
+
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            return_active,
+            Some(0),
+        )
+        .await?;
 
         // 1. 扣减库存（在事务内执行，保证原子性）
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .all(&txn)
             .await?;
-            
+
         for item in items {
             let warehouse_id = return_order.warehouse_id.unwrap_or(0);
             let existing_stock = crate::services::inventory_stock_service::InventoryStockService::find_by_product_and_warehouse_txn(
@@ -213,14 +233,14 @@ impl PurchaseReturnService {
                         item.product_id, s.quantity_meters, item.quantity
                     )));
                 }
-                
+
                 let new_quantity_meters = s.quantity_meters - item.quantity;
                 let new_quantity_kg = s.quantity_kg - item.quantity_alt;
-                
+
                 crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
                     &txn, s.id, new_quantity_meters, new_quantity_kg, s.version,
                 ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
-                
+
                 crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
                     &txn,
                     "PURCHASE_RETURN".to_string(),
@@ -249,14 +269,22 @@ impl PurchaseReturnService {
                 )));
             }
         }
-        
+
         // 2. 提交事务（库存扣减和状态更新在同一事务内）
         txn.commit().await?;
-        
+
         // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
-        let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
-        if let Err(e) = ap_service.auto_generate_from_return(return_id, user_id).await {
-            tracing::error!("自动生成应付账单失败 (退货单 {}): {}", return_order.return_no, e);
+        let ap_service =
+            crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
+        if let Err(e) = ap_service
+            .auto_generate_from_return(return_id, user_id)
+            .await
+        {
+            tracing::error!(
+                "自动生成应付账单失败 (退货单 {}): {}",
+                return_order.return_no,
+                e
+            );
             // 记录失败但不阻断流程，可以后续手动重试
         } else {
             tracing::info!("成功自动生成应付账单 (退货单 {})", return_order.return_no);
@@ -292,7 +320,13 @@ impl PurchaseReturnService {
         return_active.reason_detail = Set(Some(reason));
         return_active.updated_at = Set(Utc::now());
 
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", return_active, Some(0)).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            return_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(return_order)
     }
@@ -428,14 +462,17 @@ pub struct PurchaseReturnItemDto {
 impl PurchaseReturnService {
     /// 获取退货单明细列表
     pub async fn list_items(&self, return_id: i32) -> Result<Vec<PurchaseReturnItemDto>, AppError> {
-        use sea_orm::{QuerySelect, JoinType, RelationTrait};
+        use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let items = purchase_return_item::Entity::find()
             .column_as(product::Column::Code, "material_code")
             .column_as(product::Column::Name, "material_name")
             .column_as(purchase_return_item::Column::ProductId, "material_id")
             .column_as(purchase_return_item::Column::Quantity, "quantity_returned")
             .column_as(purchase_return_item::Column::TaxPercent, "tax_rate")
-            .join(JoinType::LeftJoin, purchase_return_item::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                purchase_return_item::Relation::Product.def(),
+            )
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .order_by_asc(purchase_return_item::Column::LineNo)
             .into_model::<PurchaseReturnItemDto>()
@@ -446,7 +483,11 @@ impl PurchaseReturnService {
     }
 
     /// 添加退货单明细
-    pub async fn create_item(&self, return_id: i32, req: CreateReturnItemRequest) -> Result<purchase_return_item::Model, AppError> {
+    pub async fn create_item(
+        &self,
+        return_id: i32,
+        req: CreateReturnItemRequest,
+    ) -> Result<purchase_return_item::Model, AppError> {
         let txn = self.db.begin().await?;
 
         // 验证主表状态（只有草稿可以修改明细，实际业务可能放宽，这里简化）
@@ -456,7 +497,9 @@ impl PurchaseReturnService {
             .ok_or(AppError::ResourceNotFound(format!("退货单 {}", return_id)))?;
 
         if return_record.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
         }
 
         let quantity = req.quantity_returned;
@@ -499,7 +542,11 @@ impl PurchaseReturnService {
     }
 
     /// 更新退货单明细
-    pub async fn update_item(&self, item_id: i32, req: UpdateReturnItemRequest) -> Result<purchase_return_item::Model, AppError> {
+    pub async fn update_item(
+        &self,
+        item_id: i32,
+        req: UpdateReturnItemRequest,
+    ) -> Result<purchase_return_item::Model, AppError> {
         let txn = self.db.begin().await?;
 
         let item = purchase_return_item::Entity::find_by_id(item_id)
@@ -510,17 +557,26 @@ impl PurchaseReturnService {
         let return_record = purchase_return::Entity::find_by_id(item.return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
+            .ok_or(AppError::ResourceNotFound(format!(
+                "退货单 {}",
+                item.return_id
+            )))?;
 
         if return_record.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
         }
 
         let mut active_item: purchase_return_item::ActiveModel = item.clone().into();
 
-        if let Some(line_no) = req.line_no { active_item.line_no = Set(line_no); }
-        if let Some(material_id) = req.material_id { active_item.product_id = Set(material_id); }
-        
+        if let Some(line_no) = req.line_no {
+            active_item.line_no = Set(line_no);
+        }
+        if let Some(material_id) = req.material_id {
+            active_item.product_id = Set(material_id);
+        }
+
         let quantity = req.quantity_returned.unwrap_or(item.quantity);
         let unit_price = req.unit_price.unwrap_or(item.unit_price);
         let discount_percent = req.discount_percent.unwrap_or(item.discount_percent);
@@ -543,13 +599,22 @@ impl PurchaseReturnService {
         active_item.tax_amount = Set(tax_amount);
         active_item.total_amount = Set(total_amount);
 
-        if let Some(notes) = req.notes { active_item.notes = Set(Some(notes)); }
-        
+        if let Some(notes) = req.notes {
+            active_item.notes = Set(Some(notes));
+        }
+
         active_item.updated_at = Set(Utc::now());
 
-        let updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_item, Some(0)).await?;
+        let updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_item,
+            Some(0),
+        )
+        .await?;
 
-        self.update_return_totals(updated_item.return_id, &txn).await?;
+        self.update_return_totals(updated_item.return_id, &txn)
+            .await?;
         txn.commit().await?;
 
         Ok(updated_item)
@@ -567,14 +632,21 @@ impl PurchaseReturnService {
         let return_record = purchase_return::Entity::find_by_id(item.return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("退货单 {}", item.return_id)))?;
+            .ok_or(AppError::ResourceNotFound(format!(
+                "退货单 {}",
+                item.return_id
+            )))?;
 
         if return_record.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError("只有草稿状态的退货单可以修改明细".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
         }
 
-        purchase_return_item::Entity::delete_by_id(item_id).exec(&txn).await?;
-        
+        purchase_return_item::Entity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+
         self.update_return_totals(item.return_id, &txn).await?;
         txn.commit().await?;
 
@@ -583,25 +655,34 @@ impl PurchaseReturnService {
 
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
-        
-        let ret = purchase_return::Entity::find_by_id(id).one(&txn).await?.ok_or(AppError::ResourceNotFound("Return not found".to_string()))?;
+
+        let ret = purchase_return::Entity::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound("Return not found".to_string()))?;
         if ret.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError("Only DRAFT returns can be deleted".to_string()));
+            return Err(AppError::BusinessError(
+                "Only DRAFT returns can be deleted".to_string(),
+            ));
         }
-        
+
         purchase_return_item::Entity::delete_many()
             .filter(purchase_return_item::Column::ReturnId.eq(id))
             .exec(&txn)
             .await?;
-            
+
         purchase_return::Entity::delete_by_id(id).exec(&txn).await?;
-        
+
         txn.commit().await?;
         Ok(())
     }
 
     /// 更新主单合计金额和数量
-    async fn update_return_totals(&self, return_id: i32, txn: &sea_orm::DatabaseTransaction) -> Result<(), AppError> {
+    async fn update_return_totals(
+        &self,
+        return_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .all(txn)
@@ -628,7 +709,13 @@ impl PurchaseReturnService {
         active_return.total_amount = Set(Some(total_amount));
         active_return.updated_at = Set(Utc::now());
 
-        crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_return, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active_return,
+            Some(0),
+        )
+        .await?;
 
         Ok(())
     }

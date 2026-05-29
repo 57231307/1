@@ -4,21 +4,21 @@
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::models::bom::{Entity as BomEntity, Column as BomColumn};
-use crate::models::bom_item::{Entity as BomItemEntity, Column as BomItemColumn};
-use crate::models::inventory_stock::{Entity as InventoryStockEntity, Column as StockColumn};
+use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
+use crate::models::bom_item::{Column as BomItemColumn, Entity as BomItemEntity};
+use crate::models::inventory_stock::{Column as StockColumn, Entity as InventoryStockEntity};
+use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::production_order::{
-    Entity as ProductionOrderEntity, Column as ProductionOrderColumn,
+    Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
 };
-use crate::models::product::{Entity as ProductEntity, Column as ProductColumn};
-use crate::models::tenant_config::{Entity as TenantConfigEntity, ActiveModel as TenantConfigActiveModel};
+use crate::models::tenant_config::{
+    ActiveModel as TenantConfigActiveModel, Entity as TenantConfigEntity,
+};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 
@@ -137,9 +137,8 @@ impl MaterialShortageService {
             .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
 
         if let Some(ref product_ids) = request.product_ids {
-            order_query = order_query.filter(
-                ProductionOrderColumn::ProductId.is_in(product_ids.clone()),
-            );
+            order_query =
+                order_query.filter(ProductionOrderColumn::ProductId.is_in(product_ids.clone()));
         }
         if let Some(from) = request.date_from {
             order_query = order_query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
@@ -198,8 +197,7 @@ impl MaterialShortageService {
 
         // 4. 计算每种物料的总需求
         let bom_ids: Vec<i32> = boms.iter().map(|b| b.id).collect();
-        let product_to_bom: HashMap<i32, i32> =
-            boms.iter().map(|b| (b.product_id, b.id)).collect();
+        let product_to_bom: HashMap<i32, i32> = boms.iter().map(|b| (b.product_id, b.id)).collect();
 
         let bom_items = if bom_ids.is_empty() {
             vec![]
@@ -213,8 +211,10 @@ impl MaterialShortageService {
 
         // material_id -> (total_required, unit, [(product_id, qty_per_unit)])
         #[allow(clippy::type_complexity)]
-        let mut material_requirements: HashMap<i32, (Decimal, Option<String>, Vec<(i32, Decimal)>)> =
-            HashMap::new();
+        let mut material_requirements: HashMap<
+            i32,
+            (Decimal, Option<String>, Vec<(i32, Decimal)>),
+        > = HashMap::new();
 
         for item in &bom_items {
             // 找到使用此 BOM 的产品
@@ -225,9 +225,11 @@ impl MaterialShortageService {
                         let qty_per_unit = item.quantity * (Decimal::ONE + scrap_rate);
                         let total_for_product = qty_per_unit * demand;
 
-                        let entry = material_requirements
-                            .entry(item.material_id)
-                            .or_insert((Decimal::ZERO, item.unit.clone(), vec![]));
+                        let entry = material_requirements.entry(item.material_id).or_insert((
+                            Decimal::ZERO,
+                            item.unit.clone(),
+                            vec![],
+                        ));
                         entry.0 += total_for_product;
                         entry.2.push((*product_id, qty_per_unit));
                     }
@@ -262,7 +264,8 @@ impl MaterialShortageService {
         let mut critical_count = 0i64;
         let mut severe_count = 0i64;
         let mut warning_count = 0i64;
-        let mut affected_order_ids: std::collections::HashSet<i32> = std::collections::HashSet::new();
+        let mut affected_order_ids: std::collections::HashSet<i32> =
+            std::collections::HashSet::new();
 
         for (material_id, (required, unit, _)) in &material_requirements {
             let available = stock_map.get(material_id).copied().unwrap_or(Decimal::ZERO);
@@ -461,7 +464,9 @@ impl MaterialShortageService {
             let mut active: TenantConfigActiveModel = model.into();
             active.config_value = Set(config_json);
             active.updated_at = Set(Utc::now());
-            active.update(&*self.db).await
+            active
+                .update(&*self.db)
+                .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         } else {
             let active = TenantConfigActiveModel {
@@ -474,7 +479,9 @@ impl MaterialShortageService {
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
             };
-            active.insert(&*self.db).await
+            active
+                .insert(&*self.db)
+                .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
 
@@ -496,10 +503,8 @@ impl MaterialShortageService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         match config {
-            Some(model) => {
-                serde_json::from_str(&model.config_value)
-                    .map_err(|e| AppError::ValidationError(format!("配置解析失败: {}", e)))
-            }
+            Some(model) => serde_json::from_str(&model.config_value)
+                .map_err(|e| AppError::ValidationError(format!("配置解析失败: {}", e))),
             None => Ok(ShortageThresholdConfig::default()),
         }
     }
@@ -515,7 +520,7 @@ impl MaterialShortageService {
             if shortage.shortage_quantity > Decimal::ZERO {
                 // 建议采购量 = 缺口数量 * 1.2 (20%余量)
                 let suggested_quantity = shortage.shortage_quantity * Decimal::new(12, 1);
-                
+
                 suggestions.push(ReplenishmentSuggestion {
                     material_id: shortage.material_id,
                     material_name: shortage.material_name.clone(),

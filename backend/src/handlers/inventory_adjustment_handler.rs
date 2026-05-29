@@ -84,7 +84,8 @@ pub struct AdjustmentSummary {
 }
 
 /// 创建调整单
-pub async fn create_adjustment(auth: AuthContext, 
+pub async fn create_adjustment(
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(payload): Json<CreateAdjustmentRequestPayload>,
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
@@ -102,7 +103,7 @@ pub async fn create_adjustment(auth: AuthContext,
             .quantity
             .parse::<Decimal>()
             .map_err(|e| AppError::ValidationError(format!("数量格式错误：{}", e)))?;
-        
+
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
             quantity,
@@ -123,7 +124,9 @@ pub async fn create_adjustment(auth: AuthContext,
         items,
     };
 
-    let detail = service.create_adjustment(request).await
+    let detail = service
+        .create_adjustment(request)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
@@ -156,17 +159,22 @@ pub async fn create_adjustment(auth: AuthContext,
 }
 
 /// 审核调整单
-pub async fn approve_adjustment(auth: AuthContext, 
+pub async fn approve_adjustment(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    service.approve_adjustment(id, user_id).await
+    service
+        .approve_adjustment(id, user_id)
+        .await
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
-    let detail = service.get_adjustment(id).await
+    let detail = service
+        .get_adjustment(id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
@@ -206,10 +214,14 @@ pub async fn reject_adjustment(
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    service.reject_adjustment(id).await
+    service
+        .reject_adjustment(id)
+        .await
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
-    let detail = service.get_adjustment(id).await
+    let detail = service
+        .get_adjustment(id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     // 发送审批拒绝通知
@@ -301,7 +313,9 @@ pub async fn get_adjustment(
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    let detail = service.get_adjustment(id).await
+    let detail = service
+        .get_adjustment(id)
+        .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
@@ -332,5 +346,3 @@ pub async fn get_adjustment(
             .collect(),
     })))
 }
-
-

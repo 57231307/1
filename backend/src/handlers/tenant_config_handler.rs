@@ -5,8 +5,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::tenant_service::TenantService;
 use crate::services::tenant_billing_service::TenantBillingService;
+use crate::services::tenant_service::TenantService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -93,9 +93,9 @@ pub async fn list_configs(
     auth: AuthContext,
     Query(query): Query<TenantConfigQuery>,
 ) -> Result<Json<ApiResponse<Vec<TenantConfigItem>>>, AppError> {
-    let tenant_id = auth.tenant_id.ok_or_else(|| {
-        AppError::BadRequest("缺少租户信息".to_string())
-    })?;
+    let tenant_id = auth
+        .tenant_id
+        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
 
     let service = TenantService::new(state.db);
 
@@ -108,7 +108,10 @@ pub async fn list_configs(
                     tenant_id,
                     config_key: key.clone(),
                     config_value: v,
-                    config_type: query.config_type.clone().unwrap_or_else(|| "STRING".to_string()),
+                    config_type: query
+                        .config_type
+                        .clone()
+                        .unwrap_or_else(|| "STRING".to_string()),
                     description: None,
                     created_at: chrono::Utc::now().to_rfc3339(),
                     updated_at: chrono::Utc::now().to_rfc3339(),
@@ -127,9 +130,9 @@ pub async fn set_config(
     auth: AuthContext,
     Json(req): Json<SetConfigRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let tenant_id = auth.tenant_id.ok_or_else(|| {
-        AppError::BadRequest("缺少租户信息".to_string())
-    })?;
+    let tenant_id = auth
+        .tenant_id
+        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
 
     let service = TenantService::new(state.db);
     let config_type = req.config_type.as_deref().unwrap_or("STRING");
@@ -138,11 +141,7 @@ pub async fn set_config(
         .set_tenant_config(tenant_id, &req.key, &req.value, config_type)
         .await?;
 
-    tracing::info!(
-        "租户 {} 配置已更新: key={}",
-        tenant_id,
-        req.key
-    );
+    tracing::info!("租户 {} 配置已更新: key={}", tenant_id, req.key);
 
     Ok(Json(ApiResponse::success_with_message((), "配置已保存")))
 }
@@ -152,12 +151,12 @@ pub async fn delete_config(
     auth: AuthContext,
     Path(key): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use crate::models::tenant_config;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-    let tenant_id = auth.tenant_id.ok_or_else(|| {
-        AppError::BadRequest("缺少租户信息".to_string())
-    })?;
+    let tenant_id = auth
+        .tenant_id
+        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
 
     // 删除租户配置
     let result = tenant_config::Entity::delete_many()
@@ -179,8 +178,8 @@ pub async fn list_plans(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<BillingPlanItem>>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use crate::models::tenant_plan;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     let plans = tenant_plan::Entity::find()
         .filter(tenant_plan::Column::IsActive.eq(true))
@@ -213,10 +212,10 @@ pub async fn create_plan(
     _auth: AuthContext,
     Json(req): Json<CreatePlanRequest>,
 ) -> Result<Json<ApiResponse<BillingPlanItem>>, AppError> {
-    use sea_orm::{ActiveModelTrait, Set};
     use crate::models::tenant_plan;
     use chrono::Utc;
     use rust_decimal::Decimal;
+    use sea_orm::{ActiveModelTrait, Set};
 
     let price_monthly: Decimal = req
         .price_monthly
@@ -270,8 +269,8 @@ pub async fn get_plan(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<BillingPlanItem>>, AppError> {
-    use sea_orm::EntityTrait;
     use crate::models::tenant_plan;
+    use sea_orm::EntityTrait;
 
     let plan = tenant_plan::Entity::find_by_id(id)
         .one(state.db.as_ref())
@@ -298,9 +297,9 @@ pub async fn get_usage_statistics(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<UsageStatistics>>, AppError> {
-    let tenant_id = auth.tenant_id.ok_or_else(|| {
-        AppError::BadRequest("缺少租户信息".to_string())
-    })?;
+    let tenant_id = auth
+        .tenant_id
+        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
 
     let service = TenantService::new(state.db.clone());
     let billing_service = TenantBillingService::new(state.db);
@@ -310,11 +309,14 @@ pub async fn get_usage_statistics(
         .await?
         .ok_or_else(|| AppError::ResourceNotFound("租户不存在".to_string()))?;
 
-    let users = service.get_tenant_users(tenant_id).await.unwrap_or_default();
+    let users = service
+        .get_tenant_users(tenant_id)
+        .await
+        .unwrap_or_default();
     let current_users = users.len() as i64;
 
     // 获取套餐限额
-    let (max_users, max_storage_mb, max_api_calls, plan_name) = 
+    let (max_users, max_storage_mb, max_api_calls, plan_name) =
         if let Ok(Some(current_plan)) = billing_service.get_current_plan(tenant_id).await {
             (
                 current_plan.plan.max_users as i64,
@@ -328,7 +330,7 @@ pub async fn get_usage_statistics(
         };
 
     // 获取实际使用量
-    let (storage_used_mb, api_calls_today) = 
+    let (storage_used_mb, api_calls_today) =
         if let Ok(Some(usage)) = billing_service.get_usage_stats(tenant_id).await {
             (usage.storage_used_mb, usage.api_calls_today)
         } else {

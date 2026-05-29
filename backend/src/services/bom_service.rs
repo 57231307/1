@@ -4,15 +4,15 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 
 use crate::models::bom::{
-    ActiveModel, Column as BomColumn, Entity as BomEntity, Model as BomModel, BomStatus,
+    ActiveModel, BomStatus, Column as BomColumn, Entity as BomEntity, Model as BomModel,
 };
 use crate::models::bom_item::{
     ActiveModel as BomItemActiveModel, Column as BomItemColumn, Entity as BomItemEntity,
@@ -78,10 +78,7 @@ impl BomService {
     }
 
     /// 创建BOM（含明细）
-    pub async fn create(
-        &self,
-        req: CreateBomRequest,
-    ) -> Result<BomDetail, AppError> {
+    pub async fn create(&self, req: CreateBomRequest) -> Result<BomDetail, AppError> {
         // 计算版本号
         let version = if let Some(v) = req.version {
             v
@@ -176,10 +173,7 @@ impl BomService {
     }
 
     /// 获取BOM列表
-    pub async fn list(
-        &self,
-        query: BomQuery,
-    ) -> Result<(Vec<BomModel>, u64), AppError> {
+    pub async fn list(&self, query: BomQuery) -> Result<(Vec<BomModel>, u64), AppError> {
         let mut select = BomEntity::find();
 
         if let Some(product_id) = query.product_id {
@@ -212,11 +206,7 @@ impl BomService {
     }
 
     /// 更新BOM
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateBomRequest,
-    ) -> Result<BomDetail, AppError> {
+    pub async fn update(&self, id: i32, req: UpdateBomRequest) -> Result<BomDetail, AppError> {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -244,7 +234,10 @@ impl BomService {
         // 如果提供了新的明细，替换所有明细
         if let Some(items_req) = req.items {
             // 使用事务保护删除和创建操作
-            let txn = self.db.begin().await
+            let txn = self
+                .db
+                .begin()
+                .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
             // 删除旧明细
@@ -274,7 +267,8 @@ impl BomService {
                     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             }
 
-            txn.commit().await
+            txn.commit()
+                .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
 
@@ -305,10 +299,7 @@ impl BomService {
     }
 
     /// 获取BOM版本历史
-    pub async fn get_versions(
-        &self,
-        product_id: i32,
-    ) -> Result<Vec<BomModel>, AppError> {
+    pub async fn get_versions(&self, product_id: i32) -> Result<Vec<BomModel>, AppError> {
         let boms = BomEntity::find()
             .filter(BomColumn::ProductId.eq(product_id))
             .order_by_desc(BomColumn::Version)
@@ -320,12 +311,9 @@ impl BomService {
     }
 
     /// 复制BOM
-    pub async fn copy(
-        &self,
-        id: i32,
-        created_by: i32,
-    ) -> Result<BomDetail, AppError> {
-        let source = self.get_by_id(id)
+    pub async fn copy(&self, id: i32, created_by: i32) -> Result<BomDetail, AppError> {
+        let source = self
+            .get_by_id(id)
             .await?
             .ok_or_else(|| AppError::NotFound("源BOM不存在".to_string()))?;
 
@@ -378,7 +366,10 @@ impl BomService {
             .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
 
         // 使用事务保护取消旧默认和设置新默认操作
-        let txn = self.db.begin().await
+        let txn = self
+            .db
+            .begin()
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 取消同产品其他默认BOM
@@ -404,7 +395,8 @@ impl BomService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        txn.commit().await
+        txn.commit()
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(updated_bom)
@@ -415,7 +407,9 @@ impl BomService {
         &self,
         bom_id: i32,
         max_depth: Option<i32>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<BomTreeNode, AppError>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<BomTreeNode, AppError>> + Send + '_>,
+    > {
         Box::pin(async move {
             let bom = BomEntity::find_by_id(bom_id)
                 .one(&*self.db)

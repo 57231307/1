@@ -3,8 +3,8 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
+use crate::utils::error::AppError;
 
 /// 库存预留服务
 pub struct InventoryReservationService {
@@ -67,7 +67,10 @@ impl InventoryReservationService {
         reservation_update.status = sea_orm::ActiveValue::Set("locked".to_string());
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        reservation_update.update(&*self.db).await.map_err(AppError::from)
+        reservation_update
+            .update(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 释放预留（从 locked 到 released）
@@ -94,7 +97,10 @@ impl InventoryReservationService {
         reservation_update.released_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        reservation_update.update(&*self.db).await.map_err(AppError::from)
+        reservation_update
+            .update(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 使用预留（从 locked 到 used）- 通常在发货时调用
@@ -120,7 +126,10 @@ impl InventoryReservationService {
         reservation_update.status = sea_orm::ActiveValue::Set("used".to_string());
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        reservation_update.update(&*self.db).await.map_err(AppError::from)
+        reservation_update
+            .update(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 根据订单 ID 获取所有预留
@@ -131,7 +140,8 @@ impl InventoryReservationService {
         InventoryReservationEntity::find()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .all(&*self.db)
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 根据订单 ID 获取所有已锁定的预留
@@ -143,7 +153,8 @@ impl InventoryReservationService {
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .filter(inventory_reservation::Column::Status.eq("locked"))
             .all(&*self.db)
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 批量创建预留（用于订单审核时）

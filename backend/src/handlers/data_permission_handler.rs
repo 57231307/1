@@ -103,7 +103,9 @@ pub async fn delete_data_permission(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = DataPermissionService::new(state.db.clone());
-    service.delete_data_permission(role_id, &resource_type).await?;
+    service
+        .delete_data_permission(role_id, &resource_type)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_msg((), "数据权限删除成功")))
 }
@@ -126,10 +128,14 @@ pub async fn get_data_permission(
             scope_type: p.scope_type,
             custom_condition: p.custom_condition,
             allowed_fields: p.allowed_fields.map(|fields| {
-                serde_json::Value::Array(fields.into_iter().map(serde_json::Value::String).collect())
+                serde_json::Value::Array(
+                    fields.into_iter().map(serde_json::Value::String).collect(),
+                )
             }),
             hidden_fields: p.hidden_fields.map(|fields| {
-                serde_json::Value::Array(fields.into_iter().map(serde_json::Value::String).collect())
+                serde_json::Value::Array(
+                    fields.into_iter().map(serde_json::Value::String).collect(),
+                )
             }),
             is_enabled: true,
         }

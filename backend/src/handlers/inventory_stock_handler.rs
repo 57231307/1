@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 
+use crate::middleware::auth_context::AuthContext;
+use crate::models::product;
 use crate::services::inventory_stock_service::InventoryStockService;
+use crate::utils::app_state::AppState;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
-use crate::models::{product};
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -100,7 +100,9 @@ pub async fn get_stock(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let stock = service.find_by_id(id).await
+    let stock = service
+        .find_by_id(id)
+        .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     let response = StockResponse {
@@ -203,12 +205,16 @@ pub async fn update_stock(
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let stock = service.find_by_id(id).await
+    let stock = service
+        .find_by_id(id)
+        .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     // Optimistic lock check
     if stock.version != payload.version {
-        return Err(AppError::BusinessError("库存记录已被其他用户修改，请刷新后重试".to_string()));
+        return Err(AppError::BusinessError(
+            "库存记录已被其他用户修改，请刷新后重试".to_string(),
+        ));
     }
 
     use sea_orm::{ActiveModelTrait, Set};
@@ -235,7 +241,9 @@ pub async fn update_stock(
     active_model.version = Set(payload.version + 1);
     active_model.updated_at = Set(Utc::now());
 
-    let updated = active_model.update(&*state.db).await
+    let updated = active_model
+        .update(&*state.db)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(StockResponse {
@@ -259,10 +267,14 @@ pub async fn delete_stock(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    service.find_by_id(id).await
+    service
+        .find_by_id(id)
+        .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
-    service.delete_stock(id).await
+    service
+        .delete_stock(id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
@@ -312,13 +324,15 @@ pub async fn list_stock(
                     .one(&*state.db)
                     .await
                 {
-                    let _ = event_service.notify_inventory_alert(
-                        0, // 系统通知，不指定特定用户
-                        &product.name,
-                        product.id,
-                        &stock.quantity_on_hand.to_string(),
-                        &stock.reorder_point.to_string(),
-                    ).await;
+                    let _ = event_service
+                        .notify_inventory_alert(
+                            0, // 系统通知，不指定特定用户
+                            &product.name,
+                            product.id,
+                            &stock.quantity_on_hand.to_string(),
+                            &stock.reorder_point.to_string(),
+                        )
+                        .await;
                 }
             }
         }
@@ -355,7 +369,9 @@ pub async fn list_stock(
         }
     }
 
-    Ok(Json(crate::utils::response::ApiResponse::success(stock_json)))
+    Ok(Json(crate::utils::response::ApiResponse::success(
+        stock_json,
+    )))
 }
 
 pub async fn check_low_stock(
@@ -365,7 +381,9 @@ pub async fn check_low_stock(
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let stock_list = service.check_low_stock(params.warehouse_id, params.product_id, params.batch_no).await?;
+    let stock_list = service
+        .check_low_stock(params.warehouse_id, params.product_id, params.batch_no)
+        .await?;
 
     let stock_responses: Vec<StockResponse> = stock_list
         .into_iter()
@@ -390,18 +408,22 @@ pub async fn check_low_stock(
                 .one(&*state.db)
                 .await
             {
-                let _ = event_service.notify_inventory_alert(
-                    0,
-                    &product.name,
-                    product.id,
-                    &stock.quantity_on_hand.to_string(),
-                    &stock.reorder_point.to_string(),
-                ).await;
+                let _ = event_service
+                    .notify_inventory_alert(
+                        0,
+                        &product.name,
+                        product.id,
+                        &stock.quantity_on_hand.to_string(),
+                        &stock.reorder_point.to_string(),
+                    )
+                    .await;
             }
         }
     }
 
-    Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
+    Ok(Json(crate::utils::response::ApiResponse::success(
+        stock_responses,
+    )))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -464,7 +486,9 @@ pub async fn list_stock_fabric(
         })
         .collect();
 
-    Ok(Json(crate::utils::response::ApiResponse::success(stock_responses)))
+    Ok(Json(crate::utils::response::ApiResponse::success(
+        stock_responses,
+    )))
 }
 
 /// 查询库存流水
@@ -514,7 +538,9 @@ pub async fn list_transactions(
         })
         .collect();
 
-    Ok(Json(crate::utils::response::ApiResponse::success(transaction_responses)))
+    Ok(Json(crate::utils::response::ApiResponse::success(
+        transaction_responses,
+    )))
 }
 
 /// 获取库存汇总（按批次 + 色号）

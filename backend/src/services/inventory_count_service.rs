@@ -6,9 +6,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::dto::PageRequest;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
 use crate::models::inventory_count_item::{self, Entity as InventoryCountItemEntity};
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
@@ -16,6 +14,8 @@ use crate::models::inventory_transaction;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
+use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
@@ -121,8 +121,7 @@ impl InventoryCountService {
         // 分页
         let paginator = query.paginate(&*self.db, page_req.page_size);
         let total = paginator.num_items().await?;
-        let counts: Vec<inventory_count::Model> =
-            paginator.fetch_page(page_req.page - 1).await?;
+        let counts: Vec<inventory_count::Model> = paginator.fetch_page(page_req.page - 1).await?;
 
         // 转换为响应格式
         let count_details: Vec<InventoryCountDetail> = counts
@@ -156,17 +155,12 @@ impl InventoryCountService {
     }
 
     /// 获取库存盘点详情（包含明细项）
-    pub async fn get_count_detail(
-        &self,
-        count_id: i32,
-    ) -> Result<InventoryCountDetail, AppError> {
+    pub async fn get_count_detail(&self, count_id: i32) -> Result<InventoryCountDetail, AppError> {
         // 获取盘点主表数据
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 获取盘点明细项
         let items = InventoryCountItemEntity::find()
@@ -235,7 +229,9 @@ impl InventoryCountService {
         if existing_count.is_some() {
             tracing::error!("Transaction rolled back: 盘点单号 {} 已存在", count_no);
             txn.rollback().await?;
-            return Err(AppError::BusinessError("盘点单号已存在，请重试".to_string()));
+            return Err(AppError::BusinessError(
+                "盘点单号已存在，请重试".to_string(),
+            ));
         }
 
         // 创建盘点主表
@@ -246,7 +242,9 @@ impl InventoryCountService {
             count_date: sea_orm::ActiveValue::Set(
                 request.count_date.unwrap_or_else(chrono::Utc::now),
             ),
-            status: sea_orm::ActiveValue::Set(request.status.unwrap_or_else(|| "pending".to_string())),
+            status: sea_orm::ActiveValue::Set(
+                request.status.unwrap_or_else(|| "pending".to_string()),
+            ),
             total_items: sea_orm::ActiveValue::Set(0),
             counted_items: sea_orm::ActiveValue::Set(0),
             variance_items: sea_orm::ActiveValue::Set(0),
@@ -274,11 +272,15 @@ impl InventoryCountService {
                     count_id: sea_orm::ActiveValue::Set(count_entity.id),
                     product_id: sea_orm::ActiveValue::Set(item_req.product_id),
                     stock_id: sea_orm::ActiveValue::Set(item_req.stock_id.unwrap_or(0)),
-                    warehouse_id: sea_orm::ActiveValue::Set(item_req.warehouse_id.unwrap_or(request.warehouse_id)),
+                    warehouse_id: sea_orm::ActiveValue::Set(
+                        item_req.warehouse_id.unwrap_or(request.warehouse_id),
+                    ),
                     quantity_before: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     quantity_actual: sea_orm::ActiveValue::Set(item_req.quantity_actual),
                     quantity_difference: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    unit_cost: sea_orm::ActiveValue::Set(item_req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO)),
+                    unit_cost: sea_orm::ActiveValue::Set(
+                        item_req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO),
+                    ),
                     total_cost: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     notes: sea_orm::ActiveValue::Set(item_req.notes),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
@@ -295,7 +297,13 @@ impl InventoryCountService {
         count_update.counted_items =
             sea_orm::ActiveValue::Set(if has_items { total_items } else { 0 });
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            count_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -314,9 +322,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，已完成的盘点单不允许修改
         if count.status == "completed" {
@@ -337,7 +343,13 @@ impl InventoryCountService {
             count_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            count_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -357,9 +369,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，只有待审核的盘点单可以审核
         if count.status != "pending" {
@@ -384,7 +394,13 @@ impl InventoryCountService {
             count_update.notes = sea_orm::ActiveValue::Set(Some(n));
         }
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            count_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -394,17 +410,12 @@ impl InventoryCountService {
     }
 
     /// 完成库存盘点并调整库存
-    pub async fn complete_count(
-        &self,
-        count_id: i32,
-    ) -> Result<InventoryCountDetail, AppError> {
+    pub async fn complete_count(&self, count_id: i32) -> Result<InventoryCountDetail, AppError> {
         // 检查盘点单是否存在
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，只有已审核的盘点单可以完成
         if count.status != "approved" {
@@ -431,7 +442,8 @@ impl InventoryCountService {
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(&txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         // 处理每个盘点明细项
         for item in items {
@@ -451,7 +463,14 @@ impl InventoryCountService {
                 item_update.quantity_before = sea_orm::ActiveValue::Set(quantity_book);
                 item_update.quantity_difference = sea_orm::ActiveValue::Set(quantity_variance);
                 item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                let _updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", item_update, Some(0)).await?;
+                let _updated_item =
+                    crate::services::audit_log_service::AuditLogService::update_with_audit(
+                        &txn,
+                        "auto_audit",
+                        item_update,
+                        Some(0),
+                    )
+                    .await?;
 
                 // 统计差异项数量
                 if quantity_variance != rust_decimal::Decimal::ZERO {
@@ -467,13 +486,12 @@ impl InventoryCountService {
                     // Update quantity_kg proportionally
                     if stock_model.quantity_meters > rust_decimal::Decimal::ZERO {
                         let kg_ratio = stock_model.quantity_kg / stock_model.quantity_meters;
-                        stock_update.quantity_kg = sea_orm::ActiveValue::Set(
-                            item.quantity_actual * kg_ratio,
-                        );
+                        stock_update.quantity_kg =
+                            sea_orm::ActiveValue::Set(item.quantity_actual * kg_ratio);
                     }
                     stock_update.version = sea_orm::ActiveValue::Set(expected_version + 1);
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                    
+
                     // 使用乐观锁条件更新
                     let update_result = inventory_stock::Entity::update_many()
                         .col_expr(
@@ -492,12 +510,14 @@ impl InventoryCountService {
                             inventory_stock::Column::QuantityKg,
                             sea_orm::sea_query::Expr::val(
                                 if stock_model.quantity_meters > rust_decimal::Decimal::ZERO {
-                                    let kg_ratio = stock_model.quantity_kg / stock_model.quantity_meters;
+                                    let kg_ratio =
+                                        stock_model.quantity_kg / stock_model.quantity_meters;
                                     item.quantity_actual * kg_ratio
                                 } else {
                                     stock_model.quantity_kg
-                                }
-                            ).into(),
+                                },
+                            )
+                            .into(),
                         )
                         .col_expr(
                             inventory_stock::Column::Version,
@@ -514,7 +534,10 @@ impl InventoryCountService {
 
                     // 检查乐观锁是否成功
                     if update_result.rows_affected == 0 {
-                        tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
+                        tracing::error!(
+                            "Transaction rolled back: 产品 {} 并发冲突",
+                            item.product_id
+                        );
                         txn.rollback().await?;
                         return Err(AppError::BusinessError(format!(
                             "产品 {} 库存记录已被其他用户修改，请重试",
@@ -534,12 +557,20 @@ impl InventoryCountService {
                         grade: sea_orm::ActiveValue::Set(stock_model.grade.clone()),
                         quantity_meters: sea_orm::ActiveValue::Set(quantity_variance),
                         quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                        source_bill_type: sea_orm::ActiveValue::Set(Some("inventory_count".to_string())),
+                        source_bill_type: sea_orm::ActiveValue::Set(Some(
+                            "inventory_count".to_string(),
+                        )),
                         source_bill_no: sea_orm::ActiveValue::Set(Some(count.count_no.clone())),
                         source_bill_id: sea_orm::ActiveValue::Set(Some(count.id)),
-                        quantity_before_meters: sea_orm::ActiveValue::Set(Some(stock_model.quantity_meters)),
-                        quantity_before_kg: sea_orm::ActiveValue::Set(Some(stock_model.quantity_kg)),
-                        quantity_after_meters: sea_orm::ActiveValue::Set(Some(stock_model.quantity_meters + quantity_variance)),
+                        quantity_before_meters: sea_orm::ActiveValue::Set(Some(
+                            stock_model.quantity_meters,
+                        )),
+                        quantity_before_kg: sea_orm::ActiveValue::Set(Some(
+                            stock_model.quantity_kg,
+                        )),
+                        quantity_after_meters: sea_orm::ActiveValue::Set(Some(
+                            stock_model.quantity_meters + quantity_variance,
+                        )),
                         quantity_after_kg: sea_orm::ActiveValue::Set(Some(stock_model.quantity_kg)),
                         notes: sea_orm::ActiveValue::Set(Some("盘点调整".to_string())),
                         created_by: sea_orm::ActiveValue::Set(count.created_by),
@@ -596,11 +627,17 @@ impl InventoryCountService {
                     grade: sea_orm::ActiveValue::Set("一等品".to_string()),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity_actual),
                     quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    source_bill_type: sea_orm::ActiveValue::Set(Some("inventory_count".to_string())),
+                    source_bill_type: sea_orm::ActiveValue::Set(Some(
+                        "inventory_count".to_string(),
+                    )),
                     source_bill_no: sea_orm::ActiveValue::Set(Some(count.count_no.clone())),
                     source_bill_id: sea_orm::ActiveValue::Set(Some(count.id)),
-                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
-                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(
+                        rust_decimal::Decimal::ZERO,
+                    )),
+                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(
+                        rust_decimal::Decimal::ZERO,
+                    )),
                     quantity_after_meters: sea_orm::ActiveValue::Set(Some(item.quantity_actual)),
                     quantity_after_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
                     notes: sea_orm::ActiveValue::Set(Some("盘点调整（新建库存记录）".to_string())),
@@ -620,7 +657,13 @@ impl InventoryCountService {
         count_update.variance_items = sea_orm::ActiveValue::Set(variance_count);
         count_update.completed_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", count_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            count_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -628,7 +671,7 @@ impl InventoryCountService {
         // 如果存在差异，调用 InventoryAdjustmentService 创建正式的调整单
         if variance_count > 0 {
             let adjustment_service = InventoryAdjustmentService::new(self.db.clone());
-            
+
             // 重新获取盘点明细项以创建调整单
             let items = InventoryCountItemEntity::find()
                 .filter(inventory_count_item::Column::CountId.eq(count_id))
@@ -653,7 +696,10 @@ impl InventoryCountService {
                 let adjustment_request = CreateAdjustmentRequest {
                     warehouse_id,
                     adjustment_date: chrono::Utc::now(),
-                    adjustment_type: if adjustment_items.iter().any(|i| i.quantity > rust_decimal::Decimal::ZERO) {
+                    adjustment_type: if adjustment_items
+                        .iter()
+                        .any(|i| i.quantity > rust_decimal::Decimal::ZERO)
+                    {
                         "increase".to_string()
                     } else {
                         "decrease".to_string()
@@ -665,10 +711,13 @@ impl InventoryCountService {
                     items: adjustment_items,
                 };
 
-                adjustment_service.create_adjustment(adjustment_request).await.map_err(|e| {
-                    tracing::warn!("创建盘点差异调整单失败: {}", e);
-                    e
-                })?;
+                adjustment_service
+                    .create_adjustment(adjustment_request)
+                    .await
+                    .map_err(|e| {
+                        tracing::warn!("创建盘点差异调整单失败: {}", e);
+                        e
+                    })?;
             }
         }
 

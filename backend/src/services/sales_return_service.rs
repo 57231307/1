@@ -3,13 +3,13 @@
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 #![allow(dead_code)]
 
-use crate::models::{sales_return, sales_return_item, product, inventory_stock};
+use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -90,10 +90,15 @@ impl SalesReturnService {
 
         let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
         return_active.total_amount = sea_orm::ActiveValue::Set(total);
-        crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", return_active, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            return_active,
+            Some(0),
+        )
+        .await?;
         Ok(())
     }
-
 
     /// 生成退货单号
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
@@ -238,7 +243,13 @@ impl SalesReturnService {
         }
 
         active_model.updated_at = Set(Utc::now());
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
         Ok(return_order)
     }
@@ -271,15 +282,17 @@ impl SalesReturnService {
             .await?;
 
         if items_count == 0 {
-            return Err(AppError::BusinessError("退货单没有明细，无法提交".to_string()));
+            return Err(AppError::BusinessError(
+                "退货单没有明细，无法提交".to_string(),
+            ));
         }
 
         // 开启事务，更新退货单总金额和状态
         let txn = (*self.db).begin().await?;
-        
+
         // 更新退货单总金额
         self.update_return_totals(return_id, &txn).await?;
-        
+
         // 更新状态为已提交
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&txn)
@@ -288,13 +301,19 @@ impl SalesReturnService {
                 "销售退货单 {}",
                 return_id
             )))?;
-        
+
         let mut active_model: sales_return::ActiveModel = return_order.into();
         active_model.status = Set("SUBMITTED".to_string());
         active_model.updated_at = Set(Utc::now());
-        
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(0)).await?;
-        
+
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
+
         txn.commit().await?;
 
         Ok(return_order)
@@ -340,21 +359,26 @@ impl SalesReturnService {
             .filter(product::Column::Id.is_in(product_ids.clone()))
             .all(&txn)
             .await?;
-        let product_map: std::collections::HashMap<i32, product::Model> = products.into_iter().map(|p| (p.id, p)).collect();
+        let product_map: std::collections::HashMap<i32, product::Model> =
+            products.into_iter().map(|p| (p.id, p)).collect();
 
         let stocks = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(return_order.warehouse_id))
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(&txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         for item in &items {
             // 获取商品信息
-            let _product_info = product_map.get(&item.product_id).ok_or(AppError::ResourceNotFound(format!(
-                "商品 {} 不存在",
-                item.product_id
-            )))?;
+            let _product_info =
+                product_map
+                    .get(&item.product_id)
+                    .ok_or(AppError::ResourceNotFound(format!(
+                        "商品 {} 不存在",
+                        item.product_id
+                    )))?;
 
             // 查找是否已有库存记录
             let stock = stock_map.get(&item.product_id);
@@ -373,7 +397,13 @@ impl SalesReturnService {
                 stock_update.quantity_on_hand = Set(new_qty);
                 stock_update.quantity_available = Set(new_avail);
                 stock_update.updated_at = Set(Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &txn,
+                    "auto_audit",
+                    stock_update,
+                    Some(0),
+                )
+                .await?;
             } else {
                 // 创建新库存记录
                 let new_stock = inventory_stock::ActiveModel {
@@ -392,23 +422,29 @@ impl SalesReturnService {
             }
 
             // 增加库存交易记录
-            stock_service.record_transaction(
-                "SALES_RETURN".to_string(),
-                item.product_id,
-                return_order.warehouse_id,
-                batch_no.clone(),
-                color_no.clone(),
-                Some(batch_no.clone()), // dye_lot_no
-                grade.clone(),
-                item.quantity, // 正数，表示入库
-                item.quantity_alt,
-                Some("SALES_RETURN".to_string()),
-                Some(return_order.return_no.clone()),
-                Some(return_order.id),
-                None, None, None, None,
-                Some("销售退货入库".to_string()),
-                Some(user_id),
-            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            stock_service
+                .record_transaction(
+                    "SALES_RETURN".to_string(),
+                    item.product_id,
+                    return_order.warehouse_id,
+                    batch_no.clone(),
+                    color_no.clone(),
+                    Some(batch_no.clone()), // dye_lot_no
+                    grade.clone(),
+                    item.quantity, // 正数，表示入库
+                    item.quantity_alt,
+                    Some("SALES_RETURN".to_string()),
+                    Some(return_order.return_no.clone()),
+                    Some(return_order.id),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("销售退货入库".to_string()),
+                    Some(user_id),
+                )
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
 
         let mut active_model: sales_return::ActiveModel = return_order.clone().into();
@@ -417,7 +453,13 @@ impl SalesReturnService {
         active_model.approved_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(0)).await?;
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -440,7 +482,11 @@ impl SalesReturnService {
         };
 
         if let Err(e) = ar_invoice_service.create(ar_request, user_id).await {
-            tracing::error!("自动生成红字应收单失败 (退货单 {}): {}", return_order.return_no, e);
+            tracing::error!(
+                "自动生成红字应收单失败 (退货单 {}): {}",
+                return_order.return_no,
+                e
+            );
         } else {
             tracing::info!("成功自动生成红字应收单 (退货单 {})", return_order.return_no);
         }

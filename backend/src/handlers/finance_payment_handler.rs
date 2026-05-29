@@ -1,5 +1,5 @@
 //! 通用财务支付网关 Handler
-//! 
+//!
 //! 区别于 ap_payment (仅限应付账款)，此模块提供全局统一的财务支付入口
 //! 能够接收来自采购、销售、退货、人工调整等所有渠道的支付动作。
 
@@ -50,7 +50,9 @@ pub async fn get_payment(
 ) -> Result<Json<ApiResponse<PaymentResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
 
-    let payment = service.find_by_id(id).await
+    let payment = service
+        .find_by_id(id)
+        .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(PaymentResponse {
@@ -141,5 +143,3 @@ pub struct ListPaymentsParams {
     pub page_size: Option<u64>,
     pub status: Option<String>,
 }
-
-

@@ -6,6 +6,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_reconciliation_service::{
     ApReconciliationService, GenerateReconciliationRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -13,7 +14,6 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::{info, warn};
@@ -55,7 +55,12 @@ pub async fn list_reconciliations(
 
     info!("用户 {} 查询对账单成功，共 {} 条记录", auth.username, total);
 
-    let result = crate::utils::response::build_paginated_response(reconciliations, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let result = crate::utils::response::build_paginated_response(
+        reconciliations,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -203,7 +208,9 @@ pub async fn auto_reconcile_all(
     );
 
     let service = ApReconciliationService::new(state.db.clone());
-    let results = service.auto_reconcile_all(req.start_date, req.end_date, auth.user_id).await?;
+    let results = service
+        .auto_reconcile_all(req.start_date, req.end_date, auth.user_id)
+        .await?;
 
     let success_count = results.iter().filter(|r| r.status != "FAILED").count();
     let fail_count = results.len() - success_count;
@@ -215,7 +222,10 @@ pub async fn auto_reconcile_all(
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(results)?,
-        &format!("Auto reconciliation completed: {} success, {} failed", success_count, fail_count),
+        &format!(
+            "Auto reconciliation completed: {} success, {} failed",
+            success_count, fail_count
+        ),
     )))
 }
 
@@ -225,7 +235,10 @@ pub async fn get_invoice_relations(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    info!("User {} query invoice {} relations", auth.username, invoice_id);
+    info!(
+        "User {} query invoice {} relations",
+        auth.username, invoice_id
+    );
 
     let service = ApReconciliationService::new(state.db.clone());
     let relations = service.get_invoice_relations(invoice_id).await?;

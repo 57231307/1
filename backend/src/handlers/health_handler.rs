@@ -111,7 +111,7 @@ async fn check_database(state: &AppState) -> HealthCheckItem {
 
     // 实际检查数据库连接池状态
     let is_connected = state.db.ping().await.is_ok();
-    
+
     let duration = start.elapsed();
 
     if is_connected {
@@ -136,35 +136,43 @@ fn check_memory() -> HealthCheckItem {
         let sys = sysinfo::System::new_all();
         let total: u64 = sys.total_memory();
         let used: u64 = sys.used_memory();
-        
+
         if total > 0 {
             let percentage = (used as f64 / total as f64 * 100.0) as u64;
-            
+
             // 容器环境中内存使用率通常较高，调整阈值
             // 检测是否在容器中（检查 cgroup 限制）
-            let is_container = std::path::Path::new("/.dockerenv").exists() 
+            let is_container = std::path::Path::new("/.dockerenv").exists()
                 || std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
                 || std::fs::metadata("/sys/fs/cgroup/memory/memory.limit_in_bytes").is_ok();
-            
+
             let threshold_unhealthy = if is_container { 99 } else { 95 };
             let threshold_degraded = if is_container { 90 } else { 80 };
-            
+
             if percentage > threshold_unhealthy {
                 return HealthCheckItem {
                     status: "unhealthy".to_string(),
-                    message: Some(format!("内存使用率过高: {}%{}", percentage, if is_container { " (容器环境)" } else { "" })),
+                    message: Some(format!(
+                        "内存使用率过高: {}%{}",
+                        percentage,
+                        if is_container { " (容器环境)" } else { "" }
+                    )),
                     response_time_ms: Some(0),
                 };
             } else if percentage > threshold_degraded {
                 return HealthCheckItem {
                     status: "degraded".to_string(),
-                    message: Some(format!("内存使用率较高: {}%{}", percentage, if is_container { " (容器环境)" } else { "" })),
+                    message: Some(format!(
+                        "内存使用率较高: {}%{}",
+                        percentage,
+                        if is_container { " (容器环境)" } else { "" }
+                    )),
                     response_time_ms: Some(0),
                 };
             }
         }
     }
-    
+
     HealthCheckItem {
         status: "healthy".to_string(),
         message: Some("内存使用正常".to_string()),
@@ -182,7 +190,7 @@ fn check_disk() -> HealthCheckItem {
             let _ = fs; // 消除未使用警告
         }
     }
-    
+
     HealthCheckItem {
         status: "healthy".to_string(),
         message: Some("磁盘空间充足".to_string()),

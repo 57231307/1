@@ -198,24 +198,22 @@ impl FinancialAnalysisService {
             .await?;
 
         // 获取所有科目信息
-        let subjects = account_subject::Entity::find()
-            .all(&*self.db)
-            .await?;
+        let subjects = account_subject::Entity::find().all(&*self.db).await?;
 
         // 构建科目 ID -> 科目信息的映射
         let subject_map: std::collections::HashMap<i32, &account_subject::Model> =
             subjects.iter().map(|s| (s.id, s)).collect();
 
         // 按科目代码前缀分类汇总期末余额
-        let mut current_assets = Decimal::ZERO;     // 流动资产 (1xxx，排除长期资产)
+        let mut current_assets = Decimal::ZERO; // 流动资产 (1xxx，排除长期资产)
         let mut current_liabilities = Decimal::ZERO; // 流动负债 (2xxx)
-        let mut total_assets = Decimal::ZERO;        // 总资产 (1xxx)
-        let mut total_liabilities = Decimal::ZERO;   // 总负债 (2xxx)
-        let mut inventory = Decimal::ZERO;           // 存货 (1403, 1405, 1406, 1407, 1408, 1409, 1411)
-        let mut accounts_receivable = Decimal::ZERO;  // 应收账款 (1122)
-        let mut accounts_payable = Decimal::ZERO;     // 应付账款 (2202)
-        let mut sales_revenue = Decimal::ZERO;        // 销售收入 (6001 主营业务收入)
-        let mut purchase_cost = Decimal::ZERO;        // 采购成本 (6001 对应的借方或 6401 主营业务成本)
+        let mut total_assets = Decimal::ZERO; // 总资产 (1xxx)
+        let mut total_liabilities = Decimal::ZERO; // 总负债 (2xxx)
+        let mut inventory = Decimal::ZERO; // 存货 (1403, 1405, 1406, 1407, 1408, 1409, 1411)
+        let mut accounts_receivable = Decimal::ZERO; // 应收账款 (1122)
+        let mut accounts_payable = Decimal::ZERO; // 应付账款 (2202)
+        let mut sales_revenue = Decimal::ZERO; // 销售收入 (6001 主营业务收入)
+        let mut purchase_cost = Decimal::ZERO; // 采购成本 (6001 对应的借方或 6401 主营业务成本)
 
         for balance in &balances {
             if let Some(subject) = subject_map.get(&balance.subject_id) {
@@ -327,7 +325,10 @@ impl FinancialAnalysisService {
         let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
 
         // 1. 流动比率
-        if let Some(indicator) = indicator_defs.iter().find(|i| i.indicator_code == "CURRENT_RATIO") {
+        if let Some(indicator) = indicator_defs
+            .iter()
+            .find(|i| i.indicator_code == "CURRENT_RATIO")
+        {
             if let Some(value) = safe_div(current_assets, current_liabilities) {
                 let result = self
                     .save_indicator_result(
@@ -344,7 +345,10 @@ impl FinancialAnalysisService {
         }
 
         // 2. 速动比率
-        if let Some(indicator) = indicator_defs.iter().find(|i| i.indicator_code == "QUICK_RATIO") {
+        if let Some(indicator) = indicator_defs
+            .iter()
+            .find(|i| i.indicator_code == "QUICK_RATIO")
+        {
             if let Some(value) = safe_div(current_assets - inventory, current_liabilities) {
                 let result = self
                     .save_indicator_result(
@@ -361,7 +365,10 @@ impl FinancialAnalysisService {
         }
 
         // 3. 资产负债率
-        if let Some(indicator) = indicator_defs.iter().find(|i| i.indicator_code == "DEBT_ASSET_RATIO") {
+        if let Some(indicator) = indicator_defs
+            .iter()
+            .find(|i| i.indicator_code == "DEBT_ASSET_RATIO")
+        {
             if let Some(value) = safe_div(total_liabilities, total_assets) {
                 let result = self
                     .save_indicator_result(
@@ -378,34 +385,26 @@ impl FinancialAnalysisService {
         }
 
         // 4. 应收账款周转率
-        if let Some(indicator) = indicator_defs.iter().find(|i| i.indicator_code == "AR_TURNOVER_RATIO") {
+        if let Some(indicator) = indicator_defs
+            .iter()
+            .find(|i| i.indicator_code == "AR_TURNOVER_RATIO")
+        {
             if let Some(value) = safe_div(sales_revenue, accounts_receivable) {
                 let result = self
-                    .save_indicator_result(
-                        "auto",
-                        period,
-                        indicator.id,
-                        value,
-                        None,
-                        user_id,
-                    )
+                    .save_indicator_result("auto", period, indicator.id, value, None, user_id)
                     .await?;
                 results.push(result);
             }
         }
 
         // 5. 应付账款周转率
-        if let Some(indicator) = indicator_defs.iter().find(|i| i.indicator_code == "AP_TURNOVER_RATIO") {
+        if let Some(indicator) = indicator_defs
+            .iter()
+            .find(|i| i.indicator_code == "AP_TURNOVER_RATIO")
+        {
             if let Some(value) = safe_div(purchase_cost, accounts_payable) {
                 let result = self
-                    .save_indicator_result(
-                        "auto",
-                        period,
-                        indicator.id,
-                        value,
-                        None,
-                        user_id,
-                    )
+                    .save_indicator_result("auto", period, indicator.id, value, None, user_id)
                     .await?;
                 results.push(result);
             }

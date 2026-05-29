@@ -62,10 +62,7 @@ pub async fn list_field_permissions(
     let service = FieldPermissionService::new(state.db.clone());
 
     let permissions = service
-        .list_field_permissions(
-            query.resource_type.as_deref(),
-            query.role_id,
-        )
+        .list_field_permissions(query.resource_type.as_deref(), query.role_id)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 

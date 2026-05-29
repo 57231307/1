@@ -152,16 +152,16 @@ impl PurchaseContractService {
 
         // 验证执行金额为正数
         if req.execution_amount <= Decimal::ZERO {
-            return Err(AppError::ValidationError(
-                "执行金额必须大于零".to_string(),
-            ));
+            return Err(AppError::ValidationError("执行金额必须大于零".to_string()));
         }
 
         // 计算已执行金额并验证不超过合同总额
         let total_amount = contract.total_amount.unwrap_or(Decimal::ZERO);
         if total_amount > Decimal::ZERO {
             let executed_amount = crate::models::purchase_contract_execution::Entity::find()
-                .filter(crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id))
+                .filter(
+                    crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id),
+                )
                 .all(&*self.db)
                 .await?
                 .iter()

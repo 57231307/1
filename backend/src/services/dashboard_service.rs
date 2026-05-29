@@ -2,15 +2,16 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, QueryOrder,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::utils::error::AppError;
 use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::utils::cache::{AppCache, Cache};
+use crate::utils::error::AppError;
 
 /// 仪表板概览数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -109,9 +110,14 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<DashboardOverview, AppError> {
         // 生成缓存键
-        let cache_key = format!("dashboard:overview:{}-{}", 
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+        let cache_key = format!(
+            "dashboard:overview:{}-{}",
+            start_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string()),
+            end_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string())
         );
 
         // 尝试从缓存获取
@@ -128,7 +134,7 @@ impl DashboardService {
             .filter(sales_order::Column::Status.eq("pending"))
             .count(&*self.db)
             .await? as i64;
-            
+
         let low_stock_count = inventory_stock::Entity::find()
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
@@ -137,12 +143,14 @@ impl DashboardService {
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .count(self.db.as_ref())
             .await? as i64;
-            
+
         // 本月销售额
         let now = Utc::now();
         use chrono::Datelike;
         let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date"));
+            .unwrap_or_else(|| {
+                chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date")
+            });
         let monthly_sales_dec = sales_order::Entity::find()
             .filter(sales_order::Column::OrderDate.gte(start_of_month))
             .select_only()
@@ -152,7 +160,7 @@ impl DashboardService {
             .await?
             .flatten()
             .unwrap_or(Decimal::ZERO);
-            
+
         // 总销售额
         let total_sales_dec = sales_order::Entity::find()
             .select_only()
@@ -178,7 +186,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(overview_json) = serde_json::to_value(overview.clone()) {
-            self.cache.get_dashboard_cache().set(cache_key, overview_json, Some(Duration::from_secs(300)));
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                overview_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(overview)
@@ -191,9 +203,14 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<SalesStatistics, AppError> {
         // 生成缓存键
-        let cache_key = format!("dashboard:sales:{}-{}", 
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+        let cache_key = format!(
+            "dashboard:sales:{}-{}",
+            start_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string()),
+            end_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string())
         );
 
         // 尝试从缓存获取
@@ -202,7 +219,6 @@ impl DashboardService {
                 return Ok(statistics);
             }
         }
-
 
         let mut query = sales_order::Entity::find();
 
@@ -227,10 +243,13 @@ impl DashboardService {
             .all(self.db.as_ref())
             .await?;
 
-        let daily_sales = daily_results.into_iter().map(|(date, amt)| SalesDataPoint {
-            date: date.to_string(),
-            amount: amt.unwrap_or(Decimal::ZERO).to_string(),
-        }).collect();
+        let daily_sales = daily_results
+            .into_iter()
+            .map(|(date, amt)| SalesDataPoint {
+                date: date.to_string(),
+                amount: amt.unwrap_or(Decimal::ZERO).to_string(),
+            })
+            .collect();
 
         let statistics = SalesStatistics {
             daily_sales,
@@ -243,7 +262,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
-            self.cache.get_dashboard_cache().set(cache_key, statistics_json, Some(Duration::from_secs(300)));
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                statistics_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(statistics)
@@ -335,7 +358,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
-            self.cache.get_dashboard_cache().set(cache_key, statistics_json, Some(Duration::from_secs(300)));
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                statistics_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(statistics)
@@ -389,7 +416,11 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(alerts_json) = serde_json::to_value(alerts.clone()) {
-            self.cache.get_inventory_cache().set(cache_key, alerts_json, Some(Duration::from_secs(300)));
+            self.cache.get_inventory_cache().set(
+                cache_key,
+                alerts_json,
+                Some(Duration::from_secs(300)),
+            );
         }
 
         Ok(alerts)

@@ -4,8 +4,8 @@
 //! 包含付款申请创建、提交、审批、拒绝等全流程管理
 
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -178,7 +178,13 @@ impl ApPaymentRequestService {
 
         request_active.updated_by = Set(Some(user_id));
 
-        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            request_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -255,7 +261,13 @@ impl ApPaymentRequestService {
         request_active.submitted_at = Set(Some(now));
         request_active.updated_at = Set(now);
 
-        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            request_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -296,7 +308,13 @@ impl ApPaymentRequestService {
         request_active.approved_at = Set(Some(now));
         request_active.updated_at = Set(now);
 
-        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            request_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -335,7 +353,13 @@ impl ApPaymentRequestService {
         request_active.rejected_reason = Set(Some(reason));
         request_active.updated_at = Set(now);
 
-        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", request_active, Some(0)).await?;
+        let request = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            request_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 

@@ -5,17 +5,17 @@
 #![allow(dead_code)]
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 
-use crate::models::sales_order::Entity as SalesOrderEntity;
-use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::inventory_transaction::Entity as InventoryTransactionEntity;
+use crate::models::sales_order::Entity as SalesOrderEntity;
+use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
 /// 销售预测结果
@@ -105,7 +105,14 @@ impl AiAnalysisService {
 
         let items = SalesOrderItemEntity::find()
             .filter(crate::models::sales_order_item::Column::ProductId.eq(product_id))
-            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc()))
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    start_date
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .order_by_asc(crate::models::sales_order_item::Column::CreatedAt)
             .all(&*self.db)
             .await
@@ -144,7 +151,7 @@ impl AiAnalysisService {
 
         // --- 指数平滑 (Holt 线性趋势) ---
         let alpha = 0.3; // 水平平滑因子
-        let beta = 0.1;  // 趋势平滑因子
+        let beta = 0.1; // 趋势平滑因子
 
         let mut level = values[0];
         let mut trend = if n > 1 { values[1] - values[0] } else { 0.0 };
@@ -174,7 +181,11 @@ impl AiAnalysisService {
 
         // 计算趋势方向
         let recent_avg = mean(&values[n.saturating_sub(14)..]);
-        let earlier_avg = if n > 14 { mean(&values[..n - 14]) } else { mean(&values[..n / 2]) };
+        let earlier_avg = if n > 14 {
+            mean(&values[..n - 14])
+        } else {
+            mean(&values[..n / 2])
+        };
         let trend_direction = if recent_avg > earlier_avg * 1.1 {
             "UP"
         } else if recent_avg < earlier_avg * 0.9 {
@@ -231,7 +242,14 @@ impl AiAnalysisService {
         let start_date = Utc::now().date_naive() - Duration::days(90);
 
         let orders = SalesOrderEntity::find()
-            .filter(crate::models::sales_order::Column::CreatedAt.gte(start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc()))
+            .filter(
+                crate::models::sales_order::Column::CreatedAt.gte(
+                    start_date
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -256,7 +274,8 @@ impl AiAnalysisService {
             forecasts.push(SalesForecast {
                 product_id,
                 forecast_date,
-                predicted_quantity: Decimal::try_from(avg_daily * seasonal).unwrap_or(Decimal::ZERO),
+                predicted_quantity: Decimal::try_from(avg_daily * seasonal)
+                    .unwrap_or(Decimal::ZERO),
                 confidence: 0.55,
                 trend: "STABLE".to_string(),
             });
@@ -269,7 +288,10 @@ impl AiAnalysisService {
     fn build_seasonal_factors(&self, dates: &[NaiveDate], values: &[f64]) -> HashMap<usize, f64> {
         let mut monthly_totals: HashMap<usize, Vec<f64>> = HashMap::new();
         for (i, date) in dates.iter().enumerate() {
-            monthly_totals.entry(date.month() as usize).or_default().push(values[i]);
+            monthly_totals
+                .entry(date.month() as usize)
+                .or_default()
+                .push(values[i]);
         }
 
         let overall_mean = mean(values);
@@ -313,9 +335,14 @@ impl AiAnalysisService {
         // 获取所有产品的出库历史数据
         let start_date = Utc::now().date_naive() - Duration::days(90);
         let transactions = InventoryTransactionEntity::find()
-            .filter(crate::models::inventory_transaction::Column::CreatedAt.gte(
-                start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::inventory_transaction::Column::CreatedAt.gte(
+                    start_date
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -325,7 +352,10 @@ impl AiAnalysisService {
         for tx in &transactions {
             if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
                 let qty = tx.quantity_meters.to_f64().unwrap_or(0.0);
-                outbound_by_product.entry(tx.product_id).or_default().push(qty);
+                outbound_by_product
+                    .entry(tx.product_id)
+                    .or_default()
+                    .push(qty);
             }
         }
 
@@ -344,11 +374,20 @@ impl AiAnalysisService {
 
             // 计算出库统计
             let outbound_qtys = outbound_by_product.get(&pid);
-            let (avg_daily_demand, demand_std, _total_outbound) = if let Some(qtys) = outbound_qtys {
+            let (avg_daily_demand, demand_std, _total_outbound) = if let Some(qtys) = outbound_qtys
+            {
                 let daily_map = self.aggregate_daily_from_transactions(pid, &transactions);
                 let daily_values: Vec<f64> = daily_map.values().copied().collect();
-                let avg = if daily_values.is_empty() { 0.0 } else { mean(&daily_values) };
-                let std = if daily_values.len() > 1 { std_deviation(&daily_values) } else { avg * 0.3 };
+                let avg = if daily_values.is_empty() {
+                    0.0
+                } else {
+                    mean(&daily_values)
+                };
+                let std = if daily_values.len() > 1 {
+                    std_deviation(&daily_values)
+                } else {
+                    avg * 0.3
+                };
                 let total: f64 = qtys.iter().sum();
                 (avg, std, total)
             } else {
@@ -377,7 +416,10 @@ impl AiAnalysisService {
             let suggested = safety_stock + avg_daily_demand * 30.0;
 
             let reason = if current <= 0.0 {
-                format!("库存为零! ABC分类={}, 安全库存={:.0}, 建议立即补货 {:.0}", abc, safety_stock, reorder_quantity)
+                format!(
+                    "库存为零! ABC分类={}, 安全库存={:.0}, 建议立即补货 {:.0}",
+                    abc, safety_stock, reorder_quantity
+                )
             } else if current < reorder_point {
                 format!(
                     "库存({:.0})低于再订货点({:.0}), ABC分类={}, 安全库存={:.0}, 建议补货 {:.0}",
@@ -389,7 +431,10 @@ impl AiAnalysisService {
                     current, suggested, abc
                 )
             } else {
-                format!("库存水平正常, ABC分类={}, 安全库存={:.0}", abc, safety_stock)
+                format!(
+                    "库存水平正常, ABC分类={}, 安全库存={:.0}",
+                    abc, safety_stock
+                )
             };
 
             suggestions.push(InventorySuggestion {
@@ -397,7 +442,8 @@ impl AiAnalysisService {
                 current_stock: stock.quantity_available,
                 suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
                 reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
-                reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0)).unwrap_or(Decimal::ZERO),
+                reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
+                    .unwrap_or(Decimal::ZERO),
                 reason,
             });
         }
@@ -417,9 +463,14 @@ impl AiAnalysisService {
 
         let start_date = Utc::now().date_naive() - Duration::days(90);
         let transactions = InventoryTransactionEntity::find()
-            .filter(crate::models::inventory_transaction::Column::CreatedAt.gte(
-                start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::inventory_transaction::Column::CreatedAt.gte(
+                    start_date
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -428,7 +479,10 @@ impl AiAnalysisService {
         for tx in &transactions {
             if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
                 let qty = tx.quantity_meters.to_f64().unwrap_or(0.0);
-                outbound_by_product.entry(tx.product_id).or_default().push(qty);
+                outbound_by_product
+                    .entry(tx.product_id)
+                    .or_default()
+                    .push(qty);
             }
         }
 
@@ -499,12 +553,17 @@ impl AiAnalysisService {
     ) -> Result<Vec<InventoryTurnover>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(days);
 
-        let mut tx_select = InventoryTransactionEntity::find()
-            .filter(crate::models::inventory_transaction::Column::CreatedAt.gte(
-                start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ));
+        let mut tx_select = InventoryTransactionEntity::find().filter(
+            crate::models::inventory_transaction::Column::CreatedAt.gte(
+                start_date
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap_or_default()
+                    .and_utc(),
+            ),
+        );
         if let Some(pid) = product_id {
-            tx_select = tx_select.filter(crate::models::inventory_transaction::Column::ProductId.eq(pid));
+            tx_select =
+                tx_select.filter(crate::models::inventory_transaction::Column::ProductId.eq(pid));
         }
 
         let transactions = tx_select
@@ -524,7 +583,8 @@ impl AiAnalysisService {
         // 获取当前库存
         let mut stock_select = InventoryStockEntity::find();
         if let Some(pid) = product_id {
-            stock_select = stock_select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
+            stock_select =
+                stock_select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
         }
         let stocks = stock_select
             .all(&*self.db)
@@ -567,7 +627,11 @@ impl AiAnalysisService {
         }
 
         // 按周转率降序排列
-        results.sort_by(|a, b| b.turnover_rate.partial_cmp(&a.turnover_rate).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.turnover_rate
+                .partial_cmp(&a.turnover_rate)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Ok(results)
     }
@@ -596,27 +660,34 @@ impl AiAnalysisService {
     // ========================================================================
 
     /// 异常检测 - 检测销售和库存异常
-    pub async fn detect_anomalies(
-        &self,
-        days: i64,
-    ) -> Result<Vec<AnomalyDetection>, AppError> {
+    pub async fn detect_anomalies(&self, days: i64) -> Result<Vec<AnomalyDetection>, AppError> {
         let mut anomalies = Vec::new();
         let check_start = Utc::now().date_naive() - Duration::days(days);
         let long_start = Utc::now().date_naive() - Duration::days(days * 4); // 更长的历史窗口
 
         // 获取销售订单明细
         let _recent_items = SalesOrderItemEntity::find()
-            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(
-                check_start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    check_start
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         let historical_items = SalesOrderItemEntity::find()
-            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(
-                long_start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    long_start
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -713,7 +784,10 @@ impl AiAnalysisService {
                         entity_id: stock.product_id,
                         anomaly_type: "ZERO_STOCK".to_string(),
                         severity: "CRITICAL".to_string(),
-                        description: format!("产品 {} 库存为零，仓库={}", stock.product_id, stock.warehouse_id),
+                        description: format!(
+                            "产品 {} 库存为零，仓库={}",
+                            stock.product_id, stock.warehouse_id
+                        ),
                         detected_at: Utc::now(),
                     });
                 }
@@ -806,7 +880,11 @@ impl AiAnalysisService {
                     })
                     .collect();
 
-                reorder_items.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+                reorder_items.sort_by(|a, b| {
+                    b.score
+                        .partial_cmp(&a.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
                 recommendations = reorder_items.into_iter().take(limit).collect();
             }
             "BUNDLE" => {
@@ -824,8 +902,11 @@ impl AiAnalysisService {
             }
             _ => {
                 // 默认: 综合推荐
-                let mut reorder = Box::pin(self.generate_recommendations("REORDER".to_string(), limit / 2)).await?;
-                let mut trend = Box::pin(self.generate_recommendations("TREND".to_string(), limit / 2)).await?;
+                let mut reorder =
+                    Box::pin(self.generate_recommendations("REORDER".to_string(), limit / 2))
+                        .await?;
+                let mut trend =
+                    Box::pin(self.generate_recommendations("TREND".to_string(), limit / 2)).await?;
                 recommendations.append(&mut reorder);
                 recommendations.append(&mut trend);
             }
@@ -843,9 +924,14 @@ impl AiAnalysisService {
         let start_date = Utc::now().date_naive() - Duration::days(60);
 
         let items = SalesOrderItemEntity::find()
-            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(
-                start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    start_date
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -853,7 +939,10 @@ impl AiAnalysisService {
         // 按订单分组产品
         let mut order_products: HashMap<i32, Vec<i32>> = HashMap::new();
         for item in &items {
-            order_products.entry(item.order_id).or_default().push(item.product_id);
+            order_products
+                .entry(item.order_id)
+                .or_default()
+                .push(item.product_id);
         }
 
         // 计算产品共现频率
@@ -887,14 +976,23 @@ impl AiAnalysisService {
             let _conf2 = count as f64 / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
 
             if support > 0.05 && conf1 > 0.3 {
-                let lift = support / (
-                    (product_count.get(p1).unwrap_or(&0).to_f64().unwrap_or(0.0) / total_orders)
-                    * (product_count.get(p2).unwrap_or(&0).to_f64().unwrap_or(0.0) / total_orders)
-                );
-                assoc_scores.push((*p1, *p2, lift, format!(
-                    "产品 {} 与产品 {} 经常一起被购买 (共现率={:.0}%, 提升度={:.2})",
-                    p1, p2, conf1 * 100.0, lift
-                )));
+                let lift = support
+                    / ((product_count.get(p1).unwrap_or(&0).to_f64().unwrap_or(0.0)
+                        / total_orders)
+                        * (product_count.get(p2).unwrap_or(&0).to_f64().unwrap_or(0.0)
+                            / total_orders));
+                assoc_scores.push((
+                    *p1,
+                    *p2,
+                    lift,
+                    format!(
+                        "产品 {} 与产品 {} 经常一起被购买 (共现率={:.0}%, 提升度={:.2})",
+                        p1,
+                        p2,
+                        conf1 * 100.0,
+                        lift
+                    ),
+                ));
             }
         }
 
@@ -927,21 +1025,34 @@ impl AiAnalysisService {
 
         // 最近 30 天的销售
         let recent_items = SalesOrderItemEntity::find()
-            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(
-                recent_start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    recent_start
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 前 30 天的销售
         let earlier_items = SalesOrderItemEntity::find()
-            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(
-                earlier_start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
-            .filter(crate::models::sales_order_item::Column::CreatedAt.lt(
-                recent_start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    earlier_start
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
+            .filter(
+                crate::models::sales_order_item::Column::CreatedAt.lt(recent_start
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap_or_default()
+                    .and_utc()),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -949,12 +1060,14 @@ impl AiAnalysisService {
         // 按产品聚合
         let mut recent_sales: HashMap<i32, f64> = HashMap::new();
         for item in &recent_items {
-            *recent_sales.entry(item.product_id).or_insert(0.0) += item.quantity_meters.to_f64().unwrap_or(0.0);
+            *recent_sales.entry(item.product_id).or_insert(0.0) +=
+                item.quantity_meters.to_f64().unwrap_or(0.0);
         }
 
         let mut earlier_sales: HashMap<i32, f64> = HashMap::new();
         for item in &earlier_items {
-            *earlier_sales.entry(item.product_id).or_insert(0.0) += item.quantity_meters.to_f64().unwrap_or(0.0);
+            *earlier_sales.entry(item.product_id).or_insert(0.0) +=
+                item.quantity_meters.to_f64().unwrap_or(0.0);
         }
 
         // 计算增长率
@@ -983,17 +1096,23 @@ impl AiAnalysisService {
                 } else if growth > 0.5 {
                     format!(
                         "销量快速增长: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
-                        recent, earlier, growth * 100.0
+                        recent,
+                        earlier,
+                        growth * 100.0
                     )
                 } else if growth > 0.0 {
                     format!(
                         "销量稳步增长: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
-                        recent, earlier, growth * 100.0
+                        recent,
+                        earlier,
+                        growth * 100.0
                     )
                 } else {
                     format!(
                         "销量下降: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
-                        recent, earlier, growth * 100.0
+                        recent,
+                        earlier,
+                        growth * 100.0
                     )
                 };
                 SmartRecommendation {
@@ -1021,9 +1140,14 @@ impl AiAnalysisService {
 
         let start_date = Utc::now().date_naive() - Duration::days(30);
         let transactions = InventoryTransactionEntity::find()
-            .filter(crate::models::inventory_transaction::Column::CreatedAt.gte(
-                start_date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-            ))
+            .filter(
+                crate::models::inventory_transaction::Column::CreatedAt.gte(
+                    start_date
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap_or_default()
+                        .and_utc(),
+                ),
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -1031,7 +1155,8 @@ impl AiAnalysisService {
         let mut outbound_map: HashMap<i32, f64> = HashMap::new();
         for tx in &transactions {
             if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
-                *outbound_map.entry(tx.product_id).or_insert(0.0) += tx.quantity_meters.to_f64().unwrap_or(0.0);
+                *outbound_map.entry(tx.product_id).or_insert(0.0) +=
+                    tx.quantity_meters.to_f64().unwrap_or(0.0);
             }
         }
 
@@ -1055,7 +1180,11 @@ impl AiAnalysisService {
             }
         }
 
-        recommendations.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        recommendations.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         recommendations.truncate(limit);
 
         Ok(recommendations)

@@ -3,18 +3,18 @@
 //! 采购质检 HTTP 接口层
 #![allow(dead_code)]
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_inspection_service::{
     CompleteInspectionRequest, CreatePurchaseInspectionRequest, PurchaseInspectionService,
     UpdatePurchaseInspectionRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -33,7 +33,12 @@ pub async fn list_inspections(
         )
         .await?;
 
-    let result = crate::utils::response::build_paginated_response(inspections, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let result = crate::utils::response::build_paginated_response(
+        inspections,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     Ok(Json(ApiResponse::success(result)))
 }

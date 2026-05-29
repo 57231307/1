@@ -5,9 +5,9 @@
 #![allow(dead_code)]
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
-use chrono::{NaiveDate, Datelike};
+use crate::utils::number_generator::DocumentNumberGenerator;
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -155,7 +155,13 @@ impl ApPaymentService {
 
         payment_active.updated_by = Set(Some(user_id));
 
-        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", payment_active, Some(0)).await?;
+        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            payment_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -181,7 +187,11 @@ impl ApPaymentService {
         }
 
         // 3. 检查必要字段
-        if payment.transaction_no.as_deref().is_none_or(|t| t.is_empty()) {
+        if payment
+            .transaction_no
+            .as_deref()
+            .is_none_or(|t| t.is_empty())
+        {
             return Err(AppError::BusinessError(
                 "付款单必须填写交易流水号才能确认".to_string(),
             ));
@@ -195,7 +205,13 @@ impl ApPaymentService {
         payment_active.confirmed_at = Set(Some(now));
         payment_active.updated_at = Set(now);
 
-        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", payment_active, Some(0)).await?;
+        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            payment_active,
+            Some(0),
+        )
+        .await?;
 
         // 5. 更新关联的应付单已付金额
         if let Some(request_id) = payment.request_id {
@@ -210,8 +226,14 @@ impl ApPaymentService {
 
             for item in items {
                 if total_apply_amount > Decimal::ZERO {
-                    let ratio = item.apply_amount.checked_div(total_apply_amount).unwrap_or_default();
-                    let paid_amount = payment.payment_amount.checked_mul(ratio).unwrap_or_default();
+                    let ratio = item
+                        .apply_amount
+                        .checked_div(total_apply_amount)
+                        .unwrap_or_default();
+                    let paid_amount = payment
+                        .payment_amount
+                        .checked_mul(ratio)
+                        .unwrap_or_default();
 
                     // 更新应付单
                     use sea_orm::QuerySelect;
@@ -221,8 +243,14 @@ impl ApPaymentService {
                         .await?;
 
                     if let Some(mut inv) = invoice {
-                        inv.paid_amount = inv.paid_amount.checked_add(paid_amount).unwrap_or(inv.paid_amount);
-                        inv.unpaid_amount = inv.amount.checked_sub(inv.paid_amount).unwrap_or(inv.amount);
+                        inv.paid_amount = inv
+                            .paid_amount
+                            .checked_add(paid_amount)
+                            .unwrap_or(inv.paid_amount);
+                        inv.unpaid_amount = inv
+                            .amount
+                            .checked_sub(inv.paid_amount)
+                            .unwrap_or(inv.amount);
 
                         // 更新应付状态
                         inv.invoice_status = if inv.unpaid_amount <= Decimal::ZERO {
@@ -232,7 +260,13 @@ impl ApPaymentService {
                         };
 
                         let invoice_active: ap_invoice::ActiveModel = inv.into();
-                        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+                        crate::services::audit_log_service::AuditLogService::update_with_audit(
+                            &txn,
+                            "auto_audit",
+                            invoice_active,
+                            Some(0),
+                        )
+                        .await?;
                     }
                 }
             }
@@ -256,41 +290,52 @@ impl ApPaymentService {
                 {
                     // 获取第一个应付单的部门信息
                     if let Some(first_item) = items.first() {
-                        if let Ok(Some(invoice)) = ap_invoice::Entity::find_by_id(first_item.invoice_id)
-                            .one(&*self.db)
-                            .await
+                        if let Ok(Some(invoice)) =
+                            ap_invoice::Entity::find_by_id(first_item.invoice_id)
+                                .one(&*self.db)
+                                .await
                         {
                             // 从应付单的 source_type 和 source_id 找到采购入库单的部门
-                            let department_id = if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
-                                if let Some(receipt_id) = invoice.source_id {
-                                    if let Ok(Some(receipt)) = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
-                                        .one(&*self.db)
-                                        .await
-                                    {
-                                        receipt.department_id.unwrap_or(1)
+                            let department_id =
+                                if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
+                                    if let Some(receipt_id) = invoice.source_id {
+                                        if let Ok(Some(receipt)) =
+                                            crate::models::purchase_receipt::Entity::find_by_id(
+                                                receipt_id,
+                                            )
+                                            .one(&*self.db)
+                                            .await
+                                        {
+                                            receipt.department_id.unwrap_or(1)
+                                        } else {
+                                            1
+                                        }
                                     } else {
                                         1
                                     }
                                 } else {
                                     1
-                                }
-                            } else {
-                                1
-                            };
+                                };
 
                             // 查找预算方案
                             let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
-                            match budget_service.get_available_plan_by_department(department_id).await {
+                            match budget_service
+                                .get_available_plan_by_department(department_id)
+                                .await
+                            {
                                 Ok(Some(plan)) => {
                                     // 核销预算
-                                    match budget_service.write_off_budget(
-                                        department_id,
-                                        plan.id,
-                                        payment.payment_amount,
-                                        "ap_payment".to_string(),
-                                        payment.id,
-                                        user_id,
-                                    ).await {
+                                    match budget_service
+                                        .write_off_budget(
+                                            department_id,
+                                            plan.id,
+                                            payment.payment_amount,
+                                            "ap_payment".to_string(),
+                                            payment.id,
+                                            user_id,
+                                        )
+                                        .await
+                                    {
                                         Ok(_) => {
                                             tracing::info!(
                                                 "付款单 {} 预算核销成功，部门ID={}, 方案ID={}, 金额={}",
@@ -300,7 +345,8 @@ impl ApPaymentService {
                                         Err(e) => {
                                             tracing::warn!(
                                                 "付款单 {} 预算核销失败：{}",
-                                                payment.payment_no, e
+                                                payment.payment_no,
+                                                e
                                             );
                                         }
                                     }
@@ -308,13 +354,15 @@ impl ApPaymentService {
                                 Ok(None) => {
                                     tracing::warn!(
                                         "付款单 {} 未找到部门 {} 的预算方案，跳过预算核销",
-                                        payment.payment_no, department_id
+                                        payment.payment_no,
+                                        department_id
                                     );
                                 }
                                 Err(e) => {
                                     tracing::warn!(
                                         "付款单 {} 查询预算方案失败：{}，跳过预算核销",
-                                        payment.payment_no, e
+                                        payment.payment_no,
+                                        e
                                     );
                                 }
                             }

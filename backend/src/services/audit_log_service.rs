@@ -1,11 +1,11 @@
 #![allow(dead_code)]
+use crate::models::audit_log;
+use crate::utils::error::AppError;
+use chrono::Utc;
 use sea_orm::*;
+use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
-use crate::utils::error::AppError;
-use crate::models::audit_log;
-use chrono::Utc;
-use serde::Serialize;
 
 pub struct AuditLogService {
     db: Arc<DatabaseConnection>,
@@ -51,16 +51,17 @@ impl AuditLogService {
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E> + sea_orm::ActiveModelBehavior + Send + Sync,
         C: ConnectionTrait,
-        <E as EntityTrait>::Model: Serialize + serde::de::DeserializeOwned + Sync + Send + Clone + IntoActiveModel<A>,
+        <E as EntityTrait>::Model:
+            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone + IntoActiveModel<A>,
     {
         // 获取主键
         let pk_col = E::PrimaryKey::iter()
             .next()
             .ok_or_else(|| AppError::BusinessError("Entity has no primary key".to_string()))?
             .into_column();
-        
+
         let pk_val = active_model.get(pk_col);
-        
+
         let pk_val_unwrapped = pk_val.into_value().unwrap_or(sea_orm::Value::Int(None));
 
         let record_id = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
@@ -70,7 +71,7 @@ impl AuditLogService {
         };
 
         let new_model = active_model.update(db).await?;
-        
+
         // 记录审计日志
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,

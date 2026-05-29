@@ -118,9 +118,9 @@ pub async fn create_collection(
     )))
 }
 
+use crate::services::cost_collection_service::UpdateCostCollectionRequest;
 use axum::extract::Path;
 use serde_json::Value as JsonValue;
-use crate::services::cost_collection_service::UpdateCostCollectionRequest;
 
 /// 获取成本归集详情
 pub async fn get_collection(
@@ -130,7 +130,10 @@ pub async fn get_collection(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = CostCollectionService::new(state.db.clone());
     let collection = service.get_by_id(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(collection).map_err(|_| AppError::InternalError("序列化失败".into()))?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(collection)
+            .map_err(|_| AppError::InternalError("序列化失败".into()))?,
+    )))
 }
 
 /// 更新成本归集
@@ -143,7 +146,8 @@ pub async fn update_collection(
     let service = CostCollectionService::new(state.db.clone());
     let collection = service.update(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(collection).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(collection)
+            .map_err(|_| AppError::InternalError("序列化失败".into()))?,
         "成本归集更新成功",
     )))
 }
@@ -156,7 +160,10 @@ pub async fn delete_collection(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = CostCollectionService::new(state.db.clone());
     service.delete(id, auth.user_id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "成本归集删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "成本归集删除成功",
+    )))
 }
 
 /// 成本分析查询参数
@@ -176,9 +183,13 @@ pub async fn get_cost_analysis_summary(
     let end_date = params.end_date.and_then(|s| s.parse().ok());
 
     let service = CostCollectionService::new(state.db.clone());
-    let summary = service.get_cost_analysis_summary(start_date, end_date).await?;
+    let summary = service
+        .get_cost_analysis_summary(start_date, end_date)
+        .await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(summary).map_err(|_| AppError::InternalError("序列化失败".into()))?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(summary).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+    )))
 }
 
 /// 按批次查询成本参数
@@ -192,7 +203,10 @@ pub async fn get_cost_by_batch(
     Query(params): Query<CostByBatchQuery>,
     State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<crate::services::cost_collection_service::BatchCostAnalysis>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::cost_collection_service::BatchCostAnalysis>>>,
+    AppError,
+> {
     let service = CostCollectionService::new(state.db.clone());
     let analyses = service.get_cost_by_batch(params.batch_no).await?;
 
@@ -207,11 +221,18 @@ pub async fn audit_collection(
     Json(req): Json<AuditCostRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = CostCollectionService::new(state.db.clone());
-    let collection = service.audit(id, req.approved, req.comment, auth.user_id).await?;
-    
+    let collection = service
+        .audit(id, req.approved, req.comment, auth.user_id)
+        .await?;
+
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(collection).map_err(|_| AppError::InternalError("序列化失败".into()))?,
-        if req.approved { "成本归集审核通过" } else { "成本归集已拒绝" },
+        serde_json::to_value(collection)
+            .map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        if req.approved {
+            "成本归集审核通过"
+        } else {
+            "成本归集已拒绝"
+        },
     )))
 }
 

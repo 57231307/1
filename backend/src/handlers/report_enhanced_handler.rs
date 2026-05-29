@@ -9,13 +9,13 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::report_template_service::{
-    CreateReportTemplateRequest, ReportTemplateQuery, ReportTemplateService,
-    UpdateReportTemplateRequest,
-};
 use crate::services::report_subscription_service::{
     CreateSubscriptionRequest, ReportSubscriptionService, SubscriptionQuery,
     UpdateSubscriptionRequest,
+};
+use crate::services::report_template_service::{
+    CreateReportTemplateRequest, ReportTemplateQuery, ReportTemplateService,
+    UpdateReportTemplateRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -83,7 +83,9 @@ pub async fn get_report_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let template = service.get_by_id(id).await?
+    let template = service
+        .get_by_id(id)
+        .await?
         .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(template)?)))
@@ -120,7 +122,10 @@ pub async fn delete_report_template(
 
     tracing::info!("用户 {} 删除报表模板: ID={}", auth.username, id);
 
-    Ok(Json(ApiResponse::success_with_message((), "报表模板已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "报表模板已删除",
+    )))
 }
 
 /// POST /api/v1/erp/reports-enhanced/templates/:id/execute - 执行自定义报表
@@ -156,13 +161,17 @@ pub async fn export_pdf(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let template_id: i32 = req.template_id.parse()
+    let template_id: i32 = req
+        .template_id
+        .parse()
         .map_err(|_| AppError::ValidationError("无效的模板ID".to_string()))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service.execute_custom_report(template_id, 1, 10000).await?;
 
-    let title = req.title.unwrap_or_else(|| format!("报表 {}", req.template_id));
+    let title = req
+        .title
+        .unwrap_or_else(|| format!("报表 {}", req.template_id));
 
     let export_data = crate::services::export_service::ExportData {
         title: title.clone(),
@@ -196,13 +205,17 @@ pub async fn export_excel(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let template_id: i32 = req.template_id.parse()
+    let template_id: i32 = req
+        .template_id
+        .parse()
         .map_err(|_| AppError::ValidationError("无效的模板ID".to_string()))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service.execute_custom_report(template_id, 1, 10000).await?;
 
-    let title = req.title.unwrap_or_else(|| format!("报表 {}", req.template_id));
+    let title = req
+        .title
+        .unwrap_or_else(|| format!("报表 {}", req.template_id));
 
     let export_data = crate::services::export_service::ExportData {
         title: title.clone(),
@@ -272,10 +285,14 @@ pub async fn get_subscription(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportSubscriptionService::new(state.db.clone());
 
-    let subscription = service.get_by_id(id).await?
+    let subscription = service
+        .get_by_id(id)
+        .await?
         .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(subscription)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        subscription,
+    )?)))
 }
 
 /// PUT /api/v1/erp/reports-enhanced/subscriptions/:id - 更新报表订阅
@@ -309,7 +326,10 @@ pub async fn delete_subscription(
 
     tracing::info!("用户 {} 删除报表订阅: ID={}", auth.username, id);
 
-    Ok(Json(ApiResponse::success_with_message((), "报表订阅已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "报表订阅已删除",
+    )))
 }
 
 /// POST /api/v1/erp/reports-enhanced/subscriptions/:id/toggle - 启用/禁用报表订阅
@@ -321,14 +341,17 @@ pub async fn toggle_subscription(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportSubscriptionService::new(state.db.clone());
 
-    let enabled = req.get("enabled")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
+    let enabled = req.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
 
     let subscription = service.toggle(id, enabled).await?;
 
     let action = if enabled { "启用" } else { "禁用" };
-    tracing::info!("用户 {} {}报表订阅: {}", auth.username, action, subscription.name);
+    tracing::info!(
+        "用户 {} {}报表订阅: {}",
+        auth.username,
+        action,
+        subscription.name
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(subscription)?,
@@ -348,5 +371,8 @@ pub async fn trigger_subscription(
 
     tracing::info!("用户 {} 手动触发报表订阅: ID={}", auth.username, id);
 
-    Ok(Json(ApiResponse::success_with_message((), "报表订阅已触发")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "报表订阅已触发",
+    )))
 }

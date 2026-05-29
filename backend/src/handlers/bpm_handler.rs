@@ -1,9 +1,12 @@
-use axum::{extract::{State, Query, Path}, Json};
-use crate::utils::app_state::AppState;
-use crate::utils::response::ApiResponse;
-use crate::models::dto::bpm_dto::{StartProcessRequest, ApproveTaskRequest, TaskQuery};
+use crate::models::dto::bpm_dto::{ApproveTaskRequest, StartProcessRequest, TaskQuery};
 use crate::services::bpm_service::BpmService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
+use axum::{
+    extract::{Path, Query, State},
+    Json,
+};
 use serde::Deserialize;
 
 pub async fn start_process(
@@ -21,7 +24,9 @@ pub async fn approve_task(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.approve_task(req).await?;
-    Ok(Json(ApiResponse::success("Task processed successfully".to_string())))
+    Ok(Json(ApiResponse::success(
+        "Task processed successfully".to_string(),
+    )))
 }
 
 pub async fn query_tasks(
@@ -46,7 +51,9 @@ pub async fn get_business_relation(
     Query(params): Query<BusinessRelationQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
-    let relation = service.get_business_relation(&params.business_type, params.business_id).await?;
+    let relation = service
+        .get_business_relation(&params.business_type, params.business_id)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(relation)?)))
 }
 
@@ -55,37 +62,43 @@ pub async fn get_process_visualization(
     Path(instance_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, QueryOrder};
-    use crate::models::{bpm_process_instance, bpm_task, bpm_process_definition};
+    use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
     let instance = bpm_process_instance::Entity::find_by_id(instance_id)
-        .one(state.db.as_ref()).await
+        .one(state.db.as_ref())
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?
         .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
 
     let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
-        .one(state.db.as_ref()).await
+        .one(state.db.as_ref())
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let tasks = bpm_task::Entity::find()
         .filter(bpm_task::Column::InstanceId.eq(instance_id))
         .order_by_asc(bpm_task::Column::CreatedAt)
-        .all(state.db.as_ref()).await
+        .all(state.db.as_ref())
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let task_nodes: Vec<serde_json::Value> = tasks.into_iter().map(|t| {
-        serde_json::json!({
-            "id": t.id,
-            "task_no": t.task_no,
-            "node_id": t.node_id,
-            "node_name": t.node_name,
-            "status": t.status,
-            "assignee_id": t.actual_handler_id,
-            "created_at": t.created_at,
-            "completed_at": t.handled_at,
-            "comment": t.approval_opinion,
+    let task_nodes: Vec<serde_json::Value> = tasks
+        .into_iter()
+        .map(|t| {
+            serde_json::json!({
+                "id": t.id,
+                "task_no": t.task_no,
+                "node_id": t.node_id,
+                "node_name": t.node_name,
+                "status": t.status,
+                "assignee_id": t.actual_handler_id,
+                "created_at": t.created_at,
+                "completed_at": t.handled_at,
+                "comment": t.approval_opinion,
+            })
         })
-    }).collect();
+        .collect();
 
     let visualization = serde_json::json!({
         "instance": {
@@ -157,7 +170,9 @@ pub async fn get_pending_tasks_for_monitor(
     let service = BpmService::new(state.db.clone());
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
-    let tasks = service.get_pending_tasks_for_monitor(page, page_size).await?;
+    let tasks = service
+        .get_pending_tasks_for_monitor(page, page_size)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(tasks)?)))
 }
 
@@ -169,7 +184,9 @@ pub async fn list_instances_for_monitor(
     let service = BpmService::new(state.db.clone());
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
-    let instances = service.list_instances_for_monitor(query.status, page, page_size).await?;
+    let instances = service
+        .list_instances_for_monitor(query.status, page, page_size)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(instances)?)))
 }
 
@@ -187,7 +204,9 @@ pub async fn transfer_task(
     Json(req): Json<TransferTaskRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
-    service.transfer_task(task_id, req.new_assignee_id, &req.transfer_reason).await?;
+    service
+        .transfer_task(task_id, req.new_assignee_id, &req.transfer_reason)
+        .await?;
     Ok(Json(ApiResponse::success_with_msg(
         "任务转办成功".to_string(),
         "任务转办成功",

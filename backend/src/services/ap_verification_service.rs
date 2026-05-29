@@ -4,8 +4,8 @@
 //! 包含自动核销、手工核销、取消核销等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_verification, ap_verification_item};
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -111,7 +111,10 @@ impl ApVerificationService {
                     break;
                 }
 
-                let unpaid = invoice_remaining.get(&invoice.id).copied().unwrap_or(Decimal::ZERO);
+                let unpaid = invoice_remaining
+                    .get(&invoice.id)
+                    .copied()
+                    .unwrap_or(Decimal::ZERO);
                 if unpaid > Decimal::ZERO {
                     let verify_amount = remaining.min(unpaid);
 
@@ -184,7 +187,13 @@ impl ApVerificationService {
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.into();
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                invoice_active,
+                Some(0),
+            )
+            .await?;
         }
 
         txn.commit().await?;
@@ -289,7 +298,13 @@ impl ApVerificationService {
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.into();
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                invoice_active,
+                Some(0),
+            )
+            .await?;
         }
 
         txn.commit().await?;
@@ -344,7 +359,13 @@ impl ApVerificationService {
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.into();
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                invoice_active,
+                Some(0),
+            )
+            .await?;
         }
 
         // 5. 取消核销单
@@ -355,7 +376,13 @@ impl ApVerificationService {
         verification_active.cancelled_at = Set(Some(now));
         verification_active.cancelled_reason = Set(Some(reason));
 
-        let verification = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", verification_active, Some(0)).await?;
+        let verification = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            verification_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 

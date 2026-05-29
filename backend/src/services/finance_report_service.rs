@@ -2,12 +2,16 @@
 //!
 //! 提供资产负债表、利润表、现金流量表等财务报表功能
 
+use crate::models::{
+    customer_credit, finance_invoice, finance_payment, fixed_asset, inventory_stock,
+};
+use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, sea_query::Expr, ColumnTrait};
+use sea_orm::{
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::utils::error::AppError;
-use crate::models::{finance_invoice, finance_payment, inventory_stock, fixed_asset, customer_credit};
 
 /// 资产负债表
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,7 +85,10 @@ impl FinanceReportService {
             .filter(finance_invoice::Column::Status.ne("CANCELLED"))
             .filter(finance_invoice::Column::Status.ne("COMPLETED"))
             .select_only()
-            .column_as(Expr::col(finance_invoice::Column::TotalAmount).sum(), "unpaid")
+            .column_as(
+                Expr::col(finance_invoice::Column::TotalAmount).sum(),
+                "unpaid",
+            )
             .into_tuple::<Option<Decimal>>()
             .one(self.db.as_ref())
             .await?
@@ -116,7 +123,10 @@ impl FinanceReportService {
         let inventory_total = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::StockStatus.eq("ACTIVE"))
             .select_only()
-            .column_as(Expr::col(inventory_stock::Column::QuantityAvailable).sum(), "total")
+            .column_as(
+                Expr::col(inventory_stock::Column::QuantityAvailable).sum(),
+                "total",
+            )
             .into_tuple::<Option<Decimal>>()
             .one(self.db.as_ref())
             .await?
@@ -140,7 +150,10 @@ impl FinanceReportService {
         // 预收账款（客户信用额度已使用部分）
         let advance_total = customer_credit::Entity::find()
             .select_only()
-            .column_as(Expr::col(customer_credit::Column::UsedCredit).sum(), "total")
+            .column_as(
+                Expr::col(customer_credit::Column::UsedCredit).sum(),
+                "total",
+            )
             .into_tuple::<Option<Decimal>>()
             .one(self.db.as_ref())
             .await?
@@ -154,19 +167,39 @@ impl FinanceReportService {
 
         Ok(BalanceSheet {
             assets: vec![
-                ReportItem { name: "货币资金".to_string(), amount: cash_total, description: Some("现金及银行存款".to_string()) },
-                ReportItem { name: "应收账款".to_string(), amount: ar_total, description: Some("未结清发票金额".to_string()) },
-                ReportItem { name: "存货".to_string(), amount: inventory_total, description: Some("库存商品价值".to_string()) },
-                ReportItem { name: "固定资产".to_string(), amount: fixed_asset_total, description: Some("固定资产净值".to_string()) },
+                ReportItem {
+                    name: "货币资金".to_string(),
+                    amount: cash_total,
+                    description: Some("现金及银行存款".to_string()),
+                },
+                ReportItem {
+                    name: "应收账款".to_string(),
+                    amount: ar_total,
+                    description: Some("未结清发票金额".to_string()),
+                },
+                ReportItem {
+                    name: "存货".to_string(),
+                    amount: inventory_total,
+                    description: Some("库存商品价值".to_string()),
+                },
+                ReportItem {
+                    name: "固定资产".to_string(),
+                    amount: fixed_asset_total,
+                    description: Some("固定资产净值".to_string()),
+                },
             ],
             total_assets,
-            liabilities: vec![
-                ReportItem { name: "预收账款".to_string(), amount: advance_total, description: Some("客户预付款".to_string()) },
-            ],
+            liabilities: vec![ReportItem {
+                name: "预收账款".to_string(),
+                amount: advance_total,
+                description: Some("客户预付款".to_string()),
+            }],
             total_liabilities,
-            equity: vec![
-                ReportItem { name: "所有者权益".to_string(), amount: total_equity, description: Some("资产-负债".to_string()) },
-            ],
+            equity: vec![ReportItem {
+                name: "所有者权益".to_string(),
+                amount: total_equity,
+                description: Some("资产-负债".to_string()),
+            }],
             total_equity,
             report_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
         })
@@ -184,7 +217,10 @@ impl FinanceReportService {
             .filter(finance_invoice::Column::InvoiceDate.gte(start_date))
             .filter(finance_invoice::Column::InvoiceDate.lte(end_date))
             .select_only()
-            .column_as(Expr::col(finance_invoice::Column::TotalAmount).sum(), "total")
+            .column_as(
+                Expr::col(finance_invoice::Column::TotalAmount).sum(),
+                "total",
+            )
             .into_tuple::<Option<Decimal>>()
             .one(self.db.as_ref())
             .await?
@@ -210,9 +246,21 @@ impl FinanceReportService {
 
         // 运营费用（简化处理）
         let operating_expenses = vec![
-            ReportItem { name: "管理费用".to_string(), amount: total_expenses * Decimal::new(15, 2), description: None },
-            ReportItem { name: "销售费用".to_string(), amount: total_expenses * Decimal::new(1, 1), description: None },
-            ReportItem { name: "财务费用".to_string(), amount: total_expenses * Decimal::new(5, 2), description: None },
+            ReportItem {
+                name: "管理费用".to_string(),
+                amount: total_expenses * Decimal::new(15, 2),
+                description: None,
+            },
+            ReportItem {
+                name: "销售费用".to_string(),
+                amount: total_expenses * Decimal::new(1, 1),
+                description: None,
+            },
+            ReportItem {
+                name: "财务费用".to_string(),
+                amount: total_expenses * Decimal::new(5, 2),
+                description: None,
+            },
         ];
         let total_operating_expenses: Decimal = operating_expenses.iter().map(|i| i.amount).sum();
 
@@ -222,9 +270,11 @@ impl FinanceReportService {
         let net_income = operating_income + other_income - other_expenses;
 
         Ok(IncomeStatement {
-            revenue: vec![
-                ReportItem { name: "营业收入".to_string(), amount: total_revenue, description: Some("主营业务收入".to_string()) },
-            ],
+            revenue: vec![ReportItem {
+                name: "营业收入".to_string(),
+                amount: total_revenue,
+                description: Some("主营业务收入".to_string()),
+            }],
             total_revenue,
             cost_of_goods_sold,
             gross_profit,
@@ -274,25 +324,38 @@ impl FinanceReportService {
         let net_cash_from_operations = cash_receipts - cash_payments;
 
         // 投资活动现金流（简化）
-        let investing_activities = vec![
-            ReportItem { name: "购建固定资产".to_string(), amount: Decimal::ZERO, description: None },
-        ];
+        let investing_activities = vec![ReportItem {
+            name: "购建固定资产".to_string(),
+            amount: Decimal::ZERO,
+            description: None,
+        }];
         let net_cash_from_investing = Decimal::ZERO;
 
         // 筹资活动现金流（简化）
-        let financing_activities = vec![
-            ReportItem { name: "吸收投资".to_string(), amount: Decimal::ZERO, description: None },
-        ];
+        let financing_activities = vec![ReportItem {
+            name: "吸收投资".to_string(),
+            amount: Decimal::ZERO,
+            description: None,
+        }];
         let net_cash_from_financing = Decimal::ZERO;
 
-        let net_change_in_cash = net_cash_from_operations + net_cash_from_investing + net_cash_from_financing;
+        let net_change_in_cash =
+            net_cash_from_operations + net_cash_from_investing + net_cash_from_financing;
         let beginning_cash = Decimal::ZERO; // 需要从期初余额获取
         let ending_cash = beginning_cash + net_change_in_cash;
 
         Ok(CashFlowStatement {
             operating_activities: vec![
-                ReportItem { name: "销售商品收到的现金".to_string(), amount: cash_receipts, description: None },
-                ReportItem { name: "购买商品支付的现金".to_string(), amount: cash_payments, description: None },
+                ReportItem {
+                    name: "销售商品收到的现金".to_string(),
+                    amount: cash_receipts,
+                    description: None,
+                },
+                ReportItem {
+                    name: "购买商品支付的现金".to_string(),
+                    amount: cash_payments,
+                    description: None,
+                },
             ],
             net_cash_from_operations,
             investing_activities,

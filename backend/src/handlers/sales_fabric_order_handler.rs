@@ -5,8 +5,8 @@ use axum::{
     Json,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
 };
 use serde::Deserialize;
 
@@ -107,8 +107,7 @@ pub async fn list_fabric_orders(
 
     if let Some(no) = query.order_no {
         let pattern = safe_like_pattern(&no);
-        query_builder =
-            query_builder.filter(sales_order::Column::OrderNo.like(&pattern));
+        query_builder = query_builder.filter(sales_order::Column::OrderNo.like(&pattern));
     }
 
     if let Some(status) = query.status {
@@ -129,10 +128,18 @@ pub async fn list_fabric_orders(
 
     let orders_json: Vec<serde_json::Value> = orders
         .into_iter()
-        .map(|o| serde_json::to_value(o).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .map(|o| {
+            serde_json::to_value(o)
+                .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(ApiResponse::success(PaginatedResponse::new(orders_json, total, page, page_size))))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        orders_json,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取销售订单详情
@@ -145,7 +152,8 @@ pub async fn get_fabric_order(
         .await?
         .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?;
 
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(order_json)))
 }
 
@@ -158,7 +166,8 @@ pub async fn create_fabric_order(
     use rust_decimal::Decimal;
 
     // 开启事务
-    let txn = state.db
+    let txn = state
+        .db
         .begin()
         .await
         .map_err(|e| AppError::InternalError(format!("开启事务失败：{}", e)))?;
@@ -280,7 +289,8 @@ pub async fn create_fabric_order(
         .await
         .map_err(|e| AppError::InternalError(format!("提交事务失败：{}", e)))?;
 
-    let order_json = serde_json::to_value(created_order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(created_order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "订单创建成功",
@@ -320,7 +330,8 @@ pub async fn update_fabric_order(
         .update(&*state.db)
         .await
         .map_err(|e| AppError::BadRequest(format!("更新订单失败：{}", e)))?;
-    let order_json = serde_json::to_value(updated).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(updated)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "订单更新成功",
@@ -362,7 +373,8 @@ pub async fn approve_fabric_order(
         .update(&*state.db)
         .await
         .map_err(|e| AppError::BadRequest(format!("审核订单失败：{}", e)))?;
-    let order_json = serde_json::to_value(updated).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(updated)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "订单审核成功",

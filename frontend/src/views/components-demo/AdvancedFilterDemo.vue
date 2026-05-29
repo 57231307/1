@@ -81,8 +81,8 @@ const handleSchemeSaved = (scheme: SavedScheme) => {
   savedSchemes.value.push(scheme)
 }
 
-const handleSchemeLoaded = (scheme: SavedScheme) => {
-  console.log('加载方案:', scheme.name)
+const handleSchemeLoaded = (_scheme: SavedScheme) => {
+  // 方案加载完成
 }
 </script>
 

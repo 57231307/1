@@ -1,6 +1,6 @@
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -29,7 +29,8 @@ impl SupplierService {
             "SUP",
             supplier::Entity,
             supplier::Column::SupplierCode,
-        ).await
+        )
+        .await
     }
 
     /// 创建供应商（含联系人和资质）
@@ -60,16 +61,22 @@ impl SupplierService {
             supplier_code: Set(supplier_code),
             supplier_name: Set(req.supplier_name),
             supplier_short_name: Set(req.supplier_short_name.unwrap_or_default()),
-            supplier_type: Set(req.supplier_type.unwrap_or_else(|| "普通供应商".to_string())),
+            supplier_type: Set(req
+                .supplier_type
+                .unwrap_or_else(|| "普通供应商".to_string())),
             credit_code: Set(req.credit_code.unwrap_or_default()),
             registered_address: Set(req.registered_address.unwrap_or_default()),
             business_address: Set(req.business_address),
             legal_representative: Set(req.legal_representative.unwrap_or_default()),
             registered_capital: Set(req.registered_capital.unwrap_or_default()),
-            establishment_date: Set(req.establishment_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            establishment_date: Set(req
+                .establishment_date
+                .unwrap_or_else(|| chrono::Utc::now().date_naive())),
             business_term: Set(req.business_term),
             business_scope: Set(req.business_scope),
-            taxpayer_type: Set(req.taxpayer_type.unwrap_or_else(|| "一般纳税人".to_string())),
+            taxpayer_type: Set(req
+                .taxpayer_type
+                .unwrap_or_else(|| "一般纳税人".to_string())),
             bank_name: Set(req.bank_name.unwrap_or_default()),
             bank_account: Set(req.bank_account.unwrap_or_default()),
             contact_phone: Set(req.contact_phone.unwrap_or_default()),
@@ -318,7 +325,13 @@ impl SupplierService {
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
 
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", supplier_active, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            supplier_active,
+            Some(0),
+        )
+        .await?;
         Ok(updated)
     }
 
@@ -343,25 +356,30 @@ impl SupplierService {
         use crate::models::purchase_order;
         let has_active_orders = purchase_order::Entity::find()
             .filter(purchase_order::Column::SupplierId.eq(id))
-            .filter(purchase_order::Column::OrderStatus.is_in(vec!["DRAFT", "SUBMITTED", "APPROVED", "PARTIAL_RECEIVED"]))
+            .filter(purchase_order::Column::OrderStatus.is_in(vec![
+                "DRAFT",
+                "SUBMITTED",
+                "APPROVED",
+                "PARTIAL_RECEIVED",
+            ]))
             .count(&*self.db)
             .await?;
-        
+
         if has_active_orders > 0 {
             return Ok(false);
         }
-        
+
         // 检查是否有采购收货记录
         use crate::models::purchase_receipt;
         let has_receipts = purchase_receipt::Entity::find()
             .filter(purchase_receipt::Column::SupplierId.eq(id))
             .count(&*self.db)
             .await?;
-        
+
         if has_receipts > 0 {
             return Ok(false);
         }
-        
+
         Ok(true)
     }
 
@@ -384,7 +402,13 @@ impl SupplierService {
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
 
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", supplier_active, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            supplier_active,
+            Some(0),
+        )
+        .await?;
         Ok(updated)
     }
 
@@ -483,7 +507,13 @@ impl SupplierService {
             contact_active.remarks = Set(Some(remarks));
         }
 
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", contact_active, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            contact_active,
+            Some(0),
+        )
+        .await?;
         Ok(updated)
     }
 
@@ -513,7 +543,13 @@ impl SupplierService {
         for contact in contacts {
             let mut contact_active: supplier_contact::ActiveModel = contact.into();
             contact_active.is_primary = Set(false);
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", contact_active, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &*self.db,
+                "auto_audit",
+                contact_active,
+                Some(0),
+            )
+            .await?;
         }
 
         Ok(())
@@ -522,6 +558,7 @@ impl SupplierService {
     // ==================== 供应商资质管理方法 ====================
 
     /// 获取供应商资质列表
+    #[allow(dead_code)]
     pub async fn list_supplier_qualifications(
         &self,
         supplier_id: i32,
@@ -535,6 +572,7 @@ impl SupplierService {
     }
 
     /// 创建供应商资质
+    #[allow(dead_code)]
     pub async fn create_supplier_qualification(
         &self,
         supplier_id: i32,
@@ -561,6 +599,7 @@ impl SupplierService {
     }
 
     /// 更新供应商资质
+    #[allow(dead_code)]
     pub async fn update_supplier_qualification(
         &self,
         qualification_id: i32,
@@ -580,23 +619,40 @@ impl SupplierService {
         qualification_active.need_annual_check = Set(req.need_annual_check);
         qualification_active.annual_check_record = Set(req.annual_check_record);
 
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", qualification_active, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            qualification_active,
+            Some(0),
+        )
+        .await?;
         Ok(updated)
     }
 
     /// 删除供应商资质
-    pub async fn delete_supplier_qualification(&self, qualification_id: i32) -> Result<(), AppError> {
+    #[allow(dead_code)]
+    pub async fn delete_supplier_qualification(
+        &self,
+        qualification_id: i32,
+    ) -> Result<(), AppError> {
         let qualification = self.get_qualification(qualification_id).await?;
         qualification.delete(&*self.db).await?;
         Ok(())
     }
 
     /// 获取资质详情
-    async fn get_qualification(&self, qualification_id: i32) -> Result<supplier_qualification::Model, AppError> {
+    #[allow(dead_code)]
+    async fn get_qualification(
+        &self,
+        qualification_id: i32,
+    ) -> Result<supplier_qualification::Model, AppError> {
         supplier_qualification::Entity::find_by_id(qualification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("资质 {} 不存在", qualification_id)))
+            .ok_or(AppError::NotFound(format!(
+                "资质 {} 不存在",
+                qualification_id
+            )))
     }
 }
 

@@ -4,8 +4,7 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -218,15 +217,12 @@ impl EmailTemplateService {
             .filter(crate::models::email_template::Column::Status.eq("ACTIVE"));
 
         if let Some(template_type) = query.template_type {
-            select = select.filter(
-                crate::models::email_template::Column::TemplateType.eq(template_type),
-            );
+            select = select
+                .filter(crate::models::email_template::Column::TemplateType.eq(template_type));
         }
 
         if let Some(is_active) = query.is_active {
-            select = select.filter(
-                crate::models::email_template::Column::IsActive.eq(is_active),
-            );
+            select = select.filter(crate::models::email_template::Column::IsActive.eq(is_active));
         }
 
         if let Some(keyword) = query.keyword {

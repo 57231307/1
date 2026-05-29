@@ -4,10 +4,10 @@
 
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
-use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -117,7 +117,11 @@ impl MrpEngineService {
         }
 
         let available = on_hand - safety_stock;
-        let available = if available > Decimal::ZERO { available } else { Decimal::ZERO };
+        let available = if available > Decimal::ZERO {
+            available
+        } else {
+            Decimal::ZERO
+        };
 
         Ok(StockInfo {
             on_hand,
@@ -159,7 +163,11 @@ impl MrpEngineService {
             required_date,
             on_hand_quantity: stock_info.on_hand,
             in_transit_quantity: stock_info.in_transit,
-            safety_stock: if consider_safety_stock { stock_info.safety_stock } else { Decimal::ZERO },
+            safety_stock: if consider_safety_stock {
+                stock_info.safety_stock
+            } else {
+                Decimal::ZERO
+            },
             available_quantity: available,
             shortage_quantity: shortage,
             source_type,
@@ -228,17 +236,18 @@ impl MrpEngineService {
             let lead_time = Duration::days(lead_time_days);
             let material_date = required_date - lead_time;
 
-            let requirement = self.calculate_requirement(
-                item.material_id,
-                quantity_with_scrap,
-                material_date,
-                source_type.to_string(),
-                source_id,
-                consider_safety_stock,
-                consider_in_transit,
-                current_level,
-            )
-            .await?;
+            let requirement = self
+                .calculate_requirement(
+                    item.material_id,
+                    quantity_with_scrap,
+                    material_date,
+                    source_type.to_string(),
+                    source_id,
+                    consider_safety_stock,
+                    consider_in_transit,
+                    current_level,
+                )
+                .await?;
 
             results.push(requirement);
 
@@ -306,17 +315,18 @@ impl MrpEngineService {
         let mut results = Vec::new();
         let calculation_no = format!("MRP{}", Utc::now().timestamp_millis());
 
-        let main_req = self.calculate_requirement(
-            product_id,
-            required_quantity,
-            required_date,
-            source_type.clone(),
-            source_id,
-            consider_safety_stock,
-            consider_in_transit,
-            0,
-        )
-        .await?;
+        let main_req = self
+            .calculate_requirement(
+                product_id,
+                required_quantity,
+                required_date,
+                source_type.clone(),
+                source_id,
+                consider_safety_stock,
+                consider_in_transit,
+                0,
+            )
+            .await?;
 
         let main_active_model = MrpResultActiveModel {
             calculation_no: Set(calculation_no.clone()),
@@ -328,7 +338,10 @@ impl MrpEngineService {
             planned_order_quantity: Set(Some(main_req.shortage_quantity)),
             planned_order_date: Set(Some(main_req.required_date - Duration::days(14))),
             status: Set("PLANNED".to_string()),
-            remarks: Set(Some(format!("BOM Level: 0, On Hand: {}, Shortage: {}", main_req.on_hand_quantity, main_req.shortage_quantity))),
+            remarks: Set(Some(format!(
+                "BOM Level: 0, On Hand: {}, Shortage: {}",
+                main_req.on_hand_quantity, main_req.shortage_quantity
+            ))),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -340,16 +353,17 @@ impl MrpEngineService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         results.push(main_result);
 
-        let sub_requirements = self.explode_bom(
-            product_id,
-            required_quantity,
-            required_date,
-            source_type,
-            source_id,
-            consider_safety_stock,
-            consider_in_transit,
-        )
-        .await?;
+        let sub_requirements = self
+            .explode_bom(
+                product_id,
+                required_quantity,
+                required_date,
+                source_type,
+                source_id,
+                consider_safety_stock,
+                consider_in_transit,
+            )
+            .await?;
 
         for (idx, req) in sub_requirements.iter().enumerate() {
             // 保存所有子物料需求到MRP结果（包括有库存和短缺的）
@@ -361,11 +375,16 @@ impl MrpEngineService {
                 source_type: Set(req.source_type.clone()),
                 source_id: Set(req.source_id),
                 planned_order_quantity: Set(Some(req.shortage_quantity)),
-                planned_order_date: Set(Some(req.required_date - Duration::days(7 * req.bom_level as i64))),
+                planned_order_date: Set(Some(
+                    req.required_date - Duration::days(7 * req.bom_level as i64),
+                )),
                 status: Set("PLANNED".to_string()),
                 remarks: Set(Some(format!(
                     "BOM Level: {}, On Hand: {}, In Transit: {}, Shortage: {}",
-                    req.bom_level, req.on_hand_quantity, req.in_transit_quantity, req.shortage_quantity
+                    req.bom_level,
+                    req.on_hand_quantity,
+                    req.in_transit_quantity,
+                    req.shortage_quantity
                 ))),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
@@ -392,30 +411,32 @@ impl MrpEngineService {
         let mut all_requirements = Vec::new();
 
         for item in request.items {
-            let results = self.run_mrp_calculation(
-                item.product_id,
-                item.required_quantity,
-                item.required_date,
-                request.source_type.clone(),
-                request.source_id,
-                request.consider_safety_stock,
-                request.consider_in_transit,
-            )
-            .await?;
+            let results = self
+                .run_mrp_calculation(
+                    item.product_id,
+                    item.required_quantity,
+                    item.required_date,
+                    request.source_type.clone(),
+                    request.source_id,
+                    request.consider_safety_stock,
+                    request.consider_in_transit,
+                )
+                .await?;
 
             all_results.extend(results);
 
-            let requirement = self.calculate_requirement(
-                item.product_id,
-                item.required_quantity,
-                item.required_date,
-                request.source_type.clone(),
-                request.source_id,
-                request.consider_safety_stock,
-                request.consider_in_transit,
-                0,
-            )
-            .await?;
+            let requirement = self
+                .calculate_requirement(
+                    item.product_id,
+                    item.required_quantity,
+                    item.required_date,
+                    request.source_type.clone(),
+                    request.source_id,
+                    request.consider_safety_stock,
+                    request.consider_in_transit,
+                    0,
+                )
+                .await?;
 
             all_requirements.push(requirement);
         }
@@ -481,8 +502,8 @@ impl MrpEngineService {
         date_to: Option<NaiveDate>,
         only_shortage: bool,
     ) -> Result<Vec<MaterialRequirement>, AppError> {
-        let mut select = MrpResultEntity::find()
-            .filter(crate::models::mrp_result::Column::Status.eq("PLANNED"));
+        let mut select =
+            MrpResultEntity::find().filter(crate::models::mrp_result::Column::Status.eq("PLANNED"));
 
         if let Some(pid) = product_id {
             select = select.filter(crate::models::mrp_result::Column::ProductId.eq(pid));
@@ -516,7 +537,9 @@ impl MrpEngineService {
                 requirements.push(MaterialRequirement {
                     product_id: result.product_id,
                     required_quantity: result.required_quantity,
-                    required_date: result.required_date.unwrap_or_else(|| Utc::now().date_naive()),
+                    required_date: result
+                        .required_date
+                        .unwrap_or_else(|| Utc::now().date_naive()),
                     on_hand_quantity: stock_info.on_hand,
                     in_transit_quantity: stock_info.in_transit,
                     safety_stock: stock_info.safety_stock,
@@ -548,9 +571,10 @@ impl MrpEngineService {
                 .ok_or_else(|| AppError::NotFound("MRP结果不存在".to_string()))?;
 
             if result.status != "PLANNED" {
-                return Err(AppError::ValidationError(
-                    format!("MRP结果 {} 状态不是PLANNED，无法转换", id),
-                ));
+                return Err(AppError::ValidationError(format!(
+                    "MRP结果 {} 状态不是PLANNED，无法转换",
+                    id
+                )));
             }
 
             let mut active_model: crate::models::mrp_result::ActiveModel = result.into();

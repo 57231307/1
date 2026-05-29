@@ -7,7 +7,8 @@ use crate::models::role;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -72,16 +73,20 @@ impl DataPermissionService {
         Ok(permission.map(|p| DataPermissionResult {
             scope_type: p.scope_type,
             custom_condition: p.custom_condition,
-            allowed_fields: p.allowed_fields.and_then(|f| f.as_array().map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })),
-            hidden_fields: p.hidden_fields.and_then(|f| f.as_array().map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })),
+            allowed_fields: p.allowed_fields.and_then(|f| {
+                f.as_array().map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+            }),
+            hidden_fields: p.hidden_fields.and_then(|f| {
+                f.as_array().map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+            }),
         }))
     }
 
@@ -109,10 +114,7 @@ impl DataPermissionService {
     /// 检查角色是否为管理员角色（从数据库查询角色编码）
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
         use sea_orm::EntityTrait;
-        match role::Entity::find_by_id(role_id)
-            .one(&*self.db)
-            .await?
-        {
+        match role::Entity::find_by_id(role_id).one(&*self.db).await? {
             Some(r) => Ok(r.code == "admin"),
             None => Ok(false),
         }
@@ -199,9 +201,7 @@ impl DataPermissionService {
     }
 
     /// 获取所有数据权限列表
-    pub async fn list_all_data_permissions(
-        &self,
-    ) -> Result<Vec<data_permission::Model>, AppError> {
+    pub async fn list_all_data_permissions(&self) -> Result<Vec<data_permission::Model>, AppError> {
         let permissions = DataPermissionEntity::find()
             .filter(data_permission::Column::IsEnabled.eq(true))
             .all(&*self.db)

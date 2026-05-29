@@ -10,7 +10,7 @@ fn test_credit_rating_calculation() {
         (55, "BB", 50000),
         (45, "C", 10000),
     ];
-    
+
     for (score, expected_rating, expected_limit) in test_cases {
         let (rating, limit) = calculate_rating_and_limit(score);
         assert_eq!(rating, expected_rating, "分数 {} 的等级不正确", score);
@@ -40,12 +40,12 @@ fn test_weighted_score_calculation() {
     let cooperation_score = 80;
     let order_score = 70;
     let credit_score = 85;
-    
-    let total_score = (payment_score as f64 * 0.3) 
-        + (cooperation_score as f64 * 0.2) 
-        + (order_score as f64 * 0.25) 
+
+    let total_score = (payment_score as f64 * 0.3)
+        + (cooperation_score as f64 * 0.2)
+        + (order_score as f64 * 0.25)
         + (credit_score as f64 * 0.25);
-    
+
     // 90*0.3 + 80*0.2 + 70*0.25 + 85*0.25 = 27 + 16 + 17.5 + 21.25 = 81.75
     assert!((total_score - 81.75).abs() < f64::EPSILON);
 }
@@ -79,24 +79,36 @@ fn test_payment_history_scoring() {
     let on_time_orders = 8;
     let on_time_rate = on_time_orders as f64 / total_orders as f64;
     let score = (on_time_rate * 100.0) as i32;
-    
+
     assert_eq!(score, 80);
 }
 
 #[test]
 fn test_credit_history_scoring() {
     let test_cases = vec![
-        (vec!["active", "active"], 100), // 全部良好
+        (vec!["active", "active"], 100),            // 全部良好
         (vec!["active", "active", "expired"], 100), // 全部良好
-        (vec!["active", "active", "overdue"], 66), // 部分良好（近似）
-        (vec!["overdue", "overdue"], 40), // 无良好记录
+        (vec!["active", "active", "overdue"], 66),  // 部分良好（近似）
+        (vec!["overdue", "overdue"], 40),           // 无良好记录
     ];
-    
+
     for (records, _expected) in test_cases {
-        let good_count = records.iter().filter(|&s| *s == "active" || *s == "expired").count();
+        let good_count = records
+            .iter()
+            .filter(|&s| *s == "active" || *s == "expired")
+            .count();
         let rate = good_count as f64 / records.len() as f64;
-        let score = if rate > 0.8 { 80 } else if rate > 0.6 { 60 } else { 40 };
-        
-        assert!(score >= 40 && score <= 100, "信用记录评分应该在 40-100 之间");
+        let score = if rate > 0.8 {
+            80
+        } else if rate > 0.6 {
+            60
+        } else {
+            40
+        };
+
+        assert!(
+            score >= 40 && score <= 100,
+            "信用记录评分应该在 40-100 之间"
+        );
     }
 }

@@ -61,23 +61,25 @@ pub async fn assign_customer(
     let updated_lead = crm_service.update_lead(req.lead_id, update_req).await?;
 
     // 记录分配历史
-    history_service.create(
-        tenant_id,
-        auth.user_id,
-        &auth.username,
-        CreateAssignmentHistoryRequest {
-            lead_id: updated_lead.id,
-            lead_no: updated_lead.lead_no.clone(),
-            company_name: updated_lead.company_name.clone(),
-            from_user_id: Some(from_user_id),
-            from_user_name: Some(from_user_name.clone()),
-            to_user_id: Some(req.assignee_id),
-            to_user_name: Some(req.assignee_name.clone()),
-            action: "ASSIGN".to_string(),
-            reason: None,
-            notes: req.notes,
-        },
-    ).await?;
+    history_service
+        .create(
+            tenant_id,
+            auth.user_id,
+            &auth.username,
+            CreateAssignmentHistoryRequest {
+                lead_id: updated_lead.id,
+                lead_no: updated_lead.lead_no.clone(),
+                company_name: updated_lead.company_name.clone(),
+                from_user_id: Some(from_user_id),
+                from_user_name: Some(from_user_name.clone()),
+                to_user_id: Some(req.assignee_id),
+                to_user_name: Some(req.assignee_name.clone()),
+                action: "ASSIGN".to_string(),
+                reason: None,
+                notes: req.notes,
+            },
+        )
+        .await?;
 
     tracing::info!(
         "用户 {} 将客户 {} 分配给 {} ({})",
@@ -133,23 +135,25 @@ pub async fn batch_assign(
                 match crm_service.update_lead(*lead_id, update_req).await {
                     Ok(_) => {
                         // 记录分配历史
-                        let _ = history_service.create(
-                            tenant_id,
-                            auth.user_id,
-                            &auth.username,
-                            CreateAssignmentHistoryRequest {
-                                lead_id: *lead_id,
-                                lead_no: lead.lead_no.clone(),
-                                company_name: lead.company_name.clone(),
-                                from_user_id: Some(lead.owner_id),
-                                from_user_name: Some(lead.owner_name.clone()),
-                                to_user_id: Some(req.assignee_id),
-                                to_user_name: Some(req.assignee_name.clone()),
-                                action: "ASSIGN".to_string(),
-                                reason: None,
-                                notes: req.notes.clone(),
-                            },
-                        ).await;
+                        let _ = history_service
+                            .create(
+                                tenant_id,
+                                auth.user_id,
+                                &auth.username,
+                                CreateAssignmentHistoryRequest {
+                                    lead_id: *lead_id,
+                                    lead_no: lead.lead_no.clone(),
+                                    company_name: lead.company_name.clone(),
+                                    from_user_id: Some(lead.owner_id),
+                                    from_user_name: Some(lead.owner_name.clone()),
+                                    to_user_id: Some(req.assignee_id),
+                                    to_user_name: Some(req.assignee_name.clone()),
+                                    action: "ASSIGN".to_string(),
+                                    reason: None,
+                                    notes: req.notes.clone(),
+                                },
+                            )
+                            .await;
 
                         assigned_count += 1;
                     }
@@ -244,5 +248,7 @@ pub async fn get_assignment_statistics(
 
     let statistics = service.get_user_statistics(tenant_id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(statistics)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        statistics,
+    )?)))
 }

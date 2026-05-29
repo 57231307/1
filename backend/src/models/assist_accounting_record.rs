@@ -9,7 +9,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
 /// 辅助核算记录 Entity
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "assist_accounting_record")]
 pub struct Model {

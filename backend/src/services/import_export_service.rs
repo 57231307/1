@@ -3,8 +3,8 @@
 //! 提供 CSV/Excel 数据导入导出功能
 
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::utils::error::AppError;
 
@@ -184,7 +184,8 @@ impl ImportExportService {
 
         let mut rows = Vec::new();
         for result in reader.records() {
-            let record = result.map_err(|e| AppError::ValidationError(format!("CSV解析错误: {}", e)))?;
+            let record =
+                result.map_err(|e| AppError::ValidationError(format!("CSV解析错误: {}", e)))?;
             let row: Vec<String> = record.iter().map(|s| s.to_string()).collect();
             rows.push(row);
         }
@@ -210,7 +211,8 @@ impl ImportExportService {
             .into_inner()
             .map_err(|e| AppError::ValidationError(format!("CSV序列化错误: {}", e)))?;
 
-        String::from_utf8(data).map_err(|e| AppError::ValidationError(format!("CSV编码错误: {}", e)))
+        String::from_utf8(data)
+            .map_err(|e| AppError::ValidationError(format!("CSV编码错误: {}", e)))
     }
 
     /// 验证导入数据
@@ -242,20 +244,14 @@ impl ImportExportService {
                                 errors.push(ImportError {
                                     row: (row_idx + 1) as u64,
                                     field: Some(col_def.field.clone()),
-                                    message: format!(
-                                        "'{}' 不是有效的数字格式",
-                                        col_def.title
-                                    ),
+                                    message: format!("'{}' 不是有效的数字格式", col_def.title),
                                 });
                             }
                             "integer" if value.parse::<i64>().is_err() => {
                                 errors.push(ImportError {
                                     row: (row_idx + 1) as u64,
                                     field: Some(col_def.field.clone()),
-                                    message: format!(
-                                        "'{}' 不是有效的整数格式",
-                                        col_def.title
-                                    ),
+                                    message: format!("'{}' 不是有效的整数格式", col_def.title),
                                 });
                             }
                             _ => {}
@@ -326,24 +322,29 @@ impl ImportExportService {
     }
 
     /// 导入产品行
-    async fn import_product_row(
-        &self,
-        row: &[String],
-        _user_id: i32,
-    ) -> Result<(), AppError> {
-        use sea_orm::Set;
+    async fn import_product_row(&self, row: &[String], _user_id: i32) -> Result<(), AppError> {
         use crate::models::product::{ActiveModel as ProductActiveModel, Entity as ProductEntity};
+        use sea_orm::Set;
 
-        let code = row.first().map(|s| s.trim().to_string()).unwrap_or_default();
+        let code = row
+            .first()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
         let _category = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-        let unit = row.get(3).map(|s| s.trim().to_string()).unwrap_or("个".to_string());
-        let price = row.get(4)
+        let unit = row
+            .get(3)
+            .map(|s| s.trim().to_string())
+            .unwrap_or("个".to_string());
+        let price = row
+            .get(4)
             .and_then(|s| s.trim().parse::<f64>().ok())
             .unwrap_or(0.0);
 
         if code.is_empty() || name.is_empty() {
-            return Err(AppError::ValidationError("产品编码和名称不能为空".to_string()));
+            return Err(AppError::ValidationError(
+                "产品编码和名称不能为空".to_string(),
+            ));
         }
 
         // 检查编码是否已存在
@@ -365,7 +366,9 @@ impl ImportExportService {
             category_id: Set(None),
             specification: Set(None),
             unit: Set(unit),
-            standard_price: Set(Some(rust_decimal::Decimal::from_f64_retain(price).unwrap_or_default())),
+            standard_price: Set(Some(
+                rust_decimal::Decimal::from_f64_retain(price).unwrap_or_default(),
+            )),
             cost_price: Set(None),
             description: Set(None),
             status: Set("ACTIVE".to_string()),
@@ -388,7 +391,8 @@ impl ImportExportService {
             batch_level: Set(None),
         };
 
-        active_model.insert(&*self.db)
+        active_model
+            .insert(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -396,21 +400,24 @@ impl ImportExportService {
     }
 
     /// 导入客户行
-    async fn import_customer_row(
-        &self,
-        row: &[String],
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    async fn import_customer_row(&self, row: &[String], user_id: i32) -> Result<(), AppError> {
+        use crate::models::customer::{
+            ActiveModel as CustomerActiveModel, Entity as CustomerEntity,
+        };
         use sea_orm::Set;
-        use crate::models::customer::{ActiveModel as CustomerActiveModel, Entity as CustomerEntity};
 
-        let code = row.first().map(|s| s.trim().to_string()).unwrap_or_default();
+        let code = row
+            .first()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
         let contact = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
         let phone = row.get(3).map(|s| s.trim().to_string()).unwrap_or_default();
 
         if code.is_empty() || name.is_empty() {
-            return Err(AppError::ValidationError("客户编码和名称不能为空".to_string()));
+            return Err(AppError::ValidationError(
+                "客户编码和名称不能为空".to_string(),
+            ));
         }
 
         // 检查编码是否已存在
@@ -455,7 +462,8 @@ impl ImportExportService {
             inspection_standard: Set(None),
         };
 
-        active_model.insert(&*self.db)
+        active_model
+            .insert(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -501,17 +509,20 @@ impl ImportExportService {
             "创建时间".to_string(),
         ];
 
-        let data: Vec<Vec<String>> = products.into_iter().map(|p| {
-            vec![
-                p.id.to_string(),
-                p.code,
-                p.name,
-                p.unit,
-                p.standard_price.map(|p| p.to_string()).unwrap_or_default(),
-                p.status,
-                p.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            ]
-        }).collect();
+        let data: Vec<Vec<String>> = products
+            .into_iter()
+            .map(|p| {
+                vec![
+                    p.id.to_string(),
+                    p.code,
+                    p.name,
+                    p.unit,
+                    p.standard_price.map(|p| p.to_string()).unwrap_or_default(),
+                    p.status,
+                    p.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect();
 
         Ok((headers, data))
     }
@@ -538,17 +549,20 @@ impl ImportExportService {
             "创建时间".to_string(),
         ];
 
-        let data: Vec<Vec<String>> = customers.into_iter().map(|c| {
-            vec![
-                c.id.to_string(),
-                c.customer_code,
-                c.customer_name,
-                c.contact_person.unwrap_or_default(),
-                c.contact_phone.unwrap_or_default(),
-                c.contact_email.unwrap_or_default(),
-                c.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            ]
-        }).collect();
+        let data: Vec<Vec<String>> = customers
+            .into_iter()
+            .map(|c| {
+                vec![
+                    c.id.to_string(),
+                    c.customer_code,
+                    c.customer_name,
+                    c.contact_person.unwrap_or_default(),
+                    c.contact_phone.unwrap_or_default(),
+                    c.contact_email.unwrap_or_default(),
+                    c.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect();
 
         Ok((headers, data))
     }
@@ -575,17 +589,20 @@ impl ImportExportService {
             "创建时间".to_string(),
         ];
 
-        let data: Vec<Vec<String>> = stocks.into_iter().map(|s| {
-            vec![
-                s.id.to_string(),
-                s.product_id.to_string(),
-                s.warehouse_id.to_string(),
-                s.quantity_available.to_string(),
-                s.quantity_reserved.to_string(),
-                s.quantity_incoming.to_string(),
-                s.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            ]
-        }).collect();
+        let data: Vec<Vec<String>> = stocks
+            .into_iter()
+            .map(|s| {
+                vec![
+                    s.id.to_string(),
+                    s.product_id.to_string(),
+                    s.warehouse_id.to_string(),
+                    s.quantity_available.to_string(),
+                    s.quantity_reserved.to_string(),
+                    s.quantity_incoming.to_string(),
+                    s.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect();
 
         Ok((headers, data))
     }

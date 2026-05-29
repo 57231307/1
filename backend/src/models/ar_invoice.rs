@@ -54,7 +54,6 @@ pub struct Model {
     pub reviewed_by: Option<i32>,
     pub reviewed_at: Option<DateTime<Utc>>,
 
-
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

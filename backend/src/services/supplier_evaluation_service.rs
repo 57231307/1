@@ -353,8 +353,10 @@ impl SupplierEvaluationService {
         }
 
         // 按供应商分组，收集加权得分和记录数
-        let mut supplier_records: std::collections::HashMap<i32, Vec<&supplier_evaluation_record::Model>> =
-            std::collections::HashMap::new();
+        let mut supplier_records: std::collections::HashMap<
+            i32,
+            Vec<&supplier_evaluation_record::Model>,
+        > = std::collections::HashMap::new();
 
         for record in &records {
             supplier_records
@@ -394,16 +396,16 @@ impl SupplierEvaluationService {
                 _ => "D".to_string(),
             };
 
-            let latest_evaluation_date = recs
-                .iter()
-                .filter_map(|r| r.evaluation_date)
-                .max()
-                .map(|d| {
-                    DateTime::<Utc>::from_naive_utc_and_offset(
-                        d.and_hms_opt(0, 0, 0).unwrap_or_default(),
-                        Utc,
-                    )
-                });
+            let latest_evaluation_date =
+                recs.iter()
+                    .filter_map(|r| r.evaluation_date)
+                    .max()
+                    .map(|d| {
+                        DateTime::<Utc>::from_naive_utc_and_offset(
+                            d.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                            Utc,
+                        )
+                    });
 
             rankings.push(SupplierScoreResponse {
                 supplier_id: *supplier_id,

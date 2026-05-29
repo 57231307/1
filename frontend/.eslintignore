@@ -1,0 +1,21 @@
+# Build output
+dist/
+
+# Test files
+tests/
+*.test.ts
+*.test.js
+
+# Configuration files
+*.config.js
+*.config.ts
+*.config.cjs
+
+# Scripts
+check_*.js
+full_test.js
+comprehensive_test.cjs
+
+# Other
+node_modules/
+*.d.ts

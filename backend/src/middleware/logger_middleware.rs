@@ -127,35 +127,41 @@ pub async fn request_id_middleware(
 ) -> Result<Response, StatusCode> {
     let request_id = uuid::Uuid::new_v4().to_string();
 
-    req.headers_mut()
-        .insert("X-Request-ID", request_id.parse().expect("valid header value"));
+    req.headers_mut().insert(
+        "X-Request-ID",
+        request_id.parse().expect("valid header value"),
+    );
 
     let mut response = next.run(req).await;
 
-    response
-        .headers_mut()
-        .insert("X-Request-ID", request_id.parse().expect("valid header value"));
+    response.headers_mut().insert(
+        "X-Request-ID",
+        request_id.parse().expect("valid header value"),
+    );
 
     Ok(response)
 }
 
 fn sanitize_query(query: Option<&str>) -> String {
-    const SENSITIVE_PARAMS: [&str; 6] = ["password", "token", "secret", "key", "auth", "access_token"];
-    
-    query.map(|q| {
-        q.split('&')
-            .map(|pair| {
-                if let Some((key, _)) = pair.split_once('=') {
-                    let key_lower = key.to_lowercase();
-                    for sensitive in &SENSITIVE_PARAMS {
-                        if key_lower.contains(sensitive) {
-                            return format!("{}=***", key);
+    const SENSITIVE_PARAMS: [&str; 6] =
+        ["password", "token", "secret", "key", "auth", "access_token"];
+
+    query
+        .map(|q| {
+            q.split('&')
+                .map(|pair| {
+                    if let Some((key, _)) = pair.split_once('=') {
+                        let key_lower = key.to_lowercase();
+                        for sensitive in &SENSITIVE_PARAMS {
+                            if key_lower.contains(sensitive) {
+                                return format!("{}=***", key);
+                            }
                         }
                     }
-                }
-                pair.to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("&")
-    }).unwrap_or_default()
+                    pair.to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("&")
+        })
+        .unwrap_or_default()
 }

@@ -235,13 +235,20 @@ fn is_public_isolation_path(path: &str) -> bool {
         "/grpc",
     ];
 
-    public_prefixes.iter().any(|prefix| path.starts_with(prefix))
+    public_prefixes
+        .iter()
+        .any(|prefix| path.starts_with(prefix))
 }
 
 /// SeaORM QueryFilter 辅助 trait
 /// 为 Select 语句添加租户过滤
 pub trait TenantScopedQuery {
-    fn apply_tenant_filter<C>(self, tenant_id: i32, table_name: &str, state: &TenantIsolationState) -> Self
+    fn apply_tenant_filter<C>(
+        self,
+        tenant_id: i32,
+        table_name: &str,
+        state: &TenantIsolationState,
+    ) -> Self
     where
         C: sea_orm::ColumnTrait,
         Self: QueryFilter + Sized;
@@ -251,7 +258,12 @@ impl<S> TenantScopedQuery for sea_orm::Select<S>
 where
     S: sea_orm::EntityTrait,
 {
-    fn apply_tenant_filter<C>(self, _tenant_id: i32, table_name: &str, state: &TenantIsolationState) -> Self
+    fn apply_tenant_filter<C>(
+        self,
+        _tenant_id: i32,
+        table_name: &str,
+        state: &TenantIsolationState,
+    ) -> Self
     where
         C: sea_orm::ColumnTrait,
         Self: QueryFilter + Sized,

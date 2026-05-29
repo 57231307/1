@@ -53,20 +53,11 @@ impl EventNotificationService {
     }
 
     /// 发送邮件通知（辅助方法）
-    async fn send_email_notification(
-        &self,
-        user_id: i32,
-        subject: &str,
-        html_content: String,
-    ) {
+    async fn send_email_notification(&self, user_id: i32, subject: &str, html_content: String) {
         if let Some(email_service) = &self.email_service {
             if let Some(email) = self.get_user_email(user_id).await {
                 let _ = email_service
-                    .send_html_email(
-                        vec![email],
-                        subject.to_string(),
-                        html_content,
-                    )
+                    .send_html_email(vec![email], subject.to_string(), html_content)
                     .await;
             }
         }
@@ -79,8 +70,14 @@ impl EventNotificationService {
         order_no: &str,
         order_id: i32,
     ) -> Result<(), AppError> {
-        let should_email = self.setting_service.should_send_email(user_id, "ORDER").await?;
-        let should_internal = self.setting_service.should_send_internal(user_id, "ORDER").await?;
+        let should_email = self
+            .setting_service
+            .should_send_email(user_id, "ORDER")
+            .await?;
+        let should_internal = self
+            .setting_service
+            .should_send_internal(user_id, "ORDER")
+            .await?;
 
         if should_internal {
             self.notification_service
@@ -101,7 +98,8 @@ impl EventNotificationService {
 
         if should_email {
             let html = EmailTemplate::order_notification(order_no, "已提交", "/sales/orders");
-            self.send_email_notification(user_id, "订单状态更新", html).await;
+            self.send_email_notification(user_id, "订单状态更新", html)
+                .await;
         }
 
         Ok(())
@@ -115,7 +113,10 @@ impl EventNotificationService {
         order_id: i32,
         approver_name: &str,
     ) -> Result<(), AppError> {
-        let should_internal = self.setting_service.should_send_internal(user_id, "ORDER").await?;
+        let should_internal = self
+            .setting_service
+            .should_send_internal(user_id, "ORDER")
+            .await?;
 
         if should_internal {
             self.notification_service
@@ -143,8 +144,14 @@ impl EventNotificationService {
         order_no: &str,
         order_id: i32,
     ) -> Result<(), AppError> {
-        let should_email = self.setting_service.should_send_email(user_id, "ORDER").await?;
-        let should_internal = self.setting_service.should_send_internal(user_id, "ORDER").await?;
+        let should_email = self
+            .setting_service
+            .should_send_email(user_id, "ORDER")
+            .await?;
+        let should_internal = self
+            .setting_service
+            .should_send_internal(user_id, "ORDER")
+            .await?;
 
         if should_internal {
             self.notification_service
@@ -165,7 +172,8 @@ impl EventNotificationService {
 
         if should_email {
             let html = EmailTemplate::order_notification(order_no, "已发货", "/sales/orders");
-            self.send_email_notification(user_id, "订单状态更新", html).await;
+            self.send_email_notification(user_id, "订单状态更新", html)
+                .await;
         }
 
         Ok(())
@@ -178,8 +186,14 @@ impl EventNotificationService {
         order_no: &str,
         order_id: i32,
     ) -> Result<(), AppError> {
-        let should_email = self.setting_service.should_send_email(user_id, "ORDER").await?;
-        let should_internal = self.setting_service.should_send_internal(user_id, "ORDER").await?;
+        let should_email = self
+            .setting_service
+            .should_send_email(user_id, "ORDER")
+            .await?;
+        let should_internal = self
+            .setting_service
+            .should_send_internal(user_id, "ORDER")
+            .await?;
 
         if should_internal {
             self.notification_service
@@ -200,7 +214,8 @@ impl EventNotificationService {
 
         if should_email {
             let html = EmailTemplate::order_notification(order_no, "已完成", "/sales/orders");
-            self.send_email_notification(user_id, "订单状态更新", html).await;
+            self.send_email_notification(user_id, "订单状态更新", html)
+                .await;
         }
 
         Ok(())
@@ -246,8 +261,10 @@ impl EventNotificationService {
         }
 
         if should_email {
-            let html = EmailTemplate::approval_notification(task_title, applicant_name, &approval_url);
-            self.send_email_notification(approver_user_id, "待审批任务提醒", html).await;
+            let html =
+                EmailTemplate::approval_notification(task_title, applicant_name, &approval_url);
+            self.send_email_notification(approver_user_id, "待审批任务提醒", html)
+                .await;
         }
 
         Ok(())
@@ -272,7 +289,10 @@ impl EventNotificationService {
         }
 
         let status = if approved { "通过" } else { "拒绝" };
-        let mut content = format!("您的 '{}' 申请已被 {} {}", task_title, approver_name, status);
+        let mut content = format!(
+            "您的 '{}' 申请已被 {} {}",
+            task_title, approver_name, status
+        );
         if let Some(c) = comment {
             content.push_str(&format!("，审批意见：{}", c));
         }
@@ -336,7 +356,8 @@ impl EventNotificationService {
 
         if should_email {
             let html = EmailTemplate::inventory_alert(product_name, current_stock, threshold);
-            self.send_email_notification(user_id, "库存预警通知", html).await;
+            self.send_email_notification(user_id, "库存预警通知", html)
+                .await;
         }
 
         Ok(())
@@ -418,7 +439,8 @@ impl EventNotificationService {
                 "<h2>采购订单已创建</h2><p>采购订单 {}（供应商：{}，金额：{}）已创建成功</p>",
                 order_no, supplier_name, amount
             );
-            self.send_email_notification(user_id, "采购订单创建通知", html).await;
+            self.send_email_notification(user_id, "采购订单创建通知", html)
+                .await;
         }
 
         Ok(())
@@ -466,7 +488,8 @@ impl EventNotificationService {
                 "<h2>采购订单到货</h2><p>采购订单 {} 的货物已到达 {}，请安排入库</p>",
                 order_no, warehouse_name
             );
-            self.send_email_notification(user_id, "采购订单到货通知", html).await;
+            self.send_email_notification(user_id, "采购订单到货通知", html)
+                .await;
         }
 
         Ok(())
@@ -517,7 +540,8 @@ impl EventNotificationService {
                 "<h2>应收账款到期提醒</h2><p>客户 {} 的应收账款 {} 将于 {} 到期，请及时跟进</p>",
                 customer_name, amount, due_date
             );
-            self.send_email_notification(user_id, "应收账款到期提醒", html).await;
+            self.send_email_notification(user_id, "应收账款到期提醒", html)
+                .await;
         }
 
         Ok(())

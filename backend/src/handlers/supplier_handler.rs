@@ -1,17 +1,17 @@
 #![allow(dead_code)]
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
     SupplierService, UpdateContactRequest, UpdateSupplierRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use validator::Validate;
@@ -23,9 +23,7 @@ pub async fn list_suppliers(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    let result = service
-        .list_suppliers(params)
-        .await?;
+    let result = service.list_suppliers(params).await?;
 
     Ok(Json(ApiResponse::success(
         serde_json::to_value(result).map_err(AppError::from)?,
@@ -57,9 +55,7 @@ pub async fn create_supplier(
 
     let service = SupplierService::new(state.db.clone());
 
-    let supplier = service
-        .create_supplier(req, auth.user_id)
-        .await?;
+    let supplier = service.create_supplier(req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(supplier).map_err(AppError::from)?,
@@ -77,9 +73,7 @@ pub async fn update_supplier(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
 
-    let supplier = service
-        .update_supplier(id, req, auth.user_id)
-        .await?;
+    let supplier = service.update_supplier(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(supplier).map_err(AppError::from)?,
@@ -140,9 +134,7 @@ pub async fn list_supplier_contacts(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    let contacts = service
-        .list_supplier_contacts(supplier_id)
-        .await?;
+    let contacts = service.list_supplier_contacts(supplier_id).await?;
 
     Ok(Json(ApiResponse::success(
         serde_json::to_value(contacts).map_err(AppError::from)?,
@@ -198,9 +190,7 @@ pub async fn delete_supplier_contact(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    service
-        .delete_supplier_contact(contact_id)
-        .await?;
+    service.delete_supplier_contact(contact_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),

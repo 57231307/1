@@ -1,15 +1,16 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::customer_credit;
 use crate::services::customer_credit_service::{
-    CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest, CustomerCreditService,
+    CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest,
+    CustomerCreditService,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -221,7 +222,6 @@ pub async fn deactivate_credit(
     Ok(Json(ApiResponse::success(message)))
 }
 
-
 /// POST /api/v1/erp/customer-credits - 创建客户信用
 pub async fn create_credit(
     State(state): State<AppState>,
@@ -232,24 +232,26 @@ pub async fn create_credit(
 
     let service = CustomerCreditService::new(state.db.clone());
 
-    let customer_id = req.get("customer_id")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
+    let customer_id = req.get("customer_id").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
 
-    let credit_limit = req.get("credit_limit")
+    let credit_limit = req
+        .get("credit_limit")
         .and_then(|v| v.as_f64())
         .map(|f| BigDecimal::try_from(f).unwrap_or_default())
         .unwrap_or_default();
 
-    let credit_level = req.get("credit_level")
+    let credit_level = req
+        .get("credit_level")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let credit_score = req.get("credit_score")
+    let credit_score = req
+        .get("credit_score")
         .and_then(|v| v.as_i64())
         .map(|s| s as i32);
 
-    let credit_days = req.get("credit_days")
+    let credit_days = req
+        .get("credit_days")
         .and_then(|v| v.as_i64())
         .map(|d| d as i32);
 
@@ -281,19 +283,23 @@ pub async fn update_credit(
 
     let service = CustomerCreditService::new(state.db.clone());
 
-    let credit_limit = req.get("credit_limit")
+    let credit_limit = req
+        .get("credit_limit")
         .and_then(|v| v.as_f64())
         .map(|f| BigDecimal::try_from(f).unwrap_or_default());
 
-    let credit_level = req.get("credit_level")
+    let credit_level = req
+        .get("credit_level")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let credit_score = req.get("credit_score")
+    let credit_score = req
+        .get("credit_score")
         .and_then(|v| v.as_i64())
         .map(|i| i as i32);
 
-    let credit_days = req.get("credit_days")
+    let credit_days = req
+        .get("credit_days")
         .and_then(|v| v.as_i64())
         .map(|i| i as i32);
 
@@ -325,7 +331,10 @@ pub async fn delete_credit(
     let service = CustomerCreditService::new(state.db.clone());
     service.deactivate(id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_message((), "客户信用已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "客户信用已删除",
+    )))
 }
 
 /// 信用评估模型请求
@@ -342,10 +351,15 @@ pub async fn evaluate_credit(
     auth: AuthContext,
     Json(req): Json<CreditEvaluationRequest>,
 ) -> Result<Json<ApiResponse<CreditEvaluationResult>>, AppError> {
-    info!("用户 {} 正在评估客户 {} 的信用", auth.username, req.customer_id);
-    
+    info!(
+        "用户 {} 正在评估客户 {} 的信用",
+        auth.username, req.customer_id
+    );
+
     let service = CustomerCreditService::new(state.db.clone());
-    let result = service.evaluate_credit(req.customer_id, req.evaluation_date, auth.user_id).await?;
-    
+    let result = service
+        .evaluate_credit(req.customer_id, req.evaluation_date, auth.user_id)
+        .await?;
+
     Ok(Json(ApiResponse::success(result)))
 }

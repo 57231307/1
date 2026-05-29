@@ -65,8 +65,8 @@ pub async fn list_integrations(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<WebhookIntegrationItem>>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use crate::models::webhook;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     let webhooks = webhook::Entity::find()
         .filter(webhook::Column::IsActive.eq(true))
@@ -97,9 +97,9 @@ pub async fn create_integration(
 ) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
     let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    use sea_orm::{ActiveModelTrait, Set};
     use crate::models::webhook;
     use chrono::Utc;
+    use sea_orm::{ActiveModelTrait, Set};
 
     let now = Utc::now();
     let active_model = webhook::ActiveModel {
@@ -139,9 +139,9 @@ pub async fn delete_integration(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
     use crate::models::webhook;
     use chrono::Utc;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     let webhook = webhook::Entity::find_by_id(id)
         .one(state.db.as_ref())
@@ -153,7 +153,10 @@ pub async fn delete_integration(
     active_model.updated_at = Set(Utc::now());
     active_model.update(state.db.as_ref()).await?;
 
-    Ok(Json(ApiResponse::success_with_message((), "Webhook 集成已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "Webhook 集成已删除",
+    )))
 }
 
 pub async fn send_wechat_message(
@@ -176,7 +179,9 @@ pub async fn send_wechat_message(
     // 通过WebhookService发送
     use crate::services::webhook_service::WebhookService;
     let service = WebhookService::new(state.db.clone());
-    let delivery = service.trigger_webhook(req.integration_id, "wechat_message", &payload.to_string()).await
+    let delivery = service
+        .trigger_webhook(req.integration_id, "wechat_message", &payload.to_string())
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let result = WebhookSendResult {
@@ -187,9 +192,14 @@ pub async fn send_wechat_message(
     };
 
     if delivery.success {
-        Ok(Json(ApiResponse::success_with_message(result, "企业微信消息发送成功")))
+        Ok(Json(ApiResponse::success_with_message(
+            result,
+            "企业微信消息发送成功",
+        )))
     } else {
-        Err(AppError::InternalError(delivery.error.unwrap_or_else(|| "发送失败".to_string())))
+        Err(AppError::InternalError(
+            delivery.error.unwrap_or_else(|| "发送失败".to_string()),
+        ))
     }
 }
 
@@ -213,7 +223,9 @@ pub async fn send_dingtalk_message(
     // 通过WebhookService发送
     use crate::services::webhook_service::WebhookService;
     let service = WebhookService::new(state.db.clone());
-    let delivery = service.trigger_webhook(req.integration_id, "dingtalk_message", &payload.to_string()).await
+    let delivery = service
+        .trigger_webhook(req.integration_id, "dingtalk_message", &payload.to_string())
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let result = WebhookSendResult {
@@ -224,9 +236,14 @@ pub async fn send_dingtalk_message(
     };
 
     if delivery.success {
-        Ok(Json(ApiResponse::success_with_message(result, "钉钉消息发送成功")))
+        Ok(Json(ApiResponse::success_with_message(
+            result,
+            "钉钉消息发送成功",
+        )))
     } else {
-        Err(AppError::InternalError(delivery.error.unwrap_or_else(|| "发送失败".to_string())))
+        Err(AppError::InternalError(
+            delivery.error.unwrap_or_else(|| "发送失败".to_string()),
+        ))
     }
 }
 
@@ -234,10 +251,7 @@ pub async fn handle_generic_callback(
     State(_state): State<AppState>,
     Json(req): Json<WebhookCallbackRequest>,
 ) -> Result<Json<ApiResponse<WebhookCallbackResult>>, AppError> {
-    tracing::info!(
-        "收到通用 Webhook 回调: event_type={}",
-        req.event_type
-    );
+    tracing::info!("收到通用 Webhook 回调: event_type={}", req.event_type);
 
     let result = WebhookCallbackResult {
         received: true,
@@ -256,7 +270,9 @@ pub async fn test_integration(
     use crate::services::webhook_service::WebhookService;
 
     let service = WebhookService::new(state.db.clone());
-    let result = service.test_webhook(id).await
+    let result = service
+        .test_webhook(id)
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success_with_message(

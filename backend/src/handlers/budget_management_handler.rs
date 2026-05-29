@@ -3,6 +3,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
@@ -11,7 +12,6 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -121,7 +121,11 @@ pub async fn create_budget_item(
     auth: AuthContext,
     Json(req): Json<CreateBudgetItemRequest>,
 ) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
-    info!("用户 {} 正在创建预算科目：{}", auth.username, req.item_code.as_deref().unwrap_or("自动生成"));
+    info!(
+        "用户 {} 正在创建预算科目：{}",
+        auth.username,
+        req.item_code.as_deref().unwrap_or("自动生成")
+    );
 
     let service = BudgetManagementService::new(state.db.clone());
     let item = service
@@ -405,7 +409,6 @@ pub async fn get_plan_executions(
     Ok(Json(ApiResponse::success(executions)))
 }
 
-
 /// GET /api/v1/erp/budgets - 预算列表查询
 pub async fn list_budgets(
     Query(params): Query<serde_json::Value>,
@@ -416,17 +419,22 @@ pub async fn list_budgets(
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    let page = params.get("page")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1);
+    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
 
-    let page_size = params.get("page_size")
+    let page_size = params
+        .get("page_size")
         .and_then(|v| v.as_i64())
         .unwrap_or(20);
 
     let query = crate::services::budget_management_service::BudgetItemQueryParams {
-        item_type: params.get("item_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        status: params.get("status").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        item_type: params
+            .get("item_type")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        status: params
+            .get("status")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         page,
         page_size,
     };
@@ -451,29 +459,35 @@ pub async fn create_budget(
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    let item_code = req.get("item_code")
+    let item_code = req
+        .get("item_code")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let item_name = req.get("item_name")
+    let item_name = req
+        .get("item_name")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
-    let item_type = req.get("item_type")
+    let item_type = req
+        .get("item_type")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let budget_year = req.get("budget_year")
+    let budget_year = req
+        .get("budget_year")
         .and_then(|v| v.as_i64())
         .map(|y| y as i32);
 
-    let planned_amount = req.get("planned_amount")
+    let planned_amount = req
+        .get("planned_amount")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();
 
-    let remark = req.get("remark")
+    let remark = req
+        .get("remark")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
@@ -506,23 +520,28 @@ pub async fn update_budget(
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    let item_name = req.get("item_name")
+    let item_name = req
+        .get("item_name")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let item_type = req.get("item_type")
+    let item_type = req
+        .get("item_type")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let planned_amount = req.get("planned_amount")
+    let planned_amount = req
+        .get("planned_amount")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
 
-    let status = req.get("status")
+    let status = req
+        .get("status")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let remark = req.get("remark")
+    let remark = req
+        .get("remark")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
@@ -581,7 +600,8 @@ pub async fn approve_budget(
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    let opinion = req.get("opinion")
+    let opinion = req
+        .get("opinion")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
@@ -601,5 +621,8 @@ pub async fn adjust_budget(
     info!("用户 {} 正在发起预算调整", auth.username);
     let service = BudgetManagementService::new(state.db.clone());
     let res = service.adjust_budget(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(res).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(res)
+            .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?,
+    )))
 }

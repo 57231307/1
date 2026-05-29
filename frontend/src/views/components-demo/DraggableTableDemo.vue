@@ -46,18 +46,12 @@ const tableData = ref([
   { id: 6, name: '面料 F6', category: '棉布', price: 30.0, sort: 6 },
 ])
 
-const handleSortChange = (data: any[]) => {
-  console.log(
-    '排序变更:',
-    data.map((item, index) => ({
-      id: item.id,
-      newSort: index + 1,
-    }))
-  )
+const handleSortChange = (_data: any[]) => {
+  // 排序变更处理
 }
 
-const handleSelectionChange = (selection: any[]) => {
-  console.log('选中项:', selection)
+const handleSelectionChange = (_selection: any[]) => {
+  // 选中项处理
 }
 </script>
 

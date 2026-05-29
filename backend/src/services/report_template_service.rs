@@ -4,8 +4,7 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -225,9 +224,8 @@ impl ReportTemplateService {
         );
 
         if let Some(report_type) = query.report_type {
-            select = select.filter(
-                crate::models::report_template::Column::ReportType.eq(report_type),
-            );
+            select =
+                select.filter(crate::models::report_template::Column::ReportType.eq(report_type));
         }
 
         if let Some(keyword) = query.keyword {
@@ -261,7 +259,9 @@ impl ReportTemplateService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
-        let template = self.get_by_id(template_id).await?
+        let template = self
+            .get_by_id(template_id)
+            .await?
             .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
 
         // 如果有自定义SQL，使用SQL执行
@@ -270,7 +270,9 @@ impl ReportTemplateService {
         }
 
         // 否则使用预定义的报表类型
-        Err(AppError::BusinessError("自定义报表需要配置数据源SQL".to_string()))
+        Err(AppError::BusinessError(
+            "自定义报表需要配置数据源SQL".to_string(),
+        ))
     }
 
     /// 执行SQL报表
@@ -285,7 +287,9 @@ impl ReportTemplateService {
         // 安全检查：只允许SELECT语句
         let sql_upper = sql.trim().to_uppercase();
         if !sql_upper.starts_with("SELECT") {
-            return Err(AppError::ValidationError("只允许SELECT查询语句".to_string()));
+            return Err(AppError::ValidationError(
+                "只允许SELECT查询语句".to_string(),
+            ));
         }
 
         // 添加分页
@@ -298,7 +302,8 @@ impl ReportTemplateService {
 
         let stmt = Statement::from_string(sea_orm::DatabaseBackend::Postgres, paginated_sql);
 
-        let result = self.db
+        let result = self
+            .db
             .as_ref()
             .query_all(stmt)
             .await
@@ -311,9 +316,15 @@ impl ReportTemplateService {
         // 解析QueryResult的列和行
         let first_row = &result[0];
         let column_count = first_row.column_names().len();
-        
+
         let headers: Vec<String> = (0..column_count)
-            .map(|i| first_row.column_names().get(i).cloned().unwrap_or_else(|| format!("col_{}", i)))
+            .map(|i| {
+                first_row
+                    .column_names()
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| format!("col_{}", i))
+            })
             .collect();
 
         let mut data: Vec<Vec<String>> = Vec::new();

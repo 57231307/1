@@ -3,9 +3,7 @@
 //! 提供报表订阅定时任务的管理和执行功能
 
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
@@ -153,23 +151,14 @@ impl SchedulerService {
     }
 
     /// 执行待处理的订阅
-    async fn execute_pending_subscriptions(
-        db: &Arc<DatabaseConnection>,
-    ) -> Result<(), AppError> {
+    async fn execute_pending_subscriptions(db: &Arc<DatabaseConnection>) -> Result<(), AppError> {
         let now = Utc::now();
 
         // 查询待执行的订阅
         let subscriptions = ReportSubscriptionEntity::find()
-            .filter(
-                crate::models::report_subscription::Column::IsEnabled.eq(true),
-            )
-            .filter(
-                crate::models::report_subscription::Column::Status.eq("ACTIVE"),
-            )
-            .filter(
-                crate::models::report_subscription::Column::NextRunAt
-                    .lte(now),
-            )
+            .filter(crate::models::report_subscription::Column::IsEnabled.eq(true))
+            .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"))
+            .filter(crate::models::report_subscription::Column::NextRunAt.lte(now))
             .all(db.as_ref())
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -182,11 +171,7 @@ impl SchedulerService {
 
         for subscription in subscriptions {
             if let Err(e) = Self::execute_subscription(db, &subscription).await {
-                tracing::error!(
-                    "执行订阅 {} 失败: {}",
-                    subscription.id,
-                    e
-                );
+                tracing::error!("执行订阅 {} 失败: {}", subscription.id, e);
 
                 // 更新执行状态为失败
                 let _ = Self::update_subscription_status(
@@ -229,16 +214,18 @@ impl SchedulerService {
         // 根据导出格式生成文件
         let (filename, _content) = match subscription.export_format.as_str() {
             "csv" => {
-                let csv = crate::services::import_export_service::ImportExportService::generate_csv(
-                    &headers, &data,
-                )?;
+                let csv =
+                    crate::services::import_export_service::ImportExportService::generate_csv(
+                        &headers, &data,
+                    )?;
                 (format!("report_{}.csv", template.code), csv.into_bytes())
             }
             "excel" => {
                 // 简化实现：使用CSV格式
-                let csv = crate::services::import_export_service::ImportExportService::generate_csv(
-                    &headers, &data,
-                )?;
+                let csv =
+                    crate::services::import_export_service::ImportExportService::generate_csv(
+                        &headers, &data,
+                    )?;
                 (format!("report_{}.xlsx", template.code), csv.into_bytes())
             }
             _ => {
@@ -250,8 +237,8 @@ impl SchedulerService {
         };
 
         // 获取收件人列表
-        let recipients: Vec<String> = serde_json::from_value(subscription.recipients.clone())
-            .unwrap_or_default();
+        let recipients: Vec<String> =
+            serde_json::from_value(subscription.recipients.clone()).unwrap_or_default();
 
         // 发送邮件（如果有收件人）
         if !recipients.is_empty() {
@@ -262,7 +249,10 @@ impl SchedulerService {
                     template.name, filename
                 );
 
-                match email_service.send_html_email(recipients.clone(), subject, body).await {
+                match email_service
+                    .send_html_email(recipients.clone(), subject, body)
+                    .await
+                {
                     Ok(_) => {
                         tracing::info!("报表 {} 邮件发送成功，收件人: {:?}", filename, recipients);
                     }
@@ -277,19 +267,10 @@ impl SchedulerService {
 
         // 更新订阅状态
         let next_run = subscription.calculate_next_run();
-        Self::update_subscription_after_execution(
-            db,
-            subscription.id,
-            "success",
-            None,
-            next_run,
-        )
-        .await?;
+        Self::update_subscription_after_execution(db, subscription.id, "success", None, next_run)
+            .await?;
 
-        tracing::info!(
-            "报表订阅 {} 执行完成",
-            subscription.name
-        );
+        tracing::info!("报表订阅 {} 执行完成", subscription.name);
 
         Ok(())
     }

@@ -208,11 +208,13 @@ impl ArReconciliationService {
         let mut select = ReconciliationEntity::find();
 
         if let Some(status) = query.status {
-            select = select.filter(crate::models::ar_reconciliation::Column::ReconciliationStatus.eq(status));
+            select = select
+                .filter(crate::models::ar_reconciliation::Column::ReconciliationStatus.eq(status));
         }
 
         if let Some(customer_id) = query.customer_id {
-            select = select.filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id));
+            select =
+                select.filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id));
         }
 
         let total = select
@@ -282,7 +284,9 @@ impl ArReconciliationService {
 
         // 只有草稿状态的对账单可以删除
         if model.reconciliation_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError("只有草稿状态的对账单可以删除".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的对账单可以删除".to_string(),
+            ));
         }
 
         ReconciliationEntity::delete_by_id(id)
@@ -302,7 +306,9 @@ impl ArReconciliationService {
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         if model.reconciliation_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError("只有草稿状态的对账单可以发送".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的对账单可以发送".to_string(),
+            ));
         }
 
         let mut active_model: ActiveModel = model.into();
@@ -318,7 +324,11 @@ impl ArReconciliationService {
     }
 
     /// 客户确认对账单
-    pub async fn confirm(&self, id: i32, confirmed_by: Option<i32>) -> Result<ReconciliationModel, AppError> {
+    pub async fn confirm(
+        &self,
+        id: i32,
+        confirmed_by: Option<i32>,
+    ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -341,11 +351,7 @@ impl ArReconciliationService {
     }
 
     /// 客户提出争议
-    pub async fn dispute(
-        &self,
-        id: i32,
-        reason: String,
-    ) -> Result<ReconciliationModel, AppError> {
+    pub async fn dispute(&self, id: i32, reason: String) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -375,7 +381,9 @@ impl ArReconciliationService {
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
         if status != "confirmed" && status != "disputed" {
-            return Err(AppError::BusinessError("只有已确认或有争议的对账单可以关闭".to_string()));
+            return Err(AppError::BusinessError(
+                "只有已确认或有争议的对账单可以关闭".to_string(),
+            ));
         }
 
         let mut active_model: ActiveModel = model.into();
@@ -391,7 +399,11 @@ impl ArReconciliationService {
     }
 
     /// 更新对账单状态（通用）
-    pub async fn update_status(&self, id: i32, status: &str) -> Result<ReconciliationModel, AppError> {
+    pub async fn update_status(
+        &self,
+        id: i32,
+        status: &str,
+    ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -433,9 +445,7 @@ impl ArReconciliationService {
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("客户 {} 不存在", cid)))?]
         } else {
-            customer::Entity::find()
-                .all(&txn)
-                .await?
+            customer::Entity::find().all(&txn).await?
         };
 
         let mut results = Vec::new();
@@ -506,13 +516,14 @@ impl ArReconciliationService {
 
             let mut matched_count = 0usize;
             let mut unmatched_invoices: Vec<&ar_invoice::Model> = Vec::new();
-            let mut unmatched_collections: Vec<&ar_collection::Model> = collections.iter().collect();
+            let mut unmatched_collections: Vec<&ar_collection::Model> =
+                collections.iter().collect();
 
             // 策略1: 精确金额匹配
             for inv in &invoices {
-                let exact_match = unmatched_collections.iter().position(|c| {
-                    c.collection_amount == inv.invoice_amount
-                });
+                let exact_match = unmatched_collections
+                    .iter()
+                    .position(|c| c.collection_amount == inv.invoice_amount);
 
                 if let Some(idx) = exact_match {
                     let coll = unmatched_collections.remove(idx);
@@ -712,30 +723,90 @@ impl ArReconciliationService {
             std::collections::HashMap::new();
 
         for inv in &invoices {
-            let entry = customer_map.entry(inv.customer_id).or_insert_with(|| {
-                (inv.customer_name.clone().unwrap_or_default(), Vec::new())
-            });
+            let entry = customer_map
+                .entry(inv.customer_id)
+                .or_insert_with(|| (inv.customer_name.clone().unwrap_or_default(), Vec::new()));
             entry.1.push(inv);
         }
 
         let mut customer_summaries = Vec::new();
         let mut overall_buckets = vec![
-            AgingBucket { label: "当期".to_string(), min_days: 0, max_days: Some(0), amount: Decimal::ZERO, count: 0 },
-            AgingBucket { label: "1-30天".to_string(), min_days: 1, max_days: Some(30), amount: Decimal::ZERO, count: 0 },
-            AgingBucket { label: "31-60天".to_string(), min_days: 31, max_days: Some(60), amount: Decimal::ZERO, count: 0 },
-            AgingBucket { label: "61-90天".to_string(), min_days: 61, max_days: Some(90), amount: Decimal::ZERO, count: 0 },
-            AgingBucket { label: "90天以上".to_string(), min_days: 91, max_days: None, amount: Decimal::ZERO, count: 0 },
+            AgingBucket {
+                label: "当期".to_string(),
+                min_days: 0,
+                max_days: Some(0),
+                amount: Decimal::ZERO,
+                count: 0,
+            },
+            AgingBucket {
+                label: "1-30天".to_string(),
+                min_days: 1,
+                max_days: Some(30),
+                amount: Decimal::ZERO,
+                count: 0,
+            },
+            AgingBucket {
+                label: "31-60天".to_string(),
+                min_days: 31,
+                max_days: Some(60),
+                amount: Decimal::ZERO,
+                count: 0,
+            },
+            AgingBucket {
+                label: "61-90天".to_string(),
+                min_days: 61,
+                max_days: Some(90),
+                amount: Decimal::ZERO,
+                count: 0,
+            },
+            AgingBucket {
+                label: "90天以上".to_string(),
+                min_days: 91,
+                max_days: None,
+                amount: Decimal::ZERO,
+                count: 0,
+            },
         ];
 
         let mut total_receivable = Decimal::ZERO;
 
         for (cust_id, (cust_name, cust_invoices)) in &customer_map {
             let mut buckets = vec![
-                AgingBucket { label: "当期".to_string(), min_days: 0, max_days: Some(0), amount: Decimal::ZERO, count: 0 },
-                AgingBucket { label: "1-30天".to_string(), min_days: 1, max_days: Some(30), amount: Decimal::ZERO, count: 0 },
-                AgingBucket { label: "31-60天".to_string(), min_days: 31, max_days: Some(60), amount: Decimal::ZERO, count: 0 },
-                AgingBucket { label: "61-90天".to_string(), min_days: 61, max_days: Some(90), amount: Decimal::ZERO, count: 0 },
-                AgingBucket { label: "90天以上".to_string(), min_days: 91, max_days: None, amount: Decimal::ZERO, count: 0 },
+                AgingBucket {
+                    label: "当期".to_string(),
+                    min_days: 0,
+                    max_days: Some(0),
+                    amount: Decimal::ZERO,
+                    count: 0,
+                },
+                AgingBucket {
+                    label: "1-30天".to_string(),
+                    min_days: 1,
+                    max_days: Some(30),
+                    amount: Decimal::ZERO,
+                    count: 0,
+                },
+                AgingBucket {
+                    label: "31-60天".to_string(),
+                    min_days: 31,
+                    max_days: Some(60),
+                    amount: Decimal::ZERO,
+                    count: 0,
+                },
+                AgingBucket {
+                    label: "61-90天".to_string(),
+                    min_days: 61,
+                    max_days: Some(90),
+                    amount: Decimal::ZERO,
+                    count: 0,
+                },
+                AgingBucket {
+                    label: "90天以上".to_string(),
+                    min_days: 91,
+                    max_days: None,
+                    amount: Decimal::ZERO,
+                    count: 0,
+                },
             ];
 
             let mut cust_total = Decimal::ZERO;
@@ -920,10 +991,7 @@ impl ArReconciliationService {
     // ================================================================
 
     /// 获取对账单及其明细
-    pub async fn get_with_details(
-        &self,
-        id: i32,
-    ) -> Result<ReconciliationWithDetails, AppError> {
+    pub async fn get_with_details(&self, id: i32) -> Result<ReconciliationWithDetails, AppError> {
         let reconciliation = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -932,7 +1000,10 @@ impl ArReconciliationService {
 
         let items = crate::models::ar_reconciliation_item::Entity::find()
             .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
-            .order_by(crate::models::ar_reconciliation_item::Column::CreatedAt, Order::Asc)
+            .order_by(
+                crate::models::ar_reconciliation_item::Column::CreatedAt,
+                Order::Asc,
+            )
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -979,10 +1050,14 @@ impl ArReconciliationService {
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
         if status == "confirmed" {
-            return Err(AppError::BusinessError("对账单已确认，不可重复确认".to_string()));
+            return Err(AppError::BusinessError(
+                "对账单已确认，不可重复确认".to_string(),
+            ));
         }
         if status == "disputed" {
-            return Err(AppError::BusinessError("对账单存在争议，请先解决争议后再确认".to_string()));
+            return Err(AppError::BusinessError(
+                "对账单存在争议，请先解决争议后再确认".to_string(),
+            ));
         }
 
         let mut active_model: ActiveModel = model.into();
@@ -1016,10 +1091,14 @@ impl ArReconciliationService {
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
         if status == "confirmed" {
-            return Err(AppError::BusinessError("对账单已确认，不可提出争议".to_string()));
+            return Err(AppError::BusinessError(
+                "对账单已确认，不可提出争议".to_string(),
+            ));
         }
         if status == "closed" {
-            return Err(AppError::BusinessError("对账单已关闭，不可提出争议".to_string()));
+            return Err(AppError::BusinessError(
+                "对账单已关闭，不可提出争议".to_string(),
+            ));
         }
 
         let mut active_model: ActiveModel = model.into();
@@ -1037,10 +1116,7 @@ impl ArReconciliationService {
     }
 
     /// 导出对账单PDF
-    pub async fn export_pdf(
-        &self,
-        id: i32,
-    ) -> Result<Vec<u8>, AppError> {
+    pub async fn export_pdf(&self, id: i32) -> Result<Vec<u8>, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -1056,7 +1132,7 @@ impl ArReconciliationService {
 
         // 生成PDF内容
         let pdf_content = self.generate_reconciliation_pdf(&model, &items)?;
-        
+
         Ok(pdf_content)
     }
 
@@ -1075,7 +1151,8 @@ impl ArReconciliationService {
                 item_type: item.item_type.clone(),
                 document_no: item.document_no.as_deref().unwrap_or("").to_string(),
                 amount: item.amount.to_string(),
-                date: item.document_date
+                date: item
+                    .document_date
                     .map(|d| d.format("%Y-%m-%d").to_string())
                     .unwrap_or_default(),
             })
@@ -1090,7 +1167,10 @@ impl ArReconciliationService {
             &customer_name,
             &reconciliation.period_start.format("%Y-%m-%d").to_string(),
             &reconciliation.period_end.format("%Y-%m-%d").to_string(),
-            reconciliation.reconciliation_status.as_deref().unwrap_or("draft"),
+            reconciliation
+                .reconciliation_status
+                .as_deref()
+                .unwrap_or("draft"),
             pdf_items,
             &reconciliation.closing_balance.to_string(),
         )

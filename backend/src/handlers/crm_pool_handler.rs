@@ -74,23 +74,27 @@ pub async fn list_pool(
     let result = service.list_leads(query).await?;
 
     // 转换为响应格式
-    let items: Vec<serde_json::Value> = result.data.into_iter().map(|lead| {
-        let days_in_pool = chrono::Utc::now()
-            .signed_duration_since(lead.created_at.unwrap_or_else(chrono::Utc::now))
-            .num_days();
+    let items: Vec<serde_json::Value> = result
+        .data
+        .into_iter()
+        .map(|lead| {
+            let days_in_pool = chrono::Utc::now()
+                .signed_duration_since(lead.created_at.unwrap_or_else(chrono::Utc::now))
+                .num_days();
 
-        serde_json::json!({
-            "id": lead.id,
-            "lead_no": lead.lead_no,
-            "company_name": lead.company_name,
-            "contact_name": lead.contact_name,
-            "mobile_phone": lead.mobile_phone,
-            "email": lead.email,
-            "lead_source": lead.lead_source,
-            "created_at": lead.created_at.map(|t| t.to_rfc3339()),
-            "days_in_pool": days_in_pool,
+            serde_json::json!({
+                "id": lead.id,
+                "lead_no": lead.lead_no,
+                "company_name": lead.company_name,
+                "contact_name": lead.contact_name,
+                "mobile_phone": lead.mobile_phone,
+                "email": lead.email,
+                "lead_source": lead.lead_source,
+                "created_at": lead.created_at.map(|t| t.to_rfc3339()),
+                "days_in_pool": days_in_pool,
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,

@@ -1,5 +1,5 @@
-use serde_json::Value;
 use crate::middleware::auth_context::AuthContext;
+use serde_json::Value;
 
 /// 脱敏敏感字段（如成本价、敏感金额）
 pub fn mask_sensitive_fields(mut value: Value, auth: &AuthContext) -> Value {
@@ -8,12 +8,12 @@ pub fn mask_sensitive_fields(mut value: Value, auth: &AuthContext) -> Value {
     if auth.role_id != Some(1) {
         if value.is_object() {
             let obj = value.as_object_mut().unwrap();
-            
+
             // 移除或掩码成本价
             if obj.contains_key("cost_price") {
                 obj.insert("cost_price".to_string(), Value::Null);
             }
-            
+
             // 可以递归脱敏
             for (_, v) in obj.iter_mut() {
                 *v = mask_sensitive_fields(v.clone(), auth);

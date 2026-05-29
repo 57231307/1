@@ -2,17 +2,18 @@
 //!
 //! 采购退货 HTTP 接口层
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_return_service::{
-    CreatePurchaseReturnRequest, PurchaseReturnService, UpdatePurchaseReturnRequest, CreateReturnItemRequest, UpdateReturnItemRequest
+    CreatePurchaseReturnRequest, CreateReturnItemRequest, PurchaseReturnService,
+    UpdatePurchaseReturnRequest, UpdateReturnItemRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -31,7 +32,12 @@ pub async fn list_purchase_returns(
         )
         .await?;
 
-    let result = crate::utils::response::build_paginated_response(returns, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let result = crate::utils::response::build_paginated_response(
+        returns,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -128,7 +134,9 @@ pub async fn reject_purchase_return(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
 
-    let return_order = service.reject_return(id, req.reason.clone(), auth.user_id).await?;
+    let return_order = service
+        .reject_return(id, req.reason.clone(), auth.user_id)
+        .await?;
 
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
@@ -159,7 +167,10 @@ pub async fn delete_purchase_return(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
     service.delete(id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "采购退货单已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "采购退货单已删除",
+    )))
 }
 
 // =====================================================
@@ -181,12 +192,14 @@ pub struct RejectReturnRequest {
     pub reason: String,
 }
 
-
 pub async fn list_purchase_return_items(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>,
+    AppError,
+> {
     let service = PurchaseReturnService::new(state.db.clone());
     let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(items)))

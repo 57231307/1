@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -94,7 +94,8 @@ impl InventoryAdjustmentService {
             .filter(inventory_stock::Column::Id.is_in(stock_ids.clone()))
             .all(&txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.id, s)).collect();
 
         // 创建调整明细项
         let mut item_models = Vec::new();
@@ -155,11 +156,15 @@ impl InventoryAdjustmentService {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id)))?;
+            .ok_or_else(|| {
+                AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id))
+            })?;
 
         // 检查状态
         if adjustment_model.status != "pending" {
-            return Err(AppError::BusinessError("只有待审核状态的调整单可以审核".to_string()));
+            return Err(AppError::BusinessError(
+                "只有待审核状态的调整单可以审核".to_string(),
+            ));
         }
 
         // 转换为 ActiveModel 用于更新
@@ -171,7 +176,14 @@ impl InventoryAdjustmentService {
         adjustment.approved_at = Set(Some(Utc::now()));
         adjustment.updated_at = Set(Utc::now());
 
-        let adjustment_model = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", adjustment, Some(0)).await?;
+        let adjustment_model =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                adjustment,
+                Some(0),
+            )
+            .await?;
 
         // 获取调整明细项
         let items = inventory_adjustment_item::Entity::find()
@@ -182,13 +194,12 @@ impl InventoryAdjustmentService {
         // 更新库存数量
         let mut transaction_events = Vec::new();
         for item in items {
-            let stock_model =
-                inventory_stock::Entity::find_by_id(item.stock_id)
-                    .one(&txn)
-                    .await?
-                    .ok_or_else(|| {
-                        AppError::ResourceNotFound(format!("库存 ID {} 不存在", item.stock_id))
-                    })?;
+            let stock_model = inventory_stock::Entity::find_by_id(item.stock_id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| {
+                    AppError::ResourceNotFound(format!("库存 ID {} 不存在", item.stock_id))
+                })?;
 
             let quantity_before = stock_model.quantity_on_hand;
             let expected_version = stock_model.version;
@@ -210,14 +221,13 @@ impl InventoryAdjustmentService {
                 )
                 .col_expr(
                     inventory_stock::Column::QuantityKg,
-                    sea_orm::sea_query::Expr::val(
-                        if quantity_before > Decimal::ZERO {
-                            let kg_ratio = current_quantity_kg / quantity_before;
-                            item.quantity_after * kg_ratio
-                        } else {
-                            current_quantity_kg
-                        }
-                    ).into(),
+                    sea_orm::sea_query::Expr::val(if quantity_before > Decimal::ZERO {
+                        let kg_ratio = current_quantity_kg / quantity_before;
+                        item.quantity_after * kg_ratio
+                    } else {
+                        current_quantity_kg
+                    })
+                    .into(),
                 )
                 .col_expr(
                     inventory_stock::Column::Version,
@@ -289,11 +299,15 @@ impl InventoryAdjustmentService {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id)))?;
+            .ok_or_else(|| {
+                AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id))
+            })?;
 
         // 检查状态
         if adjustment_model.status != "pending" {
-            return Err(AppError::BusinessError("只有待审核状态的调整单可以驳回".to_string()));
+            return Err(AppError::BusinessError(
+                "只有待审核状态的调整单可以驳回".to_string(),
+            ));
         }
 
         let mut adjustment: inventory_adjustment::ActiveModel = adjustment_model.into();
@@ -325,7 +339,9 @@ impl InventoryAdjustmentService {
         let adjustment = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id)))?;
+            .ok_or_else(|| {
+                AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id))
+            })?;
 
         let items = inventory_adjustment_item::Entity::find()
             .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
@@ -357,7 +373,9 @@ mod tests {
     async fn setup_test_db() -> DatabaseConnection {
         let db_url =
             std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url).await.expect("Failed to connect to db")
+        Database::connect(&db_url)
+            .await
+            .expect("Failed to connect to db")
     }
 
     #[tokio::test]
@@ -435,7 +453,8 @@ mod tests {
 
         let (adjustments, total) = service
             .list_adjustments(0, 20)
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
             .expect("list_adjustments should succeed");
 
         assert!(adjustments.is_empty());

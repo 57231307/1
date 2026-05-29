@@ -156,7 +156,10 @@ pub async fn export_operation_logs(
                 .collect();
 
             let count = items.len();
-            let file_name = format!("operation_logs_{}.json", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+            let file_name = format!(
+                "operation_logs_{}.json",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            );
 
             Ok(Json(ApiResponse::success(ExportResult {
                 download_url: format!("/api/v1/erp/downloads/{}", file_name),
@@ -179,13 +182,14 @@ pub async fn list_audit_logs(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
     use crate::models::audit_log;
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
     let mut query_builder = audit_log::Entity::find();
 
     if let Some(resource_type) = &query.table_name {
-        query_builder = query_builder.filter(audit_log::Column::ResourceType.eq(resource_type.clone()));
+        query_builder =
+            query_builder.filter(audit_log::Column::ResourceType.eq(resource_type.clone()));
     }
     if let Some(action) = &query.action {
         query_builder = query_builder.filter(audit_log::Column::Action.eq(action.clone()));
@@ -238,8 +242,8 @@ pub async fn export_audit_logs(
     _auth: AuthContext,
     Query(_query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, StatusCode> {
-    use sea_orm::{EntityTrait, QueryOrder};
     use crate::models::audit_log;
+    use sea_orm::{EntityTrait, QueryOrder};
 
     match audit_log::Entity::find()
         .order_by_desc(audit_log::Column::CreatedAt)
@@ -248,7 +252,10 @@ pub async fn export_audit_logs(
     {
         Ok(logs) => {
             let count = logs.len();
-            let file_name = format!("audit_logs_{}.json", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+            let file_name = format!(
+                "audit_logs_{}.json",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            );
 
             Ok(Json(ApiResponse::success(ExportResult {
                 download_url: format!("/api/v1/erp/downloads/{}", file_name),

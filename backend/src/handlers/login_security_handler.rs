@@ -60,8 +60,8 @@ pub async fn list_login_logs(
     _auth: AuthContext,
     Query(query): Query<LoginLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
     use crate::models::log_login;
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
@@ -118,9 +118,9 @@ pub async fn check_lock_status(
         .get("username")
         .ok_or_else(|| AppError::BadRequest("缺少 username 参数".to_string()))?;
 
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     use crate::models::log_login;
     use chrono::{Duration, Utc};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
     let since = Utc::now() - Duration::minutes(LOCKOUT_DURATION_MINUTES);
 
@@ -136,9 +136,9 @@ pub async fn check_lock_status(
     let is_locked = failed_count >= MAX_FAILED_ATTEMPTS;
 
     let locked_until = if is_locked {
-        recent_failures.first().map(|f| {
-            (f.login_time + Duration::minutes(LOCKOUT_DURATION_MINUTES)).to_rfc3339()
-        })
+        recent_failures
+            .first()
+            .map(|f| (f.login_time + Duration::minutes(LOCKOUT_DURATION_MINUTES)).to_rfc3339())
     } else {
         None
     };
@@ -163,8 +163,8 @@ pub async fn unlock_account(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("缺少 username 参数".to_string()))?;
 
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use crate::models::log_login;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     log_login::Entity::delete_many()
         .filter(log_login::Column::Username.eq(username))
@@ -182,9 +182,9 @@ pub async fn get_security_alerts(
     _auth: AuthContext,
     Query(_params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Vec<SecurityAlert>>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     use crate::models::log_login;
     use chrono::{Duration, Utc};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
     let since = Utc::now() - Duration::hours(24);
 
@@ -196,11 +196,15 @@ pub async fn get_security_alerts(
         .await?;
 
     let mut alerts = Vec::new();
-    let mut user_ips: std::collections::HashMap<i32, Vec<String>> = std::collections::HashMap::new();
+    let mut user_ips: std::collections::HashMap<i32, Vec<String>> =
+        std::collections::HashMap::new();
 
     for login in &recent_logins {
         if let Some(uid) = login.user_id {
-            user_ips.entry(uid).or_default().push(login.ip_address.clone());
+            user_ips
+                .entry(uid)
+                .or_default()
+                .push(login.ip_address.clone());
         }
     }
 
@@ -232,9 +236,9 @@ pub async fn get_login_statistics(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
     use crate::models::log_login;
     use chrono::Utc;
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let today = Utc::now().date_naive();
     let today_start = today.and_hms_opt(0, 0, 0).unwrap().and_utc();

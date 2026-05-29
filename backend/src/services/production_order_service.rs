@@ -4,25 +4,24 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 
 use crate::models::production_order::{
     ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
 use crate::utils::error::AppError;
 
-use crate::models::product::Entity as ProductEntity;
-use crate::models::sales_order::Entity as SalesOrderEntity;
-use crate::models::work_center::Entity as WorkCenterEntity;
 use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
 use crate::models::bom_item::{Column as BomItemColumn, Entity as BomItemEntity};
-use crate::models::inventory_stock::{Entity as InventoryStockEntity};
+use crate::models::inventory_stock::Entity as InventoryStockEntity;
+use crate::models::product::Entity as ProductEntity;
+use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::warehouse::Entity as WarehouseEntity;
+use crate::models::work_center::Entity as WorkCenterEntity;
 
 /// 创建生产订单请求
 #[derive(Debug, Clone)]
@@ -75,9 +74,12 @@ impl ProductionOrderService {
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+
         if product.is_none() {
-            return Err(AppError::ValidationError(format!("产品ID {} 不存在", product_id)));
+            return Err(AppError::ValidationError(format!(
+                "产品ID {} 不存在",
+                product_id
+            )));
         }
         Ok(())
     }
@@ -88,9 +90,12 @@ impl ProductionOrderService {
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+
         if sales_order.is_none() {
-            return Err(AppError::ValidationError(format!("销售订单ID {} 不存在", sales_order_id)));
+            return Err(AppError::ValidationError(format!(
+                "销售订单ID {} 不存在",
+                sales_order_id
+            )));
         }
         Ok(())
     }
@@ -101,9 +106,12 @@ impl ProductionOrderService {
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+
         if work_center.is_none() {
-            return Err(AppError::ValidationError(format!("工作中心ID {} 不存在", work_center_id)));
+            return Err(AppError::ValidationError(format!(
+                "工作中心ID {} 不存在",
+                work_center_id
+            )));
         }
         Ok(())
     }
@@ -115,19 +123,21 @@ impl ProductionOrderService {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
             let random = rand::random::<u16>() % 10000;
             let order_no = format!("PO-{}-{:04}", timestamp, random);
-            
+
             // 检查订单号是否已存在
             let existing = ProductionOrderEntity::find()
                 .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
                 .one(&*self.db)
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-            
+
             if existing.is_none() {
                 return Ok(order_no);
             }
         }
-        Err(AppError::InternalError("无法生成唯一订单号，请稍后重试".to_string()))
+        Err(AppError::InternalError(
+            "无法生成唯一订单号，请稍后重试".to_string(),
+        ))
     }
 
     /// 验证状态转换是否合法
@@ -142,7 +152,7 @@ impl ProductionOrderService {
             ("APPROVED", vec!["SCHEDULED"]),
             ("REJECTED", vec!["DRAFT"]),
         ]);
-        
+
         if let Some(allowed) = valid_transitions.get(current_status) {
             if allowed.contains(&new_status) {
                 Ok(())
@@ -153,7 +163,10 @@ impl ProductionOrderService {
                 )))
             }
         } else {
-            Err(AppError::BusinessError(format!("未知的状态: {}", current_status)))
+            Err(AppError::BusinessError(format!(
+                "未知的状态: {}",
+                current_status
+            )))
         }
     }
 
@@ -164,7 +177,7 @@ impl ProductionOrderService {
     ) -> Result<ProductionOrderModel, AppError> {
         // 验证产品是否存在
         self.validate_product_exists(req.product_id).await?;
-        
+
         // 验证BOM是否存在（生产订单需要BOM进行物料计算）
         let has_bom = BomEntity::find()
             .filter(BomColumn::ProductId.eq(req.product_id))
@@ -174,24 +187,24 @@ impl ProductionOrderService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .is_some();
-        
+
         if !has_bom {
             tracing::warn!(
                 "产品ID {} 没有默认BOM，生产完成时将无法自动扣减原材料",
                 req.product_id
             );
         }
-        
+
         // 验证销售订单是否存在（如果提供）
         if let Some(sales_order_id) = req.sales_order_id {
             self.validate_sales_order_exists(sales_order_id).await?;
         }
-        
+
         // 验证工作中心是否存在（如果提供）
         if let Some(work_center_id) = req.work_center_id {
             self.validate_work_center_exists(work_center_id).await?;
         }
-        
+
         // 生成或验证订单号
         let order_no = match req.order_no {
             Some(no) => {
@@ -201,12 +214,12 @@ impl ProductionOrderService {
                     .one(&*self.db)
                     .await
                     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-                
+
                 if existing.is_some() {
                     return Err(AppError::ValidationError(format!("订单号 {} 已存在", no)));
                 }
                 no
-            },
+            }
             None => self.generate_unique_order_no().await?,
         };
 
@@ -227,27 +240,21 @@ impl ProductionOrderService {
             ..Default::default()
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| {
-                // 处理唯一约束冲突
-                let err_str = e.to_string();
-                if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                    AppError::ValidationError("订单号已存在，请稍后重试".to_string())
-                } else {
-                    AppError::DatabaseError(e.to_string())
-                }
-            })?;
+        let model = active_model.insert(&*self.db).await.map_err(|e| {
+            // 处理唯一约束冲突
+            let err_str = e.to_string();
+            if err_str.contains("unique constraint") || err_str.contains("duplicate") {
+                AppError::ValidationError("订单号已存在，请稍后重试".to_string())
+            } else {
+                AppError::DatabaseError(e.to_string())
+            }
+        })?;
 
         Ok(model)
     }
 
     /// 根据ID获取生产订单
-    pub async fn get_by_id(
-        &self,
-        id: i32,
-    ) -> Result<Option<ProductionOrderModel>, AppError> {
+    pub async fn get_by_id(&self, id: i32) -> Result<Option<ProductionOrderModel>, AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -268,7 +275,8 @@ impl ProductionOrderService {
         }
 
         if let Some(product_id) = query.product_id {
-            select = select.filter(crate::models::production_order::Column::ProductId.eq(product_id));
+            select =
+                select.filter(crate::models::production_order::Column::ProductId.eq(product_id));
         }
 
         let total = select
@@ -404,7 +412,8 @@ impl ProductionOrderService {
 
         // 生产完成时执行库存联动：扣减原材料 + 入库成品
         if status == "COMPLETED" {
-            self.handle_production_completion_inventory(&updated).await?;
+            self.handle_production_completion_inventory(&updated)
+                .await?;
         }
 
         Ok(updated)
@@ -419,7 +428,8 @@ impl ProductionOrderService {
         &self,
         order: &ProductionOrderModel,
     ) -> Result<(), AppError> {
-        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+        let stock_service =
+            crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
 
         // 查询默认成品仓库（取第一个激活的仓库）
         let default_warehouse = WarehouseEntity::find()
@@ -427,12 +437,16 @@ impl ProductionOrderService {
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .ok_or_else(|| AppError::BusinessError("未找到可用仓库，无法执行库存联动".to_string()))?;
+            .ok_or_else(|| {
+                AppError::BusinessError("未找到可用仓库，无法执行库存联动".to_string())
+            })?;
 
         // 优先使用实际完成数量，否则使用计划数量
         let production_qty = order.actual_quantity.unwrap_or(order.planned_quantity);
         if production_qty.is_zero() {
-            return Err(AppError::BusinessError("生产数量为零，无法执行库存联动".to_string()));
+            return Err(AppError::BusinessError(
+                "生产数量为零，无法执行库存联动".to_string(),
+            ));
         }
 
         // ========== 1. 扣减原材料库存 ==========
@@ -458,14 +472,22 @@ impl ProductionOrderService {
 
                 // 查找该原材料在默认仓库的库存记录
                 let stock_record = InventoryStockEntity::find()
-                    .filter(crate::models::inventory_stock::Column::ProductId.eq(bom_item.material_id))
-                    .filter(crate::models::inventory_stock::Column::WarehouseId.eq(default_warehouse.id))
+                    .filter(
+                        crate::models::inventory_stock::Column::ProductId.eq(bom_item.material_id),
+                    )
+                    .filter(
+                        crate::models::inventory_stock::Column::WarehouseId
+                            .eq(default_warehouse.id),
+                    )
                     .one(&*self.db)
                     .await
                     .map_err(|e| AppError::DatabaseError(e.to_string()))?
-                    .ok_or_else(|| AppError::BusinessError(format!(
-                        "原材料(ID={})在默认仓库中无库存记录，无法扣减", bom_item.material_id
-                    )))?;
+                    .ok_or_else(|| {
+                        AppError::BusinessError(format!(
+                            "原材料(ID={})在默认仓库中无库存记录，无法扣减",
+                            bom_item.material_id
+                        ))
+                    })?;
 
                 let qty_before_meters = stock_record.quantity_meters;
                 let qty_before_kg = stock_record.quantity_kg;
@@ -488,34 +510,40 @@ impl ProductionOrderService {
                 };
 
                 // 更新库存数量（带乐观锁）
-                stock_service.update_stock_quantity_with_optimistic_lock(
-                    stock_record.id,
-                    qty_after_meters,
-                    qty_after_kg,
-                    stock_record.version,
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                stock_service
+                    .update_stock_quantity_with_optimistic_lock(
+                        stock_record.id,
+                        qty_after_meters,
+                        qty_after_kg,
+                        stock_record.version,
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
                 // 记录库存流水：生产消耗
-                stock_service.record_transaction(
-                    "PRODUCTION_CONSUMPTION".to_string(),
-                    bom_item.material_id,
-                    default_warehouse.id,
-                    stock_record.batch_no.clone(),
-                    stock_record.color_no.clone(),
-                    stock_record.dye_lot_no.clone(),
-                    stock_record.grade.clone(),
-                    consumption_qty,
-                    Decimal::ZERO,
-                    Some("production_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(qty_before_meters),
-                    Some(qty_before_kg),
-                    Some(qty_after_meters),
-                    Some(qty_after_kg),
-                    Some(format!("生产消耗 - 订单 {}", order.order_no)),
-                    Some(order.created_by),
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                stock_service
+                    .record_transaction(
+                        "PRODUCTION_CONSUMPTION".to_string(),
+                        bom_item.material_id,
+                        default_warehouse.id,
+                        stock_record.batch_no.clone(),
+                        stock_record.color_no.clone(),
+                        stock_record.dye_lot_no.clone(),
+                        stock_record.grade.clone(),
+                        consumption_qty,
+                        Decimal::ZERO,
+                        Some("production_order".to_string()),
+                        Some(order.order_no.clone()),
+                        Some(order.id),
+                        Some(qty_before_meters),
+                        Some(qty_before_kg),
+                        Some(qty_after_meters),
+                        Some(qty_after_kg),
+                        Some(format!("生产消耗 - 订单 {}", order.order_no)),
+                        Some(order.created_by),
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             }
         }
 
@@ -525,7 +553,9 @@ impl ProductionOrderService {
             .one(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            .ok_or_else(|| AppError::BusinessError(format!("产品ID {} 不存在", order.product_id)))?;
+            .ok_or_else(|| {
+                AppError::BusinessError(format!("产品ID {} 不存在", order.product_id))
+            })?;
 
         // 查找成品在默认仓库的已有库存记录
         let existing_stock = InventoryStockEntity::find()
@@ -550,34 +580,40 @@ impl ProductionOrderService {
                 };
                 let qty_after_kg = qty_before_kg + added_kg;
 
-                stock_service.update_stock_quantity_with_optimistic_lock(
-                    stock_record.id,
-                    qty_after_meters,
-                    qty_after_kg,
-                    stock_record.version,
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                stock_service
+                    .update_stock_quantity_with_optimistic_lock(
+                        stock_record.id,
+                        qty_after_meters,
+                        qty_after_kg,
+                        stock_record.version,
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
                 // 记录库存流水：生产入库
-                stock_service.record_transaction(
-                    "PRODUCTION_OUTPUT".to_string(),
-                    order.product_id,
-                    default_warehouse.id,
-                    stock_record.batch_no.clone(),
-                    stock_record.color_no.clone(),
-                    stock_record.dye_lot_no.clone(),
-                    stock_record.grade.clone(),
-                    production_qty,
-                    added_kg,
-                    Some("production_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(qty_before_meters),
-                    Some(qty_before_kg),
-                    Some(qty_after_meters),
-                    Some(qty_after_kg),
-                    Some(format!("生产入库 - 订单 {}", order.order_no)),
-                    Some(order.created_by),
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                stock_service
+                    .record_transaction(
+                        "PRODUCTION_OUTPUT".to_string(),
+                        order.product_id,
+                        default_warehouse.id,
+                        stock_record.batch_no.clone(),
+                        stock_record.color_no.clone(),
+                        stock_record.dye_lot_no.clone(),
+                        stock_record.grade.clone(),
+                        production_qty,
+                        added_kg,
+                        Some("production_order".to_string()),
+                        Some(order.order_no.clone()),
+                        Some(order.id),
+                        Some(qty_before_meters),
+                        Some(qty_before_kg),
+                        Some(qty_after_meters),
+                        Some(qty_after_kg),
+                        Some(format!("生产入库 - 订单 {}", order.order_no)),
+                        Some(order.created_by),
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             }
             None => {
                 // 创建新的库存记录
@@ -587,47 +623,56 @@ impl ProductionOrderService {
                     Decimal::ZERO
                 };
 
-                let new_stock = stock_service.create_stock_fabric(
-                    default_warehouse.id,
-                    order.product_id,
-                    order.order_no.clone(),
-                    "DEFAULT".to_string(),
-                    None,
-                    "一等品".to_string(),
-                    production_qty,
-                    kg,
-                    product.gram_weight,
-                    product.width,
-                    None, None, None,
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                let new_stock = stock_service
+                    .create_stock_fabric(
+                        default_warehouse.id,
+                        order.product_id,
+                        order.order_no.clone(),
+                        "DEFAULT".to_string(),
+                        None,
+                        "一等品".to_string(),
+                        production_qty,
+                        kg,
+                        product.gram_weight,
+                        product.width,
+                        None,
+                        None,
+                        None,
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
                 // 记录库存流水：生产入库
-                stock_service.record_transaction(
-                    "PRODUCTION_OUTPUT".to_string(),
-                    order.product_id,
-                    default_warehouse.id,
-                    new_stock.batch_no.clone(),
-                    new_stock.color_no.clone(),
-                    new_stock.dye_lot_no.clone(),
-                    new_stock.grade.clone(),
-                    production_qty,
-                    kg,
-                    Some("production_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(Decimal::ZERO),
-                    Some(Decimal::ZERO),
-                    Some(production_qty),
-                    Some(kg),
-                    Some(format!("生产入库 - 订单 {}", order.order_no)),
-                    Some(order.created_by),
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                stock_service
+                    .record_transaction(
+                        "PRODUCTION_OUTPUT".to_string(),
+                        order.product_id,
+                        default_warehouse.id,
+                        new_stock.batch_no.clone(),
+                        new_stock.color_no.clone(),
+                        new_stock.dye_lot_no.clone(),
+                        new_stock.grade.clone(),
+                        production_qty,
+                        kg,
+                        Some("production_order".to_string()),
+                        Some(order.order_no.clone()),
+                        Some(order.id),
+                        Some(Decimal::ZERO),
+                        Some(Decimal::ZERO),
+                        Some(production_qty),
+                        Some(kg),
+                        Some(format!("生产入库 - 订单 {}", order.order_no)),
+                        Some(order.created_by),
+                    )
+                    .await
+                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             }
         }
 
         tracing::info!(
             "生产订单 {} 完成库存联动：成品入库 {}，已扣减原材料库存",
-            order.order_no, production_qty
+            order.order_no,
+            production_qty
         );
 
         Ok(())
@@ -715,9 +760,12 @@ impl ProductionOrderService {
 
         // 完成BPM任务 - 通过process_instance关联
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
-        
+
         // 获取与该生产订单关联的流程实例
-        if let Ok(Some(instance)) = bpm_service.get_process_by_business("production_order", id).await {
+        if let Ok(Some(instance)) = bpm_service
+            .get_process_by_business("production_order", id)
+            .await
+        {
             // 获取该实例的待处理任务
             let tasks = bpm_service
                 .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
@@ -737,7 +785,11 @@ impl ProductionOrderService {
                                 task_id: task.id,
                                 handler_id: user_id,
                                 handler_name: user_name.to_string(),
-                                action: if approved { "approve".to_string() } else { "reject".to_string() },
+                                action: if approved {
+                                    "approve".to_string()
+                                } else {
+                                    "reject".to_string()
+                                },
                                 approval_opinion: opinion.clone(),
                                 attachment_urls: None,
                             })

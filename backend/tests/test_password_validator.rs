@@ -1,6 +1,8 @@
 //! 密码验证器单元测试
 
-use bingxi_backend::utils::password_validator::{validate_password, get_password_feedback, PasswordValidationResult, PasswordStrength};
+use bingxi_backend::utils::password_validator::{
+    get_password_feedback, validate_password, PasswordStrength, PasswordValidationResult,
+};
 
 #[test]
 fn test_valid_password() {
@@ -62,7 +64,10 @@ fn test_feedback_generation() {
     let result = PasswordValidationResult {
         strength: PasswordStrength::Weak,
         is_valid: false,
-        errors: vec!["Password must be at least 8 chars".to_string(), "Password must contain uppercase".to_string()],
+        errors: vec![
+            "Password must be at least 8 chars".to_string(),
+            "Password must contain uppercase".to_string(),
+        ],
         suggestions: vec!["Add uppercase A-Z".to_string()],
     };
     let feedback = get_password_feedback(&result);

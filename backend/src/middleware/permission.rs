@@ -1,19 +1,19 @@
 #![allow(dead_code)]
 
-use crate::middleware::public_routes::is_public_path;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::role_permission;
+use crate::middleware::public_routes::is_public_path;
 use crate::models::role;
+use crate::models::role_permission;
 use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
     extract::State,
-    http::{Request, StatusCode, Method},
+    http::{Method, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use tracing::warn;
@@ -93,8 +93,12 @@ pub async fn permission_middleware(
 fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     // 解析API路径，提取资源类型和ID
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
-    
-    if path_parts.len() >= 4 && path_parts[0] == "api" && path_parts[1] == "v1" && path_parts[2] == "erp" {
+
+    if path_parts.len() >= 4
+        && path_parts[0] == "api"
+        && path_parts[1] == "v1"
+        && path_parts[2] == "erp"
+    {
         // 处理嵌套路径，如 /api/v1/erp/sales/orders/:id/approve
         // 资源类型由第4段决定，如果第4段是资源类型（如users, products），直接使用
         // 如果第4段是模块名（如sales, purchases），则使用第5段作为资源类型
@@ -103,15 +107,19 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         } else {
             path_parts[3].to_string()
         };
-        
+
         // 尝试提取资源ID（跳过模块前缀）
-        let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) { 5 } else { 4 };
+        let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
+            5
+        } else {
+            4
+        };
         for part in path_parts.iter().skip(start_idx) {
             if let Ok(id) = part.parse::<i32>() {
                 return (resource_type, Some(id));
             }
         }
-        
+
         (resource_type, None)
     } else {
         ("unknown".to_string(), None)
@@ -120,13 +128,34 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
 
 /// 判断是否为模块前缀（如 sales, purchases, finance 等）
 fn is_module_prefix(part: &str) -> bool {
-    matches!(part,
-        "sales" | "purchases" | "finance" | "inventory" | "gl" | "ap" | "ar" |
-        "bpm" | "crm" | "ai" | "reports" | "tenants" | "webhooks" | "api-keys" |
-        "supplier-evaluation" | "customer-credits" | "financial-analysis" |
-        "fund-management" | "quality-inspection" | "cost-collections" |
-        "sales-analysis" | "sales-prices" | "purchase-prices" |
-        "sales-returns" | "ar-reconciliations" | "exchange-rates"
+    matches!(
+        part,
+        "sales"
+            | "purchases"
+            | "finance"
+            | "inventory"
+            | "gl"
+            | "ap"
+            | "ar"
+            | "bpm"
+            | "crm"
+            | "ai"
+            | "reports"
+            | "tenants"
+            | "webhooks"
+            | "api-keys"
+            | "supplier-evaluation"
+            | "customer-credits"
+            | "financial-analysis"
+            | "fund-management"
+            | "quality-inspection"
+            | "cost-collections"
+            | "sales-analysis"
+            | "sales-prices"
+            | "purchase-prices"
+            | "sales-returns"
+            | "ar-reconciliations"
+            | "exchange-rates"
     )
 }
 
@@ -189,10 +218,7 @@ pub fn cleanup_expired_permission_cache() {
 /// 检查角色是否是管理员角色
 async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
     // 从数据库查询角色，检查code是否为"admin"
-    match role::Entity::find_by_id(role_id)
-        .one(db)
-        .await
-    {
+    match role::Entity::find_by_id(role_id).one(db).await {
         Ok(Some(role)) => role.code == "admin",
         Ok(None) => false,
         Err(e) => {
@@ -232,12 +258,14 @@ async fn check_permission(
         None => {
             // 从数据库加载
             let db_perms = role_permission::Entity::find()
-                .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId.eq(role_id))
+                .filter(
+                    <role_permission::Entity as sea_orm::EntityTrait>::Column::RoleId.eq(role_id),
+                )
                 .filter(<role_permission::Entity as sea_orm::EntityTrait>::Column::Allowed.eq(true))
                 .all(db)
                 .await
                 .unwrap_or_default();
-            
+
             // 插入缓存，设置TTL
             let ttl = Duration::minutes(PERMISSION_CACHE_TTL);
             PERMISSION_CACHE.insert(role_id, CacheEntry::new(db_perms.clone(), ttl));
@@ -247,8 +275,8 @@ async fn check_permission(
 
     // 检查是否有匹配的权限
     permissions.into_iter().any(|p| {
-        p.resource_type == resource_type &&
-        p.action == action &&
-        (p.resource_id == resource_id || p.resource_id.is_none())
+        p.resource_type == resource_type
+            && p.action == action
+            && (p.resource_id == resource_id || p.resource_id.is_none())
     })
 }

@@ -6,7 +6,8 @@ use axum::{
 use serde::Serialize;
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize)] pub enum AppError {
+#[derive(Debug, Clone, Serialize)]
+pub enum AppError {
     DatabaseError(String),
     ValidationError(String),
     NotFound(String),
@@ -16,7 +17,10 @@ use std::fmt;
     InternalError(String),
     BadRequest(String),
     PermissionDenied(String),
-    TooManyRequests { retry_after: Option<u64>, message: String },
+    TooManyRequests {
+        retry_after: Option<u64>,
+        message: String,
+    },
 }
 
 impl fmt::Display for AppError {
@@ -63,15 +67,27 @@ impl IntoResponse for AppError {
             }
             AppError::ResourceNotFound(msg) => {
                 tracing::warn!("资源不存在: {}", msg);
-                (StatusCode::NOT_FOUND, "ResourceNotFound", "资源不存在".to_string())
+                (
+                    StatusCode::NOT_FOUND,
+                    "ResourceNotFound",
+                    "资源不存在".to_string(),
+                )
             }
             AppError::BusinessError(msg) => {
                 tracing::warn!("业务错误: {}", msg);
-                (StatusCode::BAD_REQUEST, "BusinessError", "业务错误".to_string())
+                (
+                    StatusCode::BAD_REQUEST,
+                    "BusinessError",
+                    "业务错误".to_string(),
+                )
             }
             AppError::Unauthorized(msg) => {
                 tracing::warn!("未授权访问: {}", msg);
-                (StatusCode::UNAUTHORIZED, "Unauthorized", "未授权访问".to_string())
+                (
+                    StatusCode::UNAUTHORIZED,
+                    "Unauthorized",
+                    "未授权访问".to_string(),
+                )
             }
             AppError::InternalError(msg) => {
                 tracing::error!("内部错误: {}", msg);
@@ -97,18 +113,17 @@ impl IntoResponse for AppError {
                     "请求错误".to_string(),
                 )
             }
-            AppError::TooManyRequests { retry_after, message } => {
+            AppError::TooManyRequests {
+                retry_after,
+                message,
+            } => {
                 tracing::warn!("请求过多: {}", message);
                 let retry_msg = if let Some(seconds) = retry_after {
                     format!("{}，请{}秒后再试", message, seconds)
                 } else {
                     message.clone()
                 };
-                (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    "TooManyRequests",
-                    retry_msg,
-                )
+                (StatusCode::TOO_MANY_REQUESTS, "TooManyRequests", retry_msg)
             }
         };
 
@@ -132,13 +147,16 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::DatabaseError("数据库连接失败".to_string())
             }
             sea_orm::DbErr::Exec(_) => {
-                let error_kind = if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                    "数据重复"
-                } else if err_str.contains("foreign key constraint") || err_str.contains("references") {
-                    "数据关联错误"
-                } else {
-                    "数据库执行错误"
-                };
+                let error_kind =
+                    if err_str.contains("unique constraint") || err_str.contains("duplicate") {
+                        "数据重复"
+                    } else if err_str.contains("foreign key constraint")
+                        || err_str.contains("references")
+                    {
+                        "数据关联错误"
+                    } else {
+                        "数据库执行错误"
+                    };
                 tracing::error!("数据库执行错误 [{}]: {}", error_kind, err);
                 AppError::DatabaseError(error_kind.to_string())
             }

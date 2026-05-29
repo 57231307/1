@@ -88,7 +88,9 @@ pub async fn list_roles(
 ) -> Result<Json<ApiResponse<RoleListResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    let roles = service.list_roles().await
+    let roles = service
+        .list_roles()
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     let role_responses: Vec<RoleResponse> = roles
@@ -120,7 +122,9 @@ pub async fn get_role(
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    let role = service.get_role_detail(id).await
+    let role = service
+        .get_role_detail(id)
+        .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
     let permissions = role.permission_list.map(|perms| {
@@ -163,7 +167,9 @@ pub async fn create_role(
         is_system: payload.is_system,
     };
 
-    let role = service.create_role(request).await
+    let role = service
+        .create_role(request)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     let permissions = role.permission_list.map(|perms| {
@@ -207,7 +213,9 @@ pub async fn update_role(
         is_system: payload.is_system,
     };
 
-    let role = service.update_role(id, request).await
+    let role = service
+        .update_role(id, request)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     let permissions = role.permission_list.map(|perms| {
@@ -243,7 +251,9 @@ pub async fn delete_role(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    service.delete_role(id).await
+    service
+        .delete_role(id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
@@ -266,7 +276,9 @@ pub async fn assign_permission(
         allowed: payload.allowed,
     };
 
-    let perm = service.assign_permission(request).await
+    let perm = service
+        .assign_permission(request)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(PermissionResponse {
@@ -286,7 +298,9 @@ pub async fn remove_permission(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    service.remove_permission(id).await
+    service
+        .remove_permission(id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
@@ -300,7 +314,9 @@ pub async fn get_role_permissions(
 ) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    let permissions = service.get_role_permissions(role_id).await
+    let permissions = service
+        .get_role_permissions(role_id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     let perm_responses: Vec<PermissionResponse> = permissions
@@ -323,30 +339,174 @@ pub async fn list_permissions(
 ) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
     // 返回预定义的权限列表
     let permissions = vec![
-        PermissionResponse { id: 1, resource_type: "sales_order".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 2, resource_type: "sales_order".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
-        PermissionResponse { id: 3, resource_type: "sales_order".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
-        PermissionResponse { id: 4, resource_type: "sales_order".to_string(), resource_id: None, action: "delete".to_string(), allowed: true },
-        PermissionResponse { id: 5, resource_type: "sales_order".to_string(), resource_id: None, action: "approve".to_string(), allowed: true },
-        PermissionResponse { id: 6, resource_type: "purchase_order".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 7, resource_type: "purchase_order".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
-        PermissionResponse { id: 8, resource_type: "purchase_order".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
-        PermissionResponse { id: 9, resource_type: "purchase_order".to_string(), resource_id: None, action: "delete".to_string(), allowed: true },
-        PermissionResponse { id: 10, resource_type: "purchase_order".to_string(), resource_id: None, action: "approve".to_string(), allowed: true },
-        PermissionResponse { id: 11, resource_type: "inventory".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 12, resource_type: "inventory".to_string(), resource_id: None, action: "adjust".to_string(), allowed: true },
-        PermissionResponse { id: 13, resource_type: "inventory".to_string(), resource_id: None, action: "transfer".to_string(), allowed: true },
-        PermissionResponse { id: 14, resource_type: "customer".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 15, resource_type: "customer".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
-        PermissionResponse { id: 16, resource_type: "customer".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
-        PermissionResponse { id: 17, resource_type: "supplier".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 18, resource_type: "supplier".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
-        PermissionResponse { id: 19, resource_type: "supplier".to_string(), resource_id: None, action: "edit".to_string(), allowed: true },
-        PermissionResponse { id: 20, resource_type: "finance".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 21, resource_type: "finance".to_string(), resource_id: None, action: "create".to_string(), allowed: true },
-        PermissionResponse { id: 22, resource_type: "report".to_string(), resource_id: None, action: "view".to_string(), allowed: true },
-        PermissionResponse { id: 23, resource_type: "system".to_string(), resource_id: None, action: "settings".to_string(), allowed: true },
-        PermissionResponse { id: 24, resource_type: "user".to_string(), resource_id: None, action: "manage".to_string(), allowed: true },
+        PermissionResponse {
+            id: 1,
+            resource_type: "sales_order".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 2,
+            resource_type: "sales_order".to_string(),
+            resource_id: None,
+            action: "create".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 3,
+            resource_type: "sales_order".to_string(),
+            resource_id: None,
+            action: "edit".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 4,
+            resource_type: "sales_order".to_string(),
+            resource_id: None,
+            action: "delete".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 5,
+            resource_type: "sales_order".to_string(),
+            resource_id: None,
+            action: "approve".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 6,
+            resource_type: "purchase_order".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 7,
+            resource_type: "purchase_order".to_string(),
+            resource_id: None,
+            action: "create".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 8,
+            resource_type: "purchase_order".to_string(),
+            resource_id: None,
+            action: "edit".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 9,
+            resource_type: "purchase_order".to_string(),
+            resource_id: None,
+            action: "delete".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 10,
+            resource_type: "purchase_order".to_string(),
+            resource_id: None,
+            action: "approve".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 11,
+            resource_type: "inventory".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 12,
+            resource_type: "inventory".to_string(),
+            resource_id: None,
+            action: "adjust".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 13,
+            resource_type: "inventory".to_string(),
+            resource_id: None,
+            action: "transfer".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 14,
+            resource_type: "customer".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 15,
+            resource_type: "customer".to_string(),
+            resource_id: None,
+            action: "create".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 16,
+            resource_type: "customer".to_string(),
+            resource_id: None,
+            action: "edit".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 17,
+            resource_type: "supplier".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 18,
+            resource_type: "supplier".to_string(),
+            resource_id: None,
+            action: "create".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 19,
+            resource_type: "supplier".to_string(),
+            resource_id: None,
+            action: "edit".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 20,
+            resource_type: "finance".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 21,
+            resource_type: "finance".to_string(),
+            resource_id: None,
+            action: "create".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 22,
+            resource_type: "report".to_string(),
+            resource_id: None,
+            action: "view".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 23,
+            resource_type: "system".to_string(),
+            resource_id: None,
+            action: "settings".to_string(),
+            allowed: true,
+        },
+        PermissionResponse {
+            id: 24,
+            resource_type: "user".to_string(),
+            resource_id: None,
+            action: "manage".to_string(),
+            allowed: true,
+        },
     ];
 
     Ok(Json(ApiResponse::success(permissions)))

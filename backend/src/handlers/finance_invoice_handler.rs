@@ -36,7 +36,9 @@ pub async fn list_finance_invoices(
 ) -> Result<Json<ApiResponse<InvoiceListResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    let invoices = service.list_invoices().await
+    let invoices = service
+        .list_invoices()
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     let invoice_responses: Vec<InvoiceResponse> = invoices
@@ -99,27 +101,33 @@ pub async fn create_finance_invoice(
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    let invoice_no = payload.get("invoice_no")
+    let invoice_no = payload
+        .get("invoice_no")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    
-    let amount = payload.get("amount")
+
+    let amount = payload
+        .get("amount")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();
 
-    let tax_amount = payload.get("tax_amount")
+    let tax_amount = payload
+        .get("tax_amount")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();
 
-    let total_amount = payload.get("total_amount")
+    let total_amount = payload
+        .get("total_amount")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();
 
-    let invoice = service.create_invoice(invoice_no, amount, tax_amount, total_amount).await
+    let invoice = service
+        .create_invoice(invoice_no, amount, tax_amount, total_amount)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(InvoiceResponse {
@@ -173,7 +181,9 @@ pub async fn delete_finance_invoice(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    service.delete_invoice(id).await
+    service
+        .delete_invoice(id)
+        .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))

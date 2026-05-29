@@ -2,7 +2,7 @@
 
 use sea_orm::entity::prelude::*;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "supplier_categories")]
 pub struct Model {

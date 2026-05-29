@@ -5,15 +5,16 @@
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::models::production_order::{Entity as ProductionOrderEntity, Column as ProductionOrderColumn};
+use crate::models::production_order::{
+    Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
+};
 use crate::models::work_center::{
-    ActiveModel as WorkCenterActiveModel, Entity as WorkCenterEntity, Column as WorkCenterColumn,
+    ActiveModel as WorkCenterActiveModel, Column as WorkCenterColumn, Entity as WorkCenterEntity,
 };
 use crate::utils::error::AppError;
 
@@ -185,19 +186,13 @@ impl CapacityService {
             // 查询该工作中心下处于排产/生产中的订单需求
             let mut order_query = ProductionOrderEntity::find()
                 .filter(ProductionOrderColumn::WorkCenterId.eq(wc.id))
-                .filter(
-                    ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]),
-                );
+                .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
 
             if let Some(from) = query.date_from {
-                order_query = order_query.filter(
-                    ProductionOrderColumn::PlannedEndDate.gte(from),
-                );
+                order_query = order_query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
             }
             if let Some(to) = query.date_to {
-                order_query = order_query.filter(
-                    ProductionOrderColumn::PlannedStartDate.lte(to),
-                );
+                order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
             }
 
             let orders = order_query
@@ -255,17 +250,16 @@ impl CapacityService {
 
     /// 产能概览
     pub async fn overview(&self) -> Result<CapacityOverview, AppError> {
-        let load_items = self.load_analysis(LoadAnalysisQuery {
-            date_from: None,
-            date_to: None,
-            work_center_id: None,
-        }).await?;
+        let load_items = self
+            .load_analysis(LoadAnalysisQuery {
+                date_from: None,
+                date_to: None,
+                work_center_id: None,
+            })
+            .await?;
 
         let total_work_centers = load_items.len() as i64;
-        let active_work_centers = load_items
-            .iter()
-            .filter(|i| i.status != "IDLE")
-            .count() as i64;
+        let active_work_centers = load_items.iter().filter(|i| i.status != "IDLE").count() as i64;
 
         let total_daily_capacity: Decimal = load_items.iter().map(|i| i.daily_capacity).sum();
         let total_planned_demand: Decimal = load_items.iter().map(|i| i.total_demand).sum();
@@ -289,10 +283,7 @@ impl CapacityService {
             .filter(|i| i.status == "OVERLOADED")
             .count() as i64;
 
-        let idle_count = load_items
-            .iter()
-            .filter(|i| i.status == "IDLE")
-            .count() as i64;
+        let idle_count = load_items.iter().filter(|i| i.status == "IDLE").count() as i64;
 
         Ok(CapacityOverview {
             total_work_centers,
@@ -312,13 +303,18 @@ impl CapacityService {
         &self,
         threshold: Decimal,
     ) -> Result<Vec<CapacityLoadItem>, AppError> {
-        let all = self.load_analysis(LoadAnalysisQuery {
-            date_from: None,
-            date_to: None,
-            work_center_id: None,
-        }).await?;
+        let all = self
+            .load_analysis(LoadAnalysisQuery {
+                date_from: None,
+                date_to: None,
+                work_center_id: None,
+            })
+            .await?;
 
-        Ok(all.into_iter().filter(|i| i.load_rate >= threshold).collect())
+        Ok(all
+            .into_iter()
+            .filter(|i| i.load_rate >= threshold)
+            .collect())
     }
 
     /// 根据工作中心类型返回默认班次配置
@@ -338,14 +334,12 @@ impl CapacityService {
                     capacity_ratio: Decimal::from(50),
                 },
             ],
-            _ => vec![
-                ShiftInfo {
-                    shift_name: "白班".to_string(),
-                    start_time: "08:00".to_string(),
-                    end_time: "17:00".to_string(),
-                    capacity_ratio: Decimal::from(100),
-                },
-            ],
+            _ => vec![ShiftInfo {
+                shift_name: "白班".to_string(),
+                start_time: "08:00".to_string(),
+                end_time: "17:00".to_string(),
+                capacity_ratio: Decimal::from(100),
+            }],
         }
     }
 
@@ -366,7 +360,11 @@ impl CapacityService {
             code: Set(code),
             name: Set(input.name),
             work_center_type: Set(input.work_center_type),
-            daily_capacity: Set(Some(input.daily_capacity.unwrap_or(rust_decimal::Decimal::new(100, 0)))),
+            daily_capacity: Set(Some(
+                input
+                    .daily_capacity
+                    .unwrap_or(rust_decimal::Decimal::new(100, 0)),
+            )),
             capacity_unit: Set(input.capacity_unit),
             status: Set(input.status.unwrap_or_else(|| "ACTIVE".to_string())),
             remarks: Set(input.remarks),
@@ -461,15 +459,18 @@ impl CapacityService {
             .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
 
         let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
-        
-        // 简单预测：基于当前产能和历史负荷率
-        let load_items = self.load_analysis(LoadAnalysisQuery {
-            date_from: None,
-            date_to: None,
-            work_center_id: Some(work_center_id),
-        }).await?;
 
-        let current_load = load_items.first()
+        // 简单预测：基于当前产能和历史负荷率
+        let load_items = self
+            .load_analysis(LoadAnalysisQuery {
+                date_from: None,
+                date_to: None,
+                work_center_id: Some(work_center_id),
+            })
+            .await?;
+
+        let current_load = load_items
+            .first()
             .map(|i| i.load_rate)
             .unwrap_or(Decimal::ZERO);
 
@@ -547,11 +548,13 @@ impl CapacityService {
         &self,
         threshold: Decimal,
     ) -> Result<Vec<CapacityOverloadAlert>, AppError> {
-        let load_items = self.load_analysis(LoadAnalysisQuery {
-            date_from: None,
-            date_to: None,
-            work_center_id: None,
-        }).await?;
+        let load_items = self
+            .load_analysis(LoadAnalysisQuery {
+                date_from: None,
+                date_to: None,
+                work_center_id: None,
+            })
+            .await?;
 
         let mut alerts = Vec::new();
 

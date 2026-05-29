@@ -5,8 +5,8 @@
 #![allow(dead_code)]
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -196,8 +196,12 @@ impl ApInvoiceService {
             invoice_type: Set(req.invoice_type.unwrap_or_else(|| "PURCHASE".to_string())),
             source_type: Set(Some("MANUAL".to_string())),
             source_id: Set(None),
-            invoice_date: Set(req.invoice_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
-            due_date: Set(req.due_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            invoice_date: Set(req
+                .invoice_date
+                .unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            due_date: Set(req
+                .due_date
+                .unwrap_or_else(|| chrono::Utc::now().date_naive())),
             payment_terms: Set(req.payment_terms.unwrap_or(30)),
             amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             paid_amount: Set(Decimal::ZERO),
@@ -271,7 +275,13 @@ impl ApInvoiceService {
 
         invoice_active.updated_by = Set(Some(user_id));
 
-        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            invoice_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -332,7 +342,13 @@ impl ApInvoiceService {
         invoice_active.approved_at = Set(Some(now));
         invoice_active.updated_at = Set(now);
 
-        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            invoice_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -361,7 +377,13 @@ impl ApInvoiceService {
         invoice_active.invoice_status = Set("PAID".to_string());
         invoice_active.updated_at = Set(now);
 
-        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", invoice_active, Some(0)).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            invoice_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(invoice)
     }
@@ -405,7 +427,13 @@ impl ApInvoiceService {
         invoice_active.cancelled_reason = Set(Some(reason));
         invoice_active.updated_at = Set(now);
 
-        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", invoice_active, Some(0)).await?;
+        let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            invoice_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 

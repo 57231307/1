@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
 use crate::models::tenant::{self, Entity as Tenant};
+use crate::models::tenant_invoice::{self, Entity as TenantInvoice};
 use crate::models::tenant_plan::{self, Entity as TenantPlan};
 use crate::models::tenant_subscription::{self, Entity as TenantSubscription};
 use crate::models::tenant_usage::{self, Entity as TenantUsage};
-use crate::models::tenant_invoice::{self, Entity as TenantInvoice};
 use crate::utils::error::AppError;
+use chrono::{DateTime, Duration, Utc};
+use rust_decimal::Decimal;
 use sea_orm::*;
 use std::sync::Arc;
-use chrono::{DateTime, Utc, Duration};
-use rust_decimal::Decimal;
 
 pub struct TenantBillingService {
     db: Arc<DatabaseConnection>,
@@ -103,21 +103,27 @@ impl TenantBillingService {
             .all(self.db.as_ref())
             .await?;
 
-        Ok(plans.into_iter().map(|p| PlanInfo {
-            id: p.id,
-            code: p.code,
-            name: p.name,
-            description: p.description,
-            max_users: p.max_users,
-            max_storage_mb: p.max_storage_mb,
-            max_api_calls_per_day: p.max_api_calls_per_day,
-            price_monthly: p.price_monthly,
-            price_yearly: p.price_yearly,
-            features: p.features,
-        }).collect())
+        Ok(plans
+            .into_iter()
+            .map(|p| PlanInfo {
+                id: p.id,
+                code: p.code,
+                name: p.name,
+                description: p.description,
+                max_users: p.max_users,
+                max_storage_mb: p.max_storage_mb,
+                max_api_calls_per_day: p.max_api_calls_per_day,
+                price_monthly: p.price_monthly,
+                price_yearly: p.price_yearly,
+                features: p.features,
+            })
+            .collect())
     }
 
-    pub async fn get_current_plan(&self, tenant_id: i32) -> Result<Option<CurrentPlanInfo>, AppError> {
+    pub async fn get_current_plan(
+        &self,
+        tenant_id: i32,
+    ) -> Result<Option<CurrentPlanInfo>, AppError> {
         let subscription = TenantSubscription::find()
             .filter(tenant_subscription::Column::TenantId.eq(tenant_id))
             .filter(tenant_subscription::Column::Status.eq("ACTIVE"))
@@ -163,9 +169,7 @@ impl TenantBillingService {
     }
 
     pub async fn get_usage_stats(&self, tenant_id: i32) -> Result<Option<UsageStats>, AppError> {
-        let tenant = Tenant::find_by_id(tenant_id)
-            .one(self.db.as_ref())
-            .await?;
+        let tenant = Tenant::find_by_id(tenant_id).one(self.db.as_ref()).await?;
 
         let tenant_info = match tenant {
             Some(t) => t,
@@ -173,10 +177,22 @@ impl TenantBillingService {
         };
 
         let current_plan = self.get_current_plan(tenant_id).await?;
-        let plan_name = current_plan.as_ref().map(|c| c.plan.name.clone()).unwrap_or_else(|| "免费".to_string());
-        let max_users = current_plan.as_ref().map(|c| c.plan.max_users).unwrap_or(10);
-        let max_storage_mb = current_plan.as_ref().map(|c| c.plan.max_storage_mb).unwrap_or(1024);
-        let max_api_calls = current_plan.as_ref().map(|c| c.plan.max_api_calls_per_day).unwrap_or(1000);
+        let plan_name = current_plan
+            .as_ref()
+            .map(|c| c.plan.name.clone())
+            .unwrap_or_else(|| "免费".to_string());
+        let max_users = current_plan
+            .as_ref()
+            .map(|c| c.plan.max_users)
+            .unwrap_or(10);
+        let max_storage_mb = current_plan
+            .as_ref()
+            .map(|c| c.plan.max_storage_mb)
+            .unwrap_or(1024);
+        let max_api_calls = current_plan
+            .as_ref()
+            .map(|c| c.plan.max_api_calls_per_day)
+            .unwrap_or(1000);
 
         let now = Utc::now();
         let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
@@ -189,11 +205,26 @@ impl TenantBillingService {
 
         let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or(0);
         let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or(0);
-        let current_users = today_usage.as_ref().map(|u| u.user_count as i64).unwrap_or(0);
+        let current_users = today_usage
+            .as_ref()
+            .map(|u| u.user_count as i64)
+            .unwrap_or(0);
 
-        let user_pct = if max_users > 0 { (current_users as f64 / max_users as f64) * 100.0 } else { 0.0 };
-        let storage_pct = if max_storage_mb > 0 { (storage_used_mb as f64 / max_storage_mb as f64) * 100.0 } else { 0.0 };
-        let api_pct = if max_api_calls > 0 { (api_calls_today as f64 / max_api_calls as f64) * 100.0 } else { 0.0 };
+        let user_pct = if max_users > 0 {
+            (current_users as f64 / max_users as f64) * 100.0
+        } else {
+            0.0
+        };
+        let storage_pct = if max_storage_mb > 0 {
+            (storage_used_mb as f64 / max_storage_mb as f64) * 100.0
+        } else {
+            0.0
+        };
+        let api_pct = if max_api_calls > 0 {
+            (api_calls_today as f64 / max_api_calls as f64) * 100.0
+        } else {
+            0.0
+        };
 
         Ok(Some(UsageStats {
             tenant_id,
@@ -213,7 +244,10 @@ impl TenantBillingService {
         }))
     }
 
-    pub async fn check_usage_limits(&self, tenant_id: i32) -> Result<Vec<LimitViolation>, AppError> {
+    pub async fn check_usage_limits(
+        &self,
+        tenant_id: i32,
+    ) -> Result<Vec<LimitViolation>, AppError> {
         let usage_stats = self.get_usage_stats(tenant_id).await?;
         let mut violations = Vec::new();
 
@@ -223,7 +257,10 @@ impl TenantBillingService {
                     resource: "users".to_string(),
                     current: stats.current_users,
                     limit: stats.max_users as i64,
-                    message: format!("用户数已达上限 ({}/{})", stats.current_users, stats.max_users),
+                    message: format!(
+                        "用户数已达上限 ({}/{})",
+                        stats.current_users, stats.max_users
+                    ),
                 });
             }
             if stats.usage_percentages.storage >= 100.0 {
@@ -231,7 +268,10 @@ impl TenantBillingService {
                     resource: "storage".to_string(),
                     current: stats.storage_used_mb,
                     limit: stats.max_storage_mb as i64,
-                    message: format!("存储空间已达上限 ({}/{} MB)", stats.storage_used_mb, stats.max_storage_mb),
+                    message: format!(
+                        "存储空间已达上限 ({}/{} MB)",
+                        stats.storage_used_mb, stats.max_storage_mb
+                    ),
                 });
             }
             if stats.usage_percentages.api_calls >= 100.0 {
@@ -239,7 +279,10 @@ impl TenantBillingService {
                     resource: "api_calls".to_string(),
                     current: stats.api_calls_today,
                     limit: stats.max_api_calls_per_day as i64,
-                    message: format!("API 调用次数已达上限 ({}/{})", stats.api_calls_today, stats.max_api_calls_per_day),
+                    message: format!(
+                        "API 调用次数已达上限 ({}/{})",
+                        stats.api_calls_today, stats.max_api_calls_per_day
+                    ),
                 });
             }
         }
@@ -247,7 +290,11 @@ impl TenantBillingService {
         Ok(violations)
     }
 
-    pub async fn upgrade_plan(&self, tenant_id: i32, req: UpgradePlanRequest) -> Result<CurrentPlanInfo, AppError> {
+    pub async fn upgrade_plan(
+        &self,
+        tenant_id: i32,
+        req: UpgradePlanRequest,
+    ) -> Result<CurrentPlanInfo, AppError> {
         let plan = TenantPlan::find_by_id(req.plan_id)
             .one(self.db.as_ref())
             .await?
@@ -258,10 +305,16 @@ impl TenantBillingService {
         }
 
         if req.billing_cycle != "MONTHLY" && req.billing_cycle != "YEARLY" {
-            return Err(AppError::BadRequest("计费周期必须为 MONTHLY 或 YEARLY".to_string()));
+            return Err(AppError::BadRequest(
+                "计费周期必须为 MONTHLY 或 YEARLY".to_string(),
+            ));
         }
 
-        let price = if req.billing_cycle == "YEARLY" { plan.price_yearly } else { plan.price_monthly };
+        let price = if req.billing_cycle == "YEARLY" {
+            plan.price_yearly
+        } else {
+            plan.price_monthly
+        };
         let now = Utc::now();
         let end_date = if req.billing_cycle == "YEARLY" {
             now + Duration::days(365)
@@ -313,7 +366,16 @@ impl TenantBillingService {
         tenant_active.updated_at = Set(now);
         tenant_active.update(self.db.as_ref()).await?;
 
-        self.generate_invoice(tenant_id, subscription.id, plan.id, price, billing_cycle, now, end_date).await?;
+        self.generate_invoice(
+            tenant_id,
+            subscription.id,
+            plan.id,
+            price,
+            billing_cycle,
+            now,
+            end_date,
+        )
+        .await?;
 
         Ok(CurrentPlanInfo {
             plan: PlanInfo {
@@ -340,11 +402,19 @@ impl TenantBillingService {
         })
     }
 
-    pub async fn renew_subscription(&self, tenant_id: i32, req: RenewSubscriptionRequest) -> Result<CurrentPlanInfo, AppError> {
-        let current_plan = self.get_current_plan(tenant_id).await?
+    pub async fn renew_subscription(
+        &self,
+        tenant_id: i32,
+        req: RenewSubscriptionRequest,
+    ) -> Result<CurrentPlanInfo, AppError> {
+        let current_plan = self
+            .get_current_plan(tenant_id)
+            .await?
             .ok_or_else(|| AppError::ResourceNotFound("当前无有效订阅".to_string()))?;
 
-        let billing_cycle = req.billing_cycle.unwrap_or(current_plan.subscription.billing_cycle);
+        let billing_cycle = req
+            .billing_cycle
+            .unwrap_or(current_plan.subscription.billing_cycle);
         let now = Utc::now();
         let end_date = if billing_cycle == "YEARLY" {
             now + Duration::days(365)
@@ -390,7 +460,8 @@ impl TenantBillingService {
             billing_cycle,
             now,
             end_date,
-        ).await?;
+        )
+        .await?;
 
         Ok(CurrentPlanInfo {
             plan: current_plan.plan,
@@ -406,7 +477,12 @@ impl TenantBillingService {
         })
     }
 
-    pub async fn list_invoices(&self, tenant_id: i32, page: u64, page_size: u64) -> Result<(Vec<InvoiceItem>, u64), AppError> {
+    pub async fn list_invoices(
+        &self,
+        tenant_id: i32,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<InvoiceItem>, u64), AppError> {
         let paginator = TenantInvoice::find()
             .filter(tenant_invoice::Column::TenantId.eq(tenant_id))
             .order_by_desc(tenant_invoice::Column::CreatedAt)
@@ -415,17 +491,20 @@ impl TenantBillingService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page - 1).await?;
 
-        let invoice_items = items.into_iter().map(|inv| InvoiceItem {
-            id: inv.id,
-            invoice_number: inv.invoice_number,
-            billing_period_start: inv.billing_period_start.to_rfc3339(),
-            billing_period_end: inv.billing_period_end.to_rfc3339(),
-            amount: inv.amount,
-            status: inv.status,
-            paid_at: inv.paid_at.map(|d| d.to_rfc3339()),
-            due_date: inv.due_date.to_rfc3339(),
-            created_at: inv.created_at.to_rfc3339(),
-        }).collect();
+        let invoice_items = items
+            .into_iter()
+            .map(|inv| InvoiceItem {
+                id: inv.id,
+                invoice_number: inv.invoice_number,
+                billing_period_start: inv.billing_period_start.to_rfc3339(),
+                billing_period_end: inv.billing_period_end.to_rfc3339(),
+                amount: inv.amount,
+                status: inv.status,
+                paid_at: inv.paid_at.map(|d| d.to_rfc3339()),
+                due_date: inv.due_date.to_rfc3339(),
+                created_at: inv.created_at.to_rfc3339(),
+            })
+            .collect();
 
         Ok((invoice_items, total))
     }
@@ -463,7 +542,11 @@ impl TenantBillingService {
         Ok(())
     }
 
-    pub async fn update_storage_usage(&self, tenant_id: i32, storage_mb: i64) -> Result<(), AppError> {
+    pub async fn update_storage_usage(
+        &self,
+        tenant_id: i32,
+        storage_mb: i64,
+    ) -> Result<(), AppError> {
         let now = Utc::now();
         let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
 
@@ -546,9 +629,17 @@ impl TenantBillingService {
                 .await?;
 
             if let Some(plan) = plan {
-                let duration_days = if sub.billing_cycle == "YEARLY" { 365 } else { 30 };
+                let duration_days = if sub.billing_cycle == "YEARLY" {
+                    365
+                } else {
+                    30
+                };
                 let new_end_date = sub.end_date.unwrap_or(now) + Duration::days(duration_days);
-                let price = if sub.billing_cycle == "YEARLY" { plan.price_yearly } else { plan.price_monthly };
+                let price = if sub.billing_cycle == "YEARLY" {
+                    plan.price_yearly
+                } else {
+                    plan.price_monthly
+                };
 
                 let mut active: tenant_subscription::ActiveModel = sub.clone().into();
                 active.start_date = Set(sub.end_date.unwrap_or(now));
@@ -560,7 +651,9 @@ impl TenantBillingService {
                 let tenant_record = Tenant::find_by_id(sub.tenant_id)
                     .one(self.db.as_ref())
                     .await?
-                    .ok_or_else(|| AppError::ResourceNotFound(format!("租户 {} 不存在", sub.tenant_id)))?;
+                    .ok_or_else(|| {
+                        AppError::ResourceNotFound(format!("租户 {} 不存在", sub.tenant_id))
+                    })?;
                 let mut tenant_active: tenant::ActiveModel = tenant_record.into();
                 tenant_active.expired_at = Set(Some(new_end_date));
                 tenant_active.updated_at = Set(now);
@@ -574,7 +667,8 @@ impl TenantBillingService {
                     sub.billing_cycle,
                     sub.end_date.unwrap_or(now),
                     new_end_date,
-                ).await?;
+                )
+                .await?;
 
                 renewed_count += 1;
             }
@@ -595,7 +689,11 @@ impl TenantBillingService {
         period_end: DateTime<Utc>,
     ) -> Result<tenant_invoice::Model, AppError> {
         let now = Utc::now();
-        let invoice_number = format!("INV-{}-{}", now.format("%Y%m%d"), fastrand::u32(100000..999999));
+        let invoice_number = format!(
+            "INV-{}-{}",
+            now.format("%Y%m%d"),
+            fastrand::u32(100000..999999)
+        );
         let due_date = now + Duration::days(30);
 
         let active = tenant_invoice::ActiveModel {
@@ -618,8 +716,8 @@ impl TenantBillingService {
     }
 }
 
-use serde::{Serialize, Deserialize};
 use sea_orm::Set;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LimitViolation {

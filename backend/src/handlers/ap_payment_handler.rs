@@ -7,6 +7,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_payment_service::{
     ApPaymentService, CreateApPaymentRequest, UpdateApPaymentRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -14,7 +15,6 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use tracing::{info, warn};
@@ -58,7 +58,12 @@ pub async fn list_payments(
 
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
 
-    let result = crate::utils::response::build_paginated_response(payments, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let result = crate::utils::response::build_paginated_response(
+        payments,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     Ok(Json(ApiResponse::success(result)))
 }

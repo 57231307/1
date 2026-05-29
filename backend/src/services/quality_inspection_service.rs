@@ -209,11 +209,17 @@ impl QualityInspectionService {
                 let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
                     .one(&*self.db)
                     .await?;
-                    
+
                 if let Some(r) = receipt {
                     let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
                     receipt_active.inspection_status = Set(result.inspection_result.clone());
-                    crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", receipt_active, Some(0)).await?;
+                    crate::services::audit_log_service::AuditLogService::update_with_audit(
+                        &*self.db,
+                        "auto_audit",
+                        receipt_active,
+                        Some(0),
+                    )
+                    .await?;
                 }
             }
         }
@@ -292,7 +298,13 @@ impl QualityInspectionService {
         unqualified.handling_by = Set(Some(handler_id));
         unqualified.handling_at = Set(Some(chrono::Utc::now().naive_utc()));
 
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", unqualified, Some(0)).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            unqualified,
+            Some(0),
+        )
+        .await?;
         info!("不合格品处理状态更新成功：{}", result.unqualified_no);
         Ok(result)
     }

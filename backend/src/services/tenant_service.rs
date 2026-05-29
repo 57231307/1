@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-use crate::utils::error::AppError;
-use crate::models::tenant::{self, Entity as Tenant, ActiveModel as TenantActiveModel};
-use crate::models::tenant_user::{self, Entity as TenantUser};
+use crate::models::tenant::{self, ActiveModel as TenantActiveModel, Entity as Tenant};
 use crate::models::tenant_config::{self, Entity as TenantConfig};
+use crate::models::tenant_user::{self, Entity as TenantUser};
+use crate::utils::error::AppError;
+use chrono::Utc;
 use sea_orm::*;
 use std::sync::Arc;
-use chrono::Utc;
 
 pub struct TenantService {
     db: Arc<DatabaseConnection>,
@@ -31,7 +31,10 @@ impl TenantService {
             .one(self.db.as_ref())
             .await?;
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!("租户编码 '{}' 已存在", code)));
+            return Err(AppError::BusinessError(format!(
+                "租户编码 '{}' 已存在",
+                code
+            )));
         }
 
         let now = Utc::now();
@@ -56,7 +59,10 @@ impl TenantService {
 
     /// 根据 ID 获取租户
     pub async fn get_tenant(&self, id: i32) -> Result<Option<tenant::Model>, AppError> {
-        Tenant::find_by_id(id).one(self.db.as_ref()).await.map_err(AppError::from)
+        Tenant::find_by_id(id)
+            .one(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 根据编码获取租户
@@ -64,7 +70,8 @@ impl TenantService {
         Tenant::find()
             .filter(tenant::Column::Code.eq(code))
             .one(self.db.as_ref())
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 更新租户状态
@@ -82,7 +89,10 @@ impl TenantService {
         active_model.status = Set(status.to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .update(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 获取租户列表（分页）
@@ -121,7 +131,10 @@ impl TenantService {
             ..Default::default()
         };
 
-        active_model.insert(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .insert(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 获取租户用户列表
@@ -132,7 +145,8 @@ impl TenantService {
         TenantUser::find()
             .filter(tenant_user::Column::TenantId.eq(tenant_id))
             .all(self.db.as_ref())
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 获取租户配置
@@ -213,7 +227,10 @@ impl TenantService {
         }
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .update(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 删除租户（软删除）
@@ -267,6 +284,9 @@ impl TenantService {
         active_model.role_in_tenant = Set(role.to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .update(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 }

@@ -1,12 +1,12 @@
-use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use std::net::SocketAddr;
-use dashmap::DashMap;
-use crate::utils::error::AppError;
-use once_cell::sync::Lazy;
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
+use dashmap::DashMap;
+use once_cell::sync::Lazy;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 // =====================================================
 // Redis 分布式限流器
@@ -47,9 +47,10 @@ impl RedisRateLimiter {
             .map_err(|e| AppError::InternalError(format!("Redis 操作失败: {}", e)))?;
 
         if count == 1 {
-            let _: () = redis::AsyncCommands::expire(&mut conn, &redis_key, self.window_secs as i64)
-                .await
-                .map_err(|e| AppError::InternalError(format!("Redis 过期设置失败: {}", e)))?;
+            let _: () =
+                redis::AsyncCommands::expire(&mut conn, &redis_key, self.window_secs as i64)
+                    .await
+                    .map_err(|e| AppError::InternalError(format!("Redis 过期设置失败: {}", e)))?;
         }
 
         Ok(count <= self.max_requests as i64)
@@ -167,10 +168,7 @@ pub async fn rate_limit_by_ip(
 
 /// 防暴力攻击中间件（针对登录端点）
 /// 基于 IP + Username 双维度检查，防止从同一 IP 尝试不同用户名的暴力破解
-pub async fn anti_brute_force(
-    req: Request<Body>,
-    next: Next,
-) -> Result<Response, AppError> {
+pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response, AppError> {
     let ip = req
         .extensions()
         .get::<axum::extract::ConnectInfo<SocketAddr>>()

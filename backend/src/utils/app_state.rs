@@ -45,14 +45,40 @@ impl FromRef<AppState> for Key {
 impl AppState {
     pub fn new(db: Arc<DatabaseConnection>, jwt_secret: String) -> Result<Self, String> {
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())?);
-        Ok(Self::with_secrets(db, omni_audit, jwt_secret.clone(), None, jwt_secret))
+        Ok(Self::with_secrets(
+            db,
+            omni_audit,
+            jwt_secret.clone(),
+            None,
+            jwt_secret,
+        ))
     }
 
-    pub fn with_secrets(db: Arc<DatabaseConnection>, omni_audit: Arc<OmniAuditEngine>, jwt_secret: String, previous_jwt_secret: Option<String>, cookie_secret: String) -> Self {
-        Self::with_secrets_and_cors(db, omni_audit, jwt_secret, previous_jwt_secret, cookie_secret, vec![])
+    pub fn with_secrets(
+        db: Arc<DatabaseConnection>,
+        omni_audit: Arc<OmniAuditEngine>,
+        jwt_secret: String,
+        previous_jwt_secret: Option<String>,
+        cookie_secret: String,
+    ) -> Self {
+        Self::with_secrets_and_cors(
+            db,
+            omni_audit,
+            jwt_secret,
+            previous_jwt_secret,
+            cookie_secret,
+            vec![],
+        )
     }
 
-    pub fn with_secrets_and_cors(db: Arc<DatabaseConnection>, omni_audit: Arc<OmniAuditEngine>, jwt_secret: String, previous_jwt_secret: Option<String>, cookie_secret: String, allowed_origins: Vec<String>) -> Self {
+    pub fn with_secrets_and_cors(
+        db: Arc<DatabaseConnection>,
+        omni_audit: Arc<OmniAuditEngine>,
+        jwt_secret: String,
+        previous_jwt_secret: Option<String>,
+        cookie_secret: String,
+        allowed_origins: Vec<String>,
+    ) -> Self {
         let mut final_cookie_secret = cookie_secret;
         if final_cookie_secret.len() < 32 {
             tracing::warn!(
@@ -67,27 +93,28 @@ impl AppState {
         let di_container = Arc::new(DIContainer::new());
         let email_service = EmailService::from_env().map(Arc::new);
         let event_notification_service = email_service.as_ref().map(|email_svc| {
-            Arc::new(EventNotificationService::with_email(db.clone(), email_svc.clone()))
+            Arc::new(EventNotificationService::with_email(
+                db.clone(),
+                email_svc.clone(),
+            ))
         });
         let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
         let notification_service = Arc::new(NotificationService::new(db.clone()));
-        
+
         // 尝试创建 Redis 限流器，如失败则设为 None（将回退到内存限流）
-        let redis_limiter = std::env::var("REDIS_URL")
-            .ok()
-            .and_then(|url| {
-                match RedisRateLimiter::new(&url, 100, 60) {
-                    Ok(limiter) => {
-                        tracing::info!("Redis 限流器初始化成功");
-                        Some(Arc::new(limiter))
-                    }
-                    Err(e) => {
-                        tracing::warn!("Redis 限流器初始化失败: {}，将使用内存限流", e);
-                        None
-                    }
+        let redis_limiter = std::env::var("REDIS_URL").ok().and_then(|url| {
+            match RedisRateLimiter::new(&url, 100, 60) {
+                Ok(limiter) => {
+                    tracing::info!("Redis 限流器初始化成功");
+                    Some(Arc::new(limiter))
                 }
-            });
-        
+                Err(e) => {
+                    tracing::warn!("Redis 限流器初始化失败: {}，将使用内存限流", e);
+                    None
+                }
+            }
+        });
+
         Self {
             db,
             omni_audit,
@@ -129,11 +156,14 @@ impl Default for AppState {
 
         let metrics = MetricsService::new().expect("Failed to create metrics service");
         // 使用随机生成的密钥，而不是硬编码的默认值
-        let random_cookie_secret = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+        let random_cookie_secret =
+            uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
         let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
         let db = Arc::new(DatabaseConnection::Disconnected);
-        let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())
-            .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"));
+        let omni_audit = Arc::new(
+            OmniAuditEngine::new(db.clone())
+                .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"),
+        );
         let di_container = Arc::new(DIContainer::new());
         let email_service = EmailService::from_env().map(Arc::new);
         let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));

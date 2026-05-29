@@ -9,7 +9,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::import_export_service::{ImportExportService, ExportQuery};
+use crate::services::import_export_service::{ExportQuery, ImportExportService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -54,9 +54,14 @@ pub async fn import_csv(
     }
 
     // 执行实际导入
-    let result = service.import_data(&req.import_type, &rows, auth.user_id).await?;
+    let result = service
+        .import_data(&req.import_type, &rows, auth.user_id)
+        .await?;
 
-    Ok(Json(ApiResponse::success_with_message(serde_json::to_value(result)?, "导入完成")))
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "导入完成",
+    )))
 }
 
 /// POST /api/v1/erp/import/excel - Excel导入
@@ -82,9 +87,14 @@ pub async fn import_excel(
     }
 
     // 执行实际导入
-    let result = service.import_data(&req.import_type, &req.data, auth.user_id).await?;
+    let result = service
+        .import_data(&req.import_type, &req.data, auth.user_id)
+        .await?;
 
-    Ok(Json(ApiResponse::success_with_message(serde_json::to_value(result)?, "导入完成")))
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "导入完成",
+    )))
 }
 
 /// GET /api/v1/erp/import/templates/:import_type - 下载导入模板

@@ -8,8 +8,7 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -32,7 +31,7 @@ pub enum DyeBatchStatus {
 }
 
 impl DyeBatchStatus {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_chinese_str(s: &str) -> Option<Self> {
         match s {
             "待生产" => Some(Self::Pending),
             "生产中" => Some(Self::InProgress),
@@ -42,6 +41,7 @@ impl DyeBatchStatus {
         }
     }
 
+    #[allow(dead_code)]
     pub fn to_str(&self) -> &'static str {
         match self {
             Self::Pending => "待生产",
@@ -95,8 +95,7 @@ pub async fn list_dye_batches(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let mut q = dye_batch::Entity::find()
-        .filter(dye_batch::Column::IsDeleted.eq(false));
+    let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
 
     if let Some(batch_no) = &query.batch_no {
         q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
@@ -158,7 +157,7 @@ pub async fn create_dye_batch(
     // 验证状态值
     let status = match req.status {
         Some(s) => {
-            if DyeBatchStatus::from_str(&s).is_none() {
+            if DyeBatchStatus::from_chinese_str(&s).is_none() {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(ApiResponse::<()>::error(format!("无效的缸号状态：{}", s))),
@@ -187,8 +186,12 @@ pub async fn create_dye_batch(
         started_at: Set(None),
         completed_at: Set(None),
         is_deleted: Set(Some(false)),
-        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
-        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        created_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
+        updated_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
     };
 
     match batch.insert(&*state.db).await {
@@ -211,23 +214,24 @@ pub async fn update_dye_batch(
     _auth: AuthContext,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("缸号不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut batch: dye_batch::ActiveModel =
+        match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(b)) => b.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("缸号不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
         batch.greige_fabric_id = Set(Some(greige_fabric_id));
@@ -244,10 +248,11 @@ pub async fn update_dye_batch(
             sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
             _ => "待生产",
         };
-        let target_status = DyeBatchStatus::from_str(&status);
-        
+        let target_status = DyeBatchStatus::from_chinese_str(&status);
+
         if let Some(target) = target_status {
-            let current = DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+            let current =
+                DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
             if !current.can_transition_to(&target) {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -265,23 +270,27 @@ pub async fn update_dye_batch(
             )
                 .into_response();
         }
-        
+
         batch.status = Set(Some(status.clone()));
-        
+
         // 自动设置时间戳
         if status == "生产中" {
-            let needs_start_time = batch.started_at.as_ref()
-                .is_none();
+            let needs_start_time = batch.started_at.as_ref().is_none();
             if needs_start_time {
-                batch.started_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
+                batch.started_at = Set(Some(
+                    chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
+                ));
             }
         }
         if status == "已完成" {
-            batch.completed_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
+            batch.completed_at = Set(Some(
+                chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
+            ));
         }
     }
 
-    batch.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    batch.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match batch.update(&*state.db).await {
         Ok(updated) => (
@@ -324,7 +333,9 @@ pub async fn delete_dye_batch(
     if batch.status.as_deref() == Some("生产中") {
         return (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error("生产中的缸号不允许删除，请先取消或完成")),
+            Json(ApiResponse::<()>::error(
+                "生产中的缸号不允许删除，请先取消或完成",
+            )),
         )
             .into_response();
     }
@@ -332,7 +343,8 @@ pub async fn delete_dye_batch(
     // 软删除
     let mut active: dye_batch::ActiveModel = batch.into();
     active.is_deleted = Set(Some(true));
-    active.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    active.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match active.update(&*state.db).await {
         Ok(_) => (
@@ -353,31 +365,32 @@ pub async fn complete_dye_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("缸号不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut batch: dye_batch::ActiveModel =
+        match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(b)) => b.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("缸号不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     // 检查当前状态是否允许完成
     let current_status = match &batch.status {
         sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
         _ => "待生产",
     };
-    let current = DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
-    
+    let current = DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+
     if !current.can_transition_to(&DyeBatchStatus::Completed) {
         return (
             StatusCode::BAD_REQUEST,
@@ -388,10 +401,13 @@ pub async fn complete_dye_batch(
         )
             .into_response();
     }
-    
+
     batch.status = Set(Some("已完成".to_string()));
-    batch.completed_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
-    batch.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    batch.completed_at = Set(Some(
+        chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
+    ));
+    batch.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match batch.update(&*state.db).await {
         Ok(updated) => (

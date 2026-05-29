@@ -4,19 +4,17 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::location::Entity as LocationEntity;
 use crate::models::location::{self as location_model};
 use crate::services::warehouse_service::WarehouseService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::middleware::auth_context::AuthContext;
 
 /// 查询参数 - 仓库列表
 #[derive(Debug, Deserialize, Validate)]
@@ -120,10 +118,18 @@ pub async fn list_locations(
 
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
-        .map(|l| serde_json::to_value(l).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .map(|l| {
+            serde_json::to_value(l)
+                .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(ApiResponse::success(PaginatedResponse::new(locations_json, total, page, page_size))))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        locations_json,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 创建库位
@@ -137,8 +143,14 @@ pub async fn create_location(
         warehouse_id: sea_orm::ActiveValue::Set(req.warehouse_id),
         location_code: sea_orm::ActiveValue::Set(req.location_code),
         location_type: sea_orm::ActiveValue::Set(req.location_type),
-        max_weight: sea_orm::ActiveValue::Set(req.max_weight.and_then(rust_decimal::Decimal::from_f64_retain)),
-        max_height: sea_orm::ActiveValue::Set(req.max_height.and_then(rust_decimal::Decimal::from_f64_retain)),
+        max_weight: sea_orm::ActiveValue::Set(
+            req.max_weight
+                .and_then(rust_decimal::Decimal::from_f64_retain),
+        ),
+        max_height: sea_orm::ActiveValue::Set(
+            req.max_height
+                .and_then(rust_decimal::Decimal::from_f64_retain),
+        ),
         is_batch_managed: sea_orm::ActiveValue::Set(Some(true)),
         is_color_managed: sea_orm::ActiveValue::Set(Some(true)),
         created_at: Default::default(),
@@ -146,7 +158,8 @@ pub async fn create_location(
     };
 
     let location = active_location.insert(&*state.db).await?;
-    let location_json = serde_json::to_value(location).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let location_json = serde_json::to_value(location)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         location_json,
         "库位创建成功",
@@ -163,7 +176,8 @@ pub async fn get_location(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
-    let location_json = serde_json::to_value(location).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let location_json = serde_json::to_value(location)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(location_json)))
 }
 
@@ -179,7 +193,8 @@ pub async fn update_location(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
-    let location_json = serde_json::to_value(location).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let location_json = serde_json::to_value(location)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         location_json,
         "库位更新成功",

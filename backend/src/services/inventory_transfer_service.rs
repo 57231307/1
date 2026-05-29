@@ -4,13 +4,13 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::dto::PageRequest;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
+use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
@@ -226,7 +226,9 @@ impl InventoryTransferService {
         if existing_transfer.is_some() {
             tracing::error!("Transaction rolled back: 调拨单号 {} 已存在", transfer_no);
             txn.rollback().await?;
-            return Err(AppError::BusinessError("调拨单号已存在，请重试".to_string()));
+            return Err(AppError::BusinessError(
+                "调拨单号已存在，请重试".to_string(),
+            ));
         }
 
         // 创建调拨主表
@@ -238,7 +240,9 @@ impl InventoryTransferService {
             transfer_date: sea_orm::ActiveValue::Set(
                 request.transfer_date.unwrap_or_else(chrono::Utc::now),
             ),
-            status: sea_orm::ActiveValue::Set(request.status.unwrap_or_else(|| "pending".to_string())),
+            status: sea_orm::ActiveValue::Set(
+                request.status.unwrap_or_else(|| "pending".to_string()),
+            ),
             total_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             notes: sea_orm::ActiveValue::Set(request.notes),
             created_by: sea_orm::ActiveValue::NotSet,
@@ -287,7 +291,13 @@ impl InventoryTransferService {
         let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
         transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", transfer_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            transfer_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -329,7 +339,13 @@ impl InventoryTransferService {
             transfer_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", transfer_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            transfer_update,
+            Some(0),
+        )
+        .await?;
 
         // 如果需要更新明细项
         if let Some(items) = request.items {
@@ -370,7 +386,13 @@ impl InventoryTransferService {
             let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
             transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
             transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", transfer_update, Some(0)).await?;
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                transfer_update,
+                Some(0),
+            )
+            .await?;
         }
 
         // 提交事务
@@ -418,7 +440,13 @@ impl InventoryTransferService {
             transfer_update.notes = sea_orm::ActiveValue::Set(Some(n));
         }
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", transfer_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            transfer_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -463,7 +491,8 @@ impl InventoryTransferService {
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(&txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         // 扣减源仓库库存
         for item in items {
@@ -564,7 +593,10 @@ impl InventoryTransferService {
                     quantity_before_kg: sea_orm::ActiveValue::Set(Some(quantity_kg)),
                     quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
                     quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
-                    notes: sea_orm::ActiveValue::Set(Some(format!("调拨出库 - 调拨单号: {}", transfer.transfer_no))),
+                    notes: sea_orm::ActiveValue::Set(Some(format!(
+                        "调拨出库 - 调拨单号: {}",
+                        transfer.transfer_no
+                    ))),
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
@@ -575,9 +607,18 @@ impl InventoryTransferService {
                 let mut item_update: inventory_transfer_item::ActiveModel = item.into();
                 item_update.shipped_quantity = sea_orm::ActiveValue::Set(item_quantity);
                 item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", item_update, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &txn,
+                    "auto_audit",
+                    item_update,
+                    Some(0),
+                )
+                .await?;
             } else {
-                tracing::error!("Transaction rolled back: 产品 {} 在源仓库无库存记录", item.product_id);
+                tracing::error!(
+                    "Transaction rolled back: 产品 {} 在源仓库无库存记录",
+                    item.product_id
+                );
                 txn.rollback().await?;
                 return Err(AppError::BusinessError(format!(
                     "产品 {} 在源仓库无库存记录",
@@ -591,7 +632,13 @@ impl InventoryTransferService {
         transfer_update.status = sea_orm::ActiveValue::Set("shipped".to_string());
         transfer_update.shipped_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", transfer_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            transfer_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -636,7 +683,8 @@ impl InventoryTransferService {
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(&txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         // 增加目标仓库库存
         for item in items {
@@ -737,7 +785,10 @@ impl InventoryTransferService {
                     quantity_before_kg: sea_orm::ActiveValue::Set(Some(quantity_kg)),
                     quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
                     quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
-                    notes: sea_orm::ActiveValue::Set(Some(format!("调拨入库 - 调拨单号: {}", transfer.transfer_no))),
+                    notes: sea_orm::ActiveValue::Set(Some(format!(
+                        "调拨入库 - 调拨单号: {}",
+                        transfer.transfer_no
+                    ))),
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
@@ -748,7 +799,13 @@ impl InventoryTransferService {
                 let mut item_update: inventory_transfer_item::ActiveModel = item.into();
                 item_update.received_quantity = sea_orm::ActiveValue::Set(item_quantity);
                 item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", item_update, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &txn,
+                    "auto_audit",
+                    item_update,
+                    Some(0),
+                )
+                .await?;
             } else {
                 // 如果目标仓库没有库存记录，创建新记录
                 // 需要从源仓库的库存记录中获取面料行业字段
@@ -775,7 +832,7 @@ impl InventoryTransferService {
                 let width = source_stock.as_ref().and_then(|s| s.width);
                 let production_date = source_stock.as_ref().and_then(|s| s.production_date);
                 let expiry_date = source_stock.as_ref().and_then(|s| s.expiry_date);
-                
+
                 // 计算源仓库的公斤/米比率
                 let source_kg_per_meter = if let Some(ref src) = source_stock {
                     if src.quantity_meters > rust_decimal::Decimal::ZERO {
@@ -837,11 +894,20 @@ impl InventoryTransferService {
                     source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
                     source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
                     source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
-                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
-                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(
+                        rust_decimal::Decimal::ZERO,
+                    )),
+                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(
+                        rust_decimal::Decimal::ZERO,
+                    )),
                     quantity_after_meters: sea_orm::ActiveValue::Set(Some(item.quantity)),
-                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(item.quantity * source_kg_per_meter)),
-                    notes: sea_orm::ActiveValue::Set(Some(format!("调拨入库（新建库存） - 调拨单号: {}", transfer.transfer_no))),
+                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(
+                        item.quantity * source_kg_per_meter,
+                    )),
+                    notes: sea_orm::ActiveValue::Set(Some(format!(
+                        "调拨入库（新建库存） - 调拨单号: {}",
+                        transfer.transfer_no
+                    ))),
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
@@ -854,7 +920,13 @@ impl InventoryTransferService {
         transfer_update.status = sea_orm::ActiveValue::Set("completed".to_string());
         transfer_update.received_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", transfer_update, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            transfer_update,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -883,18 +955,22 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         // 批量获取库存记录（优化N+1查询）
-        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id.unwrap_or(0)).collect();
+        let product_ids: Vec<i32> = items
+            .iter()
+            .map(|item| item.product_id.unwrap_or(0))
+            .collect();
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(*from_warehouse_id))
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         for item in items {
             let product_id = item.product_id.unwrap_or(0);
             let quantity = item.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
-            
+
             // 查询调出仓库的库存
             let stock = stock_map.get(&product_id);
 

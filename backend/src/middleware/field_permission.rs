@@ -15,10 +15,7 @@ use serde_json::Value;
 #[allow(dead_code)]
 async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
     // 从数据库查询角色，检查code是否为"admin"
-    match role::Entity::find_by_id(role_id)
-        .one(db)
-        .await
-    {
+    match role::Entity::find_by_id(role_id).one(db).await {
         Ok(Some(role)) => role.code == "admin",
         Ok(None) => false,
         Err(e) => {
@@ -86,10 +83,12 @@ pub async fn field_permission_middleware(
     // 获取响应体
     let body_bytes = match axum::body::to_bytes(response.into_body(), usize::MAX).await {
         Ok(bytes) => bytes,
-        Err(_) => return Response::builder()
-            .status(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from("Failed to read response body"))
-            .unwrap(),
+        Err(_) => {
+            return Response::builder()
+                .status(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from("Failed to read response body"))
+                .unwrap()
+        }
     };
 
     // 尝试解析 JSON
@@ -181,12 +180,31 @@ fn extract_resource_type(path: &str) -> Option<String> {
 fn is_module_prefix(part: &str) -> bool {
     matches!(
         part,
-        "sales" | "purchases" | "finance" | "inventory" | "gl" | "ap" | "ar"
-            | "bpm" | "crm" | "ai" | "reports" | "tenants" | "webhooks"
-            | "supplier-evaluation" | "customer-credits" | "financial-analysis"
-            | "fund-management" | "quality-inspection" | "cost-collections"
-            | "sales-analysis" | "sales-prices" | "purchase-prices"
-            | "sales-returns" | "ar-reconciliations" | "exchange-rates"
+        "sales"
+            | "purchases"
+            | "finance"
+            | "inventory"
+            | "gl"
+            | "ap"
+            | "ar"
+            | "bpm"
+            | "crm"
+            | "ai"
+            | "reports"
+            | "tenants"
+            | "webhooks"
+            | "supplier-evaluation"
+            | "customer-credits"
+            | "financial-analysis"
+            | "fund-management"
+            | "quality-inspection"
+            | "cost-collections"
+            | "sales-analysis"
+            | "sales-prices"
+            | "purchase-prices"
+            | "sales-returns"
+            | "ar-reconciliations"
+            | "exchange-rates"
     )
 }
 

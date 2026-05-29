@@ -6,13 +6,13 @@ use crate::models::supplier_evaluation_record;
 use crate::services::supplier_evaluation_service::{
     CreateEvaluationIndicatorRequest, SupplierEvaluationService, SupplierScoreResponse,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -251,13 +251,16 @@ pub async fn update_evaluation(
     let mut active_model: crate::models::supplier_evaluation_record::ActiveModel = record.into();
 
     if let Some(score) = req.get("score").and_then(|v| v.as_f64()) {
-        active_model.score = sea_orm::Set(rust_decimal::Decimal::from_f64_retain(score).unwrap_or_default());
+        active_model.score =
+            sea_orm::Set(rust_decimal::Decimal::from_f64_retain(score).unwrap_or_default());
     }
     if let Some(remark) = req.get("remark").and_then(|v| v.as_str()) {
         active_model.remark = sea_orm::Set(Some(remark.to_string()));
     }
 
-    let updated = active_model.update(&*state.db).await
+    let updated = active_model
+        .update(&*state.db)
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -283,7 +286,9 @@ pub async fn delete_evaluation(
     use sea_orm::ActiveModelTrait;
     let active_model: crate::models::supplier_evaluation_record::ActiveModel = record.into();
 
-    active_model.delete(&*state.db).await
+    active_model
+        .delete(&*state.db)
+        .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success_with_message((), "评估已删除")))

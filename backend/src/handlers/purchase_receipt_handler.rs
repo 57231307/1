@@ -4,10 +4,13 @@
 #![allow(dead_code)]
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::{purchase_order, warehouse};
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::purchase_receipt_service::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, PurchaseReceiptService,
     UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -15,9 +18,6 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use crate::utils::app_state::AppState;
-use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
-use crate::models::{purchase_order, warehouse};
 use sea_orm::EntityTrait;
 use serde::Deserialize;
 use validator::Validate;
@@ -39,11 +39,17 @@ pub async fn list_receipts(
         )
         .await?;
 
-    let mut result = crate::utils::response::build_paginated_response(receipts, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let mut result = crate::utils::response::build_paginated_response(
+        receipts,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state.data_permission_service
+        if let Ok(Some(permission)) = state
+            .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt")
             .await
         {
@@ -87,11 +93,13 @@ pub async fn get_receipt(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let receipt = service.get_receipt(id).await?;
-    let mut receipt_json = serde_json::to_value(receipt).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut receipt_json = serde_json::to_value(receipt)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state.data_permission_service
+        if let Ok(Some(permission)) = state
+            .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt")
             .await
         {
@@ -115,7 +123,8 @@ pub async fn get_receipt(
 
 /// 创建采购入库单
 #[axum::debug_handler]
-pub async fn create_receipt(auth: AuthContext, 
+pub async fn create_receipt(
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(req): Json<CreatePurchaseReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -125,9 +134,8 @@ pub async fn create_receipt(auth: AuthContext,
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;
 
-
     let receipt = service.create_receipt(req, user_id).await?;
-    
+
     // 发布采购收货完成事件
     if let Some(order_id) = receipt.order_id {
         EVENT_BUS.publish(BusinessEvent::PurchaseReceiptCompleted {
@@ -144,21 +152,19 @@ pub async fn create_receipt(auth: AuthContext,
                 .one(&*state.db)
                 .await
             {
-                let warehouse_name = if let Ok(Some(wh)) = warehouse::Entity::find_by_id(receipt.warehouse_id)
-                    .one(&*state.db)
-                    .await
+                let warehouse_name = if let Ok(Some(wh)) =
+                    warehouse::Entity::find_by_id(receipt.warehouse_id)
+                        .one(&*state.db)
+                        .await
                 {
                     wh.name
                 } else {
                     String::new()
                 };
 
-                let _ = event_service.notify_purchase_arrived(
-                    user_id,
-                    &order.order_no,
-                    order_id,
-                    &warehouse_name,
-                ).await;
+                let _ = event_service
+                    .notify_purchase_arrived(user_id, &order.order_no, order_id, &warehouse_name)
+                    .await;
             }
         }
     }
@@ -171,7 +177,8 @@ pub async fn create_receipt(auth: AuthContext,
 
 /// 更新采购入库单
 #[axum::debug_handler]
-pub async fn update_receipt(auth: AuthContext, 
+pub async fn update_receipt(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<UpdatePurchaseReceiptRequest>,
@@ -188,7 +195,8 @@ pub async fn update_receipt(auth: AuthContext,
 }
 
 /// 确认采购入库单
-pub async fn confirm_receipt(auth: AuthContext, 
+pub async fn confirm_receipt(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -211,11 +219,13 @@ pub async fn list_receipt_items(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let items = service.list_receipt_items(receipt_id).await?;
-    let mut items_json = serde_json::to_value(items).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut items_json = serde_json::to_value(items)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state.data_permission_service
+        if let Ok(Some(permission)) = state
+            .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt_item")
             .await
         {
@@ -245,7 +255,8 @@ pub async fn list_receipt_items(
 
 /// 添加入库明细
 #[axum::debug_handler]
-pub async fn create_receipt_item(auth: AuthContext, 
+pub async fn create_receipt_item(
+    auth: AuthContext,
     Path(receipt_id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<CreateReceiptItemRequest>,
@@ -266,7 +277,8 @@ pub async fn create_receipt_item(auth: AuthContext,
 
 /// 更新入库明细
 #[axum::debug_handler]
-pub async fn update_receipt_item(auth: AuthContext, 
+pub async fn update_receipt_item(
+    auth: AuthContext,
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     Json(req): Json<UpdateReceiptItemRequest>,
@@ -283,7 +295,8 @@ pub async fn update_receipt_item(auth: AuthContext,
 }
 
 /// 删除入库明细
-pub async fn delete_receipt_item(auth: AuthContext, 
+pub async fn delete_receipt_item(
+    auth: AuthContext,
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {

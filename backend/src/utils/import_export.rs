@@ -45,7 +45,9 @@ impl ImportFormat {
     pub fn mime_type(&self) -> &'static str {
         match self {
             ImportFormat::Csv => "text/csv",
-            ImportFormat::Excel => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ImportFormat::Excel => {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
         }
     }
 }
@@ -147,8 +149,9 @@ impl CsvImporter {
         let mut records = Vec::new();
 
         for (row_idx, result) in reader.records().enumerate() {
-            let record = result
-                .map_err(|e| AppError::ValidationError(format!("第 {} 行解析失败: {}", row_idx + 2, e)))?;
+            let record = result.map_err(|e| {
+                AppError::ValidationError(format!("第 {} 行解析失败: {}", row_idx + 2, e))
+            })?;
 
             let mut row = HashMap::new();
             for (col_idx, field) in record.iter().enumerate() {
@@ -276,7 +279,10 @@ impl FieldValidator {
         match value.trim().to_lowercase().as_str() {
             "true" | "1" | "yes" | "是" => Ok(true),
             "false" | "0" | "no" | "否" => Ok(false),
-            _ => Err(format!("{} 必须是布尔值（true/false/1/0/是/否）", field_name)),
+            _ => Err(format!(
+                "{} 必须是布尔值（true/false/1/0/是/否）",
+                field_name
+            )),
         }
     }
 
@@ -378,9 +384,18 @@ mod tests {
 
     #[test]
     fn test_import_format_from_extension() {
-        assert_eq!(ImportFormat::from_extension("csv").unwrap(), ImportFormat::Csv);
-        assert_eq!(ImportFormat::from_extension("xlsx").unwrap(), ImportFormat::Excel);
-        assert_eq!(ImportFormat::from_extension("XLS").unwrap(), ImportFormat::Excel);
+        assert_eq!(
+            ImportFormat::from_extension("csv").unwrap(),
+            ImportFormat::Csv
+        );
+        assert_eq!(
+            ImportFormat::from_extension("xlsx").unwrap(),
+            ImportFormat::Excel
+        );
+        assert_eq!(
+            ImportFormat::from_extension("XLS").unwrap(),
+            ImportFormat::Excel
+        );
         assert!(ImportFormat::from_extension("pdf").is_none());
     }
 }

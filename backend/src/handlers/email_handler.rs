@@ -10,11 +10,11 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 
+use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
 use crate::services::email_template_service::{
     CreateEmailTemplateRequest, EmailTemplateQuery, EmailTemplateService,
     UpdateEmailTemplateRequest,
 };
-use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -59,15 +59,20 @@ pub async fn send_email(
     let tenant_id = auth.tenant_id.unwrap_or(0);
 
     // 创建邮件发送记录
-    let log = log_service.create(tenant_id, CreateEmailLogRequest {
-        user_id: Some(auth.user_id),
-        recipients: req.to.clone(),
-        cc: req.cc.clone(),
-        bcc: req.bcc.clone(),
-        subject: req.subject.clone(),
-        body: req.html_content.clone().or(req.text_content.clone()),
-        template_id: req.template_id,
-    }).await?;
+    let log = log_service
+        .create(
+            tenant_id,
+            CreateEmailLogRequest {
+                user_id: Some(auth.user_id),
+                recipients: req.to.clone(),
+                cc: req.cc.clone(),
+                bcc: req.bcc.clone(),
+                subject: req.subject.clone(),
+                body: req.html_content.clone().or(req.text_content.clone()),
+                template_id: req.template_id,
+            },
+        )
+        .await?;
 
     // 构建邮件消息
     let message = crate::services::email_service::EmailMessage {
@@ -84,18 +89,11 @@ pub async fn send_email(
     match email_service.send_email(message).await {
         Ok(_) => {
             // 更新发送状态为成功
-            log_service.update_status(
-                log.id,
-                "SENT",
-                None,
-                Some(uuid::Uuid::new_v4().to_string()),
-            ).await?;
+            log_service
+                .update_status(log.id, "SENT", None, Some(uuid::Uuid::new_v4().to_string()))
+                .await?;
 
-            tracing::info!(
-                "用户 {} 发送邮件成功，收件人: {:?}",
-                auth.username,
-                req.to
-            );
+            tracing::info!("用户 {} 发送邮件成功，收件人: {:?}", auth.username, req.to);
 
             Ok(Json(ApiResponse::success_with_message(
                 serde_json::json!({
@@ -108,12 +106,9 @@ pub async fn send_email(
         }
         Err(e) => {
             // 更新发送状态为失败
-            log_service.update_status(
-                log.id,
-                "FAILED",
-                Some(e.to_string()),
-                None,
-            ).await?;
+            log_service
+                .update_status(log.id, "FAILED", Some(e.to_string()), None)
+                .await?;
 
             Err(e)
         }
@@ -146,15 +141,21 @@ pub async fn create_template(
     let service = EmailTemplateService::new(state.db.clone());
     let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    let template = service.create(tenant_id, auth.user_id, CreateEmailTemplateRequest {
-        name: req.name,
-        code: req.code,
-        subject_template: req.subject_template,
-        body_template: req.body_template,
-        template_type: req.template_type,
-        variables: None,
-        description: req.description,
-    }).await?;
+    let template = service
+        .create(
+            tenant_id,
+            auth.user_id,
+            CreateEmailTemplateRequest {
+                name: req.name,
+                code: req.code,
+                subject_template: req.subject_template,
+                body_template: req.body_template,
+                template_type: req.template_type,
+                variables: None,
+                description: req.description,
+            },
+        )
+        .await?;
 
     tracing::info!("用户 {} 创建邮件模板: {}", auth.username, template.name);
 
@@ -172,7 +173,9 @@ pub async fn get_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailTemplateService::new(state.db.clone());
 
-    let template = service.get_by_id(id).await?
+    let template = service
+        .get_by_id(id)
+        .await?
         .ok_or_else(|| AppError::NotFound("邮件模板不存在".to_string()))?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(template)?)))
@@ -209,7 +212,10 @@ pub async fn delete_template(
 
     tracing::info!("用户 {} 删除邮件模板: ID={}", auth.username, id);
 
-    Ok(Json(ApiResponse::success_with_message((), "邮件模板已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "邮件模板已删除",
+    )))
 }
 
 /// GET /api/v1/erp/email/records - 获取邮件发送记录
@@ -239,5 +245,7 @@ pub async fn get_email_statistics(
 
     let statistics = service.get_statistics(tenant_id).await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(statistics)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        statistics,
+    )?)))
 }

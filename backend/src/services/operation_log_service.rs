@@ -1,11 +1,11 @@
 #![allow(dead_code)]
-use crate::utils::error::AppError;
 use crate::models::operation_log;
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, Order, PaginatorTrait};
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
+use crate::utils::error::AppError;
 use chrono::Utc;
+use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, EntityTrait, Order, PaginatorTrait, Set};
 use serde_json::Value;
+use std::sync::Arc;
 
 /// 操作日志服务
 #[derive(Debug, Clone)]
@@ -37,7 +37,10 @@ impl OperationLogService {
     }
 
     /// 创建操作日志
-    pub async fn create_log(&self, request: CreateOperationLogRequest) -> Result<operation_log::Model, AppError> {
+    pub async fn create_log(
+        &self,
+        request: CreateOperationLogRequest,
+    ) -> Result<operation_log::Model, AppError> {
         let log = operation_log::ActiveModel {
             id: Set(0),
             user_id: Set(request.user_id),
@@ -155,7 +158,7 @@ impl OperationLogService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<operation_log::Model>, u64), AppError> {
-        use sea_orm::{QueryFilter, ColumnTrait, QueryOrder};
+        use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
 
         let paginator = operation_log::Entity::find()
             .filter(operation_log::Column::Module.eq(module))
@@ -175,7 +178,7 @@ impl OperationLogService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<operation_log::Model>, u64), AppError> {
-        use sea_orm::{QueryFilter, ColumnTrait, QueryOrder};
+        use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
 
         let paginator = operation_log::Entity::find()
             .filter(operation_log::Column::UserId.eq(user_id))
@@ -196,16 +199,18 @@ mod tests {
     use std::sync::Arc;
 
     async fn setup_test_db() -> DatabaseConnection {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url).await.expect("Failed to connect to db")
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+        Database::connect(&db_url)
+            .await
+            .expect("Failed to connect to db")
     }
 
     #[tokio::test]
     async fn test_operation_log_service_creation() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
-        
+
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
@@ -226,7 +231,7 @@ mod tests {
             duration_ms: Some(100),
             extra_data: None,
         };
-        
+
         assert_eq!(request.user_id, Some(1));
         assert_eq!(request.username, Some("admin".to_string()));
         assert_eq!(request.module, "user");
@@ -250,7 +255,7 @@ mod tests {
             duration_ms: Some(50),
             extra_data: None,
         };
-        
+
         assert_eq!(request.status, "success");
         assert_eq!(request.module, "product");
         assert_eq!(request.action, "update");
@@ -273,7 +278,7 @@ mod tests {
             duration_ms: Some(10),
             extra_data: None,
         };
-        
+
         assert_eq!(request.status, "failure");
         assert_eq!(request.error_message, Some("权限不足".to_string()));
     }
@@ -283,12 +288,12 @@ mod tests {
     async fn test_list_logs_empty() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
-        
+
         let (logs, total) = service
             .list_logs(0, 20)
             .await
             .expect("list_logs should succeed");
-        
+
         assert!(logs.is_empty());
         assert_eq!(total, 0);
     }
@@ -298,12 +303,12 @@ mod tests {
     async fn test_list_logs_by_module_empty() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
-        
+
         let (logs, total) = service
             .list_logs_by_module("user", 0, 20)
             .await
             .expect("list_logs_by_module should succeed");
-        
+
         assert!(logs.is_empty());
         assert_eq!(total, 0);
     }
@@ -313,12 +318,12 @@ mod tests {
     async fn test_list_logs_by_user_empty() {
         let db = setup_test_db().await;
         let service = OperationLogService::new(Arc::new(db));
-        
+
         let (logs, total) = service
             .list_logs_by_user(1, 0, 20)
             .await
             .expect("list_logs_by_user should succeed");
-        
+
         assert!(logs.is_empty());
         assert_eq!(total, 0);
     }
@@ -326,7 +331,7 @@ mod tests {
     #[test]
     fn test_status_values() {
         let valid_statuses = vec!["success", "failure"];
-        
+
         for status in valid_statuses {
             assert!(status == "success" || status == "failure");
         }
@@ -335,10 +340,16 @@ mod tests {
     #[test]
     fn test_module_values() {
         let valid_modules = vec![
-            "user", "product", "inventory", "sales", "finance",
-            "inventory_adjustment", "auth", "role"
+            "user",
+            "product",
+            "inventory",
+            "sales",
+            "finance",
+            "inventory_adjustment",
+            "auth",
+            "role",
         ];
-        
+
         for module in &valid_modules {
             assert!(!module.is_empty());
         }
@@ -346,8 +357,10 @@ mod tests {
 
     #[test]
     fn test_action_values() {
-        let valid_actions = vec!["create", "update", "delete", "view", "list", "approve", "reject"];
-        
+        let valid_actions = vec![
+            "create", "update", "delete", "view", "list", "approve", "reject",
+        ];
+
         for action in &valid_actions {
             assert!(!action.is_empty());
         }
@@ -356,7 +369,7 @@ mod tests {
     #[test]
     fn test_http_methods() {
         let valid_methods = vec!["GET", "POST", "PUT", "DELETE", "PATCH"];
-        
+
         for method in &valid_methods {
             assert!(!method.is_empty());
         }
@@ -364,12 +377,8 @@ mod tests {
 
     #[test]
     fn test_ip_address_format() {
-        let valid_ips = vec![
-            "127.0.0.1",
-            "192.168.1.1",
-            "10.0.0.1",
-        ];
-        
+        let valid_ips = vec!["127.0.0.1", "192.168.1.1", "10.0.0.1"];
+
         for ip in &valid_ips {
             assert!(ip.contains('.'));
         }
@@ -382,7 +391,7 @@ mod tests {
             "/api/v1/erp/products/1",
             "/api/v1/erp/inventory/adjustments",
         ];
-        
+
         for uri in &valid_uris {
             assert!(uri.starts_with("/"));
         }
@@ -391,7 +400,7 @@ mod tests {
     #[test]
     fn test_duration_ms_range() {
         let valid_durations = vec![0, 10, 50, 100, 500, 1000, 5000];
-        
+
         for duration in &valid_durations {
             assert!(*duration >= 0);
         }
@@ -405,7 +414,7 @@ mod tests {
         let bool_data = Value::Bool(true);
         let array_data = Value::Array(vec![]);
         let null_data = Value::Null;
-        
+
         assert!(string_data.is_string());
         assert!(number_data.is_number());
         assert!(bool_data.is_boolean());

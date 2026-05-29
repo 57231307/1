@@ -166,7 +166,7 @@ impl AppSettings {
         if secret.len() < 32 {
             return false;
         }
-        
+
         let weak_patterns = [
             "change-in-production",
             "change-this",
@@ -176,14 +176,14 @@ impl AppSettings {
             "test",
             "example",
         ];
-        
+
         let secret_lower = secret.to_lowercase();
         for pattern in &weak_patterns {
             if secret_lower.contains(pattern) {
                 return false;
             }
         }
-        
+
         let unique_chars: std::collections::HashSet<char> = secret.chars().collect();
         let entropy_ratio = unique_chars.len() as f64 / secret.len() as f64;
         entropy_ratio > 0.3

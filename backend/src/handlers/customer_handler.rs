@@ -7,12 +7,12 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::app_state::AppState;
-use crate::middleware::auth_context::AuthContext;
 
 /// 创建客户请求
 #[derive(Debug, Deserialize, Validate)]
@@ -51,7 +51,13 @@ pub struct CreateCustomerRequest {
 
 /// 验证客户类型
 fn validate_customer_type(customer_type: &str) -> Result<(), validator::ValidationError> {
-    let valid_types = ["retail", "wholesale", "distributor", "manufacturer", "other"];
+    let valid_types = [
+        "retail",
+        "wholesale",
+        "distributor",
+        "manufacturer",
+        "other",
+    ];
     if valid_types.contains(&customer_type) {
         Ok(())
     } else {
@@ -139,7 +145,10 @@ pub async fn list_customers(
     let mut customers_json: Vec<serde_json::Value> = result
         .data
         .into_iter()
-        .map(|c| serde_json::to_value(c).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e))))
+        .map(|c| {
+            serde_json::to_value(c)
+                .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
@@ -189,7 +198,8 @@ pub async fn get_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
     let customer = customer_service.get_customer(id).await?;
-    let mut customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut customer_json = serde_json::to_value(customer)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -269,7 +279,8 @@ pub async fn create_customer(
         )
         .await?;
 
-    let customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let customer_json = serde_json::to_value(customer)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         customer_json,
         "客户创建成功",
@@ -313,7 +324,8 @@ pub async fn update_customer(
         )
         .await?;
 
-    let customer_json = serde_json::to_value(customer).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let customer_json = serde_json::to_value(customer)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         customer_json,
         "客户更新成功",

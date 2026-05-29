@@ -7,8 +7,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, Qu
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::{business_trace_chain, business_trace_snapshot};
+use crate::utils::error::AppError;
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
 
 /// 业务追溯服务
@@ -130,7 +130,13 @@ impl BusinessTraceService {
             "ACTIVE".to_string()
         };
         previous_active.trace_status = Set(new_status);
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", previous_active, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            previous_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(new_trace)
     }
@@ -230,7 +236,9 @@ impl BusinessTraceService {
         }
 
         let first_trace = &traces[0];
-        let last_trace = traces.last().ok_or_else(|| AppError::ResourceNotFound("No trace found".into()))?;
+        let last_trace = traces
+            .last()
+            .ok_or_else(|| AppError::ResourceNotFound("No trace found".into()))?;
 
         // 获取追溯链中的供应商ID和客户ID（第一个环节有供应商，最后一个环节有客户）
         let supplier_id = first_trace.supplier_id;
@@ -291,7 +299,10 @@ impl BusinessTraceService {
             snapshot_time: Set(Utc::now()),
         };
 
-        active_snapshot.insert(&*self.db).await.map_err(AppError::from)
+        active_snapshot
+            .insert(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 生成追溯链 ID

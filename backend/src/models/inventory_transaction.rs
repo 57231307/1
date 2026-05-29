@@ -6,7 +6,7 @@ use sea_orm::entity::prelude::*;
 
 /// 库存流水实体模型（面料行业）
 /// 记录每一笔库存变动，支持批次、色号追溯
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "inventory_transactions")]
 pub struct Model {

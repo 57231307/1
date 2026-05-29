@@ -12,7 +12,9 @@ use tracing::info;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{financial_analysis, financial_analysis_result};
-use crate::services::financial_analysis_service::{FinancialAnalysisService, CreateIndicatorRequest, IndicatorQueryParams};
+use crate::services::financial_analysis_service::{
+    CreateIndicatorRequest, FinancialAnalysisService, IndicatorQueryParams,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -78,30 +80,36 @@ pub async fn create_indicator(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let indicator_name = req.get("name")
+    let indicator_name = req
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
-    let indicator_code = req.get("code")
+    let indicator_code = req
+        .get("code")
         .and_then(|v| v.as_str())
         .unwrap_or(&format!("IND_{}", chrono::Utc::now().timestamp()))
         .to_string();
 
-    let indicator_type = req.get("indicator_type")
+    let indicator_type = req
+        .get("indicator_type")
         .and_then(|v| v.as_str())
         .unwrap_or("ratio")
         .to_string();
 
-    let formula = req.get("formula")
+    let formula = req
+        .get("formula")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let unit = req.get("unit")
+    let unit = req
+        .get("unit")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let remark = req.get("description")
+    let remark = req
+        .get("description")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
@@ -116,7 +124,10 @@ pub async fn create_indicator(
 
     let indicator = service.create_indicator(create_req, auth.user_id).await?;
 
-    info!("用户 {} 创建财务指标: {}", auth.username, indicator.indicator_name);
+    info!(
+        "用户 {} 创建财务指标: {}",
+        auth.username, indicator.indicator_name
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(indicator)?,
@@ -153,26 +164,31 @@ pub async fn create_trend(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let analysis_type = req.get("analysis_type")
+    let analysis_type = req
+        .get("analysis_type")
         .and_then(|v| v.as_str())
         .unwrap_or("trend")
         .to_string();
 
-    let period = req.get("period")
+    let period = req
+        .get("period")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
-    let indicator_id = req.get("indicator_id")
+    let indicator_id = req
+        .get("indicator_id")
         .and_then(|v| v.as_i64())
         .unwrap_or(0) as i32;
 
-    let indicator_value = req.get("value")
+    let indicator_value = req
+        .get("value")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();
 
-    let target_value = req.get("target_value")
+    let target_value = req
+        .get("target_value")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
 
@@ -184,7 +200,9 @@ pub async fn create_trend(
         target_value,
     };
 
-    let result = service.create_analysis_result(analysis_req, auth.user_id).await?;
+    let result = service
+        .create_analysis_result(analysis_req, auth.user_id)
+        .await?;
 
     info!("用户 {} 创建财务趋势数据: {}", auth.username, result.period);
 
@@ -202,11 +220,10 @@ pub async fn list_reports(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let page = params.get("page")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1);
+    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
 
-    let page_size = params.get("page_size")
+    let page_size = params
+        .get("page_size")
         .and_then(|v| v.as_i64())
         .unwrap_or(20);
 
@@ -218,18 +235,24 @@ pub async fn list_reports(
 
     let (indicators, total) = service.get_indicators_list(query_params).await?;
 
-    let items: Vec<serde_json::Value> = indicators.iter().map(|i| {
-        serde_json::json!({
-            "id": i.id,
-            "name": i.indicator_name,
-            "indicator_code": i.indicator_code,
-            "indicator_type": i.indicator_type,
-            "status": i.status,
-            "created_at": i.created_at.to_rfc3339(),
+    let items: Vec<serde_json::Value> = indicators
+        .iter()
+        .map(|i| {
+            serde_json::json!({
+                "id": i.id,
+                "name": i.indicator_name,
+                "indicator_code": i.indicator_code,
+                "indicator_type": i.indicator_type,
+                "status": i.status,
+                "created_at": i.created_at.to_rfc3339(),
+            })
         })
-    }).collect();
+        .collect();
 
-    info!("查询财务分析报告列表: page={}, page_size={}, total={}", page, page_size, total);
+    info!(
+        "查询财务分析报告列表: page={}, page_size={}, total={}",
+        page, page_size, total
+    );
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -256,18 +279,23 @@ pub async fn create_report(
         remark: req.description,
     };
 
-    let indicator = service.create_indicator(indicator_req, auth.user_id).await?;
+    let indicator = service
+        .create_indicator(indicator_req, auth.user_id)
+        .await?;
 
     info!("用户 {} 创建财务分析报告: {}", auth.username, req.name);
 
-    Ok(Json(ApiResponse::success_with_message(serde_json::json!({
-        "id": indicator.id,
-        "name": indicator.indicator_name,
-        "indicator_code": indicator.indicator_code,
-        "indicator_type": indicator.indicator_type,
-        "status": indicator.status,
-        "created_at": indicator.created_at.to_rfc3339(),
-    }), "财务分析报告创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "id": indicator.id,
+            "name": indicator.indicator_name,
+            "indicator_code": indicator.indicator_code,
+            "indicator_type": indicator.indicator_type,
+            "status": indicator.status,
+            "created_at": indicator.created_at.to_rfc3339(),
+        }),
+        "财务分析报告创建成功",
+    )))
 }
 
 /// GET /api/v1/erp/financial-analysis/reports/:id - 获取财务分析报告详情
@@ -305,7 +333,7 @@ pub async fn execute_report(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     let indicator = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())
@@ -315,26 +343,32 @@ pub async fn execute_report(
     // 查询该指标的最新分析结果
     let latest_result = financial_analysis_result::Entity::find()
         .filter(financial_analysis_result::Column::IndicatorId.eq(id))
-        .order_by(financial_analysis_result::Column::CreatedAt, sea_orm::Order::Desc)
+        .order_by(
+            financial_analysis_result::Column::CreatedAt,
+            sea_orm::Order::Desc,
+        )
         .one(state.db.as_ref())
         .await?;
 
     info!("用户 {} 执行财务分析报告: ID={}", auth.username, id);
 
-    Ok(Json(ApiResponse::success_with_message(serde_json::json!({
-        "id": id,
-        "name": indicator.indicator_name,
-        "status": "completed",
-        "latest_result": latest_result.map(|r| serde_json::json!({
-            "analysis_type": r.analysis_type,
-            "period": r.period,
-            "indicator_value": r.indicator_value,
-            "target_value": r.target_value,
-            "variance": r.variance,
-            "variance_rate": r.variance_rate,
-            "trend": r.trend,
-            "analysis_date": r.analysis_date,
-        })),
-        "executed_at": chrono::Utc::now().to_rfc3339(),
-    }), "财务分析报告执行成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "id": id,
+            "name": indicator.indicator_name,
+            "status": "completed",
+            "latest_result": latest_result.map(|r| serde_json::json!({
+                "analysis_type": r.analysis_type,
+                "period": r.period,
+                "indicator_value": r.indicator_value,
+                "target_value": r.target_value,
+                "variance": r.variance,
+                "variance_rate": r.variance_rate,
+                "trend": r.trend,
+                "analysis_date": r.analysis_date,
+            })),
+            "executed_at": chrono::Utc::now().to_rfc3339(),
+        }),
+        "财务分析报告执行成功",
+    )))
 }

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::utils::error::AppError;
-use sea_orm::{DatabaseConnection, TransactionTrait, DatabaseTransaction};
+use sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait};
 use std::future::Future;
 
 pub async fn with_transaction<T, F, Fut>(

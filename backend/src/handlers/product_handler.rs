@@ -1,18 +1,17 @@
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
-    Extension,
-    Json,
+    Extension, Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
 use crate::models::product_color;
 use crate::services::product_service::ProductService;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::middleware::auth_context::AuthContext;
 
 /// 查询参数 - 产品列表
 #[derive(Debug, Deserialize)]
@@ -177,7 +176,12 @@ pub async fn list_products(
         })
         .collect();
 
-    Ok(Json(ApiResponse::success(PaginatedResponse::new(masked_products, total, page, page_size))))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        masked_products,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取产品详情
@@ -212,7 +216,8 @@ pub async fn create_product(
 
     let product = product_service
         .create_product(
-            req.name.unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
+            req.name
+                .unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
             code,
             req.category_id,
             req.specification,
@@ -408,7 +413,10 @@ pub async fn export_products(
         .await
         .map_err(|e| AppError::InternalError(format!("导出失败: {}", e)))?;
 
-    let filename = format!("products_export_{}.csv", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    let filename = format!(
+        "products_export_{}.csv",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)
@@ -433,9 +441,8 @@ pub async fn import_products(
 
     let csv_bytes = req.csv_data.into_bytes();
 
-    let result: crate::utils::import_export::ImportResult = product_service
-        .import_products_from_csv(&csv_bytes)
-        .await?;
+    let result: crate::utils::import_export::ImportResult =
+        product_service.import_products_from_csv(&csv_bytes).await?;
 
     let msg = if result.is_all_success() {
         format!("成功导入 {} 条产品数据", result.success_count)

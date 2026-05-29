@@ -2,8 +2,8 @@
 //!
 //! 提供PDF、Excel、CSV等格式的导出功能
 
-use serde::{Deserialize, Serialize};
 use crate::utils::error::AppError;
+use serde::{Deserialize, Serialize};
 
 /// 导出格式
 #[allow(dead_code, clippy::upper_case_acronyms)]
@@ -31,8 +31,7 @@ pub struct ExportService;
 impl ExportService {
     /// 导出为CSV格式
     pub fn export_csv(data: &ExportData) -> Result<Vec<u8>, AppError> {
-        let mut wtr = csv::WriterBuilder::new()
-            .from_writer(vec![]);
+        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
 
         // 写入标题行
         wtr.write_record(&data.headers)
@@ -54,7 +53,8 @@ impl ExportService {
             }
         }
 
-        let bytes = wtr.into_inner()
+        let bytes = wtr
+            .into_inner()
             .map_err(|e| AppError::ValidationError(format!("CSV序列化错误: {}", e)))?;
 
         Ok(bytes)
@@ -104,7 +104,10 @@ impl ExportService {
         content.push('\n');
         content.push_str(&"-".repeat(80));
         content.push('\n');
-        content.push_str(&format!("生成时间: {}\n", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")));
+        content.push_str(&format!(
+            "生成时间: {}\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+        ));
 
         Ok(content.into_bytes())
     }
@@ -143,7 +146,10 @@ impl ExportService {
         content.push('\n');
 
         // 明细表头
-        content.push_str(&format!("{:<15} {:<20} {:<15} {:<15}\n", "类型", "单号", "金额", "日期"));
+        content.push_str(&format!(
+            "{:<15} {:<20} {:<15} {:<15}\n",
+            "类型", "单号", "金额", "日期"
+        ));
         content.push_str(&"-".repeat(80));
         content.push('\n');
 
@@ -151,10 +157,7 @@ impl ExportService {
         for item in &items {
             content.push_str(&format!(
                 "{:<15} {:<20} {:<15} {:<15}\n",
-                item.item_type,
-                item.document_no,
-                item.amount,
-                item.date
+                item.item_type, item.document_no, item.amount, item.date
             ));
         }
 
@@ -168,7 +171,10 @@ impl ExportService {
         content.push('\n');
         content.push_str(&"=".repeat(80));
         content.push('\n');
-        content.push_str(&format!("打印时间: {}\n", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")));
+        content.push_str(&format!(
+            "打印时间: {}\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+        ));
         content.push_str("本对账单由系统自动生成，如有疑问请联系财务部门。\n");
 
         Ok(content.into_bytes())
@@ -190,7 +196,10 @@ impl ExportService {
 
         // 报表信息
         content.push_str(&format!("报表期间: {} 至 {}\n", period_start, period_end));
-        content.push_str(&format!("生成时间: {}\n\n", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")));
+        content.push_str(&format!(
+            "生成时间: {}\n\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+        ));
 
         // 表头
         let header_line = data.headers.join(" | ");

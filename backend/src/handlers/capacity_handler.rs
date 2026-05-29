@@ -41,7 +41,9 @@ pub async fn list_work_centers(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CapacityService::new(state.db.clone());
     let work_centers = service.list_work_centers().await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(work_centers)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        work_centers,
+    )?)))
 }
 
 /// GET /api/v1/erp/capacity/load-analysis - 负荷分析
@@ -76,7 +78,9 @@ pub async fn create_work_center(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CapacityService::new(state.db.clone());
     let work_center = service.create_work_center(input).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(work_center)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        work_center,
+    )?)))
 }
 
 /// PUT /api/v1/erp/capacity/work-centers/:id - 更新工作中心
@@ -88,7 +92,9 @@ pub async fn update_work_center(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CapacityService::new(state.db.clone());
     let work_center = service.update_work_center(id, input).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(work_center)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        work_center,
+    )?)))
 }
 
 /// DELETE /api/v1/erp/capacity/work-centers/:id - 删除工作中心
@@ -99,7 +105,9 @@ pub async fn delete_work_center(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CapacityService::new(state.db.clone());
     service.delete_work_center(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({"deleted": true}))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({"deleted": true}),
+    )))
 }
 
 /// 产能预测查询参数
@@ -140,7 +148,9 @@ pub async fn get_available_capacity(
         .map_err(|_| AppError::BadRequest("date_from 格式无效，应为 YYYY-MM-DD".to_string()))?;
     let date_to = chrono::NaiveDate::parse_from_str(&query.date_to, "%Y-%m-%d")
         .map_err(|_| AppError::BadRequest("date_to 格式无效，应为 YYYY-MM-DD".to_string()))?;
-    let available = service.get_available_capacity(id, date_from, date_to).await?;
+    let available = service
+        .get_available_capacity(id, date_from, date_to)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(available)?)))
 }
 

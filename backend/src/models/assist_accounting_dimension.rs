@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 
 /// 辅助核算维度 Entity
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "assist_accounting_dimension")]
 pub struct Model {

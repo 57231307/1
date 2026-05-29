@@ -5,8 +5,8 @@
 #![allow(dead_code)]
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -89,7 +89,9 @@ impl PurchaseReceiptService {
                 product_id: Set(item_req.material_id),
                 quantity: Set(item_req.quantity),
                 quantity_alt: Set(Some(item_req.quantity_alt)),
-                unit_price: Set(Some(item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
+                unit_price: Set(Some(
+                    item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
+                )),
                 amount: Set(Some(amount)),
                 notes: Set(item_req.notes),
                 ..Default::default()
@@ -103,7 +105,13 @@ impl PurchaseReceiptService {
         receipt_active.total_quantity = Set(total_quantity);
         receipt_active.total_quantity_alt = Set(total_quantity_alt);
         receipt_active.total_amount = Set(total_amount);
-        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", receipt_active, Some(0)).await?;
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            receipt_active,
+            Some(0),
+        )
+        .await?;
 
         // 5. 提交事务
         txn.commit().await?;
@@ -166,7 +174,13 @@ impl PurchaseReceiptService {
 
         receipt_active.updated_by = Set(Some(user_id));
 
-        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", receipt_active, Some(0)).await?;
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            receipt_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(receipt)
     }
@@ -211,7 +225,8 @@ impl PurchaseReceiptService {
         // 4. 检查是否有关联的采购订单
         if let Some(order_id) = receipt.order_id {
             // 已实现: 更新采购订单的已入库数量
-            self.update_order_received_quantity(order_id, receipt_id, &txn).await?;
+            self.update_order_received_quantity(order_id, receipt_id, &txn)
+                .await?;
         }
 
         // 5. 更新状态
@@ -223,7 +238,13 @@ impl PurchaseReceiptService {
         receipt_active.updated_by = Set(Some(user_id));
         receipt_active.updated_at = Set(now);
 
-        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", receipt_active, Some(0)).await?;
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            receipt_active,
+            Some(0),
+        )
+        .await?;
 
         // 6. 更新库存（在事务内执行，保证原子性）
         self.update_inventory_txn(&receipt, &txn).await?;
@@ -232,9 +253,17 @@ impl PurchaseReceiptService {
         txn.commit().await?;
 
         // 8. 自动生成应付账款（事务外执行，失败不影响入库）
-        let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
-        if let Err(e) = ap_service.auto_generate_from_receipt(receipt.id, user_id).await {
-            tracing::error!("自动生成应付账单失败 (入库单 {}): {}", receipt.receipt_no, e);
+        let ap_service =
+            crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
+        if let Err(e) = ap_service
+            .auto_generate_from_receipt(receipt.id, user_id)
+            .await
+        {
+            tracing::error!(
+                "自动生成应付账单失败 (入库单 {}): {}",
+                receipt.receipt_no,
+                e
+            );
         } else {
             tracing::info!("成功自动生成应付账单 (入库单 {})", receipt.receipt_no);
         }
@@ -348,7 +377,13 @@ impl PurchaseReceiptService {
             item_active.notes = Set(Some(notes));
         }
 
-        let item = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", item_active, Some(0)).await?;
+        let item = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            item_active,
+            Some(0),
+        )
+        .await?;
 
         // 6. 更新入库单总金额
         self.calculate_receipt_total(receipt.id).await?;
@@ -432,7 +467,13 @@ impl PurchaseReceiptService {
         receipt_active.total_quantity_alt = Set(total_quantity_alt);
         receipt_active.total_amount = Set(total_amount);
         receipt_active.updated_at = Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", receipt_active, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            receipt_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(())
     }
@@ -515,32 +556,45 @@ impl PurchaseReceiptService {
         // 2. 更新每个订单明细的已入库数量
         for item in items {
             if let Some(order_item_id) = item.order_item_id {
-                let order_item = crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
-                    .one(txn)
-                    .await?
-                    .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", order_item_id)))?;
+                let order_item =
+                    crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
+                        .one(txn)
+                        .await?
+                        .ok_or(AppError::ResourceNotFound(format!(
+                            "订单明细 {}",
+                            order_item_id
+                        )))?;
 
                 // 累加已入库数量
                 let new_received = order_item.received_quantity + item.quantity;
-                let new_received_alt = order_item.received_quantity_alt + item.quantity_alt.unwrap_or_default();
-                
-                let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
+                let new_received_alt =
+                    order_item.received_quantity_alt + item.quantity_alt.unwrap_or_default();
+
+                let mut active_order_item: crate::models::purchase_order_item::ActiveModel =
+                    order_item.into();
                 active_order_item.received_quantity = sea_orm::ActiveValue::Set(new_received);
-                active_order_item.received_quantity_alt = sea_orm::ActiveValue::Set(new_received_alt);
+                active_order_item.received_quantity_alt =
+                    sea_orm::ActiveValue::Set(new_received_alt);
                 active_order_item.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_order_item, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    active_order_item,
+                    Some(0),
+                )
+                .await?;
             }
         }
-        
+
         // 3. 更新采购订单状态
         let all_order_items = crate::models::purchase_order_item::Entity::find()
             .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
             .all(txn)
             .await?;
-            
+
         let mut is_fully_received = true;
         let mut has_received = false;
-        
+
         for oi in &all_order_items {
             if oi.received_quantity > Decimal::ZERO {
                 has_received = true;
@@ -549,7 +603,7 @@ impl PurchaseReceiptService {
                 is_fully_received = false;
             }
         }
-        
+
         // 根据入库情况设置状态
         let new_status = if is_fully_received {
             "COMPLETED"
@@ -559,16 +613,22 @@ impl PurchaseReceiptService {
             // 没有入库数量，保持原状态
             return Ok(());
         };
-        
+
         let order = crate::models::purchase_order::Entity::find_by_id(order_id)
             .one(txn)
             .await?
             .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
-            
+
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());
         active_order.updated_at = Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_order, Some(0)).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active_order,
+            Some(0),
+        )
+        .await?;
 
         Ok(())
     }
@@ -591,17 +651,24 @@ impl PurchaseReceiptService {
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
 
             let existing_stock = InventoryStockService::find_by_product_and_warehouse_txn(
-                txn, item.product_id, receipt.warehouse_id,
+                txn,
+                item.product_id,
+                receipt.warehouse_id,
             )
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
             let stock_model = if let Some(stock) = existing_stock {
                 let new_quantity_meters = stock.quantity_meters + item.quantity;
-                let new_quantity_kg = stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0));
+                let new_quantity_kg =
+                    stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0));
 
                 InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
-                    txn, stock.id, new_quantity_meters, new_quantity_kg, stock.version,
+                    txn,
+                    stock.id,
+                    new_quantity_meters,
+                    new_quantity_kg,
+                    stock.version,
                 )
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -620,7 +687,9 @@ impl PurchaseReceiptService {
                     item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
                     item.gram_weight,
                     item.width,
-                    None, None, None,
+                    None,
+                    None,
+                    None,
                 )
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?

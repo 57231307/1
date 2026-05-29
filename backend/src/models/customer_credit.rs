@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
 //! 客户信用 Entity
+use bigdecimal::BigDecimal;
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use bigdecimal::BigDecimal;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "customer_credit_ratings")]

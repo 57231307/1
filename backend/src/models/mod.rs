@@ -2,7 +2,6 @@ pub mod customer;
 pub mod department;
 pub mod dto;
 pub mod finance_invoice;
-pub mod status;
 pub mod finance_payment;
 pub mod inventory_adjustment;
 pub mod inventory_adjustment_item;
@@ -20,16 +19,17 @@ pub mod product_color;
 pub mod role;
 pub mod role_permission;
 pub mod sales_order;
-pub mod sales_order_item;
 pub mod sales_order_change_history;
+pub mod sales_order_item;
+pub mod status;
 pub mod user;
 // MRP生产计划模块
-pub mod production_order;
 pub mod bom;
 pub mod bom_item;
 pub mod mrp_result;
-pub mod work_center;
+pub mod production_order;
 pub mod scheduling_result;
+pub mod work_center;
 // 应收对账与多币种模块
 pub mod ar_reconciliation;
 pub mod ar_reconciliation_item;
@@ -55,8 +55,8 @@ pub mod supplier_category;
 pub mod supplier_contact;
 pub mod supplier_evaluation;
 pub mod supplier_evaluation_record;
-pub mod supplier_qualification;
 pub mod supplier_product;
+pub mod supplier_qualification;
 // 采购管理模块
 pub mod purchase_order;
 pub mod purchase_order_item;
@@ -128,25 +128,28 @@ pub mod budget_execution;
 // 业务追溯模块
 pub mod business_trace;
 // CRM模块
+pub mod approval_instance;
+pub mod approval_log;
+pub mod approval_node;
+pub mod approval_template;
+pub mod audit_alert_rule;
+pub mod audit_log;
 pub mod crm_lead;
 pub mod crm_opportunity;
+pub mod logistics_waybill;
+pub mod omni_audit_log;
 pub mod sales_return;
 pub mod sales_return_item;
-pub mod logistics_waybill;
-pub mod audit_log;
-pub mod omni_audit_log;
-pub mod audit_alert_rule;
-pub mod approval_template; pub mod approval_node; pub mod approval_instance; pub mod approval_log;
 // 多租户SaaS模块
+pub mod api_key;
 pub mod tenant;
-pub mod tenant_user;
 pub mod tenant_config;
+pub mod tenant_invoice;
 pub mod tenant_plan;
 pub mod tenant_subscription;
 pub mod tenant_usage;
-pub mod tenant_invoice;
+pub mod tenant_user;
 pub mod webhook;
-pub mod api_key;
 // 消息通知模块
 pub mod notification;
 pub mod notification_setting;
@@ -156,11 +159,11 @@ pub mod data_permission;
 // 字段权限模块
 pub mod field_permission;
 // 报表模板模块
-pub mod report_template;
 pub mod report_subscription;
+pub mod report_template;
 // 邮件模块
-pub mod email_template;
 pub mod email_log;
+pub mod email_template;
 // CRM分配历史模块
 pub mod assignment_history;
 // 登录日志模块

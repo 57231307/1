@@ -1,27 +1,14 @@
+use axum::{body::Body, extract::Request, middleware::Next, response::Response};
 use std::time::Duration;
-use axum::{
-    body::Body,
-    extract::Request,
-    middleware::Next,
-    response::Response,
-};
 use tracing::warn;
 
 const TIMEOUT_SECONDS: u64 = 30;
 
-pub async fn timeout_middleware(
-    request: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn timeout_middleware(request: Request<Body>, next: Next) -> Response {
     let path = request.uri().path().to_string();
     let method = request.method().clone();
 
-    match tokio::time::timeout(
-        Duration::from_secs(TIMEOUT_SECONDS),
-        next.run(request),
-    )
-    .await
-    {
+    match tokio::time::timeout(Duration::from_secs(TIMEOUT_SECONDS), next.run(request)).await {
         Ok(response) => response,
         Err(_) => {
             warn!(

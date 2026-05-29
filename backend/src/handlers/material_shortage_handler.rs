@@ -9,9 +9,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::material_shortage_service::{
-    MaterialShortageService, ShortageCheckRequest,
-};
+use crate::services::material_shortage_service::{MaterialShortageService, ShortageCheckRequest};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -182,7 +180,9 @@ pub async fn get_replenishment_suggestions(
     };
 
     let summary = service.detect_shortages(request).await?;
-    let suggestions = service.generate_replenishment_suggestions(&summary.items).await?;
+    let suggestions = service
+        .generate_replenishment_suggestions(&summary.items)
+        .await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "suggestions": suggestions,

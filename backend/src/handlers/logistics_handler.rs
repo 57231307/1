@@ -4,9 +4,7 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, EntityTrait, QueryOrder, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder, Set, TransactionTrait};
 use serde::Deserialize;
 
 use crate::models::logistics_waybill;
@@ -40,8 +38,10 @@ pub async fn create_waybill(
         .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?;
 
     // Create waybill
-    let freight = req.freight_fee.map(|f| Decimal::from_f64_retain(f).unwrap_or(Decimal::ZERO));
-    
+    let freight = req
+        .freight_fee
+        .map(|f| Decimal::from_f64_retain(f).unwrap_or(Decimal::ZERO));
+
     let new_waybill = logistics_waybill::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         order_id: Set(req.order_id),
@@ -100,11 +100,11 @@ pub async fn update_waybill_status(
 
     let mut active_waybill: logistics_waybill::ActiveModel = waybill.into();
     active_waybill.status = Set(Some(req.status.clone()));
-    
+
     if req.status == "DELIVERED" {
         active_waybill.actual_arrival = Set(Some(Utc::now()));
     }
-    
+
     active_waybill.updated_at = Set(Utc::now());
     let updated = active_waybill.update(&*state.db).await?;
 
@@ -119,7 +119,7 @@ pub async fn get_waybill(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("运单不存在".to_string()))?;
-    
+
     Ok(Json(ApiResponse::success(waybill)))
 }
 
@@ -131,15 +131,19 @@ pub async fn delete_waybill(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("运单不存在".to_string()))?;
-    
+
     // 检查是否可以删除（例如：未发货的运单才能删除）
-    if waybill.status == Some("IN_TRANSIT".to_string()) || waybill.status == Some("DELIVERED".to_string()) {
-        return Err(AppError::BadRequest("运输中或已送达的运单不能删除".to_string()));
+    if waybill.status == Some("IN_TRANSIT".to_string())
+        || waybill.status == Some("DELIVERED".to_string())
+    {
+        return Err(AppError::BadRequest(
+            "运输中或已送达的运单不能删除".to_string(),
+        ));
     }
-    
+
     logistics_waybill::Entity::delete_by_id(id)
         .exec(&*state.db)
         .await?;
-    
+
     Ok(Json(ApiResponse::success_with_message((), "运单删除成功")))
 }

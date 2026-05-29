@@ -5,8 +5,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
 
@@ -163,9 +163,7 @@ impl NotificationService {
             )))?;
 
         if notification.user_id != user_id {
-            return Err(AppError::PermissionDenied(
-                "无权操作此通知".to_string(),
-            ));
+            return Err(AppError::PermissionDenied("无权操作此通知".to_string()));
         }
 
         let mut active_model: notification::ActiveModel = notification.into();
@@ -227,9 +225,7 @@ impl NotificationService {
             )))?;
 
         if notification.user_id != user_id {
-            return Err(AppError::PermissionDenied(
-                "无权删除此通知".to_string(),
-            ));
+            return Err(AppError::PermissionDenied("无权删除此通知".to_string()));
         }
 
         let mut active_model: notification::ActiveModel = notification.into();
@@ -255,9 +251,7 @@ impl NotificationService {
             )))?;
 
         if notification.user_id != user_id {
-            return Err(AppError::PermissionDenied(
-                "无权查看此通知".to_string(),
-            ));
+            return Err(AppError::PermissionDenied("无权查看此通知".to_string()));
         }
 
         Ok(notification)

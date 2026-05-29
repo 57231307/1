@@ -1,13 +1,13 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_analysis;
 use crate::services::sales_analysis_service::{CreateSalesTargetInput, SalesAnalysisService};
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 

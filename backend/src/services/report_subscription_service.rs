@@ -4,8 +4,7 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -180,7 +179,11 @@ impl ReportSubscriptionService {
     }
 
     /// 启用/禁用订阅
-    pub async fn toggle(&self, id: i32, enabled: bool) -> Result<ReportSubscriptionModel, AppError> {
+    pub async fn toggle(
+        &self,
+        id: i32,
+        enabled: bool,
+    ) -> Result<ReportSubscriptionModel, AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -230,21 +233,18 @@ impl ReportSubscriptionService {
             .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"));
 
         if let Some(template_id) = query.template_id {
-            select = select.filter(
-                crate::models::report_subscription::Column::TemplateId.eq(template_id),
-            );
+            select = select
+                .filter(crate::models::report_subscription::Column::TemplateId.eq(template_id));
         }
 
         if let Some(frequency) = query.frequency {
-            select = select.filter(
-                crate::models::report_subscription::Column::Frequency.eq(frequency),
-            );
+            select =
+                select.filter(crate::models::report_subscription::Column::Frequency.eq(frequency));
         }
 
         if let Some(is_enabled) = query.is_enabled {
-            select = select.filter(
-                crate::models::report_subscription::Column::IsEnabled.eq(is_enabled),
-            );
+            select =
+                select.filter(crate::models::report_subscription::Column::IsEnabled.eq(is_enabled));
         }
 
         let total = select

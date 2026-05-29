@@ -84,18 +84,24 @@ pub async fn create_ar_invoice(
         auth.username, req.customer_id
     );
 
-    let invoice_date = req.invoice_date
-        .map(|d| d.parse().map_err(|e| {
-            warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
-            AppError::ValidationError("应收单日期格式错误".to_string())
-        }))
+    let invoice_date = req
+        .invoice_date
+        .map(|d| {
+            d.parse().map_err(|e| {
+                warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
+                AppError::ValidationError("应收单日期格式错误".to_string())
+            })
+        })
         .transpose()?;
 
-    let due_date = req.due_date
-        .map(|d| d.parse().map_err(|e| {
-            warn!("用户 {} 到期日格式错误：{}", auth.username, e);
-            AppError::ValidationError("到期日格式错误".to_string())
-        }))
+    let due_date = req
+        .due_date
+        .map(|d| {
+            d.parse().map_err(|e| {
+                warn!("用户 {} 到期日格式错误：{}", auth.username, e);
+                AppError::ValidationError("到期日格式错误".to_string())
+            })
+        })
         .transpose()?;
 
     let create_req = CreateArInvoiceRequest {
@@ -125,9 +131,9 @@ pub async fn create_ar_invoice(
     )))
 }
 
+use crate::services::ar_invoice_service::UpdateArInvoiceRequest;
 use axum::extract::Path;
 use serde_json::Value as JsonValue;
-use crate::services::ar_invoice_service::UpdateArInvoiceRequest;
 
 /// 获取应收发票详情
 pub async fn get_ar_invoice(
@@ -137,7 +143,9 @@ pub async fn get_ar_invoice(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.get_by_id(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(invoice).map_err(|_| AppError::InternalError("序列化失败".into()))?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(invoice).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+    )))
 }
 
 /// 更新应收发票
@@ -163,7 +171,10 @@ pub async fn delete_ar_invoice(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
     service.delete(id, auth.user_id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "应收发票删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "应收发票删除成功",
+    )))
 }
 
 /// 审批应收发票

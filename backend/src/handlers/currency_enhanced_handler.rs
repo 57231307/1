@@ -3,11 +3,13 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
-use crate::services::currency_service::{CurrencyService, ConversionResult, ExchangeRateHistoryModel};
+use crate::services::currency_service::{
+    ConversionResult, CurrencyService, ExchangeRateHistoryModel,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
 
@@ -150,13 +152,15 @@ pub async fn convert_amount(
         )
         .await
     {
-        Ok(result) => Ok(Json(ApiResponse::success(ConversionResultResponse::from(result)))),
+        Ok(result) => Ok(Json(ApiResponse::success(ConversionResultResponse::from(
+            result,
+        )))),
         Err(e) => {
             tracing::error!("金额换算失败: {}", e);
             match e {
-                crate::utils::error::AppError::BusinessError(msg) => {
-                    Ok(Json(ApiResponse::error_with_status(StatusCode::BAD_REQUEST, msg)))
-                }
+                crate::utils::error::AppError::BusinessError(msg) => Ok(Json(
+                    ApiResponse::error_with_status(StatusCode::BAD_REQUEST, msg),
+                )),
                 _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
             }
         }

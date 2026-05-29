@@ -1,14 +1,14 @@
+use crate::middleware::auth_context::AuthContext;
+use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
+use crate::services::omni_audit_service::OmniAuditMessage;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Query, State},
     Json,
 };
 use serde::Deserialize;
-use crate::utils::app_state::AppState;
-use crate::middleware::auth_context::AuthContext;
-use crate::services::omni_audit_service::OmniAuditMessage;
-use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
-use crate::utils::response::ApiResponse;
-use crate::utils::error::AppError;
 
 #[derive(Debug, Deserialize)]
 pub struct TrackEventRequest {
@@ -53,11 +53,19 @@ pub async fn get_dashboard_stats(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<AuditStats>>, AppError> {
     use sea_orm::ConnectionTrait;
-    
+
     let sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
-    let result = state.db.query_one(sea_orm::Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql)).await?;
-    let total = result.map(|r| r.try_get::<i64>("", "total").unwrap_or(0)).unwrap_or(0);
-    
+    let result = state
+        .db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+        ))
+        .await?;
+    let total = result
+        .map(|r| r.try_get::<i64>("", "total").unwrap_or(0))
+        .unwrap_or(0);
+
     Ok(Json(ApiResponse::success(AuditStats {
         total_events_today: total,
         ui_clicks_today: 0,
@@ -72,18 +80,21 @@ pub async fn search_logs(
     Query(filter): Query<AuditQueryFilter>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use sea_orm::ConnectionTrait;
-    
+
     let page: u64 = filter.page.unwrap_or(1);
     let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
     let offset: u64 = if page > 0 { (page - 1) * page_size } else { 0 };
-    
+
     let sql = "SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2";
-    let rows = state.db.query_all(sea_orm::Statement::from_sql_and_values(
-        sea_orm::DatabaseBackend::Postgres,
-        sql,
-        vec![page_size.into(), offset.into()],
-    )).await?;
-    
+    let rows = state
+        .db
+        .query_all(sea_orm::Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            vec![page_size.into(), offset.into()],
+        ))
+        .await?;
+
     let mut items = Vec::new();
     for row in rows {
         let item = serde_json::json!({
@@ -98,11 +109,11 @@ pub async fn search_logs(
         });
         items.push(item);
     }
-    
+
     let res = serde_json::json!({
         "items": items,
         "total": items.len() as u64
     });
-    
+
     Ok(Json(ApiResponse::success(res)))
 }

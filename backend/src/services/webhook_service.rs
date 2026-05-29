@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
+use crate::models::webhook::{self, ActiveModel as WebhookActiveModel, Entity as Webhook};
 use crate::utils::error::AppError;
-use crate::models::webhook::{self, Entity as Webhook, ActiveModel as WebhookActiveModel};
-use sea_orm::*;
-use std::sync::Arc;
 use chrono::Utc;
+use sea_orm::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Webhook负载
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,19 +58,20 @@ impl WebhookService {
             ..Default::default()
         };
 
-        active_model.insert(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .insert(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 获取租户的所有 Webhook
-    pub async fn list_webhooks(
-        &self,
-        tenant_id: i32,
-    ) -> Result<Vec<webhook::Model>, AppError> {
+    pub async fn list_webhooks(&self, tenant_id: i32) -> Result<Vec<webhook::Model>, AppError> {
         Webhook::find()
             .filter(webhook::Column::TenantId.eq(tenant_id))
             .filter(webhook::Column::IsActive.eq(true))
             .all(self.db.as_ref())
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 触发 Webhook（实际发送HTTP请求）
@@ -116,26 +117,40 @@ impl WebhookService {
         let webhook_payload = WebhookPayload {
             event: event.to_string(),
             timestamp: Utc::now().to_rfc3339(),
-            data: serde_json::from_str(payload).unwrap_or_else(|_| serde_json::json!({"raw": payload})),
+            data: serde_json::from_str(payload)
+                .unwrap_or_else(|_| serde_json::json!({"raw": payload})),
         };
 
-        let body = serde_json::to_string(&webhook_payload)
-            .unwrap_or_else(|_| payload.to_string());
+        let body = serde_json::to_string(&webhook_payload).unwrap_or_else(|_| payload.to_string());
 
         // 发送HTTP请求
-        let result = self.send_http_request(&webhook.url, &body, webhook.secret.as_deref()).await;
+        let result = self
+            .send_http_request(&webhook.url, &body, webhook.secret.as_deref())
+            .await;
 
         // 更新最终状态
         let mut final_model: WebhookActiveModel = webhook.into();
         final_model.updated_at = Set(Utc::now());
         match &result {
             Ok(delivery) => {
-                final_model.last_status = Set(Some(if delivery.success { "SUCCESS" } else { "FAILED" }.to_string()));
+                final_model.last_status = Set(Some(
+                    if delivery.success {
+                        "SUCCESS"
+                    } else {
+                        "FAILED"
+                    }
+                    .to_string(),
+                ));
             }
             Err(_) => {
                 final_model.last_status = Set(Some("ERROR".to_string()));
                 // 获取当前retry_count值并递增
-                let current_count: i32 = if let sea_orm::ActiveValue::Set(v) = &final_model.retry_count { *v } else { 0 };
+                let current_count: i32 =
+                    if let sea_orm::ActiveValue::Set(v) = &final_model.retry_count {
+                        *v
+                    } else {
+                        0
+                    };
                 final_model.retry_count = Set(current_count + 1);
             }
         }
@@ -164,12 +179,15 @@ impl WebhookService {
 
         // 如果有签名密钥，添加签名头
         if let Some(secret) = secret {
-            use sha2::{Sha256, Digest};
+            use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(body.as_bytes());
             hasher.update(secret.as_bytes());
             let hash = hasher.finalize();
-            let signature = hash.iter().map(|byte| format!("{:02x}", byte)).collect::<String>();
+            let signature = hash
+                .iter()
+                .map(|byte| format!("{:02x}", byte))
+                .collect::<String>();
             request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
         }
 
@@ -185,7 +203,11 @@ impl WebhookService {
                     success,
                     status_code: Some(status_code),
                     response_body: Some(response_body),
-                    error: if success { None } else { Some(format!("HTTP {}", status_code)) },
+                    error: if success {
+                        None
+                    } else {
+                        Some(format!("HTTP {}", status_code))
+                    },
                 })
             }
             Err(e) => Ok(WebhookDeliveryResult {
@@ -202,9 +224,11 @@ impl WebhookService {
         let test_payload = serde_json::json!({
             "message": "This is a test webhook delivery",
             "test": true
-        }).to_string();
+        })
+        .to_string();
 
-        self.trigger_webhook(webhook_id, "test", &test_payload).await
+        self.trigger_webhook(webhook_id, "test", &test_payload)
+            .await
     }
 
     /// 删除 Webhook（带租户权限验证）
@@ -274,6 +298,9 @@ impl WebhookService {
         }
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .update(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 }

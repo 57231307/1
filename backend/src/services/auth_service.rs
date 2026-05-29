@@ -113,7 +113,8 @@ impl AuthService {
             return Err(AuthError::UserInactive);
         }
 
-        let token = self.generate_token(user.id, &user.username, user.role_id, None)
+        let token = self
+            .generate_token(user.id, &user.username, user.role_id, None)
             .map_err(|e| AuthError::TokenGenerationError(e.to_string()))?;
 
         Ok((token, user))
@@ -218,8 +219,9 @@ impl AuthService {
     /// - `Ok(false)`: 密码错误
     /// - `Err(AuthError::HashingError)`: 哈希解析失败
     pub fn verify_password(password: &str, hash: &str) -> Result<bool, AuthError> {
-        let parsed_hash = PasswordHash::new(hash).map_err(|e| AuthError::HashingError(e.to_string()))?;
-        
+        let parsed_hash =
+            PasswordHash::new(hash).map_err(|e| AuthError::HashingError(e.to_string()))?;
+
         let argon2 = Argon2::default();
         match argon2.verify_password(password.as_bytes(), &parsed_hash) {
             Ok(_) => Ok(true),
@@ -251,7 +253,8 @@ impl AuthService {
         let argon2 = Argon2::new(
             argon2::Algorithm::Argon2id,
             argon2::Version::V0x13,
-            argon2::Params::new(65536, 3, 4, None).map_err(|e| AuthError::HashingError(e.to_string()))?,
+            argon2::Params::new(65536, 3, 4, None)
+                .map_err(|e| AuthError::HashingError(e.to_string()))?,
         );
 
         argon2
@@ -308,7 +311,9 @@ impl From<AuthError> for AppError {
             AuthError::HashingError(e) => AppError::InternalError(format!("密码哈希错误: {}", e)),
             AuthError::UserNotFound => AppError::NotFound("用户不存在".to_string()),
             AuthError::InvalidPassword => AppError::Unauthorized("无效的密码".to_string()),
-            AuthError::TokenGenerationError(e) => AppError::InternalError(format!("Token 生成失败: {}", e)),
+            AuthError::TokenGenerationError(e) => {
+                AppError::InternalError(format!("Token 生成失败: {}", e))
+            }
             AuthError::InvalidToken(e) => AppError::Unauthorized(format!("无效的 Token: {}", e)),
             AuthError::TokenRevoked => AppError::Unauthorized("Token 已被撤销".to_string()),
         }

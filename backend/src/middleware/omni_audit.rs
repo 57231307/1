@@ -1,3 +1,4 @@
+use axum::extract::ConnectInfo;
 use axum::{
     body::Body,
     extract::State,
@@ -5,13 +6,12 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use std::time::Instant;
-use axum::extract::ConnectInfo;
 use std::net::SocketAddr;
+use std::time::Instant;
 
-use crate::utils::app_state::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_service::OmniAuditMessage;
+use crate::utils::app_state::AppState;
 
 pub async fn omni_audit_middleware(
     State(state): State<AppState>,
@@ -23,19 +23,26 @@ pub async fn omni_audit_middleware(
     // 提取请求信息
     let method = req.method().to_string();
     let uri = req.uri().path().to_string();
-    let user_agent = req.headers()
+    let user_agent = req
+        .headers()
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
     // IP 地址提取 (简化)
-    let ip_address = req.extensions().get::<ConnectInfo<SocketAddr>>()
+    let ip_address = req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(addr)| addr.ip().to_string());
 
     // 为了获取 user_id，我们需要看 extension 里有没有 AuthContext
     // 注意：如果这个中间件在 auth 之后，就能取到
     // 如果在 auth 之前或者 public 路由，就取不到
-    let user_id = req.extensions().get::<AuthContext>().map(|ctx| ctx.user_id).unwrap_or(0);
+    let user_id = req
+        .extensions()
+        .get::<AuthContext>()
+        .map(|ctx| ctx.user_id)
+        .unwrap_or(0);
 
     // 生成 Trace ID
     let trace_id = uuid::Uuid::new_v4().to_string();

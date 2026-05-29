@@ -4,7 +4,10 @@
 
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,10 +18,12 @@ use sea_orm::Set;
 use crate::models::production_order::{
     Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
-use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
+use crate::models::scheduling_result::{
+    ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity,
+};
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
-use crate::utils::error::AppError;
 use crate::services::capacity_service::CapacityService;
+use crate::utils::error::AppError;
 
 /// 排程工单
 #[derive(Debug, Clone)]
@@ -174,7 +179,10 @@ pub struct SchedulingService {
 
 impl SchedulingService {
     pub fn new(db: Arc<DatabaseConnection>, capacity_service: Arc<CapacityService>) -> Self {
-        Self { db, capacity_service }
+        Self {
+            db,
+            capacity_service,
+        }
     }
 
     /// 自动排程 - 基于优先级和产能
@@ -287,7 +295,10 @@ impl SchedulingService {
             }
 
             // 检查工作中心可用产能是否充足
-            let available = wc_available_capacity.get(&wc_id).copied().unwrap_or(Decimal::ZERO);
+            let available = wc_available_capacity
+                .get(&wc_id)
+                .copied()
+                .unwrap_or(Decimal::ZERO);
             if quantity > available {
                 conflicts.push(ScheduleConflict {
                     conflict_type: "CAPACITY_INSUFFICIENT".to_string(),
@@ -322,9 +333,9 @@ impl SchedulingService {
             let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
             let assigned_end = assigned_start + Duration::days(days_needed - 1);
 
-            let has_overlap = schedule.iter().any(|(s, e, _, _)| {
-                !(assigned_end < *s || assigned_start > *e)
-            });
+            let has_overlap = schedule
+                .iter()
+                .any(|(s, e, _, _)| !(assigned_end < *s || assigned_start > *e));
 
             if has_overlap {
                 conflicts.push(ScheduleConflict {
@@ -383,10 +394,7 @@ impl SchedulingService {
         date_to: Option<NaiveDate>,
     ) -> Result<GanttData, AppError> {
         let mut orders = ProductionOrderEntity::find()
-            .filter(
-                crate::models::production_order::Column::Status
-                    .ne("CANCELLED"),
-            )
+            .filter(crate::models::production_order::Column::Status.ne("CANCELLED"))
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
             .await
@@ -438,10 +446,7 @@ impl SchedulingService {
     /// 检测排程冲突
     pub async fn detect_conflicts(&self) -> Result<Vec<ScheduleConflict>, AppError> {
         let orders = ProductionOrderEntity::find()
-            .filter(
-                crate::models::production_order::Column::Status
-                    .ne("CANCELLED"),
-            )
+            .filter(crate::models::production_order::Column::Status.ne("CANCELLED"))
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
             .await
@@ -572,7 +577,9 @@ impl SchedulingService {
             order_no: updated.order_no.clone(),
             work_center_id: updated.work_center_id.unwrap_or(0),
             work_center_name: wc_name,
-            start_date: updated.planned_start_date.unwrap_or(Utc::now().date_naive()),
+            start_date: updated
+                .planned_start_date
+                .unwrap_or(Utc::now().date_naive()),
             end_date: updated.planned_end_date.unwrap_or(Utc::now().date_naive()),
             status: updated.status.clone(),
         })
@@ -584,15 +591,10 @@ impl SchedulingService {
         query: ScheduledOrderQuery,
     ) -> Result<(Vec<ScheduledOrder>, u64), AppError> {
         let mut select = ProductionOrderEntity::find()
-            .filter(
-                crate::models::production_order::Column::Status
-                    .ne("CANCELLED"),
-            );
+            .filter(crate::models::production_order::Column::Status.ne("CANCELLED"));
 
         if let Some(wc_id) = query.work_center_id {
-            select = select.filter(
-                crate::models::production_order::Column::WorkCenterId.eq(wc_id),
-            );
+            select = select.filter(crate::models::production_order::Column::WorkCenterId.eq(wc_id));
         }
 
         if let Some(status) = query.status {
@@ -600,16 +602,13 @@ impl SchedulingService {
         }
 
         if let Some(date_from) = query.date_from {
-            select = select.filter(
-                crate::models::production_order::Column::PlannedEndDate
-                    .gte(date_from),
-            );
+            select = select
+                .filter(crate::models::production_order::Column::PlannedEndDate.gte(date_from));
         }
 
         if let Some(date_to) = query.date_to {
-            select = select.filter(
-                crate::models::production_order::Column::PlannedStartDate.lte(date_to),
-            );
+            select = select
+                .filter(crate::models::production_order::Column::PlannedStartDate.lte(date_to));
         }
 
         let total = select
@@ -674,10 +673,7 @@ impl SchedulingService {
     /// 加载待排程工单
     async fn load_pending_orders(&self) -> Result<Vec<ProductionOrderModel>, AppError> {
         ProductionOrderEntity::find()
-            .filter(
-                crate::models::production_order::Column::Status
-                    .eq("DRAFT"),
-            )
+            .filter(crate::models::production_order::Column::Status.eq("DRAFT"))
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
             .await
@@ -702,9 +698,9 @@ impl SchedulingService {
         loop {
             let end_candidate = candidate + Duration::days(days_needed - 1);
 
-            let has_overlap = schedule.iter().any(|(s, e, _, _)| {
-                !(end_candidate < *s || candidate > *e)
-            });
+            let has_overlap = schedule
+                .iter()
+                .any(|(s, e, _, _)| !(end_candidate < *s || candidate > *e));
 
             if !has_overlap {
                 return candidate;
@@ -816,14 +812,28 @@ impl SchedulingService {
         remarks: Option<String>,
     ) -> Result<crate::models::scheduling_result::Model, AppError> {
         let now = Utc::now();
-        let batch_no = format!("SCH-{}-{}", now.format("%Y%m%d%H%M%S"), fastrand::u32(100000..999999));
+        let batch_no = format!(
+            "SCH-{}-{}",
+            now.format("%Y%m%d%H%M%S"),
+            fastrand::u32(100000..999999)
+        );
 
         // 计算日期范围
         let (start_date, end_date) = if result.schedule_details.is_empty() {
             (now.date_naive(), now.date_naive())
         } else {
-            let min_start = result.schedule_details.iter().map(|d| d.start_date).min().unwrap_or(now.date_naive());
-            let max_end = result.schedule_details.iter().map(|d| d.end_date).max().unwrap_or(now.date_naive());
+            let min_start = result
+                .schedule_details
+                .iter()
+                .map(|d| d.start_date)
+                .min()
+                .unwrap_or(now.date_naive());
+            let max_end = result
+                .schedule_details
+                .iter()
+                .map(|d| d.end_date)
+                .max()
+                .unwrap_or(now.date_naive());
             (min_start, max_end)
         };
 
@@ -838,9 +848,15 @@ impl SchedulingService {
             conflict_count: Set(result.conflicts.len() as i32),
             schedule_start_date: Set(start_date),
             schedule_end_date: Set(end_date),
-            schedule_details: Set(Some(serde_json::to_value(&result.schedule_details).unwrap_or_default())),
-            gantt_data: Set(Some(serde_json::to_value(&result.gantt_data).unwrap_or_default())),
-            conflicts: Set(Some(serde_json::to_value(&result.conflicts).unwrap_or_default())),
+            schedule_details: Set(Some(
+                serde_json::to_value(&result.schedule_details).unwrap_or_default(),
+            )),
+            gantt_data: Set(Some(
+                serde_json::to_value(&result.gantt_data).unwrap_or_default(),
+            )),
+            conflicts: Set(Some(
+                serde_json::to_value(&result.conflicts).unwrap_or_default(),
+            )),
             created_by: Set(user_id),
             created_by_name: Set(Some(user_name.to_string())),
             remarks: Set(remarks),
@@ -868,10 +884,14 @@ impl SchedulingService {
             .order_by_desc(crate::models::scheduling_result::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await
+        let total = paginator
+            .num_items()
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        let items = paginator.fetch_page(page - 1).await
+        let items = paginator
+            .fetch_page(page - 1)
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok((items, total))
@@ -903,16 +923,22 @@ impl SchedulingService {
             .ok_or_else(|| AppError::NotFound("排程结果不存在".to_string()))?;
 
         if model.status != "DRAFT" {
-            return Err(AppError::BusinessError("只有草稿状态的排程结果可以确认".to_string()));
+            return Err(AppError::BusinessError(
+                "只有草稿状态的排程结果可以确认".to_string(),
+            ));
         }
 
         // 使用事务保护批量更新生产订单
-        let txn = self.db.begin().await
+        let txn = self
+            .db
+            .begin()
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // 解析排程明细并应用到生产订单
         if let Some(details_json) = &model.schedule_details {
-            if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone()) {
+            if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone())
+            {
                 for detail in &details {
                     if let Ok(Some(order)) = ProductionOrderEntity::find_by_id(detail.order_id)
                         .one(&txn)
@@ -929,7 +955,9 @@ impl SchedulingService {
                             active.status = Set("SCHEDULED".to_string());
                         }
                         active.updated_at = Set(Utc::now());
-                        active.update(&txn).await
+                        active
+                            .update(&txn)
+                            .await
                             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
                     }
                 }
@@ -945,7 +973,8 @@ impl SchedulingService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        txn.commit().await
+        txn.commit()
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(updated)

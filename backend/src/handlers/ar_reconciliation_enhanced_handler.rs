@@ -16,8 +16,8 @@ use crate::services::ar_reconciliation_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use tracing::info;
 use serde_json::Value as JsonValue;
+use tracing::info;
 
 /// 自动对账请求参数
 #[derive(Debug, Deserialize)]
@@ -71,7 +71,10 @@ pub async fn auto_match(
     let results = service.auto_match(match_req, auth.user_id).await?;
 
     let success_count = results.len();
-    info!("用户 {} 自动对账完成，处理 {} 个客户", auth.username, success_count);
+    info!(
+        "用户 {} 自动对账完成，处理 {} 个客户",
+        auth.username, success_count
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(&results)?,
@@ -165,7 +168,9 @@ pub async fn dispute_reconciliation(
     );
 
     let service = ArReconciliationService::new(state.db.clone());
-    let reconciliation = service.customer_dispute(id, req.reason, auth.user_id).await?;
+    let reconciliation = service
+        .customer_dispute(id, req.reason, auth.user_id)
+        .await?;
 
     info!(
         "用户 {} 对账单争议提交成功：{}",
@@ -199,7 +204,9 @@ pub async fn generate_reconciliation(
         notes: req.notes,
     };
 
-    let reconciliation = service.generate_reconciliation(gen_req, auth.user_id).await?;
+    let reconciliation = service
+        .generate_reconciliation(gen_req, auth.user_id)
+        .await?;
 
     info!(
         "用户 {} 生成对账单成功：{}",

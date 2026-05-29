@@ -26,14 +26,16 @@ impl AssistAccountingService {
     /// 初始化 8 个辅助核算维度
     #[allow(dead_code)]
     pub async fn initialize_dimensions(&self) -> Result<(), AppError> {
-        let dimensions = [("BATCH", "批次核算", "按生产批次进行辅助核算"),
+        let dimensions = [
+            ("BATCH", "批次核算", "按生产批次进行辅助核算"),
             ("COLOR", "色号核算", "按产品色号进行辅助核算"),
             ("DYE_LOT", "缸号核算", "按染色缸次进行辅助核算"),
             ("GRADE", "等级核算", "按产品质量等级进行辅助核算"),
             ("WORKSHOP", "车间核算", "按生产车间进行辅助核算"),
             ("WAREHOUSE", "仓库核算", "按仓库进行辅助核算"),
             ("CUSTOMER", "客户核算", "按客户进行辅助核算"),
-            ("SUPPLIER", "供应商核算", "按供应商进行辅助核算")];
+            ("SUPPLIER", "供应商核算", "按供应商进行辅助核算"),
+        ];
 
         for (i, (code, name, desc)) in dimensions.iter().enumerate() {
             let dimension = assist_accounting_dimension::ActiveModel {
@@ -112,7 +114,10 @@ impl AssistAccountingService {
             created_by: Set(created_by),
         };
 
-        active_record.insert(&*self.db).await.map_err(AppError::from)
+        active_record
+            .insert(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 按业务类型和业务单号查询辅助核算记录
@@ -159,11 +164,7 @@ impl AssistAccountingService {
 
     /// 生成会计期间汇总（按月）
     #[allow(dead_code)]
-    pub async fn generate_monthly_summary(
-        &self,
-        year: i32,
-        month: u32,
-    ) -> Result<(), AppError> {
+    pub async fn generate_monthly_summary(&self, year: i32, month: u32) -> Result<(), AppError> {
         use sea_orm::ColumnTrait;
 
         let accounting_period = format!("{:04}-{:02}", year, month);
@@ -266,7 +267,13 @@ impl AssistAccountingService {
                         active.total_quantity_kg = sea_orm::Set(new_kg);
                         active.record_count = sea_orm::Set(new_count);
                         active.updated_at = sea_orm::Set(chrono::Utc::now());
-                        crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active, Some(0)).await?;
+                        crate::services::audit_log_service::AuditLogService::update_with_audit(
+                            &*self.db,
+                            "auto_audit",
+                            active,
+                            Some(0),
+                        )
+                        .await?;
                     } else {
                         let new_summary = assist_accounting_summary::ActiveModel {
                             id: sea_orm::Set(0),
@@ -413,10 +420,16 @@ impl AssistAccountingService {
 fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
     let parts: Vec<&str> = period.split('-').collect();
     if parts.len() != 2 {
-        return Err(AppError::ValidationError("期间格式错误，应为 YYYY-MM".to_string()));
+        return Err(AppError::ValidationError(
+            "期间格式错误，应为 YYYY-MM".to_string(),
+        ));
     }
-    let year: i32 = parts[0].parse().map_err(|_| AppError::ValidationError("年份解析错误".to_string()))?;
-    let month: u32 = parts[1].parse().map_err(|_| AppError::ValidationError("月份解析错误".to_string()))?;
+    let year: i32 = parts[0]
+        .parse()
+        .map_err(|_| AppError::ValidationError("年份解析错误".to_string()))?;
+    let month: u32 = parts[1]
+        .parse()
+        .map_err(|_| AppError::ValidationError("月份解析错误".to_string()))?;
     if !(1..=12).contains(&month) {
         return Err(AppError::ValidationError("月份必须在1-12之间".to_string()));
     }

@@ -14,8 +14,8 @@ use crate::models::ar_invoice;
 use crate::models::sales_delivery;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
-use rust_decimal::Decimal;
 use chrono::{Duration, Utc};
+use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
 
 use serde::Deserialize;
@@ -138,13 +138,17 @@ impl ArInvoiceService {
         user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
         // 验证客户ID
-        let customer_id = req.customer_id.ok_or_else(|| AppError::ValidationError("客户ID不能为空".to_string()))?;
+        let customer_id = req
+            .customer_id
+            .ok_or_else(|| AppError::ValidationError("客户ID不能为空".to_string()))?;
         if customer_id <= 0 {
             return Err(AppError::ValidationError("客户ID无效".to_string()));
         }
 
         // 验证发票金额
-        let invoice_amount = req.invoice_amount.ok_or_else(|| AppError::ValidationError("发票金额不能为空".to_string()))?;
+        let invoice_amount = req
+            .invoice_amount
+            .ok_or_else(|| AppError::ValidationError("发票金额不能为空".to_string()))?;
         if invoice_amount <= Decimal::ZERO {
             return Err(AppError::ValidationError("发票金额必须大于零".to_string()));
         }
@@ -159,8 +163,14 @@ impl ArInvoiceService {
 
         let active_model = ar_invoice::ActiveModel {
             invoice_no: sea_orm::Set(invoice_no),
-            invoice_date: sea_orm::Set(req.invoice_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
-            due_date: sea_orm::Set(req.due_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            invoice_date: sea_orm::Set(
+                req.invoice_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+            ),
+            due_date: sea_orm::Set(
+                req.due_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+            ),
             customer_id: sea_orm::Set(customer_id),
             customer_name: sea_orm::Set(req.customer_name),
             source_type: sea_orm::Set(req.source_type),
@@ -239,7 +249,12 @@ impl ArInvoiceService {
         .await
     }
 
-    pub async fn update(&self, id: i32, req: UpdateArInvoiceRequest, _user_id: i32) -> Result<ar_invoice::Model, AppError> {
+    pub async fn update(
+        &self,
+        id: i32,
+        req: UpdateArInvoiceRequest,
+        _user_id: i32,
+    ) -> Result<ar_invoice::Model, AppError> {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -247,11 +262,13 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
 
         if invoice.status != "DRAFT" {
-            return Err(AppError::BadRequest("非草稿状态的应收单无法修改".to_string()));
+            return Err(AppError::BadRequest(
+                "非草稿状态的应收单无法修改".to_string(),
+            ));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.clone().into();
-        
+
         if let Some(date) = req.invoice_date {
             active_invoice.invoice_date = sea_orm::ActiveValue::Set(date);
         }
@@ -263,13 +280,17 @@ impl ArInvoiceService {
             active_invoice.invoice_amount = sea_orm::ActiveValue::Set(amt);
             active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(new_unpaid);
         }
-        
+
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db, "auto_audit", active_invoice, Some(0)
-        ).await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            &*self.db,
+            "auto_audit",
+            active_invoice,
+            Some(0),
+        )
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)
     }
@@ -282,7 +303,9 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
 
         if invoice.status != "DRAFT" {
-            return Err(AppError::BadRequest("非草稿状态的应收单无法删除".to_string()));
+            return Err(AppError::BadRequest(
+                "非草稿状态的应收单无法删除".to_string(),
+            ));
         }
 
         ar_invoice::Entity::delete_by_id(id)
@@ -311,7 +334,9 @@ impl ArInvoiceService {
         active_invoice.reviewed_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        let result = active_invoice.update(&*self.db).await
+        let result = active_invoice
+            .update(&*self.db)
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)
@@ -339,14 +364,23 @@ impl ArInvoiceService {
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db, "auto_audit", active_invoice, Some(0)
-        ).await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            &*self.db,
+            "auto_audit",
+            active_invoice,
+            Some(0),
+        )
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)
     }
 
-    pub async fn cancel(&self, id: i32, _reason: String, _user_id: i32) -> Result<ar_invoice::Model, AppError> {
+    pub async fn cancel(
+        &self,
+        id: i32,
+        _reason: String,
+        _user_id: i32,
+    ) -> Result<ar_invoice::Model, AppError> {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -362,9 +396,13 @@ impl ArInvoiceService {
         active_invoice.updated_at = Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db, "auto_audit", active_invoice, Some(0)
-        ).await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            &*self.db,
+            "auto_audit",
+            active_invoice,
+            Some(0),
+        )
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)
     }

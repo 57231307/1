@@ -11,7 +11,8 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::five_dimension_service::{
-    FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams, FiveDimensionService,
+    FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams,
+    FiveDimensionService,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -152,7 +153,8 @@ pub async fn parse_five_dimension_id(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FiveDimensionService::new(state.db.clone());
 
-    let five_dimension_id = req.get("five_dimension_id")
+    let five_dimension_id = req
+        .get("five_dimension_id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::ValidationError("缺少five_dimension_id参数".to_string()))?;
 

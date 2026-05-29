@@ -10,12 +10,12 @@ fn test_quality_standard_status_flow() {
     // 测试状态流转逻辑：draft -> approved -> published
     let valid_status_flow = vec!["draft", "approved", "published"];
     let invalid_status_flow = vec!["draft", "published", "approved"];
-    
+
     // 验证状态顺序
     assert_eq!(valid_status_flow[0], "draft");
     assert_eq!(valid_status_flow[1], "approved");
     assert_eq!(valid_status_flow[2], "published");
-    
+
     // 验证无效流程的问题
     assert_eq!(invalid_status_flow[0], "draft");
     assert_eq!(invalid_status_flow[1], "published");
@@ -27,15 +27,15 @@ fn test_quality_standard_validation() {
     // 测试标准编码格式验证
     let valid_code = "QS2024001";
     let invalid_code = "";
-    
+
     assert!(!valid_code.is_empty());
     assert!(invalid_code.is_empty());
-    
+
     // 版本格式验证
     let valid_version = "1.0";
     let valid_version2 = "2.1.3";
     let invalid_version = "v1";
-    
+
     assert!(valid_version.contains('.'));
     assert!(valid_version2.contains('.'));
     assert!(!invalid_version.contains('.'));
@@ -47,7 +47,7 @@ fn test_approval_comment_validation() {
     let empty_comment: Option<String> = None;
     let short_comment = Some("同意".to_string());
     let long_comment = Some("这个质量标准的内容符合要求，审批通过".to_string());
-    
+
     assert!(empty_comment.is_none());
     assert!(short_comment.as_ref().unwrap().len() >= 2);
     assert!(long_comment.as_ref().unwrap().len() > 10);
@@ -59,7 +59,7 @@ fn test_effective_date_validation() {
     let effective_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
     let expiry_date = NaiveDate::from_ymd_opt(2024, 12, 31).unwrap();
     let invalid_expiry_date = NaiveDate::from_ymd_opt(2023, 12, 31).unwrap();
-    
+
     // 生效日期必须早于失效日期
     assert!(effective_date < expiry_date);
     assert!(effective_date > invalid_expiry_date);
@@ -70,7 +70,7 @@ fn test_standard_type_validation() {
     // 测试标准类型验证
     let valid_types = vec!["product", "process"];
     let invalid_type = "service";
-    
+
     assert!(valid_types.contains(&"product"));
     assert!(valid_types.contains(&"process"));
     assert!(!valid_types.contains(&invalid_type));
@@ -99,7 +99,7 @@ fn test_approval_timestamp() {
     // 测试审批时间戳逻辑
     let now = Utc::now();
     let earlier = now - chrono::Duration::hours(1);
-    
+
     assert!(earlier < now);
 }
 
@@ -123,7 +123,7 @@ fn test_attachments_handling() {
         "image.jpg".to_string(),
         "manual.docx".to_string(),
     ];
-    
+
     assert_eq!(no_attachments.len(), 0);
     assert_eq!(single_attachment.len(), 1);
     assert_eq!(multiple_attachments.len(), 3);

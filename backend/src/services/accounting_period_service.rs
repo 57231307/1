@@ -1,8 +1,9 @@
 use crate::models::accounting_period;
 use crate::utils::error::AppError;
-use chrono::{Utc, TimeZone};
+use chrono::{TimeZone, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use std::sync::Arc;
 
@@ -27,6 +28,7 @@ impl AccountingPeriodService {
     }
 
     /// 获取所有开放的会计期间
+    #[allow(dead_code)]
     pub async fn get_all_open_periods(&self) -> Result<Vec<accounting_period::Model>, AppError> {
         let periods = accounting_period::Entity::find()
             .filter(accounting_period::Column::Status.eq("OPEN"))
@@ -37,21 +39,34 @@ impl AccountingPeriodService {
     }
 
     /// 初始化第一个会计期间（如果不存在）
-    pub async fn init_first_period(&self, year: i32, month: u32) -> Result<accounting_period::Model, AppError> {
+    pub async fn init_first_period(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<accounting_period::Model, AppError> {
         let existing = self.get_current_period().await?;
         if let Some(p) = existing {
             return Ok(p);
         }
 
-        let start_date = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0)
+        let start_date = Utc
+            .with_ymd_and_hms(year, month, 1, 0, 0, 0)
             .single()
-            .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {}-{:02}-01", year, month)))?;
-        
+            .ok_or_else(|| {
+                AppError::BadRequest(format!("Invalid date: {}-{:02}-01", year, month))
+            })?;
+
         let next_month = if month == 12 { 1 } else { month + 1 };
         let next_month_year = if month == 12 { year + 1 } else { year };
-        let end_date = Utc.with_ymd_and_hms(next_month_year, next_month, 1, 0, 0, 0)
+        let end_date = Utc
+            .with_ymd_and_hms(next_month_year, next_month, 1, 0, 0, 0)
             .single()
-            .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {}-{:02}-01", next_month_year, next_month)))?
+            .ok_or_else(|| {
+                AppError::BadRequest(format!(
+                    "Invalid date: {}-{:02}-01",
+                    next_month_year, next_month
+                ))
+            })?
             - chrono::Duration::seconds(1);
 
         let active_model = accounting_period::ActiveModel {
@@ -70,20 +85,28 @@ impl AccountingPeriodService {
     }
 
     /// 执行月末结账
-    pub async fn close_period(&self, period_id: i32, user_id: i32) -> Result<accounting_period::Model, AppError> {
+    pub async fn close_period(
+        &self,
+        period_id: i32,
+        user_id: i32,
+    ) -> Result<accounting_period::Model, AppError> {
         let period = accounting_period::Entity::find_by_id(period_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("Accounting period {} not found", period_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Accounting period {} not found", period_id))
+            })?;
 
         if period.status == "CLOSED" {
-            return Err(AppError::BusinessError("期间已经结账，不能重复结账".to_string()));
+            return Err(AppError::BusinessError(
+                "期间已经结账，不能重复结账".to_string(),
+            ));
         }
 
         // 检查该期间内是否有未过账的凭证
         let start_date = period.start_date;
         let end_date = period.end_date;
-        
+
         let unposted_vouchers = crate::models::voucher::Entity::find()
             .filter(crate::models::voucher::Column::VoucherDate.gte(start_date))
             .filter(crate::models::voucher::Column::VoucherDate.lte(end_date))
@@ -106,8 +129,16 @@ impl AccountingPeriodService {
         let closed_period = active_period.update(self.db.as_ref()).await?;
 
         // 2. 创建下一个期间并设置为 OPEN
-        let next_month = if period.period == 12 { 1 } else { period.period + 1 };
-        let next_year = if period.period == 12 { period.year + 1 } else { period.year };
+        let next_month = if period.period == 12 {
+            1
+        } else {
+            period.period + 1
+        };
+        let next_year = if period.period == 12 {
+            period.year + 1
+        } else {
+            period.year
+        };
         self.init_first_period(next_year, next_month as u32).await?;
 
         Ok(closed_period)
@@ -115,9 +146,12 @@ impl AccountingPeriodService {
 
     /// 校验指定日期是否在已结账的期间内（防止篡改历史数据）
     pub async fn check_date_locked(&self, date: chrono::NaiveDate) -> Result<(), AppError> {
-        let dt = Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0)
-            .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {:?}", date)))?);
-        
+        let dt = Utc.from_utc_datetime(
+            &date
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {:?}", date)))?,
+        );
+
         let period = accounting_period::Entity::find()
             .filter(accounting_period::Column::StartDate.lte(dt))
             .filter(accounting_period::Column::EndDate.gte(dt))
@@ -128,7 +162,8 @@ impl AccountingPeriodService {
             if p.status == "CLOSED" {
                 return Err(AppError::BusinessError(format!(
                     "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
-                    date.format("%Y-%m-%d"), p.period_name
+                    date.format("%Y-%m-%d"),
+                    p.period_name
                 )));
             }
         } else {
@@ -137,7 +172,7 @@ impl AccountingPeriodService {
                 date.format("%Y-%m-%d")
             )));
         }
-        
+
         Ok(())
     }
 }

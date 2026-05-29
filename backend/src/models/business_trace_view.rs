@@ -7,7 +7,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 
 /// 业务追溯视图 Model
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "v_business_trace_view")]
 pub struct Model {

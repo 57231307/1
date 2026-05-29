@@ -1,14 +1,12 @@
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
-use sea_orm::DatabaseConnection;
 
-use crate::models::currency::{
-    Entity as CurrencyEntity, Model as CurrencyModel,
-};
+use crate::models::currency::{Entity as CurrencyEntity, Model as CurrencyModel};
 use crate::models::exchange_rate::{
     ActiveModel as RateActiveModel, Entity as RateEntity, Model as RateModel,
 };
@@ -162,15 +160,11 @@ impl CurrencyService {
             .filter(crate::models::exchange_rate::Column::ToCurrency.eq(to_currency));
 
         if let Some(start) = start_date {
-            select = select.filter(
-                crate::models::exchange_rate::Column::EffectiveDate.gte(start)
-            );
+            select = select.filter(crate::models::exchange_rate::Column::EffectiveDate.gte(start));
         }
 
         if let Some(end) = end_date {
-            select = select.filter(
-                crate::models::exchange_rate::Column::EffectiveDate.lte(end)
-            );
+            select = select.filter(crate::models::exchange_rate::Column::EffectiveDate.lte(end));
         }
 
         let total = select
@@ -236,14 +230,19 @@ impl CurrencyService {
                 let base_currency = self.get_base_currency().await?;
                 match base_currency {
                     Some(base) => {
-                        let from_to_base = self.get_exchange_rate(from_currency, &base.code).await?;
-                        let base_to_target = self.get_exchange_rate(&base.code, to_currency).await?;
+                        let from_to_base =
+                            self.get_exchange_rate(from_currency, &base.code).await?;
+                        let base_to_target =
+                            self.get_exchange_rate(&base.code, to_currency).await?;
 
                         match (from_to_base, base_to_target) {
                             (Some(f2b), Some(b2t)) => f2b.rate * b2t.rate,
-                            _ => return Err(AppError::BusinessError(format!(
-                                "无法找到 {} 到 {} 的汇率", from_currency, to_currency
-                            ))),
+                            _ => {
+                                return Err(AppError::BusinessError(format!(
+                                    "无法找到 {} 到 {} 的汇率",
+                                    from_currency, to_currency
+                                )))
+                            }
                         }
                     }
                     None => return Err(AppError::BusinessError("未配置本位币".to_string())),
@@ -278,7 +277,9 @@ impl CurrencyService {
 
         let mut results = Vec::new();
         for amount in amounts {
-            let result = self.convert_amount(from_currency, &base_code, amount, None).await?;
+            let result = self
+                .convert_amount(from_currency, &base_code, amount, None)
+                .await?;
             results.push(result);
         }
 
@@ -330,10 +331,11 @@ impl CurrencyService {
         let rate = rates
             .get(to_currency)
             .and_then(|r| r.as_f64())
-            .ok_or_else(|| AppError::BusinessError(format!("未找到汇率: {} -> {}", from_currency, to_currency)))?;
+            .ok_or_else(|| {
+                AppError::BusinessError(format!("未找到汇率: {} -> {}", from_currency, to_currency))
+            })?;
 
-        let decimal_rate = Decimal::from_f64_retain(rate)
-            .unwrap_or(Decimal::ZERO);
+        let decimal_rate = Decimal::from_f64_retain(rate).unwrap_or(Decimal::ZERO);
 
         Ok(ExternalRateResponse {
             from_currency: from_currency.to_string(),
@@ -355,12 +357,14 @@ impl CurrencyService {
         let today = Utc::now().date_naive();
 
         // 保存到数据库
-        let model = self.create_exchange_rate(
-            external_rate.from_currency,
-            external_rate.to_currency,
-            external_rate.rate,
-            today,
-        ).await?;
+        let model = self
+            .create_exchange_rate(
+                external_rate.from_currency,
+                external_rate.to_currency,
+                external_rate.rate,
+                today,
+            )
+            .await?;
 
         Ok(model)
     }
@@ -382,7 +386,9 @@ impl CurrencyService {
             return Ok((amount, Decimal::ONE));
         }
 
-        let result = self.convert_amount(currency_code, &base_code, amount, None).await?;
+        let result = self
+            .convert_amount(currency_code, &base_code, amount, None)
+            .await?;
         Ok((result.converted_amount, result.exchange_rate))
     }
 

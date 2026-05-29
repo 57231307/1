@@ -2,8 +2,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -41,7 +41,7 @@ impl ProductCategoryService {
 
         // 获取总数
         let total = q.clone().count(&*self.db).await?;
-        
+
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(10);
 
@@ -54,7 +54,9 @@ impl ProductCategoryService {
             .all(&*self.db)
             .await?;
 
-        Ok(crate::utils::response::PaginatedResponse::new(categories, total, page, page_size))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            categories, total, page, page_size,
+        ))
     }
 
     /// 获取产品类别详情
@@ -75,9 +77,7 @@ impl ProductCategoryService {
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| {
-                    AppError::ResourceNotFound(format!("父类别 ID {} 不存在", pid))
-                })?;
+                .ok_or_else(|| AppError::ResourceNotFound(format!("父类别 ID {} 不存在", pid)))?;
         }
 
         let active_model = product_category::ActiveModel {
@@ -124,9 +124,7 @@ impl ProductCategoryService {
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| {
-                    AppError::ResourceNotFound(format!("父类别 ID {} 不存在", pid))
-                })?;
+                .ok_or_else(|| AppError::ResourceNotFound(format!("父类别 ID {} 不存在", pid)))?;
             category.parent_id = Set(Some(pid));
         }
 
@@ -136,7 +134,13 @@ impl ProductCategoryService {
 
         category.updated_at = Set(Utc::now());
 
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", category, Some(0)).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            category,
+            Some(0),
+        )
+        .await?;
         Ok(result)
     }
 
@@ -167,10 +171,7 @@ impl ProductCategoryService {
     }
 
     /// 根据名称查询产品类别
-    pub async fn find_by_name(
-        &self,
-        name: &str,
-    ) -> Result<product_category::Model, AppError> {
+    pub async fn find_by_name(&self, name: &str) -> Result<product_category::Model, AppError> {
         ProductCategoryEntity::find()
             .filter(product_category::Column::Name.eq(name))
             .one(&*self.db)
@@ -185,11 +186,12 @@ impl ProductCategoryService {
             .order_by(product_category::Column::Name, Order::Asc)
             .all(&*self.db)
             .await?;
-        
+
         // 构建树形结构
         let mut root_nodes = Vec::new();
-        let mut children_map: std::collections::HashMap<i32, Vec<CategoryTreeNode>> = std::collections::HashMap::new();
-        
+        let mut children_map: std::collections::HashMap<i32, Vec<CategoryTreeNode>> =
+            std::collections::HashMap::new();
+
         // 首先创建所有节点并按parent_id分组
         for cat in &all_categories {
             let node = CategoryTreeNode {
@@ -199,16 +201,19 @@ impl ProductCategoryService {
                 description: cat.description.clone(),
                 children: Vec::new(),
             };
-            
+
             if let Some(parent_id) = cat.parent_id {
                 children_map.entry(parent_id).or_default().push(node);
             } else {
                 root_nodes.push(node);
             }
         }
-        
+
         // 递归构建子树
-        fn build_children(node: &mut CategoryTreeNode, children_map: &mut std::collections::HashMap<i32, Vec<CategoryTreeNode>>) {
+        fn build_children(
+            node: &mut CategoryTreeNode,
+            children_map: &mut std::collections::HashMap<i32, Vec<CategoryTreeNode>>,
+        ) {
             if let Some(mut children) = children_map.remove(&node.id) {
                 for child in &mut children {
                     build_children(child, children_map);
@@ -216,11 +221,11 @@ impl ProductCategoryService {
                 node.children = children;
             }
         }
-        
+
         for node in &mut root_nodes {
             build_children(node, &mut children_map);
         }
-        
+
         Ok(root_nodes)
     }
 }

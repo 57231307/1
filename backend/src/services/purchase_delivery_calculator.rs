@@ -3,9 +3,12 @@
 //! 根据供应商历史交货数据自动计算建议交货日期
 #![allow(dead_code)]
 
-use chrono::{NaiveDate, Datelike};
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, Statement, FromQueryResult, ConnectionTrait, EntityTrait, QueryFilter, PaginatorTrait, ColumnTrait};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
+    QueryFilter, Statement,
+};
 use std::sync::Arc;
 
 use crate::utils::error::AppError;
@@ -62,14 +65,11 @@ impl PurchaseDeliveryCalculator {
         req: &DeliveryCalculationRequest,
     ) -> Result<DeliveryCalculationResult, AppError> {
         // 1. 获取供应商平均交货周期
-        let (avg_lead_time, historical_orders) = self
-            .get_supplier_avg_lead_time(req.supplier_id)
-            .await?;
+        let (avg_lead_time, historical_orders) =
+            self.get_supplier_avg_lead_time(req.supplier_id).await?;
 
         // 2. 获取最大生产周期（简化实现，基于物料复杂度）
-        let max_production_days = self
-            .estimate_production_days(&req.items)
-            .await?;
+        let max_production_days = self.estimate_production_days(&req.items).await?;
 
         // 3. 计算总准备时间
         let total_days = avg_lead_time + max_production_days;
@@ -83,10 +83,7 @@ impl PurchaseDeliveryCalculator {
                 historical_orders, avg_lead_time
             )
         } else {
-            format!(
-                "供应商无历史交货数据，使用默认交货周期{}天",
-                avg_lead_time
-            )
+            format!("供应商无历史交货数据，使用默认交货周期{}天", avg_lead_time)
         };
 
         Ok(DeliveryCalculationResult {
@@ -99,12 +96,10 @@ impl PurchaseDeliveryCalculator {
     }
 
     /// 获取供应商平均交货周期
-    async fn get_supplier_avg_lead_time(
-        &self,
-        supplier_id: i32,
-    ) -> Result<(i32, i64), AppError> {
-        let result = self.db.query_one(
-            Statement::from_sql_and_values(
+    async fn get_supplier_avg_lead_time(&self, supplier_id: i32) -> Result<(i32, i64), AppError> {
+        let result = self
+            .db
+            .query_one(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 r#"
                 SELECT 
@@ -125,10 +120,9 @@ impl PurchaseDeliveryCalculator {
                 AND actual_delivery_date IS NOT NULL
                 "#,
                 vec![supplier_id.into()],
-            ),
-        )
-        .await
-        .map_err(|e| AppError::InternalError(format!("查询供应商交货周期失败: {}", e)))?;
+            ))
+            .await
+            .map_err(|e| AppError::InternalError(format!("查询供应商交货周期失败: {}", e)))?;
 
         if let Some(row) = result {
             let avg_days: Option<i32> = row.try_get_by_index(0).ok();
@@ -140,14 +134,11 @@ impl PurchaseDeliveryCalculator {
     }
 
     /// 估算生产周期
-    async fn estimate_production_days(
-        &self,
-        items: &[OrderItemInfo],
-    ) -> Result<i32, AppError> {
-        use crate::models::bom::{Entity as BomEntity, Column as BomColumn};
-        
+    async fn estimate_production_days(&self, items: &[OrderItemInfo]) -> Result<i32, AppError> {
+        use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
+
         let mut total_days = 0;
-        
+
         for item in items {
             // 查询产品的BOM复杂度
             let bom_count = BomEntity::find()
@@ -155,7 +146,7 @@ impl PurchaseDeliveryCalculator {
                 .count(&*self.db)
                 .await
                 .unwrap_or(0);
-            
+
             // 基础生产天数
             let base_days = if bom_count > 0 {
                 // 有BOM的产品，根据BOM数量增加复杂度
@@ -173,15 +164,15 @@ impl PurchaseDeliveryCalculator {
                     1
                 }
             };
-            
+
             total_days = std::cmp::max(total_days, base_days);
         }
-        
+
         // 批量生产效率提升（多产品并行生产）
         if items.len() > 1 {
             total_days = (total_days as f64 * 1.2) as i32; // 增加20%的时间
         }
-        
+
         Ok(total_days.max(1))
     }
 

@@ -2,8 +2,11 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait, QueryOrder, QueryFilter, QuerySelect, PaginatorTrait};
 use sea_orm::ColumnTrait;
+use sea_orm::{
+    ActiveValue, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 
 use crate::models::sales_order_change_history;
 use crate::utils::error::AppError;
@@ -98,7 +101,8 @@ impl OrderChangeHistoryService {
             Some("创建订单"),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// 记录字段变更
@@ -121,7 +125,8 @@ impl OrderChangeHistoryService {
             change_reason,
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// 记录状态变更
@@ -143,6 +148,7 @@ impl OrderChangeHistoryService {
             change_reason,
             None,
             None,
-        ).await
+        )
+        .await
     }
 }

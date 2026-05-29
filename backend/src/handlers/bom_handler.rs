@@ -12,7 +12,7 @@ use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::bom_service::{
-    BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest, BomQuery,
+    BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -99,7 +99,9 @@ pub async fn create_bom(
     auth: AuthContext,
     Json(payload): Json<CreateBomPayload>,
 ) -> Result<Json<ApiResponse<BomDetailResponse>>, AppError> {
-    payload.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    payload
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = BomService::new(state.db.clone());
 

@@ -11,10 +11,10 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::cost_collection;
-use sea_orm::ActiveValue::Set;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
+use sea_orm::ActiveValue::Set;
 
 /// 更新成本归集请求
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -181,7 +181,12 @@ impl CostCollectionService {
         .await
     }
 
-    pub async fn update(&self, id: i32, req: UpdateCostCollectionRequest, _user_id: i32) -> Result<cost_collection::Model, AppError> {
+    pub async fn update(
+        &self,
+        id: i32,
+        req: UpdateCostCollectionRequest,
+        _user_id: i32,
+    ) -> Result<cost_collection::Model, AppError> {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -189,27 +194,47 @@ impl CostCollectionService {
             .ok_or_else(|| AppError::NotFound("成本归集记录不存在".to_string()))?;
 
         let mut active_collection: cost_collection::ActiveModel = collection.clone().into();
-        
-        if let Some(date) = req.collection_date { active_collection.collection_date = Set(date); }
-        if let Some(amt) = req.direct_material { active_collection.direct_material = Set(amt); }
-        if let Some(amt) = req.direct_labor { active_collection.direct_labor = Set(amt); }
-        if let Some(amt) = req.manufacturing_overhead { active_collection.manufacturing_overhead = Set(amt); }
-        if let Some(amt) = req.processing_fee { active_collection.processing_fee = Set(amt); }
-        if let Some(amt) = req.dyeing_fee { active_collection.dyeing_fee = Set(amt); }
-        if let Some(amt) = req.output_quantity_meters { active_collection.output_quantity_meters = Set(Some(amt)); }
-        if let Some(amt) = req.output_quantity_kg { active_collection.output_quantity_kg = Set(Some(amt)); }
-        
+
+        if let Some(date) = req.collection_date {
+            active_collection.collection_date = Set(date);
+        }
+        if let Some(amt) = req.direct_material {
+            active_collection.direct_material = Set(amt);
+        }
+        if let Some(amt) = req.direct_labor {
+            active_collection.direct_labor = Set(amt);
+        }
+        if let Some(amt) = req.manufacturing_overhead {
+            active_collection.manufacturing_overhead = Set(amt);
+        }
+        if let Some(amt) = req.processing_fee {
+            active_collection.processing_fee = Set(amt);
+        }
+        if let Some(amt) = req.dyeing_fee {
+            active_collection.dyeing_fee = Set(amt);
+        }
+        if let Some(amt) = req.output_quantity_meters {
+            active_collection.output_quantity_meters = Set(Some(amt));
+        }
+        if let Some(amt) = req.output_quantity_kg {
+            active_collection.output_quantity_kg = Set(Some(amt));
+        }
+
         // Recalculate total cost
         let dm = req.direct_material.unwrap_or(collection.direct_material);
         let dl = req.direct_labor.unwrap_or(collection.direct_labor);
-        let mo = req.manufacturing_overhead.unwrap_or(collection.manufacturing_overhead);
+        let mo = req
+            .manufacturing_overhead
+            .unwrap_or(collection.manufacturing_overhead);
         let pf = req.processing_fee.unwrap_or(collection.processing_fee);
         let df = req.dyeing_fee.unwrap_or(collection.dyeing_fee);
         let total = dm + dl + mo + pf + df;
         active_collection.total_cost = Set(total);
 
         // Recalculate unit costs
-        let meters = req.output_quantity_meters.or(collection.output_quantity_meters);
+        let meters = req
+            .output_quantity_meters
+            .or(collection.output_quantity_meters);
         if let Some(m) = meters {
             if m > Decimal::ZERO {
                 active_collection.unit_cost_meters = Set(Some(total / m));
@@ -224,7 +249,9 @@ impl CostCollectionService {
 
         active_collection.updated_at = Set(chrono::Utc::now());
 
-        let result = active_collection.update(&*self.db).await
+        let result = active_collection
+            .update(&*self.db)
+            .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)
@@ -251,9 +278,6 @@ impl CostCollectionService {
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
     ) -> Result<CostAnalysisSummary, AppError> {
-        
-        
-
         let mut query = cost_collection::Entity::find();
 
         if let Some(start) = start_date {
@@ -315,9 +339,21 @@ impl CostCollectionService {
             total_output_kg,
             avg_unit_cost_meters,
             avg_unit_cost_kg,
-            material_ratio: if total_cost > Decimal::ZERO { Some(total_direct_material / total_cost) } else { None },
-            labor_ratio: if total_cost > Decimal::ZERO { Some(total_direct_labor / total_cost) } else { None },
-            overhead_ratio: if total_cost > Decimal::ZERO { Some(total_overhead / total_cost) } else { None },
+            material_ratio: if total_cost > Decimal::ZERO {
+                Some(total_direct_material / total_cost)
+            } else {
+                None
+            },
+            labor_ratio: if total_cost > Decimal::ZERO {
+                Some(total_direct_labor / total_cost)
+            } else {
+                None
+            },
+            overhead_ratio: if total_cost > Decimal::ZERO {
+                Some(total_overhead / total_cost)
+            } else {
+                None
+            },
         })
     }
 
@@ -376,11 +412,13 @@ impl CostCollectionService {
 
         // 只有草稿状态才能审核
         if collection.status != "draft" {
-            return Err(AppError::ValidationError("只有草稿状态的成本归集才能审核".to_string()));
+            return Err(AppError::ValidationError(
+                "只有草稿状态的成本归集才能审核".to_string(),
+            ));
         }
 
         let status = if approved { "approved" } else { "rejected" };
-        
+
         let active_model = cost_collection::ActiveModel {
             id: sea_orm::ActiveValue::Unchanged(collection.id),
             status: sea_orm::ActiveValue::Set(status.to_string()),
@@ -445,7 +483,10 @@ pub fn calculate_total_cost(
 
 /// 计算单位成本（米）
 #[allow(dead_code)]
-pub fn calculate_unit_cost_meters(total_cost: Decimal, output_meters: Option<Decimal>) -> Option<Decimal> {
+pub fn calculate_unit_cost_meters(
+    total_cost: Decimal,
+    output_meters: Option<Decimal>,
+) -> Option<Decimal> {
     output_meters.and_then(|q| {
         if q.is_zero() {
             None
@@ -475,11 +516,11 @@ mod tests {
     #[test]
     fn test_calculate_total_cost_basic() {
         let total = calculate_total_cost(
-            Decimal::from(1000),  // 直接材料
-            Decimal::from(500),   // 直接人工
-            Decimal::from(300),   // 制造费用
-            Decimal::from(200),   // 加工费
-            Decimal::from(100),   // 染费
+            Decimal::from(1000), // 直接材料
+            Decimal::from(500),  // 直接人工
+            Decimal::from(300),  // 制造费用
+            Decimal::from(200),  // 加工费
+            Decimal::from(100),  // 染费
         );
         assert_eq!(total, Decimal::from(2100));
     }
@@ -512,7 +553,7 @@ mod tests {
     fn test_calculate_unit_cost_meters() {
         let total_cost = Decimal::from(10000);
         let output = Some(Decimal::from(500));
-        
+
         let unit_cost = calculate_unit_cost_meters(total_cost, output);
         assert_eq!(unit_cost, Some(Decimal::from(20)));
     }
@@ -521,7 +562,7 @@ mod tests {
     fn test_calculate_unit_cost_meters_zero_output() {
         let total_cost = Decimal::from(10000);
         let output = Some(Decimal::ZERO);
-        
+
         let unit_cost = calculate_unit_cost_meters(total_cost, output);
         assert_eq!(unit_cost, None);
     }
@@ -529,7 +570,7 @@ mod tests {
     #[test]
     fn test_calculate_unit_cost_meters_none_output() {
         let total_cost = Decimal::from(10000);
-        
+
         let unit_cost = calculate_unit_cost_meters(total_cost, None);
         assert_eq!(unit_cost, None);
     }
@@ -538,7 +579,7 @@ mod tests {
     fn test_calculate_unit_cost_kg() {
         let total_cost = Decimal::from(10000);
         let output = Some(Decimal::from(200));
-        
+
         let unit_cost = calculate_unit_cost_kg(total_cost, output);
         assert_eq!(unit_cost, Some(Decimal::from(50)));
     }
@@ -547,7 +588,7 @@ mod tests {
     fn test_calculate_unit_cost_kg_zero_output() {
         let total_cost = Decimal::from(10000);
         let output = Some(Decimal::ZERO);
-        
+
         let unit_cost = calculate_unit_cost_kg(total_cost, output);
         assert_eq!(unit_cost, None);
     }
@@ -555,7 +596,7 @@ mod tests {
     #[test]
     fn test_calculate_unit_cost_kg_none_output() {
         let total_cost = Decimal::from(10000);
-        
+
         let unit_cost = calculate_unit_cost_kg(total_cost, None);
         assert_eq!(unit_cost, None);
     }
@@ -568,7 +609,7 @@ mod tests {
         let manufacturing_overhead = Decimal::from(1500);
         let processing_fee = Decimal::from(800);
         let dyeing_fee = Decimal::from(700);
-        
+
         // 1. 计算总成本
         let total_cost = calculate_total_cost(
             direct_material,
@@ -578,14 +619,14 @@ mod tests {
             dyeing_fee,
         );
         assert_eq!(total_cost, Decimal::from(10000));
-        
+
         // 2. 计算单位成本
         let output_meters = Some(Decimal::from(500));
         let output_kg = Some(Decimal::from(200));
-        
+
         let unit_cost_meters = calculate_unit_cost_meters(total_cost, output_meters);
         let unit_cost_kg = calculate_unit_cost_kg(total_cost, output_kg);
-        
+
         assert_eq!(unit_cost_meters, Some(Decimal::from(20)));
         assert_eq!(unit_cost_kg, Some(Decimal::from(50)));
     }
@@ -596,16 +637,16 @@ mod tests {
         let direct_material = Decimal::from(5000);
         let direct_labor = Decimal::from(2000);
         let manufacturing_overhead = Decimal::from(3000);
-        
+
         // 计算各项占比
         let material_ratio = direct_material / total_cost;
         let labor_ratio = direct_labor / total_cost;
         let overhead_ratio = manufacturing_overhead / total_cost;
-        
+
         assert_eq!(material_ratio, Decimal::try_from(0.5).unwrap());
         assert_eq!(labor_ratio, Decimal::try_from(0.2).unwrap());
         assert_eq!(overhead_ratio, Decimal::try_from(0.3).unwrap());
-        
+
         // 验证占比之和为 1
         let total_ratio = material_ratio + labor_ratio + overhead_ratio;
         assert_eq!(total_ratio, Decimal::ONE);
@@ -629,7 +670,7 @@ mod tests {
             labor_ratio: Some(Decimal::try_from(0.2).unwrap()),
             overhead_ratio: Some(Decimal::try_from(0.15).unwrap()),
         };
-        
+
         assert_eq!(summary.record_count, 10);
         assert_eq!(summary.total_cost, Decimal::from(100000));
         assert!(summary.avg_unit_cost_meters.is_some());

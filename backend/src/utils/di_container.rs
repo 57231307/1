@@ -28,13 +28,22 @@ impl DIContainer {
 
     /// Register a singleton service
     pub fn register_singleton<T: Any + Send + Sync>(&self, instance: Arc<T>) {
-        let mut services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
+        let mut services = self
+            .services
+            .lock()
+            .expect("DI容器服务锁被污染，可能存在线程panic");
         services.insert(TypeId::of::<T>(), instance);
     }
 
     /// Register a factory for lazy initialization
-    pub fn register_factory<T: Any + Send + Sync>(&self, factory: Box<dyn Fn() -> Arc<T> + Send + Sync>) {
-        let mut factories = self.factories.lock().expect("DI容器工厂锁被污染，可能存在线程panic");
+    pub fn register_factory<T: Any + Send + Sync>(
+        &self,
+        factory: Box<dyn Fn() -> Arc<T> + Send + Sync>,
+    ) {
+        let mut factories = self
+            .factories
+            .lock()
+            .expect("DI容器工厂锁被污染，可能存在线程panic");
         let type_id = TypeId::of::<T>();
         let boxed_factory: ServiceFactory = Box::new(move || {
             let instance: Arc<T> = factory();
@@ -49,7 +58,10 @@ impl DIContainer {
 
         // Try to get from singletons first
         {
-            let services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
+            let services = self
+                .services
+                .lock()
+                .expect("DI容器服务锁被污染，可能存在线程panic");
             if let Some(instance) = services.get(&type_id) {
                 return instance.clone().downcast::<T>().ok();
             }
@@ -57,13 +69,19 @@ impl DIContainer {
 
         // Try to create from factory
         {
-            let mut factories = self.factories.lock().expect("DI容器工厂锁被污染，可能存在线程panic");
+            let mut factories = self
+                .factories
+                .lock()
+                .expect("DI容器工厂锁被污染，可能存在线程panic");
             if let Some(factory) = factories.remove(&type_id) {
                 let instance = factory();
                 let typed_instance = instance.clone().downcast::<T>().ok()?;
 
                 // Cache as singleton
-                let mut services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
+                let mut services = self
+                    .services
+                    .lock()
+                    .expect("DI容器服务锁被污染，可能存在线程panic");
                 services.insert(type_id, instance);
 
                 return Some(typed_instance);
@@ -76,16 +94,28 @@ impl DIContainer {
     /// Check if a service is registered
     pub fn has<T: Any + Send + Sync>(&self) -> bool {
         let type_id = TypeId::of::<T>();
-        let services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
-        let factories = self.factories.lock().expect("DI容器工厂锁被污染，可能存在线程panic");
+        let services = self
+            .services
+            .lock()
+            .expect("DI容器服务锁被污染，可能存在线程panic");
+        let factories = self
+            .factories
+            .lock()
+            .expect("DI容器工厂锁被污染，可能存在线程panic");
         services.contains_key(&type_id) || factories.contains_key(&type_id)
     }
 
     /// Remove a service
     pub fn remove<T: Any + Send + Sync>(&self) -> bool {
         let type_id = TypeId::of::<T>();
-        let mut services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
-        let mut factories = self.factories.lock().expect("DI容器工厂锁被污染，可能存在线程panic");
+        let mut services = self
+            .services
+            .lock()
+            .expect("DI容器服务锁被污染，可能存在线程panic");
+        let mut factories = self
+            .factories
+            .lock()
+            .expect("DI容器工厂锁被污染，可能存在线程panic");
         let removed1 = services.remove(&type_id).is_some();
         let removed2 = factories.remove(&type_id).is_some();
         removed1 || removed2
@@ -93,16 +123,28 @@ impl DIContainer {
 
     /// Clear all services
     pub fn clear(&self) {
-        let mut services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
-        let mut factories = self.factories.lock().expect("DI容器工厂锁被污染，可能存在线程panic");
+        let mut services = self
+            .services
+            .lock()
+            .expect("DI容器服务锁被污染，可能存在线程panic");
+        let mut factories = self
+            .factories
+            .lock()
+            .expect("DI容器工厂锁被污染，可能存在线程panic");
         services.clear();
         factories.clear();
     }
 
     /// Get registered service count
     pub fn count(&self) -> usize {
-        let services = self.services.lock().expect("DI容器服务锁被污染，可能存在线程panic");
-        let factories = self.factories.lock().expect("DI容器工厂锁被污染，可能存在线程panic");
+        let services = self
+            .services
+            .lock()
+            .expect("DI容器服务锁被污染，可能存在线程panic");
+        let factories = self
+            .factories
+            .lock()
+            .expect("DI容器工厂锁被污染，可能存在线程panic");
         services.len() + factories.len()
     }
 }

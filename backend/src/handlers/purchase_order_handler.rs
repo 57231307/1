@@ -9,13 +9,13 @@ use crate::services::purchase_order_service::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, PurchaseOrderService,
     UpdateOrderItemRequest, UpdatePurchaseOrderRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -212,7 +212,8 @@ pub async fn delete_order(
 }
 
 /// 提交采购订单
-pub async fn submit_order(auth: AuthContext, 
+pub async fn submit_order(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -246,7 +247,8 @@ pub async fn approve_order(
 
 /// 拒绝采购订单
 #[axum::debug_handler]
-pub async fn reject_order(auth: AuthContext, 
+pub async fn reject_order(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<RejectOrderRequest>,
@@ -254,7 +256,9 @@ pub async fn reject_order(auth: AuthContext,
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    let order = service.reject_order(id, req.reason.clone(), user_id).await?;
+    let order = service
+        .reject_order(id, req.reason.clone(), user_id)
+        .await?;
 
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
@@ -276,7 +280,8 @@ pub async fn reject_order(auth: AuthContext,
 }
 
 /// 关闭采购订单
-pub async fn close_order(auth: AuthContext, 
+pub async fn close_order(
+    auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -292,7 +297,8 @@ pub async fn close_order(auth: AuthContext,
 }
 
 /// 获取订单明细列表
-pub async fn list_order_items(_auth: AuthContext, 
+pub async fn list_order_items(
+    _auth: AuthContext,
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -304,7 +310,8 @@ pub async fn list_order_items(_auth: AuthContext,
 
 /// 添加订单明细
 #[axum::debug_handler]
-pub async fn create_order_item(auth: AuthContext, 
+pub async fn create_order_item(
+    auth: AuthContext,
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
     Json(req): Json<CreateOrderItemRequest>,
@@ -325,7 +332,8 @@ pub async fn create_order_item(auth: AuthContext,
 
 /// 更新订单明细
 #[axum::debug_handler]
-pub async fn update_order_item(auth: AuthContext, 
+pub async fn update_order_item(
+    auth: AuthContext,
     Path((_order_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     Json(req): Json<UpdateOrderItemRequest>,
@@ -342,7 +350,8 @@ pub async fn update_order_item(auth: AuthContext,
 }
 
 /// 删除订单明细
-pub async fn delete_order_item(auth: AuthContext, 
+pub async fn delete_order_item(
+    auth: AuthContext,
     Path((_order_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -381,14 +390,19 @@ pub async fn calculate_delivery_date(
     _auth: AuthContext,
     Json(req): Json<CalculateDeliveryRequest>,
 ) -> Result<Json<ApiResponse<DeliveryDateResponse>>, AppError> {
-    let calculator = crate::services::purchase_delivery_calculator::PurchaseDeliveryCalculator::new(state.db.clone());
+    let calculator = crate::services::purchase_delivery_calculator::PurchaseDeliveryCalculator::new(
+        state.db.clone(),
+    );
 
-    let items: Vec<crate::services::purchase_delivery_calculator::OrderItemInfo> = req.items
+    let items: Vec<crate::services::purchase_delivery_calculator::OrderItemInfo> = req
+        .items
         .into_iter()
-        .map(|item| crate::services::purchase_delivery_calculator::OrderItemInfo {
-            product_id: item.product_id,
-            quantity: item.quantity,
-        })
+        .map(
+            |item| crate::services::purchase_delivery_calculator::OrderItemInfo {
+                product_id: item.product_id,
+                quantity: item.quantity,
+            },
+        )
         .collect();
 
     let calc_req = crate::services::purchase_delivery_calculator::DeliveryCalculationRequest {
@@ -444,7 +458,10 @@ pub async fn export_orders(
         .export_orders_to_csv(query.status, query.supplier_id)
         .await?;
 
-    let filename = format!("purchase_orders_export_{}.csv", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    let filename = format!(
+        "purchase_orders_export_{}.csv",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)

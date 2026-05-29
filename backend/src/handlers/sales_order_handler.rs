@@ -1,17 +1,17 @@
 use crate::middleware::auth_context::AuthContext;
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
-use crate::utils::response::ApiResponse;
 use crate::services::sales_service::{
     CreateSalesOrderRequest, SalesService, UpdateSalesOrderRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 
 /// 查询参数
 #[derive(Debug, Deserialize)]
@@ -41,11 +41,13 @@ pub async fn list_orders(
         .list_orders(page_req, query.status, query.customer_id, query.order_no)
         .await?;
 
-    let mut orders_json = serde_json::to_value(orders).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    
+    let mut orders_json = serde_json::to_value(orders)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state.data_permission_service
+        if let Ok(Some(permission)) = state
+            .data_permission_service
             .get_role_data_permission(role_id, "sales_order")
             .await
         {
@@ -76,7 +78,7 @@ pub async fn list_orders(
                         obj.remove("total_amount");
                         obj.remove("paid_amount");
                         obj.remove("balance_amount");
-                        
+
                         if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                             for item in items {
                                 if let Some(item_obj) = item.as_object_mut() {
@@ -104,11 +106,13 @@ pub async fn get_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.get_order_detail(id).await?;
-    let mut order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    
+    let mut order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state.data_permission_service
+        if let Ok(Some(permission)) = state
+            .data_permission_service
             .get_role_data_permission(role_id, "sales_order")
             .await
         {
@@ -127,7 +131,7 @@ pub async fn get_order(
                 obj.remove("total_amount");
                 obj.remove("paid_amount");
                 obj.remove("balance_amount");
-                
+
                 if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                     for item in items {
                         if let Some(item_obj) = item.as_object_mut() {
@@ -140,7 +144,7 @@ pub async fn get_order(
             }
         }
     }
-    
+
     Ok(Json(ApiResponse::success(order_json)))
 }
 
@@ -169,7 +173,8 @@ pub async fn create_order(
         }
     }
 
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单创建成功",
@@ -186,7 +191,8 @@ pub async fn update_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.update_order(id, request).await?;
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单更新成功",
@@ -225,7 +231,8 @@ pub async fn submit_order(
         }
     }
 
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单已提交审批",
@@ -251,7 +258,8 @@ pub async fn approve_order(
         }
     }
 
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单审核成功",
@@ -278,7 +286,8 @@ pub async fn ship_order(
         }
     }
 
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单发货成功",
@@ -303,7 +312,8 @@ pub async fn complete_order(
         }
     }
 
-    let order_json = serde_json::to_value(order).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let order_json = serde_json::to_value(order)
+        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_msg(
         order_json,
         "销售订单完成成功",
@@ -323,11 +333,16 @@ pub async fn get_order_history(
     Path(id): Path<i32>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let history_service = crate::services::order_change_history_service::OrderChangeHistoryService::new(state.db.clone());
+    let history_service =
+        crate::services::order_change_history_service::OrderChangeHistoryService::new(
+            state.db.clone(),
+        );
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let (histories, total) = history_service.get_history_by_order(id, page, page_size).await?;
+    let (histories, total) = history_service
+        .get_history_by_order(id, page, page_size)
+        .await?;
 
     let result = serde_json::json!({
         "list": histories,
@@ -355,7 +370,10 @@ pub async fn export_orders(
         .await
         .map_err(|e| AppError::InternalError(format!("导出失败: {}", e)))?;
 
-    let filename = format!("sales_orders_export_{}.csv", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    let filename = format!(
+        "sales_orders_export_{}.csv",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)

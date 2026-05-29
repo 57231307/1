@@ -8,8 +8,7 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -84,8 +83,7 @@ pub async fn list_dye_recipes(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let mut q = dye_recipe::Entity::find()
-        .filter(dye_recipe::Column::IsDeleted.eq(false));
+    let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
 
     if let Some(recipe_no) = &query.recipe_no {
         q = q.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
@@ -163,7 +161,9 @@ pub async fn create_dye_recipe(
     let recipe = dye_recipe::ActiveModel {
         id: Set(0),
         recipe_no: Set(recipe_no),
-        recipe_name: Set(Some(req.recipe_name.unwrap_or_else(|| "未命名配方".to_string()))),
+        recipe_name: Set(Some(
+            req.recipe_name.unwrap_or_else(|| "未命名配方".to_string()),
+        )),
         color_no: Set(req.color_code.clone()),
         formula: Set(req.chemical_formula.clone()),
         color_code: Set(req.color_code),
@@ -184,8 +184,12 @@ pub async fn create_dye_recipe(
         approved_at: Set(None),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
-        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        created_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
+        updated_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
     };
 
     match recipe.insert(&*state.db).await {
@@ -208,23 +212,24 @@ pub async fn update_dye_recipe(
     _auth: AuthContext,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(r)) => r.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("配方不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut recipe: dye_recipe::ActiveModel =
+        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(r)) => r.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("配方不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     if let Some(color_code) = req.color_code {
         recipe.color_code = Set(Some(color_code));
@@ -284,7 +289,8 @@ pub async fn update_dye_recipe(
         recipe.remarks = Set(Some(remarks));
     }
 
-    recipe.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    recipe.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match recipe.update(&*state.db).await {
         Ok(updated) => (
@@ -334,7 +340,8 @@ pub async fn delete_dye_recipe(
     // 软删除
     let mut active: dye_recipe::ActiveModel = recipe.into();
     active.is_deleted = Set(Some(true));
-    active.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    active.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match active.update(&*state.db).await {
         Ok(_) => (
@@ -356,23 +363,24 @@ pub async fn approve_recipe(
     _auth: AuthContext,
     Json(req): Json<ApproveRecipeRequest>,
 ) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(r)) => r.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("配方不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let mut recipe: dye_recipe::ActiveModel =
+        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(r)) => r.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("配方不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
 
     // 检查当前状态是否允许审核
     let current_status = match &recipe.status {
@@ -389,11 +397,14 @@ pub async fn approve_recipe(
         )
             .into_response();
     }
-    
+
     recipe.status = Set(Some("已审核".to_string()));
     recipe.approved_by = Set(Some(req.approved_by));
-    recipe.approved_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
-    recipe.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    recipe.approved_at = Set(Some(
+        chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
+    ));
+    recipe.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match recipe.update(&*state.db).await {
         Ok(updated) => (
@@ -472,8 +483,12 @@ pub async fn create_new_version(
         approved_at: Set(None),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
-        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        created_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
+        updated_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
     };
 
     match new_recipe.insert(&*state.db).await {
@@ -515,14 +530,14 @@ pub async fn get_recipe_versions(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    use sea_orm::QueryFilter;
     use sea_orm::Condition;
-    
+    use sea_orm::QueryFilter;
+
     match dye_recipe::Entity::find()
         .filter(
             Condition::any()
                 .add(dye_recipe::Column::ParentRecipeId.eq(id))
-                .add(dye_recipe::Column::Id.eq(id))
+                .add(dye_recipe::Column::Id.eq(id)),
         )
         .filter(dye_recipe::Column::IsDeleted.eq(false))
         .order_by_asc(dye_recipe::Column::Version)

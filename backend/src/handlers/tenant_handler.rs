@@ -53,7 +53,12 @@ pub async fn create_tenant(
 
     let service = TenantService::new(state.db);
     let tenant = service
-        .create_tenant(&req.code, &req.name, req.description.as_deref(), req.plan_id)
+        .create_tenant(
+            &req.code,
+            &req.name,
+            req.description.as_deref(),
+            req.plan_id,
+        )
         .await
         .map_err(|e| AppError::InternalError(format!("创建租户失败: {}", e)))?;
 
@@ -86,7 +91,9 @@ pub async fn list_tenants(
         .map_err(|e| AppError::InternalError(format!("获取租户列表失败: {}", e)))?;
 
     let responses: Vec<TenantResponse> = tenants.into_iter().map(TenantResponse::from).collect();
-    Ok(Json(ApiResponse::success_paginated(responses, total, page, page_size)))
+    Ok(Json(ApiResponse::success_paginated(
+        responses, total, page, page_size,
+    )))
 }
 
 /// 获取单个租户

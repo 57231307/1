@@ -36,20 +36,29 @@ pub async fn request_validator_middleware(
 
     let allowed_origins = &state.allowed_origins;
 
-    let is_valid_origin = origin.map(|o| {
-        allowed_origins.iter().any(|allowed| {
-            o.starts_with(allowed) || allowed == "*"
+    let is_valid_origin = origin
+        .map(|o| {
+            allowed_origins
+                .iter()
+                .any(|allowed| o.starts_with(allowed) || allowed == "*")
         })
-    }).unwrap_or(false);
+        .unwrap_or(false);
 
-    let is_valid_referer = referer.map(|r| {
-        allowed_origins.iter().any(|allowed| {
-            r.starts_with(allowed) || allowed == "*"
+    let is_valid_referer = referer
+        .map(|r| {
+            allowed_origins
+                .iter()
+                .any(|allowed| r.starts_with(allowed) || allowed == "*")
         })
-    }).unwrap_or(false);
+        .unwrap_or(false);
 
     if !is_valid_origin && !is_valid_referer {
-        tracing::warn!("CSRF验证失败: 非法来源 origin={:?}, referer={:?}, 允许的源={:?}", origin, referer, allowed_origins);
+        tracing::warn!(
+            "CSRF验证失败: 非法来源 origin={:?}, referer={:?}, 允许的源={:?}",
+            origin,
+            referer,
+            allowed_origins
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 

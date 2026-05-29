@@ -10,8 +10,8 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_contract_service::PurchaseContractService;
-use crate::services::sales_contract_service::SalesContractService;
 use crate::services::purchase_price_service::PurchasePriceService;
+use crate::services::sales_contract_service::SalesContractService;
 use crate::services::sales_price_service::SalesPriceService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -102,21 +102,26 @@ pub async fn create_sales_contract(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SalesContractService::new(state.db.clone());
 
-    let contract = service.create(
-        crate::services::sales_contract_service::CreateSalesContractRequest {
-            contract_no: req.contract_no,
-            contract_name: req.contract_name,
-            customer_id: req.customer_id,
-            total_amount: req.total_amount,
-            payment_terms: req.payment_terms,
-            delivery_date: req.delivery_date,
-            remark: req.remark,
-        },
-        auth.user_id,
-    )
-    .await?;
+    let contract = service
+        .create(
+            crate::services::sales_contract_service::CreateSalesContractRequest {
+                contract_no: req.contract_no,
+                contract_name: req.contract_name,
+                customer_id: req.customer_id,
+                total_amount: req.total_amount,
+                payment_terms: req.payment_terms,
+                delivery_date: req.delivery_date,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
-    tracing::info!("用户 {} 创建销售合同: {}", auth.username, contract.contract_no);
+    tracing::info!(
+        "用户 {} 创建销售合同: {}",
+        auth.username,
+        contract.contract_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(contract)?,
@@ -163,21 +168,26 @@ pub async fn create_purchase_contract(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseContractService::new(state.db.clone());
 
-    let contract = service.create(
-        crate::services::purchase_contract_service::CreateContractRequest {
-            contract_no: req.contract_no,
-            contract_name: req.contract_name,
-            supplier_id: req.supplier_id,
-            total_amount: req.total_amount,
-            payment_terms: req.payment_terms,
-            delivery_date: req.delivery_date,
-            remark: req.remark,
-        },
-        auth.user_id,
-    )
-    .await?;
+    let contract = service
+        .create(
+            crate::services::purchase_contract_service::CreateContractRequest {
+                contract_no: req.contract_no,
+                contract_name: req.contract_name,
+                supplier_id: req.supplier_id,
+                total_amount: req.total_amount,
+                payment_terms: req.payment_terms,
+                delivery_date: req.delivery_date,
+                remark: req.remark,
+            },
+            auth.user_id,
+        )
+        .await?;
 
-    tracing::info!("用户 {} 创建采购合同: {}", auth.username, contract.contract_no);
+    tracing::info!(
+        "用户 {} 创建采购合同: {}",
+        auth.username,
+        contract.contract_no
+    );
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(contract)?,
@@ -228,12 +238,14 @@ pub async fn execute_purchase_contract(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseContractService::new(state.db.clone());
 
-    let execution_type = req.get("execution_type")
+    let execution_type = req
+        .get("execution_type")
         .and_then(|v| v.as_str())
         .unwrap_or("delivery")
         .to_string();
 
-    let execution_amount = req.get("execution_amount")
+    let execution_amount = req
+        .get("execution_amount")
         .and_then(|v| v.as_f64())
         .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
         .unwrap_or_default();

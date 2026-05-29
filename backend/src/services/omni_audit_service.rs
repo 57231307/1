@@ -1,11 +1,11 @@
 #![allow(dead_code)]
+use chrono::Utc;
+use hmac::{Hmac, KeyInit, Mac};
+use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
+use serde_json::Value;
+use sha2::Sha256;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use sea_orm::{DatabaseConnection, ActiveValue, EntityTrait};
-use chrono::Utc;
-use hmac::{Hmac, Mac, KeyInit};
-use sha2::Sha256;
-use serde_json::Value;
 
 use crate::models::omni_audit_log;
 
@@ -54,17 +54,32 @@ impl OmniAuditEngine {
         tokio::spawn(async move {
             tracing::info!("OmniAudit 异步收集引擎已启动");
             while let Some(msg) = receiver.recv().await {
-                let payload_str = msg.payload.as_ref().map(|p| p.to_string()).unwrap_or_default();
-                let sign_material = format!("{}|{}|{}|{}", msg.trace_id, msg.event_type, msg.action, payload_str);
+                let payload_str = msg
+                    .payload
+                    .as_ref()
+                    .map(|p| p.to_string())
+                    .unwrap_or_default();
+                let sign_material = format!(
+                    "{}|{}|{}|{}",
+                    msg.trace_id, msg.event_type, msg.action, payload_str
+                );
 
                 let mut mac = HmacSha256::new_from_slice(secret_key_clone.as_bytes())
                     .expect("HMAC can take key of any size");
                 mac.update(sign_material.as_bytes());
                 let _signature = hex::encode(mac.finalize().into_bytes());
 
-                if msg.status == "FAILED" || msg.status == "DENIED" || msg.event_type == "SECURITY_ALERT" {
-                    tracing::warn!("【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}",
-                        msg.user_id, msg.event_name, msg.resource, msg.status);
+                if msg.status == "FAILED"
+                    || msg.status == "DENIED"
+                    || msg.event_type == "SECURITY_ALERT"
+                {
+                    tracing::warn!(
+                        "【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}",
+                        msg.user_id,
+                        msg.event_name,
+                        msg.resource,
+                        msg.status
+                    );
                 }
 
                 let log = omni_audit_log::ActiveModel {
@@ -72,24 +87,34 @@ impl OmniAuditEngine {
                     user_id: ActiveValue::Set(Some(msg.user_id)),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),
-                    response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(match msg.status.as_str() {
-                        "SUCCESS" => 200,
-                        "FAILED" => 500,
-                        "DENIED" => 403,
-                        _ => 0,
-                    }))),
+                    response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(
+                        match msg.status.as_str() {
+                            "SUCCESS" => 200,
+                            "FAILED" => 500,
+                            "DENIED" => 403,
+                            _ => 0,
+                        },
+                    ))),
                     duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
-                    created_at: ActiveValue::Set(Some(Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).expect("UTC offset 0 is always valid")))),
+                    created_at: ActiveValue::Set(Some(Utc::now().with_timezone(
+                        &chrono::FixedOffset::east_opt(0).expect("UTC offset 0 is always valid"),
+                    ))),
                     ..Default::default()
                 };
 
-                if let Err(e) = omni_audit_log::Entity::insert(log).exec(db_clone.as_ref()).await {
+                if let Err(e) = omni_audit_log::Entity::insert(log)
+                    .exec(db_clone.as_ref())
+                    .await
+                {
                     tracing::error!("写入综合审计日志失败: {}", e);
                 }
             }
         });
 
-        Ok(Self { sender, secret_key: secret_key.into_bytes() })
+        Ok(Self {
+            sender,
+            secret_key: secret_key.into_bytes(),
+        })
     }
 
     pub fn log(&self, msg: OmniAuditMessage) {

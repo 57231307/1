@@ -3,8 +3,8 @@
 use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
-use axum::{extract::State, http::StatusCode, Json};
 use crate::utils::app_state::AppState;
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 
 /// 批量创建产品请求

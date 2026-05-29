@@ -4,19 +4,13 @@
 //! 五维编码：产品ID + 批次号 + 色号 + 缸号 + 等级
 
 use rust_decimal::Decimal;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::models::inventory_stock::{
-    Entity as InventoryStockEntity, Column as StockColumn,
-};
-use crate::models::product::{
-    Entity as ProductEntity, Column as ProductColumn,
-};
+use crate::models::inventory_stock::{Column as StockColumn, Entity as InventoryStockEntity};
+use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::utils::error::AppError;
 
 /// 五维统计信息
@@ -123,10 +117,8 @@ impl FiveDimensionService {
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?
         };
 
-        let product_map: HashMap<i32, String> = products
-            .into_iter()
-            .map(|p| (p.id, p.name))
-            .collect();
+        let product_map: HashMap<i32, String> =
+            products.into_iter().map(|p| (p.id, p.name)).collect();
 
         // 按五维分组统计
         let mut stats_map: HashMap<String, FiveDimensionStats> = HashMap::new();
@@ -221,9 +213,7 @@ impl FiveDimensionService {
         } else {
             Some(dye_lot_part.to_string())
         };
-        let grade = parts[4]
-            .trim_start_matches('G')
-            .to_string();
+        let grade = parts[4].trim_start_matches('G').to_string();
 
         let query = FiveDimensionQuery {
             product_id: Some(product_id),
@@ -304,17 +294,18 @@ impl FiveDimensionService {
 
     /// 获取五维统计汇总
     pub async fn get_summary(&self) -> Result<serde_json::Value, AppError> {
-        let all_stats = self.get_stats(FiveDimensionQuery {
-            product_id: None,
-            batch_no: None,
-            color_no: None,
-            dye_lot_no: None,
-            grade: None,
-            warehouse_id: None,
-            page: None,
-            page_size: None,
-        })
-        .await?;
+        let all_stats = self
+            .get_stats(FiveDimensionQuery {
+                product_id: None,
+                batch_no: None,
+                color_no: None,
+                dye_lot_no: None,
+                grade: None,
+                warehouse_id: None,
+                page: None,
+                page_size: None,
+            })
+            .await?;
 
         let total_products: i32 = all_stats
             .iter()

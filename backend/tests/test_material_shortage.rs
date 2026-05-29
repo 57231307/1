@@ -11,16 +11,28 @@ mod tests {
         use bingxi_backend::services::material_shortage_service::ShortageLevel;
 
         // 缺口100%应该是Critical
-        assert_eq!(ShortageLevel::from_deficit_rate(Decimal::from(100)), ShortageLevel::Critical);
-        
+        assert_eq!(
+            ShortageLevel::from_deficit_rate(Decimal::from(100)),
+            ShortageLevel::Critical
+        );
+
         // 缺口80%应该是Severe
-        assert_eq!(ShortageLevel::from_deficit_rate(Decimal::from(80)), ShortageLevel::Severe);
-        
+        assert_eq!(
+            ShortageLevel::from_deficit_rate(Decimal::from(80)),
+            ShortageLevel::Severe
+        );
+
         // 缺口30%应该是Warning
-        assert_eq!(ShortageLevel::from_deficit_rate(Decimal::from(30)), ShortageLevel::Warning);
-        
+        assert_eq!(
+            ShortageLevel::from_deficit_rate(Decimal::from(30)),
+            ShortageLevel::Warning
+        );
+
         // 缺口0%应该是Normal
-        assert_eq!(ShortageLevel::from_deficit_rate(Decimal::from(0)), ShortageLevel::Normal);
+        assert_eq!(
+            ShortageLevel::from_deficit_rate(Decimal::from(0)),
+            ShortageLevel::Normal
+        );
     }
 
     #[test]
@@ -60,7 +72,8 @@ mod tests {
     #[test]
     fn test_shortage_threshold_config_default() {
         // 测试默认阈值配置
-        let config = bingxi_backend::services::material_shortage_service::ShortageThresholdConfig::default();
+        let config =
+            bingxi_backend::services::material_shortage_service::ShortageThresholdConfig::default();
 
         assert_eq!(config.safety_factor, Decimal::from(1));
         assert_eq!(config.critical_threshold, Decimal::from(100));

@@ -1,32 +1,32 @@
 pub mod account_subject_handler;
 pub mod accounting_period_handler;
-pub mod omni_audit_handler;
-pub mod tracking_handler;
-pub mod crm_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;
 pub mod bulk_product_handler;
-pub mod inventory_batch_handler;
 pub mod business_trace_handler;
+pub mod crm_handler;
 pub mod customer_handler;
 pub mod dashboard_handler;
-pub mod finance_report_handler;
 pub mod department_handler;
 pub mod dual_unit_converter_handler;
 pub mod finance_invoice_handler;
 pub mod finance_payment_handler;
+pub mod finance_report_handler;
 pub mod five_dimension_handler;
 pub mod health_handler;
 pub mod init_handler;
 pub mod inventory_adjustment_handler;
+pub mod inventory_batch_handler;
 pub mod inventory_count_handler;
 pub mod inventory_stock_handler;
 pub mod inventory_transfer_handler;
+pub mod omni_audit_handler;
 pub mod product_category_handler;
 pub mod product_handler;
 pub mod role_handler;
 pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
+pub mod tracking_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
 // 供应商管理模块
@@ -65,28 +65,28 @@ pub mod sales_analysis_handler;
 pub mod sales_price_handler;
 pub mod supplier_evaluation_handler;
 // 面料行业核心模块
+pub mod bpm_handler;
 pub mod dye_batch_handler;
 pub mod dye_recipe_handler;
 pub mod greige_fabric_handler;
-pub mod system_update_handler;
 pub mod sales_return_handler;
-pub mod bpm_handler;
+pub mod system_update_handler;
 // MRP生产计划模块
-pub mod production_order_handler;
-pub mod bom_handler;
-pub mod mrp_handler;
-pub mod logistics_handler;
 pub mod barcode_scanner_handler;
+pub mod bom_handler;
+pub mod logistics_handler;
+pub mod mrp_handler;
 pub mod piece_split_handler;
+pub mod production_order_handler;
 // 多租户SaaS模块
+pub mod api_key_handler;
 pub mod tenant_handler;
 pub mod webhook_handler;
-pub mod api_key_handler;
 // Phase 2-3 补充Handler
-pub mod ar_reconciliation_handler;
-pub mod ar_reconciliation_enhanced_handler;
-pub mod currency_handler;
 pub mod ai_analysis_handler;
+pub mod ar_reconciliation_enhanced_handler;
+pub mod ar_reconciliation_handler;
+pub mod currency_handler;
 pub mod report_engine_handler;
 // 消息通知模块
 pub mod notification_handler;
@@ -104,18 +104,18 @@ pub mod currency_enhanced_handler;
 pub mod capacity_handler;
 pub mod material_shortage_handler;
 // 报表和导入导出模块
-pub mod report_enhanced_handler;
 pub mod import_export_handler;
+pub mod report_enhanced_handler;
 // BPM定义模块
 pub mod bpm_definition_handler;
 // CRM增强模块
+pub mod crm_assignment_handler;
 pub mod crm_customer_handler;
 pub mod crm_pool_handler;
-pub mod crm_assignment_handler;
 // 系统级功能模块
 pub mod audit_enhanced_handler;
-pub mod login_security_handler;
 pub mod email_handler;
+pub mod login_security_handler;
 pub mod webhook_integration_handler;
 // 生产排程模块
 pub mod scheduling_handler;

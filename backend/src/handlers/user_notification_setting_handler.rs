@@ -5,10 +5,7 @@ use crate::services::user_notification_setting_service::UserNotificationSettingS
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::{extract::State, Json};
 use serde::Deserialize;
 
 /// 获取当前用户的通知偏好设置

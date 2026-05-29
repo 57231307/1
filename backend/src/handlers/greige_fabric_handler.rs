@@ -9,8 +9,7 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -103,8 +102,7 @@ pub async fn list_greige_fabrics(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let mut q = greige_fabric::Entity::find()
-        .filter(greige_fabric::Column::IsDeleted.eq(false));
+    let mut q = greige_fabric::Entity::find().filter(greige_fabric::Column::IsDeleted.eq(false));
 
     if let Some(fabric_no) = &query.fabric_no {
         q = q.filter(greige_fabric::Column::FabricNo.contains(fabric_no));
@@ -211,8 +209,12 @@ pub async fn create_greige_fabric(
         purchase_date: Set(req.purchase_date),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
-        updated_at: Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())),
+        created_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
+        updated_at: Set(
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        ),
     };
 
     match fabric.insert(&*state.db).await {
@@ -294,7 +296,8 @@ pub async fn update_greige_fabric(
         fabric.remarks = Set(Some(remarks));
     }
 
-    fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    fabric.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match fabric.update(&*state.db).await {
         Ok(updated) => (
@@ -344,7 +347,8 @@ pub async fn delete_greige_fabric(
     // 软删除
     let mut active: greige_fabric::ActiveModel = fabric.into();
     active.is_deleted = Set(Some(true));
-    active.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    active.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match active.update(&*state.db).await {
         Ok(_) => (
@@ -386,14 +390,30 @@ pub async fn stock_in(
         };
 
     // 累加库存而不是覆盖
-    let current_weight = fabric.weight_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
-    let current_length = fabric.length_m.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
-    let current_qty_kg = fabric.quantity_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
-    let current_qty_meters = fabric.quantity_meters.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
-    
+    let current_weight = fabric
+        .weight_kg
+        .as_ref()
+        .and_then(|w| w.to_string().parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let current_length = fabric
+        .length_m
+        .as_ref()
+        .and_then(|l| l.to_string().parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let current_qty_kg = fabric
+        .quantity_kg
+        .as_ref()
+        .and_then(|w| w.to_string().parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let current_qty_meters = fabric
+        .quantity_meters
+        .as_ref()
+        .and_then(|l| l.to_string().parse::<f64>().ok())
+        .unwrap_or(0.0);
+
     let new_weight = current_weight + req.weight_kg;
     let new_length = current_length + req.length_m;
-    
+
     fabric.warehouse_id = Set(Some(req.warehouse_id));
     fabric.location = Set(req.location);
     fabric.weight_kg = Set(Decimal::from_f64_retain(new_weight));
@@ -407,7 +427,8 @@ pub async fn stock_in(
     if let Some(remarks) = req.remarks {
         fabric.remarks = Set(Some(remarks));
     }
-    fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    fabric.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match fabric.update(&*state.db).await {
         Ok(updated) => (
@@ -451,7 +472,8 @@ pub async fn stock_out(
 
     if let Some(out_weight) = req.weight_kg {
         let current_weight = fabric.weight_kg.unwrap_or(Decimal::ZERO);
-        let new_weight = current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
+        let new_weight =
+            current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
         if new_weight < Decimal::ZERO {
             return (
                 StatusCode::BAD_REQUEST,
@@ -462,12 +484,15 @@ pub async fn stock_out(
         update_fabric.weight_kg = Set(Some(new_weight));
         // 同步更新 quantity_kg
         let current_qty_kg = fabric.quantity_kg.unwrap_or(Decimal::ZERO);
-        update_fabric.quantity_kg = Set(Some(current_qty_kg - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO)));
+        update_fabric.quantity_kg = Set(Some(
+            current_qty_kg - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO),
+        ));
     }
 
     if let Some(out_length) = req.length_m {
         let current_length = fabric.length_m.unwrap_or(Decimal::ZERO);
-        let new_length = current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
+        let new_length =
+            current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
         if new_length < Decimal::ZERO {
             return (
                 StatusCode::BAD_REQUEST,
@@ -478,21 +503,32 @@ pub async fn stock_out(
         update_fabric.length_m = Set(Some(new_length));
         // 同步更新 quantity_meters
         let current_qty_meters = fabric.quantity_meters.unwrap_or(Decimal::ZERO);
-        update_fabric.quantity_meters = Set(Some(current_qty_meters - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO)));
+        update_fabric.quantity_meters = Set(Some(
+            current_qty_meters - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO),
+        ));
     }
 
     // 根据剩余库存决定状态
-    let final_weight = update_fabric.weight_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
-    let final_length = update_fabric.length_m.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
-    
+    let final_weight = update_fabric
+        .weight_kg
+        .as_ref()
+        .and_then(|w| w.to_string().parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let final_length = update_fabric
+        .length_m
+        .as_ref()
+        .and_then(|l| l.to_string().parse::<f64>().ok())
+        .unwrap_or(0.0);
+
     let new_status = if final_weight <= 0.0 && final_length <= 0.0 {
         "已出库".to_string()
     } else {
         "在库".to_string()
     };
-    
+
     update_fabric.status = Set(Some(new_status));
-    update_fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    update_fabric.updated_at =
+        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match update_fabric.update(&*state.db).await {
         Ok(updated) => (

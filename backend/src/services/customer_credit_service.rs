@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
-use chrono::NaiveDate;
 use bigdecimal::BigDecimal;
+use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
@@ -142,7 +142,13 @@ impl CustomerCreditService {
                 credit_active.available_credit = Set(req.credit_limit.clone() - used_credit);
                 credit_active.credit_limit = Set(req.credit_limit);
                 credit_active.credit_days = Set(req.credit_days.or(Some(30)));
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", credit_active, Some(0)).await?
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &*self.db,
+                    "auto_audit",
+                    credit_active,
+                    Some(0),
+                )
+                .await?
             }
             None => {
                 // 创建新评级
@@ -340,10 +346,7 @@ impl CustomerCreditService {
     }
 
     /// 检查信用预警
-    pub async fn check_credit_warning(
-        &self,
-        customer_id: i32,
-    ) -> Result<Option<String>, AppError> {
+    pub async fn check_credit_warning(&self, customer_id: i32) -> Result<Option<String>, AppError> {
         let credit = match self.get_by_customer_id(customer_id).await? {
             Some(c) => c,
             None => return Ok(None),
@@ -363,7 +366,11 @@ impl CustomerCreditService {
                 .unwrap_or(0.0);
             Ok(Some(format!(
                 "客户 {} 信用使用率已达 {:.1}%，超过 80% 预警阈值。总额度：{}，已用：{}，可用：{}",
-                customer_id, usage_percent, credit.credit_limit, credit.used_credit, credit.available_credit
+                customer_id,
+                usage_percent,
+                credit.credit_limit,
+                credit.used_credit,
+                credit.available_credit
             )))
         } else {
             Ok(None)
@@ -403,17 +410,18 @@ impl CustomerCreditService {
         _user_id: i32,
     ) -> Result<CreditEvaluationResult, AppError> {
         use chrono::NaiveDate;
-        
-        let eval_date = evaluation_date.parse::<NaiveDate>()
+
+        let eval_date = evaluation_date
+            .parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
-        
+
         // 获取客户信用信息（通过 customer_id 过滤）
         let customer = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
-        
+
         // 获取客户名称
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
             .one(&*self.db)
@@ -422,22 +430,24 @@ impl CustomerCreditService {
             .flatten()
             .map(|c| c.customer_name)
             .unwrap_or_else(|| format!("客户#{}", customer_id));
-        
+
         // 获取历史信用记录
         let credit_history = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .all(&*self.db)
             .await?;
-        
+
         // 获取客户创建时间
         let created_at = customer.created_at.format("%Y-%m-%d %H:%M:%S").to_string();
-        
+
         // 计算评估因子分数
         let mut factors = Vec::new();
         let mut total_score = 0;
-        
+
         // 1. 历史付款记录（权重 30%）
-        let payment_score = self.evaluate_payment_history(customer_id, eval_date).await?;
+        let payment_score = self
+            .evaluate_payment_history(customer_id, eval_date)
+            .await?;
         factors.push(EvaluationFactor {
             factor_name: "历史付款记录".to_string(),
             weight: 0.3,
@@ -445,7 +455,7 @@ impl CustomerCreditService {
             description: "基于过去 12 个月的付款及时性".to_string(),
         });
         total_score += (payment_score as f64 * 0.3) as i32;
-        
+
         // 2. 合作时长（权重 20%）
         let cooperation_score = self.evaluate_cooperation_duration(created_at, eval_date);
         factors.push(EvaluationFactor {
@@ -455,7 +465,7 @@ impl CustomerCreditService {
             description: "基于客户创建时间计算".to_string(),
         });
         total_score += (cooperation_score as f64 * 0.2) as i32;
-        
+
         // 3. 订单规模（权重 25%）
         let order_score = self.evaluate_order_volume(customer_id, eval_date).await?;
         factors.push(EvaluationFactor {
@@ -465,7 +475,7 @@ impl CustomerCreditService {
             description: "基于年度订单总额".to_string(),
         });
         total_score += (order_score as f64 * 0.25) as i32;
-        
+
         // 4. 信用记录（权重 25%）
         let credit_score = self.evaluate_credit_history(&credit_history);
         factors.push(EvaluationFactor {
@@ -475,10 +485,10 @@ impl CustomerCreditService {
             description: "基于历史信用记录".to_string(),
         });
         total_score += (credit_score as f64 * 0.25) as i32;
-        
+
         // 计算信用等级和推荐额度
         let (rating, recommended_limit) = self.calculate_rating_and_limit(total_score);
-        
+
         Ok(CreditEvaluationResult {
             customer_id,
             customer_name,
@@ -489,26 +499,30 @@ impl CustomerCreditService {
             evaluation_date: evaluation_date.to_string(),
         })
     }
-    
+
     /// 评估付款历史
-    async fn evaluate_payment_history(&self, customer_id: i32, _eval_date: NaiveDate) -> Result<i32, AppError> {
+    async fn evaluate_payment_history(
+        &self,
+        customer_id: i32,
+        _eval_date: NaiveDate,
+    ) -> Result<i32, AppError> {
         use crate::models::ar_invoice;
-        
+
         // 查询客户的应收发票记录
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::CustomerId.eq(customer_id))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+
         if invoices.is_empty() {
             return Ok(70); // 无记录默认70分
         }
-        
+
         // 计算及时付款比例
         let total = invoices.len() as f64;
         let mut on_time_count = 0;
-        
+
         for invoice in &invoices {
             // 检查是否已全额收款
             if invoice.received_amount >= invoice.invoice_amount {
@@ -520,9 +534,9 @@ impl CustomerCreditService {
             }
             // 逾期未全额付款的不计入及时数
         }
-        
+
         let on_time_rate = on_time_count as f64 / total;
-        
+
         // 根据及时付款率计算分数
         let score = if on_time_rate >= 0.95 {
             95
@@ -537,20 +551,20 @@ impl CustomerCreditService {
         } else {
             50
         };
-        
+
         Ok(score)
     }
-    
+
     /// 评估合作时长
     fn evaluate_cooperation_duration(&self, created_at: String, eval_date: NaiveDate) -> i32 {
         // 解析创建时间
         let created = chrono::NaiveDateTime::parse_from_str(&created_at, "%Y-%m-%d %H:%M:%S")
             .or_else(|_| chrono::NaiveDateTime::parse_from_str(&created_at, "%Y-%m-%dT%H:%M:%S"))
             .unwrap_or_else(|_| chrono::NaiveDateTime::default());
-        
+
         let created_date = created.date();
         let duration_days = (eval_date - created_date).num_days();
-        
+
         // 根据合作时长计算分数
         if duration_days >= 365 * 5 {
             95 // 5年以上
@@ -568,68 +582,73 @@ impl CustomerCreditService {
             50 // 3个月以下
         }
     }
-    
+
     /// 评估订单规模
-    async fn evaluate_order_volume(&self, customer_id: i32, _eval_date: NaiveDate) -> Result<i32, AppError> {
+    async fn evaluate_order_volume(
+        &self,
+        customer_id: i32,
+        _eval_date: NaiveDate,
+    ) -> Result<i32, AppError> {
         use crate::models::sales_order;
-        
+
         // 查询客户近一年的订单
         let one_year_ago = chrono::Utc::now().date_naive() - chrono::Duration::days(365);
-        
+
         let orders = sales_order::Entity::find()
             .filter(sales_order::Column::CustomerId.eq(customer_id))
             .filter(sales_order::Column::CreatedAt.gte(one_year_ago))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+
         if orders.is_empty() {
             return Ok(50); // 无订单默认50分
         }
-        
+
         // 计算年度订单总额
-        let total_amount: BigDecimal = orders.iter()
+        let total_amount: BigDecimal = orders
+            .iter()
             .map(|o| {
                 let s = o.total_amount.to_string();
                 BigDecimal::parse_bytes(s.as_bytes(), 10).unwrap_or_else(|| BigDecimal::from(0))
             })
             .fold(BigDecimal::from(0), |acc, x| acc + x);
-        
+
         // 根据订单总额计算分数（直接使用 Decimal 比较，避免精度损失）
-        let score = if total_amount >= BigDecimal::from(1000000) {
+        let score = if total_amount >= 1000000 {
             95 // 100万以上
-        } else if total_amount >= BigDecimal::from(500000) {
+        } else if total_amount >= 500000 {
             90 // 50-100万
-        } else if total_amount >= BigDecimal::from(200000) {
+        } else if total_amount >= 200000 {
             85 // 20-50万
-        } else if total_amount >= BigDecimal::from(100000) {
+        } else if total_amount >= 100000 {
             80 // 10-20万
-        } else if total_amount >= BigDecimal::from(50000) {
+        } else if total_amount >= 50000 {
             75 // 5-10万
-        } else if total_amount >= BigDecimal::from(10000) {
+        } else if total_amount >= 10000 {
             65 // 1-5万
         } else {
             55 // 1万以下
         };
-        
+
         Ok(score)
     }
-    
+
     /// 评估信用历史
     fn evaluate_credit_history(&self, credit_history: &[customer_credit::Model]) -> i32 {
         if credit_history.is_empty() {
             return 70; // 无记录默认70分
         }
-        
+
         // 检查是否有逾期记录
         let mut has_overdue = false;
         let mut has_good_record = false;
-        
+
         for credit in credit_history {
             // 检查使用率
             let used = credit.used_credit.clone();
             let limit = credit.credit_limit.clone();
-            
+
             // 使用率超过90%视为高风险
             if limit > 0 {
                 let usage_rate = used / limit;
@@ -637,7 +656,7 @@ impl CustomerCreditService {
                     has_overdue = true;
                 }
             }
-            
+
             // 检查信用等级
             if let Some(ref level) = credit.credit_level {
                 match level.as_str() {
@@ -646,7 +665,7 @@ impl CustomerCreditService {
                 }
             }
         }
-        
+
         // 计算分数
         if has_good_record && !has_overdue {
             90
@@ -658,7 +677,7 @@ impl CustomerCreditService {
             60
         }
     }
-    
+
     /// 计算信用等级和推荐额度
     fn calculate_rating_and_limit(&self, score: i32) -> (String, BigDecimal) {
         let (rating, limit) = if score >= 90 {
@@ -844,7 +863,7 @@ mod tests {
             (49, "B"),
             (0, "B"),
         ];
-        
+
         for (score, expected_rating) in test_cases {
             let (rating, _) = if score >= 90 {
                 ("AAA", 1000000)
@@ -884,7 +903,7 @@ mod tests {
     #[test]
     fn test_credit_model_fields() {
         let model = create_test_credit_model(1, "AA", "active");
-        
+
         assert_eq!(model.customer_id, 1);
         assert_eq!(model.credit_level, Some("AA".to_string()));
         assert_eq!(model.status, "active");
@@ -896,11 +915,11 @@ mod tests {
     #[test]
     fn test_credit_utilization() {
         let model = create_test_credit_model(1, "AA", "active");
-        
+
         // 使用率 = 已用额度 / 总额度
         let utilization = model.used_credit.clone() / model.credit_limit.clone();
         assert_eq!(utilization, BigDecimal::from(0));
-        
+
         // 模拟使用 50000
         let used = BigDecimal::from(50000);
         let utilization = used / model.credit_limit.clone();

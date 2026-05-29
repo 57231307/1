@@ -151,10 +151,12 @@ impl SalesContractService {
 
         // 验证执行类型
         match req.execution_type.as_str() {
-            "delivery" | "payment" => {},
-            _ => return Err(AppError::ValidationError(
-                "无效的执行类型，支持：delivery（出库）、payment（收款）".to_string(),
-            )),
+            "delivery" | "payment" => {}
+            _ => {
+                return Err(AppError::ValidationError(
+                    "无效的执行类型，支持：delivery（出库）、payment（收款）".to_string(),
+                ))
+            }
         }
 
         // 开启事务
@@ -169,8 +171,11 @@ impl SalesContractService {
         // 记录执行日志（这里可以扩展为创建执行记录表）
         info!(
             "合同执行记录：合同ID={}，类型={}，金额={}，关联单据类型={}，关联单据ID={:?}",
-            contract_id, req.execution_type, req.execution_amount, 
-            req.related_bill_type.as_deref().unwrap_or("无"), req.related_bill_id
+            contract_id,
+            req.execution_type,
+            req.execution_amount,
+            req.related_bill_type.as_deref().unwrap_or("无"),
+            req.related_bill_id
         );
 
         // 提交事务

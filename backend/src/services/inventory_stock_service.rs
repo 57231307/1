@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use crate::utils::error::AppError;
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
+use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -71,7 +71,8 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::ProductId.eq(product_id))
             .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
             .one(&*self.db)
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -181,8 +182,6 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::ResourceNotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
-
-
     pub async fn list_stock(
         &self,
         page: u64,
@@ -219,7 +218,11 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"))
             // 检查可用库存低于重新订购点
-            .filter(sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint)))
+            .filter(
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint),
+                ),
+            )
             // 只检查重新订购点大于0的记录
             .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
 
@@ -236,7 +239,7 @@ impl InventoryStockService {
         }
 
         let low_stock_items = query.all(&*self.db).await?;
-        
+
         // 触发低库存预警事件
         for item in &low_stock_items {
             let event = BusinessEvent::LowStockAlert {
@@ -256,7 +259,7 @@ impl InventoryStockService {
                 item.reorder_quantity
             );
         }
-        
+
         Ok(low_stock_items)
     }
 
@@ -374,7 +377,8 @@ impl InventoryStockService {
         layer_no: Option<String>,
     ) -> Result<inventory_stock::Model, AppError> {
         // 自动计算公斤数（如果提供了克重和幅宽）
-        let final_quantity_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
+        let final_quantity_kg =
+            Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -482,7 +486,8 @@ impl InventoryStockService {
         shelf_no: Option<String>,
         layer_no: Option<String>,
     ) -> Result<inventory_stock::Model, AppError> {
-        let final_quantity_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
+        let final_quantity_kg =
+            Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -648,7 +653,7 @@ impl InventoryStockService {
         };
 
         let transaction = active_transaction.insert(&*self.db).await?;
-        
+
         // 触发库存交易创建事件
         let event = BusinessEvent::InventoryTransactionCreated {
             transaction_id: transaction.id,
@@ -665,7 +670,7 @@ impl InventoryStockService {
             created_by: transaction.created_by,
         };
         EVENT_BUS.publish(event);
-        
+
         Ok(transaction)
     }
 
@@ -703,7 +708,8 @@ impl InventoryStockService {
         }
 
         if let Some(transaction_type) = transaction_type {
-            query = query.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
+            query =
+                query.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
         }
 
         if let Some(start_date) = start_date {
@@ -731,7 +737,7 @@ impl InventoryStockService {
         grade: Option<String>,
     ) -> Result<Vec<InventorySummaryItem>, AppError> {
         use sea_orm::QuerySelect;
-        
+
         let mut query = inventory_stock::Entity::find()
             .inner_join(crate::models::product::Entity)
             .inner_join(crate::models::warehouse::Entity)
@@ -743,8 +749,14 @@ impl InventoryStockService {
             .column_as(inventory_stock::Column::BatchNo, "batch_no")
             .column_as(inventory_stock::Column::ColorNo, "color_no")
             .column_as(inventory_stock::Column::Grade, "grade")
-            .column_as(inventory_stock::Column::QuantityMeters.sum(), "total_quantity_meters")
-            .column_as(inventory_stock::Column::QuantityKg.sum(), "total_quantity_kg")
+            .column_as(
+                inventory_stock::Column::QuantityMeters.sum(),
+                "total_quantity_meters",
+            )
+            .column_as(
+                inventory_stock::Column::QuantityKg.sum(),
+                "total_quantity_kg",
+            )
             .group_by(inventory_stock::Column::ProductId)
             .group_by(crate::models::product::Column::Name)
             .group_by(inventory_stock::Column::WarehouseId)
@@ -754,7 +766,7 @@ impl InventoryStockService {
             .group_by(inventory_stock::Column::Grade)
             .order_by_asc(inventory_stock::Column::BatchNo)
             .order_by_asc(inventory_stock::Column::ColorNo);
-        
+
         // 添加过滤条件
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
@@ -771,28 +783,34 @@ impl InventoryStockService {
         if let Some(g) = grade {
             query = query.filter(inventory_stock::Column::Grade.eq(g));
         }
-        
+
         // 添加库存状态和质量状态过滤
         query = query
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"));
-        
-        let result = query.into_model::<InventorySummaryQueryResult>().all(&*self.db).await?;
-        
-        Ok(result.into_iter().map(|r| InventorySummaryItem {
-            product_id: r.product_id,
-            product_name: r.product_name,
-            specification: None,
-            color_no: r.color_no,
-            batch_no: r.batch_no,
-            grade: r.grade,
-            warehouse_id: r.warehouse_id,
-            warehouse_name: r.warehouse_name,
-            quantity: Decimal::ZERO,
-            unit: String::new(),
-            total_value: None,
-            total_quantity_meters: r.total_quantity_meters,
-            total_quantity_kg: r.total_quantity_kg,
-        }).collect())
+
+        let result = query
+            .into_model::<InventorySummaryQueryResult>()
+            .all(&*self.db)
+            .await?;
+
+        Ok(result
+            .into_iter()
+            .map(|r| InventorySummaryItem {
+                product_id: r.product_id,
+                product_name: r.product_name,
+                specification: None,
+                color_no: r.color_no,
+                batch_no: r.batch_no,
+                grade: r.grade,
+                warehouse_id: r.warehouse_id,
+                warehouse_name: r.warehouse_name,
+                quantity: Decimal::ZERO,
+                unit: String::new(),
+                total_value: None,
+                total_quantity_meters: r.total_quantity_meters,
+                total_quantity_kg: r.total_quantity_kg,
+            })
+            .collect())
     }
 }

@@ -4,17 +4,14 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
 
-use crate::models::email_log::{
-    ActiveModel, Entity as EmailLogEntity, Model as EmailLogModel,
-};
+use crate::models::email_log::{ActiveModel, Entity as EmailLogEntity, Model as EmailLogModel};
 use crate::utils::error::AppError;
 
 /// 创建邮件发送记录请求
@@ -160,8 +157,8 @@ impl EmailLogService {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
-        let mut select = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id));
+        let mut select =
+            EmailLogEntity::find().filter(crate::models::email_log::Column::TenantId.eq(tenant_id));
 
         if let Some(status) = query.status {
             select = select.filter(crate::models::email_log::Column::Status.eq(status));
@@ -209,10 +206,7 @@ impl EmailLogService {
     }
 
     /// 获取发送统计
-    pub async fn get_statistics(
-        &self,
-        tenant_id: i32,
-    ) -> Result<EmailStatistics, AppError> {
+    pub async fn get_statistics(&self, tenant_id: i32) -> Result<EmailStatistics, AppError> {
         let total = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .count(&*self.db)

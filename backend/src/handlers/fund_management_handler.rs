@@ -1,6 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fund_management;
 use crate::services::fund_management_service::FundManagementService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
@@ -8,7 +9,6 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -237,7 +237,10 @@ pub async fn transfer(
     info!("用户 {} 正在发起资金调拨", auth.username);
     let service = FundManagementService::new(state.db.clone());
     let res = service.transfer_fund(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(res).map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?)))
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(res)
+            .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?,
+    )))
 }
 
 /// 查询转账记录列表
@@ -248,7 +251,15 @@ pub async fn list_transfer_records(
 ) -> Result<Json<ApiResponse<Vec<crate::models::fund_transfer_record::Model>>>, AppError> {
     info!("用户查询资金转账记录列表");
     let service = FundManagementService::new(state.db.clone());
-    let records = service.list_transfer_records(params.from_account_id, params.to_account_id, params.status, params.page.unwrap_or(1), params.page_size.unwrap_or(20)).await?;
+    let records = service
+        .list_transfer_records(
+            params.from_account_id,
+            params.to_account_id,
+            params.status,
+            params.page.unwrap_or(1),
+            params.page_size.unwrap_or(20),
+        )
+        .await?;
     Ok(Json(ApiResponse::success(records)))
 }
 

@@ -1,14 +1,10 @@
 //! 系统更新处理器
 #![allow(dead_code)]
 
-use axum::{
-    extract::Multipart,
-    http::StatusCode,
-    Json,
-};
+use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
+use axum::{extract::Multipart, http::StatusCode, Json};
 use std::path::PathBuf;
 use tokio::fs;
-use crate::services::system_update_service::{SystemUpdateService, UpdateError, LocalRelease};
 
 fn verify_zip_magic(data: &[u8]) -> bool {
     data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
@@ -53,11 +49,12 @@ pub struct CheckUpdateResponse {
     pub published_at: Option<String>,
 }
 
-pub async fn check_for_updates() -> Result<Json<CheckUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn check_for_updates(
+) -> Result<Json<CheckUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
     let service = SystemUpdateService::new();
-    
+
     let result = service.check_for_updates().await;
-    
+
     if result.error.is_some() {
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -67,14 +64,15 @@ pub async fn check_for_updates() -> Result<Json<CheckUpdateResponse>, (StatusCod
             }),
         ));
     }
-    
+
     let response = if result.has_update {
         let release = result.release_info.as_ref();
         let asset = release.and_then(|r| {
-            r.assets.iter()
+            r.assets
+                .iter()
                 .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
         });
-        
+
         CheckUpdateResponse {
             has_update: true,
             current_version: result.current_version,
@@ -95,13 +93,14 @@ pub async fn check_for_updates() -> Result<Json<CheckUpdateResponse>, (StatusCod
             published_at: None,
         }
     };
-    
+
     Ok(Json(response))
 }
 
-pub async fn download_and_update() -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn download_and_update() -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)>
+{
     let service = SystemUpdateService::new();
-    
+
     match service.download_and_update().await {
         Ok(message) => {
             let new_version = service.get_current_version();
@@ -118,7 +117,7 @@ pub async fn download_and_update() -> Result<Json<UpdateResult>, (StatusCode, Js
                 UpdateError::AlreadyUpdating => "already_updating",
                 _ => "update_failed",
             };
-            
+
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
@@ -334,11 +333,12 @@ pub struct CheckLocalUpdateResponse {
     pub error: Option<String>,
 }
 
-pub async fn check_for_local_updates() -> Result<Json<CheckLocalUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn check_for_local_updates(
+) -> Result<Json<CheckLocalUpdateResponse>, (StatusCode, Json<ErrorResponse>)> {
     let service = SystemUpdateService::new();
-    
+
     let result = service.check_local_updates();
-    
+
     Ok(Json(CheckLocalUpdateResponse {
         has_update: result.has_update,
         current_version: result.current_version,
@@ -348,25 +348,22 @@ pub async fn check_for_local_updates() -> Result<Json<CheckLocalUpdateResponse>,
     }))
 }
 
-pub async fn list_local_releases() -> Result<Json<LocalReleasesResponse>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn list_local_releases(
+) -> Result<Json<LocalReleasesResponse>, (StatusCode, Json<ErrorResponse>)> {
     let service = SystemUpdateService::new();
-    
+
     match service.list_local_releases() {
-        Ok(releases) => {
-            Ok(Json(LocalReleasesResponse {
-                count: releases.len(),
-                releases,
-            }))
-        }
-        Err(e) => {
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "list_failed".to_string(),
-                    message: e.to_string(),
-                }),
-            ))
-        }
+        Ok(releases) => Ok(Json(LocalReleasesResponse {
+            count: releases.len(),
+            releases,
+        })),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "list_failed".to_string(),
+                message: e.to_string(),
+            }),
+        )),
     }
 }
 
@@ -379,7 +376,7 @@ pub async fn apply_local_update(
     Json(payload): Json<ApplyLocalUpdateRequest>,
 ) -> Result<Json<UpdateResult>, (StatusCode, Json<ErrorResponse>)> {
     let service = SystemUpdateService::new();
-    
+
     let releases = service.list_local_releases().map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -389,8 +386,9 @@ pub async fn apply_local_update(
             }),
         )
     })?;
-    
-    let release = releases.into_iter()
+
+    let release = releases
+        .into_iter()
         .find(|r| r.version == payload.version)
         .ok_or_else(|| {
             (
@@ -401,7 +399,7 @@ pub async fn apply_local_update(
                 }),
             )
         })?;
-    
+
     match service.apply_local_update(&release).await {
         Ok(message) => {
             let new_version = service.get_current_version();
@@ -421,7 +419,7 @@ pub async fn apply_local_update(
                 UpdateError::AlreadyUpdating => "already_updating",
                 _ => "update_failed",
             };
-            
+
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {

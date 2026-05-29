@@ -7,6 +7,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_invoice_service::{
     ApInvoiceService, CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -14,7 +15,6 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::{info, warn};
 use validator::Validate;
@@ -57,7 +57,12 @@ pub async fn list_ap_invoices(
 
     info!("查询成功，共 {} 条记录", total);
 
-    let result = crate::utils::response::build_paginated_response(invoices, total, params.page.unwrap_or(1), params.page_size.unwrap_or(20));
+    let result = crate::utils::response::build_paginated_response(
+        invoices,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    );
 
     Ok(Json(ApiResponse::success(result)))
 }

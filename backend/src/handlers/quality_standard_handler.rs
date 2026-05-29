@@ -3,6 +3,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::quality_standard;
 use crate::services::quality_standard_service::QualityStandardService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
@@ -10,7 +11,6 @@ use axum::{
     Json,
 };
 use chrono::NaiveDate;
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 use tracing::info;
 
@@ -125,7 +125,8 @@ pub async fn create_standard(
 ) -> Result<Json<ApiResponse<quality_standard::Model>>, AppError> {
     info!(
         "用户 {} 正在创建质量标准：{}",
-        auth.username, req.standard_code.as_deref().unwrap_or("自动生成")
+        auth.username,
+        req.standard_code.as_deref().unwrap_or("自动生成")
     );
 
     let service = QualityStandardService::new(state.db.clone());
@@ -137,12 +138,12 @@ pub async fn create_standard(
                 standard_type: req.standard_type,
                 version: req.version,
                 content: req.content,
-                effective_date: req.effective_date.and_then(|d| {
-                    NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()
-                }),
-                expiry_date: req.expiry_date.and_then(|d| {
-                    NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()
-                }),
+                effective_date: req
+                    .effective_date
+                    .and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()),
+                expiry_date: req
+                    .expiry_date
+                    .and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()),
                 remark: req.remark,
             },
             auth.user_id,
@@ -257,7 +258,9 @@ pub async fn create_version_history(
         change_content: req.change_content,
     };
 
-    let version = service.create_version_history(create_req, auth.user_id).await?;
+    let version = service
+        .create_version_history(create_req, auth.user_id)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(version)?,
@@ -277,5 +280,8 @@ pub async fn delete_standard(
     let service = QualityStandardService::new(state.db.clone());
     service.delete_standard(id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_message((), "质量标准已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "质量标准已删除",
+    )))
 }

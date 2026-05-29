@@ -1,8 +1,8 @@
 //! 批量操作服务
 //! 提供批量创建、更新、删除功能
 
-use crate::utils::error::AppError;
 use crate::models::product;
+use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use crate::utils::error::AppError;
 use crate::models::finance_payment;
+use crate::utils::error::AppError;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -51,8 +51,13 @@ impl FinancePaymentService {
             return Err(AppError::BusinessError("付款金额必须大于零".to_string()));
         }
 
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
-        period_svc.check_date_locked(payment_date.date_naive()).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
+        period_svc
+            .check_date_locked(payment_date.date_naive())
+            .await
+            .map_err(|e| AppError::BusinessError(e.to_string()))?;
 
         // 验证关联单据是否存在
         if let Some(inv_id) = invoice_id {
@@ -61,7 +66,10 @@ impl FinancePaymentService {
                 .await?
                 .is_some();
             if !invoice_exists {
-                return Err(AppError::BusinessError(format!("关联发票 ID {} 不存在", inv_id)));
+                return Err(AppError::BusinessError(format!(
+                    "关联发票 ID {} 不存在",
+                    inv_id
+                )));
             }
         }
 
@@ -79,7 +87,10 @@ impl FinancePaymentService {
             updated_at: Set(Utc::now()),
         };
 
-        active_payment.insert(&*self.db).await.map_err(AppError::from)
+        active_payment
+            .insert(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     pub async fn update_payment_status(
@@ -98,7 +109,10 @@ impl FinancePaymentService {
             ("confirmed", vec!["completed", "cancelled"]),
             ("completed", vec![]),
             ("cancelled", vec![]),
-        ].iter().cloned().collect();
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
         let empty_vec = vec![];
         let allowed = valid_transitions.get(current_status).unwrap_or(&empty_vec);

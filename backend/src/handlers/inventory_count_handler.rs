@@ -1,17 +1,17 @@
+use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use crate::utils::app_state::AppState;
 use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
-use crate::utils::response::ApiResponse;
 use crate::services::inventory_count_service::{
     CreateInventoryCountRequest, InventoryCountService, UpdateInventoryCountRequest,
 };
+use crate::utils::response::ApiResponse;
 use crate::utils::response::PaginatedResponse;
 
 /// 查询参数
@@ -63,10 +63,7 @@ pub async fn list_counts(
 
 /// 获取库存盘点详情
 /// GET /api/v1/erp/inventory/counts/:id
-pub async fn get_count(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> impl IntoResponse {
+pub async fn get_count(State(state): State<AppState>, Path(id): Path<i32>) -> impl IntoResponse {
     let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service.get_count_detail(id).await {

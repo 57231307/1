@@ -80,7 +80,9 @@ pub async fn create_production_order(
     auth: AuthContext,
     Json(payload): Json<CreateProductionOrderPayload>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
-    payload.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    payload
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = ProductionOrderService::new(state.db.clone());
 
@@ -127,7 +129,8 @@ pub async fn get_production_order(
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
 
-    let model = service.get_by_id(id)
+    let model = service
+        .get_by_id(id)
         .await?
         .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
@@ -188,7 +191,12 @@ pub async fn list_production_orders(
         })
         .collect();
 
-    Ok(Json(ApiResponse::success_paginated(responses, total, query.page.unwrap_or(1), query.page_size.unwrap_or(20))))
+    Ok(Json(ApiResponse::success_paginated(
+        responses,
+        total,
+        query.page.unwrap_or(1),
+        query.page_size.unwrap_or(20),
+    )))
 }
 
 /// 更新生产订单
@@ -245,7 +253,9 @@ pub async fn submit_for_approval(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
-    let model = service.submit_for_approval(id, auth.user_id, &auth.username).await?;
+    let model = service
+        .submit_for_approval(id, auth.user_id, &auth.username)
+        .await?;
 
     let response = ProductionOrderResponse {
         id: model.id,
@@ -264,7 +274,10 @@ pub async fn submit_for_approval(
         updated_at: model.updated_at,
     };
 
-    Ok(Json(ApiResponse::success_with_message(response, "已提交审批")))
+    Ok(Json(ApiResponse::success_with_message(
+        response,
+        "已提交审批",
+    )))
 }
 
 /// 审批生产订单
@@ -275,7 +288,9 @@ pub async fn approve_production_order(
     Json(req): Json<ApprovalRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
-    let model = service.approve_order(id, auth.user_id, &auth.username, req.approved, req.opinion).await?;
+    let model = service
+        .approve_order(id, auth.user_id, &auth.username, req.approved, req.opinion)
+        .await?;
 
     let response = ProductionOrderResponse {
         id: model.id,
@@ -294,7 +309,11 @@ pub async fn approve_production_order(
         updated_at: model.updated_at,
     };
 
-    let message = if req.approved { "审批通过" } else { "审批拒绝" };
+    let message = if req.approved {
+        "审批通过"
+    } else {
+        "审批拒绝"
+    };
     Ok(Json(ApiResponse::success_with_message(response, message)))
 }
 
@@ -317,7 +336,9 @@ pub async fn update_production_order_status(
         .and_then(|v| v.as_str())
         .and_then(|s| s.parse::<Decimal>().ok());
 
-    let model = service.update_status(id, status.to_string(), actual_quantity).await?;
+    let model = service
+        .update_status(id, status.to_string(), actual_quantity)
+        .await?;
 
     let response = ProductionOrderResponse {
         id: model.id,

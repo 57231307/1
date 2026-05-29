@@ -4,8 +4,7 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -114,9 +113,7 @@ impl AssignmentHistoryService {
             .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id));
 
         if let Some(lead_id) = query.lead_id {
-            select = select.filter(
-                crate::models::assignment_history::Column::LeadId.eq(lead_id),
-            );
+            select = select.filter(crate::models::assignment_history::Column::LeadId.eq(lead_id));
         }
 
         if let Some(user_id) = query.user_id {
@@ -128,9 +125,7 @@ impl AssignmentHistoryService {
         }
 
         if let Some(action) = query.action {
-            select = select.filter(
-                crate::models::assignment_history::Column::Action.eq(action),
-            );
+            select = select.filter(crate::models::assignment_history::Column::Action.eq(action));
         }
 
         let total = select

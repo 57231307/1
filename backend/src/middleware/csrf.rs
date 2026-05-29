@@ -1,25 +1,24 @@
+use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
     extract::State,
-    http::{Request, StatusCode, Method},
+    http::{Method, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
-use crate::utils::app_state::AppState;
-use serde_json::json;
-use tracing::{warn, debug};
-use hmac::{Hmac, Mac, KeyInit};
-use sha2::Sha256;
 use hex;
+use hmac::{Hmac, KeyInit, Mac};
+use serde_json::json;
+use sha2::Sha256;
+use tracing::{debug, warn};
 
 // 使用 HMAC-SHA256 生成和验证 CSRF Token
 type HmacSha256 = Hmac<Sha256>;
 
 /// 生成基于会话的 CSRF Token
 fn generate_csrf_token(session_id: &str, secret: &str) -> String {
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .expect("HMAC 密钥长度有效");
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC 密钥长度有效");
     mac.update(session_id.as_bytes());
     mac.update(b"csrf_token_v1");
     let result = mac.finalize();
@@ -31,7 +30,7 @@ fn generate_csrf_token(session_id: &str, secret: &str) -> String {
 fn verify_csrf_token(token: &str, session_id: &str, secret: &str) -> bool {
     let expected = generate_csrf_token(session_id, secret);
     // 使用常量时间比较防止时序攻击
-    
+
     if token.len() != expected.len() {
         return false;
     }
@@ -51,7 +50,9 @@ fn extract_session_id(request: &Request<Body>, secret: &str) -> Option<String> {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if !token.is_empty() {
                     // 尝试解码 JWT 获取 session_id
-                    match crate::services::auth_service::AuthService::validate_token_static(token, secret) {
+                    match crate::services::auth_service::AuthService::validate_token_static(
+                        token, secret,
+                    ) {
                         Ok(claims) => return Some(claims.session_id),
                         Err(e) => {
                             // JWT 解码失败，记录警告并回退到其他方法
@@ -64,21 +65,30 @@ fn extract_session_id(request: &Request<Body>, secret: &str) -> Option<String> {
     }
 
     // 回退到 IP + User-Agent 哈希
-    let ip = request.headers()
+    let ip = request
+        .headers()
         .get("X-Forwarded-For")
         .and_then(|h| h.to_str().ok())
-        .or_else(|| request.headers()
-            .get("X-Real-IP")
-            .and_then(|h| h.to_str().ok()))
+        .or_else(|| {
+            request
+                .headers()
+                .get("X-Real-IP")
+                .and_then(|h| h.to_str().ok())
+        })
         .unwrap_or("unknown");
 
-    let user_agent = request.headers()
+    let user_agent = request
+        .headers()
         .get(axum::http::header::USER_AGENT)
         .and_then(|h| h.to_str().ok())
         .unwrap_or("unknown");
 
     // 简单组合，不需要加密安全，仅用于区分不同客户端
-    Some(format!("client:{}:{}", ip, &user_agent[..user_agent.len().min(50)]))
+    Some(format!(
+        "client:{}:{}",
+        ip,
+        &user_agent[..user_agent.len().min(50)]
+    ))
 }
 
 fn forbidden_response(message: &str) -> Response {
@@ -98,7 +108,11 @@ pub async fn csrf_middleware(
     let method = request.method();
 
     // 只拦截状态变更方法
-    if method != Method::POST && method != Method::PUT && method != Method::DELETE && method != Method::PATCH {
+    if method != Method::POST
+        && method != Method::PUT
+        && method != Method::DELETE
+        && method != Method::PATCH
+    {
         return Ok(next.run(request).await);
     }
 
@@ -118,12 +132,14 @@ pub async fn csrf_middleware(
     }
 
     // 提取 CSRF Token 从 Header
-    let csrf_token_header = request.headers()
+    let csrf_token_header = request
+        .headers()
         .get("X-CSRF-Token")
         .and_then(|h| h.to_str().ok());
 
     // 提取 X-Requested-With Header（用于 AJAX 请求识别）
-    let x_requested_with = request.headers()
+    let x_requested_with = request
+        .headers()
         .get("X-Requested-With")
         .and_then(|h| h.to_str().ok());
 
@@ -156,7 +172,10 @@ pub async fn csrf_middleware(
         return Ok(next.run(request).await);
     }
 
-    warn!("拒绝可能发生 CSRF 的请求: {} {}。缺少 X-CSRF-Token 或 X-Requested-With 头", method, path);
+    warn!(
+        "拒绝可能发生 CSRF 的请求: {} {}。缺少 X-CSRF-Token 或 X-Requested-With 头",
+        method, path
+    );
     Err(forbidden_response("缺少 CSRF Token，请刷新页面重试"))
 }
 

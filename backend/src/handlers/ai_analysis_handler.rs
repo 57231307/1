@@ -35,13 +35,16 @@ pub async fn forecast_sales(
 
     match service.forecast_sales(query.product_id, days).await {
         Ok(forecasts) => {
-            let responses: Vec<SalesForecastResponse> = forecasts.into_iter().map(|f| SalesForecastResponse {
-                product_id: f.product_id,
-                forecast_date: f.forecast_date.to_string(),
-                predicted_quantity: f.predicted_quantity.to_string(),
-                confidence: f.confidence,
-                trend: f.trend,
-            }).collect();
+            let responses: Vec<SalesForecastResponse> = forecasts
+                .into_iter()
+                .map(|f| SalesForecastResponse {
+                    product_id: f.product_id,
+                    forecast_date: f.forecast_date.to_string(),
+                    predicted_quantity: f.predicted_quantity.to_string(),
+                    confidence: f.confidence,
+                    trend: f.trend,
+                })
+                .collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {
@@ -75,14 +78,17 @@ pub async fn optimize_inventory(
 
     match service.optimize_inventory(query.product_id).await {
         Ok(suggestions) => {
-            let responses: Vec<InventorySuggestionResponse> = suggestions.into_iter().map(|s| InventorySuggestionResponse {
-                product_id: s.product_id,
-                current_stock: s.current_stock.to_string(),
-                suggested_stock: s.suggested_stock.to_string(),
-                reorder_point: s.reorder_point.to_string(),
-                reorder_quantity: s.reorder_quantity.to_string(),
-                reason: s.reason,
-            }).collect();
+            let responses: Vec<InventorySuggestionResponse> = suggestions
+                .into_iter()
+                .map(|s| InventorySuggestionResponse {
+                    product_id: s.product_id,
+                    current_stock: s.current_stock.to_string(),
+                    suggested_stock: s.suggested_stock.to_string(),
+                    reorder_point: s.reorder_point.to_string(),
+                    reorder_quantity: s.reorder_quantity.to_string(),
+                    reason: s.reason,
+                })
+                .collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {
@@ -117,14 +123,17 @@ pub async fn detect_anomalies(
 
     match service.detect_anomalies(days).await {
         Ok(anomalies) => {
-            let responses: Vec<AnomalyDetectionResponse> = anomalies.into_iter().map(|a| AnomalyDetectionResponse {
-                entity_type: a.entity_type,
-                entity_id: a.entity_id,
-                anomaly_type: a.anomaly_type,
-                severity: a.severity,
-                description: a.description,
-                detected_at: a.detected_at.to_rfc3339(),
-            }).collect();
+            let responses: Vec<AnomalyDetectionResponse> = anomalies
+                .into_iter()
+                .map(|a| AnomalyDetectionResponse {
+                    entity_type: a.entity_type,
+                    entity_id: a.entity_id,
+                    anomaly_type: a.anomaly_type,
+                    severity: a.severity,
+                    description: a.description,
+                    detected_at: a.detected_at.to_rfc3339(),
+                })
+                .collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {
@@ -155,18 +164,23 @@ pub async fn get_recommendations(
     Query(query): Query<RecommendationsQuery>,
 ) -> Result<Json<ApiResponse<Vec<SmartRecommendationResponse>>>, StatusCode> {
     let service = AiAnalysisService::new(state.db);
-    let rec_type = query.recommendation_type.unwrap_or_else(|| "all".to_string());
+    let rec_type = query
+        .recommendation_type
+        .unwrap_or_else(|| "all".to_string());
     let limit = query.limit.unwrap_or(10);
 
     match service.generate_recommendations(rec_type, limit).await {
         Ok(recommendations) => {
-            let responses: Vec<SmartRecommendationResponse> = recommendations.into_iter().map(|r| SmartRecommendationResponse {
-                recommendation_type: r.recommendation_type,
-                target_id: r.target_id,
-                target_type: r.target_type,
-                score: r.score,
-                reason: r.reason,
-            }).collect();
+            let responses: Vec<SmartRecommendationResponse> = recommendations
+                .into_iter()
+                .map(|r| SmartRecommendationResponse {
+                    recommendation_type: r.recommendation_type,
+                    target_id: r.target_id,
+                    target_type: r.target_type,
+                    score: r.score,
+                    reason: r.reason,
+                })
+                .collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {

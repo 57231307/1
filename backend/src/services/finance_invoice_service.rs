@@ -1,10 +1,10 @@
-use crate::utils::error::AppError;
 use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
+use crate::utils::error::AppError;
 use chrono::Utc;
+use rust_decimal::Decimal;
 use sea_orm::*;
 use std::sync::Arc;
-use rust_decimal::Decimal;
 
 pub struct FinanceInvoiceService {
     db: Arc<DatabaseConnection>,
@@ -19,13 +19,15 @@ impl FinanceInvoiceService {
         FinanceInvoice::find()
             .order_by(finance_invoice::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     pub async fn get_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
         FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     pub async fn create_invoice(
@@ -52,7 +54,10 @@ impl FinanceInvoiceService {
             updated_at: Set(Utc::now()),
         };
 
-        active_model.insert(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .insert(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     pub async fn update_invoice(
@@ -60,22 +65,20 @@ impl FinanceInvoiceService {
         id: i32,
         payload: serde_json::Value,
     ) -> Result<Option<InvoiceModel>, AppError> {
-        let invoice = FinanceInvoice::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?;
+        let invoice = FinanceInvoice::find_by_id(id).one(self.db.as_ref()).await?;
 
         if let Some(invoice) = invoice {
             let mut active_model: ActiveModel = invoice.into();
-            
+
             if let Some(status) = payload.get("status").and_then(|v| v.as_str()) {
                 active_model.status = Set(status.to_string());
             }
             if let Some(notes) = payload.get("notes").and_then(|v| v.as_str()) {
                 active_model.notes = Set(Some(notes.to_string()));
             }
-            
+
             active_model.updated_at = Set(Utc::now());
-            
+
             let updated = active_model.update(self.db.as_ref()).await?;
             Ok(Some(updated))
         } else {
@@ -91,15 +94,13 @@ impl FinanceInvoiceService {
     }
 
     pub async fn approve_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
-        let invoice = FinanceInvoice::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?;
+        let invoice = FinanceInvoice::find_by_id(id).one(self.db.as_ref()).await?;
 
         if let Some(invoice) = invoice {
             let mut active_model: ActiveModel = invoice.into();
             active_model.status = Set("approved".to_string());
             active_model.updated_at = Set(Utc::now());
-            
+
             let updated = active_model.update(self.db.as_ref()).await?;
             Ok(Some(updated))
         } else {
@@ -108,16 +109,14 @@ impl FinanceInvoiceService {
     }
 
     pub async fn verify_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
-        let invoice = FinanceInvoice::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?;
+        let invoice = FinanceInvoice::find_by_id(id).one(self.db.as_ref()).await?;
 
         if let Some(invoice) = invoice {
             let mut active_model: ActiveModel = invoice.into();
             active_model.status = Set("verified".to_string());
             active_model.paid_date = Set(Some(Utc::now()));
             active_model.updated_at = Set(Utc::now());
-            
+
             let updated = active_model.update(self.db.as_ref()).await?;
             Ok(Some(updated))
         } else {

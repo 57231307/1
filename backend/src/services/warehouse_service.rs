@@ -2,8 +2,8 @@
 use chrono::Utc;
 use rand;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
 
@@ -57,7 +57,9 @@ impl WarehouseService {
             .all(&*self.db)
             .await?;
 
-        Ok(crate::utils::response::PaginatedResponse::new(warehouses, total, page, page_size))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            warehouses, total, page, page_size,
+        ))
     }
 
     /// 获取仓库详情
@@ -86,7 +88,9 @@ impl WarehouseService {
         let active_model = warehouse::ActiveModel {
             id: NotSet,
             warehouse_code: Set(code),
-            name: Set(req.name.unwrap_or_else(|| format!("仓库_{}", Utc::now().timestamp()))),
+            name: Set(req
+                .name
+                .unwrap_or_else(|| format!("仓库_{}", Utc::now().timestamp()))),
             address: Set(req.address),
             city: Set(None),
             province: Set(None),
@@ -135,7 +139,13 @@ impl WarehouseService {
 
         wh.updated_at = Set(Utc::now());
 
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", wh, Some(0)).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            wh,
+            Some(0),
+        )
+        .await?;
         Ok(result)
     }
 
@@ -143,10 +153,7 @@ impl WarehouseService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let result = WarehouseEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!(
-                "仓库 ID {} 不存在",
-                id
-            )));
+            return Err(AppError::ResourceNotFound(format!("仓库 ID {} 不存在", id)));
         }
         Ok(())
     }

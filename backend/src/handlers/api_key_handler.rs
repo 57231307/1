@@ -58,7 +58,16 @@ pub async fn create_api_key(
     let service = ApiKeyService::new(state.db);
     let rate_limit = req.rate_limit_per_minute.unwrap_or(100);
 
-    match service.create_api_key(tenant_id, &req.name, req.permissions.as_deref(), rate_limit, req.expires_days).await {
+    match service
+        .create_api_key(
+            tenant_id,
+            &req.name,
+            req.permissions.as_deref(),
+            rate_limit,
+            req.expires_days,
+        )
+        .await
+    {
         Ok((model, plain_key)) => {
             let response = CreateApiKeyResponse {
                 api_key: ApiKeyResponse::from(model),
@@ -82,7 +91,8 @@ pub async fn list_api_keys(
 
     match service.list_api_keys(tenant_id).await {
         Ok(keys) => {
-            let responses: Vec<ApiKeyResponse> = keys.into_iter().map(ApiKeyResponse::from).collect();
+            let responses: Vec<ApiKeyResponse> =
+                keys.into_iter().map(ApiKeyResponse::from).collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {

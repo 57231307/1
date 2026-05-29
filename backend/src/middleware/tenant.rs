@@ -3,6 +3,8 @@
 //! 从请求头或子域名中提取租户标识，并注入租户上下文
 #![allow(dead_code)]
 
+use crate::middleware::auth_context::AuthContext;
+use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
     extract::State,
@@ -10,8 +12,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use crate::utils::app_state::AppState;
-use crate::middleware::auth_context::AuthContext;
 
 /// 租户上下文
 #[derive(Debug, Clone)]
@@ -42,7 +42,8 @@ pub async fn tenant_middleware(
         .map(|s| s.to_string());
 
     // 如果 Header 中没有，尝试从 AuthContext 获取
-    let tenant_id_from_auth = request.extensions()
+    let tenant_id_from_auth = request
+        .extensions()
         .get::<AuthContext>()
         .and_then(|auth| auth.tenant_id);
 

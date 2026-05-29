@@ -4,9 +4,9 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::role::{self, Entity as RoleEntity};
 use crate::models::role_permission::{self, Entity as RolePermissionEntity};
+use crate::utils::error::AppError;
 use serde::{Deserialize, Serialize};
 
 /// 角色权限详情
@@ -141,10 +141,7 @@ impl RolePermissionService {
     }
 
     /// 创建角色
-    pub async fn create_role(
-        &self,
-        request: CreateRoleRequest,
-    ) -> Result<RoleDetail, AppError> {
+    pub async fn create_role(&self, request: CreateRoleRequest) -> Result<RoleDetail, AppError> {
         // 检查角色编码是否已存在
         let existing = RoleEntity::find()
             .filter(role::Column::Code.eq(&request.code))
@@ -216,7 +213,13 @@ impl RolePermissionService {
         }
         role_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
-        let role_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", role_update, Some(0)).await?;
+        let role_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            role_update,
+            Some(0),
+        )
+        .await?;
 
         self.get_role_detail(role_entity.id).await
     }
@@ -240,9 +243,10 @@ impl RolePermissionService {
             .await?;
 
         if user_count > 0 {
-            return Err(AppError::BusinessError(
-                format!("该角色下有 {} 个用户，请先移除用户的角色关联后再删除", user_count),
-            ));
+            return Err(AppError::BusinessError(format!(
+                "该角色下有 {} 个用户，请先移除用户的角色关联后再删除",
+                user_count
+            )));
         }
 
         // 开启事务
@@ -278,7 +282,9 @@ impl RolePermissionService {
 
         // 系统角色不允许修改权限
         if role.is_system {
-            return Err(AppError::BusinessError("系统角色不允许修改权限".to_string()));
+            return Err(AppError::BusinessError(
+                "系统角色不允许修改权限".to_string(),
+            ));
         }
 
         // 检查权限是否已存在
@@ -300,7 +306,14 @@ impl RolePermissionService {
             let mut perm_update: role_permission::ActiveModel = perm.into();
             perm_update.allowed = sea_orm::ActiveValue::Set(request.allowed);
             perm_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            let perm_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", perm_update, Some(0)).await?;
+            let perm_entity =
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &*self.db,
+                    "auto_audit",
+                    perm_update,
+                    Some(0),
+                )
+                .await?;
 
             Ok(RolePermissionDetail {
                 id: perm_entity.id,
@@ -345,9 +358,7 @@ impl RolePermissionService {
         let permission = RolePermissionEntity::find_by_id(permission_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("权限 {} 未找到", permission_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("权限 {} 未找到", permission_id)))?;
 
         // 检查是否为系统角色的权限
         let role = RoleEntity::find_by_id(permission.role_id)
@@ -371,10 +382,7 @@ impl RolePermissionService {
 
     /// 检查角色是否为管理员角色（从数据库查询角色编码，而非硬编码 ID）
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
-        match RoleEntity::find_by_id(role_id)
-            .one(&*self.db)
-            .await?
-        {
+        match RoleEntity::find_by_id(role_id).one(&*self.db).await? {
             Some(role) => Ok(role.code == "admin"),
             None => Ok(false),
         }

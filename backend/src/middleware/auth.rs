@@ -1,5 +1,5 @@
-use crate::middleware::public_routes::is_public_path;
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::public_routes::is_public_path;
 use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
@@ -11,7 +11,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use axum_extra::extract::cookie::{PrivateCookieJar, Key};
+use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 use serde_json::json;
 use tracing::warn;
 
@@ -40,7 +40,7 @@ pub async fn auth_middleware(
     let key = Key::derive_from(state.cookie_secret.as_bytes());
     let cookie_jar = PrivateCookieJar::from_headers(request.headers(), key);
     let token_from_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
-    
+
     let auth_header = request
         .headers()
         .get(axum::http::header::AUTHORIZATION)

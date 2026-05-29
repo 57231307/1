@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 //! 采购入库明细 Model
-use chrono::{DateTime, Utc, NaiveDate};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

@@ -77,7 +77,9 @@ impl FixedAssetService {
 
         let active_asset = fixed_asset::ActiveModel {
             asset_no: Set(asset_no),
-            asset_name: Set(req.asset_name.unwrap_or_else(|| format!("资产_{}", chrono::Utc::now().timestamp()))),
+            asset_name: Set(req
+                .asset_name
+                .unwrap_or_else(|| format!("资产_{}", chrono::Utc::now().timestamp()))),
             asset_category: Set(req.asset_category),
             specification: Set(req.specification),
             use_location: Set(req.location),
@@ -85,8 +87,14 @@ impl FixedAssetService {
             net_value: Set(Some(original_value)),
             useful_life: Set(Some(req.useful_life.unwrap_or(5))),
             depreciation_method: Set(req.depreciation_method),
-            purchase_date: Set(Some(req.purchase_date.unwrap_or_else(|| chrono::Utc::now().date_naive()))),
-            in_service_date: Set(Some(req.put_in_date.unwrap_or_else(|| chrono::Utc::now().date_naive()))),
+            purchase_date: Set(Some(
+                req.purchase_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+            )),
+            in_service_date: Set(Some(
+                req.put_in_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+            )),
             supplier_id: Set(req.supplier_id),
             status: Set("active".to_string()),
             created_by: Set(user_id),
@@ -325,21 +333,22 @@ impl FixedAssetService {
         _user_id: i32,
     ) -> Result<Vec<DepreciationResult>, AppError> {
         use chrono::NaiveDate;
-        
-        let calc_date = calculation_date.parse::<NaiveDate>()
+
+        let calc_date = calculation_date
+            .parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
-        
+
         let mut results = Vec::new();
-        
+
         for asset_id in asset_ids {
             let asset = fixed_asset::Entity::find_by_id(asset_id)
                 .one(&*self.db)
                 .await?
                 .ok_or_else(|| AppError::NotFound("固定资产".to_string()))?;
-            
+
             // 计算折旧
             let depreciation = self.calculate_asset_depreciation(&asset, calc_date)?;
-            
+
             results.push(DepreciationResult {
                 asset_id: asset.id,
                 asset_no: asset.asset_no,
@@ -350,10 +359,10 @@ impl FixedAssetService {
                 depreciation_method: asset.depreciation_method.unwrap_or_default(),
             });
         }
-        
+
         Ok(results)
     }
-    
+
     /// 计算单项资产折旧
     fn calculate_asset_depreciation(
         &self,
@@ -361,33 +370,37 @@ impl FixedAssetService {
         calc_date: NaiveDate,
     ) -> Result<rust_decimal::Decimal, AppError> {
         use chrono::Datelike;
-        
-        let purchase_date = asset.purchase_date.unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date"));
+
+        let purchase_date = asset.purchase_date.unwrap_or_else(|| {
+            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date")
+        });
         let useful_life_years = asset.useful_life.unwrap_or(0);
         let original_value = asset.original_value;
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
-        
+
         if useful_life_years <= 0 {
             return Ok(rust_decimal::Decimal::ZERO);
         }
-        
+
         // 计算已使用月数
-        let months_used = (calc_date.year() - purchase_date.year()) * 12 
+        let months_used = (calc_date.year() - purchase_date.year()) * 12
             + (calc_date.month() as i32 - purchase_date.month() as i32);
-        
+
         if months_used <= 0 {
             return Ok(rust_decimal::Decimal::ZERO);
         }
-        
+
         // 直线法折旧：(原值 - 残值) / (使用年限 * 12)
         let useful_life_months = useful_life_years * 12;
         let depreciable_amount = original_value - residual_value;
-        let monthly_depreciation = depreciable_amount / rust_decimal::Decimal::from(useful_life_months);
-        
+        let monthly_depreciation =
+            depreciable_amount / rust_decimal::Decimal::from(useful_life_months);
+
         // 总应计折旧 = 月折旧额 * min(已用月数, 总月数)
         let applicable_months = months_used.min(useful_life_months);
-        let total_depreciation = monthly_depreciation * rust_decimal::Decimal::from(applicable_months);
-        
+        let total_depreciation =
+            monthly_depreciation * rust_decimal::Decimal::from(applicable_months);
+
         // 本次应计提 = 总应计折旧 - 已计提折旧
         let current_depreciation = total_depreciation - asset.accumulated_depreciation;
         Ok(current_depreciation.max(rust_decimal::Decimal::ZERO))
@@ -459,15 +472,15 @@ mod tests {
         let original_value = Decimal::from(100000);
         let salvage_value = Decimal::from(10000);
         let useful_life = 120i32;
-        
+
         // 可折旧金额
         let depreciable_amount = original_value - salvage_value;
         assert_eq!(depreciable_amount, Decimal::from(90000));
-        
+
         // 月折旧额
         let monthly_depreciation = depreciable_amount / Decimal::from(useful_life);
         assert_eq!(monthly_depreciation, Decimal::from(750));
-        
+
         // 36 个月折旧
         let months_used = 36;
         let total_depreciation = monthly_depreciation * Decimal::from(months_used);
@@ -478,7 +491,7 @@ mod tests {
     fn test_depreciation_with_accumulated() {
         let total_depreciation = Decimal::from(27000);
         let accumulated_depreciation = Decimal::from(10000);
-        
+
         // 当期折旧 = 总折旧 - 已累计折旧
         let current_depreciation = total_depreciation - accumulated_depreciation;
         assert_eq!(current_depreciation, Decimal::from(17000));
@@ -490,14 +503,14 @@ mod tests {
         let salvage_value = Decimal::from(10000);
         let useful_life = 120i32;
         let months_used = 150; // 超过使用寿命
-        
+
         let depreciable_amount = original_value - salvage_value;
         let monthly_depreciation = depreciable_amount / Decimal::from(useful_life);
-        
+
         // 折旧不能超过可折旧金额
         let max_depreciation = depreciable_amount;
         let calculated = monthly_depreciation * Decimal::from(months_used.min(useful_life));
-        
+
         assert_eq!(calculated, max_depreciation);
     }
 
@@ -505,7 +518,7 @@ mod tests {
     fn test_net_value_calculation() {
         let original_value = Decimal::from(100000);
         let accumulated_depreciation = Decimal::from(27000);
-        
+
         let net_value = original_value - accumulated_depreciation;
         assert_eq!(net_value, Decimal::from(73000));
     }
@@ -515,7 +528,7 @@ mod tests {
         // 购买日期晚于计算日期，应返回 0
         let purchase_year = 2025;
         let calc_year = 2024;
-        
+
         let months_used = (calc_year - purchase_year) * 12;
         assert!(months_used < 0, "购买前不应计算折旧");
     }
@@ -530,19 +543,22 @@ mod tests {
             (100000, 10000, 120, 120, 90000), // 满寿命
             (50000, 5000, 60, 24, 18000),     // 另一设备
         ];
-        
+
         for (original, salvage, life, months, expected) in test_cases {
             let original_value = Decimal::from(original);
             let salvage_value = Decimal::from(salvage);
             let depreciable = original_value - salvage_value;
             let monthly = depreciable / Decimal::from(life);
             let total = monthly * Decimal::from(months.min(life));
-            
+
             assert_eq!(
                 total,
                 Decimal::from(expected),
                 "原值={}, 残值={}, 寿命={}, 月数={} 的折旧计算错误",
-                original, salvage, life, months
+                original,
+                salvage,
+                life,
+                months
             );
         }
     }

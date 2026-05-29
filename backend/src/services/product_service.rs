@@ -43,7 +43,8 @@ impl ProductService {
             "PRD",
             product::Entity,
             product::Column::Code,
-        ).await
+        )
+        .await
     }
 
     /// 获取产品列表（支持分页和过滤）
@@ -92,7 +93,8 @@ impl ProductService {
             .order_by(product::Column::Code, Order::Asc)
             .into_model::<product::Model>()
             .all(&*self.db)
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
         {
             Ok(products) => {
                 tracing::info!("查询到 {} 个产品", products.len());
@@ -187,10 +189,7 @@ impl ProductService {
     pub async fn delete_product(&self, id: i32) -> Result<(), AppError> {
         let result = ProductEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!(
-                "产品 ID {} 不存在",
-                id
-            )));
+            return Err(AppError::ResourceNotFound(format!("产品 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -282,7 +281,13 @@ impl ProductService {
 
         product.updated_at = Set(Utc::now());
 
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", product, Some(0)).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            product,
+            Some(0),
+        )
+        .await?;
         Ok(result)
     }
 
@@ -298,7 +303,8 @@ impl ProductService {
             .filter(product_color::Column::IsActive.eq(true))
             .order_by(product_color::Column::ColorNo, Order::Asc)
             .all(&*self.db)
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 创建产品色号
@@ -396,7 +402,13 @@ impl ProductService {
 
         color.updated_at = Set(Utc::now());
 
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", color, Some(0)).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            color,
+            Some(0),
+        )
+        .await?;
         Ok(result)
     }
 
@@ -477,10 +489,7 @@ impl ProductService {
                     "类别ID".to_string(),
                     p.category_id.map(|id| id.to_string()).unwrap_or_default(),
                 );
-                row.insert(
-                    "规格型号".to_string(),
-                    p.specification.unwrap_or_default(),
-                );
+                row.insert("规格型号".to_string(), p.specification.unwrap_or_default());
                 row.insert("计量单位".to_string(), p.unit);
                 row.insert(
                     "标准价格".to_string(),
@@ -496,7 +505,10 @@ impl ProductService {
                 );
                 row.insert("纱支".to_string(), p.yarn_count.unwrap_or_default());
                 row.insert("密度".to_string(), p.density.unwrap_or_default());
-                row.insert("幅宽".to_string(), p.width.map(|w| w.to_string()).unwrap_or_default());
+                row.insert(
+                    "幅宽".to_string(),
+                    p.width.map(|w| w.to_string()).unwrap_or_default(),
+                );
                 row.insert(
                     "克重".to_string(),
                     p.gram_weight.map(|g| g.to_string()).unwrap_or_default(),
@@ -505,7 +517,9 @@ impl ProductService {
                 row.insert("后整理".to_string(), p.finish.unwrap_or_default());
                 row.insert(
                     "最小起订量".to_string(),
-                    p.min_order_quantity.map(|m| m.to_string()).unwrap_or_default(),
+                    p.min_order_quantity
+                        .map(|m| m.to_string())
+                        .unwrap_or_default(),
                 );
                 row.insert(
                     "交货期".to_string(),
@@ -587,7 +601,12 @@ impl ProductService {
             let code = match row.get("产品编码") {
                 Some(v) => v,
                 None => {
-                    result.add_error(row_num, "产品编码".to_string(), "缺少产品编码列".to_string(), "".to_string());
+                    result.add_error(
+                        row_num,
+                        "产品编码".to_string(),
+                        "缺少产品编码列".to_string(),
+                        "".to_string(),
+                    );
                     continue;
                 }
             };
@@ -599,7 +618,12 @@ impl ProductService {
             let name = match row.get("产品名称") {
                 Some(v) => v,
                 None => {
-                    result.add_error(row_num, "产品名称".to_string(), "缺少产品名称列".to_string(), "".to_string());
+                    result.add_error(
+                        row_num,
+                        "产品名称".to_string(),
+                        "缺少产品名称列".to_string(),
+                        "".to_string(),
+                    );
                     continue;
                 }
             };
@@ -611,11 +635,18 @@ impl ProductService {
             let product_type = match row.get("产品类型") {
                 Some(v) => v,
                 None => {
-                    result.add_error(row_num, "产品类型".to_string(), "缺少产品类型列".to_string(), "".to_string());
+                    result.add_error(
+                        row_num,
+                        "产品类型".to_string(),
+                        "缺少产品类型列".to_string(),
+                        "".to_string(),
+                    );
                     continue;
                 }
             };
-            if let Err(e) = FieldValidator::enum_value(product_type, "产品类型", &["坯布", "成品布", "辅料"]) {
+            if let Err(e) =
+                FieldValidator::enum_value(product_type, "产品类型", &["坯布", "成品布", "辅料"])
+            {
                 result.add_error(row_num, "产品类型".to_string(), e, product_type.clone());
                 continue;
             }
@@ -623,7 +654,12 @@ impl ProductService {
             let unit = match row.get("计量单位") {
                 Some(v) => v,
                 None => {
-                    result.add_error(row_num, "计量单位".to_string(), "缺少计量单位列".to_string(), "".to_string());
+                    result.add_error(
+                        row_num,
+                        "计量单位".to_string(),
+                        "缺少计量单位列".to_string(),
+                        "".to_string(),
+                    );
                     continue;
                 }
             };
@@ -632,36 +668,64 @@ impl ProductService {
                 continue;
             }
 
-            let category_id = row
-                .get("类别ID")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<i32>().ok() });
+            let category_id = row.get("类别ID").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<i32>().ok()
+                }
+            });
 
-            let standard_price = row
-                .get("标准价格")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<f64>().ok() });
+            let standard_price = row.get("标准价格").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<f64>().ok()
+                }
+            });
 
-            let cost_price = row
-                .get("成本价格")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<f64>().ok() });
+            let cost_price = row.get("成本价格").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<f64>().ok()
+                }
+            });
 
             let specification = row.get("规格型号").filter(|v| !v.is_empty()).cloned();
             let fabric_composition = row.get("面料成分").filter(|v| !v.is_empty()).cloned();
             let yarn_count = row.get("纱支").filter(|v| !v.is_empty()).cloned();
             let density = row.get("密度").filter(|v| !v.is_empty()).cloned();
-            let width = row
-                .get("幅宽")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<f64>().ok() });
-            let gram_weight = row
-                .get("克重")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<f64>().ok() });
+            let width = row.get("幅宽").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<f64>().ok()
+                }
+            });
+            let gram_weight = row.get("克重").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<f64>().ok()
+                }
+            });
             let structure = row.get("组织结构").filter(|v| !v.is_empty()).cloned();
             let finish = row.get("后整理").filter(|v| !v.is_empty()).cloned();
-            let min_order_quantity = row
-                .get("最小起订量")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<f64>().ok() });
-            let lead_time = row
-                .get("交货期")
-                .and_then(|v| if v.is_empty() { None } else { v.parse::<i32>().ok() });
+            let min_order_quantity = row.get("最小起订量").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<f64>().ok()
+                }
+            });
+            let lead_time = row.get("交货期").and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    v.parse::<i32>().ok()
+                }
+            });
             let description = row.get("产品描述").filter(|v| !v.is_empty()).cloned();
 
             let status = row

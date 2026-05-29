@@ -48,7 +48,16 @@ pub async fn create_webhook(
     let service = WebhookService::new(state.db);
     let events: Vec<&str> = req.events.iter().map(|s| s.as_str()).collect();
 
-    match service.create_webhook(tenant_id, &req.name, &req.url, &events, req.secret.as_deref()).await {
+    match service
+        .create_webhook(
+            tenant_id,
+            &req.name,
+            &req.url,
+            &events,
+            req.secret.as_deref(),
+        )
+        .await
+    {
         Ok(webhook) => Ok(Json(ApiResponse::success(WebhookResponse::from(webhook)))),
         Err(e) => {
             tracing::error!("创建 Webhook 失败: {}", e);
@@ -66,7 +75,8 @@ pub async fn list_webhooks(
 
     match service.list_webhooks(tenant_id).await {
         Ok(webhooks) => {
-            let responses: Vec<WebhookResponse> = webhooks.into_iter().map(WebhookResponse::from).collect();
+            let responses: Vec<WebhookResponse> =
+                webhooks.into_iter().map(WebhookResponse::from).collect();
             Ok(Json(ApiResponse::success(responses)))
         }
         Err(e) => {

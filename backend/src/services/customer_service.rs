@@ -7,9 +7,9 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
-use crate::utils::error::AppError;
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
+use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
 
 /// 客户服务
@@ -30,7 +30,8 @@ impl CustomerService {
             "CUS",
             customer::Entity,
             customer::Column::CustomerCode,
-        ).await
+        )
+        .await
     }
 
     /// 创建客户
@@ -181,9 +182,7 @@ impl CustomerService {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id)))?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
 
@@ -238,26 +237,27 @@ impl CustomerService {
 
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        customer_update.update(&*self.db).await.map_err(AppError::from)
+        customer_update
+            .update(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 删除客户（软删除，将状态改为 inactive）
-    pub async fn delete_customer(
-        &self,
-        customer_id: i32,
-    ) -> Result<customer::Model, AppError> {
+    pub async fn delete_customer(&self, customer_id: i32) -> Result<customer::Model, AppError> {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id))
-            })?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id)))?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
         customer_update.status = sea_orm::ActiveValue::Set("inactive".to_string());
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        customer_update.update(&*self.db).await.map_err(AppError::from)
+        customer_update
+            .update(&*self.db)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 检查客户编码是否已存在

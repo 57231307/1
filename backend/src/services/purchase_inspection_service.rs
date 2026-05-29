@@ -4,13 +4,13 @@
 #![allow(dead_code)]
 
 use crate::models::purchase_inspection;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -53,7 +53,9 @@ impl PurchaseInspectionService {
             receipt_id: Set(req.receipt_id),
             order_id: Set(req.order_id),
             supplier_id: Set(req.supplier_id.unwrap_or(0)),
-            inspection_date: Set(req.inspection_date.unwrap_or_else(|| Utc::now().date_naive())),
+            inspection_date: Set(req
+                .inspection_date
+                .unwrap_or_else(|| Utc::now().date_naive())),
             inspector_id: Set(req.inspector_id),
             inspection_type: Set(req.inspection_type),
             sample_size: Set(req.sample_size),
@@ -112,7 +114,13 @@ impl PurchaseInspectionService {
         }
         inspection_active.updated_at = Set(Utc::now());
 
-        let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", inspection_active, Some(0)).await?;
+        let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            inspection_active,
+            Some(0),
+        )
+        .await?;
 
         Ok(inspection)
     }
@@ -154,7 +162,13 @@ impl PurchaseInspectionService {
         inspection_active.quality_score = Set(Some(quality_score));
         inspection_active.updated_at = Set(Utc::now());
 
-        let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", inspection_active, Some(0)).await?;
+        let inspection = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            inspection_active,
+            Some(0),
+        )
+        .await?;
 
         txn.commit().await?;
 

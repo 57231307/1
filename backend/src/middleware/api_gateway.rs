@@ -3,6 +3,7 @@
 //! 提供限流、熔断、请求转换等功能
 #![allow(dead_code)]
 
+use crate::utils::app_state::AppState;
 use axum::{
     body::Body,
     extract::State,
@@ -10,7 +11,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use crate::utils::app_state::AppState;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -68,7 +68,10 @@ pub async fn rate_limit_middleware(
         .unwrap_or_else(|| "anonymous".to_string());
 
     // 检查限流（默认每分钟 100 请求）
-    if !state.rate_limiter.is_allowed(&client_key, 100, Duration::from_secs(60)) {
+    if !state
+        .rate_limiter
+        .is_allowed(&client_key, 100, Duration::from_secs(60))
+    {
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
@@ -76,10 +79,7 @@ pub async fn rate_limit_middleware(
 }
 
 /// API 版本中间件
-pub async fn api_version_middleware(
-    mut request: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn api_version_middleware(mut request: Request<Body>, next: Next) -> Response {
     let version = request
         .headers()
         .get("X-API-Version")

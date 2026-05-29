@@ -13,8 +13,7 @@ use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::mrp_engine_service::{
-    MaterialRequirement, MrpCalculationItem, MrpCalculationRequest,
-    MrpEngineService,
+    MaterialRequirement, MrpCalculationItem, MrpCalculationRequest, MrpEngineService,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -151,7 +150,9 @@ pub async fn calculate_mrp(
     _auth: AuthContext,
     Json(payload): Json<MrpCalculatePayload>,
 ) -> Result<Json<ApiResponse<MrpCalculationSummaryResponse>>, AppError> {
-    payload.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    payload
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let service = MrpEngineService::new(state.db.clone());
 
@@ -167,7 +168,9 @@ pub async fn calculate_mrp(
 
     let request = MrpCalculationRequest {
         items,
-        source_type: payload.source_type.unwrap_or_else(|| "FORECAST".to_string()),
+        source_type: payload
+            .source_type
+            .unwrap_or_else(|| "FORECAST".to_string()),
         source_id: payload.source_id,
         consider_safety_stock: payload.consider_safety_stock.unwrap_or(true),
         consider_in_transit: payload.consider_in_transit.unwrap_or(true),
@@ -180,7 +183,11 @@ pub async fn calculate_mrp(
         total_items: summary.total_items,
         items_with_shortage: summary.items_with_shortage,
         results: summary.results.iter().map(to_result_response).collect(),
-        requirements: summary.requirements.iter().map(to_requirement_response).collect(),
+        requirements: summary
+            .requirements
+            .iter()
+            .map(to_requirement_response)
+            .collect(),
     };
 
     Ok(Json(ApiResponse::success(response)))
@@ -209,7 +216,9 @@ pub async fn get_mrp_results(
 
     let responses: Vec<MrpResultResponse> = results.iter().map(to_result_response).collect();
 
-    Ok(Json(ApiResponse::success_paginated(responses, total, page, page_size)))
+    Ok(Json(ApiResponse::success_paginated(
+        responses, total, page, page_size,
+    )))
 }
 
 /// 获取物料需求清单
@@ -229,10 +238,8 @@ pub async fn get_mrp_requirements(
         )
         .await?;
 
-    let responses: Vec<MaterialRequirementResponse> = requirements
-        .iter()
-        .map(to_requirement_response)
-        .collect();
+    let responses: Vec<MaterialRequirementResponse> =
+        requirements.iter().map(to_requirement_response).collect();
 
     Ok(Json(ApiResponse::success(responses)))
 }
@@ -243,7 +250,9 @@ pub async fn convert_to_orders(
     _auth: AuthContext,
     Json(payload): Json<ConvertOrderPayload>,
 ) -> Result<Json<ApiResponse<Vec<MrpResultResponse>>>, AppError> {
-    payload.validate().map_err(|e| AppError::ValidationError(e.to_string()))?;
+    payload
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     if payload.order_type != "PURCHASE" && payload.order_type != "PRODUCTION" {
         return Err(AppError::ValidationError(

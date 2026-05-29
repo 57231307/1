@@ -1,9 +1,6 @@
-use axum::{
-    extract::State,
-    Json,
-};
-use crate::utils::app_state::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::utils::app_state::AppState;
+use axum::{extract::State, Json};
 use serde::Deserialize;
 use validator::Validate;
 

@@ -4,8 +4,8 @@
 //! 包含生成对账单、确认对账、争议处理等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -140,7 +140,14 @@ impl ApReconciliationService {
         reconciliation_active.confirmed_by = Set(Some(user_id));
         reconciliation_active.confirmed_at = Set(Some(now));
 
-        let reconciliation = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", reconciliation_active, Some(0)).await?;
+        let reconciliation =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                reconciliation_active,
+                Some(0),
+            )
+            .await?;
 
         txn.commit().await?;
 
@@ -177,7 +184,14 @@ impl ApReconciliationService {
         reconciliation_active.disputed_at = Set(Some(now));
         reconciliation_active.disputed_reason = Set(Some(reason));
 
-        let reconciliation = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", reconciliation_active, Some(0)).await?;
+        let reconciliation =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                reconciliation_active,
+                Some(0),
+            )
+            .await?;
 
         txn.commit().await?;
 
@@ -238,58 +252,64 @@ impl ApReconciliationService {
     ) -> Result<Vec<SupplierApSummary>, AppError> {
         use crate::models::ap_invoice;
         use crate::models::supplier;
-        
+
         // 查询应付发票
         let mut invoice_query = ap_invoice::Entity::find();
-        
+
         if let Some(sid) = supplier_id {
             invoice_query = invoice_query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
-        
+
         let invoices = invoice_query
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        
+
         // 按供应商分组统计
-        let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> = std::collections::HashMap::new();
-        
+        let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> =
+            std::collections::HashMap::new();
+
         for invoice in &invoices {
-            let entry = summary_map.entry(invoice.supplier_id).or_insert_with(|| SupplierApSummary {
-                supplier_id: invoice.supplier_id,
-                supplier_code: String::new(),
-                supplier_name: String::new(),
-                total_invoice_count: 0,
-                total_invoice_amount: Decimal::ZERO,
-                total_paid_amount: Decimal::ZERO,
-                total_unpaid_amount: Decimal::ZERO,
-                paid_invoice_count: 0,
-                partial_paid_invoice_count: 0,
-                overdue_invoice_count: 0,
-                overdue_amount: Decimal::ZERO,
-            });
-            
+            let entry =
+                summary_map
+                    .entry(invoice.supplier_id)
+                    .or_insert_with(|| SupplierApSummary {
+                        supplier_id: invoice.supplier_id,
+                        supplier_code: String::new(),
+                        supplier_name: String::new(),
+                        total_invoice_count: 0,
+                        total_invoice_amount: Decimal::ZERO,
+                        total_paid_amount: Decimal::ZERO,
+                        total_unpaid_amount: Decimal::ZERO,
+                        paid_invoice_count: 0,
+                        partial_paid_invoice_count: 0,
+                        overdue_invoice_count: 0,
+                        overdue_amount: Decimal::ZERO,
+                    });
+
             entry.total_invoice_count += 1;
             entry.total_invoice_amount += invoice.amount;
             entry.total_paid_amount += invoice.paid_amount;
             entry.total_unpaid_amount += invoice.unpaid_amount;
-            
+
             // 判断付款状态
-            if invoice.amount > Decimal::ZERO && invoice.paid_amount >= invoice.amount {
-                entry.paid_invoice_count += 1;
-            } else if invoice.amount < Decimal::ZERO && invoice.paid_amount <= invoice.amount {
+            if (invoice.amount > Decimal::ZERO && invoice.paid_amount >= invoice.amount)
+                || (invoice.amount < Decimal::ZERO && invoice.paid_amount <= invoice.amount)
+            {
                 entry.paid_invoice_count += 1;
             } else if invoice.paid_amount != Decimal::ZERO {
                 entry.partial_paid_invoice_count += 1;
             }
-            
+
             // 判断是否逾期
-            if invoice.due_date < chrono::Utc::now().date_naive() && invoice.unpaid_amount > Decimal::ZERO {
+            if invoice.due_date < chrono::Utc::now().date_naive()
+                && invoice.unpaid_amount > Decimal::ZERO
+            {
                 entry.overdue_invoice_count += 1;
                 entry.overdue_amount += invoice.unpaid_amount;
             }
         }
-        
+
         // 查询供应商信息
         let supplier_ids: Vec<i32> = summary_map.keys().cloned().collect();
         if !supplier_ids.is_empty() {
@@ -298,7 +318,7 @@ impl ApReconciliationService {
                 .all(&*self.db)
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-            
+
             for s in suppliers {
                 if let Some(entry) = summary_map.get_mut(&s.id) {
                     entry.supplier_code = s.supplier_code;
@@ -306,7 +326,7 @@ impl ApReconciliationService {
                 }
             }
         }
-        
+
         let result: Vec<SupplierApSummary> = summary_map.into_values().collect();
         Ok(result)
     }
@@ -328,7 +348,10 @@ impl ApReconciliationService {
                 supplier_id: sup.id,
                 start_date,
                 end_date,
-                notes: Some(format!("Auto-generated reconciliation for {}", sup.supplier_name)),
+                notes: Some(format!(
+                    "Auto-generated reconciliation for {}",
+                    sup.supplier_name
+                )),
             };
 
             match self.generate_reconciliation(req, user_id).await {

@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
+use crate::models::api_key::{self, ActiveModel as ApiKeyActiveModel, Entity as ApiKey};
 use crate::utils::error::AppError;
-use crate::models::api_key::{self, Entity as ApiKey, ActiveModel as ApiKeyActiveModel};
-use sea_orm::*;
-use std::sync::Arc;
 use chrono::Utc;
-use sha2::{Sha256, Digest};
+use sea_orm::*;
+use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 pub struct ApiKeyService {
     db: Arc<DatabaseConnection>,
@@ -18,7 +18,9 @@ impl ApiKeyService {
 
     /// 生成新的 API 密钥
     pub fn generate_api_key() -> String {
-        let chars: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
+        let chars: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+            .chars()
+            .collect();
         let key: String = (0..32)
             .map(|_| chars[fastrand::usize(..chars.len())])
             .collect();
@@ -75,7 +77,7 @@ impl ApiKeyService {
     /// 验证 API 密钥
     pub async fn validate_api_key(&self, key: &str) -> Result<Option<api_key::Model>, AppError> {
         let key_hash = Self::hash_api_key(key);
-        
+
         let api_key = ApiKey::find()
             .filter(api_key::Column::KeyHash.eq(key_hash))
             .filter(api_key::Column::IsActive.eq(true))
@@ -100,15 +102,13 @@ impl ApiKeyService {
     }
 
     /// 获取租户的 API 密钥列表
-    pub async fn list_api_keys(
-        &self,
-        tenant_id: i32,
-    ) -> Result<Vec<api_key::Model>, AppError> {
+    pub async fn list_api_keys(&self, tenant_id: i32) -> Result<Vec<api_key::Model>, AppError> {
         ApiKey::find()
             .filter(api_key::Column::TenantId.eq(tenant_id))
             .filter(api_key::Column::IsActive.eq(true))
             .all(self.db.as_ref())
-            .await.map_err(AppError::from)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 撤销 API 密钥

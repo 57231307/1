@@ -93,7 +93,9 @@ impl VoucherService {
         user_id: i32,
     ) -> Result<voucher::Model, AppError> {
         // 校验期间锁定
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
         period_svc.check_date_locked(req.voucher_date).await?;
 
         info!(
@@ -114,7 +116,9 @@ impl VoucherService {
         }
 
         // 生成凭证编号
-        let voucher_no = self.generate_voucher_no(&req.voucher_type, req.voucher_date).await?;
+        let voucher_no = self
+            .generate_voucher_no(&req.voucher_type, req.voucher_date)
+            .await?;
 
         // 开启事务
         let txn = self
@@ -157,7 +161,10 @@ impl VoucherService {
             }
             if !subject_codes.is_empty() {
                 let existing_subjects = account_subject::Entity::find()
-                    .filter(account_subject::Column::Code.is_in(subject_codes.iter().cloned().collect::<Vec<_>>()))
+                    .filter(
+                        account_subject::Column::Code
+                            .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
+                    )
                     .filter(account_subject::Column::Status.eq("active"))
                     .all(&txn)
                     .await
@@ -165,10 +172,14 @@ impl VoucherService {
                         tracing::error!("批量查询科目失败: {}", e);
                         AppError::InternalError(format!("批量查询科目失败: {}", e))
                     })?;
-                let existing_codes: std::collections::HashSet<String> = existing_subjects.into_iter().map(|s| s.code).collect();
+                let existing_codes: std::collections::HashSet<String> =
+                    existing_subjects.into_iter().map(|s| s.code).collect();
                 for code in subject_codes {
                     if !existing_codes.contains(&code) {
-                        return Err(AppError::BadRequest(format!("科目不存在或已停用：{}", code)));
+                        return Err(AppError::BadRequest(format!(
+                            "科目不存在或已停用：{}",
+                            code
+                        )));
                     }
                 }
             }
@@ -176,7 +187,6 @@ impl VoucherService {
 
         // 创建凭证分录
         for (index, item_req) in req.items.iter().enumerate() {
-
             let item_active_model = voucher_item::ActiveModel {
                 voucher_id: sea_orm::Set(voucher.id),
                 line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
@@ -309,7 +319,14 @@ impl VoucherService {
             active_model.voucher_date = sea_orm::Set(voucher_date);
         }
 
-        let updated_voucher = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(user_id)).await?;
+        let updated_voucher =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                active_model,
+                Some(user_id),
+            )
+            .await?;
 
         if let Some(items) = req.items {
             // 验证更新后的分录借贷平衡
@@ -409,7 +426,13 @@ impl VoucherService {
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
         active_model.status = sea_orm::Set("submitted".to_string());
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
         info!("凭证提交成功：no={}", updated.voucher_no);
         Ok(updated)
@@ -432,7 +455,13 @@ impl VoucherService {
         active_model.status = sea_orm::Set("reviewed".to_string());
         active_model.reviewed_by = sea_orm::Set(Some(user_id));
         active_model.reviewed_at = sea_orm::Set(Some(chrono::Utc::now()));
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
         info!("凭证审核成功：no={}", updated.voucher_no);
         Ok(updated)
@@ -449,7 +478,9 @@ impl VoucherService {
         }
 
         // 检查期间锁定
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
         period_svc.check_date_locked(voucher.voucher_date).await?;
 
         // 开启事务
@@ -466,7 +497,13 @@ impl VoucherService {
         active_model.status = sea_orm::Set("posted".to_string());
         active_model.posted_by = sea_orm::Set(Some(user_id));
         active_model.posted_at = sea_orm::Set(Some(chrono::Utc::now()));
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(0)).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -572,9 +609,7 @@ impl VoucherService {
                 .filter(account_subject::Column::Code.eq(subject_code))
                 .one(txn)
                 .await?
-                .ok_or_else(|| {
-                    AppError::BadRequest(format!("科目不存在：{}", subject_code))
-                })?;
+                .ok_or_else(|| AppError::BadRequest(format!("科目不存在：{}", subject_code)))?;
 
             let entry = balance_map
                 .entry(subject.id)
@@ -661,7 +696,13 @@ impl VoucherService {
                     }
                 }
 
-                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_model, Some(0)).await?;
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    active_model,
+                    Some(0),
+                )
+                .await?;
             } else {
                 // 创建新余额记录
                 // 根据余额方向设置期末余额
@@ -723,7 +764,8 @@ impl VoucherService {
             prefix,
             voucher::Entity,
             voucher::Column::VoucherNo,
-        ).await
+        )
+        .await
     }
 }
 

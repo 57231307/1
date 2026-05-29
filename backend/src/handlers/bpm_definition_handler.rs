@@ -1,10 +1,15 @@
-use axum::{extract::{State, Query, Path}, Json};
-use crate::utils::app_state::AppState;
-use crate::utils::response::ApiResponse;
-use crate::models::dto::bpm_dto::{CreateProcessDefinitionRequest, UpdateProcessDefinitionRequest, ProcessDefinitionQuery, CreateVersionRequest, CreateTemplateRequest, TemplateQuery};
+use crate::models::dto::bpm_dto::{
+    CreateProcessDefinitionRequest, CreateTemplateRequest, CreateVersionRequest,
+    ProcessDefinitionQuery, TemplateQuery, UpdateProcessDefinitionRequest,
+};
 use crate::services::bpm_service::BpmService;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-
+use crate::utils::response::ApiResponse;
+use axum::{
+    extract::{Path, Query, State},
+    Json,
+};
 
 /// 创建流程定义
 pub async fn create_process_definition(
@@ -96,7 +101,9 @@ pub async fn save_as_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.save_as_template(id, req.template_name).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({"message": "保存模板成功"}))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({"message": "保存模板成功"}),
+    )))
 }
 
 /// 获取模板列表

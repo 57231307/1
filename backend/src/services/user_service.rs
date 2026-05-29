@@ -99,7 +99,10 @@ impl UserService {
             .one(self.db.as_ref())
             .await?;
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!("用户名 '{}' 已存在", username)));
+            return Err(AppError::BusinessError(format!(
+                "用户名 '{}' 已存在",
+                username
+            )));
         }
 
         let active_user = user::ActiveModel {
@@ -118,7 +121,10 @@ impl UserService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        active_user.insert(self.db.as_ref()).await.map_err(AppError::from)
+        active_user
+            .insert(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 更新用户最后登录时间
@@ -160,7 +166,9 @@ impl UserService {
         let paginator = user::Entity::find().paginate(self.db.as_ref(), page_size);
 
         let total = paginator.num_items().await?;
-        let users = paginator.fetch_page(if page > 0 { page - 1 } else { 0 }).await?;
+        let users = paginator
+            .fetch_page(if page > 0 { page - 1 } else { 0 })
+            .await?;
 
         Ok((users, total))
     }

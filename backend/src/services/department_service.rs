@@ -2,8 +2,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ impl DepartmentService {
 
         // 获取总数
         let total = q.clone().count(&*self.db).await?;
-        
+
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(10);
 
@@ -68,7 +68,12 @@ impl DepartmentService {
             .all(&*self.db)
             .await?;
 
-        Ok(crate::utils::response::PaginatedResponse::new(departments, total, page, page_size))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            departments,
+            total,
+            page,
+            page_size,
+        ))
     }
 
     /// 获取部门详情
@@ -91,7 +96,10 @@ impl DepartmentService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!("部门名称 '{}' 已存在", req.name)));
+            return Err(AppError::BusinessError(format!(
+                "部门名称 '{}' 已存在",
+                req.name
+            )));
         }
 
         // 检查父部门是否存在（如果提供了 parent_id）
@@ -99,9 +107,7 @@ impl DepartmentService {
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| {
-                    AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid))
-                })?;
+                .ok_or_else(|| AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid)))?;
         }
 
         let active_model = department::ActiveModel {
@@ -156,9 +162,7 @@ impl DepartmentService {
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| {
-                    AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid))
-                })?;
+                .ok_or_else(|| AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid)))?;
             dept.parent_id = Set(Some(pid));
         }
 
@@ -168,8 +172,9 @@ impl DepartmentService {
             self.db.as_ref(),
             "departments",
             dept,
-            Some(0)
-        ).await?;
+            Some(0),
+        )
+        .await?;
         Ok(result)
     }
 
@@ -194,17 +199,15 @@ impl DepartmentService {
             .await?;
 
         if user_count > 0 {
-            return Err(AppError::BusinessError(
-                format!("该部门下有 {} 个用户，请先移除用户的部门关联后再删除", user_count),
-            ));
+            return Err(AppError::BusinessError(format!(
+                "该部门下有 {} 个用户，请先移除用户的部门关联后再删除",
+                user_count
+            )));
         }
 
         let result = DepartmentEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!(
-                "部门 ID {} 不存在",
-                id
-            )));
+            return Err(AppError::ResourceNotFound(format!("部门 ID {} 不存在", id)));
         }
         Ok(())
     }

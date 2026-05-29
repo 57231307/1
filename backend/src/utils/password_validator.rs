@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use regex::Regex;
 use once_cell::sync::Lazy;
+use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PasswordStrength {
@@ -24,7 +24,10 @@ impl PasswordStrength {
     }
 
     pub fn is_acceptable(&self) -> bool {
-        matches!(self, PasswordStrength::Medium | PasswordStrength::Strong | PasswordStrength::VeryStrong)
+        matches!(
+            self,
+            PasswordStrength::Medium | PasswordStrength::Strong | PasswordStrength::VeryStrong
+        )
     }
 
     pub fn score(&self) -> u8 {
@@ -106,9 +109,21 @@ fn has_special_char(password: &str) -> bool {
 }
 
 const COMMON_PASSWORDS: &[&str] = &[
-    "password", "123456", "12345678", "qwerty", "abc123",
-    "letmein", "welcome", "admin", "root", "toor",
-    "123123", "111111", "000000", "password123", "admin123",
+    "password",
+    "123456",
+    "12345678",
+    "qwerty",
+    "abc123",
+    "letmein",
+    "welcome",
+    "admin",
+    "root",
+    "toor",
+    "123123",
+    "111111",
+    "000000",
+    "password123",
+    "admin123",
 ];
 
 pub fn validate_password(password: &str) -> PasswordValidationResult {
@@ -125,13 +140,19 @@ pub fn validate_password_with_policy(
     let mut score = 0u8;
 
     if password.len() < policy.min_length {
-        errors.push(format!("Password must be at least {} chars", policy.min_length));
+        errors.push(format!(
+            "Password must be at least {} chars",
+            policy.min_length
+        ));
     } else {
         score += 20;
     }
 
     if password.len() > policy.max_length {
-        errors.push(format!("Password must not exceed {} chars", policy.max_length));
+        errors.push(format!(
+            "Password must not exceed {} chars",
+            policy.max_length
+        ));
     }
 
     let has_uppercase = RE_UPPERCASE.is_match(password);
@@ -167,7 +188,10 @@ pub fn validate_password_with_policy(
     }
 
     let lower_password = password.to_lowercase();
-    if COMMON_PASSWORDS.iter().any(|common| lower_password.contains(common)) {
+    if COMMON_PASSWORDS
+        .iter()
+        .any(|common| lower_password.contains(common))
+    {
         errors.push("Password is too common".to_string());
         suggestions.push("Use more unique password".to_string());
         score = score.saturating_sub(30);

@@ -4,7 +4,9 @@
 //! 配合 tenant_isolation 中间件使用，确保所有数据访问都经过租户隔离。
 #![allow(dead_code)]
 
-use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
@@ -50,8 +52,8 @@ impl TenantIsolationService {
         user_id: i32,
         target_tenant_id: i32,
     ) -> Result<bool, TenantIsolationError> {
-        use crate::models::tenant_user::Entity as TenantUser;
         use crate::models::tenant_user::Column as TenantUserColumn;
+        use crate::models::tenant_user::Entity as TenantUser;
 
         let count = TenantUser::find()
             .filter(TenantUserColumn::UserId.eq(user_id))
@@ -64,12 +66,7 @@ impl TenantIsolationService {
     }
 
     /// 为 SeaORM Select 语句应用租户过滤
-    pub fn apply_tenant_filter<S>(
-        &self,
-        select: S,
-        _tenant_id: i32,
-        table_name: &str,
-    ) -> S
+    pub fn apply_tenant_filter<S>(&self, select: S, _tenant_id: i32, table_name: &str) -> S
     where
         S: QueryFilter + Sized,
     {
@@ -80,17 +77,26 @@ impl TenantIsolationService {
         // 根据表名应用不同的过滤条件
         match table_name {
             // 有 tenant_id 字段的表，直接过滤
-            "report_subscriptions" | "tenant_configs" | "tenant_users" | "assignment_history" | 
-            "webhooks" | "email_logs" | "report_templates" | "tenant_usages" | 
-            "tenant_subscriptions" | "email_templates" | "api_keys" | "tenant_invoices" => {
+            "report_subscriptions"
+            | "tenant_configs"
+            | "tenant_users"
+            | "assignment_history"
+            | "webhooks"
+            | "email_logs"
+            | "report_templates"
+            | "tenant_usages"
+            | "tenant_subscriptions"
+            | "email_templates"
+            | "api_keys"
+            | "tenant_invoices" => {
                 // 这些表有 tenant_id 字段，可以直接过滤
                 // 但由于泛型限制，无法直接访问列，返回原查询
                 // 实际过滤需要在 service 层使用具体的 Entity 类型
                 select
             }
             // 通过 created_by 关联到 tenant_users 的表
-            "customers" | "products" | "sales_orders" | "purchase_orders" | 
-            "inventory_stocks" | "warehouses" | "suppliers" => {
+            "customers" | "products" | "sales_orders" | "purchase_orders" | "inventory_stocks"
+            | "warehouses" | "suppliers" => {
                 // 这些表没有 tenant_id 字段，需要通过用户关联过滤
                 // 由于无法在这里访问具体列，返回原查询
                 // 实际过滤需要在 service 层实现
@@ -109,15 +115,24 @@ impl TenantIsolationService {
         // 根据表名构建不同的过滤条件
         match table_name {
             // 有 tenant_id 字段的表
-            "report_subscriptions" | "tenant_configs" | "tenant_users" | "assignment_history" | 
-            "webhooks" | "email_logs" | "report_templates" | "tenant_usages" | 
-            "tenant_subscriptions" | "email_templates" | "api_keys" | "tenant_invoices" => {
+            "report_subscriptions"
+            | "tenant_configs"
+            | "tenant_users"
+            | "assignment_history"
+            | "webhooks"
+            | "email_logs"
+            | "report_templates"
+            | "tenant_usages"
+            | "tenant_subscriptions"
+            | "email_templates"
+            | "api_keys"
+            | "tenant_invoices" => {
                 // 返回一个通用条件，具体实现需要在 service 层
                 Some(Condition::all())
             }
             // 通过 created_by 关联的表
-            "customers" | "products" | "sales_orders" | "purchase_orders" | 
-            "inventory_stocks" | "warehouses" | "suppliers" => {
+            "customers" | "products" | "sales_orders" | "purchase_orders" | "inventory_stocks"
+            | "warehouses" | "suppliers" => {
                 // 返回一个通用条件，具体实现需要在 service 层
                 Some(Condition::all())
             }
@@ -126,9 +141,12 @@ impl TenantIsolationService {
     }
 
     /// 获取用户可访问的租户 ID 列表
-    pub async fn get_accessible_tenant_ids(&self, user_id: i32) -> Result<Vec<i32>, TenantIsolationError> {
-        use crate::models::tenant_user::Entity as TenantUser;
+    pub async fn get_accessible_tenant_ids(
+        &self,
+        user_id: i32,
+    ) -> Result<Vec<i32>, TenantIsolationError> {
         use crate::models::tenant_user::Column as TenantUserColumn;
+        use crate::models::tenant_user::Entity as TenantUser;
 
         let tenant_users = TenantUser::find()
             .filter(TenantUserColumn::UserId.eq(user_id))
@@ -140,7 +158,10 @@ impl TenantIsolationService {
     }
 
     /// 管理员跨租户查询：获取所有租户数据
-    pub async fn query_all_tenants<E>(&self, select: sea_orm::Select<E>) -> Result<Vec<E::Model>, TenantIsolationError>
+    pub async fn query_all_tenants<E>(
+        &self,
+        select: sea_orm::Select<E>,
+    ) -> Result<Vec<E::Model>, TenantIsolationError>
     where
         E: EntityTrait,
     {
@@ -164,9 +185,7 @@ impl TenantIsolationService {
             return self.query_all_tenants(select).await;
         }
 
-        let filtered = select.filter(
-            Condition::all()
-        );
+        let filtered = select.filter(Condition::all());
 
         filtered
             .all(self.db.as_ref())
@@ -232,9 +251,15 @@ impl From<TenantIsolationError> for AppError {
     fn from(err: TenantIsolationError) -> Self {
         match err {
             TenantIsolationError::DatabaseError(e) => AppError::DatabaseError(e),
-            TenantIsolationError::AccessDenied => AppError::PermissionDenied("租户访问被拒绝".to_string()),
-            TenantIsolationError::TenantInactive => AppError::BusinessError("租户不存在或已禁用".to_string()),
-            TenantIsolationError::MissingTenantId => AppError::BadRequest("缺少租户标识".to_string()),
+            TenantIsolationError::AccessDenied => {
+                AppError::PermissionDenied("租户访问被拒绝".to_string())
+            }
+            TenantIsolationError::TenantInactive => {
+                AppError::BusinessError("租户不存在或已禁用".to_string())
+            }
+            TenantIsolationError::MissingTenantId => {
+                AppError::BadRequest("缺少租户标识".to_string())
+            }
         }
     }
 }
@@ -248,10 +273,8 @@ mod tests {
         let state = Arc::new(TenantIsolationState::new(
             crate::middleware::tenant_isolation::TenantIsolationConfig::default(),
         ));
-        let service = TenantIsolationService::new(
-            Arc::new(DatabaseConnection::Disconnected),
-            state,
-        );
+        let service =
+            TenantIsolationService::new(Arc::new(DatabaseConnection::Disconnected), state);
 
         // 白名单表不应生成过滤条件
         let condition = service.build_tenant_condition(1, "tenants");
@@ -266,10 +289,8 @@ mod tests {
         let state = Arc::new(TenantIsolationState::new(
             crate::middleware::tenant_isolation::TenantIsolationConfig::default(),
         ));
-        let service = TenantIsolationService::new(
-            Arc::new(DatabaseConnection::Disconnected),
-            state,
-        );
+        let service =
+            TenantIsolationService::new(Arc::new(DatabaseConnection::Disconnected), state);
 
         // 非白名单表应生成过滤条件
         let condition = service.build_tenant_condition(1, "products");
