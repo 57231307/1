@@ -406,12 +406,41 @@ case "$1" in
     6|update)
         echo "开始更新..."
         UPDATE_SCRIPT="/tmp/bingxi-update.sh"
-        UPDATE_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
-        if download_with_mirror "$UPDATE_URL" "$UPDATE_SCRIPT"; then
+        
+        # 尝试直接下载
+        RAW_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+        
+        # 镜像源列表（用于raw.githubusercontent.com）
+        RAW_MIRRORS=(
+            "https://ghp.ci/"
+            "https://gh-proxy.com/"
+            "https://raw.gitmirror.com/"
+            "https://raw.kkgithub.com/"
+            ""
+        )
+        
+        download_success=false
+        for MIRROR in "${RAW_MIRRORS[@]}"; do
+            local full_url="${MIRROR}${RAW_URL}"
+            echo "尝试下载: $full_url"
+            if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 60 -o "$UPDATE_SCRIPT" "$full_url" 2>/dev/null; then
+                if [ -s "$UPDATE_SCRIPT" ]; then
+                    download_success=true
+                    echo "下载成功"
+                    break
+                fi
+            fi
+            echo "下载失败，尝试下一个..."
+        done
+        
+        if [ "$download_success" = true ]; then
             sudo bash "$UPDATE_SCRIPT" update
             rm -f "$UPDATE_SCRIPT"
         else
-            echo "更新脚本下载失败"
+            echo "更新脚本下载失败，请检查网络连接"
+            echo "您也可以手动下载更新脚本："
+            echo "  curl -o /tmp/bingxi-update.sh https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+            echo "  sudo bash /tmp/bingxi-update.sh update"
             exit 1
         fi
         ;;
