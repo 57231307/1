@@ -8,8 +8,13 @@
     <el-table v-loading="loading" :data="departmentList" border>
       <el-table-column prop="name" label="部门名称" />
       <el-table-column prop="code" label="部门编码" />
-      <el-table-column prop="parent_id" label="上级部门" />
+      <el-table-column label="上级部门">
+        <template #default="{ row }">
+          {{ getParentName(row.parent_id) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="manager_name" label="负责人" />
+      <el-table-column prop="sort_order" label="排序" width="80" />
       <el-table-column prop="status" label="状态">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'danger'">
@@ -40,18 +45,20 @@
           <el-input v-model="formData.code" placeholder="请输入部门编码" />
         </el-form-item>
         <el-form-item label="上级部门" prop="parent_id">
-          <el-select v-model="formData.parent_id" placeholder="请选择上级部门" clearable>
-            <el-option
-              v-for="dept in departmentList"
-              :key="dept.id"
-              :label="dept.name"
-              :value="dept.id"
-              :disabled="dept.id === formData.id"
-            />
-          </el-select>
+          <el-tree-select
+            v-model="formData.parent_id"
+            :data="deptTreeData"
+            :props="{ label: 'name', value: 'id' }"
+            placeholder="请选择上级部门"
+            clearable
+            check-strictly
+          />
         </el-form-item>
         <el-form-item label="负责人" prop="manager_name">
           <el-input v-model="formData.manager_name" placeholder="请输入负责人" />
+        </el-form-item>
+        <el-form-item label="排序" prop="sort_order">
+          <el-input-number v-model="formData.sort_order" :min="0" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="formData.status" placeholder="请选择状态">
@@ -71,13 +78,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   listDepartments,
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  getDepartmentTree,
 } from '@/api/department'
 
 const loading = ref(false)
@@ -86,12 +94,14 @@ const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
 const departmentList = ref<any[]>([])
+const deptTreeData = ref<any[]>([])
 
 const formData = reactive<any>({
   name: '',
   code: '',
   parent_id: null,
   manager_name: '',
+  sort_order: 0,
   status: 1,
 })
 
@@ -104,13 +114,20 @@ const formRules: FormRules = {
 const loadDepartments = async () => {
   loading.value = true
   try {
-    const res = await listDepartments()
-    departmentList.value = res.data! || []
+    const [listRes, treeRes] = await Promise.all([listDepartments(), getDepartmentTree()])
+    departmentList.value = listRes.data || []
+    deptTreeData.value = treeRes.data || []
   } catch (error: any) {
     ElMessage.error(error.message || '加载部门列表失败')
   } finally {
     loading.value = false
   }
+}
+
+const getParentName = (parentId: number | null): string => {
+  if (!parentId) return '-'
+  const dept = departmentList.value.find((d: any) => d.id === parentId)
+  return dept?.name || '-'
 }
 
 const handleCreate = () => {
@@ -121,6 +138,7 @@ const handleCreate = () => {
     code: '',
     parent_id: null,
     manager_name: '',
+    sort_order: 0,
     status: 1,
   })
   dialogVisible.value = true
@@ -134,6 +152,7 @@ const handleEdit = (row: any) => {
     code: row.code,
     parent_id: row.parent_id,
     manager_name: row.manager_name,
+    sort_order: row.sort_order || 0,
     status: row.status,
   })
   dialogVisible.value = true
@@ -143,11 +162,14 @@ const handleDelete = async (row: any) => {
   if (!row.id) return
 
   try {
+    await ElMessageBox.confirm(`确定删除部门 "${row.name}"?`, '删除确认', { type: 'warning' })
     await deleteDepartment(row.id)
     ElMessage.success('删除成功')
     await loadDepartments()
-  } catch (error) {
-    ElMessage.error('删除失败')
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
+    }
   }
 }
 

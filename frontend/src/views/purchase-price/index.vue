@@ -280,6 +280,37 @@
         <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
       </el-table>
     </el-dialog>
+
+    <!-- 查看详情对话框 -->
+    <el-dialog v-model="viewDialogVisible" title="价格详情" width="700px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="产品名称">{{ viewData.product_name }}</el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
+        <el-descriptions-item label="采购价格">{{
+          formatCurrency(viewData.price)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="币种">{{ viewData.currency }}</el-descriptions-item>
+        <el-descriptions-item label="单位">{{ viewData.unit }}</el-descriptions-item>
+        <el-descriptions-item label="最小订购量">{{
+          viewData.min_order_qty || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="价格类型">{{
+          getPriceTypeLabel(viewData.price_type)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(viewData.status)">{{
+            getStatusLabel(viewData.status)
+          }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
+        <el-descriptions-item label="到期日期">{{
+          viewData.expiry_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          viewData.remarks || '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -420,8 +451,14 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 查看
-const handleView = (_row: any) => {}
+// 查看详情对话框
+const viewDialogVisible = ref(false)
+const viewData = ref<any>({})
+
+const handleView = (row: any) => {
+  viewData.value = row
+  viewDialogVisible.value = true
+}
 
 // 编辑
 const handleEdit = (row: any) => {

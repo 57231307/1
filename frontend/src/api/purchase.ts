@@ -10,12 +10,14 @@ export interface PurchaseOrder {
   required_date?: string
   status: string
   total_amount: number
+  received_amount?: number
   tax_amount?: number
   payment_status?: string
   contact_person?: string
   contact_phone?: string
   delivery_address?: string
   remark?: string
+  remarks?: string
   creator_name?: string
   created_at?: string
   items: PurchaseOrderItem[]

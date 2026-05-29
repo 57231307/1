@@ -742,6 +742,11 @@ const validatePhone = (_: any, v: string, cb: any) => {
   v && !/^1[3-9]\d{9}$/.test(v) ? cb(new Error('手机号格式错误')) : cb()
 }
 const validatePassword = (_: any, v: string, cb: any) => {
+  // 编辑模式下密码为可选
+  if (userForm.id && !v) {
+    cb()
+    return
+  }
   v && v.length < 8
     ? cb(new Error('密码至少8位'))
     : v && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(v)

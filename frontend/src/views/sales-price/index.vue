@@ -447,7 +447,25 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (_row: any) => {}
+const handleView = (row: any) => {
+  ElMessageBox.alert(
+    `<div>
+      <p><strong>产品名称：</strong>${row.product_name}</p>
+      <p><strong>客户：</strong>${row.customer_name || '-'}</p>
+      <p><strong>销售价格：</strong>${formatCurrency(row.price)}</p>
+      <p><strong>币种：</strong>${row.currency}</p>
+      <p><strong>单位：</strong>${row.unit}</p>
+      <p><strong>最小订购量：</strong>${row.min_order_qty || '-'}</p>
+      <p><strong>价格类型：</strong>${getPriceTypeLabel(row.price_type)}</p>
+      <p><strong>价格等级：</strong>${row.price_level || '-'}</p>
+      <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>
+      <p><strong>到期日期：</strong>${row.expiry_date || '-'}</p>
+      <p><strong>备注：</strong>${row.remarks || '-'}</p>
+    </div>`,
+    '价格详情',
+    { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }
+  )
+}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -488,6 +506,41 @@ const handleStrategy = () => {
 
 // 导出
 const handleExport = () => {
+  const csvContent = [
+    [
+      '产品名称',
+      '客户',
+      '价格',
+      '币种',
+      '单位',
+      '最小订购量',
+      '价格类型',
+      '价格等级',
+      '生效日期',
+      '到期日期',
+      '状态',
+    ],
+    ...priceList.value.map((item: any) => [
+      item.product_name,
+      item.customer_name || '',
+      item.price,
+      item.currency,
+      item.unit,
+      item.min_order_qty || '',
+      getPriceTypeLabel(item.price_type),
+      item.price_level || '',
+      item.effective_date || '',
+      item.expiry_date || '',
+      getStatusLabel(item.status),
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `销售价格_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
   ElMessage.success('导出成功')
 }
 

@@ -4,8 +4,13 @@ import {
   ElTable,
   ElTableColumn,
   ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
   ElInput,
   ElSelect,
+  ElDatePicker,
+  ElInputNumber,
   ElMessageBox,
   ElMessage,
   ElRow,
@@ -320,12 +325,7 @@ loadWarehouses()
       />
     </div>
 
-    <ElDialog
-      :title="dialogTitle"
-      :visible="dialogVisible"
-      width="500px"
-      @close="dialogVisible = false"
-    >
+    <ElDialog v-model="dialogVisible" :title="dialogTitle" width="500px">
       <ElForm :model="form" label-width="100px">
         <ElFormItem label="盘点单号" prop="count_no">
           <ElInput v-model="form.count_no" readonly />
@@ -350,12 +350,7 @@ loadWarehouses()
       </template>
     </ElDialog>
 
-    <ElDialog
-      title="盘点详情"
-      :visible="viewDialogVisible"
-      width="900px"
-      @close="viewDialogVisible = false"
-    >
+    <ElDialog v-model="viewDialogVisible" title="盘点详情" width="900px">
       <div v-if="viewData">
         <el-descriptions :column="4" border>
           <ElDescriptionsItem label="盘点单号">{{ viewData.count_no }}</ElDescriptionsItem>

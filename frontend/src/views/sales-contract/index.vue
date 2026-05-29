@@ -61,12 +61,12 @@
         </el-form-item>
         <el-form-item label="签订日期">
           <el-date-picker
-            v-model="queryParams.date_range"
+            v-model="dateRange"
             type="daterange"
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-            @change="handleQuery"
+            @change="handleDateChange"
           />
         </el-form-item>
         <el-form-item>
@@ -321,8 +321,22 @@ const queryParams = reactive({
   keyword: '',
   customer_id: undefined as number | undefined,
   status: '',
-  date_range: [] as string[],
+  signed_date_from: '',
+  signed_date_to: '',
 })
+
+const dateRange = ref<[Date, Date] | null>(null)
+
+const handleDateChange = () => {
+  if (dateRange.value) {
+    queryParams.signed_date_from = dateRange.value[0].toISOString().split('T')[0]
+    queryParams.signed_date_to = dateRange.value[1].toISOString().split('T')[0]
+  } else {
+    queryParams.signed_date_from = ''
+    queryParams.signed_date_to = ''
+  }
+  handleQuery()
+}
 
 // 列表数据
 const loading = ref(false)
@@ -400,7 +414,9 @@ const handleReset = () => {
   queryParams.keyword = ''
   queryParams.customer_id = undefined
   queryParams.status = ''
-  queryParams.date_range = []
+  dateRange.value = null
+  queryParams.signed_date_from = ''
+  queryParams.signed_date_to = ''
   handleQuery()
 }
 
@@ -427,7 +443,26 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (_row: any) => {}
+const handleView = (row: any) => {
+  ElMessageBox.alert(
+    `<div>
+      <p><strong>合同编号：</strong>${row.contract_no}</p>
+      <p><strong>合同名称：</strong>${row.contract_name}</p>
+      <p><strong>客户：</strong>${row.customer_name}</p>
+      <p><strong>合同金额：</strong>${formatCurrency(row.total_amount)}</p>
+      <p><strong>签订日期：</strong>${row.signed_date || '-'}</p>
+      <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>
+      <p><strong>到期日期：</strong>${row.expiry_date || '-'}</p>
+      <p><strong>付款条件：</strong>${row.payment_terms || '-'}</p>
+      <p><strong>付款方式：</strong>${row.payment_method || '-'}</p>
+      <p><strong>交货日期：</strong>${row.delivery_date || '-'}</p>
+      <p><strong>交货地点：</strong>${row.delivery_location || '-'}</p>
+      <p><strong>备注：</strong>${row.remarks || '-'}</p>
+    </div>`,
+    '合同详情',
+    { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }
+  )
+}
 
 // 编辑
 const handleEdit = (row: any) => {
@@ -494,11 +529,69 @@ const handleDelete = async (row: any) => {
 
 // 打印
 const handlePrint = () => {
-  ElMessage.success('打印成功')
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = contractList.value
+    .map(
+      (item: any) => `
+    <tr>
+      <td>${item.contract_no}</td>
+      <td>${item.contract_name}</td>
+      <td>${item.customer_name}</td>
+      <td style="text-align:right">${formatCurrency(item.total_amount)}</td>
+      <td>${item.signed_date || '-'}</td>
+      <td>${getStatusLabel(item.status)}</td>
+    </tr>
+  `
+    )
+    .join('')
+  const now = new Date().toISOString().split('T')[0]
+  printWindow.document.write(`
+    <html><head><meta charset="utf-8"><title>销售合同列表</title>
+    <style>
+      @media print { @page { size: landscape; } }
+      body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
+      h1 { text-align: center; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { border: 1px solid #333; padding: 6px 8px; }
+      th { background: #f5f5f5; }
+      .meta { text-align: center; color: #666; font-size: 11px; }
+    </style></head><body>
+    <h1>销售合同列表</h1>
+    <div class="meta">打印日期: ${now} | 共 ${contractList.value.length} 条</div>
+    <table>
+      <thead><tr><th>合同编号</th><th>合同名称</th><th>客户</th><th>金额</th><th>签订日期</th><th>状态</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </body></html>
+  `)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
 }
 
 // 导出
 const handleExport = () => {
+  const csvContent = [
+    ['合同编号', '合同名称', '客户', '金额', '签订日期', '状态'],
+    ...contractList.value.map((item: any) => [
+      item.contract_no,
+      item.contract_name,
+      item.customer_name,
+      item.total_amount,
+      item.signed_date || '',
+      getStatusLabel(item.status),
+    ]),
+  ]
+    .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+    .join('\n')
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `销售合同_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
   ElMessage.success('导出成功')
 }
 

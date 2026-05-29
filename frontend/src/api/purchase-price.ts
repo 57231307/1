@@ -11,10 +11,13 @@ export interface PurchasePrice {
   price: number
   currency: string
   unit: string
+  min_order_qty?: number
+  price_type?: string
   effective_date: string
   expiry_date: string
   status: 'active' | 'inactive'
   remark: string
+  remarks?: string
   created_at: string
   updated_at: string
 }

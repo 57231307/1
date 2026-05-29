@@ -39,20 +39,26 @@
       <!-- 步骤 2: 数据库配置 -->
       <div v-if="currentStep === 1" class="step-content">
         <h3>数据库配置</h3>
-        <el-form :model="dbConfig" label-width="120px" class="config-form">
-          <el-form-item label="数据库主机">
+        <el-form
+          ref="dbFormRef"
+          :model="dbConfig"
+          :rules="dbRules"
+          label-width="120px"
+          class="config-form"
+        >
+          <el-form-item label="数据库主机" prop="host">
             <el-input v-model="dbConfig.host" placeholder="localhost" />
           </el-form-item>
-          <el-form-item label="数据库端口">
+          <el-form-item label="数据库端口" prop="port">
             <el-input v-model="dbConfig.port" placeholder="5432" />
           </el-form-item>
-          <el-form-item label="数据库名称">
+          <el-form-item label="数据库名称" prop="name">
             <el-input v-model="dbConfig.name" placeholder="bingxi" />
           </el-form-item>
-          <el-form-item label="数据库用户">
+          <el-form-item label="数据库用户" prop="username">
             <el-input v-model="dbConfig.username" placeholder="bingxi" />
           </el-form-item>
-          <el-form-item label="数据库密码">
+          <el-form-item label="数据库密码" prop="password">
             <el-input v-model="dbConfig.password" type="password" placeholder="请输入密码" />
           </el-form-item>
         </el-form>
@@ -68,21 +74,27 @@
       <!-- 步骤 3: 创建管理员 -->
       <div v-if="currentStep === 2" class="step-content">
         <h3>创建管理员账号</h3>
-        <el-form :model="adminConfig" label-width="120px" class="config-form">
-          <el-form-item label="管理员用户名">
+        <el-form
+          ref="adminFormRef"
+          :model="adminConfig"
+          :rules="adminRules"
+          label-width="120px"
+          class="config-form"
+        >
+          <el-form-item label="管理员用户名" prop="username">
             <el-input v-model="adminConfig.username" placeholder="admin" />
           </el-form-item>
-          <el-form-item label="管理员密码">
+          <el-form-item label="管理员密码" prop="password">
             <el-input v-model="adminConfig.password" type="password" placeholder="请输入密码" />
           </el-form-item>
-          <el-form-item label="确认密码">
+          <el-form-item label="确认密码" prop="confirmPassword">
             <el-input
               v-model="adminConfig.confirmPassword"
               type="password"
               placeholder="请再次输入密码"
             />
           </el-form-item>
-          <el-form-item label="邮箱">
+          <el-form-item label="邮箱" prop="email">
             <el-input v-model="adminConfig.email" placeholder="admin@example.com" />
           </el-form-item>
         </el-form>
@@ -151,6 +163,7 @@ const envChecks = ref([
 const allChecksPassed = computed(() => envChecks.value.every((item) => item.status))
 
 // 数据库配置
+const dbFormRef = ref()
 const dbConfig = ref({
   host: 'localhost',
   port: '5432',
@@ -158,14 +171,42 @@ const dbConfig = ref({
   username: 'bingxi',
   password: '',
 })
+const dbRules = {
+  host: [{ required: true, message: '请输入数据库主机', trigger: 'blur' }],
+  port: [{ required: true, message: '请输入数据库端口', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入数据库名称', trigger: 'blur' }],
+  username: [{ required: true, message: '请输入数据库用户', trigger: 'blur' }],
+}
 
 // 管理员配置
+const adminFormRef = ref()
 const adminConfig = ref({
   username: 'admin',
   password: '',
   confirmPassword: '',
   email: 'admin@example.com',
 })
+const adminRules = {
+  username: [{ required: true, message: '请输入管理员用户名', trigger: 'blur' }],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码至少6位', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    {
+      validator: (_: any, value: string, callback: any) => {
+        if (value !== adminConfig.value.password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }],
+}
 
 const isAdminValid = computed(() => {
   return (
@@ -185,9 +226,13 @@ async function checkEnvironment() {
     envChecks.value[0].status = healthRes.ok
 
     // 检查数据库连接
-    const initRes = await fetch('/api/v1/erp/init/status')
-    const initData = await initRes.json()
-    envChecks.value[1].status = initData.initialized
+    const dbRes = await fetch('/api/v1/erp/init/test-database', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dbConfig.value),
+    })
+    const dbData = await dbRes.json()
+    envChecks.value[1].status = dbData.success
 
     // 检查必要依赖
     envChecks.value[2].status = true
@@ -234,6 +279,7 @@ async function install() {
         db_config: dbConfig.value,
         admin_username: adminConfig.value.username,
         admin_password: adminConfig.value.password,
+        admin_email: adminConfig.value.email,
       }),
     })
     const data = await res.json()

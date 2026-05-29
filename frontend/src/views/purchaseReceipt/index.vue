@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import {
   ElTable,
   ElTableColumn,
@@ -51,8 +51,8 @@ const dialogTitle = ref('新增入库')
 const form = ref<Partial<PurchaseReceiptEntity>>({
   receipt_no: '',
   receipt_date: new Date().toISOString().split('T')[0],
-  supplier_id: 0,
-  warehouse_id: 0,
+  supplier_id: undefined,
+  warehouse_id: undefined,
   status: 'draft',
   items: [],
 })
@@ -64,6 +64,13 @@ const detailData = ref<ReceiptItem[]>([])
 const supplierOptions = ref<{ label: string; value: number }[]>([])
 const warehouseOptions = ref<{ label: string; value: number }[]>([])
 const productOptions = ref<{ label: string; value: number }[]>([])
+
+const formRef = ref()
+const formRules = {
+  supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
+  warehouse_id: [{ required: true, message: '请选择仓库', trigger: 'change' }],
+  receipt_date: [{ required: true, message: '请选择入库日期', trigger: 'change' }],
+}
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -158,8 +165,8 @@ const openAddDialog = () => {
   form.value = {
     receipt_no: '',
     receipt_date: new Date().toISOString().split('T')[0],
-    supplier_id: 0,
-    warehouse_id: 0,
+    supplier_id: undefined,
+    warehouse_id: undefined,
     status: 'draft',
     items: [{ product_id: 0, quantity: 0, price: 0, amount: 0 }],
   }
@@ -202,8 +209,9 @@ const calculateItemAmount = (item: any) => {
 }
 
 const handleSubmit = async () => {
-  if (!form.value.supplier_id || !form.value.warehouse_id) {
-    ElMessage.warning('请填写必填字段')
+  try {
+    await formRef.value?.validate()
+  } catch {
     return
   }
   const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
@@ -257,10 +265,12 @@ const handleApprove = async (row: PurchaseReceiptEntity) => {
   }
 }
 
-loadData()
-loadSuppliers()
-loadWarehouses()
-loadProducts()
+onMounted(() => {
+  loadData()
+  loadSuppliers()
+  loadWarehouses()
+  loadProducts()
+})
 </script>
 
 <template>
@@ -381,7 +391,7 @@ loadProducts()
     </div>
 
     <ElDialog v-model="dialogVisible" :title="dialogTitle" width="800px">
-      <ElForm :model="form" label-width="100px">
+      <ElForm ref="formRef" :model="form" :rules="formRules" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
             <ElFormItem label="入库单号" prop="receipt_no">

@@ -248,7 +248,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
 import { salesApi } from '@/api/sales'
@@ -392,11 +392,16 @@ const handleApprove = async (row: any) => {
   if (!row.id) return
 
   try {
+    await ElMessageBox.confirm(`确定审核通过退货单 ${row.returnNo} 吗？`, '审核确认', {
+      type: 'warning',
+    })
     await salesReturnApi.approve(row.id)
     ElMessage.success('审核成功')
     await loadReturns()
   } catch (error: any) {
-    ElMessage.error(error.message || '审核失败')
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '审核失败')
+    }
   }
 }
 

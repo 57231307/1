@@ -178,6 +178,10 @@ const openViewDialog = async (row: InventoryTransferEntity) => {
   }
 }
 
+const calculateAmount = (item: any) => {
+  item.amount = (item.quantity || 0) * (item.cost_price || 0)
+}
+
 const addItem = () => {
   if (!form.value.items) form.value.items = []
   form.value.items.push({ product_id: 0, quantity: 0, cost_price: 0, amount: 0 })
@@ -378,12 +382,7 @@ loadProducts()
       />
     </div>
 
-    <ElDialog
-      :title="dialogTitle"
-      :visible="dialogVisible"
-      width="800px"
-      @close="dialogVisible = false"
-    >
+    <ElDialog v-model="dialogVisible" :title="dialogTitle" width="800px">
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -444,8 +443,17 @@ loadProducts()
                   :value="p.value"
                 />
               </ElSelect>
-              <ElInputNumber v-model="item.quantity" class="col-qty" />
-              <ElInputNumber v-model="item.cost_price" :precision="2" class="col-price" />
+              <ElInputNumber
+                v-model="item.quantity"
+                class="col-qty"
+                @change="calculateAmount(item)"
+              />
+              <ElInputNumber
+                v-model="item.cost_price"
+                :precision="2"
+                class="col-price"
+                @change="calculateAmount(item)"
+              />
               <ElInputNumber v-model="item.amount" :precision="2" class="col-amount" readonly />
               <ElButton
                 v-if="(form.items || []).length > 1"
@@ -465,12 +473,7 @@ loadProducts()
       </template>
     </ElDialog>
 
-    <ElDialog
-      title="调拨单详情"
-      :visible="viewDialogVisible"
-      width="800px"
-      @close="viewDialogVisible = false"
-    >
+    <ElDialog v-model="viewDialogVisible" title="调拨单详情" width="800px">
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
           <ElDescriptionsItem label="调拨单号">{{ viewData.transfer_no }}</ElDescriptionsItem>

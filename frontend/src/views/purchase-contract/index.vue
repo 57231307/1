@@ -291,6 +291,42 @@
         <el-button type="primary" @click="handleSubmitForm">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 查看详情对话框 -->
+    <el-dialog v-model="viewDialogVisible" title="合同详情" width="800px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="合同编号">{{ viewData.contract_no }}</el-descriptions-item>
+        <el-descriptions-item label="合同名称">{{ viewData.contract_name }}</el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
+        <el-descriptions-item label="合同类型">{{ viewData.contract_type }}</el-descriptions-item>
+        <el-descriptions-item label="合同金额">{{
+          formatCurrency(viewData.total_amount)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="签订日期">{{ viewData.signed_date }}</el-descriptions-item>
+        <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
+        <el-descriptions-item label="到期日期">{{ viewData.expiry_date }}</el-descriptions-item>
+        <el-descriptions-item label="付款条件">{{
+          viewData.payment_terms || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="付款方式">{{
+          viewData.payment_method || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="交货日期">{{
+          viewData.delivery_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="交货地点">{{
+          viewData.delivery_location || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(viewData.status)">{{
+            getStatusLabel(viewData.status)
+          }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          viewData.remarks || '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -419,10 +455,13 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 查看
+// 查看详情对话框
+const viewDialogVisible = ref(false)
+const viewData = ref<any>({})
+
 const handleView = (row: any) => {
-  // 跳转到详情页
-  console.log('查看合同详情:', row.id)
+  viewData.value = row
+  viewDialogVisible.value = true
 }
 
 // 编辑

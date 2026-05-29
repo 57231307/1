@@ -610,8 +610,13 @@ const handleCreate = () => {
   createDialogVisible.value = true
 }
 
-const handleView = (row: PurchaseOrder) => {
-  viewData.value = row
+const handleView = async (row: PurchaseOrder) => {
+  try {
+    const res = await purchaseApi.getOrderById(row.id)
+    viewData.value = res.data || row
+  } catch {
+    viewData.value = row
+  }
   viewDialogVisible.value = true
 }
 
