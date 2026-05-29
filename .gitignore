@@ -108,3 +108,4 @@ mock-server.js
 
 # 项目报告
 docs/project-optimization-report.md
+frontend/coverage/
