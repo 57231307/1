@@ -2,8 +2,10 @@
 FROM rust:1.94.1-slim as builder
 
 WORKDIR /app
-COPY backend/ .
+COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler && rm -rf /var/lib/apt/lists/*
+RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --bin server --bin bingxi
+COPY backend/src ./src
 RUN cargo build --release --bin server --bin bingxi
 
 FROM debian:bookworm-slim
@@ -13,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# 创建非root用户
+RUN groupadd -r appuser && useradd -r -g appuser -d /opt/bingxi-erp -s /sbin/nologin appuser
+
 RUN mkdir -p /opt/bingxi-erp/backend /etc/bingxi /var/log/bingxi-erp
 
 COPY --from=builder /app/target/release/server /opt/bingxi-erp/backend/
@@ -21,10 +26,16 @@ RUN chmod +x /opt/bingxi-erp/backend/server /opt/bingxi-erp/backend/bingxi
 
 COPY backend/.env.example /etc/bingxi/.env
 
+# 设置权限
+RUN chown -R appuser:appuser /opt/bingxi-erp \
+    && chown -R appuser:appuser /etc/bingxi \
+    && chown -R appuser:appuser /var/log/bingxi-erp
+
 EXPOSE 8082 50051
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8082/api/v1/erp/health || exit 1
 
+USER appuser
 WORKDIR /opt/bingxi-erp/backend
 CMD ["./server"]

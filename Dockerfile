@@ -2,16 +2,19 @@
 FROM rust:1.94.1-slim as backend-builder
 
 WORKDIR /app
-COPY backend/ .
+COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler && rm -rf /var/lib/apt/lists/*
+RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --bin server --bin bingxi
+COPY backend/src ./src
 RUN cargo build --release --bin server --bin bingxi
 
 # 多阶段构建 - 前端
 FROM node:22-alpine as frontend-builder
 
 WORKDIR /app
-COPY frontend/ .
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
+COPY frontend/ .
 RUN npx vite build
 
 # 生产镜像
@@ -19,7 +22,6 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
     nginx \
-    postgresql-client \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -29,6 +31,9 @@ RUN mkdir -p /opt/bingxi-erp/backend \
     /opt/bingxi/frontend/dist \
     /etc/bingxi \
     /var/log/bingxi-erp
+
+# 创建非root用户
+RUN groupadd -r appuser && useradd -r -g appuser -d /opt/bingxi-erp -s /sbin/nologin appuser
 
 # 复制后端二进制文件
 COPY --from=backend-builder /app/target/release/server /opt/bingxi-erp/backend/
@@ -49,13 +54,16 @@ COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # 设置权限
-RUN chown -R www-data:www-data /opt/bingxi/frontend/dist \
-    && chown -R www-data:www-data /var/log/bingxi-erp
+RUN chown -R appuser:appuser /opt/bingxi-erp \
+    && chown -R appuser:appuser /opt/bingxi/frontend/dist \
+    && chown -R appuser:appuser /var/log/bingxi-erp \
+    && chown -R appuser:appuser /etc/bingxi
 
 EXPOSE 80 8082
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8082/api/v1/erp/health || exit 1
 
+USER appuser
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]

@@ -55,19 +55,6 @@ check_dependencies() {
     # 检查前端相关
     check_command "npm"
     
-    # 检查 Trunk (WebAssembly 构建工具)
-    if ! command -v trunk &> /dev/null; then
-        log "INFO" "安装 Trunk..."
-        if ! cargo install trunk 2>/dev/null; then
-            log "WARNING" "Trunk 安装失败，尝试从 GitHub 安装..."
-            curl -sSL https://raw.githubusercontent.com/thedodd/trunk/master/scripts/install.sh | bash || {
-                log "ERROR" "Trunk 安装失败，请手动安装: cargo install trunk"
-                exit 1
-            }
-        fi
-        log "SUCCESS" "Trunk 安装完成"
-    fi
-    
     # 检查 Git
     check_command "git"
     
@@ -126,7 +113,7 @@ build_frontend() {
     npm install
     
     # 构建
-    trunk build --release
+    npm run build
     
     cd ..
     
@@ -158,7 +145,7 @@ package_release() {
     mkdir -p release/bingxi-erp/deploy
     
     # 复制后端文件
-    cp backend/target/release/bingxi_backend release/bingxi-erp/backend/
+    cp backend/target/release/server release/bingxi-erp/backend/
     cp backend/.env.example release/bingxi-erp/backend/
     
     # 复制前端文件

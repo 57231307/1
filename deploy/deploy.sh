@@ -213,12 +213,14 @@ EOF
 run_migrations() {
     log "执行数据库迁移..."
     if [ -f "$ENV_FILE" ]; then
-        source "$ENV_FILE"
+        set -a
+        . "$ENV_FILE"
+        set +a
         local DB_HOST="${DATABASE__HOST:-localhost}"
         local DB_PORT="${DATABASE__PORT:-5432}"
         local DB_NAME="${DATABASE__NAME:-bingxi}"
         local DB_USER="${DATABASE__USERNAME:-bingxi}"
-        local DB_PASS="${DATABASE__PASSWORD:-bingxi123}"
+        local DB_PASS="${DATABASE__PASSWORD:-}"
 
         local migration_dir=""
         if [ -d "/tmp/bingxi-deploy/database/migration" ]; then
@@ -435,7 +437,7 @@ case "$1" in
         
         version_success=false
         for MIRROR in "${VERSION_MIRRORS[@]}"; do
-            local full_url="${MIRROR}${VERSION_URL}"
+            full_url="${MIRROR}${VERSION_URL}"
             echo "尝试获取版本信息: $full_url"
             VERSION_INFO=$(curl -s --connect-timeout 10 --max-time 30 "$full_url" 2>/dev/null)
             if [ -n "$VERSION_INFO" ]; then
@@ -470,7 +472,7 @@ case "$1" in
         
         download_success=false
         for MIRROR in "${DOWNLOAD_MIRRORS[@]}"; do
-            local full_url="${MIRROR}${DOWNLOAD_URL}"
+            full_url="${MIRROR}${DOWNLOAD_URL}"
             echo "尝试下载: $full_url"
             if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 300 -o "$UPDATE_PACKAGE" "$full_url" 2>/dev/null; then
                 if [ -s "$UPDATE_PACKAGE" ]; then

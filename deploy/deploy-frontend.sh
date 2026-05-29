@@ -13,8 +13,8 @@ NC='\033[0m' # No Color
 # 配置变量
 APP_NAME="bingxi-frontend"
 INSTALL_DIR="/opt/bingxi-erp/frontend/dist"
-NGINX_CONFIG="/etc/nginx/sites-available/bingxi-frontend"
-NGINX_ENABLED="/etc/nginx/sites-enabled/bingxi-frontend"
+NGINX_CONFIG="/etc/nginx/sites-available/bingxi-erp"
+NGINX_ENABLED="/etc/nginx/sites-enabled/bingxi-erp"
 
 echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}面料管理前端部署脚本 (Vue 3)${NC}"
