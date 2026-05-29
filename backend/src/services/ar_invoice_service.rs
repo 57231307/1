@@ -137,9 +137,21 @@ impl ArInvoiceService {
         req: CreateArInvoiceRequest,
         user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
+        // 验证客户ID
+        let customer_id = req.customer_id.ok_or_else(|| AppError::ValidationError("客户ID不能为空".to_string()))?;
+        if customer_id <= 0 {
+            return Err(AppError::ValidationError("客户ID无效".to_string()));
+        }
+
+        // 验证发票金额
+        let invoice_amount = req.invoice_amount.ok_or_else(|| AppError::ValidationError("发票金额不能为空".to_string()))?;
+        if invoice_amount <= Decimal::ZERO {
+            return Err(AppError::ValidationError("发票金额必须大于零".to_string()));
+        }
+
         info!(
             "创建应收单：customer_id={}, amount={}",
-            req.customer_id.unwrap_or(0), req.invoice_amount.unwrap_or(Decimal::ZERO)
+            customer_id, invoice_amount
         );
 
         // 生成应收单编号
@@ -149,14 +161,14 @@ impl ArInvoiceService {
             invoice_no: sea_orm::Set(invoice_no),
             invoice_date: sea_orm::Set(req.invoice_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
             due_date: sea_orm::Set(req.due_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
-            customer_id: sea_orm::Set(req.customer_id.unwrap_or(0)),
+            customer_id: sea_orm::Set(customer_id),
             customer_name: sea_orm::Set(req.customer_name),
             source_type: sea_orm::Set(req.source_type),
             source_bill_id: sea_orm::Set(req.source_bill_id),
             source_bill_no: sea_orm::Set(req.source_bill_no),
-            invoice_amount: sea_orm::Set(req.invoice_amount.unwrap_or(Decimal::ZERO)),
+            invoice_amount: sea_orm::Set(invoice_amount),
             received_amount: sea_orm::Set(Decimal::ZERO),
-            unpaid_amount: sea_orm::Set(req.invoice_amount.unwrap_or(Decimal::ZERO)),
+            unpaid_amount: sea_orm::Set(invoice_amount),
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),

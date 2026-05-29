@@ -84,7 +84,8 @@ pub async fn list_dye_recipes(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let mut q = dye_recipe::Entity::find();
+    let mut q = dye_recipe::Entity::find()
+        .filter(dye_recipe::Column::IsDeleted.eq(false));
 
     if let Some(recipe_no) = &query.recipe_no {
         q = q.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
@@ -104,15 +105,22 @@ pub async fn list_dye_recipes(
 
     q = q.order_by_desc(dye_recipe::Column::CreatedAt);
 
-    match q.paginate(&*state.db, page_size).fetch_page(page - 1).await {
-        Ok(recipes) => {
-            let total = recipes.len() as u64;
-            let paginated = PaginatedResponse::new(recipes, total, page, page_size);
-            paginated.into_response()
-        }
+    let paginator = q.paginate(&*state.db, page_size);
+    match paginator.num_items().await {
+        Ok(total) => match paginator.fetch_page(page - 1).await {
+            Ok(recipes) => {
+                let paginated = PaginatedResponse::new(recipes, total, page, page_size);
+                paginated.into_response()
+            }
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
+            )
+                .into_response(),
+        },
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取配方总数失败：{}", e))),
         )
             .into_response(),
     }
@@ -249,6 +257,26 @@ pub async fn update_dye_recipe(
         recipe.auxiliaries = Set(Some(auxiliaries));
     }
     if let Some(status) = req.status {
+        // 验证配方状态流转
+        let current_status = recipe.status.as_ref()
+            .and_then(|s| s.as_deref())
+            .unwrap_or("草稿");
+        let valid = match current_status {
+            "草稿" => matches!(status.as_str(), "已审核" | "已停用"),
+            "已审核" => matches!(status.as_str(), "已停用"),
+            "已停用" => matches!(status.as_str(), "已审核"),
+            _ => false,
+        };
+        if !valid {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::<()>::error(format!(
+                    "配方状态流转不合法：{} -> {}",
+                    current_status, status
+                ))),
+            )
+                .into_response();
+        }
         recipe.status = Set(Some(status));
     }
     if let Some(remarks) = req.remarks {
@@ -276,7 +304,38 @@ pub async fn delete_dye_recipe(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> impl IntoResponse {
-    match dye_recipe::Entity::delete_by_id(id).exec(&*state.db).await {
+    let recipe = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::error("配方不存在")),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    if recipe.status.as_deref() == Some("已审核") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error("已审核的配方不允许删除，请先停用")),
+        )
+            .into_response();
+    }
+
+    // 软删除
+    let mut active: dye_recipe::ActiveModel = recipe.into();
+    active.is_deleted = Set(Some(true));
+    active.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+
+    match active.update(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "配方删除成功")),
@@ -315,8 +374,8 @@ pub async fn approve_recipe(
     };
 
     // 检查当前状态是否允许审核
-    let status_value = recipe.status.clone().unwrap();
-    let current_status = status_value.as_deref()
+    let current_status = recipe.status.as_ref()
+        .and_then(|s| s.as_deref())
         .unwrap_or("草稿");
     if current_status != "草稿" {
         return (
@@ -372,6 +431,18 @@ pub async fn create_new_version(
         }
     };
 
+    // 只有已审核的配方才能创建新版本
+    if original.status.as_deref() != Some("已审核") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(format!(
+                "只有已审核的配方才能创建新版本，当前状态：{}",
+                original.status.as_deref().unwrap_or("未知")
+            ))),
+        )
+            .into_response();
+    }
+
     let new_version = original.version.unwrap_or(1) + 1;
     let new_recipe_no = format!("{}-V{}", original.recipe_no, new_version);
 
@@ -424,6 +495,7 @@ pub async fn get_recipes_by_color(
     match dye_recipe::Entity::find()
         .filter(dye_recipe::Column::ColorCode.eq(color_code))
         .filter(dye_recipe::Column::Status.eq("已审核"))
+        .filter(dye_recipe::Column::IsDeleted.eq(false))
         .order_by_desc(dye_recipe::Column::Version)
         .all(&*state.db)
         .await
@@ -450,6 +522,7 @@ pub async fn get_recipe_versions(
                 .add(dye_recipe::Column::ParentRecipeId.eq(id))
                 .add(dye_recipe::Column::Id.eq(id))
         )
+        .filter(dye_recipe::Column::IsDeleted.eq(false))
         .order_by_asc(dye_recipe::Column::Version)
         .all(&*state.db)
         .await

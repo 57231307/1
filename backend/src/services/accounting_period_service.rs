@@ -19,9 +19,21 @@ impl AccountingPeriodService {
     pub async fn get_current_period(&self) -> Result<Option<accounting_period::Model>, AppError> {
         let period = accounting_period::Entity::find()
             .filter(accounting_period::Column::Status.eq("OPEN"))
+            .order_by_desc(accounting_period::Column::Year)
+            .order_by_desc(accounting_period::Column::Period)
             .one(self.db.as_ref())
             .await?;
         Ok(period)
+    }
+
+    /// 获取所有开放的会计期间
+    pub async fn get_all_open_periods(&self) -> Result<Vec<accounting_period::Model>, AppError> {
+        let periods = accounting_period::Entity::find()
+            .filter(accounting_period::Column::Status.eq("OPEN"))
+            .order_by_asc(accounting_period::Column::StartDate)
+            .all(self.db.as_ref())
+            .await?;
+        Ok(periods)
     }
 
     /// 初始化第一个会计期间（如果不存在）
@@ -66,6 +78,24 @@ impl AccountingPeriodService {
 
         if period.status == "CLOSED" {
             return Err(AppError::BusinessError("期间已经结账，不能重复结账".to_string()));
+        }
+
+        // 检查该期间内是否有未过账的凭证
+        let start_date = period.start_date;
+        let end_date = period.end_date;
+        
+        let unposted_vouchers = crate::models::voucher::Entity::find()
+            .filter(crate::models::voucher::Column::VoucherDate.gte(start_date))
+            .filter(crate::models::voucher::Column::VoucherDate.lte(end_date))
+            .filter(crate::models::voucher::Column::Status.ne("posted"))
+            .count(self.db.as_ref())
+            .await?;
+
+        if unposted_vouchers > 0 {
+            return Err(AppError::BusinessError(format!(
+                "该期间有 {} 张凭证未过账，请先完成所有凭证的过账操作",
+                unposted_vouchers
+            )));
         }
 
         // 1. 将当前期间设置为 CLOSED

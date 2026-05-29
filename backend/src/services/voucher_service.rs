@@ -328,16 +328,16 @@ impl VoucherService {
                 .await
                 .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-            for item_req in items {
+            for (index, item_req) in items.iter().enumerate() {
                 let item_active = vi::ActiveModel {
                     id: sea_orm::Set(0),
                     voucher_id: sea_orm::Set(id),
-                    line_no: sea_orm::Set(item_req.line_no.unwrap_or(0)),
-                    subject_code: sea_orm::Set(item_req.subject_code.unwrap_or_default()),
-                    subject_name: sea_orm::Set(item_req.subject_name.unwrap_or_default()),
+                    line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
+                    subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
+                    subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
                     debit: sea_orm::Set(item_req.debit),
                     credit: sea_orm::Set(item_req.credit),
-                    summary: sea_orm::Set(item_req.summary),
+                    summary: sea_orm::Set(item_req.summary.clone()),
                     assist_customer_id: sea_orm::Set(item_req.assist_customer_id),
                     assist_supplier_id: sea_orm::Set(item_req.assist_supplier_id),
                     assist_department_id: sea_orm::Set(item_req.assist_department_id),
@@ -346,7 +346,7 @@ impl VoucherService {
                     assist_batch_id: sea_orm::Set(item_req.assist_batch_id),
                     assist_color_no_id: sea_orm::Set(item_req.assist_color_no_id),
                     assist_dye_lot_id: sea_orm::Set(item_req.assist_dye_lot_id),
-                    assist_grade: sea_orm::Set(item_req.assist_grade),
+                    assist_grade: sea_orm::Set(item_req.assist_grade.clone()),
                     assist_workshop_id: sea_orm::Set(item_req.assist_workshop_id),
                     quantity_meters: sea_orm::Set(item_req.quantity_meters),
                     quantity_kg: sea_orm::Set(item_req.quantity_kg),
@@ -404,6 +404,9 @@ impl VoucherService {
             ));
         }
 
+        // 提交前验证借贷平衡
+        self.validate_voucher(id).await?;
+
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
         active_model.status = sea_orm::Set("submitted".to_string());
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
@@ -444,6 +447,10 @@ impl VoucherService {
         if voucher.status != "reviewed" {
             return Err(AppError::BadRequest("只有已审核的凭证可以过账".to_string()));
         }
+
+        // 检查期间锁定
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        period_svc.check_date_locked(voucher.voucher_date).await?;
 
         // 开启事务
         let txn = (*self.db).begin().await?;

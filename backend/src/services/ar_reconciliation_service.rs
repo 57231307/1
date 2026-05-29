@@ -529,7 +529,7 @@ impl ArReconciliationService {
                         amount: Set(inv.invoice_amount),
                         matched_amount: Set(Some(inv.invoice_amount)),
                         match_status: Set("MATCHED".to_string()),
-                        matched_item_id: Set(None),
+                        matched_item_id: Set(Some(coll.id)),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),
@@ -548,7 +548,7 @@ impl ArReconciliationService {
                         amount: Set(-coll.collection_amount),
                         matched_amount: Set(Some(coll.collection_amount)),
                         match_status: Set("MATCHED".to_string()),
-                        matched_item_id: Set(None),
+                        matched_item_id: Set(Some(inv.id)),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),
@@ -588,7 +588,7 @@ impl ArReconciliationService {
                         } else {
                             "PARTIAL".to_string()
                         }),
-                        matched_item_id: Set(None),
+                        matched_item_id: Set(Some(coll.id)),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),
@@ -610,7 +610,7 @@ impl ArReconciliationService {
                         } else {
                             "PARTIAL".to_string()
                         }),
-                        matched_item_id: Set(None),
+                        matched_item_id: Set(Some(inv.id)),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),

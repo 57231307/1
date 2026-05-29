@@ -293,6 +293,20 @@ impl AccountSubjectService {
             )));
         }
 
+        // 检查是否有科目余额记录
+        let balance_count = account_balance::Entity::find()
+            .filter(account_balance::Column::SubjectId.eq(id))
+            .count(&*self.db)
+            .await?;
+
+        if balance_count > 0 {
+            warn!("不能删除有余额记录的科目：{}", id);
+            return Err(AppError::BadRequest(format!(
+                "科目有 {} 条余额记录，不能删除",
+                balance_count
+            )));
+        }
+
         subject.delete(&*self.db).await?;
 
         info!("会计科目删除成功：id={}", id);

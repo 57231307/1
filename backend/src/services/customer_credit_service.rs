@@ -407,11 +407,12 @@ impl CustomerCreditService {
         let eval_date = evaluation_date.parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
         
-        // 获取客户信息
-        let customer = customer_credit::Entity::find_by_id(customer_id)
+        // 获取客户信用信息（通过 customer_id 过滤）
+        let customer = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("客户不存在".to_string()))?;
+            .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
         
         // 获取客户名称
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
@@ -491,11 +492,11 @@ impl CustomerCreditService {
     
     /// 评估付款历史
     async fn evaluate_payment_history(&self, customer_id: i32, _eval_date: NaiveDate) -> Result<i32, AppError> {
-        use crate::models::ap_invoice;
+        use crate::models::ar_invoice;
         
-        // 查询客户的付款记录
-        let invoices = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SupplierId.eq(customer_id))
+        // 查询客户的应收发票记录
+        let invoices = ar_invoice::Entity::find()
+            .filter(ar_invoice::Column::CustomerId.eq(customer_id))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -509,15 +510,15 @@ impl CustomerCreditService {
         let mut on_time_count = 0;
         
         for invoice in &invoices {
-            // 检查是否已全额付款
-            if invoice.paid_amount >= invoice.amount {
-                // 已全额付款，检查是否及时
-                // 简化处理：假设已付款的就是及时的
+            // 检查是否已全额收款
+            if invoice.received_amount >= invoice.invoice_amount {
+                // 已全额收款，检查是否及时
                 on_time_count += 1;
             } else if chrono::Utc::now().date_naive() <= invoice.due_date {
                 // 未到期视为正常
                 on_time_count += 1;
             }
+            // 逾期未全额付款的不计入及时数
         }
         
         let on_time_rate = on_time_count as f64 / total;
@@ -594,20 +595,18 @@ impl CustomerCreditService {
             })
             .fold(BigDecimal::from(0), |acc, x| acc + x);
         
-        // 根据订单总额计算分数
-        let amount_f64 = total_amount.to_string().parse::<f64>().unwrap_or(0.0);
-        
-        let score = if amount_f64 >= 1000000.0 {
+        // 根据订单总额计算分数（直接使用 Decimal 比较，避免精度损失）
+        let score = if total_amount >= BigDecimal::from(1000000) {
             95 // 100万以上
-        } else if amount_f64 >= 500000.0 {
+        } else if total_amount >= BigDecimal::from(500000) {
             90 // 50-100万
-        } else if amount_f64 >= 200000.0 {
+        } else if total_amount >= BigDecimal::from(200000) {
             85 // 20-50万
-        } else if amount_f64 >= 100000.0 {
+        } else if total_amount >= BigDecimal::from(100000) {
             80 // 10-20万
-        } else if amount_f64 >= 50000.0 {
+        } else if total_amount >= BigDecimal::from(50000) {
             75 // 5-10万
-        } else if amount_f64 >= 10000.0 {
+        } else if total_amount >= BigDecimal::from(10000) {
             65 // 1-5万
         } else {
             55 // 1万以下

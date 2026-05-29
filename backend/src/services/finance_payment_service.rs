@@ -54,6 +54,17 @@ impl FinancePaymentService {
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
         period_svc.check_date_locked(payment_date.date_naive()).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
 
+        // 验证关联单据是否存在
+        if let Some(inv_id) = invoice_id {
+            let invoice_exists = crate::models::invoice::Entity::find_by_id(inv_id)
+                .one(&*self.db)
+                .await?
+                .is_some();
+            if !invoice_exists {
+                return Err(AppError::BusinessError(format!("关联发票 ID {} 不存在", inv_id)));
+            }
+        }
+
         let active_payment = finance_payment::ActiveModel {
             id: Set(0),
             payment_no: Set(payment_no),

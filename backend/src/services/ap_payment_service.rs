@@ -209,7 +209,7 @@ impl ApPaymentService {
             let total_apply_amount: Decimal = items.iter().map(|item| item.apply_amount).sum();
 
             for item in items {
-                if total_apply_amount > Decimal::new(0, 2) {
+                if total_apply_amount > Decimal::ZERO {
                     let ratio = item.apply_amount.checked_div(total_apply_amount).unwrap_or_default();
                     let paid_amount = payment.payment_amount.checked_mul(ratio).unwrap_or_default();
 
@@ -225,7 +225,7 @@ impl ApPaymentService {
                         inv.unpaid_amount = inv.amount.checked_sub(inv.paid_amount).unwrap_or(inv.amount);
 
                         // 更新应付状态
-                        inv.invoice_status = if inv.unpaid_amount <= Decimal::new(0, 2) {
+                        inv.invoice_status = if inv.unpaid_amount <= Decimal::ZERO {
                             "PAID".to_string()
                         } else {
                             "PARTIAL_PAID".to_string()
@@ -422,7 +422,7 @@ impl ApPaymentService {
                 .entry(date)
                 .or_insert_with(|| PaymentScheduleItem {
                     payment_date: date,
-                    total_amount: Decimal::new(0, 2),
+                    total_amount: Decimal::ZERO,
                     payment_count: 0,
                 });
 

@@ -92,6 +92,19 @@ impl FiveDimensionService {
         if let Some(warehouse_id) = query.warehouse_id {
             stock_query = stock_query.filter(StockColumn::WarehouseId.eq(warehouse_id));
         }
+        // 在数据库层面进行五维字段筛选
+        if let Some(ref batch_no) = query.batch_no {
+            stock_query = stock_query.filter(StockColumn::BatchNo.contains(batch_no));
+        }
+        if let Some(ref color_no) = query.color_no {
+            stock_query = stock_query.filter(StockColumn::ColorNo.contains(color_no));
+        }
+        if let Some(ref dye_lot_no) = query.dye_lot_no {
+            stock_query = stock_query.filter(StockColumn::DyeLotNo.contains(dye_lot_no));
+        }
+        if let Some(ref grade) = query.grade {
+            stock_query = stock_query.filter(StockColumn::Grade.contains(grade));
+        }
 
         let stocks = stock_query
             .all(&*self.db)
@@ -100,11 +113,15 @@ impl FiveDimensionService {
 
         // 获取产品信息
         let product_ids: Vec<i32> = stocks.iter().map(|s| s.product_id).collect();
-        let products = ProductEntity::find()
-            .filter(ProductColumn::Id.is_in(product_ids))
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let products = if product_ids.is_empty() {
+            vec![]
+        } else {
+            ProductEntity::find()
+                .filter(ProductColumn::Id.is_in(product_ids))
+                .all(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        };
 
         let product_map: HashMap<i32, String> = products
             .into_iter()
@@ -173,21 +190,7 @@ impl FiveDimensionService {
             }
         }
 
-        // 应用筛选条件
         let mut results: Vec<FiveDimensionStats> = stats_map.into_values().collect();
-
-        if let Some(batch_no) = &query.batch_no {
-            results.retain(|s| s.batch_no.contains(batch_no));
-        }
-        if let Some(color_no) = &query.color_no {
-            results.retain(|s| s.color_no.contains(color_no));
-        }
-        if let Some(dye_lot_no) = &query.dye_lot_no {
-            results.retain(|s| s.dye_lot_no.as_ref().is_some_and(|d| d.contains(dye_lot_no)));
-        }
-        if let Some(grade) = &query.grade {
-            results.retain(|s| s.grade.contains(grade));
-        }
 
         // 排序
         results.sort_by_key(|a| a.product_id);
@@ -288,7 +291,7 @@ impl FiveDimensionService {
                 query.grade = Some(params.keyword.clone());
             }
             _ => {
-                // 通用搜索 - 在所有字段中搜索
+                // 通用搜索 - 默认按批次号搜索
                 query.batch_no = Some(params.keyword.clone());
             }
         }

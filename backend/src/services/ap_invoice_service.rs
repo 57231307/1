@@ -95,12 +95,12 @@ impl ApInvoiceService {
             due_date: Set(due_date),
             payment_terms: Set(payment_terms),
             amount: Set(receipt.total_amount),
-            paid_amount: Set(Decimal::new(0, 2)),
+            paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(receipt.total_amount),
             invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
             currency: Set("CNY".to_string()),
             exchange_rate: Set(Decimal::new(1, 2)),
-            tax_amount: Set(Decimal::new(0, 2)),
+            tax_amount: Set(Decimal::ZERO),
             created_by: Set(user_id),
             ..Default::default()
         }
@@ -161,12 +161,12 @@ impl ApInvoiceService {
             due_date: Set(due_date),
             payment_terms: Set(payment_terms),
             amount: Set(amount),
-            paid_amount: Set(Decimal::new(0, 2)),
+            paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(amount),
             invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
             currency: Set("CNY".to_string()),
             exchange_rate: Set(Decimal::new(1, 2)),
-            tax_amount: Set(Decimal::new(0, 2)),
+            tax_amount: Set(Decimal::ZERO),
             created_by: Set(user_id),
             ..Default::default()
         }
@@ -200,12 +200,12 @@ impl ApInvoiceService {
             due_date: Set(req.due_date.unwrap_or_else(|| chrono::Utc::now().date_naive())),
             payment_terms: Set(req.payment_terms.unwrap_or(30)),
             amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
-            paid_amount: Set(Decimal::new(0, 2)),
+            paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             invoice_status: Set("DRAFT".to_string()),
             currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
-            tax_amount: Set(req.tax_amount.unwrap_or(Decimal::new(0, 2))),
+            tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
             notes: Set(req.notes),
             attachment_urls: Set(req.attachment_urls),
             created_by: Set(user_id),
@@ -390,7 +390,7 @@ impl ApInvoiceService {
         }
 
         // 3. 检查是否已付款
-        if invoice.paid_amount > Decimal::new(0, 2) {
+        if invoice.paid_amount > Decimal::ZERO {
             return Err(AppError::BusinessError(
                 "应付单已有付款记录，不可取消".to_string(),
             ));
@@ -515,7 +515,7 @@ impl ApInvoiceService {
                     .or_insert_with(|| AgingAnalysisItem {
                         aging_bucket,
                         invoice_count: 0,
-                        total_amount: Decimal::new(0, 2),
+                        total_amount: Decimal::ZERO,
                     });
 
             entry.invoice_count += 1;
@@ -543,9 +543,9 @@ impl ApInvoiceService {
             .await?;
 
         let mut summary = BalanceSummary {
-            total_invoice_amount: Decimal::new(0, 2),
-            total_paid_amount: Decimal::new(0, 2),
-            total_unpaid_amount: Decimal::new(0, 2),
+            total_invoice_amount: Decimal::ZERO,
+            total_paid_amount: Decimal::ZERO,
+            total_unpaid_amount: Decimal::ZERO,
             invoice_count: 0,
         };
 

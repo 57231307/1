@@ -155,8 +155,16 @@ impl CrmService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
-        let active: crm_lead::ActiveModel = lead.into();
-        active.delete(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        // 已转化的线索不允许删除，防止破坏关联数据
+        if lead.lead_status.as_deref() == Some("converted") {
+            return Err(AppError::BusinessError("已转化的线索不允许删除".to_string()));
+        }
+
+        // 软删除：标记为已删除状态
+        let mut active: crm_lead::ActiveModel = lead.into();
+        active.lead_status = Set(Some("deleted".to_string()));
+        active.updated_at = Set(Some(chrono::Utc::now()));
+        active.update(&*self.db).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
         Ok(())
     }
 
@@ -407,10 +415,41 @@ impl CrmService {
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))
     }
 
+    /// 验证商机阶段流转是否合法
+    fn validate_opportunity_stage_transition(current_stage: Option<&str>, new_stage: &str) -> Result<(), AppError> {
+        let valid_transitions: std::collections::HashMap<&str, Vec<&str>> = [
+            ("prospecting", vec!["qualification", "needs_analysis", "closed_lost"]),
+            ("qualification", vec!["needs_analysis", "proposal", "closed_lost"]),
+            ("needs_analysis", vec!["proposal", "negotiation", "closed_lost"]),
+            ("proposal", vec!["negotiation", "closed_won", "closed_lost"]),
+            ("negotiation", vec!["closed_won", "closed_lost"]),
+            ("closed_won", vec![]),
+            ("closed_lost", vec!["prospecting"]),
+        ].iter().cloned().collect();
+
+        let current = current_stage.unwrap_or("prospecting");
+        if let Some(allowed) = valid_transitions.get(current) {
+            if allowed.contains(&new_stage) {
+                Ok(())
+            } else {
+                Err(AppError::BusinessError(format!(
+                    "商机阶段不允许从 {} 转换到 {}", current, new_stage
+                )))
+            }
+        } else {
+            Err(AppError::BusinessError(format!("未知的商机阶段: {}", current)))
+        }
+    }
+
     pub async fn update_opportunity(&self, id: i32, req: UpdateOpportunityRequest) -> Result<crm_opportunity::Model, AppError> {
         let opp = crm_opportunity::Entity::find_by_id(id).one(&*self.db).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+
+        // 验证阶段流转合法性
+        if let Some(ref new_stage) = req.opportunity_stage {
+            Self::validate_opportunity_stage_transition(opp.opportunity_stage.as_deref(), new_stage)?;
+        }
 
         let mut active: crm_opportunity::ActiveModel = opp.into();
 
@@ -743,7 +782,7 @@ impl CrmService {
 
         let won_amount: rust_decimal::Decimal = opportunities.iter()
             .filter(|o| o.opportunity_stage.as_deref() == Some("closed_won"))
-            .filter_map(|o| o.estimated_amount)
+            .filter_map(|o| o.actual_amount.or(o.estimated_amount))
             .sum();
 
         Ok(CustomerRelationSummary {

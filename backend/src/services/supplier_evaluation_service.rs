@@ -5,8 +5,8 @@ use crate::utils::error::AppError;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -96,6 +96,18 @@ impl SupplierEvaluationService {
     ) -> Result<supplier_evaluation::Model, AppError> {
         info!("用户 {} 正在创建评估指标：{}", user_id, req.indicator_code);
 
+        // 检查指标编码是否重复
+        let existing = supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::IndicatorCode.eq(&req.indicator_code))
+            .one(&*self.db)
+            .await?;
+        if existing.is_some() {
+            return Err(AppError::ValidationError(format!(
+                "评估指标编码 '{}' 已存在",
+                req.indicator_code
+            )));
+        }
+
         let active_indicator = supplier_evaluation::ActiveModel {
             indicator_name: Set(req.indicator_name),
             indicator_code: Set(req.indicator_code),
@@ -112,6 +124,70 @@ impl SupplierEvaluationService {
         Ok(indicator)
     }
 
+    pub async fn update_indicator(
+        &self,
+        id: i32,
+        req: CreateEvaluationIndicatorRequest,
+        user_id: i32,
+    ) -> Result<supplier_evaluation::Model, AppError> {
+        info!("用户 {} 正在更新评估指标：{}", user_id, id);
+
+        let indicator = supplier_evaluation::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("评估指标不存在，ID：{}", id)))?;
+
+        // 检查指标编码是否重复（排除自身）
+        let existing = supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::IndicatorCode.eq(&req.indicator_code))
+            .filter(supplier_evaluation::Column::Id.ne(id))
+            .one(&*self.db)
+            .await?;
+        if existing.is_some() {
+            return Err(AppError::ValidationError(format!(
+                "评估指标编码 '{}' 已存在",
+                req.indicator_code
+            )));
+        }
+
+        let mut active_indicator: supplier_evaluation::ActiveModel = indicator.into();
+        active_indicator.indicator_name = Set(req.indicator_name);
+        active_indicator.indicator_code = Set(req.indicator_code);
+        active_indicator.category = Set(req.category);
+        active_indicator.weight = Set(req.weight);
+        active_indicator.max_score = Set(req.max_score);
+        active_indicator.evaluation_method = Set(req.evaluation_method);
+        active_indicator.updated_at = Set(chrono::Utc::now());
+
+        let updated = active_indicator.update(&*self.db).await?;
+        info!("评估指标更新成功：{}", updated.indicator_code);
+        Ok(updated)
+    }
+
+    pub async fn delete_indicator(&self, id: i32) -> Result<(), AppError> {
+        info!("删除评估指标：{}", id);
+
+        // 检查是否有评估记录使用此指标
+        let has_records = supplier_evaluation_record::Entity::find()
+            .filter(supplier_evaluation_record::Column::IndicatorId.eq(id))
+            .count(&*self.db)
+            .await?;
+        if has_records > 0 {
+            return Err(AppError::ValidationError(
+                "该评估指标已被使用，无法删除".to_string(),
+            ));
+        }
+
+        let indicator = supplier_evaluation::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("评估指标不存在，ID：{}", id)))?;
+
+        indicator.delete(&*self.db).await?;
+        info!("评估指标删除成功：{}", id);
+        Ok(())
+    }
+
     pub async fn create_evaluation_record(
         &self,
         req: SupplierEvaluationRequest,
@@ -121,6 +197,18 @@ impl SupplierEvaluationService {
             "用户 {} 正在评估供应商 {}，指标ID：{}，得分：{}",
             user_id, req.supplier_id, req.indicator_id, req.score
         );
+
+        // 检查供应商是否存在
+        use crate::models::supplier;
+        let supplier_exists = supplier::Entity::find_by_id(req.supplier_id)
+            .one(&*self.db)
+            .await?;
+        if supplier_exists.is_none() {
+            return Err(AppError::NotFound(format!(
+                "供应商不存在，ID：{}",
+                req.supplier_id
+            )));
+        }
 
         // 查询指标信息以获取权重和满分
         let indicator = supplier_evaluation::Entity::find_by_id(req.indicator_id)
@@ -187,9 +275,12 @@ impl SupplierEvaluationService {
         // 计算加权平均分
         let total_weighted_score: Decimal = records.iter().filter_map(|r| r.weighted_score).sum();
 
+        // 使用 HashSet 去重指标 ID，避免重复计算权重
+        let indicator_ids: std::collections::HashSet<i32> =
+            records.iter().map(|r| r.indicator_id).collect();
         let mut total_weight: Decimal = Decimal::ZERO;
-        for r in &records {
-            if let Ok(Some(indicator)) = supplier_evaluation::Entity::find_by_id(r.indicator_id)
+        for indicator_id in &indicator_ids {
+            if let Ok(Some(indicator)) = supplier_evaluation::Entity::find_by_id(*indicator_id)
                 .one(&*self.db)
                 .await
             {
@@ -376,5 +467,82 @@ impl SupplierEvaluationService {
             .ok_or_else(|| AppError::NotFound(format!("评估记录不存在：{}", id)))?;
 
         Ok(record)
+    }
+
+    pub async fn update_evaluation_record(
+        &self,
+        id: i32,
+        req: SupplierEvaluationRequest,
+        user_id: i32,
+    ) -> Result<supplier_evaluation_record::Model, AppError> {
+        info!("用户 {} 正在更新评估记录：{}", user_id, id);
+
+        let record = supplier_evaluation_record::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("评估记录不存在：{}", id)))?;
+
+        // 检查供应商是否存在
+        use crate::models::supplier;
+        let supplier_exists = supplier::Entity::find_by_id(req.supplier_id)
+            .one(&*self.db)
+            .await?;
+        if supplier_exists.is_none() {
+            return Err(AppError::NotFound(format!(
+                "供应商不存在，ID：{}",
+                req.supplier_id
+            )));
+        }
+
+        // 查询指标信息以获取权重和满分
+        let indicator = supplier_evaluation::Entity::find_by_id(req.indicator_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("评估指标不存在，ID：{}", req.indicator_id))
+            })?;
+
+        // 校验得分范围
+        if req.score < Decimal::ZERO || req.score > Decimal::from(indicator.max_score) {
+            return Err(AppError::ValidationError(format!(
+                "得分 {} 超出有效范围 [0, {}]",
+                req.score, indicator.max_score
+            )));
+        }
+
+        // 计算加权得分
+        let weighted_score = if indicator.max_score > 0 {
+            Some(req.score * indicator.weight / Decimal::from(indicator.max_score))
+        } else {
+            None
+        };
+
+        let mut active_record: supplier_evaluation_record::ActiveModel = record.into();
+        active_record.supplier_id = Set(req.supplier_id);
+        active_record.evaluation_period = Set(req.evaluation_period);
+        active_record.indicator_id = Set(req.indicator_id);
+        active_record.score = Set(req.score);
+        active_record.max_score = Set(Some(indicator.max_score));
+        active_record.weighted_score = Set(weighted_score);
+        active_record.evaluator_id = Set(Some(user_id));
+        active_record.evaluation_date = Set(Some(chrono::Utc::now().date_naive()));
+        active_record.remark = Set(req.remark);
+
+        let updated = active_record.update(&*self.db).await?;
+        info!("评估记录更新成功：{}", updated.id);
+        Ok(updated)
+    }
+
+    pub async fn delete_evaluation_record(&self, id: i32) -> Result<(), AppError> {
+        info!("删除评估记录：{}", id);
+
+        let record = supplier_evaluation_record::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("评估记录不存在：{}", id)))?;
+
+        record.delete(&*self.db).await?;
+        info!("评估记录删除成功：{}", id);
+        Ok(())
     }
 }

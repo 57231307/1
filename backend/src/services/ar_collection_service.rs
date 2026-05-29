@@ -29,6 +29,11 @@ impl ArCollectionService {
             return Err(AppError::BadRequest("收款金额必须大于零".to_string()));
         }
 
+        // 检查期间锁定
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        let now_date = Utc::now().date_naive();
+        period_svc.check_date_locked(now_date).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
+
         let txn = (*self.db).begin().await?;
 
         // 查找客户名称
@@ -47,11 +52,11 @@ impl ArCollectionService {
 
         let collection = ar_collection::ActiveModel {
             collection_no: Set(collection_no),
-            collection_date: Set(Utc::now().date_naive()),
+            collection_date: Set(now_date),
             customer_id: Set(customer_id),
             customer_name: Set(customer_name),
             collection_amount: Set(amount),
-            status: Set("CONFIRMED".to_string()),
+            status: Set("pending".to_string()),
             created_by: Set(user_id),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -66,6 +71,24 @@ impl ArCollectionService {
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("应收单 {} 不存在", inv_id)))?;
+
+            // 检查发票状态
+            if invoice.status == "CANCELLED" {
+                return Err(AppError::BadRequest("发票已取消，无法关联收款".to_string()));
+            }
+
+            // 检查客户一致性
+            if invoice.customer_id != customer_id {
+                return Err(AppError::BadRequest("发票客户与收款客户不一致".to_string()));
+            }
+
+            // 检查收款金额不超过未收金额
+            if amount > invoice.unpaid_amount {
+                return Err(AppError::BadRequest(format!(
+                    "收款金额 {} 超过发票未收金额 {}",
+                    amount, invoice.unpaid_amount
+                )));
+            }
 
             let new_received = invoice.received_amount + amount;
             let new_unpaid = (invoice.invoice_amount - new_received).max(Decimal::ZERO);
@@ -90,7 +113,6 @@ impl ArCollectionService {
             amount,
         });
 
-        let now_date = Utc::now().date_naive();
         let period = format!("{:04}-{:02}", now_date.year(), now_date.month());
         EVENT_BUS.publish(BusinessEvent::FinancialIndicatorUpdate {
             period,
@@ -98,5 +120,58 @@ impl ArCollectionService {
         });
 
         Ok(collection_model)
+    }
+
+    /// 确认收款
+    pub async fn confirm_collection(
+        &self,
+        id: i32,
+        user_id: i32,
+    ) -> Result<ar_collection::Model, AppError> {
+        let collection = ar_collection::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("收款单 {} 不存在", id)))?;
+
+        if collection.status != "pending" {
+            return Err(AppError::BusinessError(format!(
+                "收款单状态为 {}，只有待确认的收款可以确认",
+                collection.status
+            )));
+        }
+
+        let mut active_model: ar_collection::ActiveModel = collection.into();
+        active_model.status = Set("confirmed".to_string());
+        active_model.confirmed_by = Set(Some(user_id));
+        active_model.confirmed_at = Set(Some(Utc::now()));
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = active_model.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 取消收款
+    pub async fn cancel_collection(
+        &self,
+        id: i32,
+    ) -> Result<ar_collection::Model, AppError> {
+        let collection = ar_collection::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("收款单 {} 不存在", id)))?;
+
+        if collection.status != "pending" {
+            return Err(AppError::BusinessError(format!(
+                "收款单状态为 {}，只有待确认的收款可以取消",
+                collection.status
+            )));
+        }
+
+        let mut active_model: ar_collection::ActiveModel = collection.into();
+        active_model.status = Set("cancelled".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = active_model.update(&*self.db).await?;
+        Ok(updated)
     }
 }

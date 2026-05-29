@@ -103,7 +103,8 @@ pub async fn list_greige_fabrics(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let mut q = greige_fabric::Entity::find();
+    let mut q = greige_fabric::Entity::find()
+        .filter(greige_fabric::Column::IsDeleted.eq(false));
 
     if let Some(fabric_no) = &query.fabric_no {
         q = q.filter(greige_fabric::Column::FabricNo.contains(fabric_no));
@@ -129,15 +130,22 @@ pub async fn list_greige_fabrics(
 
     q = q.order_by_desc(greige_fabric::Column::CreatedAt);
 
-    match q.paginate(&*state.db, page_size).fetch_page(page - 1).await {
-        Ok(fabrics) => {
-            let total = fabrics.len() as u64;
-            let paginated = PaginatedResponse::new(fabrics, total, page, page_size);
-            paginated.into_response()
-        }
+    let paginator = q.paginate(&*state.db, page_size);
+    match paginator.num_items().await {
+        Ok(total) => match paginator.fetch_page(page - 1).await {
+            Ok(fabrics) => {
+                let paginated = PaginatedResponse::new(fabrics, total, page, page_size);
+                paginated.into_response()
+            }
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取坯布列表失败：{}", e))),
+            )
+                .into_response(),
+        },
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取坯布列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取坯布总数失败：{}", e))),
         )
             .into_response(),
     }
@@ -307,7 +315,38 @@ pub async fn delete_greige_fabric(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> impl IntoResponse {
-    match greige_fabric::Entity::delete_by_id(id).exec(&*state.db).await {
+    let fabric = match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
+        Ok(Some(f)) => f,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::error("坯布不存在")),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    if fabric.status.as_deref() == Some("在库") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error("在库坯布不允许删除，请先完成出库")),
+        )
+            .into_response();
+    }
+
+    // 软删除
+    let mut active: greige_fabric::ActiveModel = fabric.into();
+    active.is_deleted = Set(Some(true));
+    active.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+
+    match active.update(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "坯布删除成功")),
@@ -349,6 +388,8 @@ pub async fn stock_in(
     // 累加库存而不是覆盖
     let current_weight = fabric.weight_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
     let current_length = fabric.length_m.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
+    let current_qty_kg = fabric.quantity_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
+    let current_qty_meters = fabric.quantity_meters.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
     
     let new_weight = current_weight + req.weight_kg;
     let new_length = current_length + req.length_m;
@@ -357,6 +398,8 @@ pub async fn stock_in(
     fabric.location = Set(req.location);
     fabric.weight_kg = Set(Decimal::from_f64_retain(new_weight));
     fabric.length_m = Set(Decimal::from_f64_retain(new_length));
+    fabric.quantity_kg = Set(Decimal::from_f64_retain(current_qty_kg + req.weight_kg));
+    fabric.quantity_meters = Set(Decimal::from_f64_retain(current_qty_meters + req.length_m));
     fabric.status = Set(Some("在库".to_string()));
     if let Some(grade) = req.quality_grade {
         fabric.quality_grade = Set(Some(grade));
@@ -417,6 +460,9 @@ pub async fn stock_out(
                 .into_response();
         }
         update_fabric.weight_kg = Set(Some(new_weight));
+        // 同步更新 quantity_kg
+        let current_qty_kg = fabric.quantity_kg.unwrap_or(Decimal::ZERO);
+        update_fabric.quantity_kg = Set(Some(current_qty_kg - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO)));
     }
 
     if let Some(out_length) = req.length_m {
@@ -430,6 +476,9 @@ pub async fn stock_out(
                 .into_response();
         }
         update_fabric.length_m = Set(Some(new_length));
+        // 同步更新 quantity_meters
+        let current_qty_meters = fabric.quantity_meters.unwrap_or(Decimal::ZERO);
+        update_fabric.quantity_meters = Set(Some(current_qty_meters - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO)));
     }
 
     // 根据剩余库存决定状态
@@ -465,6 +514,7 @@ pub async fn get_greige_by_supplier(
 ) -> impl IntoResponse {
     match greige_fabric::Entity::find()
         .filter(greige_fabric::Column::SupplierId.eq(supplier_id))
+        .filter(greige_fabric::Column::IsDeleted.eq(false))
         .order_by_desc(greige_fabric::Column::CreatedAt)
         .all(&*state.db)
         .await

@@ -95,7 +95,8 @@ pub async fn list_dye_batches(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let mut q = dye_batch::Entity::find();
+    let mut q = dye_batch::Entity::find()
+        .filter(dye_batch::Column::IsDeleted.eq(false));
 
     if let Some(batch_no) = &query.batch_no {
         q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
@@ -109,15 +110,22 @@ pub async fn list_dye_batches(
 
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
-    match q.paginate(&*state.db, page_size).fetch_page(page - 1).await {
-        Ok(batches) => {
-            let total = batches.len() as u64;
-            let paginated = PaginatedResponse::new(batches, total, page, page_size);
-            paginated.into_response()
-        }
+    let paginator = q.paginate(&*state.db, page_size);
+    match paginator.num_items().await {
+        Ok(total) => match paginator.fetch_page(page - 1).await {
+            Ok(batches) => {
+                let paginated = PaginatedResponse::new(batches, total, page, page_size);
+                paginated.into_response()
+            }
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
+            )
+                .into_response(),
+        },
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
+            Json(ApiResponse::<()>::error(format!("获取缸号总数失败：{}", e))),
         )
             .into_response(),
     }
@@ -147,6 +155,21 @@ pub async fn create_dye_batch(
     _auth: AuthContext,
     Json(req): Json<CreateDyeBatchRequest>,
 ) -> impl IntoResponse {
+    // 验证状态值
+    let status = match req.status {
+        Some(s) => {
+            if DyeBatchStatus::from_str(&s).is_none() {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<()>::error(format!("无效的缸号状态：{}", s))),
+                )
+                    .into_response();
+            }
+            Some(s)
+        }
+        None => Some("待生产".to_string()),
+    };
+
     // 自动生成缸号
     let batch_no = req.batch_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
@@ -160,7 +183,7 @@ pub async fn create_dye_batch(
         greige_fabric_id: Set(req.greige_fabric_id),
         color_no: Set(req.color_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
-        status: Set(req.status.or(Some("待生产".to_string()))),
+        status: Set(status),
         started_at: Set(None),
         completed_at: Set(None),
         is_deleted: Set(Some(false)),
@@ -217,8 +240,8 @@ pub async fn update_dye_batch(
     }
     if let Some(status) = req.status {
         // 验证状态流转
-        let status_value = batch.status.clone().unwrap();
-        let current_status = status_value.as_deref()
+        let current_status = batch.status.as_ref()
+            .and_then(|s| s.as_deref())
             .unwrap_or("待生产");
         let target_status = DyeBatchStatus::from_str(&status);
         
@@ -242,7 +265,20 @@ pub async fn update_dye_batch(
                 .into_response();
         }
         
-        batch.status = Set(Some(status));
+        batch.status = Set(Some(status.clone()));
+        
+        // 自动设置时间戳
+        if status == "生产中" {
+            let needs_start_time = batch.started_at.as_ref()
+                .map(|v| v.is_none())
+                .unwrap_or(true);
+            if needs_start_time {
+                batch.started_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
+            }
+        }
+        if status == "已完成" {
+            batch.completed_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
+        }
     }
 
     batch.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
@@ -266,7 +302,39 @@ pub async fn delete_dye_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> impl IntoResponse {
-    match dye_batch::Entity::delete_by_id(id).exec(&*state.db).await {
+    // 检查缸号状态，生产中的缸号不允许删除
+    let batch = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::error("缸号不存在")),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    if batch.status.as_deref() == Some("生产中") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error("生产中的缸号不允许删除，请先取消或完成")),
+        )
+            .into_response();
+    }
+
+    // 软删除
+    let mut active: dye_batch::ActiveModel = batch.into();
+    active.is_deleted = Set(Some(true));
+    active.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+
+    match active.update(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::success_with_msg((), "缸号删除成功")),
@@ -304,8 +372,8 @@ pub async fn complete_dye_batch(
     };
 
     // 检查当前状态是否允许完成
-    let status_value = batch.status.clone().unwrap();
-    let current_status = status_value.as_deref()
+    let current_status = batch.status.as_ref()
+        .and_then(|s| s.as_deref())
         .unwrap_or("待生产");
     let current = DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
     
@@ -344,6 +412,7 @@ pub async fn get_dye_batches_by_color(
 ) -> impl IntoResponse {
     match dye_batch::Entity::find()
         .filter(dye_batch::Column::ColorNo.eq(color_no))
+        .filter(dye_batch::Column::IsDeleted.eq(false))
         .order_by_desc(dye_batch::Column::CreatedAt)
         .all(&*state.db)
         .await

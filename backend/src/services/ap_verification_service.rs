@@ -51,7 +51,7 @@ impl ApVerificationService {
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
             .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-            .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::new(0, 2)))
+            .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(&txn)
             .await?;
@@ -82,7 +82,7 @@ impl ApVerificationService {
 
         // 4. 逐个匹配核销
         let mut verification_items = Vec::new();
-        let mut total_amount = Decimal::new(0, 2);
+        let mut total_amount = Decimal::ZERO;
         let mut invoice_remaining: std::collections::HashMap<i32, Decimal> = invoices
             .iter()
             .map(|inv| (inv.id, inv.unpaid_amount))
@@ -102,17 +102,17 @@ impl ApVerificationService {
 
             remaining -= verified_amount;
 
-            if remaining <= Decimal::new(0, 2) {
+            if remaining <= Decimal::ZERO {
                 continue;
             }
 
             for invoice in invoices.iter() {
-                if remaining <= Decimal::new(0, 2) {
+                if remaining <= Decimal::ZERO {
                     break;
                 }
 
                 let unpaid = invoice_remaining.get(&invoice.id).copied().unwrap_or(Decimal::ZERO);
-                if unpaid > Decimal::new(0, 2) {
+                if unpaid > Decimal::ZERO {
                     let verify_amount = remaining.min(unpaid);
 
                     verification_items.push(ApVerificationItemDto {
@@ -177,7 +177,7 @@ impl ApVerificationService {
             invoice.paid_amount += item_dto.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
-            if invoice.unpaid_amount <= Decimal::new(0, 2) {
+            if invoice.unpaid_amount <= Decimal::ZERO {
                 invoice.invoice_status = "PAID".to_string();
             } else {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
@@ -201,7 +201,7 @@ impl ApVerificationService {
         let txn = (*self.db).begin().await?;
 
         // 1. 验证所有应付单和付款单
-        let mut total_amount = Decimal::new(0, 2);
+        let mut total_amount = Decimal::ZERO;
 
         for item in &req.items {
             // 验证应付单
@@ -282,7 +282,7 @@ impl ApVerificationService {
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
-            if invoice.unpaid_amount <= Decimal::new(0, 2) {
+            if invoice.unpaid_amount <= Decimal::ZERO {
                 invoice.invoice_status = "PAID".to_string();
             } else {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
@@ -337,7 +337,7 @@ impl ApVerificationService {
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
             // 恢复应付状态
-            if invoice.paid_amount <= Decimal::new(0, 2) {
+            if invoice.paid_amount <= Decimal::ZERO {
                 invoice.invoice_status = "AUDITED".to_string();
             } else {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
@@ -417,7 +417,7 @@ impl ApVerificationService {
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
             .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-            .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::new(0, 2)))
+            .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(&*self.db)
             .await?;

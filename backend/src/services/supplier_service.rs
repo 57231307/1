@@ -38,6 +38,18 @@ impl SupplierService {
         req: CreateSupplierRequest,
         user_id: i32,
     ) -> Result<supplier::Model, AppError> {
+        // 检查供应商名称是否重复
+        let existing = supplier::Entity::find()
+            .filter(supplier::Column::SupplierName.eq(&req.supplier_name))
+            .one(&*self.db)
+            .await?;
+        if existing.is_some() {
+            return Err(AppError::ValidationError(format!(
+                "供应商名称 '{}' 已存在",
+                req.supplier_name
+            )));
+        }
+
         let txn = (*self.db).begin().await?;
 
         // 1. 生成供应商编码
@@ -505,6 +517,86 @@ impl SupplierService {
         }
 
         Ok(())
+    }
+
+    // ==================== 供应商资质管理方法 ====================
+
+    /// 获取供应商资质列表
+    pub async fn list_supplier_qualifications(
+        &self,
+        supplier_id: i32,
+    ) -> Result<Vec<supplier_qualification::Model>, AppError> {
+        let qualifications = supplier_qualification::Entity::find()
+            .filter(supplier_qualification::Column::SupplierId.eq(supplier_id))
+            .order_by(supplier_qualification::Column::ValidUntil, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(qualifications)
+    }
+
+    /// 创建供应商资质
+    pub async fn create_supplier_qualification(
+        &self,
+        supplier_id: i32,
+        req: CreateQualificationRequest,
+        _user_id: i32,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        let qualification = supplier_qualification::ActiveModel {
+            supplier_id: Set(supplier_id),
+            qualification_name: Set(req.qualification_name),
+            qualification_type: Set(req.qualification_type),
+            qualification_no: Set(req.qualification_no),
+            issuing_authority: Set(req.issuing_authority),
+            issue_date: Set(req.issue_date),
+            valid_until: Set(req.valid_until),
+            attachment_path: Set(req.attachment_path),
+            need_annual_check: Set(req.need_annual_check),
+            annual_check_record: Set(req.annual_check_record),
+            ..Default::default()
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(qualification)
+    }
+
+    /// 更新供应商资质
+    pub async fn update_supplier_qualification(
+        &self,
+        qualification_id: i32,
+        req: CreateQualificationRequest,
+        _user_id: i32,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        let qualification = self.get_qualification(qualification_id).await?;
+        let mut qualification_active: supplier_qualification::ActiveModel = qualification.into();
+
+        qualification_active.qualification_name = Set(req.qualification_name);
+        qualification_active.qualification_type = Set(req.qualification_type);
+        qualification_active.qualification_no = Set(req.qualification_no);
+        qualification_active.issuing_authority = Set(req.issuing_authority);
+        qualification_active.issue_date = Set(req.issue_date);
+        qualification_active.valid_until = Set(req.valid_until);
+        qualification_active.attachment_path = Set(req.attachment_path);
+        qualification_active.need_annual_check = Set(req.need_annual_check);
+        qualification_active.annual_check_record = Set(req.annual_check_record);
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", qualification_active, Some(0)).await?;
+        Ok(updated)
+    }
+
+    /// 删除供应商资质
+    pub async fn delete_supplier_qualification(&self, qualification_id: i32) -> Result<(), AppError> {
+        let qualification = self.get_qualification(qualification_id).await?;
+        qualification.delete(&*self.db).await?;
+        Ok(())
+    }
+
+    /// 获取资质详情
+    async fn get_qualification(&self, qualification_id: i32) -> Result<supplier_qualification::Model, AppError> {
+        supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(AppError::NotFound(format!("资质 {} 不存在", qualification_id)))
     }
 }
 
