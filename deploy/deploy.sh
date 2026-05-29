@@ -453,6 +453,12 @@ case "$1" in
     "")
         show_menu
         read -p "请输入数字选择操作: " choice
+        # 清理输入，移除空格和换行
+        choice=$(echo "$choice" | tr -d '[:space:]')
+        if [ -z "$choice" ]; then
+            echo "未输入任何内容"
+            exit 1
+        fi
         exec "$0" "$choice"
         ;;
     *)
