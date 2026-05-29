@@ -3,9 +3,11 @@ use axum::{
     extract::State,
     http::{Request, StatusCode, Method},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
+    Json,
 };
 use crate::utils::app_state::AppState;
+use serde_json::json;
 use tracing::{warn, debug};
 use hmac::{Hmac, Mac, KeyInit};
 use sha2::Sha256;
@@ -79,11 +81,20 @@ fn extract_session_id(request: &Request<Body>, secret: &str) -> Option<String> {
     Some(format!("client:{}:{}", ip, &user_agent[..user_agent.len().min(50)]))
 }
 
+fn forbidden_response(message: &str) -> Response {
+    let body = json!({
+        "code": 403,
+        "message": message,
+        "data": null
+    });
+    (StatusCode::FORBIDDEN, Json(body)).into_response()
+}
+
 pub async fn csrf_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, Response> {
     let method = request.method();
 
     // 只拦截状态变更方法
@@ -131,11 +142,11 @@ pub async fn csrf_middleware(
                 return Ok(next.run(request).await);
             } else {
                 warn!("CSRF Token 验证失败: {} {}", method, path);
-                return Err(StatusCode::FORBIDDEN);
+                return Err(forbidden_response("CSRF Token 无效"));
             }
         } else {
             warn!("无法提取会话标识，拒绝请求: {} {}", method, path);
-            return Err(StatusCode::FORBIDDEN);
+            return Err(forbidden_response("无法验证会话"));
         }
     }
 
@@ -146,7 +157,7 @@ pub async fn csrf_middleware(
     }
 
     warn!("拒绝可能发生 CSRF 的请求: {} {}。缺少 X-CSRF-Token 或 X-Requested-With 头", method, path);
-    Err(StatusCode::FORBIDDEN)
+    Err(forbidden_response("缺少 CSRF Token，请刷新页面重试"))
 }
 
 /// 为前端提供获取 CSRF Token 的辅助函数

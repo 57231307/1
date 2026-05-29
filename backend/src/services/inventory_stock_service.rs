@@ -35,6 +35,7 @@ pub struct InventorySummaryItem {
 struct InventorySummaryQueryResult {
     pub product_id: i32,
     pub product_name: String,
+    pub warehouse_id: i32,
     pub warehouse_name: String,
     pub batch_no: String,
     pub color_no: String,
@@ -260,10 +261,11 @@ impl InventoryStockService {
     }
 
     pub async fn delete_stock(&self, id: i32) -> Result<(), AppError> {
-        inventory_stock::Entity::delete_many()
-            .filter(inventory_stock::Column::Id.eq(id))
-            .exec(&*self.db)
-            .await?;
+        let stock = self.find_by_id(id).await?;
+        let mut active_model: inventory_stock::ActiveModel = stock.into();
+        active_model.stock_status = Set("已删除".to_string());
+        active_model.updated_at = Set(Utc::now());
+        active_model.update(&*self.db).await?;
         Ok(())
     }
 
@@ -551,6 +553,7 @@ impl InventoryStockService {
             .select_only()
             .column_as(inventory_stock::Column::ProductId, "product_id")
             .column_as(crate::models::product::Column::Name, "product_name")
+            .column_as(inventory_stock::Column::WarehouseId, "warehouse_id")
             .column_as(crate::models::warehouse::Column::Name, "warehouse_name")
             .column_as(inventory_stock::Column::BatchNo, "batch_no")
             .column_as(inventory_stock::Column::ColorNo, "color_no")
@@ -559,6 +562,7 @@ impl InventoryStockService {
             .column_as(inventory_stock::Column::QuantityKg.sum(), "total_quantity_kg")
             .group_by(inventory_stock::Column::ProductId)
             .group_by(crate::models::product::Column::Name)
+            .group_by(inventory_stock::Column::WarehouseId)
             .group_by(crate::models::warehouse::Column::Name)
             .group_by(inventory_stock::Column::BatchNo)
             .group_by(inventory_stock::Column::ColorNo)
@@ -597,7 +601,7 @@ impl InventoryStockService {
             color_no: r.color_no,
             batch_no: r.batch_no,
             grade: r.grade,
-            warehouse_id: 0,
+            warehouse_id: r.warehouse_id,
             warehouse_name: r.warehouse_name,
             quantity: Decimal::ZERO,
             unit: String::new(),

@@ -57,5 +57,15 @@ export * from './report-enhanced'
 export * from './material-shortage'
 export * from './bpm-enhanced'
 export * from './omniAudit'
-export * from './advanced'
+export {
+  forecastSales,
+  optimizeInventory,
+  detectAnomalies,
+  getRecommendations,
+  executeReport,
+  listTenants,
+  createTenant,
+  updateTenant,
+  deleteTenant,
+} from './advanced'
 export * from './trading'

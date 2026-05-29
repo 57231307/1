@@ -46,7 +46,7 @@ impl SupplierService {
         // 2. 创建供应商
         let supplier = supplier::ActiveModel {
             supplier_code: Set(supplier_code),
-            supplier_name: Set(req.supplier_name.unwrap_or_else(|| format!("供应商_{}", chrono::Utc::now().timestamp()))),
+            supplier_name: Set(req.supplier_name),
             supplier_short_name: Set(req.supplier_short_name.unwrap_or_default()),
             supplier_type: Set(req.supplier_type.unwrap_or_else(|| "普通供应商".to_string())),
             credit_code: Set(req.credit_code.unwrap_or_default()),
@@ -327,9 +327,30 @@ impl SupplierService {
     }
 
     /// 检查供应商是否可删除
-    pub async fn can_delete_supplier(&self, _id: i32) -> Result<bool, AppError> {
-        // 待实现(v1.1): 删除供应商前，校验其是否关联了有效的采购订单
-        // 这里需要查询采购订单表，暂时返回 true
+    pub async fn can_delete_supplier(&self, id: i32) -> Result<bool, AppError> {
+        // 检查是否有未完成的采购订单
+        use crate::models::purchase_order;
+        let has_active_orders = purchase_order::Entity::find()
+            .filter(purchase_order::Column::SupplierId.eq(id))
+            .filter(purchase_order::Column::OrderStatus.is_in(vec!["DRAFT", "SUBMITTED", "APPROVED", "PARTIAL_RECEIVED"]))
+            .count(&*self.db)
+            .await?;
+        
+        if has_active_orders > 0 {
+            return Ok(false);
+        }
+        
+        // 检查是否有采购收货记录
+        use crate::models::purchase_receipt;
+        let has_receipts = purchase_receipt::Entity::find()
+            .filter(purchase_receipt::Column::SupplierId.eq(id))
+            .count(&*self.db)
+            .await?;
+        
+        if has_receipts > 0 {
+            return Ok(false);
+        }
+        
         Ok(true)
     }
 
@@ -504,7 +525,7 @@ pub struct PaginatedResponse<T> {
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateSupplierRequest {
     #[validate(length(min = 2, max = 200, message = "供应商名称长度必须在2到200个字符之间"))]
-    pub supplier_name: Option<String>,
+    pub supplier_name: String,
     #[validate(length(min = 2, max = 100, message = "供应商简称长度必须在2到100个字符之间"))]
     pub supplier_short_name: Option<String>,
     pub supplier_type: Option<String>,

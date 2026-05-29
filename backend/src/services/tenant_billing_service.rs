@@ -618,8 +618,7 @@ impl TenantBillingService {
     }
 }
 
-use serde::Serialize;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use sea_orm::Set;
 
 #[derive(Debug, Clone, Serialize)]

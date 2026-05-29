@@ -175,15 +175,10 @@ impl PurchaseContractService {
 
         execution.insert(&txn).await?;
 
-        // 更新合同已执行金额
-        let contract_active: purchase_contract::ActiveModel = contract.into();
-        // 注意：purchase_contract 模型没有 executed_amount 字段，需要添加或使用其他方式跟踪
-        // 这里暂时注释掉，等待模型更新
-
-
-        // 检查合同是否完成
-
-
+        // 更新合同状态
+        let mut contract_active: purchase_contract::ActiveModel = contract.into();
+        contract_active.updated_at = Set(chrono::Utc::now());
+        
         contract_active.save(&txn).await?;
 
         // 提交事务
@@ -210,7 +205,7 @@ impl PurchaseContractService {
 
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set("active".to_string());
-        // 注意：purchase_contract 模型没有 approved_by、approved_at、updated_by 字段
+        contract_active.updated_at = Set(chrono::Utc::now());
 
         contract_active.save(&*self.db).await?;
 
@@ -238,14 +233,9 @@ impl PurchaseContractService {
             ));
         }
 
-        // 注意：purchase_contract 模型没有 executed_amount 字段
-        // if contract.executed_amount > Decimal::ZERO {
-        //     return Err(AppError::ValidationError("已执行的合同不能取消".to_string()));
-        // }
-
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set("cancelled".to_string());
-        // 注意：purchase_contract 模型没有 remark 和 updated_by 字段
+        contract_active.updated_at = Set(chrono::Utc::now());
 
         contract_active.save(&*self.db).await?;
 

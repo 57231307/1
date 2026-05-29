@@ -198,6 +198,14 @@ impl PurchaseReturnService {
                 .await?;
 
             if let Some(s) = stock {
+                // 检查库存是否充足
+                if s.quantity_on_hand < item.quantity {
+                    return Err(AppError::BusinessError(format!(
+                        "产品 {} 库存不足，当前库存：{}，需要退货：{}",
+                        item.product_id, s.quantity_on_hand, item.quantity
+                    )));
+                }
+                
                 // 扣减库存
                 let new_quantity_on_hand = s.quantity_on_hand - item.quantity;
                 let new_quantity_available = s.quantity_available - item.quantity;

@@ -603,10 +603,6 @@ impl VoucherService {
                     .take()
                     .unwrap_or(Decimal::ZERO);
 
-                // 累加本期发生额
-                active_model.current_period_debit = sea_orm::Set(current_debit + debit_amount);
-                active_model.current_period_credit = sea_orm::Set(current_credit + credit_amount);
-
                 // 获取期初余额
                 let initial_debit = active_model
                     .initial_balance_debit
@@ -617,25 +613,27 @@ impl VoucherService {
                     .take()
                     .unwrap_or(Decimal::ZERO);
 
+                // 计算新的本期发生额（累加）
+                let new_period_debit = current_debit + debit_amount;
+                let new_period_credit = current_credit + credit_amount;
+
+                // 更新本期发生额
+                active_model.current_period_debit = sea_orm::Set(new_period_debit);
+                active_model.current_period_credit = sea_orm::Set(new_period_credit);
+
                 // 根据余额方向计算期末余额
-                // 借方科目：期末余额在借方 = 期初借方 + 本期借方 - 本期贷方
-                // 贷方科目：期末余额在贷方 = 期初贷方 + 本期贷方 - 本期借方
+                // 借方科目：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生
+                // 贷方科目：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生
                 if balance_direction == "借" {
-                    // 借方科目：余额 = 期初借方 + 本期借方发生 - 本期贷方发生
-                    let ending_debit = initial_debit + current_debit + debit_amount
-                        - (current_credit + credit_amount);
-                    let ending_credit = Decimal::ZERO;
+                    let ending_balance = initial_debit + new_period_debit - new_period_credit;
                     active_model.ending_balance_debit =
-                        sea_orm::Set(ending_debit.max(Decimal::ZERO));
-                    active_model.ending_balance_credit = sea_orm::Set(ending_credit);
+                        sea_orm::Set(ending_balance.max(Decimal::ZERO));
+                    active_model.ending_balance_credit = sea_orm::Set(Decimal::ZERO);
                 } else {
-                    // 贷方科目：余额 = 期初贷方 + 本期贷方发生 - 本期借方发生
-                    let ending_credit = initial_credit + current_credit + credit_amount
-                        - (current_debit + debit_amount);
-                    let ending_debit = Decimal::ZERO;
-                    active_model.ending_balance_debit = sea_orm::Set(ending_debit);
+                    let ending_balance = initial_credit + new_period_credit - new_period_debit;
+                    active_model.ending_balance_debit = sea_orm::Set(Decimal::ZERO);
                     active_model.ending_balance_credit =
-                        sea_orm::Set(ending_credit.max(Decimal::ZERO));
+                        sea_orm::Set(ending_balance.max(Decimal::ZERO));
                 }
 
                 crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_model, Some(0)).await?;
@@ -644,19 +642,21 @@ impl VoucherService {
                 // 根据余额方向设置期末余额
                 let (ending_debit, ending_credit) = if balance_direction == "借" {
                     // 借方科目新账：期末余额 = 本期借方 - 本期贷方
-                    let net_debit = debit_amount - credit_amount;
-                    if net_debit >= Decimal::ZERO {
-                        (net_debit, Decimal::ZERO)
+                    let net = debit_amount - credit_amount;
+                    if net >= Decimal::ZERO {
+                        (net, Decimal::ZERO)
                     } else {
-                        (Decimal::ZERO, -net_debit)
+                        // 借方科目出现贷方余额，记录在贷方
+                        (Decimal::ZERO, net.abs())
                     }
                 } else {
                     // 贷方科目新账：期末余额 = 本期贷方 - 本期借方
-                    let net_credit = credit_amount - debit_amount;
-                    if net_credit >= Decimal::ZERO {
-                        (Decimal::ZERO, net_credit)
+                    let net = credit_amount - debit_amount;
+                    if net >= Decimal::ZERO {
+                        (Decimal::ZERO, net)
                     } else {
-                        (-net_credit, Decimal::ZERO)
+                        // 贷方科目出现借方余额，记录在借方
+                        (net.abs(), Decimal::ZERO)
                     }
                 };
 

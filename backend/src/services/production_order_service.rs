@@ -165,6 +165,23 @@ impl ProductionOrderService {
         // 验证产品是否存在
         self.validate_product_exists(req.product_id).await?;
         
+        // 验证BOM是否存在（生产订单需要BOM进行物料计算）
+        let has_bom = BomEntity::find()
+            .filter(BomColumn::ProductId.eq(req.product_id))
+            .filter(BomColumn::IsDefault.eq(true))
+            .filter(BomColumn::Status.eq("ACTIVE"))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .is_some();
+        
+        if !has_bom {
+            tracing::warn!(
+                "产品ID {} 没有默认BOM，生产完成时将无法自动扣减原材料",
+                req.product_id
+            );
+        }
+        
         // 验证销售订单是否存在（如果提供）
         if let Some(sales_order_id) = req.sales_order_id {
             self.validate_sales_order_exists(sales_order_id).await?;
@@ -315,7 +332,7 @@ impl ProductionOrderService {
         Ok(updated)
     }
 
-    /// 删除生产订单（软删除）
+    /// 删除生产订单（软删除 - 设为取消状态）
     #[allow(dead_code)]
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
@@ -325,6 +342,7 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
+        active_model.status = Set("CANCELLED".to_string());
         active_model.updated_at = Set(Utc::now());
 
         active_model
@@ -433,7 +451,13 @@ impl ProductionOrderService {
                 let qty_before_meters = stock_record.quantity_meters;
                 let qty_before_kg = stock_record.quantity_kg;
                 let qty_after_meters = qty_before_meters - consumption_qty;
-                let qty_after_kg = qty_before_kg; // BOM基本单位为米，公斤按比例估算
+
+                // Calculate kg consumption proportionally
+                let qty_after_kg = if qty_before_meters > Decimal::ZERO {
+                    qty_before_kg - (qty_before_kg * consumption_qty / qty_before_meters)
+                } else {
+                    qty_before_kg
+                };
 
                 // 更新库存数量（带乐观锁）
                 stock_service.update_stock_quantity_with_optimistic_lock(

@@ -191,12 +191,20 @@ impl InventoryAdjustmentService {
                     })?;
 
             let quantity_before = stock_model.quantity_on_hand;
+            let current_version = stock_model.version;
+            let current_quantity_kg = stock_model.quantity_kg;
             let mut stock: inventory_stock::ActiveModel = stock_model.into();
 
             // 更新库存数量字段（使用 quantity_on_hand 和 quantity_meters 作为主数量字段）
             stock.quantity_on_hand = Set(item.quantity_after);
             stock.quantity_available = Set(item.quantity_after);
             stock.quantity_meters = Set(item.quantity_after);
+            // Update quantity_kg proportionally
+            if quantity_before > Decimal::ZERO {
+                let kg_ratio = current_quantity_kg / quantity_before;
+                stock.quantity_kg = Set(item.quantity_after * kg_ratio);
+            }
+            stock.version = Set(current_version + 1);
             stock.updated_at = Set(Utc::now());
             let updated_stock = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock, Some(0)).await?;
 
@@ -295,7 +303,7 @@ impl InventoryAdjustmentService {
             inventory_adjustment::Entity,
             inventory_adjustment::Column::AdjustmentNo,
         )
-        .await.map_err(AppError::from)
+        .await
         .map_err(|e| AppError::BusinessError(e.to_string()))
     }
 }

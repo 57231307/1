@@ -194,7 +194,7 @@ impl ArInvoiceService {
         let total = query.clone().count(&*self.db).await?;
         let invoices = query
             .order_by(ar_invoice::Column::InvoiceDate, Order::Desc)
-            .offset(page - 1)
+            .offset((page - 1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;
@@ -252,7 +252,9 @@ impl ArInvoiceService {
         
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        let result = active_invoice.update(&*self.db).await
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db, "auto_audit", active_invoice, Some(0)
+        ).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)
@@ -343,7 +345,9 @@ impl ArInvoiceService {
         active_invoice.status = Set("CANCELLED".to_string());
         active_invoice.updated_at = Set(Utc::now());
 
-        let result = active_invoice.update(&*self.db).await
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db, "auto_audit", active_invoice, Some(0)
+        ).await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(result)

@@ -13,6 +13,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_recipe;
 use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -138,6 +139,7 @@ pub async fn get_dye_recipe(
 
 pub async fn create_dye_recipe(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> impl IntoResponse {
     // 自动生成配方编号
@@ -195,6 +197,7 @@ pub async fn create_dye_recipe(
 pub async fn update_dye_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> impl IntoResponse {
     let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
@@ -271,6 +274,7 @@ pub async fn update_dye_recipe(
 pub async fn delete_dye_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
 ) -> impl IntoResponse {
     match dye_recipe::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
@@ -289,6 +293,7 @@ pub async fn delete_dye_recipe(
 pub async fn approve_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<ApproveRecipeRequest>,
 ) -> impl IntoResponse {
     let mut recipe: dye_recipe::ActiveModel = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
@@ -331,6 +336,7 @@ pub async fn approve_recipe(
 pub async fn create_new_version(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<CreateVersionRequest>,
 ) -> impl IntoResponse {
     let original = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {

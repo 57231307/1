@@ -153,7 +153,9 @@ pub async fn get_notification(
 
     // 自动标记为已读
     if notification.status == NotificationStatus::Unread {
-        let _ = service.mark_as_read(id, auth.user_id).await;
+        if let Err(e) = service.mark_as_read(id, auth.user_id).await {
+            tracing::warn!("自动标记通知 {} 为已读失败: {}", id, e);
+        }
     }
 
     Ok(Json(ApiResponse::success(serde_json::to_value(notification)?)))

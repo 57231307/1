@@ -14,6 +14,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
 use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -163,6 +164,7 @@ pub async fn get_greige_fabric(
 
 pub async fn create_greige_fabric(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> impl IntoResponse {
     // 自动生成编号
@@ -222,6 +224,7 @@ pub async fn create_greige_fabric(
 pub async fn update_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<UpdateGreigeFabricRequest>,
 ) -> impl IntoResponse {
     let mut fabric: greige_fabric::ActiveModel =
@@ -302,6 +305,7 @@ pub async fn update_greige_fabric(
 pub async fn delete_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
 ) -> impl IntoResponse {
     match greige_fabric::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
@@ -320,6 +324,7 @@ pub async fn delete_greige_fabric(
 pub async fn stock_in(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<StockInRequest>,
 ) -> impl IntoResponse {
     let mut fabric: greige_fabric::ActiveModel =
@@ -371,6 +376,7 @@ pub async fn stock_in(
 pub async fn stock_out(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<StockOutRequest>,
 ) -> impl IntoResponse {
     let fabric = match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {

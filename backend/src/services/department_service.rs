@@ -84,6 +84,16 @@ impl DepartmentService {
         &self,
         req: crate::handlers::department_handler::CreateDepartmentRequest,
     ) -> Result<department::Model, AppError> {
+        // 检查部门名称是否已存在
+        let existing = DepartmentEntity::find()
+            .filter(department::Column::Name.eq(&req.name))
+            .one(&*self.db)
+            .await?;
+
+        if existing.is_some() {
+            return Err(AppError::BusinessError(format!("部门名称 '{}' 已存在", req.name)));
+        }
+
         // 检查父部门是否存在（如果提供了 parent_id）
         if let Some(pid) = req.parent_id {
             let _ = DepartmentEntity::find_by_id(pid)
@@ -174,6 +184,18 @@ impl DepartmentService {
         if children_count > 0 {
             return Err(AppError::BusinessError(
                 "该部门存在子部门，无法删除".to_string(),
+            ));
+        }
+
+        // 检查是否有用户关联此部门
+        let user_count = crate::models::user::Entity::find()
+            .filter(crate::models::user::Column::DepartmentId.eq(id))
+            .count(&*self.db)
+            .await?;
+
+        if user_count > 0 {
+            return Err(AppError::BusinessError(
+                format!("该部门下有 {} 个用户，请先移除用户的部门关联后再删除", user_count),
             ));
         }
 

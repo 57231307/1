@@ -1015,10 +1015,10 @@ impl SalesService {
                 AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
-        // 检查订单状态，草稿或待审批状态可以审核
-        if order.status != "draft" && order.status != "pending_approval" {
+        // 检查订单状态，只有待审批状态可以审核
+        if order.status != "pending_approval" {
             return Err(AppError::BusinessError(format!(
-                "订单状态为{}，只有草稿或待审批状态的订单可以审核",
+                "订单状态为{}，只有待审批状态的订单可以审核",
                 order.status
             )));
         }

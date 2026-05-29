@@ -200,7 +200,7 @@ impl WebhookService {
             "test": true
         }).to_string();
 
-        self.trigger_webhook(webhook_id, "test", &test_payload).await.map_err(AppError::from)
+        self.trigger_webhook(webhook_id, "test", &test_payload).await
     }
 
     /// 删除 Webhook

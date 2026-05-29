@@ -13,6 +13,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_batch;
 use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -99,6 +100,7 @@ pub async fn get_dye_batch(
 
 pub async fn create_dye_batch(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CreateDyeBatchRequest>,
 ) -> impl IntoResponse {
     // 自动生成缸号
@@ -139,6 +141,7 @@ pub async fn create_dye_batch(
 pub async fn update_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> impl IntoResponse {
     let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
@@ -191,6 +194,7 @@ pub async fn update_dye_batch(
 pub async fn delete_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
 ) -> impl IntoResponse {
     match dye_batch::Entity::delete_by_id(id).exec(&*state.db).await {
         Ok(_) => (
@@ -209,6 +213,7 @@ pub async fn delete_dye_batch(
 pub async fn complete_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
 ) -> impl IntoResponse {
     let mut batch: dye_batch::ActiveModel = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
         Ok(Some(b)) => b.into(),

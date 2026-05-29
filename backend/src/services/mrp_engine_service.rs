@@ -208,7 +208,11 @@ impl MrpEngineService {
         for item in bom_items {
             let base_quantity = parent_quantity * item.quantity;
             let quantity_with_scrap = if let Some(scrap_rate) = item.scrap_rate {
-                base_quantity * (Decimal::ONE + scrap_rate)
+                if scrap_rate > Decimal::ZERO {
+                    base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100)))
+                } else {
+                    base_quantity
+                }
             } else {
                 base_quantity
             };

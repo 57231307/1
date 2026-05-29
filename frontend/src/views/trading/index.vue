@@ -505,42 +505,42 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listPurchaseContracts,
-  createPurchaseContract,
-  updatePurchaseContract,
-  deletePurchaseContract as apiDeletePurchaseContract,
-  approvePurchaseContract as apiApprovePurchaseContract,
-  executePurchaseContract as apiExecutePurchaseContract,
-  type PurchaseContract,
-  listPurchasePrices,
-  createPurchasePrice,
-  updatePurchasePrice,
-  deletePurchasePrice as apiDeletePurchasePrice,
-  type PurchasePrice,
-  listSalesContracts,
-  createSalesContract,
-  updateSalesContract,
-  deleteSalesContract as apiDeleteSalesContract,
-  approveSalesContract as apiApproveSalesContract,
-  type SalesContract,
-  listSalesPrices,
-  createSalesPrice,
-  updateSalesPrice,
-  deleteSalesPrice as apiDeleteSalesPrice,
-  type SalesPrice,
-  listSalesReturns,
-  createSalesReturn,
-  updateSalesReturn,
-  deleteSalesReturn as apiDeleteSalesReturn,
-  type SalesReturn,
+  listTradingPurchaseContracts,
+  createTradingPurchaseContract,
+  updateTradingPurchaseContract,
+  deleteTradingPurchaseContract as apiDeletePurchaseContract,
+  approveTradingPurchaseContract as apiApprovePurchaseContract,
+  executeTradingPurchaseContract as apiExecutePurchaseContract,
+  type TradingPurchaseContract,
+  listTradingPurchasePrices,
+  createTradingPurchasePrice,
+  updateTradingPurchasePrice,
+  deleteTradingPurchasePrice as apiDeletePurchasePrice,
+  type TradingPurchasePrice,
+  listTradingSalesContracts,
+  createTradingSalesContract,
+  updateTradingSalesContract,
+  deleteTradingSalesContract as apiDeleteSalesContract,
+  approveTradingSalesContract as apiApproveSalesContract,
+  type TradingSalesContract,
+  listTradingSalesPrices,
+  createTradingSalesPrice,
+  updateTradingSalesPrice,
+  deleteTradingSalesPrice as apiDeleteSalesPrice,
+  type TradingSalesPrice,
+  listTradingSalesReturns,
+  createTradingSalesReturn,
+  updateTradingSalesReturn,
+  deleteTradingSalesReturn as apiDeleteSalesReturn,
+  type TradingSalesReturn,
 } from '@/api/trading'
 
 const activeTab = ref('purchase-contract')
-const purchaseContracts = ref<PurchaseContract[]>([])
-const purchasePrices = ref<PurchasePrice[]>([])
-const salesContracts = ref<SalesContract[]>([])
-const salesPrices = ref<SalesPrice[]>([])
-const salesReturns = ref<SalesReturn[]>([])
+const purchaseContracts = ref<TradingPurchaseContract[]>([])
+const purchasePrices = ref<TradingPurchasePrice[]>([])
+const salesContracts = ref<TradingSalesContract[]>([])
+const salesPrices = ref<TradingSalesPrice[]>([])
+const salesReturns = ref<TradingSalesReturn[]>([])
 const purchaseContractLoading = ref(false)
 const purchasePriceLoading = ref(false)
 const salesContractLoading = ref(false)
@@ -619,7 +619,7 @@ const returnForm = ref({
 const fetchPurchaseContracts = async () => {
   purchaseContractLoading.value = true
   try {
-    const res: any = await listPurchaseContracts()
+    const res: any = await listTradingPurchaseContracts()
     purchaseContracts.value = res.data! || []
   } finally {
     purchaseContractLoading.value = false
@@ -629,7 +629,7 @@ const fetchPurchaseContracts = async () => {
 const fetchPurchasePrices = async () => {
   purchasePriceLoading.value = true
   try {
-    const res: any = await listPurchasePrices()
+    const res: any = await listTradingPurchasePrices()
     purchasePrices.value = res.data! || []
   } finally {
     purchasePriceLoading.value = false
@@ -639,7 +639,7 @@ const fetchPurchasePrices = async () => {
 const fetchSalesContracts = async () => {
   salesContractLoading.value = true
   try {
-    const res: any = await listSalesContracts()
+    const res: any = await listTradingSalesContracts()
     salesContracts.value = res.data! || []
   } finally {
     salesContractLoading.value = false
@@ -649,7 +649,7 @@ const fetchSalesContracts = async () => {
 const fetchSalesPrices = async () => {
   salesPriceLoading.value = true
   try {
-    const res: any = await listSalesPrices()
+    const res: any = await listTradingSalesPrices()
     salesPrices.value = res.data! || []
   } finally {
     salesPriceLoading.value = false
@@ -659,7 +659,7 @@ const fetchSalesPrices = async () => {
 const fetchSalesReturns = async () => {
   returnLoading.value = true
   try {
-    const res: any = await listSalesReturns()
+    const res: any = await listTradingSalesReturns()
     salesReturns.value = res.data! || []
   } finally {
     returnLoading.value = false
@@ -706,7 +706,7 @@ const getReturnStatusLabel = (status: string) => {
 }
 
 // 采购合同操作
-const openPurchaseContractDialog = (row?: PurchaseContract) => {
+const openPurchaseContractDialog = (row?: TradingPurchaseContract) => {
   if (row) {
     purchaseContractDialogTitle.value = '编辑采购合同'
     purchaseContractForm.value = { ...row, remarks: '' }
@@ -725,17 +725,17 @@ const openPurchaseContractDialog = (row?: PurchaseContract) => {
   purchaseContractDialogVisible.value = true
 }
 
-const viewPurchaseContract = (row: PurchaseContract) => {
+const viewPurchaseContract = (row: TradingPurchaseContract) => {
   openPurchaseContractDialog(row)
 }
 
 const submitPurchaseContract = async () => {
   try {
     if (purchaseContractForm.value.id) {
-      await updatePurchaseContract(purchaseContractForm.value.id, purchaseContractForm.value)
+      await updateTradingPurchaseContract(purchaseContractForm.value.id, purchaseContractForm.value)
       ElMessage.success('更新成功')
     } else {
-      await createPurchaseContract(purchaseContractForm.value)
+      await createTradingPurchaseContract(purchaseContractForm.value)
       ElMessage.success('创建成功')
     }
     purchaseContractDialogVisible.value = false
@@ -745,7 +745,7 @@ const submitPurchaseContract = async () => {
   }
 }
 
-const approvePurchaseContract = async (row: PurchaseContract) => {
+const approvePurchaseContract = async (row: TradingPurchaseContract) => {
   try {
     await ElMessageBox.confirm('确定审批此采购合同吗？', '确认', { type: 'info' })
     await apiApprovePurchaseContract(row.id)
@@ -756,7 +756,7 @@ const approvePurchaseContract = async (row: PurchaseContract) => {
   }
 }
 
-const executePurchaseContract = async (row: PurchaseContract) => {
+const executePurchaseContract = async (row: TradingPurchaseContract) => {
   try {
     await ElMessageBox.confirm('确定执行此采购合同吗？', '确认', { type: 'info' })
     await apiExecutePurchaseContract(row.id)
@@ -767,7 +767,7 @@ const executePurchaseContract = async (row: PurchaseContract) => {
   }
 }
 
-const deletePurchaseContract = async (row: PurchaseContract) => {
+const deletePurchaseContract = async (row: TradingPurchaseContract) => {
   try {
     await ElMessageBox.confirm('确定删除此采购合同吗？', '确认', { type: 'warning' })
     await apiDeletePurchaseContract(row.id)
@@ -779,7 +779,7 @@ const deletePurchaseContract = async (row: PurchaseContract) => {
 }
 
 // 采购价格操作
-const openPurchasePriceDialog = (row?: PurchasePrice) => {
+const openPurchasePriceDialog = (row?: TradingPurchasePrice) => {
   if (row) {
     purchasePriceDialogTitle.value = '编辑采购价格'
     purchasePriceForm.value = { ...row }
@@ -803,10 +803,10 @@ const openPurchasePriceDialog = (row?: PurchasePrice) => {
 const submitPurchasePrice = async () => {
   try {
     if (purchasePriceForm.value.id) {
-      await updatePurchasePrice(purchasePriceForm.value.id, purchasePriceForm.value)
+      await updateTradingPurchasePrice(purchasePriceForm.value.id, purchasePriceForm.value)
       ElMessage.success('更新成功')
     } else {
-      await createPurchasePrice(purchasePriceForm.value)
+      await createTradingPurchasePrice(purchasePriceForm.value)
       ElMessage.success('创建成功')
     }
     purchasePriceDialogVisible.value = false
@@ -816,7 +816,7 @@ const submitPurchasePrice = async () => {
   }
 }
 
-const deletePurchasePrice = async (row: PurchasePrice) => {
+const deletePurchasePrice = async (row: TradingPurchasePrice) => {
   try {
     await ElMessageBox.confirm('确定删除此采购价格吗？', '确认', { type: 'warning' })
     await apiDeletePurchasePrice(row.id)
@@ -828,7 +828,7 @@ const deletePurchasePrice = async (row: PurchasePrice) => {
 }
 
 // 销售合同操作
-const openSalesContractDialog = (row?: SalesContract) => {
+const openSalesContractDialog = (row?: TradingSalesContract) => {
   if (row) {
     salesContractDialogTitle.value = '编辑销售合同'
     salesContractForm.value = { ...row, remarks: '' }
@@ -847,17 +847,17 @@ const openSalesContractDialog = (row?: SalesContract) => {
   salesContractDialogVisible.value = true
 }
 
-const viewSalesContract = (row: SalesContract) => {
+const viewSalesContract = (row: TradingSalesContract) => {
   openSalesContractDialog(row)
 }
 
 const submitSalesContract = async () => {
   try {
     if (salesContractForm.value.id) {
-      await updateSalesContract(salesContractForm.value.id, salesContractForm.value)
+      await updateTradingSalesContract(salesContractForm.value.id, salesContractForm.value)
       ElMessage.success('更新成功')
     } else {
-      await createSalesContract(salesContractForm.value)
+      await createTradingSalesContract(salesContractForm.value)
       ElMessage.success('创建成功')
     }
     salesContractDialogVisible.value = false
@@ -867,7 +867,7 @@ const submitSalesContract = async () => {
   }
 }
 
-const approveSalesContract = async (row: SalesContract) => {
+const approveSalesContract = async (row: TradingSalesContract) => {
   try {
     await ElMessageBox.confirm('确定审批此销售合同吗？', '确认', { type: 'info' })
     await apiApproveSalesContract(row.id)
@@ -878,7 +878,7 @@ const approveSalesContract = async (row: SalesContract) => {
   }
 }
 
-const deleteSalesContract = async (row: SalesContract) => {
+const deleteSalesContract = async (row: TradingSalesContract) => {
   try {
     await ElMessageBox.confirm('确定删除此销售合同吗？', '确认', { type: 'warning' })
     await apiDeleteSalesContract(row.id)
@@ -890,7 +890,7 @@ const deleteSalesContract = async (row: SalesContract) => {
 }
 
 // 销售价格操作
-const openSalesPriceDialog = (row?: SalesPrice) => {
+const openSalesPriceDialog = (row?: TradingSalesPrice) => {
   if (row) {
     salesPriceDialogTitle.value = '编辑销售价格'
     salesPriceForm.value = { ...row }
@@ -913,10 +913,10 @@ const openSalesPriceDialog = (row?: SalesPrice) => {
 const submitSalesPrice = async () => {
   try {
     if (salesPriceForm.value.id) {
-      await updateSalesPrice(salesPriceForm.value.id, salesPriceForm.value)
+      await updateTradingSalesPrice(salesPriceForm.value.id, salesPriceForm.value)
       ElMessage.success('更新成功')
     } else {
-      await createSalesPrice(salesPriceForm.value)
+      await createTradingSalesPrice(salesPriceForm.value)
       ElMessage.success('创建成功')
     }
     salesPriceDialogVisible.value = false
@@ -926,7 +926,7 @@ const submitSalesPrice = async () => {
   }
 }
 
-const deleteSalesPrice = async (row: SalesPrice) => {
+const deleteSalesPrice = async (row: TradingSalesPrice) => {
   try {
     await ElMessageBox.confirm('确定删除此销售价格吗？', '确认', { type: 'warning' })
     await apiDeleteSalesPrice(row.id)
@@ -938,7 +938,7 @@ const deleteSalesPrice = async (row: SalesPrice) => {
 }
 
 // 销售退货操作
-const openReturnDialog = (row?: SalesReturn) => {
+const openReturnDialog = (row?: TradingSalesReturn) => {
   if (row) {
     returnDialogTitle.value = '编辑销售退货'
     returnForm.value = { ...row }
@@ -961,10 +961,10 @@ const openReturnDialog = (row?: SalesReturn) => {
 const submitReturn = async () => {
   try {
     if (returnForm.value.id) {
-      await updateSalesReturn(returnForm.value.id, returnForm.value)
+      await updateTradingSalesReturn(returnForm.value.id, returnForm.value)
       ElMessage.success('更新成功')
     } else {
-      await createSalesReturn(returnForm.value)
+      await createTradingSalesReturn(returnForm.value)
       ElMessage.success('创建成功')
     }
     returnDialogVisible.value = false
@@ -974,7 +974,7 @@ const submitReturn = async () => {
   }
 }
 
-const deleteSalesReturn = async (row: SalesReturn) => {
+const deleteSalesReturn = async (row: TradingSalesReturn) => {
   try {
     await ElMessageBox.confirm('确定删除此销售退货吗？', '确认', { type: 'warning' })
     await apiDeleteSalesReturn(row.id)

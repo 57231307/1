@@ -1,6 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -231,6 +231,18 @@ impl RolePermissionService {
         // 系统角色不允许删除
         if role.is_system {
             return Err(AppError::BusinessError("系统角色不允许删除".to_string()));
+        }
+
+        // 检查是否有用户关联此角色
+        let user_count = crate::models::user::Entity::find()
+            .filter(crate::models::user::Column::RoleId.eq(role_id))
+            .count(&*self.db)
+            .await?;
+
+        if user_count > 0 {
+            return Err(AppError::BusinessError(
+                format!("该角色下有 {} 个用户，请先移除用户的角色关联后再删除", user_count),
+            ));
         }
 
         // 开启事务

@@ -104,6 +104,18 @@ impl FinancePaymentService {
     }
 
     pub async fn delete_payment(&self, id: i32) -> Result<(), AppError> {
+        let payment = finance_payment::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("付款 ID {} 不存在", id)))?;
+
+        if payment.status != "pending" {
+            return Err(AppError::BusinessError(format!(
+                "付款状态为{}，只有待处理的付款可以删除",
+                payment.status
+            )));
+        }
+
         finance_payment::Entity::delete_many()
             .filter(finance_payment::Column::Id.eq(id))
             .exec(&*self.db)

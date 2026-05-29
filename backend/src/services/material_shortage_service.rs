@@ -401,8 +401,8 @@ impl MaterialShortageService {
 
         let stocks = InventoryStockEntity::find()
             .filter(StockColumn::ProductId.is_in(material_ids.to_vec()))
-            .filter(StockColumn::StockStatus.eq("ACTIVE"))
-            .filter(StockColumn::QualityStatus.eq("QUALIFIED"))
+            .filter(StockColumn::StockStatus.eq("正常"))
+            .filter(StockColumn::QualityStatus.eq("合格"))
             .all(&*self.db)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;

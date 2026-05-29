@@ -10,17 +10,37 @@ use axum::{
     extract::State,
     http::{Request, StatusCode, Method},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
+    Json,
 };
 use chrono::{DateTime, Utc, Duration};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use serde_json::json;
 use tracing::warn;
+
+fn forbidden_response(message: &str) -> Response {
+    let body = json!({
+        "code": 403,
+        "message": message,
+        "data": null
+    });
+    (StatusCode::FORBIDDEN, Json(body)).into_response()
+}
+
+fn unauthorized_response(message: &str) -> Response {
+    let body = json!({
+        "code": 401,
+        "message": message,
+        "data": null
+    });
+    (StatusCode::UNAUTHORIZED, Json(body)).into_response()
+}
 
 pub async fn permission_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, Response> {
     let method = request.method();
     let uri = request.uri();
     let path = uri.path();
@@ -34,7 +54,7 @@ pub async fn permission_middleware(
         Some(auth) => auth,
         None => {
             warn!("缺少认证上下文");
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(unauthorized_response("缺少认证上下文"));
         }
     };
 
@@ -44,8 +64,8 @@ pub async fn permission_middleware(
     let role_id = match auth.role_id {
         Some(id) => id,
         None => {
-            warn!("用户 {} 没有关联角色，拒绝访问", auth.user_id);
-            return Err(StatusCode::FORBIDDEN);
+            warn!("用户没有关联角色，拒绝访问");
+            return Err(forbidden_response("没有关联角色，无法访问"));
         }
     };
 
@@ -60,13 +80,13 @@ pub async fn permission_middleware(
     )
     .await;
 
-    tracing::info!("DEBUG_PERM: user={}, role={}, path={}, has_perm={}", auth.user_id, role_id, path, has_permission);
+    tracing::debug!("权限检查结果: path={}, has_perm={}", path, has_permission);
 
     if has_permission {
         Ok(next.run(request).await)
     } else {
-        warn!("用户 {} 没有权限访问 {} {}", auth.user_id, method, path);
-        Err(StatusCode::FORBIDDEN)
+        warn!("权限不足: path={} {}", method, path);
+        Err(forbidden_response("权限不足，无法访问该资源"))
     }
 }
 
@@ -115,6 +135,7 @@ fn method_to_action(method: &Method) -> String {
         Method::GET => "read",
         Method::POST => "create",
         Method::PUT => "update",
+        Method::PATCH => "update",
         Method::DELETE => "delete",
         _ => "read",
     }

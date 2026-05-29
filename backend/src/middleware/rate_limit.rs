@@ -166,6 +166,7 @@ pub async fn rate_limit_by_ip(
 }
 
 /// 防暴力攻击中间件（针对登录端点）
+/// 基于 IP + Username 双维度检查，防止从同一 IP 尝试不同用户名的暴力破解
 pub async fn anti_brute_force(
     req: Request<Body>,
     next: Next,
@@ -176,6 +177,7 @@ pub async fn anti_brute_force(
         .map(|info| info.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
+    // Check IP-based rate limit
     if !BRUTE_FORCE_LIMITER.check(&ip) {
         tracing::warn!("Brute force blocked for IP {}", ip);
         return Err(AppError::TooManyRequests {

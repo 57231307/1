@@ -453,7 +453,7 @@ import {
   withdrawFund as withdrawFundApi,
   freezeFund as freezeFundApi,
   type FundAccount,
-} from '@/api/ar'
+} from '@/api/fund'
 import { listCustomers, type Customer } from '@/api/customer'
 
 const activeTab = ref('invoice')
@@ -572,7 +572,7 @@ const fetchFunds = async () => {
   fundLoading.value = true
   try {
     const res = await listFundAccounts()
-    funds.value = res.data! || []
+    funds.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取资金账户列表失败')
   } finally {
@@ -807,26 +807,17 @@ const submitFundOperation = async () => {
   fundOperationLoading.value = true
   try {
     if (fundOperationType.value === 'deposit') {
-      await depositFundApi(currentFundAccount.value.id, {
-        amount: fundOperationAmount.value,
-        remark: fundOperationRemark.value,
-      })
+      await depositFundApi(currentFundAccount.value.id, fundOperationAmount.value, fundOperationRemark.value)
       ElMessage.success('存入成功')
     } else if (fundOperationType.value === 'withdraw') {
-      await withdrawFundApi(currentFundAccount.value.id, {
-        amount: fundOperationAmount.value,
-        remark: fundOperationRemark.value,
-      })
+      await withdrawFundApi(currentFundAccount.value.id, fundOperationAmount.value, fundOperationRemark.value)
       ElMessage.success('取出成功')
     } else if (fundOperationType.value === 'freeze') {
       if (!fundOperationReason.value) {
         ElMessage.warning('请输入冻结原因')
         return
       }
-      await freezeFundApi(currentFundAccount.value.id, {
-        amount: fundOperationAmount.value,
-        reason: fundOperationReason.value,
-      })
+      await freezeFundApi(currentFundAccount.value.id, fundOperationAmount.value, fundOperationReason.value)
       ElMessage.success('冻结成功')
     }
     fundOperationDialogVisible.value = false

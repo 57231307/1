@@ -585,21 +585,43 @@ impl PurchaseReceiptService {
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
             
-                        let _stock_model = stock_service.create_stock_fabric(
-                receipt.warehouse_id,
-                item.product_id,
-                batch_no.clone(),
-                color_no.clone(),
-                item.lot_no.clone(),
-                grade.clone(),
-                item.quantity,
-                item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                item.gram_weight,
-                item.width,
-                None, None, None,
-            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            // 检查库存是否已存在
+            let existing_stock = stock_service
+                .find_by_product_and_warehouse(item.product_id, receipt.warehouse_id)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            
+            let _stock_model = if let Some(stock) = existing_stock {
+                // 更新现有库存
+                let new_quantity_meters = stock.quantity_meters + item.quantity;
+                let new_quantity_kg = stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0));
+                
+                stock_service.update_stock_quantity_with_optimistic_lock(
+                    stock.id,
+                    new_quantity_meters,
+                    new_quantity_kg,
+                    stock.version,
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                
+                stock
+            } else {
+                // 创建新库存记录
+                stock_service.create_stock_fabric(
+                    receipt.warehouse_id,
+                    item.product_id,
+                    batch_no.clone(),
+                    color_no.clone(),
+                    item.lot_no.clone(),
+                    grade.clone(),
+                    item.quantity,
+                    item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                    item.gram_weight,
+                    item.width,
+                    None, None, None,
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?
+            };
 
-                        stock_service.record_transaction(
+            stock_service.record_transaction(
                 "PURCHASE_RECEIPT".to_string(),
                 item.product_id,
                 receipt.warehouse_id,

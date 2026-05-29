@@ -465,6 +465,14 @@ impl InventoryCountService {
                     stock_update.quantity_meters = sea_orm::ActiveValue::Set(
                         stock_model.quantity_meters + quantity_variance,
                     );
+                    // Update quantity_kg proportionally
+                    if stock_model.quantity_meters > rust_decimal::Decimal::ZERO {
+                        let kg_ratio = stock_model.quantity_kg / stock_model.quantity_meters;
+                        stock_update.quantity_kg = sea_orm::ActiveValue::Set(
+                            item.quantity_actual * kg_ratio,
+                        );
+                    }
+                    stock_update.version = sea_orm::ActiveValue::Set(stock_model.version + 1);
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                     crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
 

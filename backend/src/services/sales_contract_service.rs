@@ -152,10 +152,9 @@ impl SalesContractService {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
-        // 更新合同已执行金额
-        let contract_active: sales_contract::ActiveModel = contract.into();
-
-        // 检查合同是否完成
+        // 更新合同状态
+        let mut contract_active: sales_contract::ActiveModel = contract.into();
+        contract_active.updated_at = Set(chrono::Utc::now());
 
         contract_active.save(&txn).await?;
 
@@ -183,7 +182,7 @@ impl SalesContractService {
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set("active".to_string());
-        // 注意：sales_contract 模型没有 approved_by、approved_at、updated_by 字段
+        contract_active.updated_at = Set(chrono::Utc::now());
 
         contract_active.save(&*self.db).await?;
 
@@ -211,12 +210,9 @@ impl SalesContractService {
             ));
         }
 
-        // 注意：sales_contract 模型没有 executed_amount 字段
-
-
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set("cancelled".to_string());
-        // 注意：sales_contract 模型没有 remark 和 updated_by 字段
+        contract_active.updated_at = Set(chrono::Utc::now());
 
         contract_active.save(&*self.db).await?;
 

@@ -25,6 +25,15 @@ impl TenantService {
         description: Option<&str>,
         plan_id: Option<i32>,
     ) -> Result<tenant::Model, AppError> {
+        // 检查租户编码是否已存在
+        let existing = Tenant::find()
+            .filter(tenant::Column::Code.eq(code))
+            .one(self.db.as_ref())
+            .await?;
+        if existing.is_some() {
+            return Err(AppError::BusinessError(format!("租户编码 '{}' 已存在", code)));
+        }
+
         let now = Utc::now();
         let active_model = TenantActiveModel {
             code: Set(code.to_string()),

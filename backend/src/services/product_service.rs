@@ -43,7 +43,7 @@ impl ProductService {
             "PRD",
             product::Entity,
             product::Column::Code,
-        ).await.map_err(AppError::from)
+        ).await
     }
 
     /// 获取产品列表（支持分页和过滤）
@@ -692,7 +692,7 @@ impl ProductService {
                     min_order_quantity,
                     lead_time,
                 )
-                .await.map_err(AppError::from)
+                .await
             {
                 Ok(_) => result.add_success(),
                 Err(e) => {

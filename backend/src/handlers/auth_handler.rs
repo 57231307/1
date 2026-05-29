@@ -15,6 +15,10 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use utoipa::ToSchema;
+use chrono::{Duration as ChronoDuration, Utc};
+
+const MAX_FAILED_ATTEMPTS: i32 = 5;
+const LOCKOUT_DURATION_MINUTES: i64 = 30;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LoginRequest {
@@ -64,6 +68,7 @@ pub struct UserInfo {
 pub async fn login(
     State(state): State<AppState>,
     jar: axum_extra::extract::PrivateCookieJar,
+    headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<()>>)> {
     if let Err(errors) = payload.validate() {
@@ -82,6 +87,40 @@ pub async fn login(
         ));
     }
 
+    // Extract client IP for logging
+    let client_ip = headers
+        .get("X-Forwarded-For")
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| headers.get("X-Real-IP").and_then(|h| h.to_str().ok()))
+        .unwrap_or("unknown")
+        .to_string();
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+
+    // Check account lockout before authentication
+    let since = Utc::now() - ChronoDuration::minutes(LOCKOUT_DURATION_MINUTES);
+    use sea_orm::PaginatorTrait;
+    use crate::models::log_login;
+
+    let recent_failures = log_login::Entity::find()
+        .filter(log_login::Column::Username.eq(payload.username.as_str()))
+        .filter(log_login::Column::Status.eq("FAILED"))
+        .filter(log_login::Column::LoginTime.gte(since))
+        .count(state.db.as_ref())
+        .await
+        .unwrap_or(0);
+
+    if recent_failures >= MAX_FAILED_ATTEMPTS as u64 {
+        tracing::warn!("Account locked due to too many failed attempts: {}", payload.username);
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(ApiResponse::error("账号已被锁定，请30分钟后再试".to_string())),
+        ));
+    }
+
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
 
     match auth_service
@@ -93,15 +132,25 @@ pub async fn login(
             if user.is_totp_enabled {
                 let totp_token = match payload.totp_token {
                     Some(ref t) => t,
-                    None => return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("需要提供两步验证码".to_string())))),
+                    None => {
+                        // Record failed login (missing TOTP)
+                        record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "FAILED", Some("TOTP token missing")).await;
+                        return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("需要提供两步验证码".to_string()))));
+                    }
                 };
                 
                 let totp_service = TotpService::new(state.db.clone());
                 match totp_service.verify_login_totp(user.id, totp_token).await {
                     Ok(true) => {}, // 验证通过
-                    _ => return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("两步验证码错误".to_string())))),
+                    _ => {
+                        record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "FAILED", Some("TOTP verification failed")).await;
+                        return Err((StatusCode::UNAUTHORIZED, Json(ApiResponse::error("两步验证码错误".to_string()))));
+                    }
                 }
             }
+
+            // Record successful login
+            record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "SUCCESS", None).await;
 
             let mut permissions = vec![];
             if let Some(role_id) = user.role_id {
@@ -141,7 +190,7 @@ pub async fn login(
                         Json(ApiResponse::error("Internal server error".to_string())),
                     )
                 })?;
-            let session_id = claims.session_id;
+            let session_id = claims.session_id.clone();
             let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
 
             // 生成 refresh_token (简单的随机字符串)
@@ -149,7 +198,7 @@ pub async fn login(
 
             let response = LoginResponse {
                 token: token.clone(),
-                refresh_token,
+                refresh_token: refresh_token.clone(),
                 csrf_token,
                 user: user_info,
                 permissions,
@@ -163,9 +212,9 @@ pub async fn login(
             let cookie = Cookie::build(("jwt", token))
                 .path("/")
                 .http_only(true)
-                .secure(is_production) // 生产环境开启HTTPS，开发环境关闭
-                .same_site(SameSite::Lax) // 改为Lax以支持跨端口访问(3000->8082)
-                .max_age(time::Duration::hours(2)) // 2 hours
+                .secure(is_production)
+                .same_site(SameSite::Lax)
+                .max_age(time::Duration::hours(2))
                 .build();
 
             let jar = jar.add(cookie);
@@ -173,9 +222,42 @@ pub async fn login(
             Ok((jar, Json(ApiResponse::success(response))).into_response())
         }
         Err(e) => {
+            // Record failed login attempt
+            record_login_attempt(&state, &payload.username, 0, &client_ip, &user_agent, "FAILED", Some(&e.to_string())).await;
             let error_response = ApiResponse::<()>::error(e.to_string());
             Err((StatusCode::UNAUTHORIZED, Json(error_response)))
         }
+    }
+}
+
+/// Record login attempt to the login log table for security auditing
+async fn record_login_attempt(
+    state: &AppState,
+    username: &str,
+    user_id: i32,
+    ip_address: &str,
+    user_agent: &str,
+    status: &str,
+    fail_reason: Option<&str>,
+) {
+    use crate::models::log_login;
+    use sea_orm::ActiveModelTrait;
+
+    let active_log = log_login::ActiveModel {
+        user_id: sea_orm::Set(Some(user_id)),
+        username: sea_orm::Set(username.to_string()),
+        login_type: sea_orm::Set("password".to_string()),
+        ip_address: sea_orm::Set(ip_address.to_string()),
+        user_agent: sea_orm::Set(Some(user_agent.to_string())),
+        status: sea_orm::Set(status.to_string()),
+        fail_reason: sea_orm::Set(fail_reason.map(|s| s.to_string())),
+        login_time: sea_orm::Set(Utc::now()),
+        ..Default::default()
+    };
+
+    match active_log.insert(state.db.as_ref()).await {
+        Ok(_) => {},
+        Err(e) => tracing::error!("Failed to record login attempt: {}", e),
     }
 }
 
@@ -217,11 +299,14 @@ pub async fn logout(
         }
     }
 
+    let is_production = std::env::var("ENV")
+        .unwrap_or_else(|_| "development".to_string()) == "production";
+
     let removal_cookie = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
         .path("/")
         .http_only(true)
-        .secure(true)
-        .same_site(axum_extra::extract::cookie::SameSite::Strict)
+        .secure(is_production)
+        .same_site(SameSite::Lax)
         .max_age(time::Duration::ZERO)
         .build();
         
@@ -284,8 +369,25 @@ pub async fn refresh_token(
             )
         })?;
 
-    // 生成新的 CSRF Token
-    let session_id = format!("jwt:{}", &new_token[..new_token.len().min(32)]);
+    // Blacklist the old token after successful refresh
+    let now_ts = chrono::Utc::now().timestamp() as usize;
+    let exp = claims.exp.timestamp() as usize;
+    if exp > now_ts {
+        let ttl = std::time::Duration::from_secs((exp - now_ts) as u64);
+        state.cache.get_token_blacklist().set(token.to_string(), true, Some(ttl));
+        tracing::info!("Old token blacklisted after refresh for user {}", claims.username);
+    }
+
+    // 生成新的 CSRF Token (use same session_id derivation as login)
+    let new_claims = AuthService::validate_token_static(&new_token, &state.jwt_secret)
+        .map_err(|e| {
+            tracing::error!("Failed to decode new JWT token: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error("Internal server error".to_string())),
+            )
+        })?;
+    let session_id = new_claims.session_id;
     let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
 
     Ok(Json(ApiResponse::success(RefreshTokenResponse {

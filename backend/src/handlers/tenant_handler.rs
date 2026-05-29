@@ -80,13 +80,13 @@ pub async fn list_tenants(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    let (tenants, _total) = service
+    let (tenants, total) = service
         .list_tenants(page, page_size)
         .await
         .map_err(|e| AppError::InternalError(format!("获取租户列表失败: {}", e)))?;
 
     let responses: Vec<TenantResponse> = tenants.into_iter().map(TenantResponse::from).collect();
-    Ok(Json(ApiResponse::success(responses)))
+    Ok(Json(ApiResponse::success_paginated(responses, total, page, page_size)))
 }
 
 /// 获取单个租户

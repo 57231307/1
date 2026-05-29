@@ -495,7 +495,12 @@ impl InventoryTransferService {
 
                 // 扣减库存（带乐观锁）
                 let new_quantity_meters = quantity_meters - item.quantity;
-                let new_quantity_kg = quantity_kg;
+                // Calculate kg reduction proportionally
+                let new_quantity_kg = if quantity_meters > rust_decimal::Decimal::ZERO {
+                    quantity_kg - (quantity_kg * item.quantity / quantity_meters)
+                } else {
+                    quantity_kg
+                };
 
                 // 使用乐观锁条件更新：只有 version 匹配时才更新
                 let update_result = inventory_stock::Entity::update_many()
@@ -512,6 +517,10 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
                         sea_orm::sea_query::Expr::val(new_quantity_meters).into(),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::QuantityKg,
+                        sea_orm::sea_query::Expr::val(new_quantity_kg).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
@@ -649,7 +658,22 @@ impl InventoryTransferService {
 
                 // 增加库存（带乐观锁）
                 let new_quantity_meters = quantity_meters + item.quantity;
-                let new_quantity_kg = quantity_kg;
+                // Calculate kg increase proportionally based on source stock
+                let source_stock = InventoryStockEntity::find()
+                    .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
+                    .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+                    .one(&txn)
+                    .await?;
+                let source_kg_per_meter = if let Some(ref src) = source_stock {
+                    if src.quantity_meters > rust_decimal::Decimal::ZERO {
+                        src.quantity_kg / src.quantity_meters
+                    } else {
+                        rust_decimal::Decimal::ZERO
+                    }
+                } else {
+                    rust_decimal::Decimal::ZERO
+                };
+                let new_quantity_kg = quantity_kg + (item.quantity * source_kg_per_meter);
 
                 // 使用乐观锁条件更新：只有 version 匹配时才更新
                 let update_result = inventory_stock::Entity::update_many()
@@ -666,6 +690,10 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
                         sea_orm::sea_query::Expr::val(new_quantity_meters).into(),
+                    )
+                    .col_expr(
+                        inventory_stock::Column::QuantityKg,
+                        sea_orm::sea_query::Expr::val(new_quantity_kg).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,

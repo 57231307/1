@@ -93,6 +93,15 @@ impl UserService {
         role_id: Option<i32>,
         department_id: Option<i32>,
     ) -> Result<user::Model, AppError> {
+        // 检查用户名是否已存在
+        let existing = user::Entity::find()
+            .filter(user::Column::Username.eq(&username))
+            .one(self.db.as_ref())
+            .await?;
+        if existing.is_some() {
+            return Err(AppError::BusinessError(format!("用户名 '{}' 已存在", username)));
+        }
+
         let active_user = user::ActiveModel {
             id: Set(0),
             username: Set(username),

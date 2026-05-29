@@ -20,7 +20,7 @@ pub struct CreateCustomerRequest {
     #[validate(length(min = 1, max = 50, message = "客户编码长度必须在1到50个字符之间"))]
     pub customer_code: Option<String>,
     #[validate(length(min = 1, max = 200, message = "客户名称长度必须在1到200个字符之间"))]
-    pub customer_name: Option<String>,
+    pub customer_name: String,
     #[validate(length(max = 100, message = "联系人名称长度不能超过100个字符"))]
     pub contact_person: Option<String>,
     #[validate(length(max = 20, message = "联系电话长度不能超过20个字符"))]
@@ -43,9 +43,20 @@ pub struct CreateCustomerRequest {
     pub bank_name: Option<String>,
     #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
+    #[validate(custom = "validate_customer_type")]
     pub customer_type: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
+}
+
+/// 验证客户类型
+fn validate_customer_type(customer_type: &str) -> Result<(), validator::ValidationError> {
+    let valid_types = ["retail", "wholesale", "distributor", "manufacturer", "other"];
+    if valid_types.contains(&customer_type) {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new("invalid_customer_type"))
+    }
 }
 
 /// 更新客户请求
@@ -75,6 +86,7 @@ pub struct UpdateCustomerRequest {
     pub bank_name: Option<String>,
     #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
+    #[validate(custom = "validate_customer_type")]
     pub customer_type: Option<String>,
     pub status: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
@@ -237,7 +249,7 @@ pub async fn create_customer(
     let customer = customer_service
         .create_customer(
             customer_code,
-            payload.customer_name.unwrap_or_else(|| format!("客户_{}", chrono::Utc::now().timestamp())),
+            payload.customer_name,
             payload.contact_person,
             payload.contact_phone,
             payload.contact_email,

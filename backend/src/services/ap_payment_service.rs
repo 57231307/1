@@ -241,7 +241,7 @@ impl ApPaymentService {
         txn.commit().await?;
 
         // 6. 预算核销（非阻断）
-        // 尝试通过付款申请找到关联的应付单，进而找到采购订单的部门信息
+        // 通过付款申请找到关联的应付单，再通过应付单的来源找到采购入库单的部门信息
         if let Some(request_id) = payment.request_id {
             // 查询付款申请
             if let Ok(Some(_request)) = ap_payment_request::Entity::find_by_id(request_id)
@@ -254,15 +254,29 @@ impl ApPaymentService {
                     .all(&*self.db)
                     .await
                 {
-                    // 获取第一个应付单的部门信息（简化处理）
+                    // 获取第一个应付单的部门信息
                     if let Some(first_item) = items.first() {
-                        if let Ok(Some(_invoice)) = ap_invoice::Entity::find_by_id(first_item.invoice_id)
+                        if let Ok(Some(invoice)) = ap_invoice::Entity::find_by_id(first_item.invoice_id)
                             .one(&*self.db)
                             .await
                         {
-                            // 尝试从应付单的 source_id 找到采购入库单，再找部门
-                            // 简化处理：使用供应商关联的默认部门或部门ID=1
-                            let department_id = 1; // 默认部门
+                            // 从应付单的 source_type 和 source_id 找到采购入库单的部门
+                            let department_id = if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
+                                if let Some(receipt_id) = invoice.source_id {
+                                    if let Ok(Some(receipt)) = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
+                                        .one(&*self.db)
+                                        .await
+                                    {
+                                        receipt.department_id.unwrap_or(1)
+                                    } else {
+                                        1
+                                    }
+                                } else {
+                                    1
+                                }
+                            } else {
+                                1
+                            };
 
                             // 查找预算方案
                             let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());

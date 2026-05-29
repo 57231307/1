@@ -152,12 +152,14 @@ impl FixedAssetService {
     pub async fn calculate_monthly_depreciation(&self, asset_id: i32) -> Result<Decimal, AppError> {
         let asset = self.get_by_id(asset_id).await?;
 
+        let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+
         let monthly_depreciation = match asset.depreciation_method.as_deref() {
             Some("straight_line") | None => {
-                // 平均年限法
+                // 平均年限法：(原值 - 残值) / (使用年限 * 12)
                 let useful_life_months = asset.useful_life.unwrap_or(0) as u32 * 12;
                 if useful_life_months > 0 {
-                    asset.original_value / Decimal::from(useful_life_months)
+                    (asset.original_value - residual_value) / Decimal::from(useful_life_months)
                 } else {
                     Decimal::ZERO
                 }
@@ -209,14 +211,17 @@ impl FixedAssetService {
         // 保留需要使用的字段值，避免 moved value 错误
         let accumulated_depreciation = asset.accumulated_depreciation;
         let original_value = asset.original_value;
+        let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+
+        // 计算新的累计折旧
+        let new_accumulated = accumulated_depreciation + monthly_depreciation;
+        // 净值 = 原值 - 累计折旧，不能低于残值
+        let new_net_value = (original_value - new_accumulated).max(residual_value);
 
         // 更新资产累计折旧
         let mut asset_active: crate::models::fixed_asset::ActiveModel = asset.into();
-        asset_active.accumulated_depreciation =
-            Set(accumulated_depreciation + monthly_depreciation);
-        asset_active.net_value = Set(Some(
-            original_value - accumulated_depreciation - monthly_depreciation,
-        ));
+        asset_active.accumulated_depreciation = Set(new_accumulated);
+        asset_active.net_value = Set(Some(new_net_value));
         asset_active.save(&txn).await?;
 
         // 提交事务
@@ -358,9 +363,13 @@ impl FixedAssetService {
         use chrono::Datelike;
         
         let purchase_date = asset.purchase_date.unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date"));
-        let useful_life = asset.useful_life.unwrap_or(0);
+        let useful_life_years = asset.useful_life.unwrap_or(0);
         let original_value = asset.original_value;
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+        
+        if useful_life_years <= 0 {
+            return Ok(rust_decimal::Decimal::ZERO);
+        }
         
         // 计算已使用月数
         let months_used = (calc_date.year() - purchase_date.year()) * 12 
@@ -370,13 +379,18 @@ impl FixedAssetService {
             return Ok(rust_decimal::Decimal::ZERO);
         }
         
-        // 直线法折旧
+        // 直线法折旧：(原值 - 残值) / (使用年限 * 12)
+        let useful_life_months = useful_life_years * 12;
         let depreciable_amount = original_value - residual_value;
-        let monthly_depreciation = depreciable_amount / rust_decimal::Decimal::from(useful_life);
+        let monthly_depreciation = depreciable_amount / rust_decimal::Decimal::from(useful_life_months);
         
-        let total_depreciation = monthly_depreciation * rust_decimal::Decimal::from(months_used.min(useful_life));
+        // 总应计折旧 = 月折旧额 * min(已用月数, 总月数)
+        let applicable_months = months_used.min(useful_life_months);
+        let total_depreciation = monthly_depreciation * rust_decimal::Decimal::from(applicable_months);
         
-        Ok(total_depreciation - asset.accumulated_depreciation)
+        // 本次应计提 = 总应计折旧 - 已计提折旧
+        let current_depreciation = total_depreciation - asset.accumulated_depreciation;
+        Ok(current_depreciation.max(rust_decimal::Decimal::ZERO))
     }
 }
 

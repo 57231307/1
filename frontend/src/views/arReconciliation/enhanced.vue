@@ -7,7 +7,7 @@ import {
   autoReconcile,
   getAutoReconciliationResults,
   getAgingAnalysis,
-  getReconciliationDetails,
+  getReconciliationDetailItems,
   sendCustomerConfirmation,
   getCustomerConfirmations,
   createDispute,
@@ -236,7 +236,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const handleViewDetail = async (row: AutoReconciliationResult) => {
   try {
-    const res: any = await getReconciliationDetails(row.id)
+    const res: any = await getReconciliationDetailItems(row.id)
     detailData.value = res.data || []
     currentReconciliation.value = row
     detailDialogVisible.value = true

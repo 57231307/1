@@ -274,6 +274,17 @@ impl ArReconciliationService {
 
     /// 删除对账单
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+        let model = ReconciliationEntity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+
+        // 只有草稿状态的对账单可以删除
+        if model.reconciliation_status.as_deref() != Some("draft") {
+            return Err(AppError::BusinessError("只有草稿状态的对账单可以删除".to_string()));
+        }
+
         ReconciliationEntity::delete_by_id(id)
             .exec(&*self.db)
             .await

@@ -184,16 +184,32 @@ pub async fn create_stock(
     })))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateStockWithVersionRequest {
+    pub quantity_on_hand: Option<Decimal>,
+    pub quantity_available: Option<Decimal>,
+    pub quantity_reserved: Option<Decimal>,
+    pub reorder_point: Option<Decimal>,
+    pub reorder_quantity: Option<Decimal>,
+    pub bin_location: Option<String>,
+    pub version: i32,
+}
+
 pub async fn update_stock(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-    Json(payload): Json<UpdateStockRequest>,
+    Json(payload): Json<UpdateStockWithVersionRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
     let stock = service.find_by_id(id).await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
+
+    // Optimistic lock check
+    if stock.version != payload.version {
+        return Err(AppError::BusinessError("库存记录已被其他用户修改，请刷新后重试".to_string()));
+    }
 
     use sea_orm::{ActiveModelTrait, Set};
     let mut active_model: crate::models::inventory_stock::ActiveModel = stock.into();
@@ -216,6 +232,7 @@ pub async fn update_stock(
     if let Some(bl) = payload.bin_location {
         active_model.bin_location = Set(Some(bl));
     }
+    active_model.version = Set(payload.version + 1);
     active_model.updated_at = Set(Utc::now());
 
     let updated = active_model.update(&*state.db).await
@@ -245,10 +262,7 @@ pub async fn delete_stock(
     service.find_by_id(id).await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
-    use sea_orm::EntityTrait;
-    crate::models::inventory_stock::Entity::delete_by_id(id)
-        .exec(&*state.db)
-        .await
+    service.delete_stock(id).await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
