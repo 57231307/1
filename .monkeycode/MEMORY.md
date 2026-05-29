@@ -73,6 +73,16 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - 不要自己直接写代码，而是分配给员工执行
   - 员工完成后，我需要总结他们的工作成果，然后推送到PR
 
+[部署限制]
+- Date: 2026-05-29
+- Context: 用户明确要求禁止使用Docker容器部署
+- Category: 运维部署
+- Instructions:
+  - 项目禁止使用Docker容器部署
+  - 不得创建Dockerfile、docker-compose.yml等Docker相关文件
+  - 部署方式为：CICD构建 → GitHub Release → 手动部署到生产服务器
+  - 使用systemd管理服务，不使用容器化部署
+
 [2026年最新编程工作流]
 - Date: 2026-05-28
 - Context: 用户要求搜索最新的编程工作流，用于真实交付编程项目
