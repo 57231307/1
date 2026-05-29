@@ -389,7 +389,8 @@ pub async fn complete_dye_batch(
         sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
         _ => "待生产",
     };
-    let current = DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+    let current =
+        DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
 
     if !current.can_transition_to(&DyeBatchStatus::Completed) {
         return (
