@@ -2,6 +2,7 @@
 use sea_orm::*;
 use serde_json::Value;
 use std::sync::Arc;
+use crate::utils::error::AppError;
 use crate::models::audit_log;
 use chrono::Utc;
 use serde::Serialize;
@@ -24,7 +25,7 @@ impl AuditLogService {
         _old_data: Option<Value>,
         _new_data: Option<Value>,
         user_id: Option<i32>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
@@ -45,7 +46,7 @@ impl AuditLogService {
         resource_type: &str,
         active_model: A,
         user_id: Option<i32>,
-    ) -> Result<<E as EntityTrait>::Model, DbErr>
+    ) -> Result<<E as EntityTrait>::Model, AppError>
     where
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E> + sea_orm::ActiveModelBehavior + Send + Sync,
@@ -55,7 +56,7 @@ impl AuditLogService {
         // 获取主键
         let pk_col = E::PrimaryKey::iter()
             .next()
-            .ok_or_else(|| DbErr::Custom("Entity has no primary key".to_string()))?
+            .ok_or_else(|| AppError::BusinessError("Entity has no primary key".to_string()))?
             .into_column();
         
         let pk_val = active_model.get(pk_col);

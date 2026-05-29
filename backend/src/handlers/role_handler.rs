@@ -318,7 +318,9 @@ pub async fn get_role_permissions(
 }
 
 /// 获取所有权限列表（用于前端权限选择器）
-pub async fn list_permissions() -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
+pub async fn list_permissions(
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
     // 返回预定义的权限列表
     let permissions = vec![
         PermissionResponse { id: 1, resource_type: "sales_order".to_string(), resource_id: None, action: "view".to_string(), allowed: true },

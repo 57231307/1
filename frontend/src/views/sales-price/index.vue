@@ -163,7 +163,12 @@
           <el-col :span="12">
             <el-form-item label="产品" prop="product_id">
               <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
-                <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+                <el-option
+                  v-for="p in products"
+                  :key="p.id"
+                  :label="p.product_name"
+                  :value="p.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -175,7 +180,12 @@
                 filterable
                 clearable
               >
-                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
+                <el-option
+                  v-for="c in customers"
+                  :key="c.id"
+                  :label="c.customer_name"
+                  :value="c.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -300,7 +310,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Setting, Search, Refresh } from '@element-plus/icons-vue'
-import { listSalesPrices, createSalesPrice, updateSalesPrice, approveSalesPrice, getPriceHistory } from '@/api/sales-price'
+import {
+  listSalesPrices,
+  createSalesPrice,
+  updateSalesPrice,
+  approveSalesPrice,
+  getPriceHistory,
+} from '@/api/sales-price'
 import type { SalesPrice } from '@/api/sales-price'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/customer'

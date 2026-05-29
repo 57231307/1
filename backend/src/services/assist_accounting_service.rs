@@ -10,6 +10,7 @@ use tracing::info;
 use crate::models::{
     assist_accounting_dimension, assist_accounting_record, assist_accounting_summary,
 };
+use crate::utils::error::AppError;
 
 /// 辅助核算服务
 #[derive(Debug, Clone)]
@@ -24,7 +25,7 @@ impl AssistAccountingService {
 
     /// 初始化 8 个辅助核算维度
     #[allow(dead_code)]
-    pub async fn initialize_dimensions(&self) -> Result<(), sea_orm::DbErr> {
+    pub async fn initialize_dimensions(&self) -> Result<(), AppError> {
         let dimensions = [("BATCH", "批次核算", "按生产批次进行辅助核算"),
             ("COLOR", "色号核算", "按产品色号进行辅助核算"),
             ("DYE_LOT", "缸号核算", "按染色缸次进行辅助核算"),
@@ -85,7 +86,7 @@ impl AssistAccountingService {
         supplier_id: Option<i32>,
         remarks: Option<String>,
         created_by: Option<i32>,
-    ) -> Result<assist_accounting_record::Model, sea_orm::DbErr> {
+    ) -> Result<assist_accounting_record::Model, AppError> {
         let active_record = assist_accounting_record::ActiveModel {
             id: Set(0),
             business_type: Set(business_type),
@@ -111,7 +112,7 @@ impl AssistAccountingService {
             created_by: Set(created_by),
         };
 
-        active_record.insert(&*self.db).await
+        active_record.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 按业务类型和业务单号查询辅助核算记录
@@ -119,25 +120,27 @@ impl AssistAccountingService {
         &self,
         business_type: &str,
         business_no: &str,
-    ) -> Result<Vec<assist_accounting_record::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<assist_accounting_record::Model>, AppError> {
         assist_accounting_record::Entity::find()
             .filter(assist_accounting_record::Column::BusinessType.eq(business_type))
             .filter(assist_accounting_record::Column::BusinessNo.eq(business_no))
             .order_by(assist_accounting_record::Column::CreatedAt, Order::Asc)
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 按五维 ID 查询辅助核算记录
     pub async fn find_by_five_dimension(
         &self,
         five_dimension_id: &str,
-    ) -> Result<Vec<assist_accounting_record::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<assist_accounting_record::Model>, AppError> {
         assist_accounting_record::Entity::find()
             .filter(assist_accounting_record::Column::FiveDimensionId.eq(five_dimension_id))
             .order_by(assist_accounting_record::Column::CreatedAt, Order::Desc)
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 按会计期间和维度查询汇总
@@ -145,12 +148,13 @@ impl AssistAccountingService {
         &self,
         accounting_period: &str,
         dimension_code: &str,
-    ) -> Result<Vec<assist_accounting_summary::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<assist_accounting_summary::Model>, AppError> {
         assist_accounting_summary::Entity::find()
             .filter(assist_accounting_summary::Column::AccountingPeriod.eq(accounting_period))
             .filter(assist_accounting_summary::Column::DimensionCode.eq(dimension_code))
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 生成会计期间汇总（按月）
@@ -159,20 +163,20 @@ impl AssistAccountingService {
         &self,
         year: i32,
         month: u32,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         use sea_orm::ColumnTrait;
 
         let accounting_period = format!("{:04}-{:02}", year, month);
         info!("正在生成 {} 的辅助核算月度汇总", accounting_period);
 
         let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| sea_orm::DbErr::Custom("无效的日期".to_string()))?;
+            .ok_or_else(|| AppError::BusinessError("无效的日期".to_string()))?;
         let end_date = if month == 12 {
             chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
             chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
         }
-        .ok_or_else(|| sea_orm::DbErr::Custom("无效的日期".to_string()))
+        .ok_or_else(|| AppError::BusinessError("无效的日期".to_string()))
         .map(|d| d - chrono::Duration::days(1));
 
         if let Ok(end_date) = end_date {
@@ -305,7 +309,7 @@ impl AssistAccountingService {
         warehouse_id: Option<i32>,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<assist_accounting_record::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<assist_accounting_record::Model>, u64), AppError> {
         use sea_orm::ColumnTrait;
 
         let mut query = assist_accounting_record::Entity::find();
@@ -385,7 +389,7 @@ impl AssistAccountingService {
 
     /// 删除辅助核算记录（通常用于冲销）
     #[allow(dead_code)]
-    pub async fn delete_assist_record(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_assist_record(&self, id: i32) -> Result<(), AppError> {
         assist_accounting_record::Entity::delete_many()
             .filter(assist_accounting_record::Column::Id.eq(id))
             .exec(&*self.db)
@@ -396,24 +400,25 @@ impl AssistAccountingService {
     /// 查询所有启用的辅助核算维度
     pub async fn list_dimensions(
         &self,
-    ) -> Result<Vec<assist_accounting_dimension::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<assist_accounting_dimension::Model>, AppError> {
         assist_accounting_dimension::Entity::find()
             .filter(assist_accounting_dimension::Column::IsActive.eq(true))
             .order_by(assist_accounting_dimension::Column::SortOrder, Order::Asc)
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 }
 
-fn parse_period(period: &str) -> Result<(i32, u32), String> {
+fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
     let parts: Vec<&str> = period.split('-').collect();
     if parts.len() != 2 {
-        return Err("期间格式错误，应为 YYYY-MM".to_string());
+        return Err(AppError::ValidationError("期间格式错误，应为 YYYY-MM".to_string()));
     }
-    let year: i32 = parts[0].parse().map_err(|_| "年份解析错误")?;
-    let month: u32 = parts[1].parse().map_err(|_| "月份解析错误")?;
+    let year: i32 = parts[0].parse().map_err(|_| AppError::ValidationError("年份解析错误".to_string()))?;
+    let month: u32 = parts[1].parse().map_err(|_| AppError::ValidationError("月份解析错误".to_string()))?;
     if !(1..=12).contains(&month) {
-        return Err("月份必须在1-12之间".to_string());
+        return Err(AppError::ValidationError("月份必须在1-12之间".to_string()));
     }
     Ok((year, month))
 }

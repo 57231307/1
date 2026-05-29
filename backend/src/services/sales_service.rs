@@ -10,6 +10,7 @@ use crate::models::inventory_reservation::{self, Entity as InventoryReservationE
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::sales_order::{self, Entity as SalesOrderEntity};
 use crate::models::sales_order_item::{self, Entity as SalesOrderItemEntity};
+use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use crate::models::ar_invoice::{self, Entity as ArInvoiceEntity, Column as ArInvoiceColumn};
@@ -203,7 +204,7 @@ impl SalesService {
         status: Option<String>,
         customer_id: Option<i32>,
         order_no: Option<String>,
-    ) -> Result<PaginatedResponse<SalesOrderDetail>, sea_orm::DbErr> {
+    ) -> Result<PaginatedResponse<SalesOrderDetail>, AppError> {
         let mut query = SalesOrderEntity::find()
             .column_as(crate::models::customer::Column::CustomerName, "customer_name")
             .join(JoinType::LeftJoin, sales_order::Relation::Customer.def());
@@ -246,7 +247,7 @@ impl SalesService {
     pub async fn get_order_detail(
         &self,
         order_id: i32,
-    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    ) -> Result<SalesOrderDetail, AppError> {
         // 获取订单主表数据
         let mut order = SalesOrderEntity::find_by_id(order_id)
             .column_as(crate::models::customer::Column::CustomerName, "customer_name")
@@ -255,7 +256,7 @@ impl SalesService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 获取订单明细项
@@ -279,14 +280,14 @@ impl SalesService {
         &self,
         request: CreateSalesOrderRequest,
         user_id: i32,
-    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    ) -> Result<SalesOrderDetail, AppError> {
         let txn = (*self.db).begin().await?;
 
         // 业务逻辑验证：检查客户是否存在
         let customer = crate::models::customer::Entity::find_by_id(request.customer_id)
             .one(&txn)
             .await?
-            .ok_or(sea_orm::DbErr::Custom(format!("客户 {} 不存在", request.customer_id)))?;
+            .ok_or(AppError::BusinessError(format!("客户 {} 不存在", request.customer_id)))?;
             
         // 业务逻辑验证：日期合理性检查
         let required_date = request.required_date.unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
@@ -295,7 +296,7 @@ impl SalesService {
             if let Err(e) = txn.rollback().await {
                 tracing::error!("事务回滚失败: {}", e);
             }
-            return Err(sea_orm::DbErr::Custom("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
+            return Err(AppError::BusinessError("创建面料订单失败: 交付日期不能早于当前时间".to_string()));
         }
             
         let _credit_limit = customer.credit_limit;
@@ -349,12 +350,12 @@ impl SalesService {
         let credit_available = credit_service
             .check_credit_available(request.customer_id, order_amount_bigdecimal.clone())
             .await
-            .map_err(|e| sea_orm::DbErr::Custom(format!("信用检查失败: {}", e)))?;
+            .map_err(|e| AppError::BusinessError(format!("信用检查失败: {}", e)))?;
         
         if !credit_available {
             tracing::error!("Transaction rolled back: 信用额度不足");
             txn.rollback().await?;
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "信用额度不足：订单金额 {} 超出可用信用额度",
                 order_amount
             )));
@@ -372,7 +373,7 @@ impl SalesService {
         if existing_order.is_some() {
             tracing::error!("Transaction rolled back: 订单号 {} 已存在", order_no);
             txn.rollback().await?;
-            return Err(sea_orm::DbErr::Custom("订单号已存在，请重试".to_string()));
+            return Err(AppError::BusinessError("订单号已存在，请重试".to_string()));
         }
 
         // 创建订单主表
@@ -432,7 +433,7 @@ impl SalesService {
                         if let Err(e) = txn.rollback().await {
                             tracing::error!("事务回滚失败: {}", e);
                         }
-                        return Err(sea_orm::DbErr::Custom(format!("产品 ID {} 不存在", product_id)));
+                        return Err(AppError::BusinessError(format!("产品 ID {} 不存在", product_id)));
                     }
                 }
             }
@@ -533,7 +534,7 @@ impl SalesService {
         credit_service.occupy_credit(request.customer_id, order_amount_bigdecimal.clone(), user_id).await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);
-                sea_orm::DbErr::Custom(format!("信用额度占用失败: {}", e))
+                AppError::BusinessError(format!("信用额度占用失败: {}", e))
             })?;
         tracing::info!("客户 {} 信用额度占用成功，金额: {}", request.customer_id, order_amount);
         // 检查信用预警
@@ -548,7 +549,7 @@ impl SalesService {
             let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| sea_orm::DbErr::Custom(format!("商机 {} 不存在", opportunity_id)))?;
+                .ok_or_else(|| AppError::BusinessError(format!("商机 {} 不存在", opportunity_id)))?;
 
             let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
             opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
@@ -574,18 +575,18 @@ impl SalesService {
         &self,
         order_id: i32,
         request: UpdateSalesOrderRequest,
-    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    ) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 检查订单状态，已发货或已完成的订单不允许修改
         if order.status == "shipped" || order.status == "completed" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，不允许修改",
                 order.status
             )));
@@ -704,7 +705,7 @@ impl SalesService {
             let order_entity = SalesOrderEntity::find_by_id(order_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| sea_orm::DbErr::Custom("销售订单不存在".to_string()))?;
+                .ok_or_else(|| AppError::BusinessError("销售订单不存在".to_string()))?;
             let mut order_update: sales_order::ActiveModel = order_entity.into();
             order_update.subtotal = sea_orm::ActiveValue::Set(subtotal);
             order_update.tax_amount = sea_orm::ActiveValue::Set(tax_amount);
@@ -723,18 +724,18 @@ impl SalesService {
     }
 
     /// 删除销售订单
-    pub async fn delete_order(&self, order_id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_order(&self, order_id: i32) -> Result<(), AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 检查订单状态，已发货或已完成的订单不允许删除
         if order.status == "shipped" || order.status == "completed" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，不允许删除",
                 order.status
             )));
@@ -759,7 +760,7 @@ impl SalesService {
     }
 
     /// 生成订单号
-    async fn generate_order_no(&self) -> Result<String, sea_orm::DbErr> {
+    async fn generate_order_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
             &*self.db,
             "SO",
@@ -767,7 +768,7 @@ impl SalesService {
             sales_order::Column::OrderNo,
         )
         .await
-        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))
+        .map_err(|e| AppError::BusinessError(e.to_string()))
     }
 
     /// 检查库存是否充足
@@ -775,7 +776,7 @@ impl SalesService {
         &self,
         items: &[SalesOrderItemRequest],
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         for item in items {
             // 查询产品库存（假设使用默认仓库，实际应从产品配置获取）
             let stock = InventoryStockEntity::find()
@@ -789,13 +790,13 @@ impl SalesService {
                     continue;
                 }
                 Some(s) => {
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 库存不足，当前库存：{}，需要：{}",
                         item.product_id, s.quantity_available, item.quantity
                     )));
                 }
                 None => {
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 没有库存记录",
                         item.product_id
                     )));
@@ -812,7 +813,7 @@ impl SalesService {
         items: &[SalesOrderItemRequest],
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         // 为每个订单明细项创建库存预留记录
         for item in items {
             // 检查是否已经存在该订单产品的预留记录
@@ -837,7 +838,7 @@ impl SalesService {
 
             if let Some(s) = stock {
                 if s.quantity_available < item.quantity {
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 库存不足，无法锁定",
                         item.product_id
                     )));
@@ -860,7 +861,7 @@ impl SalesService {
                 };
                 reservation.insert(txn).await?;
             } else {
-                return Err(sea_orm::DbErr::Custom(format!(
+                return Err(AppError::BusinessError(format!(
                     "产品 {} 没有库存记录，无法锁定",
                     item.product_id
                 )));
@@ -875,7 +876,7 @@ impl SalesService {
         order_id: i32,
         ship_items: &Vec<ShipOrderItemRequest>,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         for item in ship_items {
             // 查询库存记录
             use sea_orm::QuerySelect;
@@ -890,7 +891,7 @@ impl SalesService {
             if let Some(s) = stock {
                 // 检查库存是否充足
                 if s.quantity_on_hand < item.quantity {
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 在仓库 {} (批次 {}) 库存不足，当前可用 {}，需要 {}",
                         item.product_id, item.warehouse_id, item.batch_no, s.quantity_on_hand, item.quantity
                     )));
@@ -924,7 +925,7 @@ impl SalesService {
                     crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", res_update, Some(0)).await?;
                 }
             } else {
-                return Err(sea_orm::DbErr::Custom(format!(
+                return Err(AppError::BusinessError(format!(
                     "产品 {} 在仓库 {} (批次 {}) 没有库存记录，无法扣减",
                     item.product_id, item.warehouse_id, item.batch_no
                 )));
@@ -949,18 +950,18 @@ impl SalesService {
         &self,
         order_id: i32,
         user_id: i32,
-    ) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    ) -> Result<SalesOrderDetail, AppError> {
         // 1. 查询订单
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 2. 检查状态
         if order.status != "draft" && order.status != "rejected" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，只有草稿或被驳回状态的订单可以提交",
                 order.status
             )));
@@ -1005,18 +1006,18 @@ impl SalesService {
     }
 
     /// 审核销售订单
-    pub async fn approve_order(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn approve_order(&self, order_id: i32) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 检查订单状态，草稿或待审批状态可以审核
         if order.status != "draft" && order.status != "pending_approval" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，只有草稿或待审批状态的订单可以审核",
                 order.status
             )));
@@ -1078,18 +1079,18 @@ impl SalesService {
     }
 
     /// 发货处理
-    pub async fn ship_order(&self, order_id: i32, req: ShipOrderRequest) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn ship_order(&self, order_id: i32, req: ShipOrderRequest) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 检查订单状态，只有已审核状态可以发货
         if order.status != "approved" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，只有已审核状态的订单可以发货",
                 order.status
             )));
@@ -1118,13 +1119,13 @@ impl SalesService {
             "AR",
             ArInvoiceEntity,
             ArInvoiceColumn::InvoiceNo,
-        ).await.map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
+        ).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
         
         // 查询客户信息
         let customer = customer::Entity::find_by_id(order.customer_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::Custom(format!("客户 {} 不存在", order.customer_id)))?;
+            .ok_or_else(|| AppError::BusinessError(format!("客户 {} 不存在", order.customer_id)))?;
         
         let invoice_date = chrono::Utc::now().date_naive();
         let due_date = invoice_date + chrono::Duration::days(30);
@@ -1157,18 +1158,18 @@ impl SalesService {
     }
 
     /// 完成订单
-    pub async fn complete_order(&self, order_id: i32) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn complete_order(&self, order_id: i32) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id))
+                AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
         // 检查订单状态，只有已发货状态可以完成
         if order.status != "shipped" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，只有已发货状态的订单可以完成",
                 order.status
             )));
@@ -1219,16 +1220,16 @@ impl SalesService {
     }
 
     /// 拒绝销售订单
-    pub async fn reject_order(&self, order_id: i32, reason: String) -> Result<SalesOrderDetail, sea_orm::DbErr> {
+    pub async fn reject_order(&self, order_id: i32, reason: String) -> Result<SalesOrderDetail, AppError> {
         // 1. 查询订单
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 2. 检查状态
         if order.status != "draft" && order.status != "pending_approval" {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "订单状态为{}，只有草稿或待审批状态的订单可以拒绝",
                 order.status
             )));
@@ -1257,7 +1258,7 @@ impl SalesService {
         status: Option<String>,
         customer_id: Option<i32>,
         order_no: Option<String>,
-    ) -> Result<Vec<u8>, sea_orm::DbErr> {
+    ) -> Result<Vec<u8>, AppError> {
         let page_req = PageRequest {
             page: 1,
             page_size: 10000,
@@ -1355,6 +1356,6 @@ impl SalesService {
             .collect();
 
         crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| sea_orm::DbErr::Custom(format!("CSV 生成失败: {}", e)))
+            .map_err(|e| AppError::BusinessError(format!("CSV 生成失败: {}", e)))
     }
 }

@@ -7,6 +7,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::utils::error::AppError;
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
 use crate::utils::PaginatedResponse;
@@ -54,7 +55,7 @@ impl CustomerService {
         customer_type: String,
         notes: Option<String>,
         created_by: Option<i32>,
-    ) -> Result<customer::Model, sea_orm::DbErr> {
+    ) -> Result<customer::Model, AppError> {
         // 检查客户编码是否已存在
         let existing = CustomerEntity::find()
             .filter(customer::Column::CustomerCode.eq(&customer_code))
@@ -62,7 +63,7 @@ impl CustomerService {
             .await?;
 
         if existing.is_some() {
-            return Err(sea_orm::DbErr::Custom("客户编码已存在".to_string()));
+            return Err(AppError::BusinessError("客户编码已存在".to_string()));
         }
 
         let customer = customer::ActiveModel {
@@ -95,15 +96,15 @@ impl CustomerService {
             inspection_standard: sea_orm::ActiveValue::NotSet,
         };
 
-        customer.insert(&*self.db).await
+        customer.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 获取客户详情
-    pub async fn get_customer(&self, customer_id: i32) -> Result<customer::Model, sea_orm::DbErr> {
+    pub async fn get_customer(&self, customer_id: i32) -> Result<customer::Model, AppError> {
         CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id)))
     }
 
     /// 获取客户列表
@@ -113,7 +114,7 @@ impl CustomerService {
         status: Option<String>,
         customer_type: Option<String>,
         keyword: Option<String>,
-    ) -> Result<PaginatedResponse<customer::Model>, sea_orm::DbErr> {
+    ) -> Result<PaginatedResponse<customer::Model>, AppError> {
         let mut query = CustomerEntity::find();
 
         // 状态筛选
@@ -176,12 +177,12 @@ impl CustomerService {
         customer_type: Option<String>,
         status: Option<String>,
         notes: Option<String>,
-    ) -> Result<customer::Model, sea_orm::DbErr> {
+    ) -> Result<customer::Model, AppError> {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id))
+                AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id))
             })?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
@@ -237,26 +238,26 @@ impl CustomerService {
 
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        customer_update.update(&*self.db).await
+        customer_update.update(&*self.db).await.map_err(AppError::from)
     }
 
     /// 删除客户（软删除，将状态改为 inactive）
     pub async fn delete_customer(
         &self,
         customer_id: i32,
-    ) -> Result<customer::Model, sea_orm::DbErr> {
+    ) -> Result<customer::Model, AppError> {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("客户 {} 未找到", customer_id))
+                AppError::ResourceNotFound(format!("客户 {} 未找到", customer_id))
             })?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
         customer_update.status = sea_orm::ActiveValue::Set("inactive".to_string());
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        customer_update.update(&*self.db).await
+        customer_update.update(&*self.db).await.map_err(AppError::from)
     }
 
     /// 检查客户编码是否已存在
@@ -264,7 +265,7 @@ impl CustomerService {
         &self,
         customer_code: &str,
         exclude_id: Option<i32>,
-    ) -> Result<bool, sea_orm::DbErr> {
+    ) -> Result<bool, AppError> {
         let mut query =
             CustomerEntity::find().filter(customer::Column::CustomerCode.eq(customer_code));
 

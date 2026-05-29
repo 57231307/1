@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface Warehouse {
   id: number

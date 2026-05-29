@@ -346,6 +346,7 @@ pub async fn list_stock(
 
 pub async fn check_low_stock(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(params): Query<LowStockParams>,
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
@@ -413,6 +414,7 @@ pub struct LowStockParams {
 /// 按批次 + 色号查询库存（面料行业版）
 pub async fn list_stock_fabric(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(params): Query<ListStockFabricParams>,
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<StockFabricResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
@@ -454,6 +456,7 @@ pub async fn list_stock_fabric(
 /// 查询库存流水
 pub async fn list_transactions(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(params): Query<ListTransactionParams>,
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<TransactionResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
@@ -503,6 +506,7 @@ pub async fn list_transactions(
 /// 获取库存汇总（按批次 + 色号）
 pub async fn get_inventory_summary(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(params): Query<ListStockFabricParams>,
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<InventorySummaryItem>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
@@ -662,6 +666,7 @@ pub struct InventorySummaryResponse {
 /// - 如果同时提供了 `quantity_kg`，将使用自动计算的值（更精确）
 pub async fn create_stock_fabric(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockFabricResponse>>, AppError> {
     // 输入验证

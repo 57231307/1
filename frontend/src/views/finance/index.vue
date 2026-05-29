@@ -777,15 +777,22 @@ const handleExportVouchers = () => {
 
 const handlePrintVouchers = () => {
   const printWindow = window.open('', '_blank')
-  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
-  const rows = vouchers.value.map((item: any) => `
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = vouchers.value
+    .map(
+      (item: any) => `
     <tr>
       <td>${item.voucher_no}</td><td>${item.voucher_date}</td><td>${item.voucher_type}</td>
       <td style="text-align:right">${formatMoney(item.total_debit)}</td>
       <td style="text-align:right">${formatMoney(item.total_credit)}</td>
       <td>${getVoucherStatusLabel(item.status)}</td><td>${item.created_by_name || '-'}</td>
     </tr>
-  `).join('')
+  `
+    )
+    .join('')
   printWindow.document.write(`<html><head><meta charset="utf-8"><title>凭证列表</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
     <h1>凭证列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${vouchers.value.length} 条</div>

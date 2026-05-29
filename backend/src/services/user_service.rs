@@ -15,6 +15,7 @@
 #![allow(dead_code)]
 
 use crate::models::user;
+use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
@@ -44,12 +45,12 @@ impl UserService {
     /// # 返回
     /// - `Ok(user)`: 找到用户
     /// - `Err(DbErr::RecordNotFound)`: 用户不存在
-    pub async fn find_by_username(&self, username: &str) -> Result<user::Model, sea_orm::DbErr> {
+    pub async fn find_by_username(&self, username: &str) -> Result<user::Model, AppError> {
         user::Entity::find()
             .filter(user::Column::Username.eq(username))
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("用户 {} 不存在", username)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 {} 不存在", username)))
     }
 
     /// 按 ID 查找用户
@@ -60,11 +61,11 @@ impl UserService {
     /// # 返回
     /// - `Ok(user)`: 找到用户
     /// - `Err(DbErr::RecordNotFound)`: 用户不存在
-    pub async fn find_by_id(&self, id: i32) -> Result<user::Model, sea_orm::DbErr> {
+    pub async fn find_by_id(&self, id: i32) -> Result<user::Model, AppError> {
         user::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("用户 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", id)))
     }
 
     /// 创建新用户
@@ -91,7 +92,7 @@ impl UserService {
         phone: Option<String>,
         role_id: Option<i32>,
         department_id: Option<i32>,
-    ) -> Result<user::Model, sea_orm::DbErr> {
+    ) -> Result<user::Model, AppError> {
         let active_user = user::ActiveModel {
             id: Set(0),
             username: Set(username),
@@ -108,7 +109,7 @@ impl UserService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        active_user.insert(self.db.as_ref()).await
+        active_user.insert(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     /// 更新用户最后登录时间
@@ -119,11 +120,11 @@ impl UserService {
     /// # 返回
     /// - `Ok(())`: 更新成功
     /// - `Err(DbErr::RecordNotFound)`: 用户不存在
-    pub async fn update_last_login(&self, user_id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn update_last_login(&self, user_id: i32) -> Result<(), AppError> {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("用户 ID {} 不存在", user_id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", user_id)))?
             .into();
 
         user.last_login_at = Set(Some(chrono::Utc::now()));
@@ -144,7 +145,7 @@ impl UserService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<user::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<user::Model>, u64), AppError> {
         use sea_orm::PaginatorTrait;
 
         let paginator = user::Entity::find().paginate(self.db.as_ref(), page_size);
@@ -178,11 +179,11 @@ impl UserService {
         role_id: Option<i32>,
         department_id: Option<i32>,
         status: Option<String>,
-    ) -> Result<user::Model, sea_orm::DbErr> {
+    ) -> Result<user::Model, AppError> {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("用户 ID {} 不存在", user_id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", user_id)))?
             .into();
 
         // 只更新提供的字段
@@ -204,7 +205,7 @@ impl UserService {
         }
         user.updated_at = Set(chrono::Utc::now());
 
-        user.update(self.db.as_ref()).await
+        user.update(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     /// 删除用户（软删除）
@@ -221,11 +222,11 @@ impl UserService {
     ///
     /// # 注意
     /// 软删除后用户无法登录，但数据仍保留在数据库中
-    pub async fn delete_user(&self, user_id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_user(&self, user_id: i32) -> Result<(), AppError> {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("用户 ID {} 不存在", user_id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", user_id)))?
             .into();
 
         // 软删除：只设置为非激活状态

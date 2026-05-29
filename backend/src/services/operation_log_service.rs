@@ -1,6 +1,7 @@
 #![allow(dead_code)]
+use crate::utils::error::AppError;
 use crate::models::operation_log;
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, DbErr, Order, PaginatorTrait};
+use sea_orm::{EntityTrait, Set, ActiveModelTrait, Order, PaginatorTrait};
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use chrono::Utc;
@@ -36,7 +37,7 @@ impl OperationLogService {
     }
 
     /// 创建操作日志
-    pub async fn create_log(&self, request: CreateOperationLogRequest) -> Result<operation_log::Model, DbErr> {
+    pub async fn create_log(&self, request: CreateOperationLogRequest) -> Result<operation_log::Model, AppError> {
         let log = operation_log::ActiveModel {
             id: Set(0),
             user_id: Set(request.user_id),
@@ -55,7 +56,7 @@ impl OperationLogService {
             created_at: Set(Utc::now()),
         };
 
-        log.insert(&*self.db).await
+        log.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 记录成功操作
@@ -73,7 +74,7 @@ impl OperationLogService {
         user_agent: Option<String>,
         duration_ms: Option<i64>,
         extra_data: Option<Value>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         let request = CreateOperationLogRequest {
             user_id,
             username,
@@ -108,7 +109,7 @@ impl OperationLogService {
         request_ip: Option<String>,
         user_agent: Option<String>,
         duration_ms: Option<i64>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         let request = CreateOperationLogRequest {
             user_id,
             username,
@@ -134,7 +135,7 @@ impl OperationLogService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<operation_log::Model>, u64), DbErr> {
+    ) -> Result<(Vec<operation_log::Model>, u64), AppError> {
         use sea_orm::QueryOrder;
 
         let paginator = operation_log::Entity::find()
@@ -153,7 +154,7 @@ impl OperationLogService {
         module: &str,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<operation_log::Model>, u64), DbErr> {
+    ) -> Result<(Vec<operation_log::Model>, u64), AppError> {
         use sea_orm::{QueryFilter, ColumnTrait, QueryOrder};
 
         let paginator = operation_log::Entity::find()
@@ -173,7 +174,7 @@ impl OperationLogService {
         user_id: i32,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<operation_log::Model>, u64), DbErr> {
+    ) -> Result<(Vec<operation_log::Model>, u64), AppError> {
         use sea_orm::{QueryFilter, ColumnTrait, QueryOrder};
 
         let paginator = operation_log::Entity::find()

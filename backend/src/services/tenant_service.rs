@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::utils::error::AppError;
 use crate::models::tenant::{self, Entity as Tenant, ActiveModel as TenantActiveModel};
 use crate::models::tenant_user::{self, Entity as TenantUser};
 use crate::models::tenant_config::{self, Entity as TenantConfig};
@@ -23,7 +24,7 @@ impl TenantService {
         name: &str,
         description: Option<&str>,
         plan_id: Option<i32>,
-    ) -> Result<tenant::Model, DbErr> {
+    ) -> Result<tenant::Model, AppError> {
         let now = Utc::now();
         let active_model = TenantActiveModel {
             code: Set(code.to_string()),
@@ -45,16 +46,16 @@ impl TenantService {
     }
 
     /// 根据 ID 获取租户
-    pub async fn get_tenant(&self, id: i32) -> Result<Option<tenant::Model>, DbErr> {
-        Tenant::find_by_id(id).one(self.db.as_ref()).await
+    pub async fn get_tenant(&self, id: i32) -> Result<Option<tenant::Model>, AppError> {
+        Tenant::find_by_id(id).one(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     /// 根据编码获取租户
-    pub async fn get_tenant_by_code(&self, code: &str) -> Result<Option<tenant::Model>, DbErr> {
+    pub async fn get_tenant_by_code(&self, code: &str) -> Result<Option<tenant::Model>, AppError> {
         Tenant::find()
             .filter(tenant::Column::Code.eq(code))
             .one(self.db.as_ref())
-            .await
+            .await.map_err(AppError::from)
     }
 
     /// 更新租户状态
@@ -62,17 +63,17 @@ impl TenantService {
         &self,
         id: i32,
         status: &str,
-    ) -> Result<tenant::Model, DbErr> {
+    ) -> Result<tenant::Model, AppError> {
         let tenant = Tenant::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(DbErr::Custom("租户不存在".to_string()))?;
+            .ok_or(AppError::BusinessError("租户不存在".to_string()))?;
 
         let mut active_model: TenantActiveModel = tenant.into();
         active_model.status = Set(status.to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(self.db.as_ref()).await
+        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     /// 获取租户列表（分页）
@@ -80,7 +81,7 @@ impl TenantService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<tenant::Model>, u64), DbErr> {
+    ) -> Result<(Vec<tenant::Model>, u64), AppError> {
         let paginator = Tenant::find()
             .order_by_desc(tenant::Column::CreatedAt)
             .paginate(self.db.as_ref(), page_size);
@@ -98,7 +99,7 @@ impl TenantService {
         user_id: i32,
         role: &str,
         is_primary: bool,
-    ) -> Result<tenant_user::Model, DbErr> {
+    ) -> Result<tenant_user::Model, AppError> {
         let now = Utc::now();
         let active_model = tenant_user::ActiveModel {
             tenant_id: Set(tenant_id),
@@ -111,18 +112,18 @@ impl TenantService {
             ..Default::default()
         };
 
-        active_model.insert(self.db.as_ref()).await
+        active_model.insert(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     /// 获取租户用户列表
     pub async fn get_tenant_users(
         &self,
         tenant_id: i32,
-    ) -> Result<Vec<tenant_user::Model>, DbErr> {
+    ) -> Result<Vec<tenant_user::Model>, AppError> {
         TenantUser::find()
             .filter(tenant_user::Column::TenantId.eq(tenant_id))
             .all(self.db.as_ref())
-            .await
+            .await.map_err(AppError::from)
     }
 
     /// 获取租户配置
@@ -130,7 +131,7 @@ impl TenantService {
         &self,
         tenant_id: i32,
         key: &str,
-    ) -> Result<Option<String>, DbErr> {
+    ) -> Result<Option<String>, AppError> {
         let config = TenantConfig::find()
             .filter(tenant_config::Column::TenantId.eq(tenant_id))
             .filter(tenant_config::Column::ConfigKey.eq(key))
@@ -147,7 +148,7 @@ impl TenantService {
         key: &str,
         value: &str,
         config_type: &str,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         let existing = TenantConfig::find()
             .filter(tenant_config::Column::TenantId.eq(tenant_id))
             .filter(tenant_config::Column::ConfigKey.eq(key))

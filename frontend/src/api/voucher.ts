@@ -33,17 +33,7 @@ export interface VoucherEntity {
   posted_at?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  voucher_no?: string
-  voucher_date_start?: string
-  voucher_date_end?: string
-  type?: string
-  status?: string
-}
-
-export function listVouchers(params?: QueryParams) {
+export function listVouchers(params?: any) {
   return request.get('/gl/vouchers', { params })
 }
 

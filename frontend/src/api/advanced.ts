@@ -13,8 +13,6 @@ export const detectAnomalies = (data: { data_type: string; date_range?: any }) =
 export const getRecommendations = (data?: { type?: string }) =>
   request.post('/advanced/ai/recommendations', data)
 
-export const listReportTemplates = () => request.get('/advanced/reports/templates')
-
 export const executeReport = (template_code: string) =>
   request.post('/advanced/reports/execute', { template_code })
 

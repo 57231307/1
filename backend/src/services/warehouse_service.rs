@@ -8,6 +8,7 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
+use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 仓库服务
@@ -24,7 +25,7 @@ impl WarehouseService {
     pub async fn list(
         &self,
         query: crate::handlers::warehouse_handler::WarehouseListQuery,
-    ) -> Result<crate::utils::response::PaginatedResponse<warehouse::Model>, sea_orm::DbErr> {
+    ) -> Result<crate::utils::response::PaginatedResponse<warehouse::Model>, AppError> {
         let mut q = WarehouseEntity::find();
 
         // 应用过滤条件
@@ -60,18 +61,18 @@ impl WarehouseService {
     }
 
     /// 获取仓库详情
-    pub async fn get(&self, id: i32) -> Result<warehouse::Model, sea_orm::DbErr> {
+    pub async fn get(&self, id: i32) -> Result<warehouse::Model, AppError> {
         WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("仓库 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("仓库 ID {} 不存在", id)))
     }
 
     /// 创建仓库
     pub async fn create(
         &self,
         req: crate::handlers::warehouse_handler::CreateWarehouseRequest,
-    ) -> Result<warehouse::Model, sea_orm::DbErr> {
+    ) -> Result<warehouse::Model, AppError> {
         // 自动生成仓库编码
         let code = match req.code {
             Some(c) if !c.is_empty() => c,
@@ -109,11 +110,11 @@ impl WarehouseService {
         &self,
         id: i32,
         req: crate::handlers::warehouse_handler::UpdateWarehouseRequest,
-    ) -> Result<warehouse::Model, sea_orm::DbErr> {
+    ) -> Result<warehouse::Model, AppError> {
         let mut wh: warehouse::ActiveModel = WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("仓库 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("仓库 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -139,10 +140,10 @@ impl WarehouseService {
     }
 
     /// 删除仓库
-    pub async fn delete(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let result = WarehouseEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::RecordNotFound(format!(
+            return Err(AppError::ResourceNotFound(format!(
                 "仓库 ID {} 不存在",
                 id
             )));
@@ -151,11 +152,11 @@ impl WarehouseService {
     }
 
     /// 根据仓库编码查询仓库
-    pub async fn find_by_code(&self, code: &str) -> Result<warehouse::Model, sea_orm::DbErr> {
+    pub async fn find_by_code(&self, code: &str) -> Result<warehouse::Model, AppError> {
         warehouse::Entity::find()
             .filter(warehouse::Column::WarehouseCode.eq(code))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("仓库编码 {} 不存在", code)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("仓库编码 {} 不存在", code)))
     }
 }

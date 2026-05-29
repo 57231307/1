@@ -183,6 +183,7 @@ pub async fn list_products(
 /// 获取产品详情
 pub async fn get_product(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
@@ -193,6 +194,7 @@ pub async fn get_product(
 /// 创建产品
 pub async fn create_product(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CreateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     // 输入验证
@@ -238,6 +240,7 @@ pub async fn create_product(
 /// 更新产品
 pub async fn update_product(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
@@ -277,6 +280,7 @@ pub async fn update_product(
 /// 删除产品
 pub async fn delete_product(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
@@ -289,6 +293,7 @@ pub async fn delete_product(
 /// 获取产品色号列表
 pub async fn list_product_colors(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(product_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
@@ -299,6 +304,7 @@ pub async fn list_product_colors(
 /// 创建产品色号
 pub async fn create_product_color(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(product_id): Path<i32>,
     Json(req): Json<CreateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
@@ -322,6 +328,7 @@ pub async fn create_product_color(
 /// 更新产品色号
 pub async fn update_product_color(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path((_product_id, color_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
@@ -345,6 +352,7 @@ pub async fn update_product_color(
 /// 删除产品色号
 pub async fn delete_product_color(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path((_product_id, color_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
@@ -355,6 +363,7 @@ pub async fn delete_product_color(
 /// 批量创建色号
 pub async fn batch_create_colors(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(product_id): Path<i32>,
     Json(req): Json<BatchCreateColorsRequest>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
@@ -389,6 +398,7 @@ use axum::http::header;
 /// 导出产品数据
 pub async fn export_products(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(query): Query<ExportProductsQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let product_service = ProductService::new(state.db.clone());
@@ -416,6 +426,7 @@ pub async fn export_products(
 /// 导入产品数据
 pub async fn import_products(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<ImportProductsRequest>,
 ) -> Result<Json<ApiResponse<crate::utils::import_export::ImportResult>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
@@ -441,6 +452,7 @@ pub async fn import_products(
 /// 获取产品导入模板
 pub async fn get_product_import_template(
     State(_state): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
     let template_data = ProductService::generate_product_import_template()
         .map_err(|e| AppError::InternalError(format!("模板生成失败: {}", e)))?;

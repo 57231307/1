@@ -366,7 +366,7 @@ const handleExport = () => {
       { key: 'contact_person', title: '负责人' },
       { key: 'phone', title: '电话' },
       { key: 'capacity', title: '容量(m³)' },
-      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      { key: 'status', title: '状态', formatter: (v) => (v === 'active' ? '启用' : '禁用') },
     ],
     data: warehouses.value,
   })
@@ -378,10 +378,20 @@ const handlePrint = () => {
     columns: [
       { key: 'warehouse_code', title: '仓库编码', width: '100px' },
       { key: 'warehouse_name', title: '仓库名称' },
-      { key: 'warehouse_type', title: '类型', width: '80px', formatter: (v) => getWarehouseTypeLabel(v) },
+      {
+        key: 'warehouse_type',
+        title: '类型',
+        width: '80px',
+        formatter: (v) => getWarehouseTypeLabel(v),
+      },
       { key: 'contact_person', title: '负责人', width: '80px' },
       { key: 'phone', title: '电话', width: '120px' },
-      { key: 'status', title: '状态', width: '60px', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      {
+        key: 'status',
+        title: '状态',
+        width: '60px',
+        formatter: (v) => (v === 'active' ? '启用' : '禁用'),
+      },
     ],
     data: warehouses.value,
   })

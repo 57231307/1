@@ -35,37 +35,27 @@ export interface ReportData {
   total?: number
 }
 
-export interface QueryParams {
-  year?: number
-  month?: number
-  period_id?: number
-}
-
-export function getBalanceSheet(params?: QueryParams) {
+export function getBalanceSheet(params?: any) {
   return request.get('/finance/reports/balance-sheet', { params })
 }
 
-export function getProfitStatement(params?: QueryParams) {
+export function getProfitStatement(params?: any) {
   return request.get('/finance/reports/income-statement', { params })
 }
 
-export function getCashFlowStatement(params?: QueryParams) {
+export function getCashFlowStatement(params?: any) {
   return request.get('/finance/reports/cash-flow', { params })
 }
 
-export function getTrialBalance(params?: QueryParams) {
+export function getTrialBalance(params?: any) {
   return request.get('/finance/reports/trial-balance', { params })
 }
 
-export function getGeneralLedger(accountSubjectCode: string, params?: QueryParams) {
+export function getGeneralLedger(accountSubjectCode: string, params?: any) {
   return request.get(`/finance/reports/general-ledger/${accountSubjectCode}`, { params })
 }
 
-export function getSubsidiaryLedger(
-  customerId?: number,
-  supplierId?: number,
-  params?: QueryParams
-) {
+export function getSubsidiaryLedger(customerId?: number, supplierId?: number, params?: any) {
   return request.get('/finance/reports/subsidiary-ledger', {
     params: { customer_id: customerId, supplier_id: supplierId, ...params },
   })

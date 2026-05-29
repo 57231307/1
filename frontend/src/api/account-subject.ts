@@ -28,17 +28,7 @@ export interface AccountSubject {
   updated_at?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  code?: string
-  name?: string
-  category?: string
-  type?: string
-  is_enabled?: boolean
-}
-
-export function listAccountSubjects(params?: QueryParams) {
+export function listAccountSubjects(params?: any) {
   return request.get('/gl/subjects', { params })
 }
 

@@ -9,6 +9,7 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::models::department::{self, Entity as DepartmentEntity};
+use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 部门树节点（用于返回树形结构）
@@ -35,7 +36,7 @@ impl DepartmentService {
     pub async fn list(
         &self,
         query: crate::handlers::department_handler::DepartmentListQuery,
-    ) -> Result<crate::utils::response::PaginatedResponse<department::Model>, sea_orm::DbErr> {
+    ) -> Result<crate::utils::response::PaginatedResponse<department::Model>, AppError> {
         let mut q = DepartmentEntity::find();
 
         // 应用过滤条件
@@ -71,25 +72,25 @@ impl DepartmentService {
     }
 
     /// 获取部门详情
-    pub async fn get(&self, id: i32) -> Result<department::Model, sea_orm::DbErr> {
+    pub async fn get(&self, id: i32) -> Result<department::Model, AppError> {
         DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("部门 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("部门 ID {} 不存在", id)))
     }
 
     /// 创建部门
     pub async fn create(
         &self,
         req: crate::handlers::department_handler::CreateDepartmentRequest,
-    ) -> Result<department::Model, sea_orm::DbErr> {
+    ) -> Result<department::Model, AppError> {
         // 检查父部门是否存在（如果提供了 parent_id）
         if let Some(pid) = req.parent_id {
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
                 .ok_or_else(|| {
-                    sea_orm::DbErr::RecordNotFound(format!("父部门 ID {} 不存在", pid))
+                    AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid))
                 })?;
         }
 
@@ -115,11 +116,11 @@ impl DepartmentService {
         &self,
         id: i32,
         req: crate::handlers::department_handler::UpdateDepartmentRequest,
-    ) -> Result<department::Model, sea_orm::DbErr> {
+    ) -> Result<department::Model, AppError> {
         let mut dept: department::ActiveModel = DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("部门 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("部门 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -131,7 +132,7 @@ impl DepartmentService {
                 .await?;
 
             if existing.is_some() {
-                return Err(sea_orm::DbErr::Custom(format!("部门名称 '{}' 已存在", n)));
+                return Err(AppError::BusinessError(format!("部门名称 '{}' 已存在", n)));
             }
             dept.name = Set(n);
         }
@@ -146,7 +147,7 @@ impl DepartmentService {
                 .one(&*self.db)
                 .await?
                 .ok_or_else(|| {
-                    sea_orm::DbErr::RecordNotFound(format!("父部门 ID {} 不存在", pid))
+                    AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid))
                 })?;
             dept.parent_id = Set(Some(pid));
         }
@@ -163,7 +164,7 @@ impl DepartmentService {
     }
 
     /// 删除部门
-    pub async fn delete(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         // 检查是否有子部门
         let children_count = DepartmentEntity::find()
             .filter(department::Column::ParentId.eq(id))
@@ -171,14 +172,14 @@ impl DepartmentService {
             .await?;
 
         if children_count > 0 {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "该部门存在子部门，无法删除".to_string(),
             ));
         }
 
         let result = DepartmentEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::RecordNotFound(format!(
+            return Err(AppError::ResourceNotFound(format!(
                 "部门 ID {} 不存在",
                 id
             )));
@@ -187,7 +188,7 @@ impl DepartmentService {
     }
 
     /// 获取部门树形结构
-    pub async fn get_department_tree(&self) -> Result<Vec<DepartmentTreeNode>, sea_orm::DbErr> {
+    pub async fn get_department_tree(&self) -> Result<Vec<DepartmentTreeNode>, AppError> {
         let all_departments = DepartmentEntity::find()
             .order_by(department::Column::Name, Order::Asc)
             .all(&*self.db)
@@ -230,11 +231,11 @@ impl DepartmentService {
     }
 
     /// 根据名称查询部门
-    pub async fn find_by_name(&self, name: &str) -> Result<department::Model, sea_orm::DbErr> {
+    pub async fn find_by_name(&self, name: &str) -> Result<department::Model, AppError> {
         DepartmentEntity::find()
             .filter(department::Column::Name.eq(name))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("部门名称 {} 不存在", name)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("部门名称 {} 不存在", name)))
     }
 }

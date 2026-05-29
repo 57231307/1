@@ -1,17 +1,5 @@
 import { request } from './request'
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  productId?: number
-  batchNo?: string
-  colorNo?: string
-  grade?: string
-  warehouseId?: number
-  startDate?: string
-  endDate?: string
-}
-
 export interface InventoryBatch {
   id?: number
   batchNo?: string
@@ -81,7 +69,7 @@ export interface TransferBatchRequest {
   remarks?: string
 }
 
-export function listBatches(params?: QueryParams) {
+export function listBatches(params?: any) {
   return request.get('/batches', { params })
 }
 

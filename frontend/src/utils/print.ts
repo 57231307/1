@@ -19,22 +19,29 @@ export interface PrintOptions {
 function generatePrintHTML(options: PrintOptions): string {
   const { title, columns, data, extraInfo, orientation = 'portrait' } = options
 
-  const headerCells = columns.map(col =>
-    `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}; ${col.width ? `width: ${col.width}` : ''}">${col.title}</th>`
-  ).join('')
+  const headerCells = columns
+    .map(
+      (col) =>
+        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}; ${col.width ? `width: ${col.width}` : ''}">${col.title}</th>`
+    )
+    .join('')
 
-  const bodyRows = data.map(row => {
-    const cells = columns.map(col => {
-      const value = row[col.key]
-      const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
-      return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
-    }).join('')
-    return `<tr>${cells}</tr>`
-  }).join('')
+  const bodyRows = data
+    .map((row) => {
+      const cells = columns
+        .map((col) => {
+          const value = row[col.key]
+          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
+          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
+        })
+        .join('')
+      return `<tr>${cells}</tr>`
+    })
+    .join('')
 
   const infoSection = extraInfo
     ? `<div style="margin: 16px 0; display: flex; gap: 32px;">
-        ${extraInfo.map(info => `<span><strong>${info.label}:</strong> ${info.value}</span>`).join('')}
+        ${extraInfo.map((info) => `<span><strong>${info.label}:</strong> ${info.value}</span>`).join('')}
        </div>`
     : ''
 
@@ -109,25 +116,36 @@ export function printSingleDocument(options: {
   const { title, info, items, itemColumns, footer } = options
 
   const infoHTML = Object.entries(info)
-    .map(([key, value]) => `<span style="margin-right: 32px;"><strong>${key}:</strong> ${value}</span>`)
+    .map(
+      ([key, value]) => `<span style="margin-right: 32px;"><strong>${key}:</strong> ${value}</span>`
+    )
     .join('')
 
-  const headerCells = itemColumns.map(col =>
-    `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}">${col.title}</th>`
-  ).join('')
+  const headerCells = itemColumns
+    .map(
+      (col) =>
+        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}">${col.title}</th>`
+    )
+    .join('')
 
-  const bodyRows = items.map(row => {
-    const cells = itemColumns.map(col => {
-      const value = row[col.key]
-      const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
-      return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
-    }).join('')
-    return `<tr>${cells}</tr>`
-  }).join('')
+  const bodyRows = items
+    .map((row) => {
+      const cells = itemColumns
+        .map((col) => {
+          const value = row[col.key]
+          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
+          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
+        })
+        .join('')
+      return `<tr>${cells}</tr>`
+    })
+    .join('')
 
   const footerHTML = footer
     ? `<div style="margin-top: 20px; display: flex; justify-content: space-between;">
-        ${Object.entries(footer).map(([key, value]) => `<span><strong>${key}:</strong> ${value}</span>`).join('')}
+        ${Object.entries(footer)
+          .map(([key, value]) => `<span><strong>${key}:</strong> ${value}</span>`)
+          .join('')}
        </div>`
     : ''
 

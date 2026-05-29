@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use crate::utils::error::AppError;
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
@@ -53,23 +54,23 @@ impl InventoryStockService {
         Self { db }
     }
 
-    pub async fn find_by_id(&self, id: i32) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+    pub async fn find_by_id(&self, id: i32) -> Result<inventory_stock::Model, AppError> {
         inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
     pub async fn find_by_product_and_warehouse(
         &self,
         product_id: i32,
         warehouse_id: i32,
-    ) -> Result<Option<inventory_stock::Model>, sea_orm::DbErr> {
+    ) -> Result<Option<inventory_stock::Model>, AppError> {
         inventory_stock::Entity::find()
             .filter(inventory_stock::Column::ProductId.eq(product_id))
             .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
             .one(&*self.db)
-            .await
+            .await.map_err(AppError::from)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -87,7 +88,7 @@ impl InventoryStockService {
         width: Option<Decimal>,
         stock_status: String,
         quality_status: String,
-    ) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+    ) -> Result<inventory_stock::Model, AppError> {
         let active_stock = inventory_stock::ActiveModel {
             id: Set(0),
             warehouse_id: Set(warehouse_id),
@@ -122,7 +123,7 @@ impl InventoryStockService {
             version: Set(0),
         };
 
-        active_stock.insert(&*self.db).await
+        active_stock.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 更新库存数量（带乐观锁）
@@ -132,7 +133,7 @@ impl InventoryStockService {
         quantity_meters: Decimal,
         quantity_kg: Decimal,
         expected_version: i32,
-    ) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+    ) -> Result<inventory_stock::Model, AppError> {
         // 使用乐观锁条件更新：只有 version 匹配时才更新
         let update_result = inventory_stock::Entity::update_many()
             .col_expr(
@@ -166,7 +167,7 @@ impl InventoryStockService {
 
         // 检查乐观锁是否成功
         if update_result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::Custom(format!(
+            return Err(AppError::BusinessError(format!(
                 "并发冲突：库存记录 ID {} 已被其他用户修改，期望版本 {}",
                 id, expected_version
             )));
@@ -176,7 +177,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
 
@@ -187,7 +188,7 @@ impl InventoryStockService {
         page_size: u64,
         warehouse_id: Option<i32>,
         product_id: Option<i32>,
-    ) -> Result<(Vec<inventory_stock::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
         let mut query = inventory_stock::Entity::find();
 
         if let Some(wid) = warehouse_id {
@@ -210,7 +211,7 @@ impl InventoryStockService {
         warehouse_id: Option<i32>,
         product_id: Option<i32>,
         batch_no: Option<String>,
-    ) -> Result<Vec<inventory_stock::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<inventory_stock::Model>, AppError> {
         // 实现基于仓库和批次的精确低库存检查
         let mut query = inventory_stock::Entity::find()
             // 只检查正常状态的库存
@@ -258,7 +259,7 @@ impl InventoryStockService {
         Ok(low_stock_items)
     }
 
-    pub async fn delete_stock(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_stock(&self, id: i32) -> Result<(), AppError> {
         inventory_stock::Entity::delete_many()
             .filter(inventory_stock::Column::Id.eq(id))
             .exec(&*self.db)
@@ -274,7 +275,7 @@ impl InventoryStockService {
         batch_no: &str,
         color_no: &str,
         warehouse_id: Option<i32>,
-    ) -> Result<Vec<inventory_stock::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<inventory_stock::Model>, AppError> {
         let mut query = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::BatchNo.eq(batch_no))
             .filter(inventory_stock::Column::ColorNo.eq(color_no));
@@ -283,7 +284,7 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
 
-        query.all(&*self.db).await
+        query.all(&*self.db).await.map_err(AppError::from)
     }
 
     /// 查询库存（支持批次、色号、等级过滤）
@@ -297,7 +298,7 @@ impl InventoryStockService {
         batch_no: Option<String>,
         color_no: Option<String>,
         grade: Option<String>,
-    ) -> Result<(Vec<inventory_stock::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
         let mut query = inventory_stock::Entity::find();
 
         if let Some(wid) = warehouse_id {
@@ -367,7 +368,7 @@ impl InventoryStockService {
         location_id: Option<i32>,
         shelf_no: Option<String>,
         layer_no: Option<String>,
-    ) -> Result<inventory_stock::Model, sea_orm::DbErr> {
+    ) -> Result<inventory_stock::Model, AppError> {
         // 自动计算公斤数（如果提供了克重和幅宽）
         let calculated_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width);
         let final_quantity_kg = if calculated_kg != Decimal::ZERO {
@@ -410,7 +411,7 @@ impl InventoryStockService {
             version: Set(0),
         };
 
-        active_stock.insert(&*self.db).await
+        active_stock.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 记录库存流水（面料行业）
@@ -435,7 +436,7 @@ impl InventoryStockService {
         quantity_after_kg: Option<Decimal>,
         notes: Option<String>,
         created_by: Option<i32>,
-    ) -> Result<inventory_transaction::Model, sea_orm::DbErr> {
+    ) -> Result<inventory_transaction::Model, AppError> {
         let active_transaction = inventory_transaction::ActiveModel {
             id: Set(0),
             transaction_type: Set(transaction_type),
@@ -494,7 +495,7 @@ impl InventoryStockService {
         transaction_type: Option<String>,
         start_date: Option<chrono::NaiveDateTime>,
         end_date: Option<chrono::NaiveDateTime>,
-    ) -> Result<(Vec<inventory_transaction::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<inventory_transaction::Model>, u64), AppError> {
         let mut query = inventory_transaction::Entity::find()
             .order_by(inventory_transaction::Column::CreatedAt, Order::Asc);
 
@@ -541,7 +542,7 @@ impl InventoryStockService {
         batch_no: Option<String>,
         color_no: Option<String>,
         grade: Option<String>,
-    ) -> Result<Vec<InventorySummaryItem>, sea_orm::DbErr> {
+    ) -> Result<Vec<InventorySummaryItem>, AppError> {
         use sea_orm::QuerySelect;
         
         let mut query = inventory_stock::Entity::find()

@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, PageResult } from '../types/api'
+import type { ApiResponse, PageResult } from '@/types/api'
 
 export interface MrpProduct {
   id: number

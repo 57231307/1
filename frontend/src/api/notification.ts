@@ -1,7 +1,7 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams as BaseQueryParams } from '../types/api'
+import type { ApiResponse, QueryParams } from '@/types/api'
 
-export interface NotificationQueryParams extends BaseQueryParams {
+export interface NotificationQueryParams extends QueryParams {
   status?: string
   notificationType?: string
 }

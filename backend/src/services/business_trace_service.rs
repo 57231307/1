@@ -7,6 +7,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, Qu
 use serde_json::json;
 use std::sync::Arc;
 
+use crate::utils::error::AppError;
 use crate::models::{business_trace_chain, business_trace_snapshot};
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
 
@@ -34,7 +35,7 @@ impl BusinessTraceService {
         warehouse_id: i32,
         supplier_id: i32,
         created_by: Option<i32>,
-    ) -> Result<business_trace_chain::Model, sea_orm::DbErr> {
+    ) -> Result<business_trace_chain::Model, AppError> {
         // 生成追溯链 ID
         let trace_chain_id = self.generate_trace_chain_id(five_dimension, &bill_type, &bill_no);
 
@@ -65,7 +66,7 @@ impl BusinessTraceService {
             created_by: Set(created_by),
         };
 
-        active_trace.insert(&*self.db).await
+        active_trace.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 添加追溯环节
@@ -83,12 +84,12 @@ impl BusinessTraceService {
         customer_id: Option<i32>,
         workshop_id: Option<i32>,
         created_by: Option<i32>,
-    ) -> Result<business_trace_chain::Model, sea_orm::DbErr> {
+    ) -> Result<business_trace_chain::Model, AppError> {
         // 查询上一环节
         let previous_trace = business_trace_chain::Entity::find_by_id(previous_trace_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound("上一环节不存在".to_string()))?;
+            .ok_or_else(|| AppError::ResourceNotFound("上一环节不存在".to_string()))?;
 
         // 创建新环节
         let active_trace = business_trace_chain::ActiveModel {
@@ -138,24 +139,26 @@ impl BusinessTraceService {
     pub async fn find_trace_chain_by_five_dimension(
         &self,
         five_dimension_id: &str,
-    ) -> Result<Vec<business_trace_chain::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<business_trace_chain::Model>, AppError> {
         business_trace_chain::Entity::find()
             .filter(business_trace_chain::Column::FiveDimensionId.eq(five_dimension_id))
             .order_by(business_trace_chain::Column::CreatedAt, Order::Asc)
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 按追溯链 ID 查询
     pub async fn find_trace_chain_by_id(
         &self,
         trace_chain_id: &str,
-    ) -> Result<Vec<business_trace_chain::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<business_trace_chain::Model>, AppError> {
         business_trace_chain::Entity::find()
             .filter(business_trace_chain::Column::TraceChainId.eq(trace_chain_id))
             .order_by(business_trace_chain::Column::CreatedAt, Order::Asc)
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 正向追溯：从供应商到客户
@@ -163,7 +166,7 @@ impl BusinessTraceService {
         &self,
         supplier_id: i32,
         batch_no: &str,
-    ) -> Result<Vec<business_trace_chain::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<business_trace_chain::Model>, AppError> {
         // 找到所有从该供应商开始的追溯链
         business_trace_chain::Entity::find()
             .filter(business_trace_chain::Column::SupplierId.eq(supplier_id))
@@ -172,6 +175,7 @@ impl BusinessTraceService {
             .order_by(business_trace_chain::Column::CreatedAt, Order::Asc)
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 反向追溯：从客户到供应商
@@ -179,7 +183,7 @@ impl BusinessTraceService {
         &self,
         customer_id: i32,
         batch_no: &str,
-    ) -> Result<Vec<business_trace_chain::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<business_trace_chain::Model>, AppError> {
         // 找到所有到该客户的追溯链
         let traces = business_trace_chain::Entity::find()
             .filter(business_trace_chain::Column::CustomerId.eq(customer_id))
@@ -217,16 +221,16 @@ impl BusinessTraceService {
     pub async fn create_snapshot(
         &self,
         trace_chain_id: &str,
-    ) -> Result<business_trace_snapshot::Model, sea_orm::DbErr> {
+    ) -> Result<business_trace_snapshot::Model, AppError> {
         // 查询追溯链
         let traces = self.find_trace_chain_by_id(trace_chain_id).await?;
 
         if traces.is_empty() {
-            return Err(sea_orm::DbErr::RecordNotFound("追溯链不存在".to_string()));
+            return Err(AppError::ResourceNotFound("追溯链不存在".to_string()));
         }
 
         let first_trace = &traces[0];
-        let last_trace = traces.last().ok_or_else(|| sea_orm::DbErr::RecordNotFound("No trace found".into()))?;
+        let last_trace = traces.last().ok_or_else(|| AppError::ResourceNotFound("No trace found".into()))?;
 
         // 获取追溯链中的供应商ID和客户ID（第一个环节有供应商，最后一个环节有客户）
         let supplier_id = first_trace.supplier_id;
@@ -287,7 +291,7 @@ impl BusinessTraceService {
             snapshot_time: Set(Utc::now()),
         };
 
-        active_snapshot.insert(&*self.db).await
+        active_snapshot.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 生成追溯链 ID

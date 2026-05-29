@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::product_category::{self, Entity as ProductCategoryEntity};
+use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 产品类别服务
@@ -25,7 +26,7 @@ impl ProductCategoryService {
     pub async fn list(
         &self,
         query: crate::handlers::product_category_handler::ProductCategoryListQuery,
-    ) -> Result<crate::utils::response::PaginatedResponse<product_category::Model>, sea_orm::DbErr> {
+    ) -> Result<crate::utils::response::PaginatedResponse<product_category::Model>, AppError> {
         let mut q = ProductCategoryEntity::find();
 
         // 应用过滤条件
@@ -57,25 +58,25 @@ impl ProductCategoryService {
     }
 
     /// 获取产品类别详情
-    pub async fn get(&self, id: i32) -> Result<product_category::Model, sea_orm::DbErr> {
+    pub async fn get(&self, id: i32) -> Result<product_category::Model, AppError> {
         ProductCategoryEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品类别 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("产品类别 ID {} 不存在", id)))
     }
 
     /// 创建产品类别
     pub async fn create(
         &self,
         req: crate::handlers::product_category_handler::CreateProductCategoryRequest,
-    ) -> Result<product_category::Model, sea_orm::DbErr> {
+    ) -> Result<product_category::Model, AppError> {
         // 检查父类别是否存在（如果提供了 parent_id）
         if let Some(pid) = req.parent_id {
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
                 .ok_or_else(|| {
-                    sea_orm::DbErr::RecordNotFound(format!("父类别 ID {} 不存在", pid))
+                    AppError::ResourceNotFound(format!("父类别 ID {} 不存在", pid))
                 })?;
         }
 
@@ -97,11 +98,11 @@ impl ProductCategoryService {
         &self,
         id: i32,
         req: crate::handlers::product_category_handler::UpdateProductCategoryRequest,
-    ) -> Result<product_category::Model, sea_orm::DbErr> {
+    ) -> Result<product_category::Model, AppError> {
         let mut category: product_category::ActiveModel = ProductCategoryEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品类别 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("产品类别 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -113,7 +114,7 @@ impl ProductCategoryService {
                 .await?;
 
             if existing.is_some() {
-                return Err(sea_orm::DbErr::Custom(format!("类别名称 '{}' 已存在", n)));
+                return Err(AppError::BusinessError(format!("类别名称 '{}' 已存在", n)));
             }
             category.name = Set(n);
         }
@@ -124,7 +125,7 @@ impl ProductCategoryService {
                 .one(&*self.db)
                 .await?
                 .ok_or_else(|| {
-                    sea_orm::DbErr::RecordNotFound(format!("父类别 ID {} 不存在", pid))
+                    AppError::ResourceNotFound(format!("父类别 ID {} 不存在", pid))
                 })?;
             category.parent_id = Set(Some(pid));
         }
@@ -140,7 +141,7 @@ impl ProductCategoryService {
     }
 
     /// 删除产品类别
-    pub async fn delete(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         // 检查是否有子类别
         let children_count = ProductCategoryEntity::find()
             .filter(product_category::Column::ParentId.eq(id))
@@ -148,7 +149,7 @@ impl ProductCategoryService {
             .await?;
 
         if children_count > 0 {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "该类别存在子类别，无法删除".to_string(),
             ));
         }
@@ -157,7 +158,7 @@ impl ProductCategoryService {
             .exec(&*self.db)
             .await?;
         if result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::RecordNotFound(format!(
+            return Err(AppError::ResourceNotFound(format!(
                 "产品类别 ID {} 不存在",
                 id
             )));
@@ -169,16 +170,16 @@ impl ProductCategoryService {
     pub async fn find_by_name(
         &self,
         name: &str,
-    ) -> Result<product_category::Model, sea_orm::DbErr> {
+    ) -> Result<product_category::Model, AppError> {
         ProductCategoryEntity::find()
             .filter(product_category::Column::Name.eq(name))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品类别名称 {} 不存在", name)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("产品类别名称 {} 不存在", name)))
     }
 
     /// 获取产品类别树形结构
-    pub async fn get_category_tree(&self) -> Result<Vec<CategoryTreeNode>, sea_orm::DbErr> {
+    pub async fn get_category_tree(&self) -> Result<Vec<CategoryTreeNode>, AppError> {
         // 查询所有类别
         let all_categories = ProductCategoryEntity::find()
             .order_by(product_category::Column::Name, Order::Asc)

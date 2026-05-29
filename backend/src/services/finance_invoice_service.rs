@@ -1,3 +1,4 @@
+use crate::utils::error::AppError;
 use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
 use chrono::Utc;
@@ -14,17 +15,17 @@ impl FinanceInvoiceService {
         Self { db }
     }
 
-    pub async fn list_invoices(&self) -> Result<Vec<InvoiceModel>, DbErr> {
+    pub async fn list_invoices(&self) -> Result<Vec<InvoiceModel>, AppError> {
         FinanceInvoice::find()
             .order_by(finance_invoice::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
-            .await
+            .await.map_err(AppError::from)
     }
 
-    pub async fn get_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, DbErr> {
+    pub async fn get_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
         FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
-            .await
+            .await.map_err(AppError::from)
     }
 
     pub async fn create_invoice(
@@ -33,7 +34,7 @@ impl FinanceInvoiceService {
         amount: Decimal,
         tax_amount: Decimal,
         total_amount: Decimal,
-    ) -> Result<InvoiceModel, DbErr> {
+    ) -> Result<InvoiceModel, AppError> {
         let active_model = ActiveModel {
             id: NotSet,
             invoice_no: Set(invoice_no),
@@ -51,14 +52,14 @@ impl FinanceInvoiceService {
             updated_at: Set(Utc::now()),
         };
 
-        active_model.insert(self.db.as_ref()).await
+        active_model.insert(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     pub async fn update_invoice(
         &self,
         id: i32,
         payload: serde_json::Value,
-    ) -> Result<Option<InvoiceModel>, DbErr> {
+    ) -> Result<Option<InvoiceModel>, AppError> {
         let invoice = FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
             .await?;
@@ -82,14 +83,14 @@ impl FinanceInvoiceService {
         }
     }
 
-    pub async fn delete_invoice(&self, id: i32) -> Result<(), DbErr> {
+    pub async fn delete_invoice(&self, id: i32) -> Result<(), AppError> {
         FinanceInvoice::delete_by_id(id)
             .exec(self.db.as_ref())
             .await?;
         Ok(())
     }
 
-    pub async fn approve_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, DbErr> {
+    pub async fn approve_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
         let invoice = FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
             .await?;
@@ -106,7 +107,7 @@ impl FinanceInvoiceService {
         }
     }
 
-    pub async fn verify_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, DbErr> {
+    pub async fn verify_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
         let invoice = FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
             .await?;

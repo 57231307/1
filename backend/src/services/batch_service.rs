@@ -1,9 +1,10 @@
 //! 批量操作服务
 //! 提供批量创建、更新、删除功能
 
+use crate::utils::error::AppError;
 use crate::models::product;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -78,7 +79,7 @@ impl BatchService {
     pub async fn batch_create_products(
         &self,
         requests: Vec<BatchCreateProductRequest>,
-    ) -> Result<BatchResult<product::Model>, DbErr> {
+    ) -> Result<BatchResult<product::Model>, AppError> {
         let mut created = 0;
         let mut failed = 0;
         let mut data = Vec::new();
@@ -159,7 +160,7 @@ impl BatchService {
     pub async fn batch_update_products(
         &self,
         requests: Vec<BatchUpdateProductRequest>,
-    ) -> Result<BatchResult<product::Model>, DbErr> {
+    ) -> Result<BatchResult<product::Model>, AppError> {
         let mut updated = 0;
         let mut failed = 0;
         let mut data = Vec::new();
@@ -242,7 +243,7 @@ impl BatchService {
     }
 
     /// 批量删除产品
-    pub async fn batch_delete_products(&self, ids: Vec<i32>) -> Result<BatchResult<()>, DbErr> {
+    pub async fn batch_delete_products(&self, ids: Vec<i32>) -> Result<BatchResult<()>, AppError> {
         let mut failed = 0;
         let mut errors = Vec::new();
 

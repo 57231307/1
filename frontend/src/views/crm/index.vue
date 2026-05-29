@@ -536,7 +536,7 @@ const handleExport = () => {
       { key: 'customer_type', title: '类型', formatter: (v) => getCustomerTypeLabel(v) },
       { key: 'owner_name', title: '负责人' },
       { key: 'total_amount', title: '累计金额' },
-      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      { key: 'status', title: '状态', formatter: (v) => (v === 'active' ? '启用' : '禁用') },
     ],
     data: customers.value,
   })
@@ -548,7 +548,9 @@ const handlePrint = () => {
     ElMessage.error('无法打开打印窗口')
     return
   }
-  const rows = customers.value.map((item: any) => `
+  const rows = customers.value
+    .map(
+      (item: any) => `
     <tr>
       <td>${item.customer_code}</td>
       <td>${item.customer_name}</td>
@@ -559,7 +561,9 @@ const handlePrint = () => {
       <td style="text-align:right">${item.total_amount ? '¥' + item.total_amount.toLocaleString() : '-'}</td>
       <td>${item.status === 'active' ? '启用' : '禁用'}</td>
     </tr>
-  `).join('')
+  `
+    )
+    .join('')
   const now = new Date().toISOString().split('T')[0]
   printWindow.document.write(`
     <html><head><meta charset="utf-8"><title>CRM客户列表</title>

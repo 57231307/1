@@ -83,9 +83,7 @@ describe('Inventory Store 测试', () => {
   })
 
   it('fetchAlerts 应该获取库存告警', async () => {
-    const mockAlerts = [
-      { id: 1, product_name: '面料A', alert_type: 'low_stock' },
-    ]
+    const mockAlerts = [{ id: 1, product_name: '面料A', alert_type: 'low_stock' }]
     vi.mocked(inventoryApi.getStockAlerts).mockResolvedValue({
       data: mockAlerts,
     } as any)

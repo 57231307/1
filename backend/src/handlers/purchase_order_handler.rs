@@ -378,6 +378,7 @@ pub struct DeliveryDateResponse {
 
 pub async fn calculate_delivery_date(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CalculateDeliveryRequest>,
 ) -> Result<Json<ApiResponse<DeliveryDateResponse>>, AppError> {
     let calculator = crate::services::purchase_delivery_calculator::PurchaseDeliveryCalculator::new(state.db.clone());
@@ -421,8 +422,9 @@ pub struct OrderQueryParams {
 }
 
 /// 拒绝订单请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RejectOrderRequest {
+    #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
     pub reason: String,
 }
 
@@ -433,6 +435,7 @@ use axum::http::header;
 /// 导出采购订单
 pub async fn export_orders(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(query): Query<OrderQueryParams>,
 ) -> Result<axum::response::Response, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());

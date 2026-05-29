@@ -4,6 +4,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::utils::error::AppError;
 use crate::models::role::{self, Entity as RoleEntity};
 use crate::models::role_permission::{self, Entity as RolePermissionEntity};
 use serde::{Deserialize, Serialize};
@@ -74,7 +75,7 @@ impl RolePermissionService {
     }
 
     /// 获取角色列表
-    pub async fn list_roles(&self) -> Result<Vec<RoleDetail>, sea_orm::DbErr> {
+    pub async fn list_roles(&self) -> Result<Vec<RoleDetail>, AppError> {
         let roles = RoleEntity::find()
             .order_by(role::Column::Code, Order::Asc)
             .all(&*self.db)
@@ -99,11 +100,11 @@ impl RolePermissionService {
     }
 
     /// 获取角色详情（包含权限列表）
-    pub async fn get_role_detail(&self, role_id: i32) -> Result<RoleDetail, sea_orm::DbErr> {
+    pub async fn get_role_detail(&self, role_id: i32) -> Result<RoleDetail, AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 {} 未找到", role_id)))?;
 
         // 获取角色权限列表
         let permissions = RolePermissionEntity::find()
@@ -143,7 +144,7 @@ impl RolePermissionService {
     pub async fn create_role(
         &self,
         request: CreateRoleRequest,
-    ) -> Result<RoleDetail, sea_orm::DbErr> {
+    ) -> Result<RoleDetail, AppError> {
         // 检查角色编码是否已存在
         let existing = RoleEntity::find()
             .filter(role::Column::Code.eq(&request.code))
@@ -151,7 +152,7 @@ impl RolePermissionService {
             .await?;
 
         if existing.is_some() {
-            return Err(sea_orm::DbErr::Custom("角色编码已存在".to_string()));
+            return Err(AppError::BusinessError("角色编码已存在".to_string()));
         }
 
         let role = role::ActiveModel {
@@ -175,15 +176,15 @@ impl RolePermissionService {
         &self,
         role_id: i32,
         request: UpdateRoleRequest,
-    ) -> Result<RoleDetail, sea_orm::DbErr> {
+    ) -> Result<RoleDetail, AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 {} 未找到", role_id)))?;
 
         // 系统角色不允许修改
         if role.is_system {
-            return Err(sea_orm::DbErr::Custom("系统角色不允许修改".to_string()));
+            return Err(AppError::BusinessError("系统角色不允许修改".to_string()));
         }
 
         // 如果修改了编码，检查新编码是否已存在
@@ -195,7 +196,7 @@ impl RolePermissionService {
                     .await?;
 
                 if existing.is_some() {
-                    return Err(sea_orm::DbErr::Custom("角色编码已存在".to_string()));
+                    return Err(AppError::BusinessError("角色编码已存在".to_string()));
                 }
             }
         }
@@ -221,15 +222,15 @@ impl RolePermissionService {
     }
 
     /// 删除角色
-    pub async fn delete_role(&self, role_id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 {} 未找到", role_id)))?;
 
         // 系统角色不允许删除
         if role.is_system {
-            return Err(sea_orm::DbErr::Custom("系统角色不允许删除".to_string()));
+            return Err(AppError::BusinessError("系统角色不允许删除".to_string()));
         }
 
         // 开启事务
@@ -254,18 +255,18 @@ impl RolePermissionService {
     pub async fn assign_permission(
         &self,
         request: AssignPermissionRequest,
-    ) -> Result<RolePermissionDetail, sea_orm::DbErr> {
+    ) -> Result<RolePermissionDetail, AppError> {
         // 检查角色是否存在
         let role = RoleEntity::find_by_id(request.role_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("角色 {} 未找到", request.role_id))
+                AppError::ResourceNotFound(format!("角色 {} 未找到", request.role_id))
             })?;
 
         // 系统角色不允许修改权限
         if role.is_system {
-            return Err(sea_orm::DbErr::Custom("系统角色不允许修改权限".to_string()));
+            return Err(AppError::BusinessError("系统角色不允许修改权限".to_string()));
         }
 
         // 检查权限是否已存在
@@ -328,12 +329,12 @@ impl RolePermissionService {
     }
 
     /// 移除权限
-    pub async fn remove_permission(&self, permission_id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn remove_permission(&self, permission_id: i32) -> Result<(), AppError> {
         let permission = RolePermissionEntity::find_by_id(permission_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("权限 {} 未找到", permission_id))
+                AppError::ResourceNotFound(format!("权限 {} 未找到", permission_id))
             })?;
 
         // 检查是否为系统角色的权限
@@ -343,7 +344,7 @@ impl RolePermissionService {
 
         if let Some(r) = role {
             if r.is_system {
-                return Err(sea_orm::DbErr::Custom(
+                return Err(AppError::BusinessError(
                     "系统角色的权限不允许删除".to_string(),
                 ));
             }
@@ -360,7 +361,7 @@ impl RolePermissionService {
     pub async fn get_role_permissions(
         &self,
         role_id: i32,
-    ) -> Result<Vec<RolePermissionDetail>, sea_orm::DbErr> {
+    ) -> Result<Vec<RolePermissionDetail>, AppError> {
         let permissions = RolePermissionEntity::find()
             .filter(role_permission::Column::RoleId.eq(role_id))
             .order_by(role_permission::Column::ResourceType, Order::Asc)
@@ -391,7 +392,7 @@ impl RolePermissionService {
         resource_type: &str,
         action: &str,
         resource_id: Option<i32>,
-    ) -> Result<bool, sea_orm::DbErr> {
+    ) -> Result<bool, AppError> {
         // Admin 角色 (role_id=1) 绕过所有权限检查
         if role_id == 1 {
             return Ok(true);

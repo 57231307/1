@@ -6,6 +6,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::utils::error::AppError;
 use crate::models::dto::PageRequest;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_count::{self, Entity as InventoryCountEntity};
@@ -102,7 +103,7 @@ impl InventoryCountService {
         status: Option<String>,
         warehouse_id: Option<i32>,
         count_no: Option<String>,
-    ) -> Result<PaginatedResponse<InventoryCountDetail>, sea_orm::DbErr> {
+    ) -> Result<PaginatedResponse<InventoryCountDetail>, AppError> {
         let mut query =
             InventoryCountEntity::find().order_by(inventory_count::Column::CreatedAt, Order::Desc);
 
@@ -158,13 +159,13 @@ impl InventoryCountService {
     pub async fn get_count_detail(
         &self,
         count_id: i32,
-    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryCountDetail, AppError> {
         // 获取盘点主表数据
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
             })?;
 
         // 获取盘点明细项
@@ -218,7 +219,7 @@ impl InventoryCountService {
     pub async fn create_count(
         &self,
         request: CreateInventoryCountRequest,
-    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryCountDetail, AppError> {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
@@ -234,7 +235,7 @@ impl InventoryCountService {
         if existing_count.is_some() {
             tracing::error!("Transaction rolled back: 盘点单号 {} 已存在", count_no);
             txn.rollback().await?;
-            return Err(sea_orm::DbErr::Custom("盘点单号已存在，请重试".to_string()));
+            return Err(AppError::BusinessError("盘点单号已存在，请重试".to_string()));
         }
 
         // 创建盘点主表
@@ -308,18 +309,18 @@ impl InventoryCountService {
         &self,
         count_id: i32,
         request: UpdateInventoryCountRequest,
-    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryCountDetail, AppError> {
         // 检查盘点单是否存在
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
             })?;
 
         // 检查状态，已完成的盘点单不允许修改
         if count.status == "completed" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "盘点单已完成，不允许修改".to_string(),
             ));
         }
@@ -351,18 +352,18 @@ impl InventoryCountService {
         count_id: i32,
         approved: bool,
         notes: Option<String>,
-    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryCountDetail, AppError> {
         // 检查盘点单是否存在
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
             })?;
 
         // 检查状态，只有待审核的盘点单可以审核
         if count.status != "pending" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "只有待审核状态的盘点单可以审核".to_string(),
             ));
         }
@@ -396,18 +397,18 @@ impl InventoryCountService {
     pub async fn complete_count(
         &self,
         count_id: i32,
-    ) -> Result<InventoryCountDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryCountDetail, AppError> {
         // 检查盘点单是否存在
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存盘点单 {} 未找到", count_id))
+                AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id))
             })?;
 
         // 检查状态，只有已审核的盘点单可以完成
         if count.status != "approved" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "只有已审核状态的盘点单可以完成".to_string(),
             ));
         }
@@ -622,7 +623,7 @@ impl InventoryCountService {
     }
 
     /// 生成盘点单号
-    async fn generate_count_no(&self) -> Result<String, sea_orm::DbErr> {
+    async fn generate_count_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
             &*self.db,
             "IC",
@@ -630,6 +631,6 @@ impl InventoryCountService {
             inventory_count::Column::CountNo,
         )
         .await
-        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))
+        .map_err(|e| AppError::BusinessError(e.to_string()))
     }
 }

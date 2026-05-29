@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, sea_query::Expr, ColumnTrait};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use crate::utils::error::AppError;
 use crate::models::{finance_invoice, finance_payment, inventory_stock, fixed_asset, customer_credit};
 
 /// 资产负债表
@@ -73,7 +74,7 @@ impl FinanceReportService {
     }
 
     /// 资产负债表
-    pub async fn get_balance_sheet(&self) -> Result<BalanceSheet, sea_orm::DbErr> {
+    pub async fn get_balance_sheet(&self) -> Result<BalanceSheet, AppError> {
         // 1. 流动资产
         // 应收账款
         let ar_total = finance_invoice::Entity::find()
@@ -176,7 +177,7 @@ impl FinanceReportService {
         &self,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
-    ) -> Result<IncomeStatement, sea_orm::DbErr> {
+    ) -> Result<IncomeStatement, AppError> {
         // 营业收入（已完成的发票）
         let total_revenue = finance_invoice::Entity::find()
             .filter(finance_invoice::Column::Status.eq("COMPLETED"))
@@ -244,7 +245,7 @@ impl FinanceReportService {
         &self,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
-    ) -> Result<CashFlowStatement, sea_orm::DbErr> {
+    ) -> Result<CashFlowStatement, AppError> {
         // 经营活动现金流
         let cash_receipts = finance_payment::Entity::find()
             .filter(finance_payment::Column::Status.eq("COMPLETED"))

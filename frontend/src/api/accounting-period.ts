@@ -13,15 +13,7 @@ export interface AccountingPeriodEntity {
   updated_at?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  year?: number
-  month?: number
-  status?: string
-}
-
-export function listAccountingPeriods(params?: QueryParams) {
+export function listAccountingPeriods(params?: any) {
   return request.get('/finance/accounting-periods', { params })
 }
 

@@ -33,20 +33,6 @@ export interface ARReconciliation {
   created_at: string
 }
 
-export interface FundAccount {
-  id: number
-  account_code: string
-  account_name: string
-  account_type: string
-  balance: number
-  frozen_balance: number
-  available_balance: number
-  status: string
-  bank_name?: string
-  bank_account?: string
-  created_at: string
-}
-
 export function listARInvoices(params?: QueryParams): Promise<ApiResponse<ARInvoice[]>> {
   return request.get('/ar/invoices', { params })
 }
@@ -99,57 +85,4 @@ export function updateARReconciliationStatus(
   status: string
 ): Promise<ApiResponse<void>> {
   return request.put(`/ar-reconciliations/${id}/status`, { status })
-}
-
-export function listFundAccounts(params?: QueryParams): Promise<ApiResponse<FundAccount[]>> {
-  return request.get('/fund-management/accounts', { params })
-}
-
-export function getFundAccount(id: number): Promise<ApiResponse<FundAccount>> {
-  return request.get(`/fund-management/accounts/${id}`)
-}
-
-export function createFundAccount(data: Partial<FundAccount>): Promise<ApiResponse<FundAccount>> {
-  return request.post('/fund-management/accounts', data)
-}
-
-export function depositFund(
-  id: number,
-  data: { amount: number; remark?: string }
-): Promise<ApiResponse<FundAccount>> {
-  return request.post(`/fund-management/accounts/${id}/deposit`, data)
-}
-
-export function withdrawFund(
-  id: number,
-  data: { amount: number; remark?: string }
-): Promise<ApiResponse<FundAccount>> {
-  return request.post(`/fund-management/accounts/${id}/withdraw`, data)
-}
-
-export function freezeFund(
-  id: number,
-  data: { amount: number; reason: string }
-): Promise<ApiResponse<FundAccount>> {
-  return request.post(`/fund-management/accounts/${id}/freeze`, data)
-}
-
-export function unfreezeFund(
-  id: number,
-  data: { amount: number }
-): Promise<ApiResponse<FundAccount>> {
-  return request.post(`/fund-management/accounts/${id}/unfreeze`, data)
-}
-
-export function deleteFundAccount(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/fund-management/accounts/${id}`)
-}
-
-export function transferFund(data: {
-  from_account_id: number
-  to_account_id: number
-  amount: number
-  remark?: string
-}): Promise<ApiResponse<void>> {
-  return request.post('/fund-management/transfer', data)
 }

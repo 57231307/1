@@ -13,6 +13,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn list(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Query(params): axum::extract::Query<$query_params>,
         ) -> Result<axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>, $crate::utils::error::AppError> {
             if let Err(e) = validator::Validate::validate(&params) {
@@ -27,6 +28,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn get(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>, $crate::utils::error::AppError> {
             let service = <$service_ty>::new(state.db.clone());
@@ -38,6 +40,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn create(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            _auth: $crate::middleware::auth_context::AuthContext,
             axum::Json(req): axum::Json<$create_req>,
         ) -> Result<axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>, $crate::utils::error::AppError> {
             if let Err(e) = validator::Validate::validate(&req) {
@@ -53,6 +56,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn update(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
             axum::Json(req): axum::Json<$update_req>,
         ) -> Result<axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>, $crate::utils::error::AppError> {
@@ -69,6 +73,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn delete(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<axum::Json<$crate::utils::response::ApiResponse<()>>, $crate::utils::error::AppError> {
             let service = <$service_ty>::new(state.db.clone());

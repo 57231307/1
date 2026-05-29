@@ -34,18 +34,7 @@ export interface TransferItem {
   remark?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  transfer_no?: string
-  from_warehouse_id?: number
-  to_warehouse_id?: number
-  status?: string
-  transfer_date_start?: string
-  transfer_date_end?: string
-}
-
-export function listInventoryTransfers(params?: QueryParams) {
+export function listInventoryTransfers(params?: any) {
   return request.get('/inventory/transfers', { params })
 }
 

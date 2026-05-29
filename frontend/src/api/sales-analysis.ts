@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface SalesStats {
   monthOrders: number
@@ -45,8 +45,7 @@ export const salesAnalysisApi = {
   getCustomerRanking: (params?: { type?: string }) =>
     request.get<ApiResponse<CustomerRanking[]>>('/sales-analysis/customer-ranking', { params }),
 
-  getSalesTargets: () =>
-    request.get<ApiResponse<SalesTarget[]>>('/sales-analysis/targets'),
+  getSalesTargets: () => request.get<ApiResponse<SalesTarget[]>>('/sales-analysis/targets'),
 
   updateSalesTarget: (period: string, data: Partial<SalesTarget>) =>
     request.put<ApiResponse<SalesTarget>>(`/sales-analysis/targets/${period}`, data),

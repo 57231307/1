@@ -71,10 +71,13 @@ pub struct LocationListQuery {
 }
 
 /// 创建库位请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateLocationRequest {
+    #[validate(range(min = 1, message = "仓库ID必须大于0"))]
     pub warehouse_id: i32,
+    #[validate(length(min = 1, max = 50, message = "库位编码不能为空且最长50字符"))]
     pub location_code: String,
+    #[validate(length(max = 20, message = "库位类型最长20字符"))]
     pub location_type: Option<String>,
     pub max_weight: Option<f64>,
     pub max_height: Option<f64>,

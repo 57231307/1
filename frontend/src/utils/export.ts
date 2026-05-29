@@ -23,27 +23,33 @@ function escapeCSV(value: string): string {
 }
 
 function generateCSV(columns: ExportColumn[], data: any[]): string {
-  const headers = columns.map(col => escapeCSV(col.title)).join(',')
-  const rows = data.map(row =>
-    columns.map(col => {
-      const value = row[col.key]
-      const formatted = col.formatter ? col.formatter(value, row) : value
-      return escapeCSV(formatted ?? '')
-    }).join(',')
+  const headers = columns.map((col) => escapeCSV(col.title)).join(',')
+  const rows = data.map((row) =>
+    columns
+      .map((col) => {
+        const value = row[col.key]
+        const formatted = col.formatter ? col.formatter(value, row) : value
+        return escapeCSV(formatted ?? '')
+      })
+      .join(',')
   )
   return [headers, ...rows].join('\n')
 }
 
 function generateExcelHTML(columns: ExportColumn[], data: any[]): string {
-  const headers = columns.map(col => `<th>${col.title}</th>`).join('')
-  const rows = data.map(row => {
-    const cells = columns.map(col => {
-      const value = row[col.key]
-      const formatted = col.formatter ? col.formatter(value, row) : value
-      return `<td>${formatted ?? ''}</td>`
-    }).join('')
-    return `<tr>${cells}</tr>`
-  }).join('')
+  const headers = columns.map((col) => `<th>${col.title}</th>`).join('')
+  const rows = data
+    .map((row) => {
+      const cells = columns
+        .map((col) => {
+          const value = row[col.key]
+          const formatted = col.formatter ? col.formatter(value, row) : value
+          return `<td>${formatted ?? ''}</td>`
+        })
+        .join('')
+      return `<tr>${cells}</tr>`
+    })
+    .join('')
   return `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
           xmlns:x="urn:schemas-microsoft-com:office:excel"

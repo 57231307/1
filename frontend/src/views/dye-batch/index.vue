@@ -160,7 +160,12 @@
           <el-col :span="12">
             <el-form-item label="产品" prop="product_id">
               <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
-                <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+                <el-option
+                  v-for="p in products"
+                  :key="p.id"
+                  :label="p.product_name"
+                  :value="p.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -215,7 +220,14 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listDyeBatches, createDyeBatch, updateDyeBatch, deleteDyeBatch, completeDyeBatch, exportDyeBatches } from '@/api/dye-batch'
+import {
+  listDyeBatches,
+  createDyeBatch,
+  updateDyeBatch,
+  deleteDyeBatch,
+  completeDyeBatch,
+  exportDyeBatches,
+} from '@/api/dye-batch'
 import type { DyeBatch } from '@/api/dye-batch'
 import { productApi } from '@/api/product'
 import type { Product } from '@/api/product'

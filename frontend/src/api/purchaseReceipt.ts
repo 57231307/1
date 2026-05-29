@@ -37,18 +37,7 @@ export interface ReceiptItem {
   remark?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  receipt_no?: string
-  supplier_id?: number
-  warehouse_id?: number
-  status?: string
-  receipt_date_start?: string
-  receipt_date_end?: string
-}
-
-export function listPurchaseReceipts(params?: QueryParams) {
+export function listPurchaseReceipts(params?: any) {
   return request.get('/purchases/receipts', { params })
 }
 

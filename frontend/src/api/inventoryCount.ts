@@ -30,18 +30,7 @@ export interface CountItem {
   remark?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  count_no?: string
-  warehouse_id?: number
-  status?: string
-  count_date_start?: string
-  count_date_end?: string
-}
-
-export const listInventoryCounts = (params?: QueryParams) =>
-  request.get('/inventory/counts', { params })
+export const listInventoryCounts = (params?: any) => request.get('/inventory/counts', { params })
 
 export const getInventoryCount = (id: number) => request.get(`/inventory/counts/${id}`)
 

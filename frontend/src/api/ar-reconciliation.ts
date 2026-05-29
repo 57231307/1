@@ -30,17 +30,7 @@ export interface ReconciliationDetail {
   remark?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  customer_id?: number
-  customer_name?: string
-  status?: string
-  start_date?: string
-  end_date?: string
-}
-
-export function listArReconciliations(params?: QueryParams) {
+export function listArReconciliations(params?: any) {
   return request.get('/ar-reconciliations', { params })
 }
 

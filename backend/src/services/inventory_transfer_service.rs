@@ -4,6 +4,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::utils::error::AppError;
 use crate::models::dto::PageRequest;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
@@ -93,7 +94,7 @@ impl InventoryTransferService {
         from_warehouse_id: Option<i32>,
         to_warehouse_id: Option<i32>,
         transfer_no: Option<String>,
-    ) -> Result<PaginatedResponse<InventoryTransferDetail>, sea_orm::DbErr> {
+    ) -> Result<PaginatedResponse<InventoryTransferDetail>, AppError> {
         let mut query = InventoryTransferEntity::find()
             .order_by(inventory_transfer::Column::CreatedAt, Order::Desc);
 
@@ -152,13 +153,13 @@ impl InventoryTransferService {
     pub async fn get_transfer_detail(
         &self,
         transfer_id: i32,
-    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryTransferDetail, AppError> {
         // 获取调拨主表数据
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+                AppError::ResourceNotFound(format!("库存调拨单 {} 未找到", transfer_id))
             })?;
 
         // 获取调拨明细项
@@ -209,7 +210,7 @@ impl InventoryTransferService {
     pub async fn create_transfer(
         &self,
         request: CreateInventoryTransferRequest,
-    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryTransferDetail, AppError> {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
@@ -225,7 +226,7 @@ impl InventoryTransferService {
         if existing_transfer.is_some() {
             tracing::error!("Transaction rolled back: 调拨单号 {} 已存在", transfer_no);
             txn.rollback().await?;
-            return Err(sea_orm::DbErr::Custom("调拨单号已存在，请重试".to_string()));
+            return Err(AppError::BusinessError("调拨单号已存在，请重试".to_string()));
         }
 
         // 创建调拨主表
@@ -300,18 +301,18 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
         request: UpdateInventoryTransferRequest,
-    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryTransferDetail, AppError> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+                AppError::ResourceNotFound(format!("库存调拨单 {} 未找到", transfer_id))
             })?;
 
         // 检查状态，已完成的调拨单不允许修改
         if transfer.status == "completed" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "调拨单已完成，不允许修改".to_string(),
             ));
         }
@@ -365,7 +366,7 @@ impl InventoryTransferService {
             let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| sea_orm::DbErr::Custom("调拨单不存在".to_string()))?;
+                .ok_or_else(|| AppError::BusinessError("调拨单不存在".to_string()))?;
             let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
             transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
             transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
@@ -385,18 +386,18 @@ impl InventoryTransferService {
         transfer_id: i32,
         approved: bool,
         notes: Option<String>,
-    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryTransferDetail, AppError> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+                AppError::ResourceNotFound(format!("库存调拨单 {} 未找到", transfer_id))
             })?;
 
         // 检查状态，只有待审核的调拨单可以审核
         if transfer.status != "pending" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "只有待审核状态的调拨单可以审核".to_string(),
             ));
         }
@@ -430,18 +431,18 @@ impl InventoryTransferService {
     pub async fn ship_transfer(
         &self,
         transfer_id: i32,
-    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryTransferDetail, AppError> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+                AppError::ResourceNotFound(format!("库存调拨单 {} 未找到", transfer_id))
             })?;
 
         // 检查状态，只有已审核的调拨单可以发出
         if transfer.status != "approved" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "只有已审核状态的调拨单可以发出".to_string(),
             ));
         }
@@ -474,7 +475,7 @@ impl InventoryTransferService {
                 if stock_model.quantity_on_hand < item.quantity {
                     tracing::error!("Transaction rolled back: 产品 {} 库存不足", item.product_id);
                     txn.rollback().await?;
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 库存不足",
                         item.product_id
                     )));
@@ -529,7 +530,7 @@ impl InventoryTransferService {
                 if update_result.rows_affected == 0 {
                     tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
                     txn.rollback().await?;
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 库存记录已被其他用户修改，请重试",
                         item.product_id
                     )));
@@ -569,7 +570,7 @@ impl InventoryTransferService {
             } else {
                 tracing::error!("Transaction rolled back: 产品 {} 在源仓库无库存记录", item.product_id);
                 txn.rollback().await?;
-                return Err(sea_orm::DbErr::Custom(format!(
+                return Err(AppError::BusinessError(format!(
                     "产品 {} 在源仓库无库存记录",
                     item.product_id
                 )));
@@ -594,18 +595,18 @@ impl InventoryTransferService {
     pub async fn receive_transfer(
         &self,
         transfer_id: i32,
-    ) -> Result<InventoryTransferDetail, sea_orm::DbErr> {
+    ) -> Result<InventoryTransferDetail, AppError> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("库存调拨单 {} 未找到", transfer_id))
+                AppError::ResourceNotFound(format!("库存调拨单 {} 未找到", transfer_id))
             })?;
 
         // 检查状态，只有已发出的调拨单可以接收
         if transfer.status != "shipped" {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "只有已发出状态的调拨单可以接收".to_string(),
             ));
         }
@@ -683,7 +684,7 @@ impl InventoryTransferService {
                 if update_result.rows_affected == 0 {
                     tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
                     txn.rollback().await?;
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 库存记录已被其他用户修改，请重试",
                         item.product_id
                     )));
@@ -824,7 +825,7 @@ impl InventoryTransferService {
     }
 
     /// 生成调拨单号
-    async fn generate_transfer_no(&self) -> Result<String, sea_orm::DbErr> {
+    async fn generate_transfer_no(&self) -> Result<String, AppError> {
         DocumentNumberGenerator::generate_no(
             &*self.db,
             "TRF",
@@ -832,7 +833,7 @@ impl InventoryTransferService {
             inventory_transfer::Column::TransferNo,
         )
         .await
-        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))
+        .map_err(|e| AppError::BusinessError(e.to_string()))
     }
 
     /// 检查调出仓库库存是否充足
@@ -841,7 +842,7 @@ impl InventoryTransferService {
         from_warehouse_id: &i32,
         items: &[InventoryTransferItemRequest],
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         // 批量获取库存记录（优化N+1查询）
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id.unwrap_or(0)).collect();
         let stocks = InventoryStockEntity::find()
@@ -864,13 +865,13 @@ impl InventoryTransferService {
                     continue;
                 }
                 Some(s) => {
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "调出仓库库存不足，产品 {}，当前库存：{}，需要调拨：{}",
                         product_id, s.quantity_available, quantity
                     )));
                 }
                 None => {
-                    return Err(sea_orm::DbErr::Custom(format!(
+                    return Err(AppError::BusinessError(format!(
                         "产品 {} 在调出仓库没有库存记录",
                         product_id
                     )));

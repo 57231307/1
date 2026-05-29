@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::utils::error::AppError;
 use crate::models::api_key::{self, Entity as ApiKey, ActiveModel as ApiKeyActiveModel};
 use sea_orm::*;
 use std::sync::Arc;
@@ -44,7 +45,7 @@ impl ApiKeyService {
         permissions: Option<&str>,
         rate_limit: i32,
         expires_days: Option<i64>,
-    ) -> Result<(api_key::Model, String), DbErr> {
+    ) -> Result<(api_key::Model, String), AppError> {
         let plain_key = Self::generate_api_key();
         let key_hash = Self::hash_api_key(&plain_key);
         let key_prefix = plain_key[..8].to_string();
@@ -72,7 +73,7 @@ impl ApiKeyService {
     }
 
     /// 验证 API 密钥
-    pub async fn validate_api_key(&self, key: &str) -> Result<Option<api_key::Model>, DbErr> {
+    pub async fn validate_api_key(&self, key: &str) -> Result<Option<api_key::Model>, AppError> {
         let key_hash = Self::hash_api_key(key);
         
         let api_key = ApiKey::find()
@@ -102,20 +103,20 @@ impl ApiKeyService {
     pub async fn list_api_keys(
         &self,
         tenant_id: i32,
-    ) -> Result<Vec<api_key::Model>, DbErr> {
+    ) -> Result<Vec<api_key::Model>, AppError> {
         ApiKey::find()
             .filter(api_key::Column::TenantId.eq(tenant_id))
             .filter(api_key::Column::IsActive.eq(true))
             .all(self.db.as_ref())
-            .await
+            .await.map_err(AppError::from)
     }
 
     /// 撤销 API 密钥
-    pub async fn revoke_api_key(&self, id: i32) -> Result<(), DbErr> {
+    pub async fn revoke_api_key(&self, id: i32) -> Result<(), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(DbErr::Custom("API 密钥不存在".to_string()))?;
+            .ok_or(AppError::BusinessError("API 密钥不存在".to_string()))?;
 
         let mut active_model: ApiKeyActiveModel = key.into();
         active_model.is_active = Set(false);

@@ -35,6 +35,7 @@ pub struct Model {
     pub sort_order: Option<i32>,
 
     /// 是否删除
+    pub is_deleted: bool,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,

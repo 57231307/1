@@ -1,0 +1,11 @@
+-- 回滚初始数据库架构
+-- 按照创建的逆序删除表
+
+DROP TABLE IF EXISTS "customers" CASCADE;
+DROP TABLE IF EXISTS "suppliers" CASCADE;
+DROP TABLE IF EXISTS "warehouses" CASCADE;
+DROP TABLE IF EXISTS "product_categories" CASCADE;
+DROP TABLE IF EXISTS "products" CASCADE;
+DROP TABLE IF EXISTS "departments" CASCADE;
+DROP TABLE IF EXISTS "roles" CASCADE;
+DROP TABLE IF EXISTS "users" CASCADE;

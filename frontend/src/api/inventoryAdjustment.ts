@@ -33,17 +33,7 @@ export interface AdjustmentItem {
   remark?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  adjust_no?: string
-  warehouse_id?: number
-  status?: string
-  adjust_date_start?: string
-  adjust_date_end?: string
-}
-
-export function listInventoryAdjustments(params?: QueryParams) {
+export function listInventoryAdjustments(params?: any) {
   return request.get('/inventory/adjustments', { params })
 }
 

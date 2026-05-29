@@ -5,6 +5,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::utils::error::AppError;
 use crate::models::field_permission::{self, Entity as FieldPermissionEntity};
 
 /// 字段权限详情
@@ -58,7 +59,7 @@ impl FieldPermissionService {
         &self,
         resource_type: Option<&str>,
         role_id: Option<i32>,
-    ) -> Result<Vec<FieldPermissionDetail>, sea_orm::DbErr> {
+    ) -> Result<Vec<FieldPermissionDetail>, AppError> {
         let mut query = FieldPermissionEntity::find();
 
         if let Some(rt) = resource_type {
@@ -96,12 +97,12 @@ impl FieldPermissionService {
     pub async fn get_field_permission(
         &self,
         id: i32,
-    ) -> Result<FieldPermissionDetail, sea_orm::DbErr> {
+    ) -> Result<FieldPermissionDetail, AppError> {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("字段权限 {} 未找到", id))
+                AppError::ResourceNotFound(format!("字段权限 {} 未找到", id))
             })?;
 
         Ok(FieldPermissionDetail {
@@ -122,7 +123,7 @@ impl FieldPermissionService {
     pub async fn create_field_permission(
         &self,
         request: CreateFieldPermissionRequest,
-    ) -> Result<FieldPermissionDetail, sea_orm::DbErr> {
+    ) -> Result<FieldPermissionDetail, AppError> {
         // 检查是否已存在相同的权限规则
         let existing = FieldPermissionEntity::find()
             .filter(field_permission::Column::RoleId.eq(request.role_id))
@@ -132,7 +133,7 @@ impl FieldPermissionService {
             .await?;
 
         if existing.is_some() {
-            return Err(sea_orm::DbErr::Custom(
+            return Err(AppError::BusinessError(
                 "该角色对该资源类型的字段权限已存在".to_string(),
             ));
         }
@@ -173,12 +174,12 @@ impl FieldPermissionService {
         &self,
         id: i32,
         request: UpdateFieldPermissionRequest,
-    ) -> Result<FieldPermissionDetail, sea_orm::DbErr> {
+    ) -> Result<FieldPermissionDetail, AppError> {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("字段权限 {} 未找到", id))
+                AppError::ResourceNotFound(format!("字段权限 {} 未找到", id))
             })?;
 
         let mut active: field_permission::ActiveModel = perm.into();
@@ -214,12 +215,12 @@ impl FieldPermissionService {
     }
 
     /// 删除字段权限
-    pub async fn delete_field_permission(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_field_permission(&self, id: i32) -> Result<(), AppError> {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!("字段权限 {} 未找到", id))
+                AppError::ResourceNotFound(format!("字段权限 {} 未找到", id))
             })?;
 
         // 软删除：禁用而不是真正删除
@@ -237,7 +238,7 @@ impl FieldPermissionService {
         role_id: i32,
         resource_type: &str,
         field_name: &str,
-    ) -> Result<bool, sea_orm::DbErr> {
+    ) -> Result<bool, AppError> {
         // Admin 角色默认拥有全部权限
         if role_id == 1 {
             return Ok(true);
@@ -263,7 +264,7 @@ impl FieldPermissionService {
         role_id: i32,
         resource_type: &str,
         field_name: &str,
-    ) -> Result<bool, sea_orm::DbErr> {
+    ) -> Result<bool, AppError> {
         // Admin 角色默认拥有全部权限
         if role_id == 1 {
             return Ok(true);
@@ -288,7 +289,7 @@ impl FieldPermissionService {
         &self,
         role_id: i32,
         resource_type: &str,
-    ) -> Result<Vec<FieldPermissionDetail>, sea_orm::DbErr> {
+    ) -> Result<Vec<FieldPermissionDetail>, AppError> {
         let permissions = FieldPermissionEntity::find()
             .filter(field_permission::Column::RoleId.eq(role_id))
             .filter(field_permission::Column::ResourceType.eq(resource_type))

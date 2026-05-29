@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import {
-  getToken,
-  setToken,
-  removeToken,
-  getRefreshToken,
-  setRefreshToken,
-} from '@/utils/storage'
+import { getToken, setToken, removeToken, getRefreshToken, setRefreshToken } from '@/utils/storage'
 
 describe('Storage 工具函数测试', () => {
   beforeEach(() => {

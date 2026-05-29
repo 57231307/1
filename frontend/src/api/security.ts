@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface SecurityStats {
   todayLogins: number
@@ -46,23 +46,21 @@ export interface SecurityQueryParams {
 }
 
 export const securityApi = {
-  getStats: () =>
-    request.get<ApiResponse<SecurityStats>>('/security/stats'),
+  getStats: () => request.get<ApiResponse<SecurityStats>>('/security/stats'),
 
   getLoginLogs: (params?: SecurityQueryParams) =>
-    request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/security/login-logs', { params }),
+    request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/security/login-logs', {
+      params,
+    }),
 
-  getLockedAccounts: () =>
-    request.get<ApiResponse<LockedAccount[]>>('/security/locked-accounts'),
+  getLockedAccounts: () => request.get<ApiResponse<LockedAccount[]>>('/security/locked-accounts'),
 
   unlockAccount: (id: number) =>
     request.post<ApiResponse<void>>(`/security/locked-accounts/${id}/unlock`),
 
-  getSecurityAlerts: () =>
-    request.get<ApiResponse<SecurityAlert[]>>('/security/alerts'),
+  getSecurityAlerts: () => request.get<ApiResponse<SecurityAlert[]>>('/security/alerts'),
 
-  resolveAlert: (id: number) =>
-    request.post<ApiResponse<void>>(`/security/alerts/${id}/resolve`),
+  resolveAlert: (id: number) => request.post<ApiResponse<void>>(`/security/alerts/${id}/resolve`),
 
   exportLoginLogs: (params?: SecurityQueryParams) =>
     request.get<Blob>('/security/login-logs/export', { params, responseType: 'blob' }),

@@ -52,6 +52,19 @@ pub struct Model {
 
 /// 报表定义关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::CreatedBy",
+        to = "super::user::Column::Id"
+    )]
+    Creator,
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Creator.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // 测试 request 模块中的纯函数逻辑
 describe('Request 工具函数测试', () => {
   // 由于 request.ts 有副作用（创建 axios 实例），我们测试其中的纯函数逻辑
-  
+
   const SAFE_ERROR_MESSAGES: Record<number, string> = {
     400: '请求参数错误',
     401: '未授权，请重新登录',

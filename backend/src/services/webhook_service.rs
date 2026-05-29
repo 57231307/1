@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::utils::error::AppError;
 use crate::models::webhook::{self, Entity as Webhook, ActiveModel as WebhookActiveModel};
 use sea_orm::*;
 use std::sync::Arc;
@@ -40,7 +41,7 @@ impl WebhookService {
         url: &str,
         events: &[&str],
         secret: Option<&str>,
-    ) -> Result<webhook::Model, DbErr> {
+    ) -> Result<webhook::Model, AppError> {
         let now = Utc::now();
         let active_model = WebhookActiveModel {
             tenant_id: Set(tenant_id),
@@ -57,19 +58,19 @@ impl WebhookService {
             ..Default::default()
         };
 
-        active_model.insert(self.db.as_ref()).await
+        active_model.insert(self.db.as_ref()).await.map_err(AppError::from)
     }
 
     /// 获取租户的所有 Webhook
     pub async fn list_webhooks(
         &self,
         tenant_id: i32,
-    ) -> Result<Vec<webhook::Model>, DbErr> {
+    ) -> Result<Vec<webhook::Model>, AppError> {
         Webhook::find()
             .filter(webhook::Column::TenantId.eq(tenant_id))
             .filter(webhook::Column::IsActive.eq(true))
             .all(self.db.as_ref())
-            .await
+            .await.map_err(AppError::from)
     }
 
     /// 触发 Webhook（实际发送HTTP请求）
@@ -78,11 +79,11 @@ impl WebhookService {
         webhook_id: i32,
         event: &str,
         payload: &str,
-    ) -> Result<WebhookDeliveryResult, DbErr> {
+    ) -> Result<WebhookDeliveryResult, AppError> {
         let webhook = Webhook::find_by_id(webhook_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(DbErr::Custom("Webhook 不存在".to_string()))?;
+            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
 
         if !webhook.is_active {
             return Ok(WebhookDeliveryResult {
@@ -149,7 +150,7 @@ impl WebhookService {
         url: &str,
         body: &str,
         secret: Option<&str>,
-    ) -> Result<WebhookDeliveryResult, DbErr> {
+    ) -> Result<WebhookDeliveryResult, AppError> {
         let client = reqwest::Client::new();
 
         let mut request = client
@@ -193,21 +194,21 @@ impl WebhookService {
     }
 
     /// 测试Webhook
-    pub async fn test_webhook(&self, webhook_id: i32) -> Result<WebhookDeliveryResult, DbErr> {
+    pub async fn test_webhook(&self, webhook_id: i32) -> Result<WebhookDeliveryResult, AppError> {
         let test_payload = serde_json::json!({
             "message": "This is a test webhook delivery",
             "test": true
         }).to_string();
 
-        self.trigger_webhook(webhook_id, "test", &test_payload).await
+        self.trigger_webhook(webhook_id, "test", &test_payload).await.map_err(AppError::from)
     }
 
     /// 删除 Webhook
-    pub async fn delete_webhook(&self, id: i32) -> Result<(), DbErr> {
+    pub async fn delete_webhook(&self, id: i32) -> Result<(), AppError> {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(DbErr::Custom("Webhook 不存在".to_string()))?;
+            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
 
         let mut active_model: WebhookActiveModel = webhook.into();
         active_model.is_active = Set(false);

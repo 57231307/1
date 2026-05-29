@@ -187,7 +187,12 @@
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">
               <el-select v-model="formData.supplier_id" placeholder="请选择供应商" filterable>
-            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
+                <el-option
+                  v-for="s in suppliers"
+                  :key="s.id"
+                  :label="s.supplier_name"
+                  :value="s.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>

@@ -211,7 +211,15 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listDyeRecipes, createDyeRecipe, updateDyeRecipe, approveDyeRecipe, submitDyeRecipe, getRecipeVersions, exportDyeRecipes } from '@/api/dye-recipe'
+import {
+  listDyeRecipes,
+  createDyeRecipe,
+  updateDyeRecipe,
+  approveDyeRecipe,
+  submitDyeRecipe,
+  getRecipeVersions,
+  exportDyeRecipes,
+} from '@/api/dye-recipe'
 import type { DyeRecipe } from '@/api/dye-recipe'
 
 // 查询参数

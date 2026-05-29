@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::utils::error::AppError;
 use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::utils::cache::{AppCache, Cache};
 
@@ -106,7 +107,7 @@ impl DashboardService {
         &self,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
-    ) -> Result<DashboardOverview, sea_orm::DbErr> {
+    ) -> Result<DashboardOverview, AppError> {
         // 生成缓存键
         let cache_key = format!("dashboard:overview:{}-{}", 
             start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
@@ -188,7 +189,7 @@ impl DashboardService {
         &self,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
-    ) -> Result<SalesStatistics, sea_orm::DbErr> {
+    ) -> Result<SalesStatistics, AppError> {
         // 生成缓存键
         let cache_key = format!("dashboard:sales:{}-{}", 
             start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
@@ -253,7 +254,7 @@ impl DashboardService {
         &self,
         _start_date: Option<DateTime<Utc>>,
         _end_date: Option<DateTime<Utc>>,
-    ) -> Result<InventoryStatistics, sea_orm::DbErr> {
+    ) -> Result<InventoryStatistics, AppError> {
         // 生成缓存键
         let cache_key = "dashboard:inventory:all".to_string();
 
@@ -341,7 +342,7 @@ impl DashboardService {
     }
 
     /// 获取低库存预警数据
-    pub async fn get_low_stock_alerts(&self) -> Result<Vec<LowStockAlert>, sea_orm::DbErr> {
+    pub async fn get_low_stock_alerts(&self) -> Result<Vec<LowStockAlert>, AppError> {
         // 生成缓存键
         let cache_key = "inventory:low_stock".to_string();
 

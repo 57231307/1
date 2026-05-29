@@ -822,7 +822,9 @@ const handlePrint = () => {
     ElMessage.error('无法打开打印窗口')
     return
   }
-  const rows = orders.value.map((item: any) => `
+  const rows = orders.value
+    .map(
+      (item: any) => `
     <tr>
       <td>${item.order_no}</td>
       <td>${item.customer_name}</td>
@@ -831,7 +833,9 @@ const handlePrint = () => {
       <td>${getStatusText(item.status)}</td>
       <td>${item.created_at}</td>
     </tr>
-  `).join('')
+  `
+    )
+    .join('')
   const now = new Date().toISOString().split('T')[0]
   printWindow.document.write(`
     <html><head><meta charset="utf-8"><title>销售订单列表</title>

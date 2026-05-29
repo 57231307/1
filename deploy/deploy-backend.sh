@@ -49,12 +49,13 @@ echo -e "${GREEN}✓ 目录创建完成${NC}"
 
 # 3. 复制二进制文件
 echo -e "${YELLOW}[3/8] 复制二进制文件...${NC}"
-if [ -f "target/release/bingxi_backend" ]; then
-    cp target/release/bingxi_backend "$BIN_DIR/"
-    chmod +x "$BIN_DIR/bingxi_backend"
+if [ -f "target/release/server" ]; then
+    cp target/release/server "$BIN_DIR/"
+    cp target/release/bingxi "$BIN_DIR/" 2>/dev/null || true
+    chmod +x "$BIN_DIR/server" "$BIN_DIR/bingxi" 2>/dev/null || true
     echo -e "${GREEN}✓ 二进制文件复制完成${NC}"
 else
-    echo -e "${RED}错误：未找到二进制文件，请先运行 cargo build --release${NC}"
+    echo -e "${RED}错误：未找到二进制文件，请先运行 cargo build --release --bin server --bin bingxi${NC}"
     exit 1
 fi
 

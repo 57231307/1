@@ -97,7 +97,44 @@ pub struct Model {
 
 /// 报表订阅关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::tenant::Entity",
+        from = "Column::TenantId",
+        to = "super::tenant::Column::Id"
+    )]
+    Tenant,
+    #[sea_orm(
+        belongs_to = "super::report_template::Entity",
+        from = "Column::TemplateId",
+        to = "super::report_template::Column::Id"
+    )]
+    ReportTemplate,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::CreatedBy",
+        to = "super::user::Column::Id"
+    )]
+    Creator,
+}
+
+impl Related<super::tenant::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Tenant.def()
+    }
+}
+
+impl Related<super::report_template::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ReportTemplate.def()
+    }
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Creator.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
 

@@ -20,6 +20,7 @@ use validator::Validate;
 pub async fn list_suppliers(
     Query(params): Query<SupplierQueryParams>,
     State(state): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
     let result = service
@@ -35,6 +36,7 @@ pub async fn list_suppliers(
 pub async fn get_supplier(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
     let supplier = service.get_supplier(id).await?;

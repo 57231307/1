@@ -117,6 +117,43 @@ pub struct Model {
 
 /// CRM 商机关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::customer::Entity",
+        from = "Column::CustomerId",
+        to = "super::customer::Column::Id"
+    )]
+    Customer,
+    #[sea_orm(
+        belongs_to = "super::crm_lead::Entity",
+        from = "Column::LeadId",
+        to = "super::crm_lead::Column::Id"
+    )]
+    Lead,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::OwnerId",
+        to = "super::user::Column::Id"
+    )]
+    Owner,
+}
+
+impl Related<super::customer::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Customer.def()
+    }
+}
+
+impl Related<super::crm_lead::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Lead.def()
+    }
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Owner.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

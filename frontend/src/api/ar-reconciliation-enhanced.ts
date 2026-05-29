@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, PageResult } from './request'
+import type { ApiResponse, PageResult } from '@/types/api'
 
 export interface AgingBucket {
   label: string
@@ -72,16 +72,6 @@ export interface DisputeRecord {
   created_by?: string
 }
 
-export interface QueryParams {
-  page?: number
-  pageSize?: number
-  customer_id?: number
-  customer_name?: string
-  status?: string
-  start_date?: string
-  end_date?: string
-}
-
 export function autoReconcile(params: {
   start_date: string
   end_date: string
@@ -91,7 +81,7 @@ export function autoReconcile(params: {
 }
 
 export function getAutoReconciliationResults(
-  params?: QueryParams
+  params?: any
 ): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
   return request.get('/ar-reconciliation/auto-reconcile/results', { params })
 }
@@ -103,7 +93,7 @@ export function getAgingAnalysis(params?: {
   return request.get('/ar-reconciliation/aging-analysis', { params })
 }
 
-export function getReconciliationDetails(
+export function getReconciliationDetailItems(
   id: number
 ): Promise<ApiResponse<ReconciliationDetailItem[]>> {
   return request.get(`/ar-reconciliation/${id}/details`)
@@ -114,7 +104,7 @@ export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ mess
 }
 
 export function getCustomerConfirmations(
-  params?: QueryParams
+  params?: any
 ): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
   return request.get('/ar-reconciliation/confirmations', { params })
 }
@@ -130,7 +120,7 @@ export function createDispute(data: Partial<DisputeRecord>): Promise<ApiResponse
   return request.post('/ar-reconciliation/disputes', data)
 }
 
-export function getDisputes(params?: QueryParams): Promise<ApiResponse<PageResult<DisputeRecord>>> {
+export function getDisputes(params?: any): Promise<ApiResponse<PageResult<DisputeRecord>>> {
   return request.get('/ar-reconciliation/disputes', { params })
 }
 

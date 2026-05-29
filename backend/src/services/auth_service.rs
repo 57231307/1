@@ -315,6 +315,16 @@ impl From<AuthError> for AppError {
     }
 }
 
+impl From<AppError> for AuthError {
+    fn from(err: AppError) -> Self {
+        match err {
+            AppError::DatabaseError(e) => AuthError::DatabaseError(sea_orm::DbErr::Custom(e)),
+            AppError::NotFound(_) => AuthError::UserNotFound,
+            _ => AuthError::DatabaseError(sea_orm::DbErr::Custom(err.to_string())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

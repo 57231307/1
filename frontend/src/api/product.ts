@@ -1,6 +1,5 @@
 import { request } from './request'
-import type { ApiResponse } from './request'
-import type { QueryParams } from '@/types/api'
+import type { ApiResponse, QueryParams } from '@/types/api'
 
 export interface Product {
   id: number

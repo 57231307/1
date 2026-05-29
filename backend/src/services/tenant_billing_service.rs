@@ -5,6 +5,7 @@ use crate::models::tenant_plan::{self, Entity as TenantPlan};
 use crate::models::tenant_subscription::{self, Entity as TenantSubscription};
 use crate::models::tenant_usage::{self, Entity as TenantUsage};
 use crate::models::tenant_invoice::{self, Entity as TenantInvoice};
+use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;
 use chrono::{DateTime, Utc, Duration};
@@ -95,7 +96,7 @@ impl TenantBillingService {
         Self { db }
     }
 
-    pub async fn get_all_plans(&self) -> Result<Vec<PlanInfo>, DbErr> {
+    pub async fn get_all_plans(&self) -> Result<Vec<PlanInfo>, AppError> {
         let plans = TenantPlan::find()
             .filter(tenant_plan::Column::IsActive.eq(true))
             .order_by_asc(tenant_plan::Column::PriceMonthly)
@@ -116,7 +117,7 @@ impl TenantBillingService {
         }).collect())
     }
 
-    pub async fn get_current_plan(&self, tenant_id: i32) -> Result<Option<CurrentPlanInfo>, DbErr> {
+    pub async fn get_current_plan(&self, tenant_id: i32) -> Result<Option<CurrentPlanInfo>, AppError> {
         let subscription = TenantSubscription::find()
             .filter(tenant_subscription::Column::TenantId.eq(tenant_id))
             .filter(tenant_subscription::Column::Status.eq("ACTIVE"))
@@ -161,7 +162,7 @@ impl TenantBillingService {
         }
     }
 
-    pub async fn get_usage_stats(&self, tenant_id: i32) -> Result<Option<UsageStats>, DbErr> {
+    pub async fn get_usage_stats(&self, tenant_id: i32) -> Result<Option<UsageStats>, AppError> {
         let tenant = Tenant::find_by_id(tenant_id)
             .one(self.db.as_ref())
             .await?;
@@ -212,7 +213,7 @@ impl TenantBillingService {
         }))
     }
 
-    pub async fn check_usage_limits(&self, tenant_id: i32) -> Result<Vec<LimitViolation>, DbErr> {
+    pub async fn check_usage_limits(&self, tenant_id: i32) -> Result<Vec<LimitViolation>, AppError> {
         let usage_stats = self.get_usage_stats(tenant_id).await?;
         let mut violations = Vec::new();
 
@@ -405,7 +406,7 @@ impl TenantBillingService {
         })
     }
 
-    pub async fn list_invoices(&self, tenant_id: i32, page: u64, page_size: u64) -> Result<(Vec<InvoiceItem>, u64), DbErr> {
+    pub async fn list_invoices(&self, tenant_id: i32, page: u64, page_size: u64) -> Result<(Vec<InvoiceItem>, u64), AppError> {
         let paginator = TenantInvoice::find()
             .filter(tenant_invoice::Column::TenantId.eq(tenant_id))
             .order_by_desc(tenant_invoice::Column::CreatedAt)
@@ -429,7 +430,7 @@ impl TenantBillingService {
         Ok((invoice_items, total))
     }
 
-    pub async fn record_api_call(&self, tenant_id: i32) -> Result<(), DbErr> {
+    pub async fn record_api_call(&self, tenant_id: i32) -> Result<(), AppError> {
         let now = Utc::now();
         let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
 
@@ -462,7 +463,7 @@ impl TenantBillingService {
         Ok(())
     }
 
-    pub async fn update_storage_usage(&self, tenant_id: i32, storage_mb: i64) -> Result<(), DbErr> {
+    pub async fn update_storage_usage(&self, tenant_id: i32, storage_mb: i64) -> Result<(), AppError> {
         let now = Utc::now();
         let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
 
@@ -494,7 +495,7 @@ impl TenantBillingService {
         Ok(())
     }
 
-    pub async fn update_user_count(&self, tenant_id: i32, count: i32) -> Result<(), DbErr> {
+    pub async fn update_user_count(&self, tenant_id: i32, count: i32) -> Result<(), AppError> {
         let now = Utc::now();
         let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
 
@@ -526,7 +527,7 @@ impl TenantBillingService {
         Ok(())
     }
 
-    pub async fn process_auto_renewals(&self) -> Result<usize, DbErr> {
+    pub async fn process_auto_renewals(&self) -> Result<usize, AppError> {
         let now = Utc::now();
         let threshold = now + Duration::hours(24);
 
@@ -556,11 +557,11 @@ impl TenantBillingService {
                 active.updated_at = Set(now);
                 active.update(self.db.as_ref()).await?;
 
-                let mut tenant_active: tenant::ActiveModel = Tenant::find_by_id(sub.tenant_id)
+                let tenant_record = Tenant::find_by_id(sub.tenant_id)
                     .one(self.db.as_ref())
                     .await?
-                    .unwrap()
-                    .into();
+                    .ok_or_else(|| AppError::ResourceNotFound(format!("租户 {} 不存在", sub.tenant_id)))?;
+                let mut tenant_active: tenant::ActiveModel = tenant_record.into();
                 tenant_active.expired_at = Set(Some(new_end_date));
                 tenant_active.updated_at = Set(now);
                 tenant_active.update(self.db.as_ref()).await?;
@@ -592,7 +593,7 @@ impl TenantBillingService {
         _billing_cycle: String,
         period_start: DateTime<Utc>,
         period_end: DateTime<Utc>,
-    ) -> Result<tenant_invoice::Model, DbErr> {
+    ) -> Result<tenant_invoice::Model, AppError> {
         let now = Utc::now();
         let invoice_number = format!("INV-{}-{}", now.format("%Y%m%d"), fastrand::u32(100000..999999));
         let due_date = now + Duration::days(30);
@@ -619,7 +620,6 @@ impl TenantBillingService {
 
 use serde::Serialize;
 use serde::Deserialize;
-use crate::utils::error::AppError;
 use sea_orm::Set;
 
 #[derive(Debug, Clone, Serialize)]

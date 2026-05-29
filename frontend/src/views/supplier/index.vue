@@ -438,7 +438,7 @@ const handleExport = () => {
       { key: 'email', title: '邮箱' },
       { key: 'grade', title: '等级' },
       { key: 'supplier_type', title: '类型' },
-      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      { key: 'status', title: '状态', formatter: (v) => (v === 'active' ? '启用' : '禁用') },
     ],
     data: suppliers.value,
   })
@@ -453,7 +453,12 @@ const handlePrint = () => {
       { key: 'contact_phone', title: '联系电话', width: '120px' },
       { key: 'grade', title: '等级', width: '60px' },
       { key: 'supplier_type', title: '类型', width: '80px' },
-      { key: 'status', title: '状态', width: '60px', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      {
+        key: 'status',
+        title: '状态',
+        width: '60px',
+        formatter: (v) => (v === 'active' ? '启用' : '禁用'),
+      },
     ],
     data: suppliers.value,
   })

@@ -51,6 +51,7 @@ pub mod business_trace_chain;
 pub mod business_trace_snapshot;
 // 供应商管理模块
 pub mod supplier;
+pub mod supplier_category;
 pub mod supplier_contact;
 pub mod supplier_evaluation;
 pub mod supplier_evaluation_record;
@@ -168,6 +169,8 @@ pub mod log_login;
 pub mod supplier_product_color;
 // 产品供应商映射模块
 pub mod product_supplier_mapping;
+// 产品编码映射模块
+pub mod product_code_mapping;
 // 资金账户模块
 pub mod fund_account;
 // API访问日志模块

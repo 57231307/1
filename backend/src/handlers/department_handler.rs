@@ -3,6 +3,7 @@ use axum::{
     Json,
 };
 use crate::utils::app_state::AppState;
+use crate::middleware::auth_context::AuthContext;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -49,6 +50,7 @@ crate::define_crud_handlers!(
 /// 获取部门树形结构 (定制化额外路由)
 pub async fn get_department_tree(
     State(state): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<DepartmentTreeNode>>>, AppError> {
     let department_service = DepartmentService::new(state.db.clone());
     let tree = department_service.get_department_tree().await?;

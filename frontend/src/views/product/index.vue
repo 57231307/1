@@ -590,7 +590,9 @@ const handlePrint = () => {
     ElMessage.error('无法打开打印窗口')
     return
   }
-  const rows = products.value.map((item: any) => `
+  const rows = products.value
+    .map(
+      (item: any) => `
     <tr>
       <td>${item.product_code}</td>
       <td>${item.product_name}</td>
@@ -601,7 +603,9 @@ const handlePrint = () => {
       <td style="text-align:right">${item.cost_price ? '¥' + item.cost_price.toFixed(2) : '-'}</td>
       <td>${item.is_active ? '启用' : '禁用'}</td>
     </tr>
-  `).join('')
+  `
+    )
+    .join('')
   const now = new Date().toISOString().split('T')[0]
   printWindow.document.write(`
     <html><head><meta charset="utf-8"><title>产品列表</title>

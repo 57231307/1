@@ -1,5 +1,6 @@
 use chrono::Utc;
 use crate::models::role;
+use crate::utils::error::AppError;
 use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, PaginatorTrait};
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
@@ -15,20 +16,20 @@ impl RoleService {
     }
 
     /// 根据 ID 查找角色
-    pub async fn find_by_id(&self, id: i32) -> Result<role::Model, sea_orm::DbErr> {
+    pub async fn find_by_id(&self, id: i32) -> Result<role::Model, AppError> {
         role::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", id)))
     }
 
     /// 根据编码查找角色
-    pub async fn find_by_code(&self, code: &str) -> Result<role::Model, sea_orm::DbErr> {
+    pub async fn find_by_code(&self, code: &str) -> Result<role::Model, AppError> {
         role::Entity::find()
             .filter(role::Column::Code.eq(code))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色编码 {} 不存在", code)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色编码 {} 不存在", code)))
     }
 
     /// 创建角色
@@ -39,7 +40,7 @@ impl RoleService {
         description: Option<String>,
         permissions: Option<String>,
         is_system: bool,
-    ) -> Result<role::Model, sea_orm::DbErr> {
+    ) -> Result<role::Model, AppError> {
         let active_role = role::ActiveModel {
             id: Set(0),
             name: Set(name),
@@ -63,11 +64,11 @@ impl RoleService {
         description: Option<String>,
         permissions: Option<String>,
         is_system: Option<bool>,
-    ) -> Result<role::Model, sea_orm::DbErr> {
+    ) -> Result<role::Model, AppError> {
         let mut role_active: role::ActiveModel = role::Entity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 ID {} 不存在", role_id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", role_id)))?
             .into();
 
         if let Some(name) = name {
@@ -91,11 +92,11 @@ impl RoleService {
     }
 
     /// 删除角色
-    pub async fn delete_role(&self, role_id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
         let role_active: role::ActiveModel = role::Entity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("角色 ID {} 不存在", role_id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", role_id)))?
             .into();
 
         role_active.delete(&*self.db).await?;
@@ -107,7 +108,7 @@ impl RoleService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<role::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<role::Model>, u64), AppError> {
         let paginator = role::Entity::find()
             .paginate(&*self.db, page_size);
 
@@ -118,7 +119,7 @@ impl RoleService {
     }
 
     /// 获取所有角色（不分页）
-    pub async fn get_all_roles(&self) -> Result<Vec<role::Model>, sea_orm::DbErr> {
+    pub async fn get_all_roles(&self) -> Result<Vec<role::Model>, AppError> {
         role::Entity::find()
             .all(&*self.db)
             .await

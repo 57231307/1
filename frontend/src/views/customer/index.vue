@@ -474,8 +474,8 @@ const handleExport = () => {
       { key: 'contact_email', title: '邮箱' },
       { key: 'customer_type', title: '类型', formatter: (v) => getCustomerTypeLabel(v) },
       { key: 'province', title: '省份' },
-      { key: 'credit_limit', title: '信用额度', formatter: (v) => v ? formatCurrency(v) : '-' },
-      { key: 'status', title: '状态', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      { key: 'credit_limit', title: '信用额度', formatter: (v) => (v ? formatCurrency(v) : '-') },
+      { key: 'status', title: '状态', formatter: (v) => (v === 'active' ? '启用' : '禁用') },
     ],
     data: customers.value,
   })
@@ -489,8 +489,18 @@ const handlePrint = () => {
       { key: 'customer_name', title: '客户名称' },
       { key: 'contact_person', title: '联系人', width: '80px' },
       { key: 'contact_phone', title: '电话', width: '120px' },
-      { key: 'customer_type', title: '类型', width: '80px', formatter: (v) => getCustomerTypeLabel(v) },
-      { key: 'status', title: '状态', width: '60px', formatter: (v) => v === 'active' ? '启用' : '禁用' },
+      {
+        key: 'customer_type',
+        title: '类型',
+        width: '80px',
+        formatter: (v) => getCustomerTypeLabel(v),
+      },
+      {
+        key: 'status',
+        title: '状态',
+        width: '60px',
+        formatter: (v) => (v === 'active' ? '启用' : '禁用'),
+      },
     ],
     data: customers.value,
   })

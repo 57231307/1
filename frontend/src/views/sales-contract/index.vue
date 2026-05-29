@@ -191,7 +191,12 @@
           <el-col :span="12">
             <el-form-item label="客户" prop="customer_id">
               <el-select v-model="formData.customer_id" placeholder="请选择客户" filterable>
-                <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
+                <el-option
+                  v-for="c in customers"
+                  :key="c.id"
+                  :label="c.customer_name"
+                  :value="c.id"
+                />
               </el-select>
             </el-form-item>
           </el-col>

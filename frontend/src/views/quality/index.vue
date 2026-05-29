@@ -674,7 +674,15 @@ const processDefect = async (row: Defect) => {
 const handleExportStandards = () => {
   const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
   const rows = standards.value.map((item: any) =>
-    [item.standard_code, item.standard_name, item.type === 'product' ? '产品标准' : '工艺标准', item.version, getStandardStatusLabel(item.status), item.created_by_name || '-', item.approved_by_name || '-'].join(',')
+    [
+      item.standard_code,
+      item.standard_name,
+      item.type === 'product' ? '产品标准' : '工艺标准',
+      item.version,
+      getStandardStatusLabel(item.status),
+      item.created_by_name || '-',
+      item.approved_by_name || '-',
+    ].join(',')
   )
   const csv = [...headers, ...rows].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -687,15 +695,22 @@ const handleExportStandards = () => {
 
 const handlePrintStandards = () => {
   const printWindow = window.open('', '_blank')
-  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
-  const rows = standards.value.map((item: any) => `
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = standards.value
+    .map(
+      (item: any) => `
     <tr>
       <td>${item.standard_code}</td><td>${item.standard_name}</td>
       <td>${item.type === 'product' ? '产品标准' : '工艺标准'}</td>
       <td>${item.version}</td><td>${getStandardStatusLabel(item.status)}</td>
       <td>${item.created_by_name || '-'}</td>
     </tr>
-  `).join('')
+  `
+    )
+    .join('')
   printWindow.document.write(`<html><head><meta charset="utf-8"><title>质量标准</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
     <h1>质量标准列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${standards.value.length} 条</div>
@@ -708,7 +723,15 @@ const handleExportRecords = () => {
   const headers = ['记录编号,检验类型,产品,批次号,检验日期,检验员,结果']
   const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
   const rows = records.value.map((item: any) =>
-    [item.record_no, item.inspection_type, item.product_name, item.batch_no, item.inspection_date, item.inspector, resultMap[item.result] || item.result].join(',')
+    [
+      item.record_no,
+      item.inspection_type,
+      item.product_name,
+      item.batch_no,
+      item.inspection_date,
+      item.inspector,
+      resultMap[item.result] || item.result,
+    ].join(',')
   )
   const csv = [...headers, ...rows].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -721,16 +744,23 @@ const handleExportRecords = () => {
 
 const handlePrintRecords = () => {
   const printWindow = window.open('', '_blank')
-  if (!printWindow) { ElMessage.error('无法打开打印窗口'); return }
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
   const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
-  const rows = records.value.map((item: any) => `
+  const rows = records.value
+    .map(
+      (item: any) => `
     <tr>
       <td>${item.record_no}</td><td>${item.inspection_type}</td>
       <td>${item.product_name}</td><td>${item.batch_no}</td>
       <td>${item.inspection_date}</td><td>${item.inspector}</td>
       <td>${resultMap[item.result] || item.result}</td>
     </tr>
-  `).join('')
+  `
+    )
+    .join('')
   printWindow.document.write(`<html><head><meta charset="utf-8"><title>检验记录</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
     <h1>质量检验记录</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${records.value.length} 条</div>

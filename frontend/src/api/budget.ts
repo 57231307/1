@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '../types/api'
+import type { ApiResponse, QueryParams } from '@/types/api'
 
 export interface Budget {
   id: number

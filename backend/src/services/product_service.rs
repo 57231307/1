@@ -43,7 +43,7 @@ impl ProductService {
             "PRD",
             product::Entity,
             product::Column::Code,
-        ).await
+        ).await.map_err(AppError::from)
     }
 
     /// 获取产品列表（支持分页和过滤）
@@ -54,7 +54,7 @@ impl ProductService {
         category_id: Option<i32>,
         status: Option<String>,
         search: Option<String>,
-    ) -> Result<(Vec<product::Model>, u64), sea_orm::DbErr> {
+    ) -> Result<(Vec<product::Model>, u64), AppError> {
         let mut query = ProductEntity::find();
 
         // 应用过滤条件
@@ -83,7 +83,7 @@ impl ProductService {
             }
             Err(e) => {
                 tracing::error!("查询产品总数失败: {:?}", e);
-                return Err(e);
+                return Err(AppError::from(e));
             }
         };
 
@@ -92,7 +92,7 @@ impl ProductService {
             .order_by(product::Column::Code, Order::Asc)
             .into_model::<product::Model>()
             .all(&*self.db)
-            .await
+            .await.map_err(AppError::from)
         {
             Ok(products) => {
                 tracing::info!("查询到 {} 个产品", products.len());
@@ -108,11 +108,11 @@ impl ProductService {
     }
 
     /// 获取产品详情
-    pub async fn get_product(&self, id: i32) -> Result<product::Model, sea_orm::DbErr> {
+    pub async fn get_product(&self, id: i32) -> Result<product::Model, AppError> {
         ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::ResourceNotFound(format!("产品 ID {} 不存在", id)))
     }
 
     /// 创建产品（面料行业版）
@@ -139,7 +139,7 @@ impl ProductService {
         finish: Option<String>,
         min_order_quantity: Option<f64>,
         lead_time: Option<i32>,
-    ) -> Result<product::Model, sea_orm::DbErr> {
+    ) -> Result<product::Model, AppError> {
         let active_model = product::ActiveModel {
             id: NotSet,
             name: Set(name),
@@ -184,10 +184,10 @@ impl ProductService {
     }
 
     /// 删除产品
-    pub async fn delete_product(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_product(&self, id: i32) -> Result<(), AppError> {
         let result = ProductEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::RecordNotFound(format!(
+            return Err(AppError::ResourceNotFound(format!(
                 "产品 ID {} 不存在",
                 id
             )));
@@ -218,11 +218,11 @@ impl ProductService {
         finish: Option<String>,
         min_order_quantity: Option<f64>,
         lead_time: Option<i32>,
-    ) -> Result<product::Model, sea_orm::DbErr> {
+    ) -> Result<product::Model, AppError> {
         let mut product: product::ActiveModel = ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("产品 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = name {
@@ -292,13 +292,13 @@ impl ProductService {
     pub async fn list_product_colors(
         &self,
         product_id: i32,
-    ) -> Result<Vec<product_color::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<product_color::Model>, AppError> {
         ProductColorEntity::find()
             .filter(product_color::Column::ProductId.eq(product_id))
             .filter(product_color::Column::IsActive.eq(true))
             .order_by(product_color::Column::ColorNo, Order::Asc)
             .all(&*self.db)
-            .await
+            .await.map_err(AppError::from)
     }
 
     /// 创建产品色号
@@ -312,7 +312,7 @@ impl ProductService {
         color_type: String,
         dye_formula: Option<String>,
         extra_cost: f64,
-    ) -> Result<product_color::Model, sea_orm::DbErr> {
+    ) -> Result<product_color::Model, AppError> {
         let active_model = product_color::ActiveModel {
             id: Set(0),
             product_id: Set(product_id),
@@ -336,7 +336,7 @@ impl ProductService {
         &self,
         product_id: i32,
         colors: Vec<CreateProductColorInput>,
-    ) -> Result<Vec<product_color::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<product_color::Model>, AppError> {
         let mut results = Vec::new();
 
         for input in colors {
@@ -368,11 +368,11 @@ impl ProductService {
         dye_formula: Option<String>,
         extra_cost: Option<f64>,
         is_active: Option<bool>,
-    ) -> Result<product_color::Model, sea_orm::DbErr> {
+    ) -> Result<product_color::Model, AppError> {
         let mut color: product_color::ActiveModel = ProductColorEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("产品色号 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::ResourceNotFound(format!("产品色号 ID {} 不存在", id)))?
             .into();
 
         if let Some(cn) = color_name {
@@ -401,10 +401,10 @@ impl ProductService {
     }
 
     /// 删除产品色号
-    pub async fn delete_product_color(&self, id: i32) -> Result<(), sea_orm::DbErr> {
+    pub async fn delete_product_color(&self, id: i32) -> Result<(), AppError> {
         let result = ProductColorEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(sea_orm::DbErr::RecordNotFound(format!(
+            return Err(AppError::ResourceNotFound(format!(
                 "产品色号 ID {} 不存在",
                 id
             )));
@@ -417,14 +417,14 @@ impl ProductService {
         &self,
         product_id: i32,
         color_no: &str,
-    ) -> Result<product_color::Model, sea_orm::DbErr> {
+    ) -> Result<product_color::Model, AppError> {
         ProductColorEntity::find()
             .filter(product_color::Column::ProductId.eq(product_id))
             .filter(product_color::Column::ColorNo.eq(color_no))
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                sea_orm::DbErr::RecordNotFound(format!(
+                AppError::ResourceNotFound(format!(
                     "产品 {} 的色号 {} 不存在",
                     product_id, color_no
                 ))
@@ -439,7 +439,7 @@ impl ProductService {
         category_id: Option<i32>,
         status: Option<String>,
         search: Option<String>,
-    ) -> Result<Vec<u8>, sea_orm::DbErr> {
+    ) -> Result<Vec<u8>, AppError> {
         let (products, _total) = self
             .list_products(1, 10000, category_id, status, search)
             .await?;
@@ -518,11 +518,11 @@ impl ProductService {
             .collect();
 
         crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| sea_orm::DbErr::Custom(format!("CSV 生成失败: {}", e)))
+            .map_err(|e| AppError::BusinessError(format!("CSV 生成失败: {}", e)))
     }
 
     /// 生成产品导入模板
-    pub fn generate_product_import_template() -> Result<Vec<u8>, sea_orm::DbErr> {
+    pub fn generate_product_import_template() -> Result<Vec<u8>, AppError> {
         let headers = vec![
             "产品编码".to_string(),
             "产品名称".to_string(),
@@ -567,7 +567,7 @@ impl ProductService {
         example.insert("产品描述".to_string(), "高品质纯棉坯布".to_string());
 
         crate::utils::import_export::CsvImporter::generate_template(&headers, Some(&[example]))
-            .map_err(|e| sea_orm::DbErr::Custom(format!("模板生成失败: {}", e)))
+            .map_err(|e| AppError::BusinessError(format!("模板生成失败: {}", e)))
     }
 
     /// 从产品 CSV 数据导入
@@ -692,7 +692,7 @@ impl ProductService {
                     min_order_quantity,
                     lead_time,
                 )
-                .await
+                .await.map_err(AppError::from)
             {
                 Ok(_) => result.add_success(),
                 Err(e) => {
