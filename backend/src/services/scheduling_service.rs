@@ -4,7 +4,7 @@
 
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -696,9 +696,12 @@ impl SchedulingService {
         }
 
         let mut candidate = start_date;
-        let end_candidate = candidate + Duration::days(days_needed - 1);
+        let max_iterations = 365; // 防止无限循环
+        let mut iterations = 0;
 
         loop {
+            let end_candidate = candidate + Duration::days(days_needed - 1);
+
             let has_overlap = schedule.iter().any(|(s, e, _, _)| {
                 !(end_candidate < *s || candidate > *e)
             });
@@ -707,6 +710,7 @@ impl SchedulingService {
                 return candidate;
             }
 
+            // 找到下一个可用时间槽
             let next_start = schedule
                 .iter()
                 .filter(|(_s, e, _, _)| *e >= candidate)
@@ -715,9 +719,10 @@ impl SchedulingService {
                 .unwrap_or(candidate + Duration::days(1));
 
             candidate = next_start;
-            let new_end = candidate + Duration::days(days_needed - 1);
 
-            if new_end > candidate + Duration::days(365) {
+            iterations += 1;
+            if iterations >= max_iterations {
+                // 超过最大迭代次数，返回当前候选日期（避免无限循环）
                 return candidate;
             }
         }
@@ -901,12 +906,16 @@ impl SchedulingService {
             return Err(AppError::BusinessError("只有草稿状态的排程结果可以确认".to_string()));
         }
 
+        // 使用事务保护批量更新生产订单
+        let txn = self.db.begin().await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
         // 解析排程明细并应用到生产订单
         if let Some(details_json) = &model.schedule_details {
             if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone()) {
                 for detail in &details {
                     if let Ok(Some(order)) = ProductionOrderEntity::find_by_id(detail.order_id)
-                        .one(&*self.db)
+                        .one(&txn)
                         .await
                         .map_err(|e| AppError::DatabaseError(e.to_string()))
                     {
@@ -920,7 +929,8 @@ impl SchedulingService {
                             active.status = Set("SCHEDULED".to_string());
                         }
                         active.updated_at = Set(Utc::now());
-                        let _ = active.update(&*self.db).await;
+                        active.update(&txn).await
+                            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
                     }
                 }
             }
@@ -931,8 +941,11 @@ impl SchedulingService {
         active_model.updated_at = Set(Utc::now());
 
         let updated = active_model
-            .update(&*self.db)
+            .update(&txn)
             .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        txn.commit().await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         Ok(updated)

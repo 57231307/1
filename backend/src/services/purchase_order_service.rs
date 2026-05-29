@@ -655,9 +655,7 @@ impl PurchaseOrderService {
             .all(&txn)
             .await?;
 
-        // 5. 创建库存服务实例
-        let inventory_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
-
+        // 5. 创建库存服务实例（使用事务版本的静态方法）
         // 6. 遍历订单明细，执行库存入库
         for item in &order_items {
             // 查询产品信息获取批次相关字段
@@ -672,22 +670,30 @@ impl PurchaseOrderService {
 
             // 只处理有入库数量的明细
             if receive_quantity_meters > Decimal::ZERO {
-                // 查找现有库存记录
-                let existing_stock = inventory_service
-                    .find_by_product_and_warehouse(item.product_id, order.warehouse_id)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("查询库存失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                        AppError::InternalError(format!("查询库存失败: {}", e))
-                    })?;
+                // 查找现有库存记录（使用事务版本）
+                let existing_stock = crate::services::inventory_stock_service::InventoryStockService::find_by_product_and_warehouse_txn(
+                    &txn, item.product_id, order.warehouse_id,
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!("查询库存失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
+                    AppError::InternalError(format!("查询库存失败: {}", e))
+                })?;
 
-                let stock_record = match existing_stock {
+                let before_quantity_meters;
+                let before_quantity_kg;
+
+                match existing_stock {
                     Some(stock) => {
-                        // 更新现有库存
+                        before_quantity_meters = stock.quantity_meters;
+                        before_quantity_kg = stock.quantity_kg;
+
+                        // 更新现有库存（使用事务版本）
                         let new_quantity_meters = stock.quantity_meters + receive_quantity_meters;
                         let new_quantity_kg = stock.quantity_kg + receive_quantity_alt;
 
-                        inventory_service.update_stock_quantity_with_optimistic_lock(
+                        crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                            &txn,
                             stock.id,
                             new_quantity_meters,
                             new_quantity_kg,
@@ -698,52 +704,55 @@ impl PurchaseOrderService {
                             tracing::error!("更新库存失败: 库存ID={}, 错误: {}", stock.id, e);
                             AppError::InternalError(format!("更新库存失败: {}", e))
                         })?;
-
-                        stock
                     }
                     None => {
-                        // 创建新库存记录
-                        inventory_service.create_stock_fabric(
+                        before_quantity_meters = Decimal::ZERO;
+                        before_quantity_kg = Decimal::ZERO;
+
+                        // 创建新库存记录（使用事务版本）
+                        crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(
+                            &txn,
                             order.warehouse_id,
                             item.product_id,
-                            "DEFAULT".to_string(),      // batch_no
-                            "DEFAULT".to_string(),      // color_no
-                            None,                       // dye_lot_no
-                            "A".to_string(),            // grade
+                            "DEFAULT".to_string(),
+                            "DEFAULT".to_string(),
+                            None,
+                            "A".to_string(),
                             receive_quantity_meters,
                             receive_quantity_alt,
                             product.gram_weight,
                             product.width,
-                            None,                       // location_id
-                            None,                       // shelf_no
-                            None,                       // layer_no
+                            None,
+                            None,
+                            None,
                         )
                         .await
                         .map_err(|e| {
                             tracing::error!("创建库存记录失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
                             AppError::InternalError(format!("创建库存记录失败: {}", e))
-                        })?
+                        })?;
                     }
                 };
 
-                // 记录库存流水（PURCHASE_RECEIPT 类型）
-                inventory_service.record_transaction(
+                // 记录库存流水（使用事务版本，正确的前后数量）
+                crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+                    &txn,
                     "PURCHASE_RECEIPT".to_string(),
                     item.product_id,
                     order.warehouse_id,
-                    stock_record.batch_no.clone(),
-                    stock_record.color_no.clone(),
-                    stock_record.dye_lot_no.clone(),
-                    stock_record.grade.clone(),
+                    "DEFAULT".to_string(),
+                    "DEFAULT".to_string(),
+                    None,
+                    "A".to_string(),
                     receive_quantity_meters,
                     receive_quantity_alt,
                     Some("purchase_order".to_string()),
                     Some(order.order_no.clone()),
                     Some(order.id),
-                    Some(stock_record.quantity_meters - receive_quantity_meters),
-                    Some(stock_record.quantity_kg - receive_quantity_alt),
-                    Some(stock_record.quantity_meters),
-                    Some(stock_record.quantity_kg),
+                    Some(before_quantity_meters),
+                    Some(before_quantity_kg),
+                    Some(before_quantity_meters + receive_quantity_meters),
+                    Some(before_quantity_kg + receive_quantity_alt),
                     Some(format!("采购入库 - 订单 {}", order.order_no)),
                     None,
                 )
@@ -784,7 +793,7 @@ impl PurchaseOrderService {
             status::purchase_order::PARTIAL_RECEIVED.to_string()
         };
 
-        // 8. 更新订单状态
+        // 7. 更新订单状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(new_status);

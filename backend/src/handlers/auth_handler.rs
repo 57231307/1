@@ -100,12 +100,23 @@ pub async fn login(
         .unwrap_or("unknown")
         .to_string();
 
-    // Check account lockout before authentication
+    // Check account lockout before authentication (per username+IP to prevent DoS)
     let since = Utc::now() - ChronoDuration::minutes(LOCKOUT_DURATION_MINUTES);
     use sea_orm::PaginatorTrait;
     use crate::models::log_login;
 
-    let recent_failures = log_login::Entity::find()
+    // Per-IP lockout: prevents an attacker from locking out a legitimate user
+    let recent_ip_failures = log_login::Entity::find()
+        .filter(log_login::Column::Username.eq(payload.username.as_str()))
+        .filter(log_login::Column::Status.eq("FAILED"))
+        .filter(log_login::Column::LoginTime.gte(since))
+        .filter(log_login::Column::IpAddress.eq(client_ip.as_str()))
+        .count(state.db.as_ref())
+        .await
+        .unwrap_or(0);
+
+    // Per-username global lockout with higher threshold (10 attempts from any IP)
+    let recent_user_failures = log_login::Entity::find()
         .filter(log_login::Column::Username.eq(payload.username.as_str()))
         .filter(log_login::Column::Status.eq("FAILED"))
         .filter(log_login::Column::LoginTime.gte(since))
@@ -113,8 +124,16 @@ pub async fn login(
         .await
         .unwrap_or(0);
 
-    if recent_failures >= MAX_FAILED_ATTEMPTS as u64 {
-        tracing::warn!("Account locked due to too many failed attempts: {}", payload.username);
+    if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
+        tracing::warn!("Account locked due to too many failed attempts from IP: {} for user {}", client_ip, payload.username);
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(ApiResponse::error("登录失败次数过多，请30分钟后再试".to_string())),
+        ));
+    }
+
+    if recent_user_failures >= (MAX_FAILED_ATTEMPTS * 2) as u64 {
+        tracing::warn!("Account globally locked due to too many failed attempts: {}", payload.username);
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
             Json(ApiResponse::error("账号已被锁定，请30分钟后再试".to_string())),

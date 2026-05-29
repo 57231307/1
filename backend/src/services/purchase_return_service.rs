@@ -192,24 +192,21 @@ impl PurchaseReturnService {
         
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", return_active, Some(0)).await?;
 
-        // 1. 扣减库存
+        // 1. 扣减库存（在事务内执行，保证原子性）
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
             .all(&txn)
             .await?;
             
-        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
-        
         for item in items {
-            // 查询库存记录 - 使用 find_by_product_and_warehouse 方法
             let warehouse_id = return_order.warehouse_id.unwrap_or(0);
-            let existing_stock = stock_service
-                .find_by_product_and_warehouse(item.product_id, warehouse_id)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let existing_stock = crate::services::inventory_stock_service::InventoryStockService::find_by_product_and_warehouse_txn(
+                &txn, item.product_id, warehouse_id,
+            )
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
             if let Some(s) = existing_stock {
-                // 检查库存是否充足
                 if s.quantity_meters < item.quantity {
                     return Err(AppError::BusinessError(format!(
                         "产品 {} 库存不足，当前库存：{}，需要退货：{}",
@@ -217,19 +214,15 @@ impl PurchaseReturnService {
                     )));
                 }
                 
-                // 扣减库存
                 let new_quantity_meters = s.quantity_meters - item.quantity;
                 let new_quantity_kg = s.quantity_kg - item.quantity_alt;
                 
-                stock_service.update_stock_quantity_with_optimistic_lock(
-                    s.id,
-                    new_quantity_meters,
-                    new_quantity_kg,
-                    s.version,
+                crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                    &txn, s.id, new_quantity_meters, new_quantity_kg, s.version,
                 ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
                 
-                // 记录库存交易
-                stock_service.record_transaction(
+                crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+                    &txn,
                     "PURCHASE_RETURN".to_string(),
                     item.product_id,
                     warehouse_id,
@@ -237,7 +230,7 @@ impl PurchaseReturnService {
                     s.color_no.clone(),
                     s.dye_lot_no.clone(),
                     s.grade.clone(),
-                    -item.quantity, // 扣减用负数
+                    -item.quantity,
                     -item.quantity_alt,
                     Some("purchase_return".to_string()),
                     Some(return_order.return_no.clone()),
@@ -257,7 +250,7 @@ impl PurchaseReturnService {
             }
         }
         
-        // 2. 提交事务（库存扣减完成）
+        // 2. 提交事务（库存扣减和状态更新在同一事务内）
         txn.commit().await?;
         
         // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减

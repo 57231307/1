@@ -183,7 +183,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                     } else if business_type == "sales_order" {
                         if approved {
                             let sales_service = crate::services::sales_service::SalesService::new(db.clone());
-                            if let Err(e) = sales_service.approve_order(business_id).await {
+                            if let Err(e) = sales_service.approve_order(business_id, 0).await {
                                 tracing::error!("Failed to approve sales_order {} via BPM: {}", business_id, e);
                             } else {
                                 tracing::info!("Successfully approved sales_order {} via BPM", business_id);

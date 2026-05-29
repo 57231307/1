@@ -150,6 +150,33 @@ impl PurchaseContractService {
             ));
         }
 
+        // 验证执行金额为正数
+        if req.execution_amount <= Decimal::ZERO {
+            return Err(AppError::ValidationError(
+                "执行金额必须大于零".to_string(),
+            ));
+        }
+
+        // 计算已执行金额并验证不超过合同总额
+        let total_amount = contract.total_amount.unwrap_or(Decimal::ZERO);
+        if total_amount > Decimal::ZERO {
+            let executed_amount = crate::models::purchase_contract_execution::Entity::find()
+                .filter(crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .fold(Decimal::ZERO, |acc, x| acc + x);
+
+            let remaining = total_amount - executed_amount;
+            if req.execution_amount > remaining {
+                return Err(AppError::ValidationError(format!(
+                    "执行金额 {} 超过合同剩余可执行金额 {}（合同总额 {}，已执行 {}）",
+                    req.execution_amount, remaining, total_amount, executed_amount
+                )));
+            }
+        }
+
         // 开启事务
         let txn = (*self.db).begin().await?;
 
@@ -164,10 +191,10 @@ impl PurchaseContractService {
             )),
             execution_type: Set(req.execution_type),
             execution_date: Set(req.execution_date),
-            quantity: Set(req.execution_amount), // 使用 execution_amount 作为数量
-            amount: Set(req.execution_amount),   // 使用 amount
+            quantity: Set(req.execution_amount),
+            amount: Set(req.execution_amount),
             status: Set("COMPLETED".to_string()),
-            remarks: Set(req.remark), // 使用 remarks
+            remarks: Set(req.remark),
             created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
@@ -175,10 +202,10 @@ impl PurchaseContractService {
 
         execution.insert(&txn).await?;
 
-        // 更新合同状态
+        // 更新合同时间戳
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.updated_at = Set(chrono::Utc::now());
-        
+
         contract_active.save(&txn).await?;
 
         // 提交事务

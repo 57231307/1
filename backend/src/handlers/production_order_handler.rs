@@ -312,7 +312,12 @@ pub async fn update_production_order_status(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::ValidationError("状态不能为空".to_string()))?;
 
-    let model = service.update_status(id, status.to_string()).await?;
+    let actual_quantity = payload
+        .get("actual_quantity")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<Decimal>().ok());
+
+    let model = service.update_status(id, status.to_string(), actual_quantity).await?;
 
     let response = ProductionOrderResponse {
         id: model.id,

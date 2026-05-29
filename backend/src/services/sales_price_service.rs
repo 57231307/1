@@ -116,14 +116,23 @@ impl SalesPriceService {
     pub async fn approve_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在批准销售价格，ID: {}", user_id, id);
 
-        let mut price: sales_price::ActiveModel = sales_price::Entity::find_by_id(id)
+        let price_model = sales_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售价格 {} 未找到", id)))?
-            .into();
+            .ok_or_else(|| AppError::NotFound(format!("销售价格 {} 未找到", id)))?;
 
+        // 检查状态，只有待审批状态可以批准
+        if price_model.status != "pending" {
+            return Err(AppError::ValidationError(format!(
+                "只有待审批状态的价格可以批准，当前状态：{}",
+                price_model.status
+            )));
+        }
+
+        let mut price: sales_price::ActiveModel = price_model.into();
         price.status = Set("approved".to_string());
         price.approved_by = Set(Some(user_id));
+        price.approved_at = Set(Some(chrono::Utc::now()));
         price.save(&*self.db).await?;
 
         info!("销售价格批准成功，ID: {}", id);
@@ -144,6 +153,16 @@ impl SalesPriceService {
                 "只有已批准的价格才能激活，当前状态：{}",
                 price_model.status
             )));
+        }
+
+        // 检查有效期
+        let today = chrono::Utc::now().date_naive();
+        if let Some(expiry_date) = price_model.expiry_date {
+            if expiry_date < today {
+                return Err(AppError::ValidationError(
+                    "价格已过期，无法激活".to_string(),
+                ));
+            }
         }
 
         let mut price: sales_price::ActiveModel = price_model.into();

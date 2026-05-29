@@ -6,7 +6,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
@@ -243,10 +243,14 @@ impl BomService {
 
         // 如果提供了新的明细，替换所有明细
         if let Some(items_req) = req.items {
+            // 使用事务保护删除和创建操作
+            let txn = self.db.begin().await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
             // 删除旧明细
             BomItemEntity::delete_many()
                 .filter(BomItemColumn::BomId.eq(id))
-                .exec(&*self.db)
+                .exec(&txn)
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -265,10 +269,13 @@ impl BomService {
                 };
 
                 item_active_model
-                    .insert(&*self.db)
+                    .insert(&txn)
                     .await
                     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             }
+
+            txn.commit().await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
 
         // 返回更新后的详情
@@ -370,6 +377,10 @@ impl BomService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
 
+        // 使用事务保护取消旧默认和设置新默认操作
+        let txn = self.db.begin().await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
         // 取消同产品其他默认BOM
         BomEntity::update_many()
             .filter(BomColumn::ProductId.eq(bom_model.product_id))
@@ -379,7 +390,7 @@ impl BomService {
                 updated_at: Set(Utc::now()),
                 ..Default::default()
             })
-            .exec(&*self.db)
+            .exec(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -388,12 +399,15 @@ impl BomService {
         bom_active.is_default = Set(true);
         bom_active.updated_at = Set(Utc::now());
 
-        let _updated_bom = bom_active
-            .update(&*self.db)
+        let updated_bom = bom_active
+            .update(&txn)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        Ok(_updated_bom)
+        txn.commit().await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(updated_bom)
     }
 
     /// 获取BOM树形结构（递归展开）

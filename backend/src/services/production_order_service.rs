@@ -369,6 +369,7 @@ impl ProductionOrderService {
         &self,
         id: i32,
         status: String,
+        actual_quantity: Option<Decimal>,
     ) -> Result<ProductionOrderModel, AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
@@ -388,9 +389,12 @@ impl ProductionOrderService {
             active_model.actual_start_date = Set(Some(chrono::Utc::now().date_naive()));
         }
 
-        // 如果状态变为已完成，设置实际完成日期
+        // 如果状态变为已完成，设置实际完成日期和实际生产数量
         if status == "COMPLETED" {
             active_model.actual_end_date = Set(Some(chrono::Utc::now().date_naive()));
+            if let Some(qty) = actual_quantity {
+                active_model.actual_quantity = Set(Some(qty));
+            }
         }
 
         let updated = active_model
@@ -465,9 +469,18 @@ impl ProductionOrderService {
 
                 let qty_before_meters = stock_record.quantity_meters;
                 let qty_before_kg = stock_record.quantity_kg;
+
+                // 检查库存是否充足
+                if qty_before_meters < consumption_qty {
+                    return Err(AppError::BusinessError(format!(
+                        "原材料(ID={})库存不足，需要 {}，当前库存 {}",
+                        bom_item.material_id, consumption_qty, qty_before_meters
+                    )));
+                }
+
                 let qty_after_meters = qty_before_meters - consumption_qty;
 
-                // Calculate kg consumption proportionally
+                // 按比例计算公斤数扣减
                 let qty_after_kg = if qty_before_meters > Decimal::ZERO {
                     qty_before_kg - (qty_before_kg * consumption_qty / qty_before_meters)
                 } else {

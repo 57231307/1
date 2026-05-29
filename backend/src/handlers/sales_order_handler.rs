@@ -240,7 +240,7 @@ pub async fn approve_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    let order = sales_service.approve_order(id).await?;
+    let order = sales_service.approve_order(id, auth.user_id).await?;
 
     // 订单审批成功后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {

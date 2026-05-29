@@ -3,6 +3,7 @@
 //! 提供数据范围控制和字段级权限管理功能
 
 use crate::models::data_permission::{self, Entity as DataPermissionEntity};
+use crate::models::role;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -51,8 +52,8 @@ impl DataPermissionService {
         role_id: i32,
         resource_type: &str,
     ) -> Result<Option<DataPermissionResult>, AppError> {
-        // Admin 角色拥有全部权限
-        if role_id == 1 {
+        // Admin 角色拥有全部权限（从数据库查询角色编码）
+        if self.is_admin_role(role_id).await? {
             return Ok(Some(DataPermissionResult {
                 scope_type: data_scope::ALL.to_string(),
                 custom_condition: None,
@@ -90,8 +91,8 @@ impl DataPermissionService {
         role_id: i32,
         resource_type: &str,
     ) -> Result<bool, AppError> {
-        // Admin 角色拥有全部权限
-        if role_id == 1 {
+        // Admin 角色拥有全部权限（从数据库查询角色编码）
+        if self.is_admin_role(role_id).await? {
             return Ok(true);
         }
 
@@ -103,6 +104,18 @@ impl DataPermissionService {
             .await?;
 
         Ok(count > 0)
+    }
+
+    /// 检查角色是否为管理员角色（从数据库查询角色编码）
+    async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
+        use sea_orm::EntityTrait;
+        match role::Entity::find_by_id(role_id)
+            .one(&*self.db)
+            .await?
+        {
+            Some(r) => Ok(r.code == "admin"),
+            None => Ok(false),
+        }
     }
 
     /// 设置数据权限

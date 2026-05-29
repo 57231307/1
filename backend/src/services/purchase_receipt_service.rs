@@ -225,13 +225,13 @@ impl PurchaseReceiptService {
 
         let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", receipt_active, Some(0)).await?;
 
-        // 6. 已实现: 更新库存
-        self.update_inventory(&receipt, &txn).await?;
+        // 6. 更新库存（在事务内执行，保证原子性）
+        self.update_inventory_txn(&receipt, &txn).await?;
 
         // 7. 提交事务
         txn.commit().await?;
-        
-        // 8. 自动生成应付账款
+
+        // 8. 自动生成应付账款（事务外执行，失败不影响入库）
         let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
         if let Err(e) = ap_service.auto_generate_from_receipt(receipt.id, user_id).await {
             tracing::error!("自动生成应付账单失败 (入库单 {}): {}", receipt.receipt_no, e);
@@ -573,45 +573,43 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    async fn update_inventory(
+    async fn update_inventory_txn(
         &self,
         receipt: &purchase_receipt::Model,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        use crate::services::inventory_stock_service::InventoryStockService;
+
         let items = purchase_receipt_item::Entity::find()
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
             .all(txn)
             .await?;
 
-        let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
-
         for item in items {
             let batch_no = item.batch_no.unwrap_or_else(|| "DEFAULT".to_string());
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
-            
-            // 检查库存是否已存在
-            let existing_stock = stock_service
-                .find_by_product_and_warehouse(item.product_id, receipt.warehouse_id)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-            
-            let _stock_model = if let Some(stock) = existing_stock {
-                // 更新现有库存
+
+            let existing_stock = InventoryStockService::find_by_product_and_warehouse_txn(
+                txn, item.product_id, receipt.warehouse_id,
+            )
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+            let stock_model = if let Some(stock) = existing_stock {
                 let new_quantity_meters = stock.quantity_meters + item.quantity;
                 let new_quantity_kg = stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0));
-                
-                stock_service.update_stock_quantity_with_optimistic_lock(
-                    stock.id,
-                    new_quantity_meters,
-                    new_quantity_kg,
-                    stock.version,
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
-                
+
+                InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                    txn, stock.id, new_quantity_meters, new_quantity_kg, stock.version,
+                )
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
                 stock
             } else {
-                // 创建新库存记录
-                stock_service.create_stock_fabric(
+                InventoryStockService::create_stock_fabric_txn(
+                    txn,
                     receipt.warehouse_id,
                     item.product_id,
                     batch_no.clone(),
@@ -623,26 +621,34 @@ impl PurchaseReceiptService {
                     item.gram_weight,
                     item.width,
                     None, None, None,
-                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?
+                )
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?
             };
 
-            stock_service.record_transaction(
+            InventoryStockService::record_transaction_txn(
+                txn,
                 "PURCHASE_RECEIPT".to_string(),
                 item.product_id,
                 receipt.warehouse_id,
-                batch_no.clone(),
-                color_no.clone(),
-                item.lot_no.clone(),
-                grade.clone(),
+                batch_no,
+                color_no,
+                item.lot_no,
+                grade,
                 item.quantity,
                 item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
                 Some("PURCHASE_RECEIPT".to_string()),
                 Some(receipt.receipt_no.clone()),
                 Some(receipt.id),
-                None, None, None, None,
+                Some(stock_model.quantity_meters),
+                Some(stock_model.quantity_kg),
+                Some(stock_model.quantity_meters + item.quantity),
+                Some(stock_model.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0))),
                 Some("入库自动增加库存".to_string()),
                 Some(receipt.created_by),
-            ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            )
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
         Ok(())
     }

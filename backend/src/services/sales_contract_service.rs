@@ -135,8 +135,8 @@ impl SalesContractService {
         user_id: i32,
     ) -> Result<(), AppError> {
         info!(
-            "用户 {} 正在执行销售合同 {}，类型：{}",
-            user_id, contract_id, req.execution_type
+            "用户 {} 正在执行销售合同 {}，类型：{}，金额：{}",
+            user_id, contract_id, req.execution_type, req.execution_amount
         );
 
         // 获取合同
@@ -149,6 +149,14 @@ impl SalesContractService {
             ));
         }
 
+        // 验证执行类型
+        match req.execution_type.as_str() {
+            "delivery" | "payment" => {},
+            _ => return Err(AppError::ValidationError(
+                "无效的执行类型，支持：delivery（出库）、payment（收款）".to_string(),
+            )),
+        }
+
         // 开启事务
         let txn = (*self.db).begin().await?;
 
@@ -157,6 +165,13 @@ impl SalesContractService {
         contract_active.updated_at = Set(chrono::Utc::now());
 
         contract_active.save(&txn).await?;
+
+        // 记录执行日志（这里可以扩展为创建执行记录表）
+        info!(
+            "合同执行记录：合同ID={}，类型={}，金额={}，关联单据类型={}，关联单据ID={:?}",
+            contract_id, req.execution_type, req.execution_amount, 
+            req.related_bill_type.as_deref().unwrap_or("无"), req.related_bill_id
+        );
 
         // 提交事务
         txn.commit().await?;

@@ -274,18 +274,28 @@ impl SalesReturnService {
             return Err(AppError::BusinessError("退货单没有明细，无法提交".to_string()));
         }
 
-        // 开启事务，更新退货单总金额
-        {
-            let txn = (*self.db).begin().await?;
-            self.update_return_totals(return_id, &txn).await?;
-            txn.commit().await?;
-        }
-
+        // 开启事务，更新退货单总金额和状态
+        let txn = (*self.db).begin().await?;
+        
+        // 更新退货单总金额
+        self.update_return_totals(return_id, &txn).await?;
+        
+        // 更新状态为已提交
+        let return_order = sales_return::Entity::find_by_id(return_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!(
+                "销售退货单 {}",
+                return_id
+            )))?;
+        
         let mut active_model: sales_return::ActiveModel = return_order.into();
         active_model.status = Set("SUBMITTED".to_string());
         active_model.updated_at = Set(Utc::now());
-
-        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", active_model, Some(0)).await?;
+        
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(0)).await?;
+        
+        txn.commit().await?;
 
         Ok(return_order)
     }
@@ -413,9 +423,11 @@ impl SalesReturnService {
 
         // 生成应收单 (红字，因为是退货)
         let ar_invoice_service = ArInvoiceService::new(self.db.clone());
+        let invoice_date = Utc::now().date_naive();
+        let due_date = invoice_date + chrono::Duration::days(30);
         let ar_request = CreateArInvoiceRequest {
-            invoice_date: Some(Utc::now().date_naive()),
-            due_date: Some(Utc::now().date_naive()),
+            invoice_date: Some(invoice_date),
+            due_date: Some(due_date),
             customer_id: Some(return_order.customer_id),
             customer_name: None,
             source_type: Some("SALES_RETURN".to_string()),

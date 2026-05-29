@@ -369,6 +369,17 @@ impl RolePermissionService {
         Ok(())
     }
 
+    /// 检查角色是否为管理员角色（从数据库查询角色编码，而非硬编码 ID）
+    async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
+        match RoleEntity::find_by_id(role_id)
+            .one(&*self.db)
+            .await?
+        {
+            Some(role) => Ok(role.code == "admin"),
+            None => Ok(false),
+        }
+    }
+
     /// 获取角色的所有权限
     pub async fn get_role_permissions(
         &self,
@@ -405,8 +416,8 @@ impl RolePermissionService {
         action: &str,
         resource_id: Option<i32>,
     ) -> Result<bool, AppError> {
-        // Admin 角色 (role_id=1) 绕过所有权限检查
-        if role_id == 1 {
+        // Admin 角色绕过所有权限检查（从数据库查询角色编码，而非硬编码 ID）
+        if self.is_admin_role(role_id).await? {
             return Ok(true);
         }
 

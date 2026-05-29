@@ -863,6 +863,16 @@ impl SalesService {
                     updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
                 reservation.insert(txn).await?;
+
+                // 更新库存可用数量
+                let new_quantity_available = s.quantity_available - item.quantity;
+                let stock_update = inventory_stock::ActiveModel {
+                    id: sea_orm::ActiveValue::Unchanged(s.id),
+                    quantity_available: sea_orm::ActiveValue::Set(new_quantity_available),
+                    updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                    ..Default::default()
+                };
+                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", stock_update, Some(0)).await?;
             } else {
                 return Err(AppError::BusinessError(format!(
                     "产品 {} 没有库存记录，无法锁定",
@@ -961,6 +971,24 @@ impl SalesService {
             .await?;
 
         for res in reservations {
+            // 恢复库存可用数量
+            let stock = InventoryStockEntity::find()
+                .filter(inventory_stock::Column::ProductId.eq(res.product_id))
+                .filter(inventory_stock::Column::WarehouseId.eq(res.warehouse_id))
+                .one(txn)
+                .await?;
+
+            if let Some(s) = stock {
+                let new_quantity_available = s.quantity_available + res.quantity;
+                let stock_update = inventory_stock::ActiveModel {
+                    id: sea_orm::ActiveValue::Unchanged(s.id),
+                    quantity_available: sea_orm::ActiveValue::Set(new_quantity_available),
+                    updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                    ..Default::default()
+                };
+                crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", stock_update, Some(0)).await?;
+            }
+
             let mut res_update: inventory_reservation::ActiveModel = res.into();
             res_update.status = sea_orm::ActiveValue::Set("cancelled".to_string());
             res_update.released_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
@@ -984,10 +1012,10 @@ impl SalesService {
                 AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id))
             })?;
 
-        // 2. 检查状态
-        if order.status != "draft" && order.status != "rejected" {
+        // 2. 检查状态 - 只有草稿状态可以提交
+        if order.status != "draft" {
             return Err(AppError::BusinessError(format!(
-                "订单状态为{}，只有草稿或被驳回状态的订单可以提交",
+                "订单状态为{}，只有草稿状态的订单可以提交",
                 order.status
             )));
         }
@@ -1031,7 +1059,7 @@ impl SalesService {
     }
 
     /// 审核销售订单
-    pub async fn approve_order(&self, order_id: i32) -> Result<SalesOrderDetail, AppError> {
+    pub async fn approve_order(&self, order_id: i32, user_id: i32) -> Result<SalesOrderDetail, AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -1082,13 +1110,13 @@ impl SalesService {
             })
             .collect();
 
-        self.lock_inventory(order_id, &items, order.created_by.unwrap_or(0), &txn).await?;
+        self.lock_inventory(order_id, &items, user_id, &txn).await?;
 
         // 更新订单状态为已审核
         let updated_order = sales_order::ActiveModel {
             id: sea_orm::ActiveValue::Unchanged(order.id),
             status: sea_orm::ActiveValue::Set("approved".to_string()),
-            approved_by: sea_orm::ActiveValue::Set(order.created_by), // 使用创建人作为审核人
+            approved_by: sea_orm::ActiveValue::Set(Some(user_id)), // 使用实际审批人
             approved_at: sea_orm::ActiveValue::Set(Some(chrono::Utc::now())),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             ..Default::default()

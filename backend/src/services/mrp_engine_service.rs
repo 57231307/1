@@ -223,7 +223,9 @@ impl MrpEngineService {
                 base_quantity
             };
 
-            let lead_time = Duration::days(7 * (max_level - current_level + 1) as i64);
+            // 提前期计算：根据BOM层级递减，每层7天提前期
+            let lead_time_days = 7 * current_level as i64;
+            let lead_time = Duration::days(lead_time_days);
             let material_date = required_date - lead_time;
 
             let requirement = self.calculate_requirement(
@@ -326,7 +328,7 @@ impl MrpEngineService {
             planned_order_quantity: Set(Some(main_req.shortage_quantity)),
             planned_order_date: Set(Some(main_req.required_date - Duration::days(14))),
             status: Set("PLANNED".to_string()),
-            remarks: Set(Some(format!("BOM Level: 0, On Hand: {}", main_req.on_hand_quantity))),
+            remarks: Set(Some(format!("BOM Level: 0, On Hand: {}, Shortage: {}", main_req.on_hand_quantity, main_req.shortage_quantity))),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -350,32 +352,31 @@ impl MrpEngineService {
         .await?;
 
         for (idx, req) in sub_requirements.iter().enumerate() {
-            if req.shortage_quantity > Decimal::ZERO {
-                let sub_active_model = MrpResultActiveModel {
-                    calculation_no: Set(format!("{}-{}", calculation_no, idx + 1)),
-                    product_id: Set(req.product_id),
-                    required_quantity: Set(req.required_quantity),
-                    required_date: Set(Some(req.required_date)),
-                    source_type: Set(req.source_type.clone()),
-                    source_id: Set(req.source_id),
-                    planned_order_quantity: Set(Some(req.shortage_quantity)),
-                    planned_order_date: Set(Some(req.required_date - Duration::days(14))),
-                    status: Set("PLANNED".to_string()),
-                    remarks: Set(Some(format!(
-                        "BOM Level: {}, On Hand: {}, In Transit: {}",
-                        req.bom_level, req.on_hand_quantity, req.in_transit_quantity
-                    ))),
-                    created_at: Set(Utc::now()),
-                    updated_at: Set(Utc::now()),
-                    ..Default::default()
-                };
+            // 保存所有子物料需求到MRP结果（包括有库存和短缺的）
+            let sub_active_model = MrpResultActiveModel {
+                calculation_no: Set(format!("{}-{}", calculation_no, idx + 1)),
+                product_id: Set(req.product_id),
+                required_quantity: Set(req.required_quantity),
+                required_date: Set(Some(req.required_date)),
+                source_type: Set(req.source_type.clone()),
+                source_id: Set(req.source_id),
+                planned_order_quantity: Set(Some(req.shortage_quantity)),
+                planned_order_date: Set(Some(req.required_date - Duration::days(7 * req.bom_level as i64))),
+                status: Set("PLANNED".to_string()),
+                remarks: Set(Some(format!(
+                    "BOM Level: {}, On Hand: {}, In Transit: {}, Shortage: {}",
+                    req.bom_level, req.on_hand_quantity, req.in_transit_quantity, req.shortage_quantity
+                ))),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+                ..Default::default()
+            };
 
-                let sub_result = sub_active_model
-                    .insert(&*self.db)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-                results.push(sub_result);
-            }
+            let sub_result = sub_active_model
+                .insert(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            results.push(sub_result);
         }
 
         Ok(results)
