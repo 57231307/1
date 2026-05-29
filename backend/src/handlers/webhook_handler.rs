@@ -78,12 +78,13 @@ pub async fn list_webhooks(
 
 pub async fn delete_webhook(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
     let service = WebhookService::new(state.db);
+    let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    match service.delete_webhook(id).await {
+    match service.delete_webhook(id, tenant_id).await {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "删除成功"))),
         Err(e) => {
             tracing::error!("删除 Webhook 失败: {}", e);

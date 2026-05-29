@@ -18,6 +18,50 @@ use crate::models::dye_batch;
 use crate::utils::app_state::AppState;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
+/// 缸号状态枚举
+#[derive(Debug, Clone, PartialEq)]
+pub enum DyeBatchStatus {
+    /// 待生产
+    Pending,
+    /// 生产中
+    InProgress,
+    /// 已完成
+    Completed,
+    /// 已取消
+    Cancelled,
+}
+
+impl DyeBatchStatus {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "待生产" => Some(Self::Pending),
+            "生产中" => Some(Self::InProgress),
+            "已完成" => Some(Self::Completed),
+            "已取消" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "待生产",
+            Self::InProgress => "生产中",
+            Self::Completed => "已完成",
+            Self::Cancelled => "已取消",
+        }
+    }
+
+    /// 检查状态流转是否合法
+    pub fn can_transition_to(&self, target: &Self) -> bool {
+        match self {
+            Self::Pending => matches!(target, Self::InProgress | Self::Cancelled),
+            Self::InProgress => matches!(target, Self::Completed | Self::Cancelled),
+            Self::Completed => false,
+            Self::Cancelled => false,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct DyeBatchListQuery {
     pub page: Option<u64>,
@@ -172,6 +216,32 @@ pub async fn update_dye_batch(
         batch.planned_quantity = Set(Decimal::from_f64_retain(planned_quantity));
     }
     if let Some(status) = req.status {
+        // 验证状态流转
+        let status_value = batch.status.clone().unwrap();
+        let current_status = status_value.as_deref()
+            .unwrap_or("待生产");
+        let target_status = DyeBatchStatus::from_str(&status);
+        
+        if let Some(target) = target_status {
+            let current = DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+            if !current.can_transition_to(&target) {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<()>::error(format!(
+                        "状态流转不合法：{} -> {}",
+                        current_status, status
+                    ))),
+                )
+                    .into_response();
+            }
+        } else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::<()>::error(format!("无效的状态：{}", status))),
+            )
+                .into_response();
+        }
+        
         batch.status = Set(Some(status));
     }
 
@@ -233,6 +303,23 @@ pub async fn complete_dye_batch(
         }
     };
 
+    // 检查当前状态是否允许完成
+    let status_value = batch.status.clone().unwrap();
+    let current_status = status_value.as_deref()
+        .unwrap_or("待生产");
+    let current = DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+    
+    if !current.can_transition_to(&DyeBatchStatus::Completed) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(format!(
+                "状态流转不合法：{} -> 已完成",
+                current_status
+            ))),
+        )
+            .into_response();
+    }
+    
     batch.status = Set(Some("已完成".to_string()));
     batch.completed_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
     batch.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));

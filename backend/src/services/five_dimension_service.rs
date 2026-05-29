@@ -127,7 +127,7 @@ impl FiveDimensionService {
                 .unwrap_or_else(|| "未知产品".to_string());
 
             let five_dimension_id = format!(
-                "P{}|{}|{}|{}|G{}",
+                "P{}|B{}|C{}|D{}|G{}",
                 stock.product_id,
                 batch_no,
                 color_no,
@@ -200,7 +200,7 @@ impl FiveDimensionService {
         &self,
         five_dimension_id: &str,
     ) -> Result<Option<FiveDimensionStats>, AppError> {
-        // 解析五维ID
+        // 解析五维ID（带前缀格式：P{}|B{}|C{}|D{}|G{}）
         let parts: Vec<&str> = five_dimension_id.split('|').collect();
         if parts.len() < 5 {
             return Err(AppError::ValidationError("无效的五维ID格式".to_string()));
@@ -210,12 +210,13 @@ impl FiveDimensionService {
             .trim_start_matches('P')
             .parse()
             .map_err(|_| AppError::ValidationError("无效的产品ID".to_string()))?;
-        let batch_no = parts[1].to_string();
-        let color_no = parts[2].to_string();
-        let dye_lot_no = if parts[3] == "DN" {
+        let batch_no = parts[1].trim_start_matches('B').to_string();
+        let color_no = parts[2].trim_start_matches('C').to_string();
+        let dye_lot_part = parts[3].trim_start_matches('D');
+        let dye_lot_no = if dye_lot_part == "DN" || dye_lot_part.is_empty() {
             None
         } else {
-            Some(parts[3].to_string())
+            Some(dye_lot_part.to_string())
         };
         let grade = parts[4]
             .trim_start_matches('G')

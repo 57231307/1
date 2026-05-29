@@ -570,10 +570,10 @@ impl PurchaseOrderService {
             .await?
             .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
-        // 2. 检查状态
-        if order.order_status != status::purchase_order::SUBMITTED && order.order_status != status::purchase_order::PENDING_APPROVAL {
+        // 2. 检查状态 - 只有待审批状态的订单才能审批
+        if order.order_status != status::purchase_order::PENDING_APPROVAL {
             return Err(AppError::BusinessError(format!(
-                "订单状态不允许审批，当前状态：{}",
+                "订单状态不允许审批，当前状态：{}，需要状态：PENDING_APPROVAL",
                 order.order_status
             )));
         }
@@ -605,10 +605,10 @@ impl PurchaseOrderService {
             .await?
             .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
-        // 2. 检查状态
-        if order.order_status != status::purchase_order::SUBMITTED && order.order_status != status::purchase_order::PENDING_APPROVAL {
+        // 2. 检查状态 - 只有待审批状态的订单才能拒绝
+        if order.order_status != status::purchase_order::PENDING_APPROVAL {
             return Err(AppError::BusinessError(format!(
-                "订单状态不允许拒绝，当前状态：{}",
+                "订单状态不允许拒绝，当前状态：{}，需要状态：PENDING_APPROVAL",
                 order.order_status
             )));
         }
@@ -640,10 +640,11 @@ impl PurchaseOrderService {
             .await?
             .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
-        // 3. 检查状态
-        if order.order_status == status::purchase_order::RECEIVED || order.order_status == status::purchase_order::CLOSED || order.order_status == status::purchase_order::CANCELLED {
+        // 3. 检查状态 - 只有已审批的订单才能收货
+        if order.order_status != status::purchase_order::APPROVED 
+            && order.order_status != status::purchase_order::PARTIAL_RECEIVED {
             return Err(AppError::BusinessError(format!(
-                "订单状态不允许收货，当前状态：{}",
+                "订单状态不允许收货，当前状态：{}，需要状态：APPROVED 或 PARTIAL_RECEIVED",
                 order.order_status
             )));
         }
@@ -752,10 +753,10 @@ impl PurchaseOrderService {
                     AppError::InternalError(format!("记录库存流水失败: {}", e))
                 })?;
 
-                // 更新订单明细已入库数量
+                // 更新订单明细已入库数量（累加而非覆盖）
                 let mut item_active: purchase_order_item::ActiveModel = item.clone().into();
-                item_active.received_quantity = Set(item.quantity);
-                item_active.received_quantity_alt = Set(item.quantity_alt);
+                item_active.received_quantity = Set(item.received_quantity + receive_quantity_meters);
+                item_active.received_quantity_alt = Set(item.received_quantity_alt + receive_quantity_alt);
                 item_active.updated_at = Set(Utc::now());
                 purchase_order_item::Entity::update(item_active)
                     .exec(&txn)
@@ -763,10 +764,30 @@ impl PurchaseOrderService {
             }
         }
 
-        // 7. 更新订单状态
+        // 7. 判断订单状态（全部收货还是部分收货）
+        let all_items = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::OrderId.eq(order_id))
+            .all(&txn)
+            .await?;
+        
+        let mut is_fully_received = true;
+        for item in &all_items {
+            if item.received_quantity < item.quantity {
+                is_fully_received = false;
+                break;
+            }
+        }
+        
+        let new_status = if is_fully_received {
+            status::purchase_order::COMPLETED.to_string()
+        } else {
+            status::purchase_order::PARTIAL_RECEIVED.to_string()
+        };
+
+        // 8. 更新订单状态
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set(status::purchase_order::RECEIVED.to_string());
+        order_active.order_status = Set(new_status);
         order_active.actual_delivery_date = Set(Some(now.date_naive()));
         order_active.updated_at = Set(now);
 
@@ -802,6 +823,39 @@ impl PurchaseOrderService {
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(status::purchase_order::CLOSED.to_string());
         order_active.updated_by = Set(Some(user_id));
+
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
+
+        Ok(order)
+    }
+
+    /// 取消采购订单
+    pub async fn cancel_order(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<purchase_order::Model, AppError> {
+        // 1. 查询订单
+        let order = purchase_order::Entity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+
+        // 2. 检查状态（只有草稿、待审批、已拒绝的订单可以取消）
+        if ![status::purchase_order::DRAFT, 
+             status::purchase_order::PENDING_APPROVAL, 
+             status::purchase_order::REJECTED].contains(&order.order_status.as_str()) {
+            return Err(AppError::BusinessError(format!(
+                "订单状态不允许取消，当前状态：{}",
+                order.order_status
+            )));
+        }
+
+        // 3. 更新状态
+        let mut order_active: purchase_order::ActiveModel = order.into();
+        order_active.order_status = Set(status::purchase_order::CANCELLED.to_string());
+        order_active.updated_by = Set(Some(user_id));
+        order_active.updated_at = Set(Utc::now());
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", order_active, Some(0)).await?;
 

@@ -243,6 +243,7 @@ impl ApInvoiceService {
         }
 
         // 3. 更新应付单
+        let original_paid_amount = invoice.paid_amount;
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
 
         if let Some(invoice_type) = req.invoice_type {
@@ -259,7 +260,7 @@ impl ApInvoiceService {
         }
         if let Some(amount) = req.amount {
             invoice_active.amount = Set(amount);
-            invoice_active.unpaid_amount = Set(amount);
+            invoice_active.unpaid_amount = Set(amount - original_paid_amount);
         }
         if let Some(notes) = req.notes {
             invoice_active.notes = Set(Some(notes));

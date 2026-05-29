@@ -160,7 +160,8 @@ impl ArInvoiceService {
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),
-            status: sea_orm::Set("draft".to_string()),
+            status: sea_orm::Set("DRAFT".to_string()),
+            approval_status: sea_orm::Set("PENDING".to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         };
@@ -246,8 +247,9 @@ impl ArInvoiceService {
             active_invoice.due_date = sea_orm::ActiveValue::Set(date);
         }
         if let Some(amt) = req.invoice_amount {
+            let new_unpaid = (amt - invoice.received_amount).max(Decimal::ZERO);
             active_invoice.invoice_amount = sea_orm::ActiveValue::Set(amt);
-            active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(amt - invoice.received_amount);
+            active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(new_unpaid);
         }
         
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
@@ -318,8 +320,10 @@ impl ArInvoiceService {
             )));
         }
 
-        let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
+        let mut active_invoice: ar_invoice::ActiveModel = invoice.clone().into();
         active_invoice.status = sea_orm::ActiveValue::Set("PAID".to_string());
+        active_invoice.received_amount = sea_orm::ActiveValue::Set(invoice.invoice_amount);
+        active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(Decimal::ZERO);
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(

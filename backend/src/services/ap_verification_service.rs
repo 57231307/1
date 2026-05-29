@@ -83,6 +83,10 @@ impl ApVerificationService {
         // 4. 逐个匹配核销
         let mut verification_items = Vec::new();
         let mut total_amount = Decimal::new(0, 2);
+        let mut invoice_remaining: std::collections::HashMap<i32, Decimal> = invoices
+            .iter()
+            .map(|inv| (inv.id, inv.unpaid_amount))
+            .collect();
 
         for payment in available_payments.iter() {
             let mut remaining = payment.payment_amount;
@@ -107,8 +111,9 @@ impl ApVerificationService {
                     break;
                 }
 
-                if invoice.unpaid_amount > Decimal::new(0, 2) {
-                    let verify_amount = remaining.min(invoice.unpaid_amount);
+                let unpaid = invoice_remaining.get(&invoice.id).copied().unwrap_or(Decimal::ZERO);
+                if unpaid > Decimal::new(0, 2) {
+                    let verify_amount = remaining.min(unpaid);
 
                     verification_items.push(ApVerificationItemDto {
                         invoice_id: invoice.id,
@@ -119,6 +124,7 @@ impl ApVerificationService {
 
                     remaining -= verify_amount;
                     total_amount += verify_amount;
+                    invoice_remaining.insert(invoice.id, unpaid - verify_amount);
                 }
             }
         }
@@ -163,7 +169,10 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item_dto.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound("应付单未找到".to_string()))?;
+                .ok_or(AppError::ResourceNotFound(format!(
+                    "应付单 {}",
+                    item_dto.invoice_id
+                )))?;
 
             invoice.paid_amount += item_dto.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -265,7 +274,10 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound("应付单未找到".to_string()))?;
+                .ok_or(AppError::ResourceNotFound(format!(
+                    "应付单 {}",
+                    item.invoice_id
+                )))?;
 
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -316,7 +328,10 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound("应付单未找到".to_string()))?;
+                .ok_or(AppError::ResourceNotFound(format!(
+                    "应付单 {}",
+                    item.invoice_id
+                )))?;
 
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;

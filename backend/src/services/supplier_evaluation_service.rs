@@ -137,6 +137,14 @@ impl SupplierEvaluationService {
             None
         };
 
+        // 校验得分范围
+        if req.score < Decimal::ZERO || req.score > Decimal::from(indicator.max_score) {
+            return Err(AppError::ValidationError(format!(
+                "得分 {} 超出有效范围 [0, {}]",
+                req.score, indicator.max_score
+            )));
+        }
+
         // 创建评估记录
         let active_record = supplier_evaluation_record::ActiveModel {
             supplier_id: Set(req.supplier_id),
@@ -253,40 +261,65 @@ impl SupplierEvaluationService {
             return Ok(vec![]);
         }
 
-        let mut supplier_scores: std::collections::HashMap<i32, (Decimal, i64)> =
+        // 按供应商分组，收集加权得分和记录数
+        let mut supplier_records: std::collections::HashMap<i32, Vec<&supplier_evaluation_record::Model>> =
             std::collections::HashMap::new();
 
         for record in &records {
-            let entry = supplier_scores
+            supplier_records
                 .entry(record.supplier_id)
-                .or_insert((Decimal::ZERO, 0));
-            if let Some(weighted) = record.weighted_score {
-                entry.0 += weighted;
-            }
-            entry.1 += 1;
+                .or_default()
+                .push(record);
         }
 
         let mut rankings: Vec<SupplierScoreResponse> = Vec::new();
-        for (supplier_id, (total_score, count)) in supplier_scores {
-            let avg_score = if count > 0 {
-                total_score / Decimal::from(count)
+        for (supplier_id, recs) in &supplier_records {
+            let total_weighted_score: Decimal = recs.iter().filter_map(|r| r.weighted_score).sum();
+            let total_records = recs.len() as i64;
+
+            // 计算每个供应商的总权重（与 get_supplier_score 一致）
+            let mut total_weight: Decimal = Decimal::ZERO;
+            let indicator_ids: std::collections::HashSet<i32> =
+                recs.iter().map(|r| r.indicator_id).collect();
+            for indicator_id in &indicator_ids {
+                if let Ok(Some(indicator)) = supplier_evaluation::Entity::find_by_id(*indicator_id)
+                    .one(&*self.db)
+                    .await
+                {
+                    total_weight += indicator.weight;
+                }
+            }
+
+            let average_score = if total_weight > Decimal::ZERO {
+                total_weighted_score / total_weight * Decimal::from(100)
             } else {
                 Decimal::ZERO
             };
 
-            let rating = match avg_score.to_string().parse::<i32>().unwrap_or(0) {
+            let rating = match average_score.to_string().parse::<i32>().unwrap_or(0) {
                 90..=100 => "A".to_string(),
                 80..=89 => "B".to_string(),
                 70..=79 => "C".to_string(),
                 _ => "D".to_string(),
             };
 
+            let latest_evaluation_date = recs
+                .iter()
+                .filter_map(|r| r.evaluation_date)
+                .max()
+                .map(|d| {
+                    DateTime::<Utc>::from_naive_utc_and_offset(
+                        d.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                        Utc,
+                    )
+                });
+
             rankings.push(SupplierScoreResponse {
-                supplier_id,
-                average_score: avg_score * Decimal::from(100),
-                total_records: count,
+                supplier_id: *supplier_id,
+                average_score,
+                total_records,
                 rating,
-                latest_evaluation_date: None,
+                latest_evaluation_date,
             });
         }
 
@@ -318,7 +351,7 @@ impl SupplierEvaluationService {
             query = query.filter(supplier_evaluation_record::Column::EvaluationPeriod.eq(p));
         }
 
-        let offset = ((page - 1) * page_size) as u64;
+        let offset = ((page.max(1) - 1) * page_size) as u64;
         let limit = page_size as u64;
         let records = query
             .order_by(supplier_evaluation_record::Column::Id, Order::Desc)

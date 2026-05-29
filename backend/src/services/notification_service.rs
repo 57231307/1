@@ -70,16 +70,41 @@ impl NotificationService {
         Ok(notification)
     }
 
-    /// 批量创建通知
+    /// 批量创建通知（优化性能）
     pub async fn batch_create_notifications(
         &self,
         requests: Vec<CreateNotificationRequest>,
     ) -> Result<Vec<notification::Model>, AppError> {
-        let mut notifications = Vec::new();
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let now = Utc::now();
+        let mut notifications = Vec::with_capacity(requests.len());
+
         for req in requests {
-            let notification = self.create_notification(req).await?;
+            let active_model = notification::ActiveModel {
+                id: Default::default(),
+                user_id: Set(req.user_id),
+                notification_type: Set(req.notification_type),
+                title: Set(req.title),
+                content: Set(req.content),
+                priority: Set(req.priority),
+                status: Set(NotificationStatus::Unread),
+                business_type: Set(req.business_type),
+                business_id: Set(req.business_id),
+                action_url: Set(req.action_url),
+                sender_id: Set(req.sender_id),
+                sender_name: Set(req.sender_name),
+                read_at: Set(None),
+                processed_at: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+            let notification = active_model.insert(self.db.as_ref()).await?;
             notifications.push(notification);
         }
+
         Ok(notifications)
     }
 
@@ -169,25 +194,22 @@ impl NotificationService {
         Ok(count)
     }
 
-    /// 标记所有通知为已读
+    /// 标记所有通知为已读（使用批量更新优化）
     pub async fn mark_all_as_read(&self, user_id: i32) -> Result<usize, AppError> {
-        let notifications = NotificationEntity::find()
+        let now = Utc::now();
+        let result = notification::Entity::update_many()
             .filter(notification::Column::UserId.eq(user_id))
             .filter(notification::Column::Status.eq(NotificationStatus::Unread))
-            .all(&*self.db)
+            .set(notification::ActiveModel {
+                status: Set(NotificationStatus::Read),
+                read_at: Set(Some(now)),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+            .exec(self.db.as_ref())
             .await?;
 
-        let mut count = 0;
-        for notification in notifications {
-            let mut active_model: notification::ActiveModel = notification.into();
-            active_model.status = Set(NotificationStatus::Read);
-            active_model.read_at = Set(Some(Utc::now()));
-            active_model.updated_at = Set(Utc::now());
-            active_model.update(&*self.db).await?;
-            count += 1;
-        }
-
-        Ok(count)
+        Ok(result.rows_affected as usize)
     }
 
     /// 删除通知（软删除）

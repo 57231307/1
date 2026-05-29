@@ -499,18 +499,20 @@ impl PurchaseReceiptService {
         Ok(items)
     }
 
-    /// 更新库存（待实现）
+    /// 更新采购订单已入库数量
     async fn update_order_received_quantity(
         &self,
         order_id: i32,
         receipt_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        // 1. 获取入库单明细
         let items = purchase_receipt_item::Entity::find()
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
             .all(txn)
             .await?;
 
+        // 2. 更新每个订单明细的已入库数量
         for item in items {
             if let Some(order_item_id) = item.order_item_id {
                 let order_item = crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
@@ -518,42 +520,44 @@ impl PurchaseReceiptService {
                     .await?
                     .ok_or(AppError::ResourceNotFound(format!("订单明细 {}", order_item_id)))?;
 
-                let current_received = order_item.received_quantity;
-                let current_received_alt = order_item.received_quantity_alt;
-                let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
+                // 累加已入库数量
+                let new_received = order_item.received_quantity + item.quantity;
+                let new_received_alt = order_item.received_quantity_alt + item.quantity_alt.unwrap_or_default();
                 
-                active_order_item.received_quantity = sea_orm::ActiveValue::Set(current_received + item.quantity);
-                active_order_item.received_quantity_alt = sea_orm::ActiveValue::Set(current_received_alt + item.quantity_alt.unwrap_or_default());
+                let mut active_order_item: crate::models::purchase_order_item::ActiveModel = order_item.into();
+                active_order_item.received_quantity = sea_orm::ActiveValue::Set(new_received);
+                active_order_item.received_quantity_alt = sea_orm::ActiveValue::Set(new_received_alt);
+                active_order_item.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_order_item, Some(0)).await?;
             }
         }
         
-        // Update order status if fully received
+        // 3. 更新采购订单状态
         let all_order_items = crate::models::purchase_order_item::Entity::find()
             .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
             .all(txn)
             .await?;
             
-        let mut fully_received = true;
-        let mut partially_received = false;
+        let mut is_fully_received = true;
+        let mut has_received = false;
         
-        for oi in all_order_items {
-            if oi.received_quantity >= oi.quantity {
-                partially_received = true;
-            } else if oi.received_quantity > Decimal::new(0, 0) {
-                partially_received = true;
-                fully_received = false;
-            } else {
-                fully_received = false;
+        for oi in &all_order_items {
+            if oi.received_quantity > Decimal::ZERO {
+                has_received = true;
+            }
+            if oi.received_quantity < oi.quantity {
+                is_fully_received = false;
             }
         }
         
-        let new_status = if fully_received {
+        // 根据入库情况设置状态
+        let new_status = if is_fully_received {
             "COMPLETED"
-        } else if partially_received {
+        } else if has_received {
             "PARTIAL_RECEIVED"
         } else {
-            "APPROVED"
+            // 没有入库数量，保持原状态
+            return Ok(());
         };
         
         let order = crate::models::purchase_order::Entity::find_by_id(order_id)
@@ -563,6 +567,7 @@ impl PurchaseReceiptService {
             
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());
+        active_order.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_order, Some(0)).await?;
 
         Ok(())

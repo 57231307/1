@@ -346,10 +346,17 @@ pub async fn stock_in(
             }
         };
 
+    // 累加库存而不是覆盖
+    let current_weight = fabric.weight_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
+    let current_length = fabric.length_m.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
+    
+    let new_weight = current_weight + req.weight_kg;
+    let new_length = current_length + req.length_m;
+    
     fabric.warehouse_id = Set(Some(req.warehouse_id));
     fabric.location = Set(req.location);
-    fabric.weight_kg = Set(Decimal::from_f64_retain(req.weight_kg));
-    fabric.length_m = Set(Decimal::from_f64_retain(req.length_m));
+    fabric.weight_kg = Set(Decimal::from_f64_retain(new_weight));
+    fabric.length_m = Set(Decimal::from_f64_retain(new_length));
     fabric.status = Set(Some("在库".to_string()));
     if let Some(grade) = req.quality_grade {
         fabric.quality_grade = Set(Some(grade));
@@ -425,7 +432,17 @@ pub async fn stock_out(
         update_fabric.length_m = Set(Some(new_length));
     }
 
-    update_fabric.status = Set(Some("已出库".to_string()));
+    // 根据剩余库存决定状态
+    let final_weight = update_fabric.weight_kg.as_ref().and_then(|w| w.to_string().parse::<f64>().ok()).unwrap_or(0.0);
+    let final_length = update_fabric.length_m.as_ref().and_then(|l| l.to_string().parse::<f64>().ok()).unwrap_or(0.0);
+    
+    let new_status = if final_weight <= 0.0 && final_length <= 0.0 {
+        "已出库".to_string()
+    } else {
+        "在库".to_string()
+    };
+    
+    update_fabric.status = Set(Some(new_status));
     update_fabric.updated_at = Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
 
     match update_fabric.update(&*state.db).await {

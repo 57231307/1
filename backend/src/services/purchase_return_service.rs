@@ -8,7 +8,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    QueryFilter, QueryOrder, Set, TransactionTrait
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -171,11 +171,23 @@ impl PurchaseReturnService {
             )));
         }
 
+        // 检查是否有退货明细
+        let item_count = purchase_return_item::Entity::find()
+            .filter(purchase_return_item::Column::ReturnId.eq(return_id))
+            .count(&*self.db)
+            .await?;
+        
+        if item_count == 0 {
+            return Err(AppError::BusinessError("退货单至少需要一行明细".to_string()));
+        }
+
         // 开启事务
         let txn = (*self.db).begin().await?;
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some("approved".to_string()));
+        return_active.approved_by = Set(Some(user_id));
+        return_active.approved_at = Set(Some(Utc::now()));
         return_active.updated_at = Set(Utc::now());
         
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", return_active, Some(0)).await?;
@@ -189,68 +201,70 @@ impl PurchaseReturnService {
         let stock_service = crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
         
         for item in items {
-            // 查询库存记录
-            use sea_orm::QuerySelect;
-            let stock = crate::models::inventory_stock::Entity::find()
-                .filter(crate::models::inventory_stock::Column::ProductId.eq(item.product_id))
-                .lock_exclusive()
-                .one(&txn)
-                .await?;
+            // 查询库存记录 - 使用 find_by_product_and_warehouse 方法
+            let warehouse_id = return_order.warehouse_id.unwrap_or(0);
+            let existing_stock = stock_service
+                .find_by_product_and_warehouse(item.product_id, warehouse_id)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-            if let Some(s) = stock {
+            if let Some(s) = existing_stock {
                 // 检查库存是否充足
-                if s.quantity_on_hand < item.quantity {
+                if s.quantity_meters < item.quantity {
                     return Err(AppError::BusinessError(format!(
                         "产品 {} 库存不足，当前库存：{}，需要退货：{}",
-                        item.product_id, s.quantity_on_hand, item.quantity
+                        item.product_id, s.quantity_meters, item.quantity
                     )));
                 }
                 
                 // 扣减库存
-                let new_quantity_on_hand = s.quantity_on_hand - item.quantity;
-                let new_quantity_available = s.quantity_available - item.quantity;
-                let stock_update = crate::models::inventory_stock::ActiveModel {
-                    id: sea_orm::ActiveValue::Unchanged(s.id),
-                    quantity_on_hand: sea_orm::ActiveValue::Set(new_quantity_on_hand),
-                    quantity_available: sea_orm::ActiveValue::Set(new_quantity_available),
-                    updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    ..Default::default()
-                };
-                crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
+                let new_quantity_meters = s.quantity_meters - item.quantity;
+                let new_quantity_kg = s.quantity_kg - item.quantity_alt;
+                
+                stock_service.update_stock_quantity_with_optimistic_lock(
+                    s.id,
+                    new_quantity_meters,
+                    new_quantity_kg,
+                    s.version,
+                ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
                 
                 // 记录库存交易
                 stock_service.record_transaction(
                     "PURCHASE_RETURN".to_string(),
                     item.product_id,
-                    s.warehouse_id,
+                    warehouse_id,
                     s.batch_no.clone(),
                     s.color_no.clone(),
-                    Some(s.batch_no.clone()),
+                    s.dye_lot_no.clone(),
                     s.grade.clone(),
                     -item.quantity, // 扣减用负数
                     -item.quantity_alt,
-                    Some("PURCHASE_RETURN".to_string()),
+                    Some("purchase_return".to_string()),
                     Some(return_order.return_no.clone()),
                     Some(return_order.id),
-                    None, None, None, None,
+                    Some(s.quantity_meters),
+                    Some(s.quantity_kg),
+                    Some(new_quantity_meters),
+                    Some(new_quantity_kg),
                     Some("采购退货扣减库存".to_string()),
                     Some(user_id),
                 ).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
             } else {
                 return Err(AppError::BusinessError(format!(
-                    "产品 {} 没有库存记录，无法退货",
-                    item.product_id
+                    "产品 {} 在仓库 {} 没有库存记录，无法退货",
+                    item.product_id, warehouse_id
                 )));
             }
         }
         
-        // 2. 自动生成应付红字账单（冲销）
-        // 提交当前事务，因为 auto_generate_from_return 内部会自己开启事务
+        // 2. 提交事务（库存扣减完成）
         txn.commit().await?;
         
+        // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
         let ap_service = crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
         if let Err(e) = ap_service.auto_generate_from_return(return_id, user_id).await {
             tracing::error!("自动生成应付账单失败 (退货单 {}): {}", return_order.return_no, e);
+            // 记录失败但不阻断流程，可以后续手动重试
         } else {
             tracing::info!("成功自动生成应付账单 (退货单 {})", return_order.return_no);
         }

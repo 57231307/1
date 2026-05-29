@@ -101,6 +101,11 @@ impl AccountingPeriodService {
                     date.format("%Y-%m-%d"), p.period_name
                 )));
             }
+        } else {
+            return Err(AppError::BusinessError(format!(
+                "日期 {} 不在任何已设置的会计期间内，请先创建对应的会计期间。",
+                date.format("%Y-%m-%d")
+            )));
         }
         
         Ok(())

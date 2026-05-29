@@ -130,6 +130,30 @@ impl SalesPriceService {
         Ok(())
     }
 
+    /// 激活已批准的价格策略
+    pub async fn activate_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        info!("用户 {} 正在激活销售价格，ID: {}", user_id, id);
+
+        let price_model = sales_price::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("销售价格 {} 未找到", id)))?;
+
+        if price_model.status != "approved" {
+            return Err(AppError::ValidationError(format!(
+                "只有已批准的价格才能激活，当前状态：{}",
+                price_model.status
+            )));
+        }
+
+        let mut price: sales_price::ActiveModel = price_model.into();
+        price.status = Set("active".to_string());
+        price.save(&*self.db).await?;
+
+        info!("销售价格激活成功，ID: {}", id);
+        Ok(())
+    }
+
     pub async fn get_price_history(
         &self,
         product_id: i32,
@@ -155,5 +179,58 @@ impl SalesPriceService {
             .await?;
 
         Ok(strategies)
+    }
+
+    /// 获取指定产品和客户的当前有效价格
+    /// 按优先级：客户专属价格 > 客户类型价格 > 通用价格
+    pub async fn get_current_price(
+        &self,
+        product_id: i32,
+        customer_id: Option<i32>,
+        customer_type: Option<&str>,
+    ) -> Result<Option<sales_price::Model>, AppError> {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+
+        let mut query = sales_price::Entity::find()
+            .filter(sales_price::Column::ProductId.eq(product_id))
+            .filter(sales_price::Column::Status.eq("active".to_string()));
+
+        // 过滤有效日期范围
+        query = query.filter(
+            sales_price::Column::EffectiveDate
+                .lte(today.clone())
+                .and(
+                    sales_price::Column::ExpiryDate
+                        .is_null()
+                        .or(sales_price::Column::ExpiryDate.gte(today)),
+                ),
+        );
+
+        let all_prices = query.all(&*self.db).await?;
+
+        // 按优先级匹配：客户专属 > 客户类型 > 通用
+        let mut customer_specific = None;
+        let mut customer_type_match = None;
+        let mut generic_price = None;
+
+        for price in all_prices {
+            if let Some(cid) = customer_id {
+                if price.customer_id == Some(cid) {
+                    customer_specific = Some(price);
+                    continue;
+                }
+            }
+            if let Some(ct) = customer_type {
+                if price.customer_type.as_deref() == Some(ct) {
+                    customer_type_match = Some(price);
+                    continue;
+                }
+            }
+            if price.customer_id.is_none() && price.customer_type.is_none() {
+                generic_price = Some(price);
+            }
+        }
+
+        Ok(customer_specific.or(customer_type_match).or(generic_price))
     }
 }

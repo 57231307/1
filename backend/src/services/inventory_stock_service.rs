@@ -91,7 +91,7 @@ impl InventoryStockService {
         quality_status: String,
     ) -> Result<inventory_stock::Model, AppError> {
         let active_stock = inventory_stock::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             warehouse_id: Set(warehouse_id),
             product_id: Set(product_id),
             quantity_on_hand: Set(quantity_meters),
@@ -337,6 +337,7 @@ impl InventoryStockService {
         quantity_meters: Decimal,
         gram_weight: Option<Decimal>,
         width: Option<Decimal>,
+        fallback_quantity_kg: Decimal,
     ) -> Decimal {
         if let Some(gram_weight) = gram_weight {
             if let Some(width) = width {
@@ -346,11 +347,12 @@ impl InventoryStockService {
                     Err(e) => {
                         // 如果计算失败，回退到直接传入的公斤数
                         tracing::warn!("双计量单位换算失败: {:?}，使用原始公斤数", e);
+                        return fallback_quantity_kg;
                     }
                 }
             }
         }
-        Decimal::ZERO
+        fallback_quantity_kg
     }
 
     /// 创建库存（面料行业版）
@@ -372,15 +374,10 @@ impl InventoryStockService {
         layer_no: Option<String>,
     ) -> Result<inventory_stock::Model, AppError> {
         // 自动计算公斤数（如果提供了克重和幅宽）
-        let calculated_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width);
-        let final_quantity_kg = if calculated_kg != Decimal::ZERO {
-            calculated_kg
-        } else {
-            quantity_kg
-        };
+        let final_quantity_kg = Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
         let active_stock = inventory_stock::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             warehouse_id: Set(warehouse_id),
             product_id: Set(product_id),
             quantity_on_hand: Set(quantity_meters),

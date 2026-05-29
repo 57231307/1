@@ -190,9 +190,8 @@ impl SupplierService {
         let page_size = params.page_size.unwrap_or(20);
 
         let paginator = query.paginate(&*self.db, page_size);
-        let num_pages = paginator.num_pages().await?;
+        let total = paginator.num_items().await?;
         let data = paginator.fetch_page(page - 1).await?;
-        let total = num_pages * page_size;
 
         Ok(PaginatedResponse {
             data: data.clone(),
@@ -386,7 +385,7 @@ impl SupplierService {
     ) -> Result<Vec<supplier_contact::Model>, AppError> {
         let contacts = supplier_contact::Entity::find()
             .filter(supplier_contact::Column::SupplierId.eq(supplier_id))
-            .order_by(supplier_contact::Column::IsPrimary, Order::Asc)
+            .order_by(supplier_contact::Column::IsPrimary, Order::Desc)
             .order_by(supplier_contact::Column::ContactName, Order::Asc)
             .all(&*self.db)
             .await?;
@@ -493,8 +492,6 @@ impl SupplierService {
 
     /// 取消所有主要联系人
     async fn clear_primary_contacts(&self, supplier_id: i32) -> Result<(), AppError> {
-        
-
         let contacts = supplier_contact::Entity::find()
             .filter(supplier_contact::Column::SupplierId.eq(supplier_id))
             .filter(supplier_contact::Column::IsPrimary.eq(true))

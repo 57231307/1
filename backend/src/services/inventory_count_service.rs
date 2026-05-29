@@ -457,14 +457,13 @@ impl InventoryCountService {
                 if quantity_variance != rust_decimal::Decimal::ZERO {
                     variance_count += 1;
 
-                    // 调整库存
+                    // 调整库存（带乐观锁）
+                    let expected_version = stock_model.version;
                     let mut stock_update: inventory_stock::ActiveModel = stock_model.clone().into();
                     stock_update.quantity_on_hand = sea_orm::ActiveValue::Set(item.quantity_actual);
                     stock_update.quantity_available =
                         sea_orm::ActiveValue::Set(item.quantity_actual);
-                    stock_update.quantity_meters = sea_orm::ActiveValue::Set(
-                        stock_model.quantity_meters + quantity_variance,
-                    );
+                    stock_update.quantity_meters = sea_orm::ActiveValue::Set(item.quantity_actual);
                     // Update quantity_kg proportionally
                     if stock_model.quantity_meters > rust_decimal::Decimal::ZERO {
                         let kg_ratio = stock_model.quantity_kg / stock_model.quantity_meters;
@@ -472,9 +471,56 @@ impl InventoryCountService {
                             item.quantity_actual * kg_ratio,
                         );
                     }
-                    stock_update.version = sea_orm::ActiveValue::Set(stock_model.version + 1);
+                    stock_update.version = sea_orm::ActiveValue::Set(expected_version + 1);
                     stock_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                    crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock_update, Some(0)).await?;
+                    
+                    // 使用乐观锁条件更新
+                    let update_result = inventory_stock::Entity::update_many()
+                        .col_expr(
+                            inventory_stock::Column::QuantityOnHand,
+                            sea_orm::sea_query::Expr::val(item.quantity_actual).into(),
+                        )
+                        .col_expr(
+                            inventory_stock::Column::QuantityAvailable,
+                            sea_orm::sea_query::Expr::val(item.quantity_actual).into(),
+                        )
+                        .col_expr(
+                            inventory_stock::Column::QuantityMeters,
+                            sea_orm::sea_query::Expr::val(item.quantity_actual).into(),
+                        )
+                        .col_expr(
+                            inventory_stock::Column::QuantityKg,
+                            sea_orm::sea_query::Expr::val(
+                                if stock_model.quantity_meters > rust_decimal::Decimal::ZERO {
+                                    let kg_ratio = stock_model.quantity_kg / stock_model.quantity_meters;
+                                    item.quantity_actual * kg_ratio
+                                } else {
+                                    stock_model.quantity_kg
+                                }
+                            ).into(),
+                        )
+                        .col_expr(
+                            inventory_stock::Column::Version,
+                            sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                        )
+                        .col_expr(
+                            inventory_stock::Column::UpdatedAt,
+                            sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                        )
+                        .filter(inventory_stock::Column::Id.eq(stock_model.id))
+                        .filter(inventory_stock::Column::Version.eq(expected_version))
+                        .exec(&txn)
+                        .await?;
+
+                    // 检查乐观锁是否成功
+                    if update_result.rows_affected == 0 {
+                        tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
+                        txn.rollback().await?;
+                        return Err(AppError::BusinessError(format!(
+                            "产品 {} 库存记录已被其他用户修改，请重试",
+                            item.product_id
+                        )));
+                    }
 
                     // 记录盘点调整流水
                     let transaction = inventory_transaction::ActiveModel {
@@ -595,7 +641,7 @@ impl InventoryCountService {
                 if item.quantity_difference != rust_decimal::Decimal::ZERO {
                     adjustment_items.push(AdjustmentItemRequest {
                         stock_id: item.stock_id,
-                        quantity: item.quantity_difference.abs(),
+                        quantity: item.quantity_difference,
                         unit_cost: Some(item.unit_cost),
                         notes: Some(format!("盘点差异调整 - 盘点单号: {}", count_no)),
                     });

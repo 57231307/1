@@ -254,7 +254,7 @@ impl FieldPermissionService {
 
         match perm {
             Some(p) => Ok(p.can_read),
-            None => Ok(true), // 默认允许读取（未配置权限规则时）
+            None => Ok(false), // 默认拒绝读取（未配置权限规则时）
         }
     }
 
@@ -280,7 +280,7 @@ impl FieldPermissionService {
 
         match perm {
             Some(p) => Ok(p.can_write),
-            None => Ok(true), // 默认允许写入（未配置权限规则时）
+            None => Ok(false), // 默认拒绝写入（未配置权限规则时）
         }
     }
 

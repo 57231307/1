@@ -885,7 +885,7 @@ impl SchedulingService {
         Ok(model)
     }
 
-    /// 确认排程结果
+    /// 确认排程结果并应用到生产订单
     pub async fn confirm_schedule_result(
         &self,
         id: i32,
@@ -899,6 +899,31 @@ impl SchedulingService {
 
         if model.status != "DRAFT" {
             return Err(AppError::BusinessError("只有草稿状态的排程结果可以确认".to_string()));
+        }
+
+        // 解析排程明细并应用到生产订单
+        if let Some(details_json) = &model.schedule_details {
+            if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone()) {
+                for detail in &details {
+                    if let Ok(Some(order)) = ProductionOrderEntity::find_by_id(detail.order_id)
+                        .one(&*self.db)
+                        .await
+                        .map_err(|e| AppError::DatabaseError(e.to_string()))
+                    {
+                        use crate::models::production_order::ActiveModel;
+                        let mut active: ActiveModel = order.into();
+                        active.planned_start_date = Set(Some(detail.start_date));
+                        active.planned_end_date = Set(Some(detail.end_date));
+                        active.work_center_id = Set(Some(detail.work_center_id));
+                        // 自动将DRAFT状态更新为SCHEDULED
+                        if active.status.as_ref() == "DRAFT" {
+                            active.status = Set("SCHEDULED".to_string());
+                        }
+                        active.updated_at = Set(Utc::now());
+                        let _ = active.update(&*self.db).await;
+                    }
+                }
+            }
         }
 
         let mut active_model: SchedulingActiveModel = model.into();

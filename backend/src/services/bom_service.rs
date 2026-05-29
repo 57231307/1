@@ -89,11 +89,28 @@ impl BomService {
             self.get_next_version(req.product_id).await?
         };
 
+        let is_default = req.is_default.unwrap_or(false);
+
+        // 如果设置为默认，先取消同产品其他默认BOM
+        if is_default {
+            BomEntity::update_many()
+                .filter(BomColumn::ProductId.eq(req.product_id))
+                .filter(BomColumn::IsDefault.eq(true))
+                .set(ActiveModel {
+                    is_default: Set(false),
+                    updated_at: Set(Utc::now()),
+                    ..Default::default()
+                })
+                .exec(&*self.db)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        }
+
         // 创建BOM主记录
         let bom_active_model = ActiveModel {
             product_id: Set(req.product_id),
             version: Set(version),
-            is_default: Set(req.is_default.unwrap_or(false)),
+            is_default: Set(is_default),
             status: Set(BomStatus::Active.to_string()),
             remarks: Set(req.remarks),
             created_by: Set(req.created_by),

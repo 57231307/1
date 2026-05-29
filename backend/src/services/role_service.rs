@@ -65,11 +65,17 @@ impl RoleService {
         permissions: Option<String>,
         is_system: Option<bool>,
     ) -> Result<role::Model, AppError> {
-        let mut role_active: role::ActiveModel = role::Entity::find_by_id(role_id)
+        let role_model = role::Entity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", role_id)))?
-            .into();
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", role_id)))?;
+
+        // 系统角色不允许修改
+        if role_model.is_system {
+            return Err(AppError::BusinessError("系统角色不允许修改".to_string()));
+        }
+
+        let mut role_active: role::ActiveModel = role_model.into();
 
         if let Some(name) = name {
             role_active.name = Set(name);
@@ -93,12 +99,17 @@ impl RoleService {
 
     /// 删除角色
     pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
-        let role_active: role::ActiveModel = role::Entity::find_by_id(role_id)
+        let role_model = role::Entity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", role_id)))?
-            .into();
+            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 ID {} 不存在", role_id)))?;
 
+        // 系统角色不允许删除
+        if role_model.is_system {
+            return Err(AppError::BusinessError("系统角色不允许删除".to_string()));
+        }
+
+        let role_active: role::ActiveModel = role_model.into();
         role_active.delete(&*self.db).await?;
         Ok(())
     }

@@ -301,6 +301,10 @@ impl ArReconciliationService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
+        if model.reconciliation_status.as_deref() != Some("draft") {
+            return Err(AppError::BusinessError("只有草稿状态的对账单可以发送".to_string()));
+        }
+
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some("sent".to_string()));
         active_model.updated_at = Set(Utc::now());
@@ -369,6 +373,11 @@ impl ArReconciliationService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
+        let status = model.reconciliation_status.as_deref().unwrap_or("draft");
+        if status != "confirmed" && status != "disputed" {
+            return Err(AppError::BusinessError("只有已确认或有争议的对账单可以关闭".to_string()));
+        }
+
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some("closed".to_string()));
         active_model.updated_at = Set(Utc::now());
@@ -419,9 +428,10 @@ impl ArReconciliationService {
         let txn = (*self.db).begin().await?;
 
         let customers = if let Some(cid) = req.customer_id {
-            customer::Entity::find_by_id(cid)
-                .all(&txn)
+            vec![customer::Entity::find_by_id(cid)
+                .one(&txn)
                 .await?
+                .ok_or_else(|| AppError::NotFound(format!("客户 {} 不存在", cid)))?]
         } else {
             customer::Entity::find()
                 .all(&txn)
@@ -462,7 +472,7 @@ impl ArReconciliationService {
 
             let reconciliation_no = DocumentNumberGenerator::generate_no(
                 &*self.db,
-                "AR",
+                "RC",
                 ReconciliationEntity,
                 crate::models::ar_reconciliation::Column::ReconciliationNo,
             )
@@ -792,7 +802,7 @@ impl ArReconciliationService {
 
         let reconciliation_no = DocumentNumberGenerator::generate_no(
             &*self.db,
-            "AR",
+            "RC",
             ReconciliationEntity,
             crate::models::ar_reconciliation::Column::ReconciliationNo,
         )

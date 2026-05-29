@@ -47,6 +47,10 @@ impl FinancePaymentService {
         notes: Option<String>,
         created_by: Option<i32>,
     ) -> Result<finance_payment::Model, AppError> {
+        if amount <= Decimal::ZERO {
+            return Err(AppError::BusinessError("付款金额必须大于零".to_string()));
+        }
+
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
         period_svc.check_date_locked(payment_date.date_naive()).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
 
@@ -72,11 +76,29 @@ impl FinancePaymentService {
         id: i32,
         status: String,
     ) -> Result<finance_payment::Model, AppError> {
-        let mut payment: finance_payment::ActiveModel = finance_payment::Entity::find_by_id(id)
+        let payment_model = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("付款 ID {} 不存在", id)))?
-            .into();
+            .ok_or_else(|| AppError::ResourceNotFound(format!("付款 ID {} 不存在", id)))?;
+
+        let current_status = payment_model.status.as_str();
+        let valid_transitions: std::collections::HashMap<&str, Vec<&str>> = [
+            ("pending", vec!["confirmed", "cancelled"]),
+            ("confirmed", vec!["completed", "cancelled"]),
+            ("completed", vec![]),
+            ("cancelled", vec![]),
+        ].iter().cloned().collect();
+
+        let empty_vec = vec![];
+        let allowed = valid_transitions.get(current_status).unwrap_or(&empty_vec);
+        if !allowed.contains(&status.as_str()) {
+            return Err(AppError::BusinessError(format!(
+                "付款状态不允许从 {} 变更为 {}",
+                current_status, status
+            )));
+        }
+
+        let mut payment: finance_payment::ActiveModel = payment_model.into();
 
         payment.status = Set(status);
         payment.updated_at = Set(Utc::now());

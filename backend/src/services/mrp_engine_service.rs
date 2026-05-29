@@ -105,7 +105,13 @@ impl MrpEngineService {
         let mut safety_stock = Decimal::ZERO;
 
         for stock in stocks {
-            on_hand += stock.quantity_on_hand;
+            // 使用面料行业主计量单位（米），兼容通用字段
+            let qty = if stock.quantity_meters > Decimal::ZERO {
+                stock.quantity_meters
+            } else {
+                stock.quantity_on_hand
+            };
+            on_hand += qty;
             in_transit += stock.quantity_incoming;
             safety_stock += stock.reorder_point;
         }

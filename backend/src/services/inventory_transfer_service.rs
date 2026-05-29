@@ -556,7 +556,7 @@ impl InventoryTransferService {
                     dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
                     grade: sea_orm::ActiveValue::Set(grade),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
-                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    quantity_kg: sea_orm::ActiveValue::Set(quantity_kg - new_quantity_kg),
                     source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
                     source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
                     source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
@@ -775,6 +775,17 @@ impl InventoryTransferService {
                 let width = source_stock.as_ref().and_then(|s| s.width);
                 let production_date = source_stock.as_ref().and_then(|s| s.production_date);
                 let expiry_date = source_stock.as_ref().and_then(|s| s.expiry_date);
+                
+                // 计算源仓库的公斤/米比率
+                let source_kg_per_meter = if let Some(ref src) = source_stock {
+                    if src.quantity_meters > rust_decimal::Decimal::ZERO {
+                        src.quantity_kg / src.quantity_meters
+                    } else {
+                        rust_decimal::Decimal::ZERO
+                    }
+                } else {
+                    rust_decimal::Decimal::ZERO
+                };
 
                 let new_stock = inventory_stock::ActiveModel {
                     id: Default::default(),
@@ -798,7 +809,7 @@ impl InventoryTransferService {
                     production_date: sea_orm::ActiveValue::Set(production_date),
                     expiry_date: sea_orm::ActiveValue::Set(expiry_date),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
-                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    quantity_kg: sea_orm::ActiveValue::Set(item.quantity * source_kg_per_meter),
                     gram_weight: sea_orm::ActiveValue::Set(gram_weight),
                     width: sea_orm::ActiveValue::Set(width),
                     location_id: sea_orm::ActiveValue::NotSet,
@@ -822,14 +833,14 @@ impl InventoryTransferService {
                     dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
                     grade: sea_orm::ActiveValue::Set(grade),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
-                    quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    quantity_kg: sea_orm::ActiveValue::Set(item.quantity * source_kg_per_meter),
                     source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
                     source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
                     source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
                     quantity_before_meters: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
                     quantity_before_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
                     quantity_after_meters: sea_orm::ActiveValue::Set(Some(item.quantity)),
-                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(rust_decimal::Decimal::ZERO)),
+                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(item.quantity * source_kg_per_meter)),
                     notes: sea_orm::ActiveValue::Set(Some(format!("调拨入库（新建库存） - 调拨单号: {}", transfer.transfer_no))),
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),

@@ -744,6 +744,9 @@ impl SalesService {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
+        // 释放预留库存
+        self.release_reservations(order_id, &txn).await?;
+
         // 删除订单明细项
         SalesOrderItemEntity::delete_many()
             .filter(sales_order_item::Column::OrderId.eq(order_id))
@@ -941,6 +944,28 @@ impl SalesService {
                 oi_update.shipped_quantity = sea_orm::ActiveValue::Set(current_shipped + item.quantity);
                 crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", oi_update, Some(0)).await?;
             }
+        }
+        Ok(())
+    }
+
+    /// 释放订单的库存预留记录
+    async fn release_reservations(
+        &self,
+        order_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        let reservations = InventoryReservationEntity::find()
+            .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .all(txn)
+            .await?;
+
+        for res in reservations {
+            let mut res_update: inventory_reservation::ActiveModel = res.into();
+            res_update.status = sea_orm::ActiveValue::Set("cancelled".to_string());
+            res_update.released_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
+            res_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+            crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", res_update, Some(0)).await?;
         }
         Ok(())
     }
@@ -1201,20 +1226,6 @@ impl SalesService {
             }
         }
 
-        // 自动生成应收账款（AR）发票
-        let finance_service = crate::services::finance_invoice_service::FinanceInvoiceService::new(self.db.clone());
-        
-        let invoice_no = format!("INV-{}", order.order_no);
-        let amount = order.total_amount;
-        let tax_amount = rust_decimal::Decimal::new(0, 0);
-        let total_amount = order.total_amount;
-        
-        if let Err(e) = finance_service.create_invoice(invoice_no, amount, tax_amount, total_amount).await {
-            tracing::error!("自动生成应收账款失败 (订单 {}): {}", order.order_no, e);
-        } else {
-            tracing::info!("成功自动生成应收账款 (订单 {})", order.order_no);
-        }
-
         // 返回订单详情
         self.get_order_detail(completed_order.id).await
     }
@@ -1235,7 +1246,11 @@ impl SalesService {
             )));
         }
 
-        // 3. 更新状态
+        // 3. 开启事务，释放预留库存
+        let txn = (*self.db).begin().await?;
+        self.release_reservations(order_id, &txn).await?;
+
+        // 4. 更新状态
         let updated_order = sales_order::ActiveModel {
             id: sea_orm::ActiveValue::Unchanged(order.id),
             status: sea_orm::ActiveValue::Set("rejected".to_string()),
@@ -1244,7 +1259,9 @@ impl SalesService {
             ..Default::default()
         };
 
-        let rejected_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&*self.db, "auto_audit", updated_order, Some(0)).await?;
+        let rejected_order = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", updated_order, Some(0)).await?;
+
+        txn.commit().await?;
 
         // 返回订单详情
         self.get_order_detail(rejected_order.id).await

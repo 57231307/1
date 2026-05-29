@@ -42,6 +42,15 @@ pub struct UpdateSalesReturnRequest {
     pub notes: Option<String>,
 }
 
+/// 添加退货明细项请求
+#[derive(Deserialize)]
+pub struct CreateSalesReturnItemRequest {
+    pub product_id: i32,
+    pub quantity: Decimal,
+    pub unit_price: Decimal,
+    pub reason: Option<String>,
+}
+
 /// 销售退货服务
 pub struct SalesReturnService {
     db: Arc<DatabaseConnection>,
@@ -49,7 +58,6 @@ pub struct SalesReturnService {
 
 impl SalesReturnService {
     /// 创建服务实例
-/// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
@@ -137,6 +145,50 @@ impl SalesReturnService {
         Ok(return_order)
     }
 
+    /// 添加退货明细项
+    pub async fn add_return_item(
+        &self,
+        return_id: i32,
+        req: CreateSalesReturnItemRequest,
+    ) -> Result<sales_return_item::Model, AppError> {
+        // 验证退货单存在且为草稿状态
+        let return_order = sales_return::Entity::find_by_id(return_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(AppError::ResourceNotFound(format!(
+                "销售退货单 {}",
+                return_id
+            )))?;
+
+        if return_order.status != "DRAFT" {
+            return Err(AppError::BusinessError(format!(
+                "退货单状态不允许添加明细，当前状态：{}",
+                return_order.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        let item = sales_return_item::ActiveModel {
+            return_id: Set(return_id),
+            product_id: Set(req.product_id),
+            quantity: Set(req.quantity),
+            unit_price: Set(req.unit_price),
+            notes: Set(req.reason),
+            quantity_alt: Set(Decimal::ZERO),
+            ..Default::default()
+        };
+
+        let item = item.insert(&txn).await?;
+
+        // 更新退货单总金额
+        self.update_return_totals(return_id, &txn).await?;
+
+        txn.commit().await?;
+
+        Ok(item)
+    }
+
     /// 更新销售退货单
     pub async fn update_return(
         &self,
@@ -222,6 +274,13 @@ impl SalesReturnService {
             return Err(AppError::BusinessError("退货单没有明细，无法提交".to_string()));
         }
 
+        // 开启事务，更新退货单总金额
+        {
+            let txn = (*self.db).begin().await?;
+            self.update_return_totals(return_id, &txn).await?;
+            txn.commit().await?;
+        }
+
         let mut active_model: sales_return::ActiveModel = return_order.into();
         active_model.status = Set("SUBMITTED".to_string());
         active_model.updated_at = Set(Utc::now());
@@ -259,6 +318,9 @@ impl SalesReturnService {
             .filter(sales_return_item::Column::ReturnId.eq(return_id))
             .all(&txn)
             .await?;
+
+        // 更新退货单总金额
+        self.update_return_totals(return_id, &txn).await?;
 
         let stock_service = InventoryStockService::new(self.db.clone());
 

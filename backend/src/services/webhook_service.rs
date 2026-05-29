@@ -151,7 +151,11 @@ impl WebhookService {
         body: &str,
         secret: Option<&str>,
     ) -> Result<WebhookDeliveryResult, AppError> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
 
         let mut request = client
             .post(url)
@@ -203,12 +207,16 @@ impl WebhookService {
         self.trigger_webhook(webhook_id, "test", &test_payload).await
     }
 
-    /// 删除 Webhook
-    pub async fn delete_webhook(&self, id: i32) -> Result<(), AppError> {
+    /// 删除 Webhook（带租户权限验证）
+    pub async fn delete_webhook(&self, id: i32, tenant_id: i32) -> Result<(), AppError> {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+
+        if webhook.tenant_id != tenant_id {
+            return Err(AppError::PermissionDenied("无权删除此Webhook".to_string()));
+        }
 
         let mut active_model: WebhookActiveModel = webhook.into();
         active_model.is_active = Set(false);
@@ -216,5 +224,56 @@ impl WebhookService {
         active_model.update(self.db.as_ref()).await?;
 
         Ok(())
+    }
+
+    /// 获取单个Webhook详情
+    pub async fn get_webhook(&self, id: i32, tenant_id: i32) -> Result<webhook::Model, AppError> {
+        let webhook = Webhook::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+
+        if webhook.tenant_id != tenant_id {
+            return Err(AppError::PermissionDenied("无权查看此Webhook".to_string()));
+        }
+
+        Ok(webhook)
+    }
+
+    /// 更新Webhook配置
+    pub async fn update_webhook(
+        &self,
+        id: i32,
+        tenant_id: i32,
+        name: Option<&str>,
+        url: Option<&str>,
+        events: Option<&[&str]>,
+        secret: Option<Option<&str>>,
+    ) -> Result<webhook::Model, AppError> {
+        let webhook = Webhook::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+
+        if webhook.tenant_id != tenant_id {
+            return Err(AppError::PermissionDenied("无权修改此Webhook".to_string()));
+        }
+
+        let mut active_model: WebhookActiveModel = webhook.into();
+        if let Some(n) = name {
+            active_model.name = Set(n.to_string());
+        }
+        if let Some(u) = url {
+            active_model.url = Set(u.to_string());
+        }
+        if let Some(e) = events {
+            active_model.events = Set(e.join(","));
+        }
+        if let Some(s) = secret {
+            active_model.secret = Set(s.map(|s| s.to_string()));
+        }
+        active_model.updated_at = Set(Utc::now());
+
+        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
     }
 }

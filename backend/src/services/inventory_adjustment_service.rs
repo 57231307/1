@@ -191,22 +191,62 @@ impl InventoryAdjustmentService {
                     })?;
 
             let quantity_before = stock_model.quantity_on_hand;
-            let current_version = stock_model.version;
+            let expected_version = stock_model.version;
             let current_quantity_kg = stock_model.quantity_kg;
-            let mut stock: inventory_stock::ActiveModel = stock_model.into();
 
-            // 更新库存数量字段（使用 quantity_on_hand 和 quantity_meters 作为主数量字段）
-            stock.quantity_on_hand = Set(item.quantity_after);
-            stock.quantity_available = Set(item.quantity_after);
-            stock.quantity_meters = Set(item.quantity_after);
-            // Update quantity_kg proportionally
-            if quantity_before > Decimal::ZERO {
-                let kg_ratio = current_quantity_kg / quantity_before;
-                stock.quantity_kg = Set(item.quantity_after * kg_ratio);
+            // 使用乐观锁条件更新
+            let update_result = inventory_stock::Entity::update_many()
+                .col_expr(
+                    inventory_stock::Column::QuantityOnHand,
+                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+                )
+                .col_expr(
+                    inventory_stock::Column::QuantityAvailable,
+                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+                )
+                .col_expr(
+                    inventory_stock::Column::QuantityMeters,
+                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+                )
+                .col_expr(
+                    inventory_stock::Column::QuantityKg,
+                    sea_orm::sea_query::Expr::val(
+                        if quantity_before > Decimal::ZERO {
+                            let kg_ratio = current_quantity_kg / quantity_before;
+                            item.quantity_after * kg_ratio
+                        } else {
+                            current_quantity_kg
+                        }
+                    ).into(),
+                )
+                .col_expr(
+                    inventory_stock::Column::Version,
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                )
+                .col_expr(
+                    inventory_stock::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(Utc::now()).into(),
+                )
+                .filter(inventory_stock::Column::Id.eq(item.stock_id))
+                .filter(inventory_stock::Column::Version.eq(expected_version))
+                .exec(&txn)
+                .await?;
+
+            // 检查乐观锁是否成功
+            if update_result.rows_affected == 0 {
+                return Err(AppError::BusinessError(format!(
+                    "库存 ID {} 已被其他用户修改，请重试",
+                    item.stock_id
+                )));
             }
-            stock.version = Set(current_version + 1);
-            stock.updated_at = Set(Utc::now());
-            let updated_stock = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", stock, Some(0)).await?;
+
+            // 获取更新后的库存记录
+            let updated_stock = inventory_stock::Entity::find_by_id(item.stock_id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| {
+                    AppError::ResourceNotFound(format!("库存 ID {} 不存在", item.stock_id))
+                })?;
 
             // 收集库存交易事件数据，供审核通过后发布
             let quantity_change = item.quantity_after - quantity_before;

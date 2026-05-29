@@ -301,6 +301,14 @@ impl ProductionOrderService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
+        // 只允许编辑草稿和已排产状态的订单
+        if !matches!(model.status.as_str(), "DRAFT" | "SCHEDULED") {
+            return Err(AppError::BusinessError(format!(
+                "不允许编辑 {} 状态的生产订单",
+                model.status
+            )));
+        }
+
         let mut active_model: ActiveModel = model.into();
 
         if let Some(planned_quantity) = req.planned_quantity {
@@ -340,6 +348,9 @@ impl ProductionOrderService {
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+
+        // 验证是否可以取消
+        Self::validate_status_transition(&model.status, "CANCELLED")?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set("CANCELLED".to_string());
@@ -414,7 +425,11 @@ impl ProductionOrderService {
             .map_err(|e| AppError::DatabaseError(e.to_string()))?
             .ok_or_else(|| AppError::BusinessError("未找到可用仓库，无法执行库存联动".to_string()))?;
 
-        let production_qty = order.planned_quantity;
+        // 优先使用实际完成数量，否则使用计划数量
+        let production_qty = order.actual_quantity.unwrap_or(order.planned_quantity);
+        if production_qty.is_zero() {
+            return Err(AppError::BusinessError("生产数量为零，无法执行库存联动".to_string()));
+        }
 
         // ========== 1. 扣减原材料库存 ==========
         // 查询该产品的默认BOM

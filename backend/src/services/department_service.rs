@@ -106,7 +106,7 @@ impl DepartmentService {
 
         let active_model = department::ActiveModel {
             id: NotSet,
-            code: Set(req.name.chars().take(10).collect()),
+            code: Set(format!("DEPT_{}", Utc::now().timestamp_millis())),
             name: Set(req.name),
             parent_id: Set(req.parent_id),
             manager_id: Set(None),

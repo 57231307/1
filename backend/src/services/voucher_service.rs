@@ -312,6 +312,16 @@ impl VoucherService {
         let updated_voucher = crate::services::audit_log_service::AuditLogService::update_with_audit(&txn, "auto_audit", active_model, Some(user_id)).await?;
 
         if let Some(items) = req.items {
+            // 验证更新后的分录借贷平衡
+            let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
+            let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
+            if total_debit != total_credit {
+                return Err(AppError::BadRequest(format!(
+                    "凭证借贷不平衡：借方 {} != 贷方 {}",
+                    total_debit, total_credit
+                )));
+            }
+
             vi::Entity::delete_many()
                 .filter(vi::Column::VoucherId.eq(id))
                 .exec(&txn)
@@ -626,14 +636,22 @@ impl VoucherService {
                 // 贷方科目：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生
                 if balance_direction == "借" {
                     let ending_balance = initial_debit + new_period_debit - new_period_credit;
-                    active_model.ending_balance_debit =
-                        sea_orm::Set(ending_balance.max(Decimal::ZERO));
-                    active_model.ending_balance_credit = sea_orm::Set(Decimal::ZERO);
+                    if ending_balance >= Decimal::ZERO {
+                        active_model.ending_balance_debit = sea_orm::Set(ending_balance);
+                        active_model.ending_balance_credit = sea_orm::Set(Decimal::ZERO);
+                    } else {
+                        active_model.ending_balance_debit = sea_orm::Set(Decimal::ZERO);
+                        active_model.ending_balance_credit = sea_orm::Set(ending_balance.abs());
+                    }
                 } else {
                     let ending_balance = initial_credit + new_period_credit - new_period_debit;
-                    active_model.ending_balance_debit = sea_orm::Set(Decimal::ZERO);
-                    active_model.ending_balance_credit =
-                        sea_orm::Set(ending_balance.max(Decimal::ZERO));
+                    if ending_balance >= Decimal::ZERO {
+                        active_model.ending_balance_debit = sea_orm::Set(Decimal::ZERO);
+                        active_model.ending_balance_credit = sea_orm::Set(ending_balance);
+                    } else {
+                        active_model.ending_balance_debit = sea_orm::Set(ending_balance.abs());
+                        active_model.ending_balance_credit = sea_orm::Set(Decimal::ZERO);
+                    }
                 }
 
                 crate::services::audit_log_service::AuditLogService::update_with_audit(txn, "auto_audit", active_model, Some(0)).await?;

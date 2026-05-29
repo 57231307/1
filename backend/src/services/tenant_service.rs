@@ -187,4 +187,86 @@ impl TenantService {
 
         Ok(())
     }
+
+    /// 更新租户信息
+    pub async fn update_tenant(
+        &self,
+        id: i32,
+        name: Option<&str>,
+        description: Option<Option<&str>>,
+        plan_id: Option<Option<i32>>,
+    ) -> Result<tenant::Model, AppError> {
+        let tenant = Tenant::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or(AppError::BusinessError("租户不存在".to_string()))?;
+
+        let mut active_model: TenantActiveModel = tenant.into();
+        if let Some(n) = name {
+            active_model.name = Set(n.to_string());
+        }
+        if let Some(d) = description {
+            active_model.description = Set(d.map(|s| s.to_string()));
+        }
+        if let Some(p) = plan_id {
+            active_model.plan_id = Set(p);
+        }
+        active_model.updated_at = Set(Utc::now());
+
+        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+    }
+
+    /// 删除租户（软删除）
+    pub async fn delete_tenant(&self, id: i32) -> Result<(), AppError> {
+        let tenant = Tenant::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or(AppError::BusinessError("租户不存在".to_string()))?;
+
+        let mut active_model: TenantActiveModel = tenant.into();
+        active_model.status = Set("DELETED".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        active_model.update(self.db.as_ref()).await?;
+        Ok(())
+    }
+
+    /// 移除租户用户
+    pub async fn remove_user_from_tenant(
+        &self,
+        tenant_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let result = TenantUser::delete_many()
+            .filter(tenant_user::Column::TenantId.eq(tenant_id))
+            .filter(tenant_user::Column::UserId.eq(user_id))
+            .exec(self.db.as_ref())
+            .await?;
+
+        if result.rows_affected == 0 {
+            return Err(AppError::ResourceNotFound("用户不在此租户中".to_string()));
+        }
+        Ok(())
+    }
+
+    /// 更新租户用户角色
+    pub async fn update_user_role(
+        &self,
+        tenant_id: i32,
+        user_id: i32,
+        role: &str,
+    ) -> Result<tenant_user::Model, AppError> {
+        let tenant_user = TenantUser::find()
+            .filter(tenant_user::Column::TenantId.eq(tenant_id))
+            .filter(tenant_user::Column::UserId.eq(user_id))
+            .one(self.db.as_ref())
+            .await?
+            .ok_or(AppError::ResourceNotFound("用户不在此租户中".to_string()))?;
+
+        let mut active_model: tenant_user::ActiveModel = tenant_user.into();
+        active_model.role_in_tenant = Set(role.to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+    }
 }

@@ -275,9 +275,11 @@ impl ApReconciliationService {
             entry.total_unpaid_amount += invoice.unpaid_amount;
             
             // 判断付款状态
-            if invoice.paid_amount >= invoice.amount {
+            if invoice.amount > Decimal::ZERO && invoice.paid_amount >= invoice.amount {
                 entry.paid_invoice_count += 1;
-            } else if invoice.paid_amount > Decimal::ZERO {
+            } else if invoice.amount < Decimal::ZERO && invoice.paid_amount <= invoice.amount {
+                entry.paid_invoice_count += 1;
+            } else if invoice.paid_amount != Decimal::ZERO {
                 entry.partial_paid_invoice_count += 1;
             }
             
@@ -392,7 +394,7 @@ impl ApReconciliationService {
         let invoice = ap_invoice::Entity::find_by_id(invoice_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("Invoice {}", invoice_id)))?;
+            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", invoice_id)))?;
 
         let mut relations = Vec::new();
 

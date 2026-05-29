@@ -152,6 +152,10 @@ pub async fn login(
             // Record successful login
             record_login_attempt(&state, &payload.username, user.id, &client_ip, &user_agent, "SUCCESS", None).await;
 
+            // Update last login timestamp
+            let user_svc = crate::services::user_service::UserService::new(state.db.clone());
+            let _ = user_svc.update_last_login(user.id).await;
+
             let mut permissions = vec![];
             if let Some(role_id) = user.role_id {
                 let role_perms = crate::models::role_permission::Entity::find()

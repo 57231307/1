@@ -180,16 +180,23 @@ impl CustomerCreditService {
             user_id, customer_id, amount
         );
 
-        let credit = self
-            .get_by_customer_id(customer_id)
+        // 使用事务确保原子性
+        let txn = (*self.db).begin().await?;
+
+        let credit = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
+            .lock(sea_orm::sea_query::LockType::Update)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.status != "active" {
+            txn.rollback().await?;
             return Err(AppError::ValidationError("客户信用状态非活跃".to_string()));
         }
 
         if amount > credit.available_credit {
+            txn.rollback().await?;
             return Err(AppError::ValidationError(format!(
                 "可用额度不足：请求 {}，可用 {}",
                 amount, credit.available_credit
@@ -199,7 +206,9 @@ impl CustomerCreditService {
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
         credit_active.used_credit = Set(credit.used_credit.clone() + amount.clone());
         credit_active.available_credit = Set(credit.available_credit - amount.clone());
-        credit_active.save(&*self.db).await?;
+        credit_active.save(&txn).await?;
+
+        txn.commit().await?;
 
         info!(
             "客户 {} 信用额度占用成功，已占用：{}",
@@ -221,12 +230,18 @@ impl CustomerCreditService {
             user_id, customer_id, amount
         );
 
-        let credit = self
-            .get_by_customer_id(customer_id)
+        // 使用事务确保原子性
+        let txn = (*self.db).begin().await?;
+
+        let credit = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
+            .lock(sea_orm::sea_query::LockType::Update)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if amount > credit.used_credit {
+            txn.rollback().await?;
             return Err(AppError::ValidationError(
                 "释放额度超过已占用额度".to_string(),
             ));
@@ -235,7 +250,9 @@ impl CustomerCreditService {
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
         credit_active.used_credit = Set(credit.used_credit.clone() - amount.clone());
         credit_active.available_credit = Set(credit.available_credit + amount.clone());
-        credit_active.save(&*self.db).await?;
+        credit_active.save(&txn).await?;
+
+        txn.commit().await?;
 
         info!(
             "客户 {} 信用额度释放成功，已占用：{}",
@@ -256,8 +273,13 @@ impl CustomerCreditService {
             user_id, req.customer_id, req.adjustment_type
         );
 
-        let credit = self
-            .get_by_customer_id(req.customer_id)
+        // 开启事务并锁定行
+        let txn = (*self.db).begin().await?;
+
+        let credit = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(req.customer_id))
+            .lock(sea_orm::sea_query::LockType::Update)
+            .one(&txn)
             .await?
             .ok_or_else(|| {
                 AppError::NotFound(format!("客户 {} 的信用评级不存在", req.customer_id))
@@ -266,20 +288,23 @@ impl CustomerCreditService {
         let new_limit = match req.adjustment_type.as_str() {
             "increase" => credit.credit_limit.clone() + req.amount,
             "decrease" => {
-                if req.amount > credit.credit_limit {
+                let decreased = credit.credit_limit.clone() - req.amount.clone();
+                // 确保降低后的额度不低于已使用额度
+                if decreased < credit.used_credit {
+                    txn.rollback().await?;
                     return Err(AppError::ValidationError(
-                        "降低后的额度不能为负".to_string(),
+                        "降低后的额度不能低于已使用额度".to_string(),
                     ));
                 }
-                credit.credit_limit.clone() - req.amount
+                decreased
             }
-            _ => return Err(AppError::ValidationError("无效的额度调整类型".to_string())),
+            _ => {
+                txn.rollback().await?;
+                return Err(AppError::ValidationError("无效的额度调整类型".to_string()));
+            }
         };
 
         let new_available = new_limit.clone() - credit.used_credit.clone();
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 更新信用额度
         let mut credit_active: customer_credit::ActiveModel = credit.into();

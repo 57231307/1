@@ -314,6 +314,21 @@ pub async fn approve_recipe(
         }
     };
 
+    // 检查当前状态是否允许审核
+    let status_value = recipe.status.clone().unwrap();
+    let current_status = status_value.as_deref()
+        .unwrap_or("草稿");
+    if current_status != "草稿" {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(format!(
+                "只有草稿状态的配方可以审核，当前状态：{}",
+                current_status
+            ))),
+        )
+            .into_response();
+    }
+    
     recipe.status = Set(Some("已审核".to_string()));
     recipe.approved_by = Set(Some(req.approved_by));
     recipe.approved_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));

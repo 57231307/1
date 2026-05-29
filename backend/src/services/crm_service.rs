@@ -250,7 +250,7 @@ impl CrmService {
         // 自动创建初始商机
         let opp_no = format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
         let opportunity_model = crm_opportunity::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             opportunity_no: Set(opp_no),
             opportunity_name: Set(format!("线索转化商机-{}", lead.contact_name)),
             customer_id: Set(customer.id),
