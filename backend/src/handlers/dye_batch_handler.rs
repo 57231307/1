@@ -240,9 +240,10 @@ pub async fn update_dye_batch(
     }
     if let Some(status) = req.status {
         // 验证状态流转
-        let current_status = batch.status.as_ref()
-            .and_then(|s| s.as_deref())
-            .unwrap_or("待生产");
+        let current_status = match &batch.status {
+            sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
+            _ => "待生产",
+        };
         let target_status = DyeBatchStatus::from_str(&status);
         
         if let Some(target) = target_status {
@@ -270,8 +271,7 @@ pub async fn update_dye_batch(
         // 自动设置时间戳
         if status == "生产中" {
             let needs_start_time = batch.started_at.as_ref()
-                .map(|v| v.is_none())
-                .unwrap_or(true);
+                .is_none();
             if needs_start_time {
                 batch.started_at = Set(Some(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())));
             }
@@ -372,9 +372,10 @@ pub async fn complete_dye_batch(
     };
 
     // 检查当前状态是否允许完成
-    let current_status = batch.status.as_ref()
-        .and_then(|s| s.as_deref())
-        .unwrap_or("待生产");
+    let current_status = match &batch.status {
+        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
+        _ => "待生产",
+    };
     let current = DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
     
     if !current.can_transition_to(&DyeBatchStatus::Completed) {

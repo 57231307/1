@@ -430,6 +430,42 @@ const routes = [
         component: () => import('@/views/security/index.vue'),
         meta: { title: '安全管理', requiresAuth: true },
       },
+      {
+        path: 'dye-recipe',
+        name: 'DyeRecipe',
+        component: () => import('@/views/dye-recipe/index.vue'),
+        meta: { title: '染色配方', requiresAuth: true },
+      },
+      {
+        path: 'dye-batch',
+        name: 'DyeBatch',
+        component: () => import('@/views/dye-batch/index.vue'),
+        meta: { title: '染色批次', requiresAuth: true },
+      },
+      {
+        path: 'purchase-contract',
+        name: 'PurchaseContract',
+        component: () => import('@/views/purchase-contract/index.vue'),
+        meta: { title: '采购合同', requiresAuth: true },
+      },
+      {
+        path: 'sales-contract',
+        name: 'SalesContract',
+        component: () => import('@/views/sales-contract/index.vue'),
+        meta: { title: '销售合同', requiresAuth: true },
+      },
+      {
+        path: 'purchase-price',
+        name: 'PurchasePrice',
+        component: () => import('@/views/purchase-price/index.vue'),
+        meta: { title: '采购价格', requiresAuth: true },
+      },
+      {
+        path: 'sales-price',
+        name: 'SalesPrice',
+        component: () => import('@/views/sales-price/index.vue'),
+        meta: { title: '销售价格', requiresAuth: true },
+      },
     ],
   },
   {

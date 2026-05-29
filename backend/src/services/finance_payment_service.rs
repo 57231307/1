@@ -56,7 +56,7 @@ impl FinancePaymentService {
 
         // 验证关联单据是否存在
         if let Some(inv_id) = invoice_id {
-            let invoice_exists = crate::models::invoice::Entity::find_by_id(inv_id)
+            let invoice_exists = crate::models::finance_invoice::Entity::find_by_id(inv_id)
                 .one(&*self.db)
                 .await?
                 .is_some();

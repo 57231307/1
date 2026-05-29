@@ -258,9 +258,10 @@ pub async fn update_dye_recipe(
     }
     if let Some(status) = req.status {
         // 验证配方状态流转
-        let current_status = recipe.status.as_ref()
-            .and_then(|s| s.as_deref())
-            .unwrap_or("草稿");
+        let current_status = match &recipe.status {
+            sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
+            _ => "草稿",
+        };
         let valid = match current_status {
             "草稿" => matches!(status.as_str(), "已审核" | "已停用"),
             "已审核" => matches!(status.as_str(), "已停用"),
@@ -374,9 +375,10 @@ pub async fn approve_recipe(
     };
 
     // 检查当前状态是否允许审核
-    let current_status = recipe.status.as_ref()
-        .and_then(|s| s.as_deref())
-        .unwrap_or("草稿");
+    let current_status = match &recipe.status {
+        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
+        _ => "草稿",
+    };
     if current_status != "草稿" {
         return (
             StatusCode::BAD_REQUEST,

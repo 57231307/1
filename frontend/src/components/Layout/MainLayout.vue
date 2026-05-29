@@ -85,7 +85,7 @@
           <el-menu-item index="/material-shortage">缺料预警</el-menu-item>
           <el-menu-item index="/scheduling">排产管理</el-menu-item>
           <el-menu-item index="/quality">质量管理</el-menu-item>
-          <el-menu-item index="/gantt">甘特图</el-menu-item>
+          <el-menu-item index="/scheduling/gantt">甘特图</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="finance">
@@ -132,7 +132,7 @@
           <el-menu-item index="/departments">部门管理</el-menu-item>
           <el-menu-item index="/five-dimension">五维管理</el-menu-item>
           <el-menu-item index="/data-permission">数据权限</el-menu-item>
-          <el-menu-item index="/report">报表中心</el-menu-item>
+          <el-menu-item index="/report-templates">报表中心</el-menu-item>
           <el-menu-item index="/data-import">数据导入</el-menu-item>
           <el-menu-item index="/print-templates">打印模板</el-menu-item>
           <el-menu-item index="/api-gateway">API 网关</el-menu-item>
