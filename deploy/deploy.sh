@@ -405,26 +405,73 @@ case "$1" in
         ;;
     6|update)
         echo "开始更新..."
-        UPDATE_SCRIPT="/tmp/bingxi-update.sh"
         
-        # 尝试直接下载
-        RAW_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+        # 检查是否有本地更新包
+        LOCAL_UPDATE="/tmp/bingxi-erp-update.tar.gz"
+        if [ -f "$LOCAL_UPDATE" ]; then
+            echo "发现本地更新包: $LOCAL_UPDATE"
+            echo "正在解压..."
+            cd /tmp
+            tar -xzf bingxi-erp-update.tar.gz
+            cd bingxi-erp
+            bash deploy/deploy.sh
+            rm -rf /tmp/bingxi-erp /tmp/bingxi-erp-update.tar.gz
+            echo "更新完成"
+            exit 0
+        fi
         
-        # 镜像源列表（用于raw.githubusercontent.com）
-        RAW_MIRRORS=(
+        # 尝试从GitHub下载更新包
+        UPDATE_PACKAGE="/tmp/bingxi-erp-update.tar.gz"
+        
+        # 获取最新版本号
+        VERSION_URL="https://api.github.com/repos/57231307/1/releases/latest"
+        VERSION_MIRRORS=(
             "https://ghp.ci/"
             "https://gh-proxy.com/"
-            "https://raw.gitmirror.com/"
-            "https://raw.kkgithub.com/"
+            ""
+        )
+        
+        version_success=false
+        for MIRROR in "${VERSION_MIRRORS[@]}"; do
+            local full_url="${MIRROR}${VERSION_URL}"
+            echo "尝试获取版本信息: $full_url"
+            VERSION_INFO=$(curl -s --connect-timeout 10 --max-time 30 "$full_url" 2>/dev/null)
+            if [ -n "$VERSION_INFO" ]; then
+                TAG_NAME=$(echo "$VERSION_INFO" | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
+                if [ -n "$TAG_NAME" ]; then
+                    version_success=true
+                    echo "最新版本: $TAG_NAME"
+                    break
+                fi
+            fi
+        done
+        
+        if [ "$version_success" != true ]; then
+            echo "无法获取最新版本信息"
+            echo "请手动更新："
+            echo "  1. 从 https://github.com/57231307/1/releases 下载最新发布包"
+            echo "  2. 上传到服务器 /tmp/bingxi-erp-update.tar.gz"
+            echo "  3. 再次运行 bingxi update"
+            exit 1
+        fi
+        
+        # 下载发布包
+        DOWNLOAD_URL="https://github.com/57231307/1/releases/download/${TAG_NAME}/release-${TAG_NAME#v}.tar.gz"
+        DOWNLOAD_MIRRORS=(
+            "https://ghp.ci/"
+            "https://gh-proxy.com/"
+            "https://ghproxy.net/"
+            "https://github.moeyy.xyz/"
+            "https://mirror.ghproxy.com/"
             ""
         )
         
         download_success=false
-        for MIRROR in "${RAW_MIRRORS[@]}"; do
-            local full_url="${MIRROR}${RAW_URL}"
+        for MIRROR in "${DOWNLOAD_MIRRORS[@]}"; do
+            local full_url="${MIRROR}${DOWNLOAD_URL}"
             echo "尝试下载: $full_url"
-            if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 60 -o "$UPDATE_SCRIPT" "$full_url" 2>/dev/null; then
-                if [ -s "$UPDATE_SCRIPT" ]; then
+            if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 300 -o "$UPDATE_PACKAGE" "$full_url" 2>/dev/null; then
+                if [ -s "$UPDATE_PACKAGE" ]; then
                     download_success=true
                     echo "下载成功"
                     break
@@ -434,13 +481,19 @@ case "$1" in
         done
         
         if [ "$download_success" = true ]; then
-            sudo bash "$UPDATE_SCRIPT" update
-            rm -f "$UPDATE_SCRIPT"
+            echo "正在解压..."
+            cd /tmp
+            tar -xzf bingxi-erp-update.tar.gz
+            cd bingxi-erp
+            bash deploy/deploy.sh
+            rm -rf /tmp/bingxi-erp /tmp/bingxi-erp-update.tar.gz
+            echo "更新完成"
         else
-            echo "更新脚本下载失败，请检查网络连接"
-            echo "您也可以手动下载更新脚本："
-            echo "  curl -o /tmp/bingxi-update.sh https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
-            echo "  sudo bash /tmp/bingxi-update.sh update"
+            echo "更新包下载失败"
+            echo "请手动更新："
+            echo "  1. 从 https://github.com/57231307/1/releases 下载最新发布包"
+            echo "  2. 上传到服务器 /tmp/bingxi-erp-update.tar.gz"
+            echo "  3. 再次运行 bingxi update"
             exit 1
         fi
         ;;
