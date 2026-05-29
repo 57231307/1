@@ -90,3 +90,21 @@ export function getProductsForMrp(params?: {
 }): Promise<ApiResponse<MrpProduct[]>> {
   return request.get('/mrp/products', { params })
 }
+
+// 取消MRP计算
+export function cancelMrpCalculation(id: number): Promise<ApiResponse<void>> {
+  return request.put(`/mrp/history/${id}/cancel`)
+}
+
+// 导出MRP结果
+export function exportMrpResult(id: number): Promise<void> {
+  return request.get(`/mrp/history/${id}/export`, { responseType: 'blob' }) as Promise<void>
+}
+
+// 获取物料需求明细
+export function getMaterialRequirementDetail(
+  calculationId: number,
+  materialId: number
+): Promise<ApiResponse<MrpMaterialRequirement & { supply_details: any[] }>> {
+  return request.get(`/mrp/history/${calculationId}/materials/${materialId}`)
+}

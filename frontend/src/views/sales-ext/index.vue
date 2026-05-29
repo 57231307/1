@@ -685,8 +685,7 @@ const fetchSalesContracts = async () => {
   contractLoading.value = true
   try {
     const res = await listSalesContracts()
-    const d = res.data as any
-    salesContracts.value = d?.items || d?.data || d || []
+    salesContracts.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取销售合同失败')
   } finally {
@@ -698,8 +697,7 @@ const fetchSalesPrices = async () => {
   priceLoading.value = true
   try {
     const res = await listSalesPrices(priceQuery)
-    const d = res.data as any
-    salesPrices.value = d?.items || d?.data || d || []
+    salesPrices.value = res.data?.list || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取销售价格失败')
   } finally {

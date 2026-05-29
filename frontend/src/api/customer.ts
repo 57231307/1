@@ -30,18 +30,18 @@ export interface Customer {
   updated_at?: string
 }
 
-export function listCustomers(
-  params?: CustomerQueryParams
-): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
-  return request.get('/customers', { params })
-}
-
 export interface CustomerQueryParams {
   page?: number
   page_size?: number
   keyword?: string
   customer_type?: string
   status?: string
+}
+
+export function listCustomers(
+  params?: CustomerQueryParams
+): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
+  return request.get('/customers', { params })
 }
 
 export const customerApi = {

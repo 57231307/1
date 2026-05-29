@@ -49,7 +49,31 @@ export interface SupplierQueryParams {
   page_size?: number
   keyword?: string
   category?: string
+  grade?: string
   status?: string
+}
+
+export interface SupplierEvaluationData {
+  score: number
+  rating: string
+  indicators?: Array<{
+    indicator_id: number
+    score: number
+    remark?: string
+  }>
+  remark?: string
+}
+
+export interface SupplierEvaluationResult {
+  id: number
+  supplier_id: number
+  score: number
+  rating: string
+  evaluation_date: string
+  evaluator_id?: number
+  evaluator_name?: string
+  remark?: string
+  created_at: string
 }
 
 export const supplierApi = {
@@ -65,9 +89,9 @@ export const supplierApi = {
 
   delete: (id: number) => request.delete<ApiResponse<null>>(`/suppliers/${id}`),
 
-  evaluate: (id: number, data: any) =>
-    request.post<ApiResponse<any>>(`/suppliers/${id}/evaluate`, data),
+  evaluate: (id: number, data: SupplierEvaluationData) =>
+    request.post<ApiResponse<SupplierEvaluationResult>>(`/suppliers/${id}/evaluate`, data),
 
   getEvaluationHistory: (id: number) =>
-    request.get<ApiResponse<any[]>>(`/suppliers/${id}/evaluations`),
+    request.get<ApiResponse<SupplierEvaluationResult[]>>(`/suppliers/${id}/evaluations`),
 }

@@ -72,6 +72,46 @@ export interface InventoryQueryParams {
   low_stock?: boolean
 }
 
+export interface StockAdjustmentData {
+  warehouse_id: number
+  product_id: number
+  batch_no?: string
+  adjustment_quantity: number
+  adjustment_type: 'increase' | 'decrease'
+  reason: string
+  remark?: string
+}
+
+export interface ReservationData {
+  order_id: number
+  order_no: string
+  product_id: number
+  warehouse_id: number
+  quantity: number
+  expire_date?: string
+}
+
+export interface TransferData {
+  from_warehouse_id: number
+  to_warehouse_id: number
+  items: {
+    product_id: number
+    quantity: number
+    from_location?: string
+    to_location?: string
+  }[]
+  remark?: string
+}
+
+export interface InventoryReportParams {
+  warehouse_id?: number
+  product_id?: number
+  category_id?: number
+  date_from?: string
+  date_to?: string
+  report_type?: 'summary' | 'detail' | 'movement'
+}
+
 export interface StockAlert {
   id: number
   product_id: number
@@ -96,8 +136,11 @@ export const inventoryApi = {
   getStockByProduct: (productId: number) =>
     request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`),
 
-  createStockAdjustment: (data: any) =>
-    request.post<ApiResponse<any>>('/inventory/adjustments', data),
+  createStockAdjustment: (data: StockAdjustmentData) =>
+    request.post<ApiResponse<{ id: number; adjustment_no: string }>>(
+      '/inventory/adjustments',
+      data
+    ),
 
   getReservations: (params?: InventoryQueryParams) =>
     request.get<ApiResponse<{ list: InventoryReservation[]; total: number }>>(
@@ -105,7 +148,7 @@ export const inventoryApi = {
       { params }
     ),
 
-  createReservation: (data: any) =>
+  createReservation: (data: ReservationData) =>
     request.post<ApiResponse<InventoryReservation>>('/inventory/reservations', data),
 
   cancelReservation: (id: number) =>
@@ -116,7 +159,7 @@ export const inventoryApi = {
       params,
     }),
 
-  createTransfer: (data: any) =>
+  createTransfer: (data: TransferData) =>
     request.post<ApiResponse<InventoryTransfer>>('/inventory/transfers', data),
 
   approveTransfer: (id: number) =>
@@ -127,6 +170,8 @@ export const inventoryApi = {
 
   getStockAlerts: () => request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts'),
 
-  getInventoryReport: (params: any) =>
-    request.get<ApiResponse<any>>('/inventory/stock/summary', { params }),
+  getInventoryReport: (params: InventoryReportParams) =>
+    request.get<ApiResponse<{ summary: any; details: any[] }>>('/inventory/stock/summary', {
+      params,
+    }),
 }

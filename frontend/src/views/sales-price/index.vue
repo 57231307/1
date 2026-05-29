@@ -64,10 +64,10 @@
             clearable
             @change="handleQuery"
           >
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已生效" value="ACTIVE" />
-            <el-option label="已过期" value="EXPIRED" />
-            <el-option label="已停用" value="INACTIVE" />
+            <el-option label="待审批" value="pending" />
+            <el-option label="已生效" value="active" />
+            <el-option label="已过期" value="expired" />
+            <el-option label="已停用" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -118,7 +118,7 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'pending'"
               type="primary"
               link
               size="small"
@@ -126,7 +126,7 @@
               >编辑</el-button
             >
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'pending'"
               type="success"
               link
               size="small"
@@ -374,6 +374,7 @@ const formRules = {
   currency: [{ required: true, message: '请选择币种', trigger: 'change' }],
   unit: [{ required: true, message: '请选择单位', trigger: 'change' }],
   effective_date: [{ required: true, message: '请选择生效日期', trigger: 'change' }],
+  price_type: [{ required: true, message: '请选择价格类型', trigger: 'change' }],
 }
 
 // 获取列表数据
@@ -381,10 +382,10 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listSalesPrices(queryParams)
-    priceList.value = res.data || []
-    total.value = res.total || 0
-  } catch (error) {
-    console.error('获取销售价格列表失败:', error)
+    priceList.value = res.data?.list || []
+    total.value = res.data?.total || 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取销售价格列表失败')
   } finally {
     loading.value = false
   }
@@ -462,8 +463,10 @@ const handleApprove = async (row: any) => {
     await approveSalesPrice(row.id)
     ElMessage.success('审批成功')
     getList()
-  } catch (error) {
-    console.error('审批失败:', error)
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '审批失败')
+    }
   }
 }
 
@@ -473,8 +476,8 @@ const handleHistory = async (row: any) => {
     const res = await getPriceHistory(row.product_id)
     historyList.value = res.data || []
     historyVisible.value = true
-  } catch (error) {
-    console.error('获取历史记录失败:', error)
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取历史记录失败')
   }
 }
 
@@ -500,8 +503,10 @@ const handleSubmitForm = async () => {
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()
-  } catch (error) {
-    console.error('表单验证失败:', error)
+  } catch (error: any) {
+    if (error.message) {
+      ElMessage.error(error.message || '操作失败')
+    }
   }
 }
 
@@ -534,10 +539,10 @@ const getPriceTypeLabel = (type: string) => {
 // 获取状态类型
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: 'warning',
-    ACTIVE: 'success',
-    EXPIRED: 'info',
-    INACTIVE: 'danger',
+    pending: 'warning',
+    active: 'success',
+    expired: 'info',
+    inactive: 'danger',
   }
   return map[status] || 'info'
 }
@@ -545,10 +550,10 @@ const getStatusType = (status: string) => {
 // 获取状态标签
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: '待审批',
-    ACTIVE: '已生效',
-    EXPIRED: '已过期',
-    INACTIVE: '已停用',
+    pending: '待审批',
+    active: '已生效',
+    expired: '已过期',
+    inactive: '已停用',
   }
   return map[status] || status
 }

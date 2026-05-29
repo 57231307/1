@@ -49,6 +49,56 @@ export interface SalesOrderQueryParams {
   order_date_to?: string
 }
 
+export interface SalesDelivery {
+  id: number
+  delivery_no: string
+  order_id: number
+  order_no: string
+  customer_id: number
+  customer_name: string
+  delivery_date: string
+  warehouse_id?: number
+  status: 'draft' | 'pending' | 'shipped' | 'delivered'
+  items: SalesDeliveryItem[]
+  remark?: string
+  created_at?: string
+}
+
+export interface SalesDeliveryItem {
+  id?: number
+  delivery_id?: number
+  product_id: number
+  product_name?: string
+  product_code?: string
+  quantity: number
+  unit?: string
+  remark?: string
+}
+
+export interface SalesDeliveryQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  order_id?: number
+  status?: string
+  delivery_date_from?: string
+  delivery_date_to?: string
+}
+
+export interface SalesStatisticsParams {
+  date_from?: string
+  date_to?: string
+  group_by?: 'day' | 'week' | 'month'
+  customer_id?: number
+}
+
+export interface SalesStatisticsData {
+  total_amount: number
+  total_orders: number
+  total_customers: number
+  trends: { date: string; amount: number; orders: number }[]
+}
+
 export const salesApi = {
   getOrderList: (params?: SalesOrderQueryParams) =>
     request.get<ApiResponse<{ list: SalesOrder[]; total: number }>>('/sales/orders', {
@@ -74,17 +124,12 @@ export const salesApi = {
 
   cancelOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`),
 
-  createDelivery: (orderId: number, data: any) =>
-    request.post<ApiResponse<any>>(`/sales/orders/${orderId}/deliveries`, data),
+  createDelivery: (orderId: number, data: Partial<SalesDelivery>) =>
+    request.post<ApiResponse<SalesDelivery>>(`/sales/orders/${orderId}/deliveries`, data),
 
   getDeliveries: (orderId: number) =>
-    request.get<ApiResponse<any[]>>(`/sales/orders/${orderId}/deliveries`),
+    request.get<ApiResponse<SalesDelivery[]>>(`/sales/orders/${orderId}/deliveries`),
 
-  getOrderStatistics: (params: any) =>
-    request.get<ApiResponse<any>>('/sales/orders/statistics', { params }),
-
-  createReturn: (data: any) => request.post<ApiResponse<any>>('/sales/returns', data),
-
-  getReturns: (params?: any) =>
-    request.get<ApiResponse<{ list: any[]; total: number }>>('/sales/returns', { params }),
+  getOrderStatistics: (params: SalesStatisticsParams) =>
+    request.get<ApiResponse<SalesStatisticsData>>('/sales/orders/statistics', { params }),
 }

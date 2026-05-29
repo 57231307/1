@@ -52,12 +52,11 @@
             clearable
             @change="handleQuery"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已审批" value="APPROVED" />
-            <el-option label="执行中" value="EXECUTING" />
-            <el-option label="已完成" value="COMPLETED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option label="草稿" value="draft" />
+            <el-option label="待审批" value="pending" />
+            <el-option label="执行中" value="active" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
           </el-select>
         </el-form-item>
         <el-form-item label="签订日期">
@@ -111,7 +110,7 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === 'draft'"
               type="primary"
               link
               size="small"
@@ -119,15 +118,15 @@
               >编辑</el-button
             >
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === 'draft'"
               type="success"
               link
               size="small"
-              @click="handleSubmit(row)"
+              @click="handleSubmitForApproval(row)"
               >提交</el-button
             >
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'pending'"
               type="success"
               link
               size="small"
@@ -135,7 +134,7 @@
               >审批</el-button
             >
             <el-button
-              v-if="row.status === 'APPROVED'"
+              v-if="row.status === 'active'"
               type="warning"
               link
               size="small"
@@ -143,7 +142,7 @@
               >执行</el-button
             >
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === 'draft'"
               type="danger"
               link
               size="small"
@@ -361,6 +360,9 @@ const formRules = {
   contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
   contract_name: [{ required: true, message: '请输入合同名称', trigger: 'blur' }],
   customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
+  contract_type: [{ required: true, message: '请选择合同类型', trigger: 'change' }],
+  total_amount: [{ required: true, message: '请输入合同金额', trigger: 'blur' }],
+  signed_date: [{ required: true, message: '请选择签订日期', trigger: 'change' }],
 }
 
 // 获取列表数据
@@ -368,10 +370,10 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listSalesContracts(queryParams)
-    contractList.value = res.data || []
-    total.value = res.total || 0
-  } catch (error) {
-    console.error('获取销售合同列表失败:', error)
+    contractList.value = res.data?.list || []
+    total.value = res.data?.total || 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取销售合同列表失败')
   } finally {
     loading.value = false
   }
@@ -435,14 +437,16 @@ const handleEdit = (row: any) => {
 }
 
 // 提交审批
-const handleSubmit = async (row: any) => {
+const handleSubmitForApproval = async (row: any) => {
   try {
     await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' })
     await approveSalesContract(row.id)
     ElMessage.success('提交成功')
     getList()
-  } catch (error) {
-    console.error('提交失败:', error)
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '提交失败')
+    }
   }
 }
 
@@ -453,8 +457,10 @@ const handleApprove = async (row: any) => {
     await approveSalesContract(row.id)
     ElMessage.success('审批成功')
     getList()
-  } catch (error) {
-    console.error('审批失败:', error)
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '审批失败')
+    }
   }
 }
 
@@ -465,8 +471,10 @@ const handleExecute = async (row: any) => {
     await executeSalesContract(row.id)
     ElMessage.success('执行成功')
     getList()
-  } catch (error) {
-    console.error('执行失败:', error)
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '执行失败')
+    }
   }
 }
 
@@ -477,8 +485,10 @@ const handleDelete = async (row: any) => {
     await deleteSalesContract(row.id)
     ElMessage.success('删除成功')
     getList()
-  } catch (error) {
-    console.error('删除失败:', error)
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
+    }
   }
 }
 
@@ -504,8 +514,10 @@ const handleSubmitForm = async () => {
     ElMessage.success('保存成功')
     dialogVisible.value = false
     getList()
-  } catch (error) {
-    console.error('表单验证失败:', error)
+  } catch (error: any) {
+    if (error.message) {
+      ElMessage.error(error.message || '操作失败')
+    }
   }
 }
 
@@ -528,12 +540,11 @@ const formatCurrency = (value: number) => {
 // 获取状态类型
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: 'info',
-    PENDING: 'warning',
-    APPROVED: 'success',
-    EXECUTING: 'primary',
-    COMPLETED: 'success',
-    CANCELLED: 'danger',
+    draft: 'info',
+    pending: 'warning',
+    active: 'success',
+    completed: 'success',
+    cancelled: 'danger',
   }
   return map[status] || 'info'
 }
@@ -541,12 +552,11 @@ const getStatusType = (status: string) => {
 // 获取状态标签
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    PENDING: '待审批',
-    APPROVED: '已审批',
-    EXECUTING: '执行中',
-    COMPLETED: '已完成',
-    CANCELLED: '已取消',
+    draft: '草稿',
+    pending: '待审批',
+    active: '执行中',
+    completed: '已完成',
+    cancelled: '已取消',
   }
   return map[status] || status
 }

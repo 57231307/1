@@ -16,6 +16,7 @@ import {
   ElRow,
   ElCol,
   ElDescriptions,
+  ElPagination,
 } from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
 import {
@@ -196,6 +197,10 @@ const removeItem = (index: number) => {
   }
 }
 
+const calculateItemAmount = (item: any) => {
+  item.amount = (item.quantity || 0) * (item.price || 0)
+}
+
 const handleSubmit = async () => {
   if (!form.value.supplier_id || !form.value.warehouse_id) {
     ElMessage.warning('请填写必填字段')
@@ -307,16 +312,11 @@ loadProducts()
 
     <ElTable
       :data="tableData"
-      :total="total"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="receipt_no" label="入库单号" width="150" />
       <ElTableColumn prop="receipt_date" label="入库日期" width="120" />
@@ -368,12 +368,19 @@ loadProducts()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog
-      :title="dialogTitle"
-      :visible="dialogVisible"
-      width="800px"
-      @close="dialogVisible = false"
-    >
+    <div class="pagination-container">
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
+
+    <ElDialog v-model="dialogVisible" :title="dialogTitle" width="800px">
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -431,8 +438,17 @@ loadProducts()
                   :value="p.value"
                 />
               </ElSelect>
-              <ElInputNumber v-model="item.quantity" class="col-qty" />
-              <ElInputNumber v-model="item.price" :precision="2" class="col-price" />
+              <ElInputNumber
+                v-model="item.quantity"
+                class="col-qty"
+                @change="calculateItemAmount(item)"
+              />
+              <ElInputNumber
+                v-model="item.price"
+                :precision="2"
+                class="col-price"
+                @change="calculateItemAmount(item)"
+              />
               <ElInputNumber v-model="item.amount" :precision="2" class="col-amount" readonly />
               <ElButton
                 v-if="(form.items || []).length > 1"
@@ -452,12 +468,7 @@ loadProducts()
       </template>
     </ElDialog>
 
-    <ElDialog
-      title="入库单详情"
-      :visible="viewDialogVisible"
-      width="800px"
-      @close="viewDialogVisible = false"
-    >
+    <ElDialog v-model="viewDialogVisible" title="入库单详情" width="800px">
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
           <ElDescriptionsItem label="入库单号">{{ viewData.receipt_no }}</ElDescriptionsItem>
@@ -563,5 +574,11 @@ loadProducts()
 
 .col-action {
   width: 60px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
 }
 </style>

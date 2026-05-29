@@ -15,6 +15,7 @@ import {
   ElRow,
   ElCol,
   ElInputNumber,
+  ElPagination,
 } from 'element-plus'
 import {
   Plus,
@@ -148,18 +149,23 @@ const handleExport = () => {
 
 const openAddDialog = async () => {
   dialogTitle.value = '新增凭证'
-  const res: any = await generateVoucherNo()
-  form.value = {
-    voucher_no: res.data,
-    voucher_date: new Date().toISOString().split('T')[0],
-    type: 'general',
-    status: 'draft',
-    description: '',
-    total_debit: 0,
-    total_credit: 0,
-    entries: [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }],
+  try {
+    const res: any = await generateVoucherNo()
+    const voucherNo = res.data?.voucher_no || res.data || ''
+    form.value = {
+      voucher_no: voucherNo,
+      voucher_date: new Date().toISOString().split('T')[0],
+      type: 'general',
+      status: 'draft',
+      description: '',
+      total_debit: 0,
+      total_credit: 0,
+      entries: [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }],
+    }
+    dialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('生成凭证号失败')
   }
-  dialogVisible.value = true
 }
 
 const openEditDialog = async (row: VoucherEntity) => {
@@ -287,11 +293,12 @@ const loadData = async () => {
     const params = {
       ...searchForm.value,
       page: pagination.value.page,
-      pageSize: pagination.value.pageSize,
+      page_size: pagination.value.pageSize,
     }
     const res: any = await listVouchers(params)
-    tableData.value = res.data!.list || []
-    total.value = res.data?.total || 0
+    const d = res?.data || res
+    tableData.value = Array.isArray(d) ? d : d?.list || d?.items || []
+    total.value = res?.total || d?.total || 0
   } catch (error) {
     ElMessage.error('获取凭证列表失败')
   } finally {
@@ -302,7 +309,10 @@ const loadData = async () => {
 const loadVoucherTypes = async () => {
   try {
     const res: any = await getVoucherTypes()
-    voucherTypes.value = res.data! || []
+    const d = res?.data || res
+    voucherTypes.value = Array.isArray(d)
+      ? d.map((t: any) => (typeof t === 'string' ? { label: t, value: t } : t))
+      : []
   } catch (error) {
     console.error('获取凭证类型失败', error)
   }
@@ -311,6 +321,8 @@ const loadVoucherTypes = async () => {
 const loadAccountSubjects = async () => {
   try {
     const res: any = await getAccountSubjectTree()
+    const d = res?.data || res
+    const items = Array.isArray(d) ? d : d?.items || d?.data || []
     const flattenOptions = (items: any[]): { label: string; value: number }[] => {
       const result: { label: string; value: number }[] = []
       const traverse = (nodes: any[]) => {
@@ -324,7 +336,7 @@ const loadAccountSubjects = async () => {
       traverse(items)
       return result
     }
-    accountSubjectOptions.value = flattenOptions(res.data! || [])
+    accountSubjectOptions.value = flattenOptions(items)
   } catch (error) {
     console.error('获取科目列表失败', error)
   }
@@ -431,16 +443,11 @@ loadAccountSubjects()
 
     <ElTable
       :data="tableData"
-      :total="total"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="voucher_no" label="凭证号" width="120" />
       <ElTableColumn prop="voucher_date" label="凭证日期" width="120" />
@@ -514,12 +521,22 @@ loadAccountSubjects()
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog
-      :title="dialogTitle"
-      :visible="dialogVisible"
-      width="800px"
-      @close="dialogVisible = false"
+    <div
+      class="pagination-wrapper"
+      style="margin-top: 16px; display: flex; justify-content: flex-end"
     >
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
+
+    <ElDialog v-model="dialogVisible" :title="dialogTitle" width="800px">
       <ElForm :model="form" label-width="100px">
         <ElRow :gutter="20">
           <ElCol :span="12">
@@ -613,12 +630,7 @@ loadAccountSubjects()
       </template>
     </ElDialog>
 
-    <ElDialog
-      title="凭证详情"
-      :visible="viewDialogVisible"
-      width="800px"
-      @close="viewDialogVisible = false"
-    >
+    <ElDialog v-model="viewDialogVisible" title="凭证详情" width="800px">
       <div v-if="viewData" class="voucher-detail">
         <div class="voucher-header">
           <div class="header-left">

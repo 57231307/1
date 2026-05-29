@@ -4,18 +4,27 @@ import type { ApiResponse, QueryParams } from '@/types/api'
 export interface SalesContract {
   id: number
   contract_no: string
+  contract_name: string
   customer_id: number
   customer_name: string
+  contract_type?: string
   contract_date: string
+  signed_date?: string
   start_date: string
   end_date: string
+  effective_date?: string
+  expiry_date?: string
   total_amount: number
   currency: string
+  payment_terms?: string
+  payment_method?: string
+  delivery_date?: string
+  delivery_location?: string
   status: 'draft' | 'pending' | 'active' | 'completed' | 'cancelled'
   items: ContractItem[]
   return_items?: ContractItem[]
-  payment_terms: string
   delivery_terms: string
+  remarks?: string
   created_by: number
   created_by_name: string
   created_at: string
@@ -35,7 +44,9 @@ export interface ContractItem {
   remark: string
 }
 
-export function listSalesContracts(params?: QueryParams): Promise<ApiResponse<SalesContract[]>> {
+export function listSalesContracts(
+  params?: QueryParams
+): Promise<ApiResponse<{ list: SalesContract[]; total: number }>> {
   return request.get('/sales-contracts', { params })
 }
 

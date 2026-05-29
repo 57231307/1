@@ -16,6 +16,7 @@ import {
   ElRow,
   ElCol,
   ElDescriptions,
+  ElPagination,
 } from 'element-plus'
 import { Plus, Edit, Delete, View, Check, ArrowRight } from '@element-plus/icons-vue'
 import {
@@ -197,6 +198,10 @@ const handleSubmit = async () => {
     ElMessage.warning('调出和调入仓库不能相同')
     return
   }
+  if (!form.value.transfer_date) {
+    ElMessage.warning('请选择调拨日期')
+    return
+  }
   const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的调拨明细')
@@ -213,8 +218,8 @@ const handleSubmit = async () => {
     }
     dialogVisible.value = false
     loadData()
-  } catch (error) {
-    ElMessage.error('操作失败')
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
   }
 }
 
@@ -306,16 +311,11 @@ loadProducts()
 
     <ElTable
       :data="tableData"
-      :total="total"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="transfer_no" label="调拨单号" width="150" />
       <ElTableColumn prop="transfer_date" label="调拨日期" width="120" />
@@ -365,6 +365,18 @@ loadProducts()
         </template>
       </ElTableColumn>
     </ElTable>
+
+    <div class="pagination-wrapper">
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
 
     <ElDialog
       :title="dialogTitle"
@@ -575,5 +587,11 @@ loadProducts()
 
 .col-action {
   width: 60px;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

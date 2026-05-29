@@ -79,10 +79,18 @@
     >
       <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-width="120px">
         <el-form-item label="供应商" prop="supplierId">
-          <el-select v-model="recordForm.supplierId" placeholder="请选择供应商" style="width: 100%">
-            <el-option label="供应商A" :value="1" />
-            <el-option label="供应商B" :value="2" />
-            <el-option label="供应商C" :value="3" />
+          <el-select
+            v-model="recordForm.supplierId"
+            placeholder="请选择供应商"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="supplier in supplierList"
+              :key="supplier.id"
+              :label="supplier.supplier_name"
+              :value="supplier.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="评估周期" prop="period">
@@ -132,10 +140,12 @@ import {
   getSupplierRankings,
   type EvaluationRecord,
 } from '@/api/supplier-evaluation'
+import { supplierApi, type Supplier } from '@/api/supplier'
 
 const activeTab = ref('records')
 const recordList = ref<EvaluationRecord[]>([])
 const rankingList = ref<any[]>([])
+const supplierList = ref<Supplier[]>([])
 
 const recordPagination = reactive({
   page: 1,
@@ -159,6 +169,15 @@ const recordForm = reactive({
 const recordRules = {
   supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }],
   period: [{ required: true, message: '请输入评估周期', trigger: 'blur' }],
+}
+
+const fetchSuppliers = async () => {
+  try {
+    const res = await supplierApi.list({ page: 1, page_size: 1000 })
+    supplierList.value = res.data?.list || []
+  } catch (e) {
+    console.error('获取供应商列表失败', e)
+  }
 }
 
 const fetchRecords = async () => {
@@ -224,6 +243,7 @@ const handleSaveRecord = async () => {
 onMounted(() => {
   fetchRecords()
   fetchRankings()
+  fetchSuppliers()
 })
 </script>
 

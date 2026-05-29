@@ -1,6 +1,7 @@
 import { request } from './request'
+import type { ApiResponse } from '@/types/api'
 
-export interface QueryParams {
+export interface SupplierEvaluationQueryParams {
   page?: number
   pageSize?: number
   category?: string
@@ -61,50 +62,67 @@ export interface CreateEvaluationRequest {
   remark?: string
 }
 
-export function listIndicators(params?: QueryParams) {
+export function listIndicators(
+  params?: SupplierEvaluationQueryParams
+): Promise<ApiResponse<{ list: EvaluationIndicator[]; total: number }>> {
   return request.get('/supplier-evaluation/evaluations/indicators', { params })
 }
 
-export function createIndicator(data: CreateEvaluationIndicatorRequest) {
+export function createIndicator(
+  data: CreateEvaluationIndicatorRequest
+): Promise<ApiResponse<EvaluationIndicator>> {
   return request.post('/supplier-evaluation/evaluations/indicators', data)
 }
 
-export function listEvaluationRecords(params?: QueryParams) {
+export function listEvaluationRecords(
+  params?: SupplierEvaluationQueryParams
+): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
   return request.get('/supplier-evaluation/evaluations/records', { params })
 }
 
-export function getEvaluationRecord(id: number) {
+export function getEvaluationRecord(id: number): Promise<ApiResponse<EvaluationRecord>> {
   return request.get(`/supplier-evaluation/evaluations/records/${id}`)
 }
 
-export function createEvaluationRecord(data: CreateEvaluationRequest) {
+export function createEvaluationRecord(
+  data: CreateEvaluationRequest
+): Promise<ApiResponse<EvaluationRecord>> {
   return request.post('/supplier-evaluation/evaluations/records', data)
 }
 
-export function getSupplierScore(supplierId: number) {
+export function getSupplierScore(supplierId: number): Promise<ApiResponse<SupplierScore>> {
   return request.get(`/supplier-evaluation/evaluations/suppliers/${supplierId}/score`)
 }
 
-export function getSupplierRankings(params?: { limit?: number }) {
+export function getSupplierRankings(params?: {
+  limit?: number
+}): Promise<ApiResponse<SupplierScore[]>> {
   return request.get('/supplier-evaluation/evaluations/rankings', { params })
 }
 
-export function listEvaluations(params?: QueryParams) {
+export function listEvaluations(
+  params?: SupplierEvaluationQueryParams
+): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
   return request.get('/supplier-evaluation/evaluations', { params })
 }
 
-export function getEvaluation(id: number) {
+export function getEvaluation(id: number): Promise<ApiResponse<EvaluationRecord>> {
   return request.get(`/supplier-evaluation/evaluations/${id}`)
 }
 
-export function createEvaluation(data: CreateEvaluationRequest) {
+export function createEvaluation(
+  data: CreateEvaluationRequest
+): Promise<ApiResponse<EvaluationRecord>> {
   return request.post('/supplier-evaluation/evaluations', data)
 }
 
-export function updateEvaluation(id: number, data: Partial<EvaluationRecord>) {
+export function updateEvaluation(
+  id: number,
+  data: Partial<EvaluationRecord>
+): Promise<ApiResponse<EvaluationRecord>> {
   return request.put(`/supplier-evaluation/evaluations/${id}`, data)
 }
 
-export function deleteEvaluation(id: number) {
+export function deleteEvaluation(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/supplier-evaluation/evaluations/${id}`)
 }

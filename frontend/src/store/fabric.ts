@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fabricApi, type Fabric, type FabricCategory, type FabricQueryParams } from '@/api/fabric'
-import type { ApiResponse } from '@/api/request'
+import type { ApiResponse } from '@/types/api'
 
 export const useFabricStore = defineStore('fabric', () => {
   const fabrics = ref<Fabric[]>([])

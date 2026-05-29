@@ -70,3 +70,39 @@ export function updateProductionOrderStatus(
 ): Promise<ApiResponse<void>> {
   return request.put(`/production/orders/${id}/status`, { status })
 }
+
+// 提交生产订单审核
+export function submitProductionOrder(id: number): Promise<ApiResponse<void>> {
+  return request.put(`/production/orders/${id}/submit`)
+}
+
+// 审核生产订单
+export function approveProductionOrder(
+  id: number,
+  data: { approved: boolean; remark?: string }
+): Promise<ApiResponse<void>> {
+  return request.put(`/production/orders/${id}/approve`, data)
+}
+
+// 汇报生产进度
+export function reportProductionProgress(
+  id: number,
+  data: {
+    completed_quantity: number
+    defect_quantity?: number
+    remark?: string
+  }
+): Promise<ApiResponse<void>> {
+  return request.post(`/production/orders/${id}/progress`, data)
+}
+
+// 获取生产订单日志
+export function getProductionOrderLogs(
+  id: number
+): Promise<
+  ApiResponse<
+    { id: number; action: string; operator: string; created_at: string; remark?: string }[]
+  >
+> {
+  return request.get(`/production/orders/${id}/logs`)
+}

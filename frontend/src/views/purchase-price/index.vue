@@ -59,10 +59,8 @@
             clearable
             @change="handleQuery"
           >
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已生效" value="ACTIVE" />
-            <el-option label="已过期" value="EXPIRED" />
-            <el-option label="已停用" value="INACTIVE" />
+            <el-option label="已生效" value="active" />
+            <el-option label="已停用" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -112,7 +110,7 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'active'"
               type="primary"
               link
               size="small"
@@ -120,12 +118,12 @@
               >编辑</el-button
             >
             <el-button
-              v-if="row.status === 'PENDING'"
-              type="success"
+              v-if="row.status === 'active'"
+              type="warning"
               link
               size="small"
-              @click="handleApprove(row)"
-              >审批</el-button
+              @click="handleDisable(row)"
+              >停用</el-button
             >
             <el-button type="info" link size="small" @click="handleHistory(row)">历史</el-button>
           </template>
@@ -359,8 +357,8 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listPurchasePrices(queryParams)
-    priceList.value = res.data || []
-    total.value = res.total || 0
+    priceList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取采购价格列表失败:', error)
   } finally {
@@ -432,14 +430,15 @@ const handleEdit = (row: any) => {
   dialogVisible.value = true
 }
 
-// 审批
-const handleApprove = async (_row: any) => {
+// 停用
+const handleDisable = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' })
-    ElMessage.success('审批成功')
+    await ElMessageBox.confirm('确认停用该价格？', '提示', { type: 'warning' })
+    await updatePurchasePrice(row.id, { status: 'inactive' })
+    ElMessage.success('停用成功')
     getList()
   } catch (error) {
-    console.error('审批失败:', error)
+    console.error('停用失败:', error)
   }
 }
 
@@ -505,10 +504,8 @@ const getPriceTypeLabel = (type: string) => {
 // 获取状态类型
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: 'warning',
-    ACTIVE: 'success',
-    EXPIRED: 'info',
-    INACTIVE: 'danger',
+    active: 'success',
+    inactive: 'danger',
   }
   return map[status] || 'info'
 }
@@ -516,10 +513,8 @@ const getStatusType = (status: string) => {
 // 获取状态标签
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: '待审批',
-    ACTIVE: '已生效',
-    EXPIRED: '已过期',
-    INACTIVE: '已停用',
+    active: '已生效',
+    inactive: '已停用',
   }
   return map[status] || status
 }

@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { getToken, removeToken, getRefreshToken, setToken } from '@/utils/storage'
 import router from '@/router'
 import { refreshToken as refreshApi } from './auth'
+import type { ApiResponse } from '@/types/api'
 
 let isRefreshing = false
 let refreshSubscribers: ((token: string) => void)[] = []
@@ -15,20 +16,6 @@ function subscribeTokenRefresh(cb: (token: string) => void) {
 function onTokenRefreshed(token: string) {
   refreshSubscribers.forEach((cb) => cb(token))
   refreshSubscribers = []
-}
-
-export interface ApiResponse<T = unknown> {
-  code: number
-  message?: string
-  data: T
-  total?: number
-}
-
-export interface PageResult<T = unknown> {
-  list: T[]
-  total: number
-  page: number
-  page_size: number
 }
 
 class Request {
@@ -73,7 +60,7 @@ class Request {
           }
           return Promise.reject(new Error(safeMessage))
         }
-        return response
+        return res as any
       },
       async (error) => {
         const originalRequest = error.config

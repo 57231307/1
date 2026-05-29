@@ -477,11 +477,12 @@ const fetchData = async () => {
     total.value = res.data?.total || 0
 
     const summaryRes = await inventoryApi.getInventoryReport({})
+    const summary = summaryRes.data?.summary || {}
     stats.value = {
-      totalQuantity: summaryRes.data?.total_quantity || 0,
-      alertCount: summaryRes.data?.alert_count || 0,
-      warehouseCount: summaryRes.data?.warehouse_count || 0,
-      lowStockCount: summaryRes.data?.low_stock_count || 0,
+      totalQuantity: summary.total_quantity || 0,
+      alertCount: summary.alert_count || 0,
+      warehouseCount: summary.warehouse_count || 0,
+      lowStockCount: summary.low_stock_count || 0,
     }
   } catch (error: any) {
     ElMessage.error(error.message || '获取库存列表失败')
@@ -548,6 +549,8 @@ const handleTabChange = (tabName: string) => {
 const adjustmentDialogVisible = ref(false)
 const adjustmentForm = ref({
   stock_id: null as number | null,
+  product_id: null as number | null,
+  warehouse_id: null as number | null,
   product_name: '',
   warehouse_name: '',
   current_quantity: 0,
@@ -567,6 +570,8 @@ const transferForm = ref({
 const handleAdjustment = () => {
   adjustmentForm.value = {
     stock_id: null,
+    product_id: null,
+    warehouse_id: null,
     product_name: '',
     warehouse_name: '',
     current_quantity: 0,
@@ -580,6 +585,8 @@ const handleAdjustment = () => {
 const handleAdjust = (row: any) => {
   adjustmentForm.value = {
     stock_id: row.id,
+    product_id: row.product_id,
+    warehouse_id: row.warehouse_id,
     product_name: row.product_name,
     warehouse_name: row.warehouse_name,
     current_quantity: row.quantity,
@@ -603,9 +610,10 @@ const handleSubmitAdjustment = async () => {
   try {
     const { inventoryApi } = await import('@/api/inventory')
     await inventoryApi.createStockAdjustment({
-      stock_id: adjustmentForm.value.stock_id,
-      adjustment_type: adjustmentForm.value.adjustment_type,
-      quantity: adjustmentForm.value.adjustment_quantity,
+      warehouse_id: adjustmentForm.value.warehouse_id!,
+      product_id: adjustmentForm.value.product_id!,
+      adjustment_type: adjustmentForm.value.adjustment_type as 'increase' | 'decrease',
+      adjustment_quantity: adjustmentForm.value.adjustment_quantity,
       reason: adjustmentForm.value.reason,
     })
     ElMessage.success('库存调整成功')
@@ -708,7 +716,12 @@ const handleSubmitTransfer = async () => {
     return
   }
 
-  const validItems = transferForm.value.items.filter((item) => item.product_id && item.quantity > 0)
+  const validItems = transferForm.value.items
+    .filter((item) => item.product_id && item.quantity > 0)
+    .map((item) => ({
+      product_id: item.product_id!,
+      quantity: item.quantity,
+    }))
   if (validItems.length === 0) {
     ElMessage.warning('请添加至少一个调拨产品')
     return

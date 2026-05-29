@@ -10,8 +10,11 @@ import {
   ElMessage,
   ElRow,
   ElCol,
+  ElPagination,
+  ElDescriptions,
+  ElDescriptionsItem,
 } from 'element-plus'
-import { Plus, Check } from '@element-plus/icons-vue'
+import { Plus, Check, View } from '@element-plus/icons-vue'
 import {
   listInventoryCounts,
   getInventoryCount,
@@ -148,6 +151,11 @@ const openViewDialog = async (row: InventoryCountEntity) => {
 
 const handleSubmit = async () => {
   if (!form.value.warehouse_id) {
+    ElMessage.warning('请选择仓库')
+    return
+  }
+  if (!form.value.count_date) {
+    ElMessage.warning('请选择盘点日期')
     return
   }
   try {
@@ -155,8 +163,8 @@ const handleSubmit = async () => {
     ElMessage.success('新增成功')
     dialogVisible.value = false
     loadData()
-  } catch (error) {
-    ElMessage.error('操作失败')
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
   }
 }
 
@@ -251,16 +259,11 @@ loadWarehouses()
 
     <ElTable
       :data="tableData"
-      :total="total"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="count_no" label="盘点单号" width="150" />
       <ElTableColumn prop="count_date" label="盘点日期" width="120" />
@@ -305,6 +308,18 @@ loadWarehouses()
       </ElTableColumn>
     </ElTable>
 
+    <div class="pagination-wrapper">
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
+
     <ElDialog
       :title="dialogTitle"
       :visible="dialogVisible"
@@ -343,13 +358,17 @@ loadWarehouses()
     >
       <div v-if="viewData">
         <el-descriptions :column="4" border>
-          <Item label="盘点单号">{{ viewData.count_no }}</Item>
-          <Item label="盘点日期">{{ viewData.count_date }}</Item>
-          <Item label="仓库">{{ viewData.warehouse_name }}</Item>
-          <Item label="状态">{{ getStatusLabel(viewData.status) }}</Item>
-          <Item label="创建人">{{ viewData.created_by_name }}</Item>
-          <Item label="创建时间">{{ viewData.created_at }}</Item>
-          <Item label="完成时间">{{ viewData.completed_at || '-' }}</Item>
+          <ElDescriptionsItem label="盘点单号">{{ viewData.count_no }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="盘点日期">{{ viewData.count_date }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="仓库">{{ viewData.warehouse_name }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="状态">{{
+            getStatusLabel(viewData.status)
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="创建人">{{ viewData.created_by_name }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="完成时间">{{
+            viewData.completed_at || '-'
+          }}</ElDescriptionsItem>
         </el-descriptions>
         <div style="margin-top: 20px">
           <h4>盘点明细</h4>
@@ -433,5 +452,11 @@ loadWarehouses()
 
 .negative {
   color: #f56c6c;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

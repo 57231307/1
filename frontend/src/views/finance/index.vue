@@ -436,9 +436,15 @@ const fetchSubjects = async () => {
 const fetchVouchers = async () => {
   voucherLoading.value = true
   try {
-    const res = await listVouchers(voucherQuery)
+    const params = {
+      ...voucherQuery,
+      page: voucherQueryParams.page,
+      page_size: voucherQueryParams.page_size,
+    }
+    const res = await listVouchers(params)
     const d = res.data as any
     vouchers.value = d?.items || d?.data || d || []
+    voucherTotal.value = res.total || d?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取凭证列表失败')
   } finally {

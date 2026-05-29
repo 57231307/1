@@ -48,12 +48,11 @@
             clearable
             @change="handleQuery"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已审批" value="APPROVED" />
-            <el-option label="执行中" value="EXECUTING" />
-            <el-option label="已完成" value="COMPLETED" />
-            <el-option label="已取消" value="CANCELLED" />
+            <el-option label="草稿" value="draft" />
+            <el-option label="待审批" value="pending" />
+            <el-option label="已生效" value="active" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
           </el-select>
         </el-form-item>
         <el-form-item label="签订日期">
@@ -107,7 +106,7 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === 'draft'"
               type="primary"
               link
               size="small"
@@ -115,7 +114,7 @@
               >编辑</el-button
             >
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === 'draft'"
               type="success"
               link
               size="small"
@@ -123,7 +122,7 @@
               >提交</el-button
             >
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === 'pending'"
               type="success"
               link
               size="small"
@@ -131,7 +130,7 @@
               >审批</el-button
             >
             <el-button
-              v-if="row.status === 'APPROVED'"
+              v-if="row.status === 'active'"
               type="warning"
               link
               size="small"
@@ -139,7 +138,7 @@
               >执行</el-button
             >
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === 'draft'"
               type="danger"
               link
               size="small"
@@ -364,8 +363,8 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listPurchaseContracts(queryParams)
-    contractList.value = res.data || []
-    total.value = res.total || 0
+    contractList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取采购合同列表失败:', error)
   } finally {
@@ -522,12 +521,11 @@ const formatCurrency = (value: number) => {
 // 获取状态类型
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: 'info',
-    PENDING: 'warning',
-    APPROVED: 'success',
-    EXECUTING: 'primary',
-    COMPLETED: 'success',
-    CANCELLED: 'danger',
+    draft: 'info',
+    pending: 'warning',
+    active: 'success',
+    completed: 'success',
+    cancelled: 'danger',
   }
   return map[status] || 'info'
 }
@@ -535,12 +533,11 @@ const getStatusType = (status: string) => {
 // 获取状态标签
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    PENDING: '待审批',
-    APPROVED: '已审批',
-    EXECUTING: '执行中',
-    COMPLETED: '已完成',
-    CANCELLED: '已取消',
+    draft: '草稿',
+    pending: '待审批',
+    active: '已生效',
+    completed: '已完成',
+    cancelled: '已取消',
   }
   return map[status] || status
 }

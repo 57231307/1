@@ -504,7 +504,13 @@ import {
   type APInvoice,
 } from '@/api/ap'
 import { listAPPayments, createAPPayment, confirmAPPayment, type APPayment } from '@/api/ap'
-import { listAPVerifications, manualVerifyAP, type APVerification } from '@/api/ap'
+import {
+  listAPVerifications,
+  manualVerifyAP,
+  getUnverifiedAPInvoices,
+  getUnverifiedAPPayments,
+  type APVerification,
+} from '@/api/ap'
 import {
   listAPReconciliations,
   confirmAPReconciliation,
@@ -812,11 +818,15 @@ const verificationForm = reactive({
 const openVerificationDialog = async () => {
   try {
     const [invRes, payRes] = await Promise.all([
-      listAPInvoices({ status: 'approved' }),
-      listAPPayments({ status: 'confirmed' }),
+      getUnverifiedAPInvoices(),
+      getUnverifiedAPPayments(),
     ])
-    unverifiedInvoices.value = (invRes.data || []).filter((i: APInvoice) => i.unverified_amount > 0)
-    unverifiedPayments.value = payRes.data || []
+    const d1 = invRes.data as any
+    const d2 = payRes.data as any
+    unverifiedInvoices.value = (Array.isArray(d1) ? d1 : d1?.items || d1?.data || []).filter(
+      (i: APInvoice) => i.unverified_amount > 0
+    )
+    unverifiedPayments.value = Array.isArray(d2) ? d2 : d2?.items || d2?.data || []
   } catch (error) {
     console.error(error)
   }

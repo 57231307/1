@@ -65,7 +65,10 @@ export function deleteLead(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/crm/leads/${id}`)
 }
 
-export function updateLeadStatus(id: number, data: { status: string }): Promise<ApiResponse<void>> {
+export function updateLeadStatus(
+  id: number,
+  data: { status: Lead['status'] }
+): Promise<ApiResponse<void>> {
   return request.put(`/crm/leads/${id}/status`, data)
 }
 
@@ -98,6 +101,16 @@ export function deleteOpportunity(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/crm/opportunities/${id}`)
 }
 
-export function getCustomerSummary(customerId: number): Promise<ApiResponse<any>> {
+export interface CustomerSummary {
+  customer_id: number
+  customer_name: string
+  total_orders: number
+  total_amount: number
+  last_order_date?: string
+  credit_limit?: number
+  credit_used?: number
+}
+
+export function getCustomerSummary(customerId: number): Promise<ApiResponse<CustomerSummary>> {
   return request.get(`/crm/customers/${customerId}/summary`)
 }

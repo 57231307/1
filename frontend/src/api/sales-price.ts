@@ -11,15 +11,40 @@ export interface SalesPrice {
   price: number
   currency: string
   unit: string
+  min_order_qty?: number
+  price_type?: string
+  price_level?: string
   effective_date: string
   expiry_date: string
-  status: 'active' | 'inactive'
+  status: 'pending' | 'active' | 'expired' | 'inactive'
   remark: string
   created_at: string
   updated_at: string
 }
 
-export function listSalesPrices(params?: QueryParams): Promise<ApiResponse<SalesPrice[]>> {
+export interface PricingStrategy {
+  id: number
+  name: string
+  description: string
+  type: 'tiered' | 'volume' | 'contract'
+  rules: PricingStrategyRule[]
+  status: 'active' | 'inactive'
+  created_at: string
+  updated_at: string
+}
+
+export interface PricingStrategyRule {
+  id: number
+  strategy_id: number
+  min_quantity: number
+  max_quantity?: number
+  discount_rate: number
+  price?: number
+}
+
+export function listSalesPrices(
+  params?: QueryParams
+): Promise<ApiResponse<{ list: SalesPrice[]; total: number }>> {
   return request.get('/sales-prices', { params })
 }
 
@@ -38,6 +63,10 @@ export function updateSalesPrice(
   return request.put(`/sales-prices/${id}`, data)
 }
 
+export function deleteSalesPrice(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/sales-prices/${id}`)
+}
+
 export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/sales-prices/${id}/approve`)
 }
@@ -46,6 +75,6 @@ export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPri
   return request.get(`/sales-prices/history/${productId}`)
 }
 
-export function listPricingStrategies(): Promise<ApiResponse<any[]>> {
+export function listPricingStrategies(): Promise<ApiResponse<PricingStrategy[]>> {
   return request.get('/sales-prices/strategies')
 }

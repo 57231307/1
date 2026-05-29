@@ -541,7 +541,8 @@ const fetchInvoices = async () => {
   invoiceLoading.value = true
   try {
     const res = await listARInvoices(invoiceQuery)
-    invoices.value = res.data! || []
+    const d = res.data as any
+    invoices.value = Array.isArray(d) ? d : d?.items || d?.data || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取发票列表失败')
   } finally {
@@ -560,7 +561,8 @@ const fetchReconciliations = async () => {
   reconciliationLoading.value = true
   try {
     const res = await listARReconciliations()
-    reconciliations.value = res.data! || []
+    const d = res.data as any
+    reconciliations.value = Array.isArray(d) ? d : d?.items || d?.data || []
   } catch (error: any) {
     ElMessage.error(error.message || '获取对账列表失败')
   } finally {
@@ -572,7 +574,8 @@ const fetchFunds = async () => {
   fundLoading.value = true
   try {
     const res = await listFundAccounts()
-    funds.value = res.data?.list || []
+    const d = res.data as any
+    funds.value = d?.list || d?.items || (Array.isArray(d) ? d : [])
   } catch (error: any) {
     ElMessage.error(error.message || '获取资金账户列表失败')
   } finally {
@@ -807,17 +810,29 @@ const submitFundOperation = async () => {
   fundOperationLoading.value = true
   try {
     if (fundOperationType.value === 'deposit') {
-      await depositFundApi(currentFundAccount.value.id, fundOperationAmount.value, fundOperationRemark.value)
+      await depositFundApi(
+        currentFundAccount.value.id,
+        fundOperationAmount.value,
+        fundOperationRemark.value
+      )
       ElMessage.success('存入成功')
     } else if (fundOperationType.value === 'withdraw') {
-      await withdrawFundApi(currentFundAccount.value.id, fundOperationAmount.value, fundOperationRemark.value)
+      await withdrawFundApi(
+        currentFundAccount.value.id,
+        fundOperationAmount.value,
+        fundOperationRemark.value
+      )
       ElMessage.success('取出成功')
     } else if (fundOperationType.value === 'freeze') {
       if (!fundOperationReason.value) {
         ElMessage.warning('请输入冻结原因')
         return
       }
-      await freezeFundApi(currentFundAccount.value.id, fundOperationAmount.value, fundOperationReason.value)
+      await freezeFundApi(
+        currentFundAccount.value.id,
+        fundOperationAmount.value,
+        fundOperationReason.value
+      )
       ElMessage.success('冻结成功')
     }
     fundOperationDialogVisible.value = false

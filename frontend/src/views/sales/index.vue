@@ -554,6 +554,13 @@ const formData = reactive<any>({
 const formRules = {
   customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
   order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
+  required_date: [{ required: true, message: '请选择要求交货日期', trigger: 'change' }],
+  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+  contact_phone: [
+    { required: true, message: '请输入联系电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' },
+  ],
+  delivery_address: [{ required: true, message: '请输入收货地址', trigger: 'blur' }],
 }
 
 const formatCurrency = (amount: number) => {
@@ -590,7 +597,7 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await salesApi.getOrderList(queryParams)
-    orders.value = res.data!.list || []
+    orders.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (error: any) {
     ElMessage.error(error.message || '获取订单列表失败')
@@ -604,8 +611,8 @@ const fetchData = async () => {
 const fetchCustomers = async () => {
   try {
     const res = await customerApi.list({ page_size: 1000 })
-    customers.value = res.data!.list || []
-  } catch (error) {
+    customers.value = res.data?.list || []
+  } catch (error: any) {
     console.error('获取客户列表失败:', error)
   }
 }
@@ -613,8 +620,8 @@ const fetchCustomers = async () => {
 const fetchProducts = async () => {
   try {
     const res = await productApi.list({ page_size: 1000 })
-    products.value = res.data!.list || []
-  } catch (error) {
+    products.value = res.data?.list || []
+  } catch (error: any) {
     console.error('获取产品列表失败:', error)
   }
 }
@@ -775,6 +782,15 @@ const removeItem = (index: number) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
+
+    const validItems = formData.items.filter(
+      (item: any) => item.product_id && item.quantity > 0 && item.unit_price > 0
+    )
+    if (validItems.length === 0) {
+      ElMessage.warning('请至少添加一条有效的订单明细')
+      return
+    }
+
     formData.total_amount = calculateTotal()
 
     if (isEdit.value && currentOrder.value) {
@@ -876,8 +892,8 @@ const warehouses = ref<any[]>([])
 const fetchWarehouses = async () => {
   try {
     const res = await warehouseApi.list({ page_size: 1000 })
-    warehouses.value = res.data!.list || []
-  } catch (error) {
+    warehouses.value = res.data?.list || []
+  } catch (error: any) {
     console.error('获取仓库列表失败:', error)
   }
 }
@@ -899,7 +915,7 @@ const submitDelivery = async () => {
       items: validItems.map((item) => ({
         product_id: item.product_id,
         quantity: item.deliver_quantity,
-        remarks: item.remarks,
+        remark: item.remarks,
       })),
     })
     ElMessage.success('发货成功')

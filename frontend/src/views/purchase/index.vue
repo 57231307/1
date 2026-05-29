@@ -200,7 +200,7 @@
 
     <!-- 新建采购单对话框 -->
     <el-dialog v-model="createDialogVisible" title="新建采购单" width="800px">
-      <el-form :model="createForm" label-width="100px">
+      <el-form ref="createFormRef" :model="createForm" :rules="createFormRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="供应商" required>
@@ -472,6 +472,11 @@ const queryParams = reactive({
 
 // 新建采购单对话框
 const createDialogVisible = ref(false)
+const createFormRef = ref()
+const createFormRules = {
+  supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
+  order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
+}
 const createForm = ref({
   supplier_id: undefined as number | undefined,
   order_date: new Date().toISOString().split('T')[0],
@@ -711,12 +716,9 @@ const calculateTotal = () => {
 }
 
 const submitCreate = async () => {
-  if (!createForm.value.supplier_id) {
-    ElMessage.warning('请选择供应商')
-    return
-  }
-  if (!createForm.value.order_date) {
-    ElMessage.warning('请选择订单日期')
+  try {
+    await createFormRef.value?.validate()
+  } catch {
     return
   }
   const validItems = createForm.value.items.filter((item) => item.product_id && item.quantity > 0)
@@ -759,12 +761,12 @@ const submitReceive = async () => {
   try {
     await purchaseApi.createReceipt({
       order_id: receiveForm.value.order_id,
-      receive_date: receiveForm.value.receive_date,
+      receipt_date: receiveForm.value.receive_date,
       warehouse_id: receiveForm.value.warehouse_id,
       items: validItems.map((item) => ({
         product_id: item.product_id,
-        quantity: item.receive_quantity,
-        remarks: item.remarks,
+        received_quantity: item.receive_quantity,
+        remark: item.remarks,
       })),
     })
     ElMessage.success('收货成功')

@@ -46,4 +46,17 @@ export const bomApi = {
   copy: (id: number) => request.post<ApiResponse<Bom>>(`/boms/${id}/copy`),
 
   setDefault: (id: number) => request.put<ApiResponse<Bom>>(`/boms/${id}/default`),
+
+  // 获取BOM版本历史
+  getVersions: (productId: number) =>
+    request.get<
+      ApiResponse<{ id: number; version: string; created_at: string; is_default: boolean }[]>
+    >(`/boms/product/${productId}/versions`),
+
+  // 提交BOM审核
+  submit: (id: number) => request.put<ApiResponse<void>>(`/boms/${id}/submit`),
+
+  // 审核BOM
+  approve: (id: number, data: { approved: boolean; remark?: string }) =>
+    request.put<ApiResponse<void>>(`/boms/${id}/approve`, data),
 }

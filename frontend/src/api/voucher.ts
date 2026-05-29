@@ -1,4 +1,5 @@
 import { request } from './request'
+import type { ApiResponse, QueryParams } from '@/types/api'
 
 export interface VoucherEntry {
   id?: number
@@ -33,42 +34,45 @@ export interface VoucherEntity {
   posted_at?: string
 }
 
-export function listVouchers(params?: any) {
+export function listVouchers(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
   return request.get('/gl/vouchers', { params })
 }
 
-export function getVoucher(id: number) {
+export function getVoucher(id: number): Promise<ApiResponse<VoucherEntity>> {
   return request.get(`/gl/vouchers/${id}`)
 }
 
-export function createVoucher(data: Partial<VoucherEntity>) {
+export function createVoucher(data: Partial<VoucherEntity>): Promise<ApiResponse<VoucherEntity>> {
   return request.post('/gl/vouchers', data)
 }
 
-export function updateVoucher(id: number, data: Partial<VoucherEntity>) {
+export function updateVoucher(
+  id: number,
+  data: Partial<VoucherEntity>
+): Promise<ApiResponse<VoucherEntity>> {
   return request.put(`/gl/vouchers/${id}`, data)
 }
 
-export function deleteVoucher(id: number) {
+export function deleteVoucher(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/gl/vouchers/${id}`)
 }
 
-export function approveVoucher(id: number) {
+export function approveVoucher(id: number): Promise<ApiResponse<void>> {
   return request.post(`/gl/vouchers/${id}/review`)
 }
 
-export function postVoucher(id: number) {
+export function postVoucher(id: number): Promise<ApiResponse<void>> {
   return request.post(`/gl/vouchers/${id}/post`)
 }
 
-export function unpostVoucher(id: number) {
+export function unpostVoucher(id: number): Promise<ApiResponse<void>> {
   return request.post(`/gl/vouchers/${id}/unpost`)
 }
 
-export function getVoucherTypes() {
+export function getVoucherTypes(): Promise<ApiResponse<string[]>> {
   return request.get('/gl/vouchers/types')
 }
 
-export function generateVoucherNo() {
+export function generateVoucherNo(): Promise<ApiResponse<{ voucher_no: string }>> {
   return request.get('/gl/vouchers/generate-no')
 }

@@ -16,6 +16,7 @@ import {
   ElRow,
   ElCol,
   ElDescriptions,
+  ElPagination,
 } from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
 import {
@@ -184,8 +185,16 @@ const removeItem = (index: number) => {
 }
 
 const handleSubmit = async () => {
-  if (!form.value.warehouse_id || !form.value.reason) {
-    ElMessage.warning('请填写必填字段')
+  if (!form.value.warehouse_id) {
+    ElMessage.warning('请选择仓库')
+    return
+  }
+  if (!form.value.reason) {
+    ElMessage.warning('请输入调整原因')
+    return
+  }
+  if (!form.value.adjust_date) {
+    ElMessage.warning('请选择调整日期')
     return
   }
   const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
@@ -204,8 +213,8 @@ const handleSubmit = async () => {
     }
     dialogVisible.value = false
     loadData()
-  } catch (error) {
-    ElMessage.error('操作失败')
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
   }
 }
 
@@ -282,16 +291,11 @@ loadProducts()
 
     <ElTable
       :data="tableData"
-      :total="total"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="adjust_no" label="调整单号" width="150" />
       <ElTableColumn prop="adjust_date" label="调整日期" width="120" />
@@ -341,6 +345,18 @@ loadProducts()
         </template>
       </ElTableColumn>
     </ElTable>
+
+    <div class="pagination-wrapper">
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
 
     <ElDialog
       :title="dialogTitle"
@@ -528,5 +544,11 @@ loadProducts()
 
 .col-action {
   width: 60px;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

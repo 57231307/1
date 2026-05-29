@@ -94,7 +94,7 @@
                 <el-option
                   v-for="order in salesOrderList"
                   :key="order.id"
-                  :label="order.orderNo"
+                  :label="order.order_no"
                   :value="order.id"
                 />
               </el-select>
@@ -111,7 +111,7 @@
                 <el-option
                   v-for="customer in customerList"
                   :key="customer.id"
-                  :label="customer.name"
+                  :label="customer.customer_name"
                   :value="customer.id"
                 />
               </el-select>
@@ -176,7 +176,7 @@
                   <el-option
                     v-for="product in productList"
                     :key="product.id"
-                    :label="product.name"
+                    :label="product.product_name"
                     :value="product.id"
                   />
                 </el-select>
@@ -312,9 +312,9 @@ const loadReturns = async () => {
   loading.value = true
   try {
     const res = await salesReturnApi.list()
-    returnList.value = res.data!.list || []
-  } catch (error) {
-    ElMessage.error('加载退货列表失败')
+    returnList.value = res.data?.list || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载退货列表失败')
   } finally {
     loading.value = false
   }
@@ -323,27 +323,27 @@ const loadReturns = async () => {
 const loadSalesOrders = async () => {
   try {
     const res = await salesApi.getOrderList({ status: 'completed' })
-    salesOrderList.value = res.data!.list || []
-  } catch (error) {
-    // 忽略错误
+    salesOrderList.value = res.data?.list || []
+  } catch (error: any) {
+    console.error('加载销售订单失败:', error)
   }
 }
 
 const loadCustomers = async () => {
   try {
     const res = await listCustomers()
-    customerList.value = (res.data as any).list || []
-  } catch (error) {
-    // 忽略错误
+    customerList.value = res.data?.list || []
+  } catch (error: any) {
+    console.error('加载客户列表失败:', error)
   }
 }
 
 const loadProducts = async () => {
   try {
     const res = await productApi.list()
-    productList.value = (res.data as any).list || []
-  } catch (error) {
-    // 忽略错误
+    productList.value = res.data?.list || []
+  } catch (error: any) {
+    console.error('加载产品列表失败:', error)
   }
 }
 
@@ -395,22 +395,25 @@ const handleApprove = async (row: any) => {
     await salesReturnApi.approve(row.id)
     ElMessage.success('审核成功')
     await loadReturns()
-  } catch (error) {
-    ElMessage.error('审核失败')
+  } catch (error: any) {
+    ElMessage.error(error.message || '审核失败')
   }
 }
 
 const handleSalesOrderChange = (orderId: number) => {
   const order = salesOrderList.value.find((o) => o.id === orderId)
   if (order) {
-    formData.salesOrderNo = order.orderNo
-    formData.customerId = order.customerId
-    formData.customerName = order.customerName
-    // 加载订单明细作为退货明细参考
+    formData.salesOrderNo = order.order_no
+    formData.customerId = order.customer_id
+    formData.customerName = order.customer_name
     if (order.items) {
       formData.items = order.items.map((item: any) => ({
-        ...item,
+        productId: item.product_id,
+        productName: item.product_name,
+        productCode: item.product_code,
         quantity: 0,
+        unitPrice: item.unit_price,
+        amount: 0,
         reason: '',
       }))
     }
@@ -475,8 +478,8 @@ const handleSubmit = async () => {
       }
       editDialogVisible.value = false
       await loadReturns()
-    } catch (error) {
-      ElMessage.error(dialogMode.value === 'create' ? '创建失败' : '更新失败')
+    } catch (error: any) {
+      ElMessage.error(error.message || (dialogMode.value === 'create' ? '创建失败' : '更新失败'))
     } finally {
       submitLoading.value = false
     }

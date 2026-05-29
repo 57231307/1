@@ -96,6 +96,18 @@ export interface VoucherCreateRequest {
   }[]
 }
 
+export interface VoucherUpdateRequest {
+  voucher_date?: string
+  voucher_type?: string
+  entries?: {
+    id?: number
+    subject_id: number
+    debit: number
+    credit: number
+    summary: string
+  }[]
+}
+
 export function listVouchers(params?: QueryParams): Promise<ApiResponse<Voucher[]>> {
   return request.get('/gl/vouchers', { params })
 }
@@ -118,4 +130,15 @@ export function reviewVoucher(id: number): Promise<ApiResponse<void>> {
 
 export function postVoucher(id: number): Promise<ApiResponse<void>> {
   return request.post(`/gl/vouchers/${id}/post`)
+}
+
+export function updateVoucher(
+  id: number,
+  data: VoucherUpdateRequest
+): Promise<ApiResponse<Voucher>> {
+  return request.put(`/gl/vouchers/${id}`, data)
+}
+
+export function deleteVoucher(id: number): Promise<ApiResponse<void>> {
+  return request.delete(`/gl/vouchers/${id}`)
 }
