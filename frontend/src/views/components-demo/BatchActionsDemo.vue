@@ -54,7 +54,7 @@ const handleSelectionChange = (selection: any[]) => {
   selectedRows.value = selection
 }
 
-const handleComplete = (key: string, success: boolean) => {
+const handleComplete = (_key: string, success: boolean) => {
   if (success) {
     // 操作完成处理
   }

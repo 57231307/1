@@ -411,7 +411,7 @@ const handleSaveBatch = async () => {
     submitLoading.value = true
     try {
       if (isEdit.value && currentBatch.value) {
-        await updateBatch(currentBatch.value.id, batchForm as any)
+        await updateBatch(currentBatch.value.id!, batchForm as any)
         ElMessage.success('更新成功')
       } else {
         await createBatch(batchForm as any)
