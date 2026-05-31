@@ -52,10 +52,7 @@ pub async fn request_validator_middleware(
         })
         .unwrap_or(false);
 
-    // 允许无 Origin/Referer 的请求（如 curl、Postman 等工具）
-    let no_origin = origin.is_none() && referer.is_none();
-
-    if !is_valid_origin && !is_valid_referer && !no_origin {
+    if !is_valid_origin && !is_valid_referer {
         tracing::warn!(
             "CSRF验证失败: 非法来源 origin={:?}, referer={:?}, 允许的源={:?}",
             origin,
