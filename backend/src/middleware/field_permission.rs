@@ -19,8 +19,15 @@ async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
         Ok(Some(role)) => role.code == "admin",
         Ok(None) => false,
         Err(e) => {
-            tracing::warn!("查询角色失败: {}", e);
-            false
+            // 如果是表不存在的错误，说明系统还未初始化，允许访问
+            let err_msg = format!("{}", e);
+            if err_msg.contains("does not exist") || err_msg.contains("relation") {
+                tracing::warn!("数据库表不存在，系统可能未初始化，允许访问: {}", e);
+                true // 系统未初始化时允许所有操作
+            } else {
+                tracing::warn!("查询角色失败: {}", e);
+                false
+            }
         }
     }
 }

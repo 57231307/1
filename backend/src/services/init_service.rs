@@ -245,7 +245,14 @@ impl InitService {
             .filter(role::Column::Code.eq("admin"))
             .one(self.db.as_ref())
             .await
-            .map_err(|e| InitError::DatabaseError(format!("查询角色失败: {}", e)))?;
+            .map_err(|e| {
+                let err_msg = format!("{}", e);
+                if err_msg.contains("does not exist") || err_msg.contains("relation") {
+                    InitError::DatabaseError("数据库表不存在，需要先初始化数据库".to_string())
+                } else {
+                    InitError::DatabaseError(format!("查询角色失败: {}", e))
+                }
+            })?;
 
         if let Some(admin_role) = existing_admin {
             return Ok(admin_role);
