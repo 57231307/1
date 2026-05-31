@@ -592,8 +592,12 @@ main() {
     if [ -f "$BACKEND_DIR/server" ]; then
         log "检测到已有安装，执行更新部署..."
         backup_current
+        
+        # 更新部署：先执行数据库迁移
+        run_migrations
     else
         log "执行全新部署..."
+        # 全新部署：不执行数据库迁移，用户通过引导页面配置
     fi
 
     stop_old_services
@@ -601,7 +605,7 @@ main() {
     deploy_backend
     deploy_frontend
     generate_config
-    run_migrations
+    # 注意：全新部署时不执行 run_migrations，用户通过引导页面配置数据库
     install_service
     configure_nginx
     start_service
