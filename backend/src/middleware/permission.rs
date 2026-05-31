@@ -226,7 +226,7 @@ async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
             let err_msg = format!("{}", e);
             if err_msg.contains("does not exist") || err_msg.contains("relation") {
                 warn!("数据库表不存在，系统可能未初始化，允许访问: {}", e);
-                true  // 系统未初始化时允许所有操作
+                true // 系统未初始化时允许所有操作
             } else {
                 warn!("查询角色失败: {}", e);
                 false
