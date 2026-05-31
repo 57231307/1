@@ -1287,10 +1287,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/tasks/:task_id/transfer", post(bpm_handler::transfer_task))
         .route("/tasks/:task_id/urge", post(bpm_handler::urge_task))
         // 流程模板路由（前端期望 /bpm/templates）
-        .route(
-            "/templates",
-            get(bpm_definition_handler::list_templates),
-        );
+        .route("/templates", get(bpm_definition_handler::list_templates));
 
     // 健康检查路由
     // 扫码出库路由
