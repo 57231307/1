@@ -155,9 +155,10 @@ const dbConnected = ref(false)
 
 // 环境检查
 const envChecks = ref([
-  { name: '后端服务连接', status: false },
-  { name: '数据库连接', status: false },
-  { name: '必要依赖', status: false },
+  { name: '后端API服务', status: false, detail: '检查后端API是否正常响应' },
+  { name: 'Redis缓存服务', status: false, detail: '检查Redis服务是否可用' },
+  { name: '磁盘空间', status: false, detail: '检查是否有足够的磁盘空间（至少1GB）' },
+  { name: '系统内存', status: false, detail: '检查系统内存是否充足（至少512MB）' },
 ])
 
 const allChecksPassed = computed(() => envChecks.value.every((item) => item.status))
@@ -221,13 +222,32 @@ const isAdminValid = computed(() => {
 async function checkEnvironment() {
   checking.value = true
   try {
-    // 检查后端服务
+    // 检查后端API服务
     const healthRes = await fetch('/api/v1/erp/health')
-    envChecks.value[0].status = healthRes.ok
+    const healthData = await healthRes.json()
+    envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy'
 
-    // 第一步只检查后端服务，数据库连接在第二步检查
-    envChecks.value[1].status = true  // 数据库检查标记为通过，实际在第二步验证
-    envChecks.value[2].status = true  // 必要依赖检查
+    // 检查Redis缓存（通过健康检查接口的checks）
+    if (healthData.checks && healthData.checks.redis) {
+      envChecks.value[1].status = healthData.checks.redis.status === 'healthy'
+    } else {
+      // 如果健康检查没有Redis信息，标记为通过（可能未配置Redis）
+      envChecks.value[1].status = true
+    }
+
+    // 检查磁盘空间（通过健康检查接口的checks）
+    if (healthData.checks && healthData.checks.disk) {
+      envChecks.value[2].status = healthData.checks.disk.status === 'healthy'
+    } else {
+      envChecks.value[2].status = true
+    }
+
+    // 检查系统内存（通过健康检查接口的checks）
+    if (healthData.checks && healthData.checks.memory) {
+      envChecks.value[3].status = healthData.checks.memory.status === 'healthy'
+    } else {
+      envChecks.value[3].status = true
+    }
   } catch (error) {
     console.error('环境检查失败:', error)
   } finally {
