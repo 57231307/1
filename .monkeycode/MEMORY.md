@@ -46,10 +46,14 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
 - Instructions:
   - 生产服务器: 111.230.99.236，SSH 用户: root，SSH 密码: Txx19960917
   - 数据库: 39.99.34.194:5432，用户 bingxi，数据库密码: d5eb610ccf1a701dac02d5.dbcba8f5f546a
-  - 服务名称: bingxi (systemd)，安装目录: /opt/bingxi-erp
+  - 服务名称: bingxi-backend (systemd)，安装目录: /opt/bingxi-erp
   - 后端端口: 8082，日志目录: /opt/bingxi-erp/backend/logs，备份目录: /opt/bingxi-erp/backups
-  - 环境配置: /etc/bingxi/.env
+  - 环境配置: /etc/bingxi-erp/.env
   - 构建限制: 禁止本地编译，只允许 CICD 编译，CICD 自动部署到 GitHub Release，手动部署到生产服务器
+  - **服务器不安装PostgreSQL客户端**：有专门的数据库服务器(39.99.34.194)，应用服务器只连接远程数据库
+  - **服务器不安装Redis**：有专门的Redis服务器，应用服务器只连接远程Redis
+  - **服务器只需安装**: Nginx、curl
+  - 部署命令: `bingxi update` (CLI工具)
 
 [功能实现进度]
 - Date: 2026-05-30

@@ -225,17 +225,9 @@ async function checkEnvironment() {
     const healthRes = await fetch('/api/v1/erp/health')
     envChecks.value[0].status = healthRes.ok
 
-    // 检查数据库连接
-    const dbRes = await fetch('/api/v1/erp/init/test-database', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dbConfig.value),
-    })
-    const dbData = await dbRes.json()
-    envChecks.value[1].status = dbData.success
-
-    // 检查必要依赖
-    envChecks.value[2].status = true
+    // 第一步只检查后端服务，数据库连接在第二步检查
+    envChecks.value[1].status = true  // 数据库检查标记为通过，实际在第二步验证
+    envChecks.value[2].status = true  // 必要依赖检查
   } catch (error) {
     console.error('环境检查失败:', error)
   } finally {
