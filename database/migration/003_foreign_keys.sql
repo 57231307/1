@@ -84,7 +84,7 @@ BEGIN
     ) THEN
         ALTER TABLE quality_inspection_records 
         ADD CONSTRAINT fk_quality_inspection_receipt 
-        FOREIGN KEY (purchase_receipt_id) REFERENCES purchase_receipts(id) 
+        FOREIGN KEY (purchase_receipt_id) REFERENCES purchase_receipt(id) 
         ON DELETE SET NULL ON UPDATE CASCADE;
     END IF;
 END $$;
