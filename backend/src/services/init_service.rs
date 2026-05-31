@@ -56,7 +56,15 @@ impl InitService {
                     (false, "系统未初始化".to_string())
                 }
             }
-            Err(e) => (false, format!("检查初始化状态失败: {}", e)),
+            Err(e) => {
+                let err_msg = format!("{}", e);
+                if err_msg.contains("does not exist") || err_msg.contains("relation") {
+                    // 数据库表不存在，说明系统还未初始化
+                    (false, "系统未初始化".to_string())
+                } else {
+                    (false, format!("检查初始化状态失败: {}", e))
+                }
+            }
         }
     }
 
