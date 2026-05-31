@@ -466,6 +466,41 @@ const routes = [
         component: () => import('@/views/sales-price/index.vue'),
         meta: { title: '销售价格', requiresAuth: true },
       },
+      // 新增路由 - 邮件管理
+      {
+        path: 'email',
+        name: 'Email',
+        component: () => import('@/views/email/index.vue'),
+        meta: { title: '邮件管理', requiresAuth: true },
+      },
+      // 新增路由 - 租户计费管理
+      {
+        path: 'tenant-billing',
+        name: 'TenantBilling',
+        component: () => import('@/views/tenant-billing/index.vue'),
+        meta: { title: '租户计费管理', requiresAuth: true },
+      },
+      // 新增路由 - 采购检验
+      {
+        path: 'purchase-inspection',
+        name: 'PurchaseInspection',
+        component: () => import('@/views/purchase-inspection/index.vue'),
+        meta: { title: '采购检验', requiresAuth: true },
+      },
+      // 新增路由 - 采购退货
+      {
+        path: 'purchase-return',
+        name: 'PurchaseReturn',
+        component: () => import('@/views/purchase-return/index.vue'),
+        meta: { title: '采购退货', requiresAuth: true },
+      },
+      // 新增路由 - 物流管理
+      {
+        path: 'logistics',
+        name: 'Logistics',
+        component: () => import('@/views/logistics/index.vue'),
+        meta: { title: '物流管理', requiresAuth: true },
+      },
     ],
   },
   {
