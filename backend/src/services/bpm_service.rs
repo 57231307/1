@@ -416,7 +416,9 @@ impl BpmService {
 
         let mut stmt = bpm_task::Entity::find();
 
-        stmt = stmt.filter(bpm_task::Column::ActualHandlerId.eq(query.user_id));
+        if let Some(user_id) = query.user_id {
+            stmt = stmt.filter(bpm_task::Column::ActualHandlerId.eq(user_id));
+        }
 
         if let Some(status) = query.status {
             stmt = stmt.filter(bpm_task::Column::Status.eq(status));

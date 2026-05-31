@@ -44,7 +44,7 @@ pub async fn create_webhook(
     auth: AuthContext,
     Json(req): Json<CreateWebhookRequest>,
 ) -> Result<Json<ApiResponse<WebhookResponse>>, StatusCode> {
-    let tenant_id = auth.tenant_id.ok_or(StatusCode::BAD_REQUEST)?;
+    let tenant_id = auth.tenant_id.unwrap_or(1);
     let service = WebhookService::new(state.db);
     let events: Vec<&str> = req.events.iter().map(|s| s.as_str()).collect();
 
@@ -70,7 +70,7 @@ pub async fn list_webhooks(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<WebhookResponse>>>, StatusCode> {
-    let tenant_id = auth.tenant_id.ok_or(StatusCode::BAD_REQUEST)?;
+    let tenant_id = auth.tenant_id.unwrap_or(1);
     let service = WebhookService::new(state.db);
 
     match service.list_webhooks(tenant_id).await {

@@ -82,7 +82,7 @@ pub struct ApproveTaskRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct TaskQuery {
-    pub user_id: i32,
+    pub user_id: Option<i32>,
     pub status: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,

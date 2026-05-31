@@ -769,7 +769,7 @@ impl ProductionOrderService {
             // 获取该实例的待处理任务
             let tasks = bpm_service
                 .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
-                    user_id,
+                    user_id: Some(user_id),
                     status: Some("PENDING".to_string()),
                     page: Some(1),
                     page_size: Some(10),
