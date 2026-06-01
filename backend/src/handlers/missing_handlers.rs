@@ -20,7 +20,7 @@ pub struct SalesUser {
 
 /// 获取销售用户列表
 pub async fn get_sales_users(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<SalesUser>>>, AppError> {
     // 临时返回空列表
@@ -38,7 +38,7 @@ pub struct RecycleRule {
 
 /// 获取回收规则列表
 pub async fn get_recycle_rules(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<RecycleRule>>>, AppError> {
     Ok(Json(ApiResponse::success(vec![])))
@@ -46,7 +46,7 @@ pub async fn get_recycle_rules(
 
 /// 创建回收规则
 pub async fn create_recycle_rule(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<RecycleRule>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -55,7 +55,7 @@ pub async fn create_recycle_rule(
 /// 更新回收规则
 pub async fn update_recycle_rule(
     axum::extract::Path(_id): axum::extract::Path<i32>,
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<RecycleRule>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -64,7 +64,7 @@ pub async fn update_recycle_rule(
 /// 删除回收规则
 pub async fn delete_recycle_rule(
     axum::extract::Path(_id): axum::extract::Path<i32>,
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -80,7 +80,7 @@ pub struct MrpHistory {
 
 /// 获取 MRP 历史列表
 pub async fn get_mrp_history(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<MrpHistory>>>, AppError> {
     Ok(Json(ApiResponse::success(vec![])))
@@ -89,7 +89,7 @@ pub async fn get_mrp_history(
 /// 获取 MRP 历史详情
 pub async fn get_mrp_history_detail(
     axum::extract::Path(_id): axum::extract::Path<i32>,
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<MrpHistory>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -107,7 +107,7 @@ pub struct AccountingPeriod {
 
 /// 获取会计期间列表
 pub async fn get_accounting_periods(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<AccountingPeriod>>>, AppError> {
     Ok(Json(ApiResponse::success(vec![])))
@@ -115,7 +115,7 @@ pub async fn get_accounting_periods(
 
 /// 获取当前会计期间
 pub async fn get_current_accounting_period(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Option<AccountingPeriod>>>, AppError> {
     Ok(Json(ApiResponse::success(None)))
@@ -124,7 +124,7 @@ pub async fn get_current_accounting_period(
 /// 获取会计期间详情
 pub async fn get_accounting_period_detail(
     axum::extract::Path(_id): axum::extract::Path<i32>,
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<AccountingPeriod>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -132,7 +132,7 @@ pub async fn get_accounting_period_detail(
 
 /// 创建会计期间
 pub async fn create_accounting_period(
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<AccountingPeriod>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -141,7 +141,7 @@ pub async fn create_accounting_period(
 /// 更新会计期间
 pub async fn update_accounting_period(
     axum::extract::Path(_id): axum::extract::Path<i32>,
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<AccountingPeriod>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
@@ -150,7 +150,7 @@ pub async fn update_accounting_period(
 /// 删除会计期间
 pub async fn delete_accounting_period(
     axum::extract::Path(_id): axum::extract::Path<i32>,
-    _State(_state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     Err(AppError::BadRequest("功能暂未实现".to_string()))
