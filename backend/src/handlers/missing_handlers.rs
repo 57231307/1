@@ -113,14 +113,6 @@ pub async fn get_accounting_periods(
     Ok(Json(ApiResponse::success(vec![])))
 }
 
-/// 获取当前会计期间
-pub async fn get_current_accounting_period(
-    State(_state): State<AppState>,
-    _auth: AuthContext,
-) -> Result<Json<ApiResponse<Option<AccountingPeriod>>>, AppError> {
-    Ok(Json(ApiResponse::success(None)))
-}
-
 /// 获取会计期间详情
 pub async fn get_accounting_period_detail(
     axum::extract::Path(_id): axum::extract::Path<i32>,
