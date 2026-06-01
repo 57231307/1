@@ -188,70 +188,61 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/invoices",
             post(finance_invoice_handler::create_finance_invoice),
-         )
-         .route(
-             "/invoices/:id",
-             get(finance_invoice_handler::get_finance_invoice)
-                 .put(finance_invoice_handler::update_finance_invoice)
-                 .delete(finance_invoice_handler::delete_finance_invoice),
-         )
-         .route(
-             "/invoices/:id/approve",
-             post(finance_invoice_handler::approve_finance_invoice),
-         )
-         .route(
-             "/invoices/:id/verify",
-             post(finance_invoice_handler::verify_invoice),
-         )
-         // Accounting Period Routes
-         .route(
-             "/accounting-periods",
-             get(missing_handlers::get_accounting_periods)
-                 .post(missing_handlers::create_accounting_period),
-         )
-         .route(
-             "/accounting-periods/current",
-             get(accounting_period_handler::get_current_period),
-         )
-         .route(
-             "/accounting-periods/init",
-             post(accounting_period_handler::init_period),
-         )
-         .route(
-             "/accounting-periods/:id",
-             get(missing_handlers::get_accounting_period_detail)
-                 .put(missing_handlers::update_accounting_period)
-                 .delete(missing_handlers::delete_accounting_period),
-         )
-         .route(
-             "/accounting-periods/:id/close",
-             post(accounting_period_handler::close_period),
-         )
-         .route(
-              "/reports/balance-sheet",
-              get(finance_report_handler::get_balance_sheet),
-          )
-          .route(
-              "/reports/income-statement",
-              get(finance_report_handler::get_income_statement),
-          )
-          // Finance Audit Routes
-          .route(
-              "/audit/track",
-              post(omni_audit_handler::track_event),
-          )
-          .route(
-              "/audit/stats",
-              get(omni_audit_handler::get_dashboard_stats),
-          )
-          .route(
-              "/audit/search",
-              get(omni_audit_handler::search_logs),
-          )
-          .layer(axum::middleware::from_fn_with_state(
-              state.clone(),
-              crate::middleware::omni_audit::omni_audit_middleware,
-          ));
+        )
+        .route(
+            "/invoices/:id",
+            get(finance_invoice_handler::get_finance_invoice)
+                .put(finance_invoice_handler::update_finance_invoice)
+                .delete(finance_invoice_handler::delete_finance_invoice),
+        )
+        .route(
+            "/invoices/:id/approve",
+            post(finance_invoice_handler::approve_finance_invoice),
+        )
+        .route(
+            "/invoices/:id/verify",
+            post(finance_invoice_handler::verify_invoice),
+        )
+        // Accounting Period Routes
+        .route(
+            "/accounting-periods",
+            get(missing_handlers::get_accounting_periods)
+                .post(missing_handlers::create_accounting_period),
+        )
+        .route(
+            "/accounting-periods/current",
+            get(accounting_period_handler::get_current_period),
+        )
+        .route(
+            "/accounting-periods/init",
+            post(accounting_period_handler::init_period),
+        )
+        .route(
+            "/accounting-periods/:id",
+            get(missing_handlers::get_accounting_period_detail)
+                .put(missing_handlers::update_accounting_period)
+                .delete(missing_handlers::delete_accounting_period),
+        )
+        .route(
+            "/accounting-periods/:id/close",
+            post(accounting_period_handler::close_period),
+        )
+        .route(
+            "/reports/balance-sheet",
+            get(finance_report_handler::get_balance_sheet),
+        )
+        .route(
+            "/reports/income-statement",
+            get(finance_report_handler::get_income_statement),
+        )
+        // Finance Audit Routes
+        .route("/audit/track", post(omni_audit_handler::track_event))
+        .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))
+        .route("/audit/search", get(omni_audit_handler::search_logs))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::omni_audit::omni_audit_middleware,
+        ));
 
     // 销售管理路由
     let sales_routes = Router::new()
@@ -1435,23 +1426,23 @@ pub fn create_router(state: AppState) -> Router {
                 )
                 .route("/versions/:product_id", get(bom_handler::get_bom_versions)),
         )
-         // MRP物料需求计划路由
-         .nest(
-             "/api/v1/erp/mrp",
-             Router::new()
-                 .route("/calculate", post(mrp_handler::calculate_mrp))
-                 .route("/results", get(mrp_handler::get_mrp_results))
-                 .route("/requirements", get(mrp_handler::get_mrp_requirements))
-                 .route("/convert-orders", post(mrp_handler::convert_to_orders)),
-         )
-         // MRP历史记录路由
-         .nest(
-             "/api/v1/erp/mrp/history",
-             Router::new()
-                 .route("/", get(missing_handlers::get_mrp_history))
-                 .route("/:id", get(missing_handlers::get_mrp_history_detail)),
-         )
-         // 生产排程路由
+        // MRP物料需求计划路由
+        .nest(
+            "/api/v1/erp/mrp",
+            Router::new()
+                .route("/calculate", post(mrp_handler::calculate_mrp))
+                .route("/results", get(mrp_handler::get_mrp_results))
+                .route("/requirements", get(mrp_handler::get_mrp_requirements))
+                .route("/convert-orders", post(mrp_handler::convert_to_orders)),
+        )
+        // MRP历史记录路由
+        .nest(
+            "/api/v1/erp/mrp/history",
+            Router::new()
+                .route("/", get(missing_handlers::get_mrp_history))
+                .route("/:id", get(missing_handlers::get_mrp_history_detail)),
+        )
+        // 生产排程路由
         .nest(
             "/api/v1/erp/scheduling",
             Router::new()
@@ -1593,43 +1584,43 @@ pub fn create_router(state: AppState) -> Router {
                 .route("/", get(crm_pool_handler::list_pool))
                 .route("/claim", post(crm_pool_handler::claim_from_pool))
                 .route("/recycle", post(crm_pool_handler::recycle_to_pool)),
-         )
-         // CRM分配路由
-         .nest(
-             "/api/v1/erp/crm/assignments",
-             Router::new()
-                 .route(
-                     "/",
-                     get(crm_assignment_handler::list_assignments)
-                         .post(crm_assignment_handler::assign_customer),
-                 )
-                 .route("/batch", post(crm_assignment_handler::batch_assign))
-                 .route(
-                     "/history",
-                     get(crm_assignment_handler::list_assignment_history),
-                 ),
-         )
-         // CRM销售用户路由
-         .route(
-             "/api/v1/erp/crm/sales-users",
-             get(missing_handlers::get_sales_users),
-         )
-         // CRM回收规则路由
-         .nest(
-             "/api/v1/erp/crm/recycle-rules",
-             Router::new()
-                 .route(
-                     "/",
-                     get(missing_handlers::get_recycle_rules)
-                         .post(missing_handlers::create_recycle_rule),
-                 )
-                 .route(
-                     "/:id",
-                     put(missing_handlers::update_recycle_rule)
-                         .delete(missing_handlers::delete_recycle_rule),
-                 ),
-         )
-         // 应收对账增强路由
+        )
+        // CRM分配路由
+        .nest(
+            "/api/v1/erp/crm/assignments",
+            Router::new()
+                .route(
+                    "/",
+                    get(crm_assignment_handler::list_assignments)
+                        .post(crm_assignment_handler::assign_customer),
+                )
+                .route("/batch", post(crm_assignment_handler::batch_assign))
+                .route(
+                    "/history",
+                    get(crm_assignment_handler::list_assignment_history),
+                ),
+        )
+        // CRM销售用户路由
+        .route(
+            "/api/v1/erp/crm/sales-users",
+            get(missing_handlers::get_sales_users),
+        )
+        // CRM回收规则路由
+        .nest(
+            "/api/v1/erp/crm/recycle-rules",
+            Router::new()
+                .route(
+                    "/",
+                    get(missing_handlers::get_recycle_rules)
+                        .post(missing_handlers::create_recycle_rule),
+                )
+                .route(
+                    "/:id",
+                    put(missing_handlers::update_recycle_rule)
+                        .delete(missing_handlers::delete_recycle_rule),
+                ),
+        )
+        // 应收对账增强路由
         .nest(
             "/api/v1/erp/ar-reconciliations/enhanced",
             Router::new()
