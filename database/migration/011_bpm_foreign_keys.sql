@@ -31,15 +31,15 @@ BEGIN
     END IF;
 END $$;
 
--- 添加创建者外键
+-- 添加创建者外键（使用 initiator_id 列）
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'bpm_process_instance') 
        AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_bpm_creator') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_bpm_initiator') THEN
             ALTER TABLE bpm_process_instance 
-                ADD CONSTRAINT fk_bpm_creator 
-                FOREIGN KEY (created_by) REFERENCES users(id);
+                ADD CONSTRAINT fk_bpm_initiator 
+                FOREIGN KEY (initiator_id) REFERENCES users(id);
         END IF;
     END IF;
 END $$;
