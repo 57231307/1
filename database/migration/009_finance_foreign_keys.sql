@@ -2,16 +2,8 @@
 -- 创建时间: 2026-05-09
 -- 说明: 为财务相关表添加数据库级外键约束
 
--- 应付发票 → 采购订单
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ap_invoice') 
-       AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_order') THEN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_ap_invoices_purchase_order') THEN
-            ALTER TABLE ap_invoice ADD CONSTRAINT fk_ap_invoices_purchase_order FOREIGN KEY (purchase_order_id) REFERENCES purchase_order(id) ON DELETE RESTRICT ON UPDATE CASCADE;
-        END IF;
-    END IF;
-END $$;
+-- 注意：ap_invoice 表使用 source_id 和 source_type 字段关联业务单据，不直接关联 purchase_order
+-- 因此跳过 ap_invoice → purchase_order 的外键约束
 
 -- 应付付款 → 应付发票
 DO $$
