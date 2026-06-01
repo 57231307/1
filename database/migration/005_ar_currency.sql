@@ -6,33 +6,21 @@
 BEGIN;
 
 -- ========================================================
--- AR-001: 应收对账表
+-- AR-001: 应收对账表状态字段增强
 -- ========================================================
-CREATE TABLE IF NOT EXISTS ar_reconciliations (
-    id SERIAL PRIMARY KEY,
-    reconciliation_no VARCHAR(50) UNIQUE NOT NULL,
-    customer_id INTEGER NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    opening_balance DECIMAL(15,4) DEFAULT 0,
-    current_receivable DECIMAL(15,4) DEFAULT 0,
-    current_received DECIMAL(15,4) DEFAULT 0,
-    closing_balance DECIMAL(15,4) DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'DRAFT',
-    confirmed_date DATE,
-    dispute_reason TEXT,
-    remarks TEXT,
-    is_deleted BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-COMMENT ON TABLE ar_reconciliations IS '应收对账单表';
-COMMENT ON COLUMN ar_reconciliations.status IS '状态: DRAFT=草稿, SENT=已发送, CONFIRMED=已确认, DISPUTED=有争议, CLOSED=已关闭';
-
-CREATE INDEX idx_ar_reconciliations_status ON ar_reconciliations(status);
-CREATE INDEX idx_ar_reconciliations_customer_id ON ar_reconciliations(customer_id);
-CREATE INDEX idx_ar_reconciliations_dates ON ar_reconciliations(start_date, end_date);
+-- 注意：ar_reconciliations 表已在 001_consolidated_schema.sql 中创建
+-- 此处添加缺失的 status 字段（如果不存在）
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ar_reconciliations' AND column_name = 'status'
+    ) THEN
+        ALTER TABLE ar_reconciliations ADD COLUMN status VARCHAR(20) DEFAULT 'DRAFT';
+        COMMENT ON COLUMN ar_reconciliations.status IS '状态: DRAFT=草稿, SENT=已发送, CONFIRMED=已确认, DISPUTED=有争议, CLOSED=已关闭';
+        CREATE INDEX idx_ar_reconciliations_status ON ar_reconciliations(status);
+    END IF;
+END $$;
 
 -- ========================================================
 -- CUR-001: 币种表
