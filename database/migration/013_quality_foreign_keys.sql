@@ -1,23 +1,9 @@
 -- 质量检验模块外键关联迁移
 -- 日期: 2026-05-09
 -- 描述: 为质量检验记录建立外键关联
+-- 注意: purchase_receipt_id 列已在 003_foreign_keys.sql 中添加
 
 BEGIN;
-
--- 为质量检验记录添加采购入库单外键
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'quality_inspection_records') 
-       AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_receipt') THEN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quality_inspection_records' AND column_name = 'receipt_id') THEN
-            ALTER TABLE quality_inspection_records ADD COLUMN receipt_id INTEGER;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_quality_receipt') THEN
-            ALTER TABLE quality_inspection_records ADD CONSTRAINT fk_quality_receipt FOREIGN KEY (receipt_id) REFERENCES purchase_receipt(id);
-        END IF;
-        CREATE INDEX IF NOT EXISTS idx_quality_receipt ON quality_inspection_records(receipt_id);
-    END IF;
-END $$;
 
 -- 为质量检验记录添加产品外键
 DO $$

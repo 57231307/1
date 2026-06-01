@@ -109,5 +109,3 @@ VALUES
     (1, '审批通知', 'APPROVAL_NOTIFICATION', '审批通知: {{title}}', '<h1>{{title}}</h1><p>您有一个新的审批任务</p>', 'WORKFLOW', '审批流程通知模板', true, 'ACTIVE', 1),
     (1, '库存预警', 'STOCK_ALERT', '库存预警: {{product_name}}', '<h1>库存预警</h1><p>产品 {{product_name}} 库存不足</p>', 'ALERT', '库存预警通知模板', true, 'ACTIVE', 1)
 ON CONFLICT (code) DO NOTHING;
-
-COMMENT ON TABLE log_login IS '登录日志表 - 已修复列名';

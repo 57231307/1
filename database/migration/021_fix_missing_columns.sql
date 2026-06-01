@@ -38,7 +38,7 @@ BEGIN
     END IF;
 END $$;
 
--- 为 inventory_stocks 添加状态索引
-CREATE INDEX IF NOT EXISTS idx_inventory_stocks_status ON inventory_stocks(stock_status, quality_status);
+-- 为 inventory_stocks 添加状态索引（使用不同的索引名避免冲突）
+CREATE INDEX IF NOT EXISTS idx_inventory_stocks_stock_quality_status ON inventory_stocks(stock_status, quality_status);
 
 COMMENT ON TABLE inventory_stocks IS '库存表 - 已补充缺失字段';
