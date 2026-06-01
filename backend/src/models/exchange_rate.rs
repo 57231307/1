@@ -13,7 +13,8 @@ pub struct Model {
     pub to_currency: String,
     pub rate: Decimal,
     pub effective_date: NaiveDate,
-    pub status: Option<String>,
+    pub source: Option<String>,
+    pub is_deleted: Option<bool>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -131,7 +131,7 @@ impl CurrencyService {
             to_currency: Set(to_currency),
             rate: Set(rate),
             effective_date: Set(effective_date),
-            status: Set(Some("active".to_string())),
+            source: Set(Some("manual".to_string())),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -191,7 +191,7 @@ impl CurrencyService {
                 rate: m.rate,
                 effective_date: m.effective_date,
                 end_date: None,
-                source: m.status,
+                source: m.source,
                 created_at: m.created_at,
             })
             .collect();

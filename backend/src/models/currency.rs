@@ -12,9 +12,10 @@ pub struct Model {
     pub code: String,
     pub name: String,
     pub symbol: Option<String>,
-    pub decimal_places: Option<i32>,
+    pub precision: Option<i32>,
     pub is_base: Option<bool>,
-    pub status: Option<String>,
+    pub is_active: Option<bool>,
+    pub is_deleted: Option<bool>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

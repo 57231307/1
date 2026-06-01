@@ -18,8 +18,8 @@ pub struct CurrencyResponse {
     pub name: String,
     pub symbol: Option<String>,
     pub is_base: Option<bool>,
-    pub decimal_places: Option<i32>,
-    pub status: Option<String>,
+    pub precision: Option<i32>,
+    pub is_active: Option<bool>,
 }
 
 impl From<crate::models::currency::Model> for CurrencyResponse {
@@ -30,8 +30,8 @@ impl From<crate::models::currency::Model> for CurrencyResponse {
             name: model.name,
             symbol: model.symbol,
             is_base: model.is_base,
-            decimal_places: model.decimal_places,
-            status: model.status,
+            precision: model.precision,
+            is_active: model.is_active,
         }
     }
 }

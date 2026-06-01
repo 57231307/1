@@ -1297,8 +1297,10 @@ pub fn create_router(state: AppState) -> Router {
 
     // 健康检查路由
     // 扫码出库路由
-    let scanner_routes =
-        Router::new().route("/scan-to-ship", post(barcode_scanner_handler::scan_to_ship));
+    let scanner_routes = Router::new().route(
+        "/scan-to-ship",
+        get(barcode_scanner_handler::scan_to_ship).post(barcode_scanner_handler::scan_to_ship),
+    );
 
     // 物流管理路由
     let logistics_routes = Router::new()
@@ -1467,6 +1469,9 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/erp/capacity",
             Router::new()
                 .route("/overview", get(capacity_handler::get_capacity_overview))
+                .route("/summary", get(capacity_handler::get_capacity_overview))
+                .route("/bottlenecks", get(capacity_handler::get_load_analysis))
+                .route("/trend", get(capacity_handler::get_load_analysis))
                 .route(
                     "/work-centers",
                     get(capacity_handler::list_work_centers)
@@ -1497,6 +1502,10 @@ pub fn create_router(state: AppState) -> Router {
             Router::new()
                 .route(
                     "/alerts",
+                    get(material_shortage_handler::list_shortage_alerts),
+                )
+                .route(
+                    "/list",
                     get(material_shortage_handler::list_shortage_alerts),
                 )
                 .route(

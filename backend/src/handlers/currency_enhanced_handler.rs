@@ -92,7 +92,7 @@ pub struct BaseCurrencyResponse {
     pub code: String,
     pub name: String,
     pub symbol: Option<String>,
-    pub decimal_places: Option<i32>,
+    pub precision: Option<i32>,
 }
 
 // =====================================================
@@ -181,7 +181,7 @@ pub async fn get_base_currency(
             code: model.code,
             name: model.name,
             symbol: model.symbol,
-            decimal_places: model.decimal_places,
+            precision: model.precision,
         }))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
