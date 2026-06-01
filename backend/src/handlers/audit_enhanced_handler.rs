@@ -40,7 +40,7 @@ pub struct AuditLogItem {
     pub user_id: Option<i32>,
     pub action: String,
     pub resource_type: Option<String>,
-    pub resource_id: Option<i32>,
+    pub resource_id: Option<String>,
     pub ip_address: Option<String>,
     pub created_at: String,
 }

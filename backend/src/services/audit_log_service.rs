@@ -20,7 +20,7 @@ impl AuditLogService {
     pub async fn log_change(
         &self,
         resource_type: &str,
-        resource_id: i32,
+        resource_id: &str,
         action: &str,
         _old_data: Option<Value>,
         _new_data: Option<Value>,
@@ -29,10 +29,16 @@ impl AuditLogService {
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
+            username: ActiveValue::Set(None),
             action: ActiveValue::Set(action.to_string()),
             resource_type: ActiveValue::Set(Some(resource_type.to_string())),
-            resource_id: ActiveValue::Set(Some(resource_id)),
+            resource_id: ActiveValue::Set(Some(resource_id.to_string())),
+            resource_name: ActiveValue::Set(None),
+            description: ActiveValue::Set(None),
             ip_address: ActiveValue::Set(None),
+            user_agent: ActiveValue::Set(None),
+            old_value: ActiveValue::Set(None),
+            new_value: ActiveValue::Set(None),
             created_at: ActiveValue::Set(Some(Utc::now())),
         };
 
@@ -65,9 +71,9 @@ impl AuditLogService {
         let pk_val_unwrapped = pk_val.into_value().unwrap_or(sea_orm::Value::Int(None));
 
         let record_id = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
-            id
+            id.to_string()
         } else {
-            0
+            "0".to_string()
         };
 
         let new_model = active_model.update(db).await?;
@@ -76,10 +82,16 @@ impl AuditLogService {
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
+            username: ActiveValue::Set(None),
             action: ActiveValue::Set("UPDATE".to_string()),
             resource_type: ActiveValue::Set(Some(resource_type.to_string())),
             resource_id: ActiveValue::Set(Some(record_id)),
+            resource_name: ActiveValue::Set(None),
+            description: ActiveValue::Set(None),
             ip_address: ActiveValue::Set(None),
+            user_agent: ActiveValue::Set(None),
+            old_value: ActiveValue::Set(None),
+            new_value: ActiveValue::Set(None),
             created_at: ActiveValue::Set(Some(Utc::now())),
         };
         log.insert(db).await?;
