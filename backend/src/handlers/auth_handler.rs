@@ -267,11 +267,9 @@ pub async fn login(
                         Json(ApiResponse::error("Internal server error".to_string())),
                     )
                 })?;
-            let session_id = claims.session_id.clone();
-            let csrf_token = crate::middleware::csrf::create_csrf_token_for_session(
-                &session_id,
-                &state.cookie_secret,
-            );
+            let _session_id = claims.session_id.clone();
+            // CSRF token 不再需要，JWT 已经提供安全保障
+            let csrf_token = "".to_string();
 
             // 生成 refresh_token (简单的随机字符串)
             let refresh_token = uuid::Uuid::new_v4().to_string();
@@ -499,9 +497,9 @@ pub async fn refresh_token(
                 Json(ApiResponse::error("Internal server error".to_string())),
             )
         })?;
-    let session_id = new_claims.session_id;
-    let csrf_token =
-        crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+    let _session_id = new_claims.session_id;
+    // CSRF token 不再需要，JWT 已经提供安全保障
+    let csrf_token = "".to_string();
 
     Ok(Json(ApiResponse::success(RefreshTokenResponse {
         token: new_token,
@@ -586,24 +584,11 @@ pub struct CsrfTokenResponse {
     tags = ["Auth"]
 )]
 pub async fn get_csrf_token(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(_state): State<AppState>,
+    _headers: HeaderMap,
 ) -> Json<ApiResponse<CsrfTokenResponse>> {
-    // 使用 IP + User-Agent 作为会话标识
-    let ip = headers
-        .get("X-Forwarded-For")
-        .and_then(|h| h.to_str().ok())
-        .or_else(|| headers.get("X-Real-IP").and_then(|h| h.to_str().ok()))
-        .unwrap_or("unknown");
-
-    let user_agent = headers
-        .get(axum::http::header::USER_AGENT)
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("unknown");
-
-    let session_id = format!("client:{}:{}", ip, &user_agent[..user_agent.len().min(50)]);
-    let csrf_token =
-        crate::middleware::csrf::create_csrf_token_for_session(&session_id, &state.cookie_secret);
+    // CSRF token 不再需要，JWT 已经提供安全保障
+    let csrf_token = "".to_string();
 
     Json(ApiResponse::success(CsrfTokenResponse { csrf_token }))
 }

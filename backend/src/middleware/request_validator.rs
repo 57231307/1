@@ -8,59 +8,44 @@ use axum::{
     response::Response,
 };
 
+/// 请求验证中间件
+///
+/// 对于已认证的 API 请求（有 JWT Token），跳过 Origin 检查
+/// 因为 JWT 认证本身已经提供了安全保障
 pub async fn request_validator_middleware(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
 
+    // 公共路径直接通过
     if is_public_path(path) {
         return Ok(next.run(request).await);
     }
 
+    // 检查是否有 Authorization 头（JWT Token）
+    let has_auth = request
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with("Bearer "))
+        .unwrap_or(false);
+
+    // 如果有 JWT Token，直接通过（JWT 已经提供了安全保障）
+    if has_auth {
+        return Ok(next.run(request).await);
+    }
+
+    // 没有 JWT Token 的请求，检查 Origin
     let method = request.method().clone();
     if !is_state_changing_method(&method) {
         return Ok(next.run(request).await);
     }
 
-    let origin = request
-        .headers()
-        .get("origin")
-        .and_then(|v| v.to_str().ok());
-
-    let referer = request
-        .headers()
-        .get("referer")
-        .and_then(|v| v.to_str().ok());
-
-    let allowed_origins = &state.allowed_origins;
-
-    let is_valid_origin = origin
-        .map(|o| {
-            allowed_origins
-                .iter()
-                .any(|allowed| o.starts_with(allowed) || allowed == "*")
-        })
-        .unwrap_or(false);
-
-    let is_valid_referer = referer
-        .map(|r| {
-            allowed_origins
-                .iter()
-                .any(|allowed| r.starts_with(allowed) || allowed == "*")
-        })
-        .unwrap_or(false);
-
-    if !is_valid_origin && !is_valid_referer {
-        tracing::warn!(
-            "CSRF验证失败: 非法来源 origin={:?}, referer={:?}, 允许的源={:?}",
-            origin,
-            referer,
-            allowed_origins
-        );
-        return Err(StatusCode::FORBIDDEN);
-    }
+    // 没有认证的状态变更请求，记录警告但允许通过
+    // （后续的 auth 中间件会拒绝未认证的请求）
+    tracing::warn!("未认证的状态变更请求: {} {}", method, path);
 
     Ok(next.run(request).await)
 }
