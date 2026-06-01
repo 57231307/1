@@ -89,15 +89,15 @@ pub async fn list_login_logs(
     let items: Vec<LoginLogItem> = logs
         .into_iter()
         .map(|m| LoginLogItem {
-            id: m.id,
+            id: m.id as i32,
             user_id: m.user_id,
             username: m.username,
-            login_type: m.login_type,
-            ip_address: m.ip_address,
+            login_type: m.login_type.unwrap_or_default(),
+            ip_address: m.ip_address.unwrap_or_default(),
             user_agent: m.user_agent,
             status: m.status,
             fail_reason: m.fail_reason,
-            login_time: m.login_time.to_rfc3339(),
+            login_time: m.login_time.map(|t| t.to_rfc3339()).unwrap_or_default(),
         })
         .collect();
 
@@ -138,7 +138,8 @@ pub async fn check_lock_status(
     let locked_until = if is_locked {
         recent_failures
             .first()
-            .map(|f| (f.login_time + Duration::minutes(LOCKOUT_DURATION_MINUTES)).to_rfc3339())
+            .and_then(|f| f.login_time)
+            .map(|t| (t + Duration::minutes(LOCKOUT_DURATION_MINUTES)).to_rfc3339())
     } else {
         None
     };
@@ -201,10 +202,9 @@ pub async fn get_security_alerts(
 
     for login in &recent_logins {
         if let Some(uid) = login.user_id {
-            user_ips
-                .entry(uid)
-                .or_default()
-                .push(login.ip_address.clone());
+            if let Some(ip) = &login.ip_address {
+                user_ips.entry(uid).or_default().push(ip.clone());
+            }
         }
     }
 

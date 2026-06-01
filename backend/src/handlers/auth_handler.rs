@@ -335,12 +335,12 @@ async fn record_login_attempt(
     let active_log = log_login::ActiveModel {
         user_id: sea_orm::Set(Some(user_id)),
         username: sea_orm::Set(username.to_string()),
-        login_type: sea_orm::Set("password".to_string()),
-        ip_address: sea_orm::Set(ip_address.to_string()),
+        login_type: sea_orm::Set(Some("password".to_string())),
+        ip_address: sea_orm::Set(Some(ip_address.to_string())),
         user_agent: sea_orm::Set(Some(user_agent.to_string())),
         status: sea_orm::Set(status.to_string()),
         fail_reason: sea_orm::Set(fail_reason.map(|s| s.to_string())),
-        login_time: sea_orm::Set(Utc::now()),
+        login_time: sea_orm::Set(Some(Utc::now())),
         ..Default::default()
     };
 
