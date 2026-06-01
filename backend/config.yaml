@@ -50,6 +50,8 @@ cors:
     - "http://localhost:3000"
     - "http://127.0.0.1:3000"
     - "https://3000-6e8e9218ecb12940.monkeycode-ai.online"
+    - "http://111.230.99.236"
+    - "https://111.230.99.236"
 
 redis:
   url: "redis://127.0.0.1:6379"
