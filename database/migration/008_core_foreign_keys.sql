@@ -9,27 +9,27 @@ ALTER TABLE sales_orders
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 采购订单 → 供应商
-ALTER TABLE purchase_orders
+ALTER TABLE purchase_order
     ADD CONSTRAINT fk_purchase_orders_supplier
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 库存 → 产品
-ALTER TABLE inventory_stock
+ALTER TABLE inventory_stocks
     ADD CONSTRAINT fk_inventory_stock_product
     FOREIGN KEY (product_id) REFERENCES products(id)
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 库存 → 仓库
-ALTER TABLE inventory_stock
+ALTER TABLE inventory_stocks
     ADD CONSTRAINT fk_inventory_stock_warehouse
     FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 采购入库 → 采购订单
-ALTER TABLE purchase_receipts
+ALTER TABLE purchase_receipt
     ADD CONSTRAINT fk_purchase_receipts_order
-    FOREIGN KEY (order_id) REFERENCES purchase_orders(id)
+    FOREIGN KEY (order_id) REFERENCES purchase_order(id)
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 销售发货 → 销售订单
@@ -45,9 +45,9 @@ ALTER TABLE sales_returns
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 采购退货 → 采购订单
-ALTER TABLE purchase_returns
+ALTER TABLE purchase_return
     ADD CONSTRAINT fk_purchase_returns_order
-    FOREIGN KEY (order_id) REFERENCES purchase_orders(id)
+    FOREIGN KEY (order_id) REFERENCES purchase_order(id)
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- 用户 → 部门
