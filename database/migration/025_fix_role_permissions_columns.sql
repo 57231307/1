@@ -1,5 +1,5 @@
 -- 修复 role_permissions 表结构
--- 代码期望的列：resource_type, resource_id, action
+-- 代码期望的列：resource_type, resource_id, action, allowed
 -- 数据库实际的列：permission_code, permission_name
 
 -- 添加缺失的列
@@ -24,6 +24,12 @@ BEGIN
     -- 添加 resource_id 列
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'role_permissions' AND column_name = 'resource_id') THEN
         ALTER TABLE role_permissions ADD COLUMN resource_id INTEGER;
+    END IF;
+
+    -- 添加 allowed 列
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'role_permissions' AND column_name = 'allowed') THEN
+        ALTER TABLE role_permissions ADD COLUMN allowed BOOLEAN NOT NULL DEFAULT true;
+        COMMENT ON COLUMN role_permissions.allowed IS '是否允许';
     END IF;
 
     -- 添加 updated_at 列
