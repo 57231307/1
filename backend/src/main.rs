@@ -174,8 +174,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| format!("bingxi_backend={}", settings.log.level).into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                format!("bingxi_backend={},tower_http=debug", settings.log.level).into()
+            }),
         )
         .with(
             tracing_subscriber::fmt::layer()
@@ -296,19 +297,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {
+                            let client_ip = request
+                                .headers()
+                                .get("x-forwarded-for")
+                                .or_else(|| request.headers().get("x-real-ip"))
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            let user_agent = request
+                                .headers()
+                                .get("user-agent")
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            let origin = request
+                                .headers()
+                                .get("origin")
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("none")
+                                .to_string();
                             info!(
                                 method = %request.method(),
                                 uri = %request.uri(),
+                                client_ip = %client_ip,
+                                user_agent = %user_agent,
+                                origin = %origin,
                                 "开始处理请求"
                             );
                         })
                         .on_response(
                             |response: &axum::response::Response, latency: Duration, _span: &Span| {
-                                info!(
-                                    status = %response.status(),
-                                    latency_ms = %latency.as_millis(),
-                                    "请求完成"
-                                );
+                                let status = response.status();
+                                if status.is_success() {
+                                    info!(
+                                        status = %status,
+                                        latency_ms = %latency.as_millis(),
+                                        "请求完成"
+                                    );
+                                } else {
+                                    warn!(
+                                        status = %status,
+                                        latency_ms = %latency.as_millis(),
+                                        "请求异常"
+                                    );
+                                }
                             },
                         )
                         .on_failure(

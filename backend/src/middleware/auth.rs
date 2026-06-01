@@ -13,7 +13,7 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 use serde_json::json;
-use tracing::warn;
+use tracing::{info, warn};
 
 fn unauthorized_response(message: &str) -> Response {
     let body = json!({
@@ -30,9 +30,18 @@ pub async fn auth_middleware(
     next: Next,
 ) -> Result<Response, Response> {
     let path = request.uri().path();
+    let method = request.method().clone();
+    let client_ip = request
+        .headers()
+        .get("x-forwarded-for")
+        .or_else(|| request.headers().get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
 
     // 公共路径跳过认证
     if is_public_path(path) {
+        info!(path = %path, method = %method, client_ip = %client_ip, "公共路径，跳过认证");
         return Ok(next.run(request).await);
     }
 
@@ -46,28 +55,33 @@ pub async fn auth_middleware(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok());
 
+    let has_cookie = token_from_cookie.is_some();
+    let has_auth_header = auth_header.is_some();
+
     let token = if let Some(cookie_token) = token_from_cookie {
+        info!(path = %path, method = %method, client_ip = %client_ip, "从Cookie获取Token");
         cookie_token
     } else if let Some(header_val) = auth_header {
         if !header_val.starts_with("Bearer ") {
-            warn!("无效的认证头格式");
+            warn!(path = %path, method = %method, client_ip = %client_ip, "无效的认证头格式: {}", header_val);
             return Err(unauthorized_response("无效的认证头格式"));
         }
+        info!(path = %path, method = %method, client_ip = %client_ip, "从Authorization头获取Token");
         header_val[7..].to_string()
     } else {
-        warn!("缺少认证凭据 (Cookie 或 Header)");
+        warn!(path = %path, method = %method, client_ip = %client_ip, "缺少认证凭据 (Cookie={}, Header={})", has_cookie, has_auth_header);
         return Err(unauthorized_response("缺少认证凭据"));
     };
 
     if token.is_empty() {
-        warn!("认证失败: 令牌为空, path={}", path);
+        warn!(path = %path, method = %method, client_ip = %client_ip, "认证失败: 令牌为空");
         return Err(unauthorized_response("认证令牌为空"));
     }
 
     // 检查 Token 是否在黑名单中
     let is_blacklisted = state.cache.get_token_blacklist().get(&token).is_some();
     if is_blacklisted {
-        warn!("认证失败: Token已被吊销, path={}", path);
+        warn!(path = %path, method = %method, client_ip = %client_ip, "认证失败: Token已被吊销");
         return Err(unauthorized_response("令牌已被吊销，请重新登录"));
     }
 
@@ -75,7 +89,7 @@ pub async fn auth_middleware(
 
     // API 密钥轮换机制：如果当前密钥验证失败，且配置了 previous_jwt_secret，尝试使用旧密钥验证
     if claims.is_err() {
-        warn!("JWT验证失败，尝试使用旧密钥进行平滑过渡");
+        warn!(path = %path, method = %method, client_ip = %client_ip, "JWT验证失败，尝试使用旧密钥进行平滑过渡");
         if let Some(prev_secret) = &state.previous_jwt_secret {
             claims = AuthService::validate_token_static(&token, prev_secret);
         }
@@ -84,11 +98,12 @@ pub async fn auth_middleware(
     match claims {
         Ok(claims) => {
             let auth_context = AuthContext::from_claims(claims);
+            info!(path = %path, method = %method, client_ip = %client_ip, user_id = %auth_context.user_id, username = %auth_context.username, "认证成功");
             request.extensions_mut().insert(auth_context);
             Ok(next.run(request).await)
         }
         Err(e) => {
-            warn!("认证失败: 令牌验证失败, path={}, error={}", path, e);
+            warn!(path = %path, method = %method, client_ip = %client_ip, error = %e, "认证失败: 令牌验证失败");
             Err(unauthorized_response("无效的认证令牌"))
         }
     }
