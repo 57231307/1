@@ -63,7 +63,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_delivery') 
        AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_orders') THEN
         IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_sales_deliveries_order') THEN
-            ALTER TABLE sales_delivery ADD CONSTRAINT fk_sales_deliveries_order FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+            ALTER TABLE sales_delivery ADD CONSTRAINT fk_sales_deliveries_order FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON DELETE RESTRICT ON UPDATE CASCADE;
         END IF;
     END IF;
 END $$;
@@ -74,7 +74,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_return') 
        AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_orders') THEN
         IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_sales_returns_order') THEN
-            ALTER TABLE sales_return ADD CONSTRAINT fk_sales_returns_order FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+            ALTER TABLE sales_return ADD CONSTRAINT fk_sales_returns_order FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON DELETE RESTRICT ON UPDATE CASCADE;
         END IF;
     END IF;
 END $$;
