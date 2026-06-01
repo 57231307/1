@@ -171,6 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(log_dir)?;
 
     let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()
         .with(
@@ -180,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with(
             tracing_subscriber::fmt::layer()
-                .with_writer(file_appender)
+                .with_writer(non_blocking)
                 .with_ansi(false)
                 .with_target(true)
                 .with_thread_ids(false)
