@@ -11,12 +11,12 @@ ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(18, 6) DEFAULT 1.000000 NOT NULL;
 COMMENT ON COLUMN sales_orders.currency_code IS '币种代码，关联 currencies 表';
 COMMENT ON COLUMN sales_orders.exchange_rate IS '汇率，相对于本位币';
 
--- 2. 为 purchase_orders 表添加 currency_code, exchange_rate 字段
--- 注意：purchase_orders 表已有 currency 和 exchange_rate 字段，这里添加 currency_code 保持一致性
-ALTER TABLE purchase_orders
+-- 2. 为 purchase_order 表添加 currency_code, exchange_rate 字段
+-- 注意：purchase_order 表已有 currency 和 exchange_rate 字段，这里添加 currency_code 保持一致性
+ALTER TABLE purchase_order
 ADD COLUMN IF NOT EXISTS currency_code VARCHAR(10) DEFAULT 'CNY' NOT NULL;
 
-COMMENT ON COLUMN purchase_orders.currency_code IS '币种代码，关联 currencies 表（与 currency 字段保持一致）';
+COMMENT ON COLUMN purchase_order.currency_code IS '币种代码，关联 currencies 表（与 currency 字段保持一致）';
 
 -- 3. 为 ar_invoices 表添加 currency_code, exchange_rate, base_amount 字段
 ALTER TABLE ar_invoices
@@ -32,7 +32,7 @@ COMMENT ON COLUMN ar_invoices.currency_code IS '币种代码，关联 currencies
 COMMENT ON COLUMN ar_invoices.exchange_rate IS '汇率，相对于本位币';
 COMMENT ON COLUMN ar_invoices.base_amount IS '本位币金额 = invoice_amount * exchange_rate';
 
--- 4. 为 ap_invoices 表添加 currency_code, exchange_rate, base_amount 字段
+-- 4. 为 ap_invoice 表添加 currency_code, exchange_rate, base_amount 字段
 -- 注意：ap_invoice 表已有 currency 和 exchange_rate 字段，这里添加 currency_code 和 base_amount 保持一致性
 ALTER TABLE ap_invoice
 ADD COLUMN IF NOT EXISTS currency_code VARCHAR(10) DEFAULT 'CNY' NOT NULL;
@@ -66,8 +66,8 @@ ON exchange_rate_history(from_currency, to_currency, effective_date DESC);
 CREATE INDEX IF NOT EXISTS idx_sales_orders_currency_code
 ON sales_orders(currency_code);
 
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_currency_code
-ON purchase_orders(currency_code);
+CREATE INDEX IF NOT EXISTS idx_purchase_order_currency_code
+ON purchase_order(currency_code);
 
 CREATE INDEX IF NOT EXISTS idx_ar_invoices_currency_code
 ON ar_invoices(currency_code);
