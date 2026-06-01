@@ -101,13 +101,13 @@ WHERE purchase_receipt_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_id ON sales_orders(customer_id);
 
 -- 采购订单供应商外键索引  
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON purchase_order(supplier_id);
 
 -- 库存产品外键索引
-CREATE INDEX IF NOT EXISTS idx_inventory_stock_product_id ON inventory_stock(product_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_stock_product_id ON inventory_stocks(product_id);
 
 -- 库存仓库外键索引
-CREATE INDEX IF NOT EXISTS idx_inventory_stock_warehouse_id ON inventory_stock(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_stock_warehouse_id ON inventory_stocks(warehouse_id);
 
 COMMIT;
 
