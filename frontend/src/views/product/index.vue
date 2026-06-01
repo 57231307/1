@@ -57,7 +57,7 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card warning">
+        <el-card shadow="hover" class="stat-card warning" style="cursor: pointer" @click="showCategoryDialog">
           <div class="stat-content">
             <div class="stat-icon category-icon">
               <el-icon><Collection /></el-icon>
@@ -309,6 +309,35 @@
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 分类管理弹窗 -->
+    <el-dialog v-model="categoryDialogVisible" title="产品分类管理" width="600px">
+      <div class="category-dialog-content">
+        <div class="category-add-form">
+          <el-input
+            v-model="newCategoryName"
+            placeholder="输入新分类名称"
+            style="width: 300px; margin-right: 10px"
+          />
+          <el-button type="primary" @click="handleAddCategory">
+            <el-icon><Plus /></el-icon>
+            添加分类
+          </el-button>
+        </div>
+        <el-table :data="categories" stripe style="margin-top: 15px">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="name" label="分类名称" />
+          <el-table-column prop="description" label="描述" />
+          <el-table-column label="操作" width="120">
+            <template #default="{ row }">
+              <el-button type="danger" link size="small" @click="handleDeleteCategory(row)">
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -337,6 +366,10 @@ const total = ref(0)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit' | 'view'>('create')
 const formRef = ref<FormInstance>()
+
+// 分类管理相关
+const categoryDialogVisible = ref(false)
+const newCategoryName = ref('')
 
 const stats = ref({
   totalProducts: 0,
@@ -532,6 +565,43 @@ const handleSubmit = async () => {
       submitLoading.value = false
     }
   })
+}
+
+// 分类管理相关函数
+const showCategoryDialog = () => {
+  categoryDialogVisible.value = true
+  fetchCategories()
+}
+
+const handleAddCategory = async () => {
+  if (!newCategoryName.value.trim()) {
+    ElMessage.warning('请输入分类名称')
+    return
+  }
+
+  try {
+    await productApi.createCategory({ name: newCategoryName.value.trim() })
+    ElMessage.success('添加成功')
+    newCategoryName.value = ''
+    fetchCategories()
+  } catch (error: any) {
+    ElMessage.error(error.message || '添加失败')
+  }
+}
+
+const handleDeleteCategory = async (row: ProductCategory) => {
+  try {
+    await ElMessageBox.confirm(`确定删除分类 "${row.name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
+    await productApi.deleteCategory(row.id)
+    ElMessage.success('删除成功')
+    fetchCategories()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
 }
 
 const importDialogVisible = ref(false)
@@ -752,5 +822,12 @@ onMounted(() => {
 }
 :deep(.el-card__body) {
   padding: 20px;
+}
+.category-dialog-content {
+  padding: 10px 0;
+}
+.category-add-form {
+  display: flex;
+  align-items: center;
 }
 </style>
