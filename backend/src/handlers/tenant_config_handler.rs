@@ -93,9 +93,11 @@ pub async fn list_configs(
     auth: AuthContext,
     Query(query): Query<TenantConfigQuery>,
 ) -> Result<Json<ApiResponse<Vec<TenantConfigItem>>>, AppError> {
-    let tenant_id = auth
-        .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+    // 如果没有租户信息，返回空列表
+    let tenant_id = match auth.tenant_id {
+        Some(id) => id,
+        None => return Ok(Json(ApiResponse::success(vec![]))),
+    };
 
     let service = TenantService::new(state.db);
 

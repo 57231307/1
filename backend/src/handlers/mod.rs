@@ -126,3 +126,5 @@ pub mod tenant_billing_handler;
 pub mod field_permission_handler;
 // 通用打印模块
 pub mod print_handler;
+// 缺失的 handler 补充
+pub mod missing_handlers;

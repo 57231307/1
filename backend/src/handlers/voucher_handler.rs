@@ -257,3 +257,14 @@ pub async fn post_voucher(
         "凭证过账成功",
     )))
 }
+
+/// 获取凭证类型列表
+pub async fn get_voucher_types() -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    let types = vec![
+        serde_json::json!({"code": "记", "name": "记账凭证"}),
+        serde_json::json!({"code": "收", "name": "收款凭证"}),
+        serde_json::json!({"code": "付", "name": "付款凭证"}),
+        serde_json::json!({"code": "转", "name": "转账凭证"}),
+    ];
+    Json(ApiResponse::success(types))
+}
