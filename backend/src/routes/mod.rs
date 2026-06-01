@@ -9,7 +9,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::handlers::{
-    account_subject_handler, accounting_period_handler, advanced_handler, ai_analysis_handler,
+    account_subject_handler, advanced_handler, ai_analysis_handler,
     ap_invoice_handler, ap_payment_handler, ap_payment_request_handler, ap_reconciliation_handler,
     ap_report_handler, ap_verification_handler, api_key_handler, ar_invoice_handler,
     ar_reconciliation_enhanced_handler, ar_reconciliation_handler, assist_accounting_handler,
