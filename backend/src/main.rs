@@ -187,6 +187,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_file(false)
                 .with_line_number(false),
         )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stdout)
+                .with_ansi(true)
+                .with_target(true)
+                .with_thread_ids(false)
+                .with_file(false)
+                .with_line_number(false),
+        )
         .init();
 
     info!("===========================================");
