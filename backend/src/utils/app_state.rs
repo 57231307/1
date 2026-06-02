@@ -47,7 +47,7 @@ impl FromRef<AppState> for Key {
 impl AppState {
     pub fn new(db: Arc<DatabaseConnection>, jwt_secret: String) -> Result<Self, String> {
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())?);
-        let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 90)); // 保留 90 天
+        let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 999)); // 保留 999 天
         
         // 启动审计日志清理任务
         let cleanup_clone = audit_cleanup.clone();
@@ -179,7 +179,7 @@ impl Default for AppState {
             OmniAuditEngine::new(db.clone())
                 .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"),
         );
-        let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 90));
+        let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 999));
         let di_container = Arc::new(DIContainer::new());
         let email_service = EmailService::from_env().map(Arc::new);
         let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
