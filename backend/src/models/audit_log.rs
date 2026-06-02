@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "audit_logs")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -15,8 +15,8 @@ pub struct Model {
     pub description: Option<String>,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
-    pub old_value: Option<String>,
-    pub new_value: Option<String>,
+    pub old_value: Option<serde_json::Value>,
+    pub new_value: Option<serde_json::Value>,
     pub created_at: Option<DateTimeUtc>,
 }
 
