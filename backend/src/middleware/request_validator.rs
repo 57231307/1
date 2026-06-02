@@ -1,5 +1,6 @@
 use crate::middleware::public_routes::is_public_path;
 use crate::utils::app_state::AppState;
+use crate::utils::request_ext::PublicPathCache;
 use axum::{
     body::Body,
     extract::State,
@@ -19,8 +20,14 @@ pub async fn request_validator_middleware(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
 
-    // 公共路径直接通过
-    if is_public_path(path) {
+    // 使用缓存的公共路径检查结果，避免重复计算
+    let is_public = request
+        .extensions()
+        .get::<PublicPathCache>()
+        .map(|cache| cache.is_public)
+        .unwrap_or_else(|| is_public_path(path));
+
+    if is_public {
         return Ok(next.run(request).await);
     }
 
@@ -39,13 +46,22 @@ pub async fn request_validator_middleware(
 
     // 没有 JWT Token 的请求，检查 Origin
     let method = request.method().clone();
-    if !is_state_changing_method(&method) {
-        return Ok(next.run(request).await);
-    }
+    let path = request.uri().path();
 
-    // 没有认证的状态变更请求，记录警告但允许通过
-    // （后续的 auth 中间件会拒绝未认证的请求）
-    tracing::warn!("未认证的状态变更请求: {} {}", method, path);
+    // 对状态变更方法记录未认证请求的日志
+    if is_state_changing_method(&method) {
+        // 检查是否有 Cookie 认证信息
+        let has_cookie = request
+            .headers()
+            .get("cookie")
+            .and_then(|h| h.to_str().ok())
+            .map(|h| h.contains("jwt="))
+            .unwrap_or(false);
+
+        if !has_cookie {
+            tracing::debug!("未认证的状态变更请求: {} {}", method, path);
+        }
+    }
 
     Ok(next.run(request).await)
 }

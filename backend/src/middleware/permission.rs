@@ -6,6 +6,7 @@ use crate::models::role_permission;
 use crate::utils::admin_checker;
 use crate::utils::app_state::AppState;
 use crate::utils::path_utils::is_module_prefix;
+use crate::utils::request_ext::PublicPathCache;
 use axum::{
     body::Body,
     extract::State,
@@ -47,7 +48,14 @@ pub async fn permission_middleware(
     let uri = request.uri();
     let path = uri.path();
 
-    if is_public_path(path) {
+    // 使用缓存的公共路径检查结果，避免重复计算
+    let is_public = request
+        .extensions()
+        .get::<PublicPathCache>()
+        .map(|cache| cache.is_public)
+        .unwrap_or_else(|| is_public_path(path));
+
+    if is_public {
         return Ok(next.run(request).await);
     }
 

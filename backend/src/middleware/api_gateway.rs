@@ -11,43 +11,41 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use std::collections::HashMap;
-use std::sync::Mutex;
+use dashmap::DashMap;
 use std::time::{Duration, Instant};
 
 /// 限流存储（IP -> 请求计数）
-#[derive(Default)]
 pub struct RateLimitStore {
-    requests: Mutex<HashMap<String, Vec<Instant>>>,
+    requests: DashMap<String, Vec<Instant>>,
+}
+
+impl Default for RateLimitStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RateLimitStore {
     pub fn new() -> Self {
         Self {
-            requests: Mutex::new(HashMap::new()),
+            requests: DashMap::new(),
         }
     }
 
     /// 检查是否超过限流阈值
     pub fn is_allowed(&self, key: &str, max_requests: usize, window: Duration) -> bool {
-        let mut requests = match self.requests.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => {
-                tracing::error!("限流存储锁被污染，尝试恢复: {}", poisoned);
-                poisoned.into_inner()
-            }
-        };
         let now = Instant::now();
 
-        let entries = requests.entry(key.to_string()).or_insert_with(Vec::new);
+        // 获取或创建条目
+        let mut entry = self.requests.entry(key.to_string()).or_default();
 
         // 清理过期的请求记录
-        entries.retain(|&t| now.duration_since(t) < window);
+        entry.retain(|&t| now.duration_since(t) < window);
 
-        if entries.len() >= max_requests {
+        if entry.len() >= max_requests {
             false
         } else {
-            entries.push(now);
+            entry.push(now);
             true
         }
     }

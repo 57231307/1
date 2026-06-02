@@ -9,6 +9,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -338,25 +339,32 @@ impl FixedAssetService {
             .parse::<NaiveDate>()
             .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
 
+        // 批量查询所有固定资产
+        let assets = fixed_asset::Entity::find()
+            .filter(fixed_asset::Column::Id.is_in(asset_ids.clone()))
+            .all(&*self.db)
+            .await?;
+        let asset_map: HashMap<i32, fixed_asset::Model> =
+            assets.into_iter().map(|a| (a.id, a)).collect();
+
         let mut results = Vec::new();
 
         for asset_id in asset_ids {
-            let asset = fixed_asset::Entity::find_by_id(asset_id)
-                .one(&*self.db)
-                .await?
+            let asset = asset_map
+                .get(&asset_id)
                 .ok_or_else(|| AppError::NotFound("固定资产".to_string()))?;
 
             // 计算折旧
-            let depreciation = self.calculate_asset_depreciation(&asset, calc_date)?;
+            let depreciation = self.calculate_asset_depreciation(asset, calc_date)?;
 
             results.push(DepreciationResult {
                 asset_id: asset.id,
-                asset_no: asset.asset_no,
+                asset_no: asset.asset_no.clone(),
                 original_value: asset.original_value,
                 accumulated_depreciation: asset.accumulated_depreciation + depreciation,
                 current_depreciation: depreciation,
                 net_value: asset.original_value - asset.accumulated_depreciation - depreciation,
-                depreciation_method: asset.depreciation_method.unwrap_or_default(),
+                depreciation_method: asset.depreciation_method.clone().unwrap_or_default(),
             });
         }
 

@@ -9,6 +9,7 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
 
@@ -275,18 +276,17 @@ impl SupplierEvaluationService {
         // 计算加权平均分
         let total_weighted_score: Decimal = records.iter().filter_map(|r| r.weighted_score).sum();
 
-        // 使用 HashSet 去重指标 ID，避免重复计算权重
+        // 使用 HashSet 去重指标 ID，批量查询指标权重
         let indicator_ids: std::collections::HashSet<i32> =
             records.iter().map(|r| r.indicator_id).collect();
-        let mut total_weight: Decimal = Decimal::ZERO;
-        for indicator_id in &indicator_ids {
-            if let Ok(Some(indicator)) = supplier_evaluation::Entity::find_by_id(*indicator_id)
-                .one(&*self.db)
-                .await
-            {
-                total_weight += indicator.weight;
-            }
-        }
+        let indicator_weight_map: HashMap<i32, Decimal> = supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::Id.is_in(indicator_ids.iter().cloned()))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|ind| (ind.id, ind.weight))
+            .collect();
+        let total_weight: Decimal = indicator_weight_map.values().sum();
 
         let average_score = if total_weight > Decimal::ZERO {
             total_weighted_score / total_weight * Decimal::from(100)
@@ -365,23 +365,29 @@ impl SupplierEvaluationService {
                 .push(record);
         }
 
+        // 批量查询所有指标的权重
+        let all_indicator_ids: std::collections::HashSet<i32> =
+            records.iter().map(|r| r.indicator_id).collect();
+        let indicator_weight_map: HashMap<i32, Decimal> = supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::Id.is_in(all_indicator_ids.iter().cloned()))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|ind| (ind.id, ind.weight))
+            .collect();
+
         let mut rankings: Vec<SupplierScoreResponse> = Vec::new();
         for (supplier_id, recs) in &supplier_records {
             let total_weighted_score: Decimal = recs.iter().filter_map(|r| r.weighted_score).sum();
             let total_records = recs.len() as i64;
 
             // 计算每个供应商的总权重（与 get_supplier_score 一致）
-            let mut total_weight: Decimal = Decimal::ZERO;
             let indicator_ids: std::collections::HashSet<i32> =
                 recs.iter().map(|r| r.indicator_id).collect();
-            for indicator_id in &indicator_ids {
-                if let Ok(Some(indicator)) = supplier_evaluation::Entity::find_by_id(*indicator_id)
-                    .one(&*self.db)
-                    .await
-                {
-                    total_weight += indicator.weight;
-                }
-            }
+            let total_weight: Decimal = indicator_ids
+                .iter()
+                .filter_map(|id| indicator_weight_map.get(id))
+                .sum();
 
             let average_score = if total_weight > Decimal::ZERO {
                 total_weighted_score / total_weight * Decimal::from(100)

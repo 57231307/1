@@ -2,6 +2,8 @@ pub mod admin_checker;
 pub mod app_state;
 pub mod cache;
 pub mod path_utils;
+pub mod query_builder;
+pub mod request_ext;
 
 pub mod di_container;
 pub mod dual_unit_converter;

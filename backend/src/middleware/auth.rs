@@ -3,6 +3,7 @@ use crate::middleware::public_routes::is_public_path;
 use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
+use crate::utils::request_ext::PublicPathCache;
 use axum::{
     body::Body,
     extract::State,
@@ -29,7 +30,7 @@ pub async fn auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, Response> {
-    let path = request.uri().path();
+    let path = request.uri().path().to_string();
     let method = request.method().clone();
     let client_ip = request
         .headers()
@@ -40,7 +41,11 @@ pub async fn auth_middleware(
         .to_string();
 
     // 公共路径跳过认证
-    if is_public_path(path) {
+    let is_public = is_public_path(&path);
+    request
+        .extensions_mut()
+        .insert(PublicPathCache::new(is_public));
+    if is_public {
         info!(path = %path, method = %method, client_ip = %client_ip, "公共路径，跳过认证");
         return Ok(next.run(request).await);
     }

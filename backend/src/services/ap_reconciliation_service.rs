@@ -7,6 +7,7 @@ use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
+use futures::stream::{self, StreamExt};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -14,6 +15,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use validator::Validate;
 
 /// 供应商对账服务
@@ -341,71 +343,84 @@ impl ApReconciliationService {
         use crate::models::supplier;
 
         let suppliers = supplier::Entity::find().all(&*self.db).await?;
-        let mut results = Vec::new();
+        let results = Arc::new(Mutex::new(Vec::new()));
 
-        for sup in suppliers {
-            let req = GenerateReconciliationRequest {
-                supplier_id: sup.id,
-                start_date,
-                end_date,
-                notes: Some(format!(
-                    "Auto-generated reconciliation for {}",
-                    sup.supplier_name
-                )),
-            };
-
-            match self.generate_reconciliation(req, user_id).await {
-                Ok(rec) => {
-                    let invoice_count = ap_invoice::Entity::find()
-                        .filter(ap_invoice::Column::SupplierId.eq(sup.id))
-                        .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
-                        .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
-                        .count(&*self.db)
-                        .await? as usize;
-
-                    let payment_count = ap_payment::Entity::find()
-                        .filter(ap_payment::Column::SupplierId.eq(sup.id))
-                        .filter(ap_payment::Column::PaymentDate.gte(start_date))
-                        .filter(ap_payment::Column::PaymentDate.lte(end_date))
-                        .count(&*self.db)
-                        .await? as usize;
-
-                    results.push(AutoReconciliationResult {
-                        reconciliation_id: rec.id,
-                        reconciliation_no: rec.reconciliation_no,
+        stream::iter(suppliers)
+            .for_each_concurrent(10, |sup| {
+                let results = results.clone();
+                let db = self.db.clone();
+                async move {
+                    let service = ApReconciliationService::new(db.clone());
+                    let req = GenerateReconciliationRequest {
                         supplier_id: sup.id,
                         start_date,
                         end_date,
-                        opening_balance: rec.opening_balance,
-                        total_invoice: rec.total_invoice,
-                        total_payment: rec.total_payment,
-                        closing_balance: rec.closing_balance,
-                        invoice_count,
-                        payment_count,
-                        status: rec.reconciliation_status,
-                        message: "Auto reconciliation successful".to_string(),
-                    });
-                }
-                Err(e) => {
-                    results.push(AutoReconciliationResult {
-                        reconciliation_id: 0,
-                        reconciliation_no: String::new(),
-                        supplier_id: sup.id,
-                        start_date,
-                        end_date,
-                        opening_balance: Decimal::ZERO,
-                        total_invoice: Decimal::ZERO,
-                        total_payment: Decimal::ZERO,
-                        closing_balance: Decimal::ZERO,
-                        invoice_count: 0,
-                        payment_count: 0,
-                        status: "FAILED".to_string(),
-                        message: format!("Failed: {}", e),
-                    });
-                }
-            }
-        }
+                        notes: Some(format!(
+                            "Auto-generated reconciliation for {}",
+                            sup.supplier_name
+                        )),
+                    };
 
+                    let result = match service.generate_reconciliation(req, user_id).await {
+                        Ok(rec) => {
+                            let invoice_count = ap_invoice::Entity::find()
+                                .filter(ap_invoice::Column::SupplierId.eq(sup.id))
+                                .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
+                                .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
+                                .count(&*db)
+                                .await
+                                .unwrap_or(0)
+                                as usize;
+
+                            let payment_count = ap_payment::Entity::find()
+                                .filter(ap_payment::Column::SupplierId.eq(sup.id))
+                                .filter(ap_payment::Column::PaymentDate.gte(start_date))
+                                .filter(ap_payment::Column::PaymentDate.lte(end_date))
+                                .count(&*db)
+                                .await
+                                .unwrap_or(0)
+                                as usize;
+
+                            AutoReconciliationResult {
+                                reconciliation_id: rec.id,
+                                reconciliation_no: rec.reconciliation_no,
+                                supplier_id: sup.id,
+                                start_date,
+                                end_date,
+                                opening_balance: rec.opening_balance,
+                                total_invoice: rec.total_invoice,
+                                total_payment: rec.total_payment,
+                                closing_balance: rec.closing_balance,
+                                invoice_count,
+                                payment_count,
+                                status: rec.reconciliation_status,
+                                message: "Auto reconciliation successful".to_string(),
+                            }
+                        }
+                        Err(e) => AutoReconciliationResult {
+                            reconciliation_id: 0,
+                            reconciliation_no: String::new(),
+                            supplier_id: sup.id,
+                            start_date,
+                            end_date,
+                            opening_balance: Decimal::ZERO,
+                            total_invoice: Decimal::ZERO,
+                            total_payment: Decimal::ZERO,
+                            closing_balance: Decimal::ZERO,
+                            invoice_count: 0,
+                            payment_count: 0,
+                            status: "FAILED".to_string(),
+                            message: format!("Failed: {}", e),
+                        },
+                    };
+
+                    let mut results_guard = results.lock().await;
+                    results_guard.push(result);
+                }
+            })
+            .await;
+
+        let results = Arc::try_unwrap(results).unwrap().into_inner();
         Ok(results)
     }
 

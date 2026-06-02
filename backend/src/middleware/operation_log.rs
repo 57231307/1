@@ -31,10 +31,10 @@ pub async fn operation_log_middleware(
     // 提取请求信息
     let method = request.method().clone();
     let uri = request.uri().clone();
-    let headers = request.headers().clone();
 
     // 获取客户端 IP
-    let client_ip = headers
+    let client_ip = request
+        .headers()
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.split(',').next())
@@ -42,13 +42,14 @@ pub async fn operation_log_middleware(
         .to_string();
 
     // 获取 User-Agent
-    let user_agent = headers
+    let user_agent = request
+        .headers()
         .get("user-agent")
         .and_then(|value| value.to_str().ok())
         .map(|s| s.to_string());
 
     // 尝试从 Authorization 头中提取用户信息（简化版，实际需要解析 JWT）
-    let (user_id, username) = extract_user_info(&headers);
+    let (user_id, username) = extract_user_info(request.headers());
 
     // 执行请求
     let response = next.run(request).await;
