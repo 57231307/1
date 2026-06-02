@@ -1,6 +1,6 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
-use crate::services::enhanced_logger::{self, DeviceInfo, FailureInfo, GeoInfo, LoginAttempt, LoginSecurityLog, SecurityInfo};
+use crate::services::enhanced_logger::{self, DeviceInfo, FailureInfo, LoginAttempt, LoginSecurityLog, SecurityInfo};
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;

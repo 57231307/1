@@ -22,8 +22,7 @@ use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
-use tracing::{info, warn, Level, Span};
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing::{info, warn, Span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::settings::AppSettings;

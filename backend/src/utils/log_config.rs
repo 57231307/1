@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// 日志配置
 pub struct LogConfig {
