@@ -123,3 +123,7 @@ pub mod scheduler_service;
 pub mod export_service;
 // 通用打印服务
 pub mod print_service;
+// 审计日志清理服务
+pub mod audit_cleanup_service;
+// 敏感操作告警服务
+pub mod sensitive_action_alert;

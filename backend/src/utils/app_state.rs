@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::middleware::api_gateway::RateLimitStore;
 use crate::middleware::rate_limit::RedisRateLimiter;
+use crate::services::audit_cleanup_service::AuditCleanupService;
 use crate::services::data_permission_service::DataPermissionService;
 use crate::services::email_service::EmailService;
 use crate::services::event_notification_service::EventNotificationService;
@@ -20,6 +21,7 @@ use axum_extra::extract::cookie::Key;
 pub struct AppState {
     pub db: Arc<DatabaseConnection>,
     pub omni_audit: Arc<OmniAuditEngine>,
+    pub audit_cleanup: Arc<AuditCleanupService>,
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
     pub cookie_secret: String,
@@ -45,9 +47,18 @@ impl FromRef<AppState> for Key {
 impl AppState {
     pub fn new(db: Arc<DatabaseConnection>, jwt_secret: String) -> Result<Self, String> {
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())?);
+        let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 90)); // 保留 90 天
+        
+        // 启动审计日志清理任务
+        let cleanup_clone = audit_cleanup.clone();
+        tokio::spawn(async move {
+            cleanup_clone.start_cleanup_task();
+        });
+        
         Ok(Self::with_secrets(
             db,
             omni_audit,
+            audit_cleanup,
             jwt_secret.clone(),
             None,
             jwt_secret,
@@ -57,6 +68,7 @@ impl AppState {
     pub fn with_secrets(
         db: Arc<DatabaseConnection>,
         omni_audit: Arc<OmniAuditEngine>,
+        audit_cleanup: Arc<AuditCleanupService>,
         jwt_secret: String,
         previous_jwt_secret: Option<String>,
         cookie_secret: String,
@@ -64,6 +76,7 @@ impl AppState {
         Self::with_secrets_and_cors(
             db,
             omni_audit,
+            audit_cleanup,
             jwt_secret,
             previous_jwt_secret,
             cookie_secret,
@@ -74,6 +87,7 @@ impl AppState {
     pub fn with_secrets_and_cors(
         db: Arc<DatabaseConnection>,
         omni_audit: Arc<OmniAuditEngine>,
+        audit_cleanup: Arc<AuditCleanupService>,
         jwt_secret: String,
         previous_jwt_secret: Option<String>,
         cookie_secret: String,
@@ -118,6 +132,7 @@ impl AppState {
         Self {
             db,
             omni_audit,
+            audit_cleanup,
             jwt_secret,
             previous_jwt_secret,
             cookie_secret: final_cookie_secret,
@@ -164,6 +179,7 @@ impl Default for AppState {
             OmniAuditEngine::new(db.clone())
                 .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"),
         );
+        let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 90));
         let di_container = Arc::new(DIContainer::new());
         let email_service = EmailService::from_env().map(Arc::new);
         let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
@@ -172,6 +188,7 @@ impl Default for AppState {
         Self {
             db: db.clone(),
             omni_audit,
+            audit_cleanup,
             jwt_secret: uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string(),
             previous_jwt_secret: None,
             cookie_secret: random_cookie_secret,

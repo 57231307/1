@@ -1,6 +1,6 @@
 use axum::extract::ConnectInfo;
 use axum::{
-    body::Body,
+    body::{Body, to_bytes},
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_service::OmniAuditMessage;
+use crate::services::sensitive_action_alert::SensitiveActionAlert;
 use crate::utils::app_state::AppState;
 
 pub async fn omni_audit_middleware(
@@ -45,12 +46,13 @@ pub async fn omni_audit_middleware(
     let username = req
         .extensions()
         .get::<AuthContext>()
-        .map(|ctx| ctx.username.clone());
+        .map(|ctx| ctx.username.clone())
+        .unwrap_or_default();
 
     // 生成 Trace ID
     let trace_id = uuid::Uuid::new_v4().to_string();
 
-    // 放行请求
+    // 放行请求并获取响应
     let response = next.run(req).await;
 
     let duration_ms = start_time.elapsed().as_millis() as i32;
@@ -63,16 +65,40 @@ pub async fn omni_audit_middleware(
         "FAILED".to_string()
     };
 
+    // 读取响应体内容（限制大小为 10KB）
+    let (parts, body) = response.into_parts();
+    let body_bytes = to_bytes(body, 10 * 1024).await.unwrap_or_default();
+    let response_body = String::from_utf8_lossy(&body_bytes).to_string();
+    
+    // 重新构建响应
+    let response = Response::from_parts(parts, Body::from(body_bytes));
+
     // 发送审计日志
     // 忽略一些高频无用接口，比如 prometheus metrics, health check
     if !uri.starts_with("/metrics") && !uri.starts_with("/health") {
         // 根据 URI 推断模块
         let module = infer_module_from_path(&uri);
         
+        // 检查是否为敏感操作
+        let _sensitive_action = SensitiveActionAlert::check_and_alert(
+            &method,
+            &module,
+            user_id,
+            &username,
+            ip_address.as_deref(),
+        );
+
+        // 截断过长的响应内容
+        let truncated_response = if response_body.len() > 1000 {
+            format!("{}...", &response_body[..1000])
+        } else {
+            response_body
+        };
+
         state.omni_audit.log(OmniAuditMessage {
             trace_id,
             user_id,
-            username,
+            username: Some(username),
             event_type: "API_CALL".to_string(),
             event_name: format!("{} {}", method, uri),
             resource: uri.clone(),
@@ -84,6 +110,7 @@ pub async fn omni_audit_middleware(
             payload: Some(serde_json::json!({
                 "status_code": status_code.as_u16(),
                 "query_string": query_string,
+                "response_body": truncated_response,
             })),
             ip_address,
             user_agent,
