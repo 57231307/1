@@ -112,7 +112,7 @@ impl MemoryRateLimiter {
 
 // 全局内存限流器实例（回退使用）
 static GLOBAL_LIMITER: Lazy<MemoryRateLimiter> =
-    Lazy::new(|| MemoryRateLimiter::new(60, Duration::from_secs(60)));
+    Lazy::new(|| MemoryRateLimiter::new(180, Duration::from_secs(60)));
 static BRUTE_FORCE_LIMITER: Lazy<MemoryRateLimiter> =
     Lazy::new(|| MemoryRateLimiter::new(5, Duration::from_secs(300)));
 

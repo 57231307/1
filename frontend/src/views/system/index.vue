@@ -1,6 +1,6 @@
 <template>
   <div class="system-page">
-    <el-tabs v-model="activeTab" tab-position="left" class="system-tabs">
+    <el-tabs v-model="activeTab" tab-position="left" class="system-tabs" @tab-change="handleTabChange">
       <!-- 1. 用户管理 -->
       <el-tab-pane label="用户管理" name="user">
         <div class="page-header">
@@ -693,6 +693,36 @@ import {
 } from '@/api/department'
 
 const activeTab = ref('user')
+const hasLoaded = reactive<Record<string, boolean>>({})
+
+const loadTabData = (tabName: string) => {
+  if (hasLoaded[tabName]) return
+  hasLoaded[tabName] = true
+  
+  const loaders: Record<string, () => void> = {
+    'user': fetchUsers,
+    'role': fetchRoles,
+    'department': fetchDepartments,
+    'permission': fetchPermissionList,
+    'dataPermission': fetchDataPermissions,
+    'fieldPermission': fetchFieldPermissions,
+    'notification': fetchNotificationSetting,
+    'audit': fetchAuditLogs,
+    'webhook': fetchWebhooks,
+    'update': fetchSystemVersion,
+    'tenant': fetchTenantConfigs,
+    'company': fetchCompanyInfo,
+  }
+  
+  if (loaders[tabName]) {
+    loaders[tabName]()
+  }
+}
+
+const handleTabChange = (tabName: string) => {
+  activeTab.value = tabName
+  loadTabData(tabName)
+}
 
 // ============ 用户管理 ============
 const users = ref<User[]>([])
@@ -1394,18 +1424,7 @@ const resetCompanyForm = () => {
 }
 
 onMounted(() => {
-  fetchUsers()
-  fetchRoles()
-  fetchDepartments()
-  fetchCompanyInfo()
-  fetchPermissionList()
-  fetchDataPermissions()
-  fetchFieldPermissions()
-  fetchNotificationSetting()
-  fetchAuditLogs()
-  fetchWebhooks()
-  fetchSystemVersion()
-  fetchTenantConfigs()
+  loadTabData('user')
 })
 </script>
 
