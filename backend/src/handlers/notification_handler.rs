@@ -98,7 +98,7 @@ pub async fn mark_as_read(
     let service = NotificationService::new(state.db.clone());
     service.mark_as_read(id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_msg((), "标记已读成功")))
+    Ok(Json(ApiResponse::success_with_message((), "标记已读成功")))
 }
 
 /// 批量标记通知为已读
@@ -110,7 +110,7 @@ pub async fn batch_mark_as_read(
     let service = NotificationService::new(state.db.clone());
     let count = service.batch_mark_as_read(req.ids, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         count,
         &format!("成功标记 {} 条通知为已读", count),
     )))
@@ -124,7 +124,7 @@ pub async fn mark_all_as_read(
     let service = NotificationService::new(state.db.clone());
     let count = service.mark_all_as_read(auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         count,
         &format!("成功标记 {} 条通知为已读", count),
     )))
@@ -139,7 +139,7 @@ pub async fn delete_notification(
     let service = NotificationService::new(state.db.clone());
     service.delete_notification(id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_msg((), "通知删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), "通知删除成功")))
 }
 
 /// 获取通知详情
@@ -198,7 +198,7 @@ pub async fn update_setting(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(setting)?,
         "通知设置更新成功",
     )))

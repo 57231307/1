@@ -73,8 +73,7 @@ impl EmailTemplateService {
             .filter(crate::models::email_template::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_template::Column::Code.eq(&req.code))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if existing.is_some() {
             return Err(AppError::BusinessError(format!(
@@ -101,20 +100,14 @@ impl EmailTemplateService {
             updated_at: Set(now),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
 
     /// 获取邮件模板详情
     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailTemplateModel>, AppError> {
-        let model = EmailTemplateEntity::find_by_id(id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = EmailTemplateEntity::find_by_id(id).one(&*self.db).await?;
 
         Ok(model)
     }
@@ -131,8 +124,7 @@ impl EmailTemplateService {
             .filter(crate::models::email_template::Column::Code.eq(code))
             .filter(crate::models::email_template::Column::IsActive.eq(true))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(model)
     }
@@ -145,8 +137,7 @@ impl EmailTemplateService {
     ) -> Result<EmailTemplateModel, AppError> {
         let model = EmailTemplateEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("邮件模板不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -175,10 +166,7 @@ impl EmailTemplateService {
 
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -187,8 +175,7 @@ impl EmailTemplateService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = EmailTemplateEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("邮件模板不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -196,10 +183,7 @@ impl EmailTemplateService {
         active_model.status = Set("INACTIVE".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }
@@ -234,18 +218,13 @@ impl EmailTemplateService {
             );
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let items = select
             .order_by_desc(crate::models::email_template::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((items, total))
     }

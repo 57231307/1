@@ -97,10 +97,7 @@ impl ReportSubscriptionService {
             updated_at: Set(now),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
@@ -109,8 +106,7 @@ impl ReportSubscriptionService {
     pub async fn get_by_id(&self, id: i32) -> Result<Option<ReportSubscriptionModel>, AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(model)
     }
@@ -123,8 +119,7 @@ impl ReportSubscriptionService {
     ) -> Result<ReportSubscriptionModel, AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -149,10 +144,7 @@ impl ReportSubscriptionService {
 
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -161,8 +153,7 @@ impl ReportSubscriptionService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -170,10 +161,7 @@ impl ReportSubscriptionService {
         active_model.is_enabled = Set(false);
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }
@@ -186,8 +174,7 @@ impl ReportSubscriptionService {
     ) -> Result<ReportSubscriptionModel, AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -211,10 +198,7 @@ impl ReportSubscriptionService {
             active_model.next_run_at = Set(next_run);
         }
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -247,18 +231,13 @@ impl ReportSubscriptionService {
                 select.filter(crate::models::report_subscription::Column::IsEnabled.eq(is_enabled));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let items = select
             .order_by_desc(crate::models::report_subscription::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((items, total))
     }
@@ -276,8 +255,7 @@ impl ReportSubscriptionService {
             .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"))
             .order_by_desc(crate::models::report_subscription::Column::CreatedAt)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(items)
     }
@@ -286,8 +264,7 @@ impl ReportSubscriptionService {
     pub async fn trigger(&self, id: i32) -> Result<(), AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
         // 立即将下次执行时间设为现在
@@ -295,10 +272,7 @@ impl ReportSubscriptionService {
         active_model.next_run_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }

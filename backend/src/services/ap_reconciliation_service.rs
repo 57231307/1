@@ -125,7 +125,7 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("对账单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("对账单 {}", id)))?;
 
         // 2. 检查状态
         if reconciliation.reconciliation_status != "PENDING" {
@@ -169,7 +169,7 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("对账单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("对账单 {}", id)))?;
 
         // 2. 检查状态
         if reconciliation.reconciliation_status == "CONFIRMED" {
@@ -205,7 +205,7 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("对账单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("对账单 {}", id)))?;
 
         Ok(reconciliation)
     }
@@ -262,10 +262,7 @@ impl ApReconciliationService {
             invoice_query = invoice_query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
 
-        let invoices = invoice_query
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let invoices = invoice_query.all(&*self.db).await?;
 
         // 按供应商分组统计
         let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> =
@@ -318,8 +315,7 @@ impl ApReconciliationService {
             let suppliers = supplier::Entity::find()
                 .filter(supplier::Column::Id.is_in(supplier_ids))
                 .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
             for s in suppliers {
                 if let Some(entry) = summary_map.get_mut(&s.id) {
@@ -432,7 +428,7 @@ impl ApReconciliationService {
         let invoice = ap_invoice::Entity::find_by_id(invoice_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", invoice_id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", invoice_id)))?;
 
         let mut relations = Vec::new();
 

@@ -512,8 +512,7 @@ impl CustomerCreditService {
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::CustomerId.eq(customer_id))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if invoices.is_empty() {
             return Ok(70); // 无记录默认70分
@@ -598,8 +597,7 @@ impl CustomerCreditService {
             .filter(sales_order::Column::CustomerId.eq(customer_id))
             .filter(sales_order::Column::CreatedAt.gte(one_year_ago))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if orders.is_empty() {
             return Ok(50); // 无订单默认50分

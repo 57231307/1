@@ -32,8 +32,6 @@ impl<T> Default for ApiResponse<T> {
 #[derive(Debug, Clone, Serialize)]
 pub struct PaginatedResponse<T> {
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub data: Vec<T>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<T>,
     pub total: u64,
     pub page: u64,
@@ -43,7 +41,6 @@ pub struct PaginatedResponse<T> {
 impl<T> Default for PaginatedResponse<T> {
     fn default() -> Self {
         Self {
-            data: Vec::new(),
             items: Vec::new(),
             total: 0,
             page: 1,
@@ -55,17 +52,6 @@ impl<T> Default for PaginatedResponse<T> {
 impl<T: Clone> PaginatedResponse<T> {
     pub fn new(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
         Self {
-            data: data.clone(),
-            items: data,
-            total,
-            page,
-            page_size,
-        }
-    }
-
-    pub fn from_data(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
-        Self {
-            data: data.clone(),
             items: data,
             total,
             page,
@@ -83,6 +69,21 @@ impl<T> From<PaginatedResponse<T>> for ApiResponse<Vec<T>> {
             data: Some(paginated.items),
             message: None,
         }
+    }
+}
+
+// 为 PaginatedResponse<T> 实现 IntoResponse
+impl<T: Serialize> IntoResponse for PaginatedResponse<T> {
+    fn into_response(self) -> Response {
+        ApiResponse {
+            code: Some(200),
+            data: Some(self.items),
+            message: Some(format!(
+                "共 {} 条记录，第 {}/{} 页",
+                self.total, self.page, self.page_size
+            )),
+        }
+        .into_response()
     }
 }
 
@@ -116,35 +117,11 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    pub fn ok(data: T) -> Self {
-        Self {
-            code: Some(200),
-            data: Some(data),
-            message: None,
-        }
-    }
-
     pub fn success_with_message(data: T, message: &str) -> Self {
         Self {
             code: Some(200),
             data: Some(data),
             message: Some(message.to_string()),
-        }
-    }
-
-    pub fn success_with_msg(data: T, message: &str) -> Self {
-        Self {
-            code: Some(200),
-            data: Some(data),
-            message: Some(message.to_string()),
-        }
-    }
-
-    pub fn success_with_data(data: T) -> Self {
-        Self {
-            code: Some(200),
-            data: Some(data),
-            message: None,
         }
     }
 
@@ -156,43 +133,12 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    pub fn error_msg(message: &str) -> Self {
-        Self {
-            code: Some(500),
-            data: None,
-            message: Some(message.to_string()),
-        }
-    }
-
     pub fn error_with_status(status: StatusCode, message: impl Into<String>) -> Self {
         Self {
             code: Some(status.as_u16()),
             data: None,
             message: Some(message.into()),
         }
-    }
-
-    pub fn error_response(message: impl Into<String>) -> Self {
-        Self {
-            code: Some(500),
-            data: None,
-            message: Some(message.into()),
-        }
-    }
-}
-
-// 为 PaginatedResponse<T> 实现 IntoResponse
-impl<T: Serialize> IntoResponse for PaginatedResponse<T> {
-    fn into_response(self) -> Response {
-        ApiResponse {
-            code: Some(200),
-            data: Some(self.data),
-            message: Some(format!(
-                "共 {} 条记录，第 {}/{} 页",
-                self.total, self.page, self.page_size
-            )),
-        }
-        .into_response()
     }
 }
 
@@ -209,17 +155,20 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
     }
 }
 
-pub fn build_paginated_response<T: serde::Serialize>(
-    items: Vec<T>,
-    total: u64,
-    page: u64,
-    page_size: u64,
-) -> serde_json::Value {
-    serde_json::json!({
-        "code": 200,
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    })
+pub fn unauthorized_response(message: &str) -> Response {
+    let body = serde_json::json!({
+        "code": 401,
+        "message": message,
+        "data": null
+    });
+    (StatusCode::UNAUTHORIZED, Json(body)).into_response()
+}
+
+pub fn forbidden_response(message: &str) -> Response {
+    let body = serde_json::json!({
+        "code": 403,
+        "message": message,
+        "data": null
+    });
+    (StatusCode::FORBIDDEN, Json(body)).into_response()
 }

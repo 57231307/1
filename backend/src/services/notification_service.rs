@@ -157,7 +157,7 @@ impl NotificationService {
         let notification = NotificationEntity::find_by_id(notification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "通知 {} 不存在",
                 notification_id
             )))?;
@@ -219,7 +219,7 @@ impl NotificationService {
         let notification = NotificationEntity::find_by_id(notification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "通知 {} 不存在",
                 notification_id
             )))?;
@@ -245,7 +245,7 @@ impl NotificationService {
         let notification = NotificationEntity::find_by_id(notification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "通知 {} 不存在",
                 notification_id
             )))?;

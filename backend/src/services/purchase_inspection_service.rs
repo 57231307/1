@@ -89,10 +89,7 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购质检单 {}",
-                inspection_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购质检单 {}", inspection_id)))?;
 
         if inspection.inspection_status.as_deref() != Some("pending") {
             return Err(AppError::BusinessError(format!(
@@ -137,10 +134,7 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购质检单 {}",
-                inspection_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购质检单 {}", inspection_id)))?;
 
         if inspection.inspection_status.as_deref() != Some("pending") {
             return Err(AppError::BusinessError(format!(
@@ -229,10 +223,7 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购质检单 {}",
-                inspection_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购质检单 {}", inspection_id)))?;
 
         Ok(inspection)
     }

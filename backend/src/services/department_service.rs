@@ -6,7 +6,6 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::Serialize;
-use std::sync::Arc;
 
 use crate::models::department::{self, Entity as DepartmentEntity};
 use crate::utils::error::AppError;
@@ -22,16 +21,9 @@ pub struct DepartmentTreeNode {
     pub children: Vec<DepartmentTreeNode>,
 }
 
-/// 部门服务
-pub struct DepartmentService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(DepartmentService);
 
 impl DepartmentService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 获取部门列表（支持分页和过滤）
     pub async fn list(
         &self,
@@ -81,7 +73,7 @@ impl DepartmentService {
         DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("部门 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("部门 ID {} 不存在", id)))
     }
 
     /// 创建部门
@@ -107,7 +99,7 @@ impl DepartmentService {
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid)))?;
+                .ok_or_else(|| AppError::NotFound(format!("父部门 ID {} 不存在", pid)))?;
         }
 
         let active_model = department::ActiveModel {
@@ -136,7 +128,7 @@ impl DepartmentService {
         let mut dept: department::ActiveModel = DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("部门 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::NotFound(format!("部门 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -162,7 +154,7 @@ impl DepartmentService {
             let _ = DepartmentEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::ResourceNotFound(format!("父部门 ID {} 不存在", pid)))?;
+                .ok_or_else(|| AppError::NotFound(format!("父部门 ID {} 不存在", pid)))?;
             dept.parent_id = Set(Some(pid));
         }
 
@@ -207,7 +199,7 @@ impl DepartmentService {
 
         let result = DepartmentEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!("部门 ID {} 不存在", id)));
+            return Err(AppError::NotFound(format!("部门 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -261,6 +253,6 @@ impl DepartmentService {
             .filter(department::Column::Name.eq(name))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("部门名称 {} 不存在", name)))
+            .ok_or_else(|| AppError::NotFound(format!("部门名称 {} 不存在", name)))
     }
 }

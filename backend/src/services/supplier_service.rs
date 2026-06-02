@@ -1,6 +1,7 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
+use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -212,13 +213,7 @@ impl SupplierService {
         let total = paginator.num_items().await?;
         let data = paginator.fetch_page(page - 1).await?;
 
-        Ok(PaginatedResponse {
-            data: data.clone(),
-            items: data,
-            page,
-            page_size,
-            total,
-        })
+        Ok(PaginatedResponse::new(data, total, page, page_size))
     }
 
     /// 获取供应商详情
@@ -654,16 +649,6 @@ impl SupplierService {
                 qualification_id
             )))
     }
-}
-
-/// 分页响应
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PaginatedResponse<T> {
-    pub data: Vec<T>,
-    pub items: Vec<T>,
-    pub page: u64,
-    pub page_size: u64,
-    pub total: u64,
 }
 
 /// 创建供应商请求

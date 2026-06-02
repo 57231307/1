@@ -56,8 +56,7 @@ impl CurrencyService {
         let models = CurrencyEntity::find()
             .order_by_asc(crate::models::currency::Column::Code)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(models)
     }
@@ -66,8 +65,7 @@ impl CurrencyService {
         let model = CurrencyEntity::find()
             .filter(crate::models::currency::Column::IsBase.eq(true))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(model)
     }
@@ -85,20 +83,13 @@ impl CurrencyService {
             select = select.filter(crate::models::exchange_rate::Column::FromCurrency.eq(from));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let paginator = select
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .paginate(&*self.db, page_size);
 
-        let models = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let models = paginator.fetch_page(page - 1).await?;
 
         Ok((models, total))
     }
@@ -113,8 +104,7 @@ impl CurrencyService {
             .filter(crate::models::exchange_rate::Column::ToCurrency.eq(to_currency))
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(model)
     }
@@ -137,10 +127,7 @@ impl CurrencyService {
             ..Default::default()
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
@@ -167,20 +154,13 @@ impl CurrencyService {
             select = select.filter(crate::models::exchange_rate::Column::EffectiveDate.lte(end));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let paginator = select
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .paginate(&*self.db, page_size);
 
-        let models = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let models = paginator.fetch_page(page - 1).await?;
 
         let history: Vec<ExchangeRateHistoryModel> = models
             .into_iter()

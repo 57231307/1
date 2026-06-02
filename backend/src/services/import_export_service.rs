@@ -351,8 +351,7 @@ impl ImportExportService {
         let existing = ProductEntity::find()
             .filter(crate::models::product::Column::Code.eq(&code))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if existing.is_some() {
             return Err(AppError::BusinessError(format!("产品编码 {} 已存在", code)));
@@ -391,10 +390,7 @@ impl ImportExportService {
             batch_level: Set(None),
         };
 
-        active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.insert(&*self.db).await?;
 
         Ok(())
     }
@@ -424,8 +420,7 @@ impl ImportExportService {
         let existing = CustomerEntity::find()
             .filter(crate::models::customer::Column::CustomerCode.eq(&code))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if existing.is_some() {
             return Err(AppError::BusinessError(format!("客户编码 {} 已存在", code)));
@@ -462,10 +457,7 @@ impl ImportExportService {
             inspection_standard: Set(None),
         };
 
-        active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.insert(&*self.db).await?;
 
         Ok(())
     }
@@ -494,10 +486,7 @@ impl ImportExportService {
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         use crate::models::product::Entity as ProductEntity;
 
-        let products = ProductEntity::find()
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let products = ProductEntity::find().all(&*self.db).await?;
 
         let headers = vec![
             "ID".to_string(),
@@ -534,10 +523,7 @@ impl ImportExportService {
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         use crate::models::customer::Entity as CustomerEntity;
 
-        let customers = CustomerEntity::find()
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let customers = CustomerEntity::find().all(&*self.db).await?;
 
         let headers = vec![
             "ID".to_string(),
@@ -574,10 +560,7 @@ impl ImportExportService {
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         use crate::models::inventory_stock::Entity as InventoryStockEntity;
 
-        let stocks = InventoryStockEntity::find()
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
 
         let headers = vec![
             "ID".to_string(),

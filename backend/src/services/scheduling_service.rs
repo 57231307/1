@@ -397,8 +397,7 @@ impl SchedulingService {
             .filter(crate::models::production_order::Column::Status.ne("CANCELLED"))
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if let Some(wc_id) = work_center_id {
             orders.retain(|o| o.work_center_id == Some(wc_id));
@@ -449,8 +448,7 @@ impl SchedulingService {
             .filter(crate::models::production_order::Column::Status.ne("CANCELLED"))
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut conflicts: Vec<ScheduleConflict> = Vec::new();
         let mut wc_orders: HashMap<i32, Vec<&ProductionOrderModel>> = HashMap::new();
@@ -540,8 +538,7 @@ impl SchedulingService {
 
         let order = ProductionOrderEntity::find_by_id(order_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         use crate::models::production_order::ActiveModel;
@@ -562,10 +559,7 @@ impl SchedulingService {
 
         active.updated_at = Set(Utc::now());
 
-        let updated = active
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active.update(&*self.db).await?;
 
         let wc_name = self
             .get_work_center_name(updated.work_center_id)
@@ -611,18 +605,13 @@ impl SchedulingService {
                 .filter(crate::models::production_order::Column::PlannedStartDate.lte(date_to));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let orders = select
             .order_by_asc(crate::models::production_order::Column::Priority)
             .paginate(&*self.db, query.page_size)
             .fetch_page(query.page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut results: Vec<ScheduledOrder> = Vec::new();
         for order in orders {
@@ -864,10 +853,7 @@ impl SchedulingService {
             updated_at: Set(now),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
@@ -884,15 +870,9 @@ impl SchedulingService {
             .order_by_desc(crate::models::scheduling_result::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = paginator.num_items().await?;
 
-        let items = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let items = paginator.fetch_page(page - 1).await?;
 
         Ok((items, total))
     }
@@ -904,8 +884,7 @@ impl SchedulingService {
     ) -> Result<Option<crate::models::scheduling_result::Model>, AppError> {
         let model = SchedulingResultEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(model)
     }
@@ -918,8 +897,7 @@ impl SchedulingService {
     ) -> Result<crate::models::scheduling_result::Model, AppError> {
         let model = SchedulingResultEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("排程结果不存在".to_string()))?;
 
         if model.status != "DRAFT" {
@@ -929,11 +907,7 @@ impl SchedulingService {
         }
 
         // 使用事务保护批量更新生产订单
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 解析排程明细并应用到生产订单
         if let Some(details_json) = &model.schedule_details {
@@ -955,10 +929,7 @@ impl SchedulingService {
                             active.status = Set("SCHEDULED".to_string());
                         }
                         active.updated_at = Set(Utc::now());
-                        active
-                            .update(&txn)
-                            .await
-                            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                        active.update(&txn).await?;
                     }
                 }
             }
@@ -968,14 +939,9 @@ impl SchedulingService {
         active_model.status = Set("CONFIRMED".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
 
         Ok(updated)
     }

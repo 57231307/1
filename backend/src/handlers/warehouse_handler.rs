@@ -107,14 +107,8 @@ pub async fn list_locations(
     }
 
     let paginator = query_builder.paginate(&*state.db, page_size);
-    let locations = paginator
-        .fetch_page(page - 1)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-    let total = paginator
-        .num_items()
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let locations = paginator.fetch_page(page - 1).await?;
+    let total = paginator.num_items().await?;
 
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
@@ -160,7 +154,7 @@ pub async fn create_location(
     let location = active_location.insert(&*state.db).await?;
     let location_json = serde_json::to_value(location)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         location_json,
         "库位创建成功",
     )))
@@ -195,7 +189,7 @@ pub async fn update_location(
         .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
     let location_json = serde_json::to_value(location)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         location_json,
         "库位更新成功",
     )))
@@ -208,5 +202,5 @@ pub async fn delete_location(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     LocationEntity::delete_by_id(id).exec(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_msg((), "库位删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), "库位删除成功")))
 }

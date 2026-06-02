@@ -5,17 +5,10 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
-use std::sync::Arc;
 
-pub struct AccountingPeriodService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(AccountingPeriodService);
 
 impl AccountingPeriodService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 获取当前开放的会计期间
     pub async fn get_current_period(&self) -> Result<Option<accounting_period::Model>, AppError> {
         let period = accounting_period::Entity::find()

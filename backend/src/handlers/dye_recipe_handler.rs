@@ -195,7 +195,7 @@ pub async fn create_dye_recipe(
     match recipe.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
-            Json(ApiResponse::success_with_msg(created, "配方创建成功")),
+            Json(ApiResponse::success_with_message(created, "配方创建成功")),
         )
             .into_response(),
         Err(e) => (
@@ -295,7 +295,7 @@ pub async fn update_dye_recipe(
     match recipe.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "配方更新成功")),
+            Json(ApiResponse::success_with_message(updated, "配方更新成功")),
         )
             .into_response(),
         Err(e) => (
@@ -346,7 +346,7 @@ pub async fn delete_dye_recipe(
     match active.update(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg((), "配方删除成功")),
+            Json(ApiResponse::success_with_message((), "配方删除成功")),
         )
             .into_response(),
         Err(e) => (
@@ -409,7 +409,7 @@ pub async fn approve_recipe(
     match recipe.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "配方审核成功")),
+            Json(ApiResponse::success_with_message(updated, "配方审核成功")),
         )
             .into_response(),
         Err(e) => (
@@ -494,7 +494,10 @@ pub async fn create_new_version(
     match new_recipe.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
-            Json(ApiResponse::success_with_msg(created, "配方新版本创建成功")),
+            Json(ApiResponse::success_with_message(
+                created,
+                "配方新版本创建成功",
+            )),
         )
             .into_response(),
         Err(e) => (

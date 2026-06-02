@@ -75,10 +75,7 @@ impl EmailLogService {
             updated_at: Set(now),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
@@ -93,8 +90,7 @@ impl EmailLogService {
     ) -> Result<EmailLogModel, AppError> {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("邮件记录不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -107,10 +103,7 @@ impl EmailLogService {
             active_model.sent_at = Set(Some(Utc::now()));
         }
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -120,8 +113,7 @@ impl EmailLogService {
     pub async fn increment_retry(&self, id: i32) -> Result<(), AppError> {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("邮件记录不存在".to_string()))?;
 
         let retry_count = model.retry_count + 1;
@@ -130,10 +122,7 @@ impl EmailLogService {
         active_model.status = Set("PENDING".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }
@@ -141,10 +130,7 @@ impl EmailLogService {
     /// 获取邮件发送记录详情
     #[allow(dead_code)]
     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
-        let model = EmailLogEntity::find_by_id(id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = EmailLogEntity::find_by_id(id).one(&*self.db).await?;
 
         Ok(model)
     }
@@ -173,18 +159,13 @@ impl EmailLogService {
             );
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let items = select
             .order_by_desc(crate::models::email_log::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((items, total))
     }
@@ -200,8 +181,7 @@ impl EmailLogService {
             .filter(crate::models::email_log::Column::RetryCount.lt(max_retries))
             .order_by_asc(crate::models::email_log::Column::CreatedAt)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(items)
     }
@@ -211,29 +191,25 @@ impl EmailLogService {
         let total = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let sent = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_log::Column::Status.eq("SENT"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let failed = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_log::Column::Status.eq("FAILED"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let pending = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_log::Column::Status.eq("PENDING"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(EmailStatistics {
             total: total as i64,

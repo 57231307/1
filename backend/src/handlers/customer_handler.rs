@@ -143,7 +143,7 @@ pub async fn list_customers(
         .await?;
 
     let mut customers_json: Vec<serde_json::Value> = result
-        .data
+        .items
         .into_iter()
         .map(|c| {
             serde_json::to_value(c)
@@ -281,7 +281,7 @@ pub async fn create_customer(
 
     let customer_json = serde_json::to_value(customer)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         customer_json,
         "客户创建成功",
     )))
@@ -326,7 +326,7 @@ pub async fn update_customer(
 
     let customer_json = serde_json::to_value(customer)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         customer_json,
         "客户更新成功",
     )))
@@ -340,7 +340,7 @@ pub async fn delete_customer(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
     customer_service.delete_customer(id).await?;
-    Ok(Json(ApiResponse::success_with_msg((), "客户删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), "客户删除成功")))
 }
 
 /// 客户查询参数

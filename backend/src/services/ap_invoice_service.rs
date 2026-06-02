@@ -52,10 +52,7 @@ impl ApInvoiceService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购入库单 {}",
-                receipt_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
@@ -72,7 +69,7 @@ impl ApInvoiceService {
         let _supplier = crate::models::supplier::Entity::find_by_id(receipt.supplier_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "供应商 {}",
                 receipt.supplier_id
             )))?;
@@ -124,10 +121,7 @@ impl ApInvoiceService {
         let return_doc = purchase_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购退货单 {}",
-                return_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
@@ -236,7 +230,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（仅草稿可修改）
         if invoice.invoice_status != "DRAFT" {
@@ -296,7 +290,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（仅草稿可删除）
         if invoice.invoice_status != "DRAFT" {
@@ -324,7 +318,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
 
         // 2. 检查状态
         if invoice.invoice_status != "DRAFT" {
@@ -361,7 +355,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
 
         // 2. 检查状态
         if invoice.invoice_status == "PAID" || invoice.invoice_status == "CANCELLED" {
@@ -401,7 +395,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（已审核或部分付款可取消）
         if !["AUDITED", "PARTIAL_PAID"].contains(&invoice.invoice_status.as_str()) {
@@ -445,7 +439,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("应付单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
 
         Ok(invoice)
     }

@@ -5,17 +5,10 @@ use chrono::Utc;
 use sea_orm::*;
 use serde::Serialize;
 use serde_json::Value;
-use std::sync::Arc;
 
-pub struct AuditLogService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(AuditLogService);
 
 impl AuditLogService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 计算两个 JSON 对象的 Diff 并记录审计日志
     #[allow(clippy::too_many_arguments)]
     pub async fn log_change(

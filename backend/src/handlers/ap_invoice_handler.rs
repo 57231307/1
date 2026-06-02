@@ -9,7 +9,7 @@ use crate::services::ap_invoice_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -57,12 +57,13 @@ pub async fn list_ap_invoices(
 
     info!("查询成功，共 {} 条记录", total);
 
-    let result = crate::utils::response::build_paginated_response(
+    let result = serde_json::to_value(PaginatedResponse::new(
         invoices,
         total,
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
-    );
+    ))
+    .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

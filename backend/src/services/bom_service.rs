@@ -99,8 +99,7 @@ impl BomService {
                     ..Default::default()
                 })
                 .exec(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
         }
 
         // 创建BOM主记录
@@ -116,10 +115,7 @@ impl BomService {
             ..Default::default()
         };
 
-        let bom_model = bom_active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let bom_model = bom_active_model.insert(&*self.db).await?;
 
         // 创建BOM明细
         let mut items = Vec::new();
@@ -136,10 +132,7 @@ impl BomService {
                 ..Default::default()
             };
 
-            let item_model = item_active_model
-                .insert(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let item_model = item_active_model.insert(&*self.db).await?;
 
             items.push(item_model);
         }
@@ -152,10 +145,7 @@ impl BomService {
 
     /// 根据ID获取BOM详情
     pub async fn get_by_id(&self, id: i32) -> Result<Option<BomDetail>, AppError> {
-        let bom_model = BomEntity::find_by_id(id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let bom_model = BomEntity::find_by_id(id).one(&*self.db).await?;
 
         match bom_model {
             Some(bom) => {
@@ -163,8 +153,7 @@ impl BomService {
                     .filter(BomItemColumn::BomId.eq(id))
                     .order_by_asc(BomItemColumn::SortOrder)
                     .all(&*self.db)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
 
                 Ok(Some(BomDetail { bom, items }))
             }
@@ -188,19 +177,14 @@ impl BomService {
             select = select.filter(BomColumn::IsDefault.eq(is_default));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let boms = select
             .order_by_desc(BomColumn::CreatedAt)
             .offset((query.page - 1) * query.page_size)
             .limit(query.page_size)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((boms, total))
     }
@@ -209,8 +193,7 @@ impl BomService {
     pub async fn update(&self, id: i32, req: UpdateBomRequest) -> Result<BomDetail, AppError> {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
 
         let mut bom_active: ActiveModel = bom_model.into();
@@ -226,26 +209,18 @@ impl BomService {
         }
         bom_active.updated_at = Set(Utc::now());
 
-        let _updated_bom = bom_active
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let _updated_bom = bom_active.update(&*self.db).await?;
 
         // 如果提供了新的明细，替换所有明细
         if let Some(items_req) = req.items {
             // 使用事务保护删除和创建操作
-            let txn = self
-                .db
-                .begin()
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let txn = self.db.begin().await?;
 
             // 删除旧明细
             BomItemEntity::delete_many()
                 .filter(BomItemColumn::BomId.eq(id))
                 .exec(&txn)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
             // 创建新明细
             for (index, item_req) in items_req.iter().enumerate() {
@@ -261,15 +236,10 @@ impl BomService {
                     ..Default::default()
                 };
 
-                item_active_model
-                    .insert(&txn)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                item_active_model.insert(&txn).await?;
             }
 
-            txn.commit()
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            txn.commit().await?;
         }
 
         // 返回更新后的详情
@@ -282,18 +252,14 @@ impl BomService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
 
         let mut bom_active: ActiveModel = bom_model.into();
         bom_active.status = Set(BomStatus::Inactive.to_string());
         bom_active.updated_at = Set(Utc::now());
 
-        bom_active
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        bom_active.update(&*self.db).await?;
 
         Ok(())
     }
@@ -304,8 +270,7 @@ impl BomService {
             .filter(BomColumn::ProductId.eq(product_id))
             .order_by_desc(BomColumn::Version)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(boms)
     }
@@ -348,8 +313,7 @@ impl BomService {
             .filter(BomColumn::ProductId.eq(product_id))
             .order_by_desc(BomColumn::Version)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(match latest {
             Some(bom) => bom.version + 1,
@@ -361,16 +325,11 @@ impl BomService {
     pub async fn set_default(&self, id: i32) -> Result<BomModel, AppError> {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
 
         // 使用事务保护取消旧默认和设置新默认操作
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 取消同产品其他默认BOM
         BomEntity::update_many()
@@ -382,22 +341,16 @@ impl BomService {
                 ..Default::default()
             })
             .exec(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 设置当前BOM为默认
         let mut bom_active: ActiveModel = bom_model.into();
         bom_active.is_default = Set(true);
         bom_active.updated_at = Set(Utc::now());
 
-        let updated_bom = bom_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated_bom = bom_active.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
 
         Ok(updated_bom)
     }
@@ -413,16 +366,14 @@ impl BomService {
         Box::pin(async move {
             let bom = BomEntity::find_by_id(bom_id)
                 .one(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                .await?
                 .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
 
             let items = BomItemEntity::find()
                 .filter(BomItemColumn::BomId.eq(bom_id))
                 .order_by_asc(BomItemColumn::SortOrder)
                 .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
             let mut children = Vec::new();
             let depth = max_depth.unwrap_or(10);
@@ -435,8 +386,7 @@ impl BomService {
                         .filter(BomColumn::IsDefault.eq(true))
                         .filter(BomColumn::Status.eq("ACTIVE"))
                         .one(&*self.db)
-                        .await
-                        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                        .await?;
 
                     let child_node = if let Some(child_bom) = child_bom {
                         // 递归展开子BOM

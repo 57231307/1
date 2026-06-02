@@ -105,7 +105,7 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", role_id)))?;
 
         // 获取角色权限列表
         let permissions = RolePermissionEntity::find()
@@ -178,7 +178,7 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", role_id)))?;
 
         // 系统角色不允许修改
         if role.is_system {
@@ -230,7 +230,7 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", role_id)))?;
 
         // 系统角色不允许删除
         if role.is_system {
@@ -277,9 +277,7 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(request.role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("角色 {} 未找到", request.role_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", request.role_id)))?;
 
         // 系统角色不允许修改权限
         if role.is_system {
@@ -359,7 +357,7 @@ impl RolePermissionService {
         let permission = RolePermissionEntity::find_by_id(permission_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("权限 {} 未找到", permission_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("权限 {} 未找到", permission_id)))?;
 
         // 检查是否为系统角色的权限
         let role = RoleEntity::find_by_id(permission.role_id)

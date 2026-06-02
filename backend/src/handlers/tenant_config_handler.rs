@@ -277,7 +277,7 @@ pub async fn get_plan(
     let plan = tenant_plan::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::ResourceNotFound("套餐不存在".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("套餐不存在".to_string()))?;
 
     Ok(Json(ApiResponse::success(BillingPlanItem {
         id: plan.id,
@@ -309,7 +309,7 @@ pub async fn get_usage_statistics(
     let tenant = service
         .get_tenant(tenant_id)
         .await?
-        .ok_or_else(|| AppError::ResourceNotFound("租户不存在".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?;
 
     let users = service
         .get_tenant_users(tenant_id)

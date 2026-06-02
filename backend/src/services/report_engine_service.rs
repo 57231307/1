@@ -358,13 +358,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::sales_order::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
-        let total = SalesOrderEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = SalesOrderEntity::find().count(&*self.db).await?;
 
         // 根据聚合类型处理数据
         let (columns, rows) =
@@ -571,13 +567,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::purchase_order::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
-        let total = PurchaseOrderEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = PurchaseOrderEntity::find().count(&*self.db).await?;
 
         let (columns, rows) =
             match request.aggregation_type {
@@ -779,13 +771,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::inventory_stock::Column::QuantityAvailable)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
-        let total = InventoryStockEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = InventoryStockEntity::find().count(&*self.db).await?;
 
         let (columns, rows) =
             match request.aggregation_type {
@@ -992,13 +980,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::finance_payment::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
-        let total = FinancePaymentEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = FinancePaymentEntity::find().count(&*self.db).await?;
 
         let (columns, rows) = match request.aggregation_type {
             AggregationType::GroupBy => {
@@ -1457,15 +1441,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::sales_order::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let orders = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let orders = paginator.fetch_page(page - 1).await?;
 
-        let total = SalesOrderEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = SalesOrderEntity::find().count(&*self.db).await?;
 
         let columns = vec![
             "订单编号".to_string(),
@@ -1534,15 +1512,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::inventory_stock::Column::QuantityAvailable)
             .paginate(&*self.db, page_size);
 
-        let stocks = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = paginator.fetch_page(page - 1).await?;
 
-        let total = InventoryStockEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = InventoryStockEntity::find().count(&*self.db).await?;
 
         let columns = vec![
             "产品ID".to_string(),
@@ -1621,15 +1593,9 @@ impl ReportEngineService {
             .order_by_desc(crate::models::purchase_order::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let orders = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let orders = paginator.fetch_page(page - 1).await?;
 
-        let total = PurchaseOrderEntity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = PurchaseOrderEntity::find().count(&*self.db).await?;
 
         let columns = vec![
             "采购单号".to_string(),

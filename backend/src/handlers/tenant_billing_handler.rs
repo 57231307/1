@@ -40,7 +40,7 @@ pub async fn get_current_plan(
     let current_plan = service
         .get_current_plan(tenant_id)
         .await?
-        .ok_or_else(|| AppError::ResourceNotFound("当前无有效套餐".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("当前无有效套餐".to_string()))?;
 
     Ok(Json(ApiResponse::success(current_plan)))
 }
@@ -82,7 +82,7 @@ pub async fn get_usage(
     let usage = service
         .get_usage_stats(tenant_id)
         .await?
-        .ok_or_else(|| AppError::ResourceNotFound("租户不存在".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?;
 
     Ok(Json(ApiResponse::success(usage)))
 }

@@ -70,10 +70,7 @@ impl ProductionOrderService {
 
     /// 验证产品是否存在
     async fn validate_product_exists(&self, product_id: i32) -> Result<(), AppError> {
-        let product = ProductEntity::find_by_id(product_id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let product = ProductEntity::find_by_id(product_id).one(&*self.db).await?;
 
         if product.is_none() {
             return Err(AppError::ValidationError(format!(
@@ -88,8 +85,7 @@ impl ProductionOrderService {
     async fn validate_sales_order_exists(&self, sales_order_id: i32) -> Result<(), AppError> {
         let sales_order = SalesOrderEntity::find_by_id(sales_order_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if sales_order.is_none() {
             return Err(AppError::ValidationError(format!(
@@ -104,8 +100,7 @@ impl ProductionOrderService {
     async fn validate_work_center_exists(&self, work_center_id: i32) -> Result<(), AppError> {
         let work_center = WorkCenterEntity::find_by_id(work_center_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if work_center.is_none() {
             return Err(AppError::ValidationError(format!(
@@ -128,8 +123,7 @@ impl ProductionOrderService {
             let existing = ProductionOrderEntity::find()
                 .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
                 .one(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
             if existing.is_none() {
                 return Ok(order_no);
@@ -184,8 +178,7 @@ impl ProductionOrderService {
             .filter(BomColumn::IsDefault.eq(true))
             .filter(BomColumn::Status.eq("ACTIVE"))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .is_some();
 
         if !has_bom {
@@ -212,8 +205,7 @@ impl ProductionOrderService {
                 let existing = ProductionOrderEntity::find()
                     .filter(crate::models::production_order::Column::OrderNo.eq(&no))
                     .one(&*self.db)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
 
                 if existing.is_some() {
                     return Err(AppError::ValidationError(format!("订单号 {} 已存在", no)));
@@ -255,10 +247,7 @@ impl ProductionOrderService {
 
     /// 根据ID获取生产订单
     pub async fn get_by_id(&self, id: i32) -> Result<Option<ProductionOrderModel>, AppError> {
-        let model = ProductionOrderEntity::find_by_id(id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = ProductionOrderEntity::find_by_id(id).one(&*self.db).await?;
 
         Ok(model)
     }
@@ -279,20 +268,13 @@ impl ProductionOrderService {
                 select.filter(crate::models::production_order::Column::ProductId.eq(product_id));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let paginator = select
             .order_by_desc(crate::models::production_order::Column::CreatedAt)
             .paginate(&*self.db, query.page_size);
 
-        let models = paginator
-            .fetch_page(query.page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let models = paginator.fetch_page(query.page - 1).await?;
 
         Ok((models, total))
     }
@@ -305,8 +287,7 @@ impl ProductionOrderService {
     ) -> Result<ProductionOrderModel, AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         // 只允许编辑草稿和已排产状态的订单
@@ -340,10 +321,7 @@ impl ProductionOrderService {
 
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -353,8 +331,7 @@ impl ProductionOrderService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         // 验证是否可以取消
@@ -364,10 +341,7 @@ impl ProductionOrderService {
         active_model.status = Set("CANCELLED".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }
@@ -381,8 +355,7 @@ impl ProductionOrderService {
     ) -> Result<ProductionOrderModel, AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         // 验证状态转换是否合法
@@ -405,10 +378,7 @@ impl ProductionOrderService {
             }
         }
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         // 生产完成时执行库存联动：扣减原材料 + 入库成品
         if status == "COMPLETED" {
@@ -435,8 +405,7 @@ impl ProductionOrderService {
         let default_warehouse = WarehouseEntity::find()
             .filter(crate::models::warehouse::Column::IsActive.eq(true))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| {
                 AppError::BusinessError("未找到可用仓库，无法执行库存联动".to_string())
             })?;
@@ -456,16 +425,14 @@ impl ProductionOrderService {
             .filter(BomColumn::IsDefault.eq(true))
             .filter(BomColumn::Status.eq("ACTIVE"))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if let Some(bom) = bom {
             // 查询BOM明细
             let bom_items = BomItemEntity::find()
                 .filter(BomItemColumn::BomId.eq(bom.id))
                 .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
             for bom_item in bom_items {
                 let consumption_qty = bom_item.quantity * production_qty;
@@ -480,8 +447,7 @@ impl ProductionOrderService {
                             .eq(default_warehouse.id),
                     )
                     .one(&*self.db)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                    .await?
                     .ok_or_else(|| {
                         AppError::BusinessError(format!(
                             "原材料(ID={})在默认仓库中无库存记录，无法扣减",
@@ -517,8 +483,7 @@ impl ProductionOrderService {
                         qty_after_kg,
                         stock_record.version,
                     )
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
 
                 // 记录库存流水：生产消耗
                 stock_service
@@ -542,8 +507,7 @@ impl ProductionOrderService {
                         Some(format!("生产消耗 - 订单 {}", order.order_no)),
                         Some(order.created_by),
                     )
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
             }
         }
 
@@ -551,8 +515,7 @@ impl ProductionOrderService {
         // 查询成品产品信息以获取克重和幅宽
         let product = ProductEntity::find_by_id(order.product_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| {
                 AppError::BusinessError(format!("产品ID {} 不存在", order.product_id))
             })?;
@@ -562,8 +525,7 @@ impl ProductionOrderService {
             .filter(crate::models::inventory_stock::Column::ProductId.eq(order.product_id))
             .filter(crate::models::inventory_stock::Column::WarehouseId.eq(default_warehouse.id))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         match existing_stock {
             Some(stock_record) => {
@@ -587,8 +549,7 @@ impl ProductionOrderService {
                         qty_after_kg,
                         stock_record.version,
                     )
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
 
                 // 记录库存流水：生产入库
                 stock_service
@@ -612,8 +573,7 @@ impl ProductionOrderService {
                         Some(format!("生产入库 - 订单 {}", order.order_no)),
                         Some(order.created_by),
                     )
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
             }
             None => {
                 // 创建新的库存记录
@@ -639,8 +599,7 @@ impl ProductionOrderService {
                         None,
                         None,
                     )
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
 
                 // 记录库存流水：生产入库
                 stock_service
@@ -664,8 +623,7 @@ impl ProductionOrderService {
                         Some(format!("生产入库 - 订单 {}", order.order_no)),
                         Some(order.created_by),
                     )
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
             }
         }
 
@@ -687,8 +645,7 @@ impl ProductionOrderService {
     ) -> Result<ProductionOrderModel, AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         // 验证状态转换是否合法
@@ -699,10 +656,7 @@ impl ProductionOrderService {
         active_model.status = Set("PENDING_APPROVAL".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         // 启动BPM审批流程
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
@@ -741,8 +695,7 @@ impl ProductionOrderService {
     ) -> Result<ProductionOrderModel, AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
 
         // 验证状态转换是否合法
@@ -753,10 +706,7 @@ impl ProductionOrderService {
         active_model.status = Set(new_status.to_string());
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         // 完成BPM任务 - 通过process_instance关联
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());

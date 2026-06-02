@@ -177,7 +177,7 @@ pub async fn create_batch(
     match batch.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
-            Json(ApiResponse::success_with_msg(created, "批次创建成功")),
+            Json(ApiResponse::success_with_message(created, "批次创建成功")),
         )
             .into_response(),
         Err(e) => (
@@ -255,7 +255,7 @@ pub async fn update_batch(
     match batch.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "批次更新成功")),
+            Json(ApiResponse::success_with_message(updated, "批次更新成功")),
         )
             .into_response(),
         Err(e) => (
@@ -276,7 +276,7 @@ pub async fn delete_batch(State(state): State<AppState>, Path(id): Path<i32>) ->
     {
         Ok(_) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg((), "批次删除成功")),
+            Json(ApiResponse::success_with_message((), "批次删除成功")),
         )
             .into_response(),
         Err(e) => (
@@ -443,6 +443,6 @@ pub async fn transfer_batch(
 
     (
         StatusCode::OK,
-        Json(ApiResponse::success_with_msg((), "批次转移成功")),
+        Json(ApiResponse::success_with_message((), "批次转移成功")),
     )
 }

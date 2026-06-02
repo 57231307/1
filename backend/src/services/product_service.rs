@@ -114,7 +114,7 @@ impl ProductService {
         ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("产品 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("产品 ID {} 不存在", id)))
     }
 
     /// 创建产品（面料行业版）
@@ -189,7 +189,7 @@ impl ProductService {
     pub async fn delete_product(&self, id: i32) -> Result<(), AppError> {
         let result = ProductEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!("产品 ID {} 不存在", id)));
+            return Err(AppError::NotFound(format!("产品 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -221,7 +221,7 @@ impl ProductService {
         let mut product: product::ActiveModel = ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("产品 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::NotFound(format!("产品 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = name {
@@ -378,7 +378,7 @@ impl ProductService {
         let mut color: product_color::ActiveModel = ProductColorEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("产品色号 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::NotFound(format!("产品色号 ID {} 不存在", id)))?
             .into();
 
         if let Some(cn) = color_name {
@@ -416,10 +416,7 @@ impl ProductService {
     pub async fn delete_product_color(&self, id: i32) -> Result<(), AppError> {
         let result = ProductColorEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!(
-                "产品色号 ID {} 不存在",
-                id
-            )));
+            return Err(AppError::NotFound(format!("产品色号 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -436,10 +433,7 @@ impl ProductService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                AppError::ResourceNotFound(format!(
-                    "产品 {} 的色号 {} 不存在",
-                    product_id, color_no
-                ))
+                AppError::NotFound(format!("产品 {} 的色号 {} 不存在", product_id, color_no))
             })
     }
 

@@ -160,10 +160,7 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "销售退货单 {}",
-                return_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "DRAFT" {
             return Err(AppError::BusinessError(format!(
@@ -204,10 +201,7 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "销售退货单 {}",
-                return_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "DRAFT" {
             return Err(AppError::BusinessError(format!(
@@ -263,10 +257,7 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "销售退货单 {}",
-                return_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "DRAFT" {
             return Err(AppError::BusinessError(format!(
@@ -297,10 +288,7 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "销售退货单 {}",
-                return_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
         active_model.status = Set("SUBMITTED".to_string());
@@ -330,10 +318,7 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "销售退货单 {}",
-                return_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "SUBMITTED" {
             return Err(AppError::BusinessError(format!(
@@ -375,7 +360,7 @@ impl SalesReturnService {
             let _product_info =
                 product_map
                     .get(&item.product_id)
-                    .ok_or(AppError::ResourceNotFound(format!(
+                    .ok_or(AppError::NotFound(format!(
                         "商品 {} 不存在",
                         item.product_id
                     )))?;
@@ -443,8 +428,7 @@ impl SalesReturnService {
                     Some("销售退货入库".to_string()),
                     Some(user_id),
                 )
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
         }
 
         let mut active_model: sales_return::ActiveModel = return_order.clone().into();

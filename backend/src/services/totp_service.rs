@@ -1,18 +1,11 @@
 use crate::models::user;
 use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
-use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
 
-pub struct TotpService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(TotpService);
 
 impl TotpService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 1. 为用户生成一个新的 TOTP Secret，并返回二维码 URL
     pub async fn generate_totp_secret(
         &self,
@@ -43,15 +36,12 @@ impl TotpService {
         let user = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("User".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("User".to_string()))?;
 
         let mut active_user: user::ActiveModel = user.into();
         active_user.totp_secret = Set(Some(secret_base32.clone()));
         active_user.is_totp_enabled = Set(false); // 必须验证一次后才开启
-        active_user
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_user.update(&*self.db).await?;
 
         Ok((secret_base32, qr_code))
     }
@@ -61,7 +51,7 @@ impl TotpService {
         let user = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("User".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("User".to_string()))?;
 
         let secret_base32 = user
             .totp_secret
@@ -94,10 +84,7 @@ impl TotpService {
             // 验证通过，正式开启
             let mut active_user: user::ActiveModel = user.into();
             active_user.is_totp_enabled = Set(true);
-            active_user
-                .update(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            active_user.update(&*self.db).await?;
             Ok(true)
         } else {
             Ok(false)
@@ -109,7 +96,7 @@ impl TotpService {
         let user = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("User".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("User".to_string()))?;
 
         if !user.is_totp_enabled {
             // 如果没开启 TOTP，则无需验证

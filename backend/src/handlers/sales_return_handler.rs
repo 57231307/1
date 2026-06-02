@@ -56,13 +56,9 @@ pub async fn list_sales_returns(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success(PaginatedResponse {
-        data: items.clone(),
-        items,
-        total,
-        page,
-        page_size,
-    })))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, page, page_size,
+    ))))
 }
 
 /// 创建销售退货单

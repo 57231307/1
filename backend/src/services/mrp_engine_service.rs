@@ -97,8 +97,7 @@ impl MrpEngineService {
         let stocks = InventoryStockEntity::find()
             .filter(crate::models::inventory_stock::Column::ProductId.eq(product_id))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut on_hand = Decimal::ZERO;
         let mut in_transit = Decimal::ZERO;
@@ -183,8 +182,7 @@ impl MrpEngineService {
             .filter(crate::models::bom::Column::IsDefault.eq(true))
             .filter(crate::models::bom::Column::Status.eq("ACTIVE"))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(bom)
     }
@@ -216,8 +214,7 @@ impl MrpEngineService {
         let bom_items = BomItemEntity::find()
             .filter(crate::models::bom_item::Column::BomId.eq(bom.id))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         for item in bom_items {
             let base_quantity = parent_quantity * item.quantity;
@@ -347,10 +344,7 @@ impl MrpEngineService {
             ..Default::default()
         };
 
-        let main_result = main_active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let main_result = main_active_model.insert(&*self.db).await?;
         results.push(main_result);
 
         let sub_requirements = self
@@ -391,10 +385,7 @@ impl MrpEngineService {
                 ..Default::default()
             };
 
-            let sub_result = sub_active_model
-                .insert(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let sub_result = sub_active_model.insert(&*self.db).await?;
             results.push(sub_result);
         }
 
@@ -478,18 +469,13 @@ impl MrpEngineService {
             select = select.filter(crate::models::mrp_result::Column::Status.eq(st));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let results = select
             .order_by_desc(crate::models::mrp_result::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((results, total))
     }
@@ -517,10 +503,7 @@ impl MrpEngineService {
             select = select.filter(crate::models::mrp_result::Column::RequiredDate.lte(to));
         }
 
-        let mrp_results = select
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let mrp_results = select.all(&*self.db).await?;
 
         let mut requirements = Vec::new();
 
@@ -566,8 +549,7 @@ impl MrpEngineService {
         for id in result_ids {
             let result = MrpResultEntity::find_by_id(id)
                 .one(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                .await?
                 .ok_or_else(|| AppError::NotFound("MRP结果不存在".to_string()))?;
 
             if result.status != "PLANNED" {
@@ -587,10 +569,7 @@ impl MrpEngineService {
             active_model.status = Set(new_status.to_string());
             active_model.updated_at = Set(Utc::now());
 
-            let updated = active_model
-                .update(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let updated = active_model.update(&*self.db).await?;
 
             updated_results.push(updated);
         }
@@ -610,8 +589,7 @@ impl MrpEngineService {
             .filter(crate::models::mrp_result::Column::RequiredDate.lte(alert_date))
             .filter(crate::models::mrp_result::Column::Status.eq("PLANNED"))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut alerts = Vec::new();
 
@@ -650,8 +628,7 @@ impl MrpEngineService {
         let result = MrpResultEntity::delete_many()
             .filter(crate::models::mrp_result::Column::CalculationNo.eq(calculation_no))
             .exec(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(result.rows_affected)
     }

@@ -215,10 +215,7 @@ pub async fn update_contract(
     let mut active_model: crate::models::sales_contract::ActiveModel = contract.into();
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
-    let updated = active_model
-        .update(&*state.db)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let updated = active_model.update(&*state.db).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated)?,
@@ -252,10 +249,7 @@ pub async fn delete_contract(
     active_model.status = sea_orm::Set("cancelled".to_string());
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
-    active_model
-        .update(&*state.db)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    active_model.update(&*state.db).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),

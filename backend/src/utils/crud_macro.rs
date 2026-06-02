@@ -1,3 +1,21 @@
+/// 通用 Service 结构体生成宏
+/// 用于减少各个 service 中重复的结构体定义和 new 方法
+#[macro_export]
+macro_rules! define_service {
+    ($name:ident) => {
+        #[derive(Debug, Clone)]
+        pub struct $name {
+            db: std::sync::Arc<sea_orm::DatabaseConnection>,
+        }
+
+        impl $name {
+            pub fn new(db: std::sync::Arc<sea_orm::DatabaseConnection>) -> Self {
+                Self { db }
+            }
+        }
+    };
+}
+
 /// 通用 CRUD Handler 生成宏
 /// 用于减少各个实体基础增删改查路由的模板代码
 #[macro_export]

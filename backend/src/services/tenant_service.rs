@@ -6,17 +6,10 @@ use crate::models::tenant_user::{self, Entity as TenantUser};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::*;
-use std::sync::Arc;
 
-pub struct TenantService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(TenantService);
 
 impl TenantService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 创建租户
     pub async fn create_tenant(
         &self,
@@ -261,7 +254,7 @@ impl TenantService {
             .await?;
 
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound("用户不在此租户中".to_string()));
+            return Err(AppError::NotFound("用户不在此租户中".to_string()));
         }
         Ok(())
     }
@@ -278,7 +271,7 @@ impl TenantService {
             .filter(tenant_user::Column::UserId.eq(user_id))
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::ResourceNotFound("用户不在此租户中".to_string()))?;
+            .ok_or(AppError::NotFound("用户不在此租户中".to_string()))?;
 
         let mut active_model: tenant_user::ActiveModel = tenant_user.into();
         active_model.role_in_tenant = Set(role.to_string());

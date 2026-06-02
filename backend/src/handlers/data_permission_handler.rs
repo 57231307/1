@@ -75,7 +75,7 @@ pub async fn set_data_permission(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         DataPermissionResponse::from(permission),
         "数据权限设置成功",
     )))
@@ -107,7 +107,10 @@ pub async fn delete_data_permission(
         .delete_data_permission(role_id, &resource_type)
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg((), "数据权限删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "数据权限删除成功",
+    )))
 }
 
 /// 获取数据权限详情

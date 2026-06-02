@@ -50,7 +50,7 @@ impl UserService {
             .filter(user::Column::Username.eq(username))
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 {} 不存在", username)))
+            .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", username)))
     }
 
     /// 按 ID 查找用户
@@ -65,7 +65,7 @@ impl UserService {
         user::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("用户 ID {} 不存在", id)))
     }
 
     /// 创建新用户
@@ -139,7 +139,7 @@ impl UserService {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", user_id)))?
+            .ok_or_else(|| AppError::NotFound(format!("用户 ID {} 不存在", user_id)))?
             .into();
 
         user.last_login_at = Set(Some(chrono::Utc::now()));
@@ -200,7 +200,7 @@ impl UserService {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", user_id)))?
+            .ok_or_else(|| AppError::NotFound(format!("用户 ID {} 不存在", user_id)))?
             .into();
 
         // 只更新提供的字段
@@ -243,7 +243,7 @@ impl UserService {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("用户 ID {} 不存在", user_id)))?
+            .ok_or_else(|| AppError::NotFound(format!("用户 ID {} 不存在", user_id)))?
             .into();
 
         // 软删除：只设置为非激活状态

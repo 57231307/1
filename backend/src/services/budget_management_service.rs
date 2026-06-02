@@ -466,16 +466,11 @@ impl BudgetManagementService {
         user_id: i32,
     ) -> Result<crate::models::budget_adjustment::Model, AppError> {
         use sea_orm::TransactionTrait;
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         let plan = crate::models::budget_plan::Entity::find_by_id(req.item_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("预算方案不存在".into()))?;
 
         // 记录调整单
@@ -498,21 +493,15 @@ impl BudgetManagementService {
             ..Default::default()
         }
         .insert(&txn)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
         // 简化：直接批准，更新 plan 金额
         let mut plan_active: crate::models::budget_plan::ActiveModel = plan.clone().into();
         let current_amount = plan.total_amount;
         plan_active.total_amount = sea_orm::Set(current_amount + req.adjust_amount);
-        let _ = plan_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let _ = plan_active.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
         Ok(adjustment)
     }
 

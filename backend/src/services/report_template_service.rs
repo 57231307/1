@@ -80,8 +80,7 @@ impl ReportTemplateService {
             .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .filter(crate::models::report_template::Column::Code.eq(&req.code))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if existing.is_some() {
             return Err(AppError::BusinessError(format!(
@@ -110,20 +109,14 @@ impl ReportTemplateService {
             updated_at: Set(now),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
 
     /// 获取报表模板详情
     pub async fn get_by_id(&self, id: i32) -> Result<Option<ReportTemplateModel>, AppError> {
-        let model = ReportTemplateEntity::find_by_id(id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = ReportTemplateEntity::find_by_id(id).one(&*self.db).await?;
 
         Ok(model)
     }
@@ -136,8 +129,7 @@ impl ReportTemplateService {
     ) -> Result<ReportTemplateModel, AppError> {
         let model = ReportTemplateEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -175,10 +167,7 @@ impl ReportTemplateService {
 
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -187,18 +176,14 @@ impl ReportTemplateService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ReportTemplateEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set("INACTIVE".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }
@@ -237,18 +222,13 @@ impl ReportTemplateService {
             );
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let items = select
             .order_by_desc(crate::models::report_template::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((items, total))
     }

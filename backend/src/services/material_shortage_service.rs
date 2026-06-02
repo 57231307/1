@@ -147,10 +147,7 @@ impl MaterialShortageService {
             order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
         }
 
-        let orders = order_query
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let orders = order_query.all(&*self.db).await?;
 
         if orders.is_empty() {
             return Ok(ShortageSummary {
@@ -192,8 +189,7 @@ impl MaterialShortageService {
             .filter(BomColumn::IsDefault.eq(true))
             .filter(BomColumn::Status.eq("ACTIVE"))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 4. 计算每种物料的总需求
         let bom_ids: Vec<i32> = boms.iter().map(|b| b.id).collect();
@@ -205,8 +201,7 @@ impl MaterialShortageService {
             BomItemEntity::find()
                 .filter(BomItemColumn::BomId.is_in(bom_ids))
                 .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                .await?
         };
 
         // material_id -> (total_required, unit, [(product_id, qty_per_unit)])
@@ -407,8 +402,7 @@ impl MaterialShortageService {
             .filter(StockColumn::StockStatus.eq("正常"))
             .filter(StockColumn::QualityStatus.eq("合格"))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut map: HashMap<i32, Decimal> = HashMap::new();
         for stock in stocks {
@@ -430,8 +424,7 @@ impl MaterialShortageService {
         let products = ProductEntity::find()
             .filter(ProductColumn::Id.is_in(product_ids.to_vec()))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut map = HashMap::new();
         for p in products {
@@ -457,17 +450,13 @@ impl MaterialShortageService {
             .filter(crate::models::tenant_config::Column::TenantId.eq(tenant_id))
             .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if let Some(model) = existing {
             let mut active: TenantConfigActiveModel = model.into();
             active.config_value = Set(config_json);
             active.updated_at = Set(Utc::now());
-            active
-                .update(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            active.update(&*self.db).await?;
         } else {
             let active = TenantConfigActiveModel {
                 id: Default::default(),
@@ -479,10 +468,7 @@ impl MaterialShortageService {
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
             };
-            active
-                .insert(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            active.insert(&*self.db).await?;
         }
 
         Ok(())
@@ -499,8 +485,7 @@ impl MaterialShortageService {
             .filter(crate::models::tenant_config::Column::TenantId.eq(tenant_id))
             .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         match config {
             Some(model) => serde_json::from_str(&model.config_value)

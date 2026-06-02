@@ -82,10 +82,7 @@ impl AssignmentHistoryService {
             created_at: Set(now),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
@@ -95,8 +92,7 @@ impl AssignmentHistoryService {
     pub async fn get_by_id(&self, id: i32) -> Result<Option<AssignmentHistoryModel>, AppError> {
         let model = AssignmentHistoryEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(model)
     }
@@ -129,18 +125,13 @@ impl AssignmentHistoryService {
             select = select.filter(crate::models::assignment_history::Column::Action.eq(action));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let items = select
             .order_by_desc(crate::models::assignment_history::Column::CreatedAt)
             .paginate(&*self.db, page_size)
             .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok((items, total))
     }
@@ -157,8 +148,7 @@ impl AssignmentHistoryService {
             .filter(crate::models::assignment_history::Column::LeadId.eq(lead_id))
             .order_by_desc(crate::models::assignment_history::Column::CreatedAt)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(items)
     }
@@ -175,24 +165,21 @@ impl AssignmentHistoryService {
             .filter(crate::models::assignment_history::Column::ToUserId.eq(user_id))
             .filter(crate::models::assignment_history::Column::Action.eq("ASSIGN"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let recycled_count = AssignmentHistoryEntity::find()
             .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id))
             .filter(crate::models::assignment_history::Column::FromUserId.eq(user_id))
             .filter(crate::models::assignment_history::Column::Action.eq("RECYCLE"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let claimed_count = AssignmentHistoryEntity::find()
             .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id))
             .filter(crate::models::assignment_history::Column::ToUserId.eq(user_id))
             .filter(crate::models::assignment_history::Column::Action.eq("CLAIM"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(AssignmentStatistics {
             assigned: assigned_count as i64,

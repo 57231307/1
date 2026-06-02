@@ -9,7 +9,7 @@ use crate::services::purchase_return_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -32,12 +32,13 @@ pub async fn list_purchase_returns(
         )
         .await?;
 
-    let result = crate::utils::response::build_paginated_response(
+    let result = serde_json::to_value(PaginatedResponse::new(
         returns,
         total,
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
-    );
+    ))
+    .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

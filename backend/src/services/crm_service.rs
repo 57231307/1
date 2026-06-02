@@ -32,8 +32,7 @@ impl CrmService {
         // 查询用户真实姓名
         let owner_name = user::Entity::find_by_id(user_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?
             .username;
 
@@ -84,14 +83,8 @@ impl CrmService {
         }
 
         let paginator = stmt.paginate(&*self.db, page_size);
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let items = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page - 1).await?;
 
         Ok(PageResponse::new(items, total, page, page_size))
     }
@@ -99,8 +92,7 @@ impl CrmService {
     pub async fn get_lead(&self, id: i32) -> Result<crm_lead::Model, AppError> {
         crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))
     }
 
@@ -111,8 +103,7 @@ impl CrmService {
     ) -> Result<crm_lead::Model, AppError> {
         let lead = crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         let mut active: crm_lead::ActiveModel = lead.into();
@@ -185,8 +176,7 @@ impl CrmService {
     pub async fn delete_lead(&self, id: i32) -> Result<(), AppError> {
         let lead = crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         // 已转化的线索不允许删除，防止破坏关联数据
@@ -200,27 +190,20 @@ impl CrmService {
         let mut active: crm_lead::ActiveModel = lead.into();
         active.lead_status = Set(Some("deleted".to_string()));
         active.updated_at = Set(Some(chrono::Utc::now()));
-        active
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active.update(&*self.db).await?;
         Ok(())
     }
 
     pub async fn update_lead_status(&self, id: i32, status: &str) -> Result<(), AppError> {
         let lead = crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         let mut active: crm_lead::ActiveModel = lead.into();
         active.lead_status = Set(Some(status.to_string()));
         active.updated_at = Set(Some(chrono::Utc::now()));
-        active
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active.update(&*self.db).await?;
         Ok(())
     }
 
@@ -230,18 +213,13 @@ impl CrmService {
         req: ConvertLeadRequest,
         user_id: i32,
     ) -> Result<customer::Model, AppError> {
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 使用FOR UPDATE锁定行，防止并发转化
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         if lead.lead_status.as_deref() == Some("converted") {
@@ -311,10 +289,7 @@ impl CrmService {
             inspection_standard: Default::default(),
         };
 
-        let customer = customer_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let customer = customer_model.insert(&txn).await?;
 
         // 自动创建初始商机
         let opp_no = format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
@@ -354,10 +329,7 @@ impl CrmService {
             updated_at: Set(Some(chrono::Utc::now())),
         };
 
-        let opportunity = opportunity_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let opportunity = opportunity_model.insert(&txn).await?;
 
         // 更新线索状态（一次性设置所有转化相关字段）
         let mut lead_active: crm_lead::ActiveModel = lead.into();
@@ -366,14 +338,9 @@ impl CrmService {
         lead_active.lead_status = Set(Some("converted".to_string()));
         lead_active.converted_at = Set(Some(chrono::Utc::now()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));
-        lead_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        lead_active.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
 
         // 发送转化通知给销售团队
         let notification_service =
@@ -408,24 +375,18 @@ impl CrmService {
             .opportunity_no
             .unwrap_or_else(|| format!("OPP{}", chrono::Local::now().format("%Y%m%d%H%M%S")));
 
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 验证customer_id是否存在
         let customer = customer::Entity::find_by_id(req.customer_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("客户不存在".to_string()))?;
 
         // 查询用户真实姓名
         let owner_name = user::Entity::find_by_id(user_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?
             .username;
 
@@ -457,32 +418,20 @@ impl CrmService {
             ..Default::default()
         };
 
-        let opp = model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let opp = model.insert(&txn).await?;
 
         // 如果是从线索转化的，更新线索状态
         if let Some(lead_id) = req.lead_id {
-            if let Some(lead) = crm_lead::Entity::find_by_id(lead_id)
-                .one(&txn)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
-            {
+            if let Some(lead) = crm_lead::Entity::find_by_id(lead_id).one(&txn).await? {
                 let mut active_lead: crm_lead::ActiveModel = lead.into();
                 active_lead.lead_status = Set(Some("converted".to_string()));
                 active_lead.converted_opportunity_id = Set(Some(opp.id));
                 active_lead.updated_at = Set(Some(chrono::Utc::now()));
-                active_lead
-                    .update(&txn)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                active_lead.update(&txn).await?;
             }
         }
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
         Ok(opp)
     }
 
@@ -501,14 +450,8 @@ impl CrmService {
         }
 
         let paginator = stmt.paginate(&*self.db, page_size);
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let items = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page - 1).await?;
 
         Ok(PageResponse::new(items, total, page, page_size))
     }
@@ -516,8 +459,7 @@ impl CrmService {
     pub async fn get_opportunity(&self, id: i32) -> Result<crm_opportunity::Model, AppError> {
         crm_opportunity::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))
     }
 
@@ -573,8 +515,7 @@ impl CrmService {
     ) -> Result<crm_opportunity::Model, AppError> {
         let opp = crm_opportunity::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
 
         // 验证阶段流转合法性
@@ -649,15 +590,11 @@ impl CrmService {
     pub async fn delete_opportunity(&self, id: i32) -> Result<(), AppError> {
         let opp = crm_opportunity::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
 
         let active: crm_opportunity::ActiveModel = opp.into();
-        active
-            .delete(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active.delete(&*self.db).await?;
         Ok(())
     }
 
@@ -667,18 +604,13 @@ impl CrmService {
         opportunity_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 1. 获取商机信息，使用FOR UPDATE锁定行
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
 
         // 检查商机状态
@@ -720,10 +652,7 @@ impl CrmService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        let order_entity = order
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let order_entity = order.insert(&txn).await?;
 
         // 3. 创建订单明细
         let mut subtotal = rust_decimal::Decimal::ZERO;
@@ -814,10 +743,7 @@ impl CrmService {
                     is_net_weight: Set(None),
                 };
 
-                order_item
-                    .insert(&txn)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                order_item.insert(&txn).await?;
             }
         }
 
@@ -839,10 +765,7 @@ impl CrmService {
         order_update.total_amount = Set(total_amount);
         order_update.balance_amount = Set(total_amount);
         order_update.updated_at = Set(chrono::Utc::now());
-        let order_entity = order_update
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let order_entity = order_update.update(&txn).await?;
 
         // 5. 更新商机状态
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
@@ -852,14 +775,9 @@ impl CrmService {
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
         opp_active.updated_at = Set(Some(chrono::Utc::now()));
 
-        opp_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        opp_active.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
 
         tracing::info!(
             "商机 {} 已成功转化为订单 {}",
@@ -876,18 +794,13 @@ impl CrmService {
         opportunity_id: i32,
         order_total_amount: rust_decimal::Decimal,
     ) -> Result<(), AppError> {
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 使用FOR UPDATE锁定行，防止并发更新
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
 
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
@@ -898,14 +811,9 @@ impl CrmService {
         opp_active.won_reason = Set(Some("订单完成".to_string()));
         opp_active.updated_at = Set(Some(chrono::Utc::now()));
 
-        opp_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        opp_active.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
 
         tracing::info!(
             "商机 {} 已标记为成交，实际金额: {}",
@@ -920,15 +828,13 @@ impl CrmService {
     pub async fn get_lead_relation(&self, lead_id: i32) -> Result<LeadRelationInfo, AppError> {
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
 
         let opportunities = crm_opportunity::Entity::find()
             .filter(crm_opportunity::Column::LeadId.eq(lead_id))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let total_amount: rust_decimal::Decimal = opportunities
             .iter()
@@ -964,8 +870,7 @@ impl CrmService {
         let opportunities = crm_opportunity::Entity::find()
             .filter(crm_opportunity::Column::CustomerId.eq(customer_id))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let total_amount: rust_decimal::Decimal = opportunities
             .iter()

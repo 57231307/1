@@ -100,10 +100,7 @@ impl FiveDimensionService {
             stock_query = stock_query.filter(StockColumn::Grade.contains(grade));
         }
 
-        let stocks = stock_query
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = stock_query.all(&*self.db).await?;
 
         // 获取产品信息
         let product_ids: Vec<i32> = stocks.iter().map(|s| s.product_id).collect();
@@ -113,8 +110,7 @@ impl FiveDimensionService {
             ProductEntity::find()
                 .filter(ProductColumn::Id.is_in(product_ids))
                 .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                .await?
         };
 
         let product_map: HashMap<i32, String> =
@@ -256,8 +252,7 @@ impl FiveDimensionService {
                 let products = ProductEntity::find()
                     .filter(ProductColumn::Name.contains(&params.keyword))
                     .all(&*self.db)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    .await?;
 
                 if products.is_empty() {
                     return Ok((vec![], 0));

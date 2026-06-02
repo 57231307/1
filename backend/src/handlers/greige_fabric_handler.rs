@@ -220,7 +220,7 @@ pub async fn create_greige_fabric(
     match fabric.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
-            Json(ApiResponse::success_with_msg(created, "坯布创建成功")),
+            Json(ApiResponse::success_with_message(created, "坯布创建成功")),
         )
             .into_response(),
         Err(e) => (
@@ -302,7 +302,7 @@ pub async fn update_greige_fabric(
     match fabric.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "坯布更新成功")),
+            Json(ApiResponse::success_with_message(updated, "坯布更新成功")),
         )
             .into_response(),
         Err(e) => (
@@ -353,7 +353,7 @@ pub async fn delete_greige_fabric(
     match active.update(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg((), "坯布删除成功")),
+            Json(ApiResponse::success_with_message((), "坯布删除成功")),
         )
             .into_response(),
         Err(e) => (
@@ -433,7 +433,7 @@ pub async fn stock_in(
     match fabric.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "坯布入库成功")),
+            Json(ApiResponse::success_with_message(updated, "坯布入库成功")),
         )
             .into_response(),
         Err(e) => (
@@ -533,7 +533,7 @@ pub async fn stock_out(
     match update_fabric.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "坯布出库成功")),
+            Json(ApiResponse::success_with_message(updated, "坯布出库成功")),
         )
             .into_response(),
         Err(e) => (

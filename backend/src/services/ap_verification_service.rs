@@ -172,7 +172,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item_dto.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::ResourceNotFound(format!(
+                .ok_or(AppError::NotFound(format!(
                     "应付单 {}",
                     item_dto.invoice_id
                 )))?;
@@ -217,10 +217,7 @@ impl ApVerificationService {
             let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::ResourceNotFound(format!(
-                    "应付单 {}",
-                    item.invoice_id
-                )))?;
+                .ok_or(AppError::NotFound(format!("应付单 {}", item.invoice_id)))?;
 
             if invoice.unpaid_amount < item.verify_amount {
                 return Err(AppError::BusinessError(format!(
@@ -233,7 +230,7 @@ impl ApVerificationService {
             let payment = ap_payment::Entity::find_by_id(item.payment_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::ResourceNotFound(format!(
+                .ok_or(AppError::NotFound(format!(
                     "付款单 ID: {}",
                     item.payment_id
                 )))?;
@@ -283,10 +280,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::ResourceNotFound(format!(
-                    "应付单 {}",
-                    item.invoice_id
-                )))?;
+                .ok_or(AppError::NotFound(format!("应付单 {}", item.invoice_id)))?;
 
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -325,7 +319,7 @@ impl ApVerificationService {
         let verification = ap_verification::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("核销单 ID: {}", id)))?;
+            .ok_or(AppError::NotFound(format!("核销单 ID: {}", id)))?;
 
         // 2. 检查状态
         if verification.verification_status == "CANCELLED" {
@@ -343,10 +337,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::ResourceNotFound(format!(
-                    "应付单 {}",
-                    item.invoice_id
-                )))?;
+                .ok_or(AppError::NotFound(format!("应付单 {}", item.invoice_id)))?;
 
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -394,7 +385,7 @@ impl ApVerificationService {
         let verification = ap_verification::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("核销单 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("核销单 {}", id)))?;
 
         Ok(verification)
     }

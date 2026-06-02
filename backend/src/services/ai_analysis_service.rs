@@ -115,8 +115,7 @@ impl AiAnalysisService {
             )
             .order_by_asc(crate::models::sales_order_item::Column::CreatedAt)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 按日期聚合每日销量
         let mut daily_sales: HashMap<NaiveDate, f64> = HashMap::new();
@@ -251,8 +250,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let total: Decimal = orders.iter().map(|o| o.total_amount).sum();
         let _days_count = orders.len().max(1) as f64;
@@ -323,10 +321,7 @@ impl AiAnalysisService {
             select = select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
         }
 
-        let stocks = select
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = select.all(&*self.db).await?;
 
         if stocks.is_empty() {
             return Ok(Vec::new());
@@ -344,8 +339,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 按产品聚合出库数据
         let mut outbound_by_product: HashMap<i32, Vec<f64>> = HashMap::new();
@@ -456,10 +450,7 @@ impl AiAnalysisService {
     /// B 类: 累计销售额占比 80-95%
     /// C 类: 累计销售额占比 95-100%
     pub async fn get_abc_classification(&self) -> Result<Vec<AbcClassification>, AppError> {
-        let stocks = InventoryStockEntity::find()
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
 
         let start_date = Utc::now().date_naive() - Duration::days(90);
         let transactions = InventoryTransactionEntity::find()
@@ -472,8 +463,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut outbound_by_product: HashMap<i32, Vec<f64>> = HashMap::new();
         for tx in &transactions {
@@ -566,10 +556,7 @@ impl AiAnalysisService {
                 tx_select.filter(crate::models::inventory_transaction::Column::ProductId.eq(pid));
         }
 
-        let transactions = tx_select
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let transactions = tx_select.all(&*self.db).await?;
 
         // 按产品聚合出库量
         let mut outbound_map: HashMap<i32, f64> = HashMap::new();
@@ -586,10 +573,7 @@ impl AiAnalysisService {
             stock_select =
                 stock_select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
         }
-        let stocks = stock_select
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = stock_select.all(&*self.db).await?;
 
         // 按产品聚合当前库存
         let mut stock_map: HashMap<i32, f64> = HashMap::new();
@@ -676,8 +660,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let historical_items = SalesOrderItemEntity::find()
             .filter(
@@ -689,8 +672,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // --- 销售异常检测 (Z-score) ---
         let mut product_daily_sales: HashMap<i32, HashMap<NaiveDate, f64>> = HashMap::new();
@@ -757,10 +739,7 @@ impl AiAnalysisService {
         }
 
         // --- 库存异常检测 (IQR 方法) ---
-        let all_stocks = InventoryStockEntity::find()
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let all_stocks = InventoryStockEntity::find().all(&*self.db).await?;
 
         // 收集所有库存量用于 IQR 计算
         let stock_quantities: Vec<f64> = all_stocks
@@ -933,8 +912,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 按订单分组产品
         let mut order_products: HashMap<i32, Vec<i32>> = HashMap::new();
@@ -1034,8 +1012,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 前 30 天的销售
         let earlier_items = SalesOrderItemEntity::find()
@@ -1054,8 +1031,7 @@ impl AiAnalysisService {
                     .and_utc()),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 按产品聚合
         let mut recent_sales: HashMap<i32, f64> = HashMap::new();
@@ -1133,10 +1109,7 @@ impl AiAnalysisService {
         &self,
         limit: usize,
     ) -> Result<Vec<SmartRecommendation>, AppError> {
-        let stocks = InventoryStockEntity::find()
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
 
         let start_date = Utc::now().date_naive() - Duration::days(30);
         let transactions = InventoryTransactionEntity::find()
@@ -1149,8 +1122,7 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut outbound_map: HashMap<i32, f64> = HashMap::new();
         for tx in &transactions {

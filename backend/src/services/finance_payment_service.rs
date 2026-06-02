@@ -22,7 +22,7 @@ impl FinancePaymentService {
         finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("付款 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("付款 ID {} 不存在", id)))
     }
 
     pub async fn find_by_payment_no(
@@ -101,7 +101,7 @@ impl FinancePaymentService {
         let payment_model = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("付款 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("付款 ID {} 不存在", id)))?;
 
         let current_status = payment_model.status.as_str();
         let valid_transitions: std::collections::HashMap<&str, Vec<&str>> = [
@@ -154,7 +154,7 @@ impl FinancePaymentService {
         let payment = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("付款 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("付款 ID {} 不存在", id)))?;
 
         if payment.status != "pending" {
             return Err(AppError::BusinessError(format!(

@@ -189,8 +189,7 @@ impl CostCollectionService {
     ) -> Result<cost_collection::Model, AppError> {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("成本归集记录不存在".to_string()))?;
 
         let mut active_collection: cost_collection::ActiveModel = collection.clone().into();
@@ -249,10 +248,7 @@ impl CostCollectionService {
 
         active_collection.updated_at = Set(chrono::Utc::now());
 
-        let result = active_collection
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let result = active_collection.update(&*self.db).await?;
 
         Ok(result)
     }
@@ -260,14 +256,12 @@ impl CostCollectionService {
     pub async fn delete(&self, id: i32, _user_id: i32) -> Result<(), AppError> {
         let _collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("成本归集记录不存在".to_string()))?;
 
         cost_collection::Entity::delete_by_id(id)
             .exec(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }

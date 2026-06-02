@@ -160,7 +160,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 获取盘点明细项
         let items = InventoryCountItemEntity::find()
@@ -322,7 +322,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，已完成的盘点单不允许修改
         if count.status == "completed" {
@@ -369,7 +369,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，只有待审核的盘点单可以审核
         if count.status != "pending" {
@@ -415,7 +415,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，只有已审核的盘点单可以完成
         if count.status != "approved" {

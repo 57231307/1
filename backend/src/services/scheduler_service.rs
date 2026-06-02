@@ -160,8 +160,7 @@ impl SchedulerService {
             .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"))
             .filter(crate::models::report_subscription::Column::NextRunAt.lte(now))
             .all(db.as_ref())
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if subscriptions.is_empty() {
             return Ok(());
@@ -284,8 +283,7 @@ impl SchedulerService {
     ) -> Result<(), AppError> {
         let model = ReportSubscriptionEntity::find_by_id(subscription_id)
             .one(db.as_ref())
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
         let mut active_model: crate::models::report_subscription::ActiveModel = model.into();
@@ -293,10 +291,7 @@ impl SchedulerService {
         active_model.last_run_error = Set(error);
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(db.as_ref())
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(db.as_ref()).await?;
 
         Ok(())
     }
@@ -311,8 +306,7 @@ impl SchedulerService {
     ) -> Result<(), AppError> {
         let model = ReportSubscriptionEntity::find_by_id(subscription_id)
             .one(db.as_ref())
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
 
         let run_count = model.run_count + 1;
@@ -324,10 +318,7 @@ impl SchedulerService {
         active_model.run_count = Set(run_count);
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(db.as_ref())
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(db.as_ref()).await?;
 
         Ok(())
     }

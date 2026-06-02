@@ -239,7 +239,10 @@ pub async fn create_product(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg(product, "产品创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        product,
+        "产品创建成功",
+    )))
 }
 
 /// 更新产品
@@ -279,7 +282,10 @@ pub async fn update_product(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg(product, "产品更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        product,
+        "产品更新成功",
+    )))
 }
 
 /// 删除产品
@@ -290,7 +296,7 @@ pub async fn delete_product(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
     product_service.delete_product(id).await?;
-    Ok(Json(ApiResponse::success_with_msg((), "产品删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), "产品删除成功")))
 }
 
 // ========== 色号管理接口 ==========
@@ -327,7 +333,10 @@ pub async fn create_product_color(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg(color, "色号创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        color,
+        "色号创建成功",
+    )))
 }
 
 /// 更新产品色号
@@ -351,7 +360,10 @@ pub async fn update_product_color(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success_with_msg(color, "色号更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        color,
+        "色号更新成功",
+    )))
 }
 
 /// 删除产品色号
@@ -362,7 +374,7 @@ pub async fn delete_product_color(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
     product_service.delete_product_color(color_id).await?;
-    Ok(Json(ApiResponse::success_with_msg((), "色号删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), "色号删除成功")))
 }
 
 /// 批量创建色号
@@ -393,7 +405,7 @@ pub async fn batch_create_colors(
         .batch_create_product_colors(product_id, colors_input)
         .await?;
     let msg = format!("批量创建{}个色号成功", colors.len());
-    Ok(Json(ApiResponse::success_with_msg(colors, &msg)))
+    Ok(Json(ApiResponse::success_with_message(colors, &msg)))
 }
 
 // ========== 数据导入导出接口 ==========
@@ -453,7 +465,7 @@ pub async fn import_products(
         )
     };
 
-    Ok(Json(ApiResponse::success_with_msg(result, &msg)))
+    Ok(Json(ApiResponse::success_with_message(result, &msg)))
 }
 
 /// 获取产品导入模板

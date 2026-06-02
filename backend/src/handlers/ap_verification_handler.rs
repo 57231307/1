@@ -6,7 +6,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_verification_service::{ApVerificationService, ManualVerifyRequest};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -53,12 +53,13 @@ pub async fn list_verifications(
 
     info!("用户 {} 查询核销成功，共 {} 条记录", auth.username, total);
 
-    let result = crate::utils::response::build_paginated_response(
+    let result = serde_json::to_value(PaginatedResponse::new(
         verifications,
         total,
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
-    );
+    ))
+    .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

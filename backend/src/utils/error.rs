@@ -11,7 +11,6 @@ pub enum AppError {
     DatabaseError(String),
     ValidationError(String),
     NotFound(String),
-    ResourceNotFound(String),
     BusinessError(String),
     Unauthorized(String),
     InternalError(String),
@@ -29,7 +28,6 @@ impl fmt::Display for AppError {
             AppError::DatabaseError(msg) => write!(f, "数据库错误：{}", msg),
             AppError::ValidationError(msg) => write!(f, "验证错误：{}", msg),
             AppError::NotFound(msg) => write!(f, "未找到：{}", msg),
-            AppError::ResourceNotFound(msg) => write!(f, "资源不存在：{}", msg),
             AppError::BusinessError(msg) => write!(f, "业务错误：{}", msg),
             AppError::Unauthorized(msg) => write!(f, "未授权：{}", msg),
             AppError::InternalError(msg) => write!(f, "内部错误：{}", msg),
@@ -99,25 +97,6 @@ impl IntoResponse for AppError {
                     StatusCode::NOT_FOUND,
                     "NotFound",
                     "未找到".to_string(),
-                    detail,
-                )
-            }
-            AppError::ResourceNotFound(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "ResourceNotFound",
-                    "message": msg,
-                    "severity": "MEDIUM",
-                    "action_required": "检查资源是否存在"
-                });
-                tracing::warn!(
-                    "【资源不存在】{} | 详情: {} | 建议: 检查资源 ID 是否正确或资源是否已被删除",
-                    msg,
-                    detail
-                );
-                (
-                    StatusCode::NOT_FOUND,
-                    "ResourceNotFound",
-                    "资源不存在".to_string(),
                     detail,
                 )
             }
@@ -293,7 +272,7 @@ impl From<sea_orm::DbErr> for AppError {
             }
             sea_orm::DbErr::RecordNotFound(msg) => {
                 tracing::warn!("记录不存在：{}", msg);
-                AppError::ResourceNotFound(msg.clone())
+                AppError::NotFound(msg.clone())
             }
             sea_orm::DbErr::Custom(_) => {
                 let error_kind = if err_str.contains("timeout") {

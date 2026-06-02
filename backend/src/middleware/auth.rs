@@ -4,6 +4,7 @@ use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::request_ext::PublicPathCache;
+use crate::utils::response::unauthorized_response;
 use axum::{
     body::Body,
     extract::State,
@@ -15,15 +16,6 @@ use axum::{
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 use serde_json::json;
 use tracing::{info, warn};
-
-fn unauthorized_response(message: &str) -> Response {
-    let body = json!({
-        "code": 401,
-        "message": message,
-        "data": null
-    });
-    (StatusCode::UNAUTHORIZED, Json(body)).into_response()
-}
 
 pub async fn auth_middleware(
     State(state): State<AppState>,

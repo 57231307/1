@@ -60,7 +60,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
     pub async fn find_by_product_and_warehouse(
@@ -180,7 +180,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
     pub async fn list_stock(
@@ -466,7 +466,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(txn)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("库存记录 ID {} 不存在", id)))
     }
 
     /// 创建面料库存记录（事务版本）

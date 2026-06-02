@@ -208,7 +208,10 @@ pub async fn delete_order(
     let service = PurchaseOrderService::new(state.db.clone());
     service.delete_order(id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_msg((), "采购订单删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "采购订单删除成功",
+    )))
 }
 
 /// 提交采购订单
@@ -358,7 +361,10 @@ pub async fn delete_order_item(
     let service = PurchaseOrderService::new(state.db.clone());
     service.delete_order_item(item_id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_msg((), "订单明细删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "订单明细删除成功",
+    )))
 }
 
 /// 计算建议交货日期

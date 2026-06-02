@@ -130,10 +130,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购入库单 {}",
-                receipt_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
         if receipt.receipt_status != "DRAFT" {
@@ -197,10 +194,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购入库单 {}",
-                receipt_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
         if receipt.receipt_status != "DRAFT" {
@@ -282,10 +276,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购入库单 {}",
-                receipt_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
         if receipt.receipt_status != "DRAFT" {
@@ -335,13 +326,13 @@ impl PurchaseReceiptService {
         let item = purchase_receipt_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("入库明细 {}", item_id)))?;
+            .ok_or(AppError::NotFound(format!("入库明细 {}", item_id)))?;
 
         // 2. 查询入库单
         let receipt = purchase_receipt::Entity::find_by_id(item.receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "采购入库单 {}",
                 item.receipt_id
             )))?;
@@ -397,13 +388,13 @@ impl PurchaseReceiptService {
         let item = purchase_receipt_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("入库明细 {}", item_id)))?;
+            .ok_or(AppError::NotFound(format!("入库明细 {}", item_id)))?;
 
         // 2. 查询入库单
         let receipt = purchase_receipt::Entity::find_by_id(item.receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "采购入库单 {}",
                 item.receipt_id
             )))?;
@@ -457,10 +448,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购入库单 {}",
-                receipt_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
 
         let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
         receipt_active.total_quantity = Set(total_quantity);
@@ -518,10 +506,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!(
-                "采购入库单 {}",
-                receipt_id
-            )))?;
+            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
 
         Ok(receipt)
     }
@@ -560,10 +545,7 @@ impl PurchaseReceiptService {
                     crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
                         .one(txn)
                         .await?
-                        .ok_or(AppError::ResourceNotFound(format!(
-                            "订单明细 {}",
-                            order_item_id
-                        )))?;
+                        .ok_or(AppError::NotFound(format!("订单明细 {}", order_item_id)))?;
 
                 // 累加已入库数量
                 let new_received = order_item.received_quantity + item.quantity;
@@ -617,7 +599,7 @@ impl PurchaseReceiptService {
         let order = crate::models::purchase_order::Entity::find_by_id(order_id)
             .one(txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
 
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());
@@ -655,8 +637,7 @@ impl PurchaseReceiptService {
                 item.product_id,
                 receipt.warehouse_id,
             )
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
             let stock_model = if let Some(stock) = existing_stock {
                 let new_quantity_meters = stock.quantity_meters + item.quantity;
@@ -670,8 +651,7 @@ impl PurchaseReceiptService {
                     new_quantity_kg,
                     stock.version,
                 )
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
                 stock
             } else {
@@ -691,8 +671,7 @@ impl PurchaseReceiptService {
                     None,
                     None,
                 )
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+                .await?
             };
 
             InventoryStockService::record_transaction_txn(
@@ -716,8 +695,7 @@ impl PurchaseReceiptService {
                 Some("入库自动增加库存".to_string()),
                 Some(receipt.created_by),
             )
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
         }
         Ok(())
     }

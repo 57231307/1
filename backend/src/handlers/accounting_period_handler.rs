@@ -26,7 +26,7 @@ pub async fn init_period(
     let service = AccountingPeriodService::new(state.db.clone());
     let now = chrono::Utc::now();
     let period = service.init_first_period(now.year(), now.month()).await?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         period,
         "财务期间初始化成功",
     )))
@@ -41,7 +41,7 @@ pub async fn close_period(
     let service = AccountingPeriodService::new(state.db.clone());
     let user_id = auth.user_id;
     let period = service.close_period(id, user_id).await?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         period,
         "月末结账成功，已自动开启下一期间",
     )))

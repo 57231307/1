@@ -50,7 +50,7 @@ pub async fn list_counts(
     {
         Ok(counts) => {
             let paginated: PaginatedResponse<_> =
-                PaginatedResponse::new(counts.data, counts.total, counts.page, counts.page_size);
+                PaginatedResponse::new(counts.items, counts.total, counts.page, counts.page_size);
             paginated.into_response()
         }
         Err(e) => (

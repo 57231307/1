@@ -259,7 +259,7 @@ impl SalesService {
             .into_model::<SalesOrderDetail>()
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 获取订单明细项
         use crate::models::product;
@@ -631,7 +631,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，已发货或已完成的订单不允许修改
         if order.status == "shipped" || order.status == "completed" {
@@ -789,7 +789,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，已发货或已完成的订单不允许删除
         if order.status == "shipped" || order.status == "completed" {
@@ -1107,7 +1107,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 2. 检查状态 - 只有草稿状态可以提交
         if order.status != "draft" {
@@ -1171,7 +1171,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有待审批状态可以审核
         if order.status != "pending_approval" {
@@ -1253,7 +1253,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有已审核状态可以发货
         if order.status != "approved" {
@@ -1338,7 +1338,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有已发货状态可以完成
         if order.status != "shipped" {
@@ -1398,7 +1398,7 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
 
         // 2. 检查状态
         if order.status != "draft" && order.status != "pending_approval" {
@@ -1478,7 +1478,7 @@ impl SalesService {
         ];
 
         let rows: Vec<std::collections::HashMap<String, String>> = orders
-            .data
+            .items
             .into_iter()
             .map(|o| {
                 let mut row = std::collections::HashMap::new();

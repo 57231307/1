@@ -53,7 +53,7 @@ pub async fn list_transfers(
         .await?;
 
     let transfers_json: Vec<serde_json::Value> = transfers
-        .data
+        .items
         .into_iter()
         .map(|t| {
             serde_json::to_value(t)
@@ -85,7 +85,7 @@ pub async fn create_transfer(
     let transfer = transfer_service.create_transfer(request).await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单创建成功",
     )))
@@ -101,7 +101,7 @@ pub async fn update_transfer(
     let transfer = transfer_service.update_transfer(id, request).await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单更新成功",
     )))
@@ -124,7 +124,10 @@ pub async fn approve_transfer(
     } else {
         "库存调拨单已驳回"
     };
-    Ok(Json(ApiResponse::success_with_msg(transfer_json, message)))
+    Ok(Json(ApiResponse::success_with_message(
+        transfer_json,
+        message,
+    )))
 }
 
 /// 发出库存调拨
@@ -136,7 +139,7 @@ pub async fn ship_transfer(
     let transfer = transfer_service.ship_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单已发出",
     )))
@@ -151,7 +154,7 @@ pub async fn receive_transfer(
     let transfer = transfer_service.receive_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单已接收",
     )))

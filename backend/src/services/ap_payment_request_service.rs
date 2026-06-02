@@ -55,7 +55,7 @@ impl ApPaymentRequestService {
             let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::ResourceNotFound(format!(
+                .ok_or(AppError::NotFound(format!(
                     "应付单 ID: {}",
                     item.invoice_id
                 )))?;
@@ -132,7 +132,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款申请 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态（仅草稿可修改）
         if request.approval_status != "DRAFT" {
@@ -199,7 +199,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款申请 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态（仅草稿或被拒可删除）
         if !["DRAFT", "REJECTED"].contains(&request.approval_status.as_str()) {
@@ -231,7 +231,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款申请 ID: {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款申请 ID: {}", id)))?;
 
         // 2. 检查状态（仅草稿可提交）
         if request.approval_status != "DRAFT" {
@@ -286,7 +286,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款申请 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
         if request.approval_status != "APPROVING" {
@@ -334,7 +334,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款申请 {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
         if request.approval_status != "APPROVING" {
@@ -371,7 +371,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("付款申请 ID: {}", id)))?;
+            .ok_or(AppError::NotFound(format!("付款申请 ID: {}", id)))?;
 
         Ok(request)
     }
@@ -428,7 +428,7 @@ impl ApPaymentRequestService {
         let user = crate::models::user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::ResourceNotFound(format!("用户 {}", user_id)))?;
+            .ok_or(AppError::NotFound(format!("用户 {}", user_id)))?;
 
         // 获取用户角色（简化处理，使用 role_id 判断）
         // 这里假设 role_id 不为空则有审批权限

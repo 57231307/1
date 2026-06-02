@@ -52,9 +52,7 @@ impl InventoryReservationService {
         let reservation = InventoryReservationEntity::find_by_id(reservation_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存预留 {} 未找到", reservation_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("库存预留 {} 未找到", reservation_id)))?;
 
         if reservation.status != "pending" {
             return Err(AppError::BusinessError(format!(
@@ -81,9 +79,7 @@ impl InventoryReservationService {
         let reservation = InventoryReservationEntity::find_by_id(reservation_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存预留 {} 未找到", reservation_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("库存预留 {} 未找到", reservation_id)))?;
 
         if reservation.status != "locked" && reservation.status != "pending" {
             return Err(AppError::BusinessError(format!(
@@ -111,9 +107,7 @@ impl InventoryReservationService {
         let reservation = InventoryReservationEntity::find_by_id(reservation_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存预留 {} 未找到", reservation_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("库存预留 {} 未找到", reservation_id)))?;
 
         if reservation.status != "locked" {
             return Err(AppError::BusinessError(format!(

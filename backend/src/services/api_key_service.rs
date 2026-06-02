@@ -5,17 +5,10 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::*;
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
 
-pub struct ApiKeyService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(ApiKeyService);
 
 impl ApiKeyService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 生成新的 API 密钥
     pub fn generate_api_key() -> String {
         let chars: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

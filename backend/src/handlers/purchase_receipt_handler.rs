@@ -12,7 +12,7 @@ use crate::services::purchase_receipt_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -39,12 +39,10 @@ pub async fn list_receipts(
         )
         .await?;
 
-    let mut result = crate::utils::response::build_paginated_response(
-        receipts,
-        total,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    );
+    let mut items_json: Vec<serde_json::Value> = receipts
+        .into_iter()
+        .map(|r| serde_json::to_value(r).unwrap_or_default())
+        .collect();
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -53,34 +51,30 @@ pub async fn list_receipts(
             .get_role_data_permission(role_id, "purchase_receipt")
             .await
         {
-            let mut list_opt = result.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = result.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                state.data_permission_service.filter_fields_batch(
-                    list,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
+            state.data_permission_service.filter_fields_batch(
+                &mut items_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            let mut list_opt = result.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = result.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                for receipt in list {
-                    if let Some(obj) = receipt.as_object_mut() {
-                        obj.remove("total_amount");
-                        obj.remove("tax_amount");
-                        obj.remove("discount_amount");
-                    }
+            for receipt in &mut items_json {
+                if let Some(obj) = receipt.as_object_mut() {
+                    obj.remove("total_amount");
+                    obj.remove("tax_amount");
+                    obj.remove("discount_amount");
                 }
             }
         }
     }
+
+    let result = serde_json::to_value(PaginatedResponse::new(
+        items_json,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    ))
+    .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

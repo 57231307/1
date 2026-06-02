@@ -111,7 +111,7 @@ pub async fn convert_dual_unit(Json(req): Json<ConvertUnitRequest>) -> impl Into
         _ => return ApiResponse::<()>::error("不支持的单位转换".to_string()).into_response(),
     };
 
-    ApiResponse::success_with_data(result).into_response()
+    ApiResponse::success(result).into_response()
 }
 
 /// 验证双计量单位一致性请求
@@ -184,7 +184,7 @@ pub async fn validate_dual_unit(Json(req): Json<ValidateDualUnitRequest>) -> imp
                 error_rate,
             };
 
-            ApiResponse::success_with_data(response).into_response()
+            ApiResponse::success(response).into_response()
         }
         Err(e) => ApiResponse::<()>::error(e).into_response(),
     }

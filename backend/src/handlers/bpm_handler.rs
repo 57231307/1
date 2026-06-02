@@ -67,21 +67,18 @@ pub async fn get_process_visualization(
 
     let instance = bpm_process_instance::Entity::find_by_id(instance_id)
         .one(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .await?
         .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
 
     let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
         .one(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
     let tasks = bpm_task::Entity::find()
         .filter(bpm_task::Column::InstanceId.eq(instance_id))
         .order_by_asc(bpm_task::Column::CreatedAt)
         .all(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
     let task_nodes: Vec<serde_json::Value> = tasks
         .into_iter()
@@ -207,7 +204,7 @@ pub async fn transfer_task(
     service
         .transfer_task(task_id, req.new_assignee_id, &req.transfer_reason)
         .await?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         "任务转办成功".to_string(),
         "任务转办成功",
     )))
@@ -227,7 +224,7 @@ pub async fn urge_task(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.urge_task(task_id, &req.urge_message).await?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         "催办成功".to_string(),
         "催办通知已发送",
     )))

@@ -298,7 +298,7 @@ impl TenantBillingService {
         let plan = TenantPlan::find_by_id(req.plan_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("套餐不存在".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("套餐不存在".to_string()))?;
 
         if !plan.is_active {
             return Err(AppError::BusinessError("该套餐已停用".to_string()));
@@ -359,7 +359,7 @@ impl TenantBillingService {
         let mut tenant_active: tenant::ActiveModel = Tenant::find_by_id(tenant_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("租户不存在".to_string()))?
+            .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?
             .into();
         tenant_active.plan_id = Set(Some(plan.id));
         tenant_active.expired_at = Set(Some(end_date));
@@ -410,7 +410,7 @@ impl TenantBillingService {
         let current_plan = self
             .get_current_plan(tenant_id)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("当前无有效订阅".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("当前无有效订阅".to_string()))?;
 
         let billing_cycle = req
             .billing_cycle
@@ -433,7 +433,7 @@ impl TenantBillingService {
             .filter(tenant_subscription::Column::Status.eq("ACTIVE"))
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("当前无有效订阅".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("当前无有效订阅".to_string()))?;
 
         let mut active: tenant_subscription::ActiveModel = subscription.into();
         active.billing_cycle = Set(billing_cycle.clone());
@@ -446,7 +446,7 @@ impl TenantBillingService {
         let mut tenant_active: tenant::ActiveModel = Tenant::find_by_id(tenant_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("租户不存在".to_string()))?
+            .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?
             .into();
         tenant_active.expired_at = Set(Some(end_date));
         tenant_active.updated_at = Set(now);
@@ -651,9 +651,7 @@ impl TenantBillingService {
                 let tenant_record = Tenant::find_by_id(sub.tenant_id)
                     .one(self.db.as_ref())
                     .await?
-                    .ok_or_else(|| {
-                        AppError::ResourceNotFound(format!("租户 {} 不存在", sub.tenant_id))
-                    })?;
+                    .ok_or_else(|| AppError::NotFound(format!("租户 {} 不存在", sub.tenant_id)))?;
                 let mut tenant_active: tenant::ActiveModel = tenant_record.into();
                 tenant_active.expired_at = Set(Some(new_end_date));
                 tenant_active.updated_at = Set(now);

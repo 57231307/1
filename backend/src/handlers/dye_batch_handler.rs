@@ -197,7 +197,7 @@ pub async fn create_dye_batch(
     match batch.insert(&*state.db).await {
         Ok(created) => (
             StatusCode::CREATED,
-            Json(ApiResponse::success_with_msg(created, "缸号创建成功")),
+            Json(ApiResponse::success_with_message(created, "缸号创建成功")),
         )
             .into_response(),
         Err(e) => (
@@ -295,7 +295,7 @@ pub async fn update_dye_batch(
     match batch.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "缸号更新成功")),
+            Json(ApiResponse::success_with_message(updated, "缸号更新成功")),
         )
             .into_response(),
         Err(e) => (
@@ -349,7 +349,7 @@ pub async fn delete_dye_batch(
     match active.update(&*state.db).await {
         Ok(_) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg((), "缸号删除成功")),
+            Json(ApiResponse::success_with_message((), "缸号删除成功")),
         )
             .into_response(),
         Err(e) => (
@@ -413,7 +413,7 @@ pub async fn complete_dye_batch(
     match batch.update(&*state.db).await {
         Ok(updated) => (
             StatusCode::OK,
-            Json(ApiResponse::success_with_msg(updated, "缸号完成成功")),
+            Json(ApiResponse::success_with_message(updated, "缸号完成成功")),
         )
             .into_response(),
         Err(e) => (

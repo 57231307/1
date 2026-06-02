@@ -123,8 +123,7 @@ impl CapacityService {
             .filter(WorkCenterColumn::Status.ne("INACTIVE"))
             .order_by_asc(WorkCenterColumn::Code)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let result = work_centers
             .into_iter()
@@ -150,8 +149,7 @@ impl CapacityService {
     pub async fn get_work_center(&self, id: i32) -> Result<WorkCenterCapacity, AppError> {
         let wc = WorkCenterEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
 
         let shifts = Self::default_shifts_for_type(&wc.work_center_type);
@@ -175,8 +173,7 @@ impl CapacityService {
         let work_centers = WorkCenterEntity::find()
             .filter(WorkCenterColumn::Status.eq("ACTIVE"))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut results = Vec::new();
 
@@ -195,10 +192,7 @@ impl CapacityService {
                 order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
             }
 
-            let orders = order_query
-                .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let orders = order_query.all(&*self.db).await?;
 
             let mut planned_quantity = Decimal::ZERO;
             let mut in_progress_quantity = Decimal::ZERO;
@@ -373,10 +367,7 @@ impl CapacityService {
             ..Default::default()
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         self.get_work_center(model.id).await
     }
@@ -389,8 +380,7 @@ impl CapacityService {
     ) -> Result<WorkCenterCapacity, AppError> {
         let existing = WorkCenterEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
 
         let mut active_model: WorkCenterActiveModel = existing.into();
@@ -418,10 +408,7 @@ impl CapacityService {
         }
         active_model.updated_at = Set(Utc::now());
 
-        let model = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.update(&*self.db).await?;
 
         self.get_work_center(model.id).await
     }
@@ -430,18 +417,14 @@ impl CapacityService {
     pub async fn delete_work_center(&self, id: i32) -> Result<(), AppError> {
         let existing = WorkCenterEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
 
         let mut active_model: WorkCenterActiveModel = existing.into();
         active_model.status = Set("INACTIVE".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        active_model.update(&*self.db).await?;
 
         Ok(())
     }
@@ -454,8 +437,7 @@ impl CapacityService {
     ) -> Result<CapacityForecast, AppError> {
         let wc = WorkCenterEntity::find_by_id(work_center_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
 
         let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
@@ -501,8 +483,7 @@ impl CapacityService {
     ) -> Result<AvailableCapacity, AppError> {
         let wc = WorkCenterEntity::find_by_id(work_center_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
 
         let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
@@ -516,8 +497,7 @@ impl CapacityService {
             .filter(ProductionOrderColumn::PlannedEndDate.gte(date_from))
             .filter(ProductionOrderColumn::PlannedStartDate.lte(date_to))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let used_capacity: Decimal = orders.iter().map(|o| o.planned_quantity).sum();
         let available_capacity = total_capacity - used_capacity;

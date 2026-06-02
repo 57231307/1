@@ -5,22 +5,14 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, NotSet, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
-use std::sync::Arc;
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
-/// 仓库服务
-pub struct WarehouseService {
-    db: Arc<DatabaseConnection>,
-}
+crate::define_service!(WarehouseService);
 
 impl WarehouseService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 获取仓库列表（支持分页和过滤）
     pub async fn list(
         &self,
@@ -67,7 +59,7 @@ impl WarehouseService {
         WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("仓库 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::NotFound(format!("仓库 ID {} 不存在", id)))
     }
 
     /// 创建仓库
@@ -118,7 +110,7 @@ impl WarehouseService {
         let mut wh: warehouse::ActiveModel = WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("仓库 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::NotFound(format!("仓库 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -153,7 +145,7 @@ impl WarehouseService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let result = WarehouseEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::ResourceNotFound(format!("仓库 ID {} 不存在", id)));
+            return Err(AppError::NotFound(format!("仓库 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -164,6 +156,6 @@ impl WarehouseService {
             .filter(warehouse::Column::WarehouseCode.eq(code))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound(format!("仓库编码 {} 不存在", code)))
+            .ok_or_else(|| AppError::NotFound(format!("仓库编码 {} 不存在", code)))
     }
 }

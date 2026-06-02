@@ -117,14 +117,8 @@ pub async fn list_fabric_orders(
     let paginator = query_builder
         .order_by(sales_order::Column::CreatedAt, Order::Desc)
         .paginate(&*state.db, page_size);
-    let orders = paginator
-        .fetch_page(page - 1)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-    let total = paginator
-        .num_items()
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let orders = paginator.fetch_page(page - 1).await?;
+    let total = paginator.num_items().await?;
 
     let orders_json: Vec<serde_json::Value> = orders
         .into_iter()
@@ -291,7 +285,7 @@ pub async fn create_fabric_order(
 
     let order_json = serde_json::to_value(created_order)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单创建成功",
     )))
@@ -332,7 +326,7 @@ pub async fn update_fabric_order(
         .map_err(|e| AppError::BadRequest(format!("更新订单失败：{}", e)))?;
     let order_json = serde_json::to_value(updated)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单更新成功",
     )))
@@ -348,7 +342,7 @@ pub async fn delete_fabric_order(
         .await
         .map_err(|e| AppError::BadRequest(format!("删除订单失败：{}", e)))?;
 
-    Ok(Json(ApiResponse::success_with_msg((), "订单删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), "订单删除成功")))
 }
 
 /// 审核订单
@@ -375,7 +369,7 @@ pub async fn approve_fabric_order(
         .map_err(|e| AppError::BadRequest(format!("审核订单失败：{}", e)))?;
     let order_json = serde_json::to_value(updated)
         .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_msg(
+    Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单审核成功",
     )))

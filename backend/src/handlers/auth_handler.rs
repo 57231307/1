@@ -637,7 +637,7 @@ pub async fn enable_totp(
         .verify_and_enable(auth.user_id, &payload.token)
         .await
     {
-        Ok(true) => Ok(Json(ApiResponse::success_with_msg(
+        Ok(true) => Ok(Json(ApiResponse::success_with_message(
             true,
             "双因素认证已成功开启",
         ))),

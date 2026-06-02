@@ -9,7 +9,7 @@ use crate::services::ap_payment_request_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -62,12 +62,10 @@ pub async fn list_requests(
         auth.username, total
     );
 
-    let mut result = crate::utils::response::build_paginated_response(
-        requests,
-        total,
-        params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
-    );
+    let mut items_json: Vec<serde_json::Value> = requests
+        .into_iter()
+        .map(|r| serde_json::to_value(r).unwrap_or_default())
+        .collect();
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -76,35 +74,31 @@ pub async fn list_requests(
             .get_role_data_permission(role_id, "ap_payment_request")
             .await
         {
-            let mut list_opt = result.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = result.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                state.data_permission_service.filter_fields_batch(
-                    list,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
+            state.data_permission_service.filter_fields_batch(
+                &mut items_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            let mut list_opt = result.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = result.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                for request in list {
-                    if let Some(obj) = request.as_object_mut() {
-                        obj.remove("request_amount");
-                        obj.remove("request_amount_foreign");
-                        obj.remove("bank_account");
-                        obj.remove("bank_name");
-                    }
+            for request in &mut items_json {
+                if let Some(obj) = request.as_object_mut() {
+                    obj.remove("request_amount");
+                    obj.remove("request_amount_foreign");
+                    obj.remove("bank_account");
+                    obj.remove("bank_name");
                 }
             }
         }
     }
+
+    let result = serde_json::to_value(PaginatedResponse::new(
+        items_json,
+        total,
+        params.page.unwrap_or(1),
+        params.page_size.unwrap_or(20),
+    ))
+    .map_err(|e| AppError::InternalError(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

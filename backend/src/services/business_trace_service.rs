@@ -89,7 +89,7 @@ impl BusinessTraceService {
         let previous_trace = business_trace_chain::Entity::find_by_id(previous_trace_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::ResourceNotFound("上一环节不存在".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("上一环节不存在".to_string()))?;
 
         // 创建新环节
         let active_trace = business_trace_chain::ActiveModel {
@@ -232,13 +232,13 @@ impl BusinessTraceService {
         let traces = self.find_trace_chain_by_id(trace_chain_id).await?;
 
         if traces.is_empty() {
-            return Err(AppError::ResourceNotFound("追溯链不存在".to_string()));
+            return Err(AppError::NotFound("追溯链不存在".to_string()));
         }
 
         let first_trace = &traces[0];
         let last_trace = traces
             .last()
-            .ok_or_else(|| AppError::ResourceNotFound("No trace found".into()))?;
+            .ok_or_else(|| AppError::NotFound("No trace found".into()))?;
 
         // 获取追溯链中的供应商ID和客户ID（第一个环节有供应商，最后一个环节有客户）
         let supplier_id = first_trace.supplier_id;

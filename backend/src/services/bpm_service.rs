@@ -89,18 +89,13 @@ impl BpmService {
         &self,
         req: StartProcessRequest,
     ) -> Result<StartProcessResponse, AppError> {
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         let definition = bpm_process_definition::Entity::find()
             .filter(bpm_process_definition::Column::Code.eq(&req.process_key))
             .filter(bpm_process_definition::Column::Status.eq("ACTIVE"))
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| {
                 AppError::NotFound("Process definition not found or inactive".to_string())
             })?;
@@ -124,10 +119,7 @@ impl BpmService {
             ..Default::default()
         };
 
-        let instance = instance_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let instance = instance_model.insert(&txn).await?;
 
         let mut task_ids = vec![];
         if let Some(flow_def) = definition.config {
@@ -191,10 +183,7 @@ impl BpmService {
                         updated_at: Set(Some(chrono::Utc::now())),
                         ..Default::default()
                     };
-                    let task = task_model
-                        .insert(&txn)
-                        .await
-                        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    let task = task_model.insert(&txn).await?;
                     task_ids.push(task.id);
                 } else {
                     // No task found, auto complete
@@ -202,10 +191,7 @@ impl BpmService {
                         instance.clone().into();
                     instance_active.status = Set(Some("COMPLETED".to_string()));
                     instance_active.completed_at = Set(Some(chrono::Utc::now()));
-                    instance_active
-                        .update(&txn)
-                        .await
-                        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    instance_active.update(&txn).await?;
 
                     crate::services::event_bus::EVENT_BUS.publish(
                         crate::services::event_bus::BusinessEvent::BpmProcessFinished {
@@ -218,9 +204,7 @@ impl BpmService {
             }
         }
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
 
         Ok(StartProcessResponse {
             instance_id: instance.id,
@@ -230,16 +214,11 @@ impl BpmService {
     }
 
     pub async fn approve_task(&self, req: ApproveTaskRequest) -> Result<(), AppError> {
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         let task = bpm_task::Entity::find_by_id(req.task_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("Task not found".to_string()))?;
 
         if task.status.as_deref() != Some("pending") {
@@ -249,14 +228,12 @@ impl BpmService {
         let process_instance_id = task.instance_id;
         let instance = bpm_process_instance::Entity::find_by_id(process_instance_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("Process instance not found".into()))?;
 
         let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("Definition not found".into()))?;
 
         // 1. Update current task status
@@ -270,10 +247,7 @@ impl BpmService {
         task_active.approval_opinion = Set(req.approval_opinion);
         task_active.handled_at = Set(Some(chrono::Utc::now()));
         task_active.updated_at = Set(Some(chrono::Utc::now()));
-        task_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        task_active.update(&txn).await?;
 
         if req.action == "reject" {
             // End instance if rejected
@@ -281,10 +255,7 @@ impl BpmService {
             instance_active.status = Set(Some("TERMINATED".to_string()));
             instance_active.completed_at = Set(Some(chrono::Utc::now()));
             instance_active.updated_at = Set(Some(chrono::Utc::now()));
-            instance_active
-                .update(&txn)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            instance_active.update(&txn).await?;
 
             if let (Some(b_type), Some(b_id)) = (
                 Some(instance.business_type.clone()),
@@ -362,10 +333,7 @@ impl BpmService {
                                     updated_at: Set(Some(chrono::Utc::now())),
                                     ..Default::default()
                                 };
-                                new_task
-                                    .insert(&txn)
-                                    .await
-                                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                                new_task.insert(&txn).await?;
                                 next_task_created = true;
                             } else if node_type == "end_event" {
                                 // 结束事件，在下面处理
@@ -381,10 +349,7 @@ impl BpmService {
                     instance.clone().into();
                 instance_active.status = Set(Some("COMPLETED".to_string()));
                 instance_active.completed_at = Set(Some(chrono::Utc::now()));
-                instance_active
-                    .update(&txn)
-                    .await
-                    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                instance_active.update(&txn).await?;
 
                 if let (Some(b_type), Some(b_id)) = (
                     Some(instance.business_type.clone()),
@@ -401,9 +366,7 @@ impl BpmService {
             }
         }
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
         Ok(())
     }
 
@@ -425,14 +388,8 @@ impl BpmService {
         }
 
         let paginator = stmt.paginate(&*self.db, page_size);
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let items = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page - 1).await?;
 
         let total_pages = if total == 0 {
             0
@@ -459,15 +416,13 @@ impl BpmService {
             .filter(bpm_process_instance::Column::BusinessId.eq(business_id))
             .order_by_desc(bpm_process_instance::Column::CreatedAt)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         if let Some(inst) = instance {
             let tasks = bpm_task::Entity::find()
                 .filter(bpm_task::Column::InstanceId.eq(inst.id))
                 .all(&*self.db)
-                .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .await?;
 
             Ok(BpmBusinessRelation {
                 has_process: true,
@@ -525,22 +480,19 @@ impl BpmService {
     ) -> Result<Vec<ApprovalChainNode>, AppError> {
         let instance = bpm_process_instance::Entity::find_by_id(instance_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
 
         let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("流程定义不存在".to_string()))?;
 
         let tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::InstanceId.eq(instance_id))
             .order_by_asc(bpm_task::Column::CreatedAt)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let mut chain = Vec::new();
 
@@ -594,21 +546,18 @@ impl BpmService {
     ) -> Result<ProcessInstanceDetail, AppError> {
         let instance = bpm_process_instance::Entity::find_by_id(instance_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
 
         let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::InstanceId.eq(instance_id))
             .order_by_asc(bpm_task::Column::CreatedAt)
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let approval_chain = self.get_approval_chain(instance_id).await?;
 
@@ -628,49 +577,39 @@ impl BpmService {
 
         let total_instances = bpm_process_instance::Entity::find()
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let processing_instances = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("PROCESSING"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let completed_instances = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let terminated_instances = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq("TERMINATED"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
-        let total_tasks = bpm_task::Entity::find()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total_tasks = bpm_task::Entity::find().count(&*self.db).await?;
 
         let pending_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("PENDING"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let completed_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("COMPLETED"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let rejected_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::Status.eq("REJECTED"))
             .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 计算平均流程处理时长（分钟）
         let avg_duration = bpm_process_instance::Entity::find()
@@ -685,8 +624,7 @@ impl BpmService {
             )
             .into_tuple::<Option<f64>>()
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .flatten();
 
         Ok(ProcessMonitorStats {
@@ -711,14 +649,8 @@ impl BpmService {
         let stmt = bpm_task::Entity::find().filter(bpm_task::Column::Status.eq("PENDING"));
 
         let paginator = stmt.paginate(&*self.db, page_size);
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let items = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page - 1).await?;
 
         let total_pages = if total == 0 {
             0
@@ -750,14 +682,8 @@ impl BpmService {
         stmt = stmt.order_by_desc(bpm_process_instance::Column::CreatedAt);
 
         let paginator = stmt.paginate(&*self.db, page_size);
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let items = paginator
-            .fetch_page(page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page - 1).await?;
 
         let total_pages = if total == 0 {
             0
@@ -780,16 +706,11 @@ impl BpmService {
         new_assignee_id: i32,
         transfer_reason: &str,
     ) -> Result<(), AppError> {
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         let task = bpm_task::Entity::find_by_id(task_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
 
         if task.status.as_deref() != Some("pending") {
@@ -800,14 +721,9 @@ impl BpmService {
         task_active.actual_handler_id = Set(Some(new_assignee_id));
         task_active.approval_opinion = Set(Some(format!("[转办] {}", transfer_reason)));
         task_active.updated_at = Set(Some(chrono::Utc::now()));
-        task_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        task_active.update(&txn).await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
         Ok(())
     }
 
@@ -815,8 +731,7 @@ impl BpmService {
     pub async fn urge_task(&self, task_id: i32, urge_message: &str) -> Result<(), AppError> {
         let task = bpm_task::Entity::find_by_id(task_id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
 
         if task.status.as_deref() != Some("pending") {

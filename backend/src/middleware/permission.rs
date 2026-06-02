@@ -7,6 +7,7 @@ use crate::utils::admin_checker;
 use crate::utils::app_state::AppState;
 use crate::utils::path_utils::is_module_prefix;
 use crate::utils::request_ext::PublicPathCache;
+use crate::utils::response::{forbidden_response, unauthorized_response};
 use axum::{
     body::Body,
     extract::State,
@@ -20,24 +21,6 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use std::sync::Arc;
 use tracing::warn;
-
-fn forbidden_response(message: &str) -> Response {
-    let body = json!({
-        "code": 403,
-        "message": message,
-        "data": null
-    });
-    (StatusCode::FORBIDDEN, Json(body)).into_response()
-}
-
-fn unauthorized_response(message: &str) -> Response {
-    let body = json!({
-        "code": 401,
-        "message": message,
-        "data": null
-    });
-    (StatusCode::UNAUTHORIZED, Json(body)).into_response()
-}
 
 pub async fn permission_middleware(
     State(state): State<AppState>,

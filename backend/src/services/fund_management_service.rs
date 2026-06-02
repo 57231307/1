@@ -257,17 +257,12 @@ impl FundManagementService {
         user_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
         use sea_orm::TransactionTrait;
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 1. 扣减转出账户
         let from_acc = crate::models::fund_management::Entity::find_by_id(req.from_account_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("From account not found".into()))?;
         let total_deduct = req.amount + req.fee.unwrap_or_default();
         if from_acc.available_balance < total_deduct {
@@ -280,16 +275,12 @@ impl FundManagementService {
 
         from_active.balance = sea_orm::Set(from_balance - total_deduct);
         from_active.available_balance = sea_orm::Set(from_available_balance - total_deduct);
-        let _from_acc = from_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let _from_acc = from_active.update(&txn).await?;
 
         // 2. 增加转入账户
         let to_acc = crate::models::fund_management::Entity::find_by_id(req.to_account_id)
             .one(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("To account not found".into()))?;
         let mut to_active: crate::models::fund_management::ActiveModel = to_acc.clone().into();
 
@@ -298,10 +289,7 @@ impl FundManagementService {
 
         to_active.balance = sea_orm::Set(to_balance + req.amount);
         to_active.available_balance = sea_orm::Set(to_available_balance + req.amount);
-        to_active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        to_active.update(&txn).await?;
 
         // 3. 记录 Transfer
         let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
@@ -318,12 +306,9 @@ impl FundManagementService {
             ..Default::default()
         }
         .insert(&txn)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        txn.commit().await?;
         Ok(record)
     }
 

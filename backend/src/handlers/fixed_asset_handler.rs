@@ -230,10 +230,7 @@ pub async fn update_asset(
     let mut active_model: crate::models::fixed_asset::ActiveModel = asset.into();
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
-    let updated = active_model
-        .update(&*state.db)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let updated = active_model.update(&*state.db).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated)?,

@@ -102,7 +102,7 @@ impl InventoryAdjustmentService {
         for item_req in request.items {
             // 获取当前库存数量
             let stock = stock_map.get(&item_req.stock_id).ok_or_else(|| {
-                AppError::ResourceNotFound(format!("库存 ID {} 不存在", item_req.stock_id))
+                AppError::NotFound(format!("库存 ID {} 不存在", item_req.stock_id))
             })?;
 
             // 计算调整前后的数量（使用 quantity_on_hand 字段）
@@ -156,9 +156,7 @@ impl InventoryAdjustmentService {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("调整单 {} 不存在", adjustment_id)))?;
 
         // 检查状态
         if adjustment_model.status != "pending" {
@@ -197,9 +195,7 @@ impl InventoryAdjustmentService {
             let stock_model = inventory_stock::Entity::find_by_id(item.stock_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| {
-                    AppError::ResourceNotFound(format!("库存 ID {} 不存在", item.stock_id))
-                })?;
+                .ok_or_else(|| AppError::NotFound(format!("库存 ID {} 不存在", item.stock_id)))?;
 
             let quantity_before = stock_model.quantity_on_hand;
             let expected_version = stock_model.version;
@@ -253,9 +249,7 @@ impl InventoryAdjustmentService {
             let updated_stock = inventory_stock::Entity::find_by_id(item.stock_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| {
-                    AppError::ResourceNotFound(format!("库存 ID {} 不存在", item.stock_id))
-                })?;
+                .ok_or_else(|| AppError::NotFound(format!("库存 ID {} 不存在", item.stock_id)))?;
 
             // 收集库存交易事件数据，供审核通过后发布
             let quantity_change = item.quantity_after - quantity_before;
@@ -298,9 +292,7 @@ impl InventoryAdjustmentService {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("调整单 {} 不存在", adjustment_id)))?;
 
         // 检查状态
         if adjustment_model.status != "pending" {
@@ -338,9 +330,7 @@ impl InventoryAdjustmentService {
         let adjustment = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::ResourceNotFound(format!("调整单 {} 不存在", adjustment_id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("调整单 {} 不存在", adjustment_id)))?;
 
         let items = inventory_adjustment_item::Entity::find()
             .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
@@ -469,7 +459,7 @@ mod tests {
         let result = service.get_adjustment(99999).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::ResourceNotFound(_)));
+        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
 
     #[tokio::test]
@@ -481,7 +471,7 @@ mod tests {
         let result = service.approve_adjustment(99999, 1).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::ResourceNotFound(_)));
+        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
 
     #[tokio::test]
@@ -493,7 +483,7 @@ mod tests {
         let result = service.reject_adjustment(99999).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::ResourceNotFound(_)));
+        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
 
     #[test]

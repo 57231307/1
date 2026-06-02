@@ -182,20 +182,14 @@ impl ArReconciliationService {
             updated_at: Set(Utc::now()),
         };
 
-        let model = active_model
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = active_model.insert(&*self.db).await?;
 
         Ok(model)
     }
 
     /// 根据ID获取对账单
     pub async fn get_by_id(&self, id: i32) -> Result<Option<ReconciliationModel>, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let model = ReconciliationEntity::find_by_id(id).one(&*self.db).await?;
 
         Ok(model)
     }
@@ -217,20 +211,13 @@ impl ArReconciliationService {
                 select.filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id));
         }
 
-        let total = select
-            .clone()
-            .count(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let total = select.clone().count(&*self.db).await?;
 
         let paginator = select
             .order_by_desc(crate::models::ar_reconciliation::Column::CreatedAt)
             .paginate(&*self.db, query.page_size);
 
-        let models = paginator
-            .fetch_page(query.page - 1)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let models = paginator.fetch_page(query.page - 1).await?;
 
         Ok((models, total))
     }
@@ -243,8 +230,7 @@ impl ArReconciliationService {
     ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -266,10 +252,7 @@ impl ArReconciliationService {
 
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -278,8 +261,7 @@ impl ArReconciliationService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         // 只有草稿状态的对账单可以删除
@@ -291,8 +273,7 @@ impl ArReconciliationService {
 
         ReconciliationEntity::delete_by_id(id)
             .exec(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -301,8 +282,7 @@ impl ArReconciliationService {
     pub async fn send(&self, id: i32) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         if model.reconciliation_status.as_deref() != Some("draft") {
@@ -315,10 +295,7 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some("sent".to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -331,8 +308,7 @@ impl ArReconciliationService {
     ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -342,10 +318,7 @@ impl ArReconciliationService {
         active_model.confirmed_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -354,8 +327,7 @@ impl ArReconciliationService {
     pub async fn dispute(&self, id: i32, reason: String) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
@@ -363,10 +335,7 @@ impl ArReconciliationService {
         active_model.dispute_reason = Set(Some(reason));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -375,8 +344,7 @@ impl ArReconciliationService {
     pub async fn close(&self, id: i32) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
@@ -390,10 +358,7 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some("closed".to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -406,18 +371,14 @@ impl ArReconciliationService {
     ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some(status.to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         Ok(updated)
     }
@@ -994,8 +955,7 @@ impl ArReconciliationService {
     pub async fn get_with_details(&self, id: i32) -> Result<ReconciliationWithDetails, AppError> {
         let reconciliation = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let items = crate::models::ar_reconciliation_item::Entity::find()
@@ -1005,8 +965,7 @@ impl ArReconciliationService {
                 Order::Asc,
             )
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         let details: Vec<ReconciliationDetail> = items
             .into_iter()
@@ -1044,8 +1003,7 @@ impl ArReconciliationService {
     ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
@@ -1067,10 +1025,7 @@ impl ArReconciliationService {
         active_model.confirmed_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         info!("客户确认对账单成功：id={}", id);
         Ok(updated)
@@ -1085,8 +1040,7 @@ impl ArReconciliationService {
     ) -> Result<ReconciliationModel, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
@@ -1106,10 +1060,7 @@ impl ArReconciliationService {
         active_model.dispute_reason = Set(Some(reason.clone()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        let updated = active_model.update(&*self.db).await?;
 
         info!("客户对账单提出争议：id={}, reason={}", id, reason);
         Ok(updated)
@@ -1119,16 +1070,14 @@ impl ArReconciliationService {
     pub async fn export_pdf(&self, id: i32) -> Result<Vec<u8>, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
 
         // 获取对账明细
         let items = ReconciliationItemEntity::find()
             .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
             .all(&*self.db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         // 生成PDF内容
         let pdf_content = self.generate_reconciliation_pdf(&model, &items)?;

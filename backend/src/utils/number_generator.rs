@@ -29,8 +29,7 @@ impl DocumentNumberGenerator {
         let count = E::find()
             .filter(column.starts_with(&date_prefix))
             .count(db)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            .await?;
 
         Ok(format!("{}{:03}", date_prefix, count + 1))
     }

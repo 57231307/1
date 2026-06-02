@@ -258,10 +258,7 @@ pub async fn update_evaluation(
         active_model.remark = sea_orm::Set(Some(remark.to_string()));
     }
 
-    let updated = active_model
-        .update(&*state.db)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let updated = active_model.update(&*state.db).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated)?,
@@ -286,10 +283,7 @@ pub async fn delete_evaluation(
     use sea_orm::ActiveModelTrait;
     let active_model: crate::models::supplier_evaluation_record::ActiveModel = record.into();
 
-    active_model
-        .delete(&*state.db)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    active_model.delete(&*state.db).await?;
 
     Ok(Json(ApiResponse::success_with_message((), "评估已删除")))
 }

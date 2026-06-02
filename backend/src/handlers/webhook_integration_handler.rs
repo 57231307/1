@@ -146,7 +146,7 @@ pub async fn delete_integration(
     let webhook = webhook::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::ResourceNotFound("Webhook 集成不存在".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("Webhook 集成不存在".to_string()))?;
 
     let mut active_model: webhook::ActiveModel = webhook.into();
     active_model.is_active = Set(false);
@@ -181,8 +181,7 @@ pub async fn send_wechat_message(
     let service = WebhookService::new(state.db.clone());
     let delivery = service
         .trigger_webhook(req.integration_id, "wechat_message", &payload.to_string())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
     let result = WebhookSendResult {
         message_id: uuid::Uuid::new_v4().to_string(),
@@ -225,8 +224,7 @@ pub async fn send_dingtalk_message(
     let service = WebhookService::new(state.db.clone());
     let delivery = service
         .trigger_webhook(req.integration_id, "dingtalk_message", &payload.to_string())
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        .await?;
 
     let result = WebhookSendResult {
         message_id: uuid::Uuid::new_v4().to_string(),
@@ -270,10 +268,7 @@ pub async fn test_integration(
     use crate::services::webhook_service::WebhookService;
 
     let service = WebhookService::new(state.db.clone());
-    let result = service
-        .test_webhook(id)
-        .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    let result = service.test_webhook(id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(result).unwrap_or_default(),
