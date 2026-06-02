@@ -23,7 +23,6 @@ use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{info, warn, Span};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::settings::AppSettings;
 use crate::middleware::auth::auth_middleware;
@@ -267,10 +266,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(
                 db.clone(),
             )?);
+            let audit_cleanup = Arc::new(crate::services::audit_cleanup_service::AuditCleanupService::new(
+                db.clone(),
+                999,
+            ));
 
             let app_state = crate::utils::app_state::AppState::with_secrets_and_cors(
                 db,
                 omni_audit,
+                audit_cleanup,
                 settings.auth.jwt_secret.clone(),
                 settings.auth.previous_jwt_secret.clone(),
                 cookie_secret,

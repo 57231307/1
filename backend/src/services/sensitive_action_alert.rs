@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use serde::{Deserialize, Serialize};
 
 /// 敏感操作类型
@@ -602,20 +604,19 @@ impl SensitiveActionAlert {
         }
 
         // 权限变更
-        if resource_lower.contains("permission") || resource_lower.contains("role") {
-            if action_lower.contains("update") || action_lower.contains("assign") {
-                return Some(SensitiveAction::PermissionChange);
-            }
+        if (resource_lower.contains("permission") || resource_lower.contains("role"))
+            && (action_lower.contains("update") || action_lower.contains("assign"))
+        {
+            return Some(SensitiveAction::PermissionChange);
         }
 
         // 用户管理
-        if resource_lower.contains("user") {
-            if action_lower.contains("create")
+        if resource_lower.contains("user")
+            && (action_lower.contains("create")
                 || action_lower.contains("update")
-                || action_lower.contains("delete")
-            {
-                return Some(SensitiveAction::UserManagement);
-            }
+                || action_lower.contains("delete"))
+        {
+            return Some(SensitiveAction::UserManagement);
         }
 
         // 角色管理
@@ -644,14 +645,13 @@ impl SensitiveActionAlert {
         }
 
         // 资金操作
-        if resource_lower.contains("payment")
+        if (resource_lower.contains("payment")
             || resource_lower.contains("invoice")
             || resource_lower.contains("voucher")
-            || resource_lower.contains("fund")
+            || resource_lower.contains("fund"))
+            && (action_lower.contains("approve") || action_lower.contains("cancel"))
         {
-            if action_lower.contains("approve") || action_lower.contains("cancel") {
-                return Some(SensitiveAction::FinancialOperation);
-            }
+            return Some(SensitiveAction::FinancialOperation);
         }
 
         None

@@ -80,7 +80,7 @@ pub async fn omni_audit_middleware(
         .and_then(|ctx| ctx.tenant_id);
 
     // 读取请求体（仅对 POST/PUT/PATCH 请求）
-    let (mut req, request_body) = if method == "POST" || method == "PUT" || method == "PATCH" {
+    let (req, request_body) = if method == "POST" || method == "PUT" || method == "PATCH" {
         let (parts, body) = req.into_parts();
         let body_bytes = to_bytes(body, 100 * 1024).await.unwrap_or_default();
         let body_str = String::from_utf8_lossy(&body_bytes).to_string();
