@@ -132,6 +132,8 @@ impl OmniAuditEngine {
                     .await
                 {
                     tracing::error!("写入综合审计日志失败: {}", e);
+                } else {
+                    tracing::debug!("审计日志写入成功");
                 }
             }
         });
