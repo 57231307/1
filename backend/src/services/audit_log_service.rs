@@ -17,6 +17,7 @@ impl AuditLogService {
     }
 
     /// 计算两个 JSON 对象的 Diff 并记录审计日志
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_change(
         &self,
         resource_type: &str,
