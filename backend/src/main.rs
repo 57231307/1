@@ -266,10 +266,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(
                 db.clone(),
             )?);
-            let audit_cleanup = Arc::new(crate::services::audit_cleanup_service::AuditCleanupService::new(
-                db.clone(),
-                999,
-            ));
+            let audit_cleanup = Arc::new(
+                crate::services::audit_cleanup_service::AuditCleanupService::new(db.clone(), 999),
+            );
 
             let app_state = crate::utils::app_state::AppState::with_secrets_and_cors(
                 db,
