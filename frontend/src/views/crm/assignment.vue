@@ -185,6 +185,9 @@ import crmEnhancedApi, {
   type AssignmentRecord,
   type CustomerWithTags,
 } from '@/api/crm-enhanced'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+const hasLoaded = createLazyLoader()
 
 const assignMode = ref<'single' | 'batch'>('single')
 const assignLoading = ref(false)
@@ -292,10 +295,14 @@ const handleHistoryReset = () => {
   fetchHistory()
 }
 
+const initPage = () => {
+  loadIfNot('fetchSalesUsers', fetchSalesUsers, hasLoaded)
+  loadIfNot('fetchCustomerOptions', fetchCustomerOptions, hasLoaded)
+  loadIfNot('fetchHistory', fetchHistory, hasLoaded)
+}
+
 onMounted(() => {
-  fetchSalesUsers()
-  fetchCustomerOptions()
-  fetchHistory()
+  initPage()
 })
 </script>
 

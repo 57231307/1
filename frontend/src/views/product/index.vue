@@ -700,9 +700,11 @@ const handlePrint = () => {
   printWindow.onload = () => printWindow.print()
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchData()
-  fetchCategories()
+  loadIfNot('categories', fetchCategories, hasLoaded)
 })
 </script>
 

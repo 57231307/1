@@ -7,7 +7,7 @@
       </div>
     </el-card>
 
-    <el-tabs v-model="activeTab" class="fund-tabs">
+    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)" class="fund-tabs">
       <el-tab-pane label="账户管理" name="account">
         <el-card class="table-card">
           <template #header>
@@ -407,8 +407,10 @@ import {
   type FundTransferRecord,
   FUND_ACCOUNT_STATUS,
 } from '../../api/fund'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('account')
+const hasLoaded = createLazyLoader()
 const loading = ref(false)
 const submitLoading = ref(false)
 const transferSubmitLoading = ref(false)
@@ -743,9 +745,19 @@ const handleDelete = async (row: FundAccount) => {
 }
 
 onMounted(() => {
-  fetchAccounts()
-  fetchTransfers()
+  initPage()
 })
+
+const loadTab = (tabName: string, loader: Record<string, () => void>) => {
+  loadIfNot(tabName, loader[tabName], hasLoaded)
+}
+
+const initPage = () => {
+  loadTab(activeTab.value, {
+    account: fetchAccounts,
+    transfer: fetchTransfers,
+  })
+}
 </script>
 
 <style scoped>

@@ -301,6 +301,9 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue'
 import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
 import { exportData } from '@/utils/export'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+const hasLoaded = createLazyLoader()
 
 const router = useRouter()
 const loading = ref(false)
@@ -588,9 +591,14 @@ const handlePrint = () => {
   printWindow.onload = () => printWindow.print()
 }
 
+const initPage = () => {
+  // 串行加载：先加载标签，再加载列表
+  loadIfNot('fetchTags', fetchTags, hasLoaded)
+  loadIfNot('fetchCustomerList', fetchCustomerList, hasLoaded)
+}
+
 onMounted(() => {
-  fetchCustomerList()
-  fetchTags()
+  initPage()
 })
 </script>
 

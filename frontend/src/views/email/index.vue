@@ -4,7 +4,7 @@
       <h2>邮件管理</h2>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card">
+    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)" type="border-card">
       <!-- 邮件模板 Tab -->
       <el-tab-pane label="邮件模板" name="templates">
         <div class="tab-header">
@@ -182,8 +182,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics } from '@/api/email'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('templates')
+const hasLoaded = createLazyLoader()
 
 // 模板相关
 const templates = ref<EmailTemplate[]>([])
@@ -226,10 +228,20 @@ const statistics = ref<EmailStatistics>({
 })
 
 onMounted(() => {
-  fetchTemplates()
-  fetchRecords()
-  fetchStatistics()
+  initPage()
 })
+
+const loadTab = (tabName: string, loader: Record<string, () => void>) => {
+  loadIfNot(tabName, loader[tabName], hasLoaded)
+}
+
+const initPage = () => {
+  loadTab(activeTab.value, {
+    templates: fetchTemplates,
+    records: fetchRecords,
+    statistics: fetchStatistics,
+  })
+}
 
 const fetchTemplates = async () => {
   templatesLoading.value = true

@@ -348,9 +348,11 @@ const handleFilterChange = () => {
   fetchShortages()
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchSummary()
-  fetchShortages()
+  loadIfNot('shortages', fetchShortages, hasLoaded)
 })
 </script>
 

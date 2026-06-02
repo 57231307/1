@@ -386,6 +386,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage } from 'element-plus'
 import {
   Box,
@@ -751,9 +752,11 @@ const handleApproveTransfer = (row: any) => {
   ElMessage.success(`审批通过调拨单 ${row.transfer_no}`)
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchData()
-  fetchWarehouses()
+  loadIfNot('warehouses', fetchWarehouses, hasLoaded)
 })
 </script>
 

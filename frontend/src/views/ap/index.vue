@@ -1,6 +1,6 @@
 <template>
   <div class="ap-page">
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane label="应付发票" name="invoice">
         <div class="page-header">
           <h2 class="page-title">应付发票</h2>
@@ -496,6 +496,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
   listAPInvoices,
   createAPInvoice,
@@ -521,6 +522,24 @@ import {
 import { listSuppliers, type Supplier } from '@/api/supplier'
 
 const activeTab = ref('invoice')
+const hasLoaded = createLazyLoader()
+
+const handleTabChange = (tabName: string) => {
+  const loaders: Record<string, () => void> = {
+    invoice: fetchInvoices,
+    payment: fetchPayments,
+    verification: fetchVerifications,
+    reconciliation: fetchReconciliations,
+  }
+  if (loaders[tabName]) {
+    loadIfNot(tabName, loaders[tabName], hasLoaded)
+  }
+}
+
+// 初始化只加载当前 Tab 数据
+const initPage = () => {
+  loadIfNot('invoice', fetchInvoices, hasLoaded)
+}
 
 const invoices = ref<APInvoice[]>([])
 const payments = ref<APPayment[]>([])
@@ -977,11 +996,7 @@ const handleExportInvoices = () => {
 }
 
 onMounted(() => {
-  fetchSuppliers()
-  fetchInvoices()
-  fetchPayments()
-  fetchVerifications()
-  fetchReconciliations()
+  initPage()
 })
 </script>
 

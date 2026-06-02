@@ -221,6 +221,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Select } from '@element-plus/icons-vue'
 import crmEnhancedApi, { type PoolCustomer, type RecycleRule } from '@/api/crm-enhanced'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+const hasLoaded = createLazyLoader()
 
 const loading = ref(false)
 const rulesLoading = ref(false)
@@ -416,9 +419,13 @@ const handleDeleteRule = async (row: RecycleRule) => {
   }
 }
 
+const initPage = () => {
+  loadIfNot('fetchPoolList', fetchPoolList, hasLoaded)
+  loadIfNot('fetchRecycleRules', fetchRecycleRules, hasLoaded)
+}
+
 onMounted(() => {
-  fetchPoolList()
-  fetchRecycleRules()
+  initPage()
 })
 </script>
 

@@ -447,6 +447,9 @@ import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
 import { supplierApi, type Supplier } from '@/api/supplier'
 import { productApi, type Product } from '@/api/product'
 import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+const hasLoaded = createLazyLoader()
 
 const loading = ref(false)
 const orders = ref<PurchaseOrder[]>([])
@@ -782,11 +785,15 @@ const submitReceive = async () => {
   }
 }
 
+const initPage = () => {
+  loadIfNot('fetchData', fetchData, hasLoaded)
+  loadIfNot('fetchSuppliers', fetchSuppliers, hasLoaded)
+  loadIfNot('fetchProducts', fetchProducts, hasLoaded)
+  loadIfNot('fetchWarehouses', fetchWarehouses, hasLoaded)
+}
+
 onMounted(() => {
-  fetchData()
-  fetchSuppliers()
-  fetchProducts()
-  fetchWarehouses()
+  initPage()
 })
 </script>
 

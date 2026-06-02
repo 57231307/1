@@ -362,11 +362,13 @@ const approveForm = reactive({
   remark: '',
 })
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchData()
-  fetchSuppliers()
-  fetchPurchaseOrders()
-  fetchProducts()
+  loadIfNot('suppliers', fetchSuppliers, hasLoaded)
+  loadIfNot('purchaseOrders', fetchPurchaseOrders, hasLoaded)
+  loadIfNot('products', fetchProducts, hasLoaded)
 })
 
 const fetchData = async () => {

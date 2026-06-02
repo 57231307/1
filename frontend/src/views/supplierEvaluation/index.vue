@@ -133,6 +133,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage } from 'element-plus'
 import {
   listEvaluationRecords,
@@ -240,10 +241,12 @@ const handleSaveRecord = async () => {
   })
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchRecords()
-  fetchRankings()
-  fetchSuppliers()
+  loadIfNot('rankings', fetchRankings, hasLoaded)
+  loadIfNot('suppliers', fetchSuppliers, hasLoaded)
 })
 </script>
 

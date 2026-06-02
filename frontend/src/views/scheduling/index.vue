@@ -479,9 +479,11 @@ const showConflictDetail = (task: ScheduleTask) => {
   ElMessage.warning(`工单 ${task.order_no} 存在排程冲突: ${task.conflict_details || '时间重叠'}`)
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchTasks()
-  fetchConflicts()
+  loadIfNot('conflicts', fetchConflicts, hasLoaded)
 })
 </script>
 

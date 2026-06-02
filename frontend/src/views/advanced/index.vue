@@ -1,6 +1,6 @@
 <template>
   <div class="advanced-page">
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
       <el-tab-pane label="AI 分析" name="ai">
         <div class="page-header">
           <h2 class="page-title">AI 智能分析</h2>
@@ -299,8 +299,10 @@ import {
   updateTenant,
   deleteTenant as deleteTenantApi,
 } from '@/api/advanced'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('ai')
+const hasLoaded = createLazyLoader()
 const forecastPeriod = ref('3m')
 const forecastLoading = ref(false)
 const forecastResult = ref<any>(null)
@@ -489,9 +491,20 @@ const deleteTenant = async (row: any) => {
   }
 }
 
+const loadTab = (tabName: string, loader: Record<string, () => void>) => {
+  loadIfNot(tabName, loader[tabName], hasLoaded)
+}
+
+const initPage = () => {
+  loadTab(activeTab.value, {
+    ai: () => {},
+    report: fetchReportTemplates,
+    tenant: fetchTenants,
+  })
+}
+
 onMounted(() => {
-  fetchReportTemplates()
-  fetchTenants()
+  initPage()
 })
 </script>
 

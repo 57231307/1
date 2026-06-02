@@ -1,6 +1,6 @@
 <template>
   <div class="fabric-page">
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
       <el-tab-pane label="染色批次" name="dye">
         <div class="page-header">
           <h2 class="page-title">染色批次管理</h2>
@@ -322,8 +322,10 @@ import {
   type DyeRecipe,
 } from '@/api/dye-recipe'
 import { listSuppliers, type Supplier } from '@/api/supplier'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('dye')
+const hasLoaded = createLazyLoader()
 const dyeBatches = ref<DyeBatch[]>([])
 const greigeFabrics = ref<GreigeFabric[]>([])
 const dyeRecipes = ref<DyeRecipe[]>([])
@@ -674,11 +676,20 @@ const removeRecipeItem = (index: number) => {
   }
 }
 
+const loadTab = (tabName: string, loader: Record<string, () => void>) => {
+  loadIfNot(tabName, loader[tabName], hasLoaded)
+}
+
+const initPage = () => {
+  loadTab(activeTab.value, {
+    dye: fetchDyeBatches,
+    greige: fetchGreigeFabrics,
+    recipe: fetchDyeRecipes,
+  })
+}
+
 onMounted(() => {
-  fetchDyeBatches()
-  fetchGreigeFabrics()
-  fetchDyeRecipes()
-  fetchSuppliers()
+  initPage()
 })
 </script>
 

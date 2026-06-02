@@ -314,6 +314,9 @@ import crmEnhancedApi, {
   type FollowUpRecord,
   type CustomerTag,
 } from '@/api/crm-enhanced'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+const hasLoaded = createLazyLoader()
 
 const route = useRoute()
 const router = useRouter()
@@ -487,13 +490,13 @@ const handleAddContact = () => {
 
 onMounted(() => {
   if (!customerId) {
-    ElMessage.error('缺少客户ID参数')
+    ElMessage.error('缺少客户 ID 参数')
     router.back()
     return
   }
-  fetchCustomer360()
-  fetchFollowUps()
-  fetchTags()
+  loadIfNot('fetchCustomer360', fetchCustomer360, hasLoaded)
+  loadIfNot('fetchFollowUps', fetchFollowUps, hasLoaded)
+  loadIfNot('fetchTags', fetchTags, hasLoaded)
 })
 </script>
 

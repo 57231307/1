@@ -393,10 +393,12 @@ const getConfirmStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   loadData()
-  loadAgingAnalysis()
-  loadCustomers()
+  loadIfNot('agingAnalysis', loadAgingAnalysis, hasLoaded)
+  loadIfNot('customers', loadCustomers, hasLoaded)
 })
 </script>
 

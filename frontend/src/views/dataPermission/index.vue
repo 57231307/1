@@ -289,9 +289,11 @@ const handleDeletePermission = async (row: DataPermissionRole) => {
   }
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchPermissions()
-  fetchScopeTypes()
+  loadIfNot('scopeTypes', fetchScopeTypes, hasLoaded)
 })
 </script>
 

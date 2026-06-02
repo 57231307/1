@@ -265,11 +265,13 @@ const handleApprove = async (row: PurchaseReceiptEntity) => {
   }
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   loadData()
-  loadSuppliers()
-  loadWarehouses()
-  loadProducts()
+  loadIfNot('suppliers', loadSuppliers, hasLoaded)
+  loadIfNot('warehouses', loadWarehouses, hasLoaded)
+  loadIfNot('products', loadProducts, hasLoaded)
 })
 </script>
 

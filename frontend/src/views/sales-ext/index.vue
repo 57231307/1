@@ -634,6 +634,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -1114,10 +1115,12 @@ const removeReturnItem = (index: number) => {
 const returnViewVisible = ref(false)
 const currentReturn = ref<SalesReturn | null>(null)
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchSalesContracts()
-  fetchSalesPrices()
-  fetchSalesReturns()
+  loadIfNot('salesPrices', fetchSalesPrices, hasLoaded)
+  loadIfNot('salesReturns', fetchSalesReturns, hasLoaded)
 })
 </script>
 

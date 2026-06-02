@@ -985,12 +985,14 @@ const deleteSalesReturn = async (row: TradingSalesReturn) => {
   }
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchPurchaseContracts()
-  fetchPurchasePrices()
-  fetchSalesContracts()
-  fetchSalesPrices()
-  fetchSalesReturns()
+  loadIfNot('purchasePrices', fetchPurchasePrices, hasLoaded)
+  loadIfNot('salesContracts', fetchSalesContracts, hasLoaded)
+  loadIfNot('salesPrices', fetchSalesPrices, hasLoaded)
+  loadIfNot('salesReturns', fetchSalesReturns, hasLoaded)
 })
 </script>
 

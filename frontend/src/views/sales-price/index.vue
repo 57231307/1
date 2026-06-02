@@ -308,6 +308,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Setting, Search, Refresh } from '@element-plus/icons-vue'
 import {
@@ -611,10 +612,12 @@ const getStatusLabel = (status: string) => {
   return map[status] || status
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   getList()
-  getCustomers()
-  getProducts()
+  loadIfNot('customers', getCustomers, hasLoaded)
+  loadIfNot('products', getProducts, hasLoaded)
 })
 </script>
 

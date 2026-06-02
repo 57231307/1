@@ -210,9 +210,11 @@ const handleDialogClose = () => {
   formRef.value?.resetFields()
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   loadGreigeFabrics()
-  loadWarehouses()
+  loadIfNot('warehouses', loadWarehouses, hasLoaded)
 })
 </script>
 

@@ -495,11 +495,13 @@ const handleEditDialogClose = () => {
   formRef.value?.resetFields()
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   loadReturns()
-  loadSalesOrders()
-  loadCustomers()
-  loadProducts()
+  loadIfNot('salesOrders', loadSalesOrders, hasLoaded)
+  loadIfNot('customers', loadCustomers, hasLoaded)
+  loadIfNot('products', loadProducts, hasLoaded)
 })
 </script>
 

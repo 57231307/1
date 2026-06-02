@@ -350,9 +350,11 @@ const handleDialogClose = () => {
   formRef.value?.resetFields()
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   loadAssets()
-  loadDepartments()
+  loadIfNot('departments', loadDepartments, hasLoaded)
 })
 </script>
 

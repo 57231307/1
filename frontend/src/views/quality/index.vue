@@ -370,6 +370,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import {
@@ -769,10 +770,12 @@ const handlePrintRecords = () => {
   printWindow.onload = () => printWindow.print()
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchStandards()
-  fetchRecords()
-  fetchDefects()
+  loadIfNot('records', fetchRecords, hasLoaded)
+  loadIfNot('defects', fetchDefects, hasLoaded)
 })
 </script>
 

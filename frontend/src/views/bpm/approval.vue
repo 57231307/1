@@ -251,6 +251,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer, ArrowDown } from '@element-plus/icons-vue'
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
@@ -433,9 +434,11 @@ const handleViewChain = async (row: ApprovalTask) => {
   }
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchPendingTasks()
-  fetchCompletedTasks()
+  loadIfNot('completedTasks', fetchCompletedTasks, hasLoaded)
 })
 </script>
 

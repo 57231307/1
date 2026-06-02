@@ -1,6 +1,6 @@
 <template>
   <div class="finance-page">
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
       <el-tab-pane label="科目管理" name="subject">
         <div class="page-header">
           <h2 class="page-title">会计科目</h2>
@@ -392,16 +392,11 @@ import {
   deleteSubject as deleteSubjectApi,
   type AccountSubject,
 } from '@/api/finance'
-import {
-  listVouchers,
-  createVoucher,
-  submitVoucher as submitVoucherApi,
-  reviewVoucher as reviewVoucherApi,
-  postVoucher as postVoucherApi,
-  type Voucher,
-} from '@/api/finance'
+import { listVouchers, createVoucher, submitVoucher as submitVoucherApi, reviewVoucher as reviewVoucherApi, postVoucher as postVoucherApi, type Voucher } from '@/api/finance'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('subject')
+const hasLoaded = createLazyLoader()
 
 const subjects = ref<AccountSubject[]>([])
 const vouchers = ref<Voucher[]>([])
@@ -808,9 +803,19 @@ const handlePrintVouchers = () => {
 }
 
 onMounted(() => {
-  fetchSubjects()
-  fetchVouchers()
+  initPage()
 })
+
+const loadTab = (tabName: string, loader: Record<string, () => void>) => {
+  loadIfNot(tabName, loader[tabName], hasLoaded)
+}
+
+const initPage = () => {
+  loadTab(activeTab.value, {
+    subject: fetchSubjects,
+    voucher: fetchVouchers,
+  })
+}
 </script>
 
 <style scoped>

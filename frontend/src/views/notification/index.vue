@@ -108,6 +108,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listNotifications,
@@ -220,9 +221,11 @@ const handleDelete = async (item: Notification) => {
   }
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchNotifications()
-  fetchUnreadCount()
+  loadIfNot('unreadCount', fetchUnreadCount, hasLoaded)
 })
 </script>
 

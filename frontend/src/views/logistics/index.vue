@@ -274,6 +274,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
@@ -350,9 +351,11 @@ const availableStatuses = computed(() => {
   return map[statusForm.currentStatus] || []
 })
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchData()
-  fetchOrders()
+  loadIfNot('orders', fetchOrders, hasLoaded)
 })
 
 const fetchData = async () => {

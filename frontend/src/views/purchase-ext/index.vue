@@ -1,6 +1,6 @@
 <template>
   <div class="purchase-ext-page">
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
       <el-tab-pane label="采购合同" name="contract">
         <div class="page-header">
           <h2 class="page-title">采购合同管理</h2>
@@ -654,8 +654,10 @@ import {
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('contract')
+const hasLoaded = createLazyLoader()
 
 const purchaseContracts = ref<PurchaseContract[]>([])
 const purchasePrices = ref<PurchasePrice[]>([])
@@ -1104,10 +1106,20 @@ const removeReturnItem = (index: number) => {
 const returnViewVisible = ref(false)
 const currentReturn = ref<PurchaseReturn | null>(null)
 
+const loadTab = (tabName: string, loader: Record<string, () => void>) => {
+  loadIfNot(tabName, loader[tabName], hasLoaded)
+}
+
+const initPage = () => {
+  loadTab(activeTab.value, {
+    contract: fetchPurchaseContracts,
+    price: fetchPurchasePrices,
+    return: fetchPurchaseReturns,
+  })
+}
+
 onMounted(() => {
-  fetchPurchaseContracts()
-  fetchPurchasePrices()
-  fetchPurchaseReturns()
+  initPage()
 })
 </script>
 

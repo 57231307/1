@@ -180,6 +180,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import {
@@ -244,11 +245,13 @@ const renewForm = reactive({
   billing_cycle: 'monthly',
 })
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchCurrentPlan()
-  fetchUsage()
-  fetchPlans()
-  fetchInvoices()
+  loadIfNot('usage', fetchUsage, hasLoaded)
+  loadIfNot('plans', fetchPlans, hasLoaded)
+  loadIfNot('invoices', fetchInvoices, hasLoaded)
 })
 
 const fetchCurrentPlan = async () => {

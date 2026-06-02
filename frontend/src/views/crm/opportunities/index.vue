@@ -296,6 +296,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import { listOpportunities } from '@/api/crm'
@@ -539,10 +540,12 @@ const getStageLabel = (stage: string) => {
   return map[stage] || stage
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   getList()
-  getUsers()
-  getCustomers()
+  loadIfNot('users', getUsers, hasLoaded)
+  loadIfNot('customers', getCustomers, hasLoaded)
 })
 </script>
 

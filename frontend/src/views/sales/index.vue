@@ -491,6 +491,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
@@ -926,11 +927,13 @@ const submitDelivery = async () => {
   }
 }
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchData()
-  fetchCustomers()
-  fetchProducts()
-  fetchWarehouses()
+  loadIfNot('customers', fetchCustomers, hasLoaded)
+  loadIfNot('products', fetchProducts, hasLoaded)
+  loadIfNot('warehouses', fetchWarehouses, hasLoaded)
 })
 </script>
 

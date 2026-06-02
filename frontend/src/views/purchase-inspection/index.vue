@@ -258,6 +258,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -317,10 +318,12 @@ const formRules = {
 const detailDialogVisible = ref(false)
 const detailData = ref<PurchaseInspection>({})
 
+const hasLoaded = createLazyLoader()
+
 onMounted(() => {
   fetchData()
-  fetchSuppliers()
-  fetchReceipts()
+  loadIfNot('suppliers', fetchSuppliers, hasLoaded)
+  loadIfNot('receipts', fetchReceipts, hasLoaded)
 })
 
 const fetchData = async () => {
