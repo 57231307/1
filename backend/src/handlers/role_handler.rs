@@ -262,7 +262,7 @@ pub async fn delete_role(
 /// 分配权限
 pub async fn assign_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(role_id): Path<i32>,
     Json(payload): Json<AssignPermissionPayload>,
 ) -> Result<Json<ApiResponse<PermissionResponse>>, AppError> {
@@ -270,9 +270,9 @@ pub async fn assign_permission(
 
     let request = AssignPermissionRequest {
         role_id,
-        resource_type: payload.resource_type,
+        resource_type: payload.resource_type.clone(),
         resource_id: payload.resource_id,
-        action: payload.action,
+        action: payload.action.clone(),
         allowed: payload.allowed,
     };
 
@@ -280,6 +280,18 @@ pub async fn assign_permission(
         .assign_permission(request)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    // 记录权限变更日志
+    tracing::warn!(
+        target: "permission_audit",
+        "[权限分配] 操作人: {}({}) | 角色ID: {} | 资源类型: {} | 操作: {} | 允许: {}",
+        auth.username,
+        auth.user_id,
+        role_id,
+        payload.resource_type,
+        payload.action,
+        payload.allowed
+    );
 
     Ok(Json(ApiResponse::success(PermissionResponse {
         id: perm.id,
@@ -293,7 +305,7 @@ pub async fn assign_permission(
 /// 移除权限
 pub async fn remove_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
@@ -302,6 +314,15 @@ pub async fn remove_permission(
         .remove_permission(id)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    // 记录权限移除日志
+    tracing::warn!(
+        target: "permission_audit",
+        "[权限移除] 操作人: {}({}) | 权限ID: {}",
+        auth.username,
+        auth.user_id,
+        id
+    );
 
     Ok(Json(ApiResponse::success(())))
 }

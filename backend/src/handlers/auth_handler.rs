@@ -1,5 +1,6 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
+use crate::services::enhanced_logger::{self, DeviceInfo, FailureInfo, GeoInfo, LoginAttempt, LoginSecurityLog, SecurityInfo};
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
@@ -220,6 +221,36 @@ pub async fn login(
             )
             .await;
 
+            // 记录增强登录安全日志
+            let security_log = LoginSecurityLog {
+                event: "LOGIN_SUCCESS".to_string(),
+                attempt: LoginAttempt {
+                    username: payload.username.clone(),
+                    ip_address: client_ip.clone(),
+                    user_agent: user_agent.clone(),
+                    timestamp: Utc::now().to_rfc3339(),
+                    method: "password".to_string(),
+                    login_type: "web".to_string(),
+                },
+                failure_info: None,
+                security_info: SecurityInfo {
+                    risk_level: "LOW".to_string(),
+                    risk_factors: Vec::new(),
+                    blocked: false,
+                    block_reason: None,
+                    require_captcha: false,
+                    notify_user: false,
+                },
+                geo_info: None,
+                device_info: DeviceInfo {
+                    os: None,
+                    browser: None,
+                    device_type: "unknown".to_string(),
+                    is_mobile: false,
+                },
+            };
+            enhanced_logger::EnhancedLogger::log_login_security(&security_log);
+
             // Update last login timestamp
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
             let _ = user_svc.update_last_login(user.id).await;
@@ -311,6 +342,47 @@ pub async fn login(
                 Some(&e.to_string()),
             )
             .await;
+
+            // 记录增强登录安全日志
+            let security_log = LoginSecurityLog {
+                event: "LOGIN_FAILURE".to_string(),
+                attempt: LoginAttempt {
+                    username: payload.username.clone(),
+                    ip_address: client_ip.clone(),
+                    user_agent: user_agent.clone(),
+                    timestamp: Utc::now().to_rfc3339(),
+                    method: "password".to_string(),
+                    login_type: "web".to_string(),
+                },
+                failure_info: Some(FailureInfo {
+                    reason: e.to_string(),
+                    attempts_today: recent_user_failures as i32 + 1,
+                    attempts_total: 0,
+                    last_success: None,
+                    last_failure: Some(Utc::now().to_rfc3339()),
+                }),
+                security_info: SecurityInfo {
+                    risk_level: if recent_user_failures >= 3 { "HIGH".to_string() } else { "MEDIUM".to_string() },
+                    risk_factors: {
+                        let mut factors = Vec::new();
+                        if recent_user_failures >= 3 { factors.push("多次失败".to_string()); }
+                        factors
+                    },
+                    blocked: recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64,
+                    block_reason: if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 { Some("登录失败次数过多".to_string()) } else { None },
+                    require_captcha: recent_user_failures >= 2,
+                    notify_user: false,
+                },
+                geo_info: None,
+                device_info: DeviceInfo {
+                    os: None,
+                    browser: None,
+                    device_type: "unknown".to_string(),
+                    is_mobile: false,
+                },
+            };
+            enhanced_logger::EnhancedLogger::log_login_security(&security_log);
+
             let error_response = ApiResponse::<()>::error(e.to_string());
             Err((StatusCode::UNAUTHORIZED, Json(error_response)))
         }

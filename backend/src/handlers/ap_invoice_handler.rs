@@ -169,6 +169,17 @@ pub async fn approve_ap_invoice(
     let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.approve(id, auth.user_id).await?;
 
+    // 记录增强资金操作日志
+    tracing::warn!(
+        target: "financial_audit",
+        "[资金操作] 操作: APPROVE | 类型: AP_INVOICE | 单号: {} | ID: {} | 操作人: {}({}) | IP: {}",
+        invoice.invoice_no,
+        id,
+        auth.username,
+        auth.user_id,
+        "N/A"
+    );
+
     info!(
         "用户 {} 审核应付单成功：{}",
         auth.username, invoice.invoice_no

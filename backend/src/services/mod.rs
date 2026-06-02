@@ -127,3 +127,5 @@ pub mod print_service;
 pub mod audit_cleanup_service;
 // 敏感操作告警服务
 pub mod sensitive_action_alert;
+// 增强日志服务
+pub mod enhanced_logger;
